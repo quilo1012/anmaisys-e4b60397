@@ -116,26 +116,30 @@ export default function EngineerDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>WO#</TableHead>
-                    <TableHead>Line</TableHead>
-                    <TableHead>Machine</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {activeWOs.map((wo) => {
-                    const cfg = statusConfig[wo.status];
-                    return (
-                      <TableRow key={wo.id}>
-                        <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
-                        <TableCell>{wo.line}</TableCell>
-                        <TableCell>{wo.machine}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
-                        <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                     <TableHead>WO#</TableHead>
+                     <TableHead>Line</TableHead>
+                     <TableHead>Machine</TableHead>
+                     <TableHead>Description</TableHead>
+                     <TableHead>Status</TableHead>
+                     <TableHead>Created</TableHead>
+                     <TableHead>Started</TableHead>
+                     <TableHead>Completed</TableHead>
+                     <TableHead>Actions</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {activeWOs.map((wo) => {
+                     const cfg = statusConfig[wo.status];
+                     return (
+                       <TableRow key={wo.id}>
+                         <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
+                         <TableCell>{wo.line}</TableCell>
+                         <TableCell>{wo.machine}</TableCell>
+                         <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
+                         <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
+                         <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                         <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
+                         <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
                         <TableCell>
                           <div className="flex gap-2">
                             {wo.status === "open" && (
