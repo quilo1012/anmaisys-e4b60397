@@ -8,6 +8,7 @@ import { Wrench, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTria
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useWorkOrders, useStartWorkOrder, useCompleteWorkOrder } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
+import { stopAlertSound } from "@/lib/shifts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
