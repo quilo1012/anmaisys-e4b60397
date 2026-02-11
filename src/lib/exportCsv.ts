@@ -1,0 +1,43 @@
+import { differenceInMinutes } from "date-fns";
+
+interface WOForExport {
+  line: string;
+  machine: string;
+  description: string;
+  status: string;
+  operator?: { name: string };
+  engineer?: { name: string };
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_orders.csv") {
+  const headers = ["Line", "Machine", "Description", "Status", "Operator", "Engineer", "Created", "Started", "Completed", "Response Time (min)", "Total Time (min)"];
+  const rows = workOrders.map((wo) => {
+    const responseTime = wo.started_at ? differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at)) : "";
+    const totalTime = wo.completed_at ? differenceInMinutes(new Date(wo.completed_at), new Date(wo.created_at)) : "";
+    return [
+      wo.line,
+      wo.machine,
+      `"${wo.description.replace(/"/g, '""')}"`,
+      wo.status,
+      wo.operator?.name || "",
+      wo.engineer?.name || "",
+      wo.created_at,
+      wo.started_at || "",
+      wo.completed_at || "",
+      String(responseTime),
+      String(totalTime),
+    ].join(",");
+  });
+
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
