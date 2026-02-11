@@ -1,122 +1,60 @@
 
+# Fix: Notifications, Product Line Field, and WO Time Display
 
-# Enhancements: Sequential WO Numbers, Manager WO Control, Print, Dynamic Categories, User Edit
+## Issue 1: Engineer Notifications Not Working
 
-This plan addresses all the gaps between the current implementation and the full specification.
+**Root cause**: Two problems found:
+- The `notified_engineers` update always starts from an empty array (`[...([] as string[]), user.id]`) instead of appending to the existing list from the payload.
+- The manager has no way to verify notifications are being sent. We'll add a visual confirmation toast on the manager side when a WO is created ("WO created -- engineers on shift will be notified").
 
----
+**Fix in `src/hooks/useWOAlerts.ts`**:
+- Read the existing `notified_engineers` array from `payload.new` and append the current user's ID to it.
+- This ensures the list accumulates all notified engineers instead of resetting.
 
-## 1. Sequential Work Order Number
+**Fix in `src/pages/dashboard/ManagerDashboard.tsx`**:
+- After successful WO creation, show a more descriptive toast: "Work Order Created -- Engineers on shift will receive a sound notification."
 
-Add an auto-incrementing `wo_number` (integer) column to `work_orders`. A database sequence generates it automatically on INSERT so each WO gets a unique sequential ID (e.g. WO-0001, WO-0002...).
+## Issue 2: Add "Line" Field to Products
 
-- Database: add `wo_number` column with a sequence default
-- UI: display `WO-XXXX` instead of the truncated UUID everywhere (tables, detail page, exports)
+**Database change**: Add a `line` column (text, nullable, default empty) to the `products` table so the same part can be distinguished by which production line it belongs to.
 
-## 2. Manager Can Create, Edit, and Delete Work Orders
+**UI changes in `src/pages/dashboard/StockPage.tsx`**:
+- Add a "Line" input field in both the Add Product and Edit Product forms.
+- Add a "Line" column in the products table between Name and Code.
 
-Currently only operators can create WOs. This adds:
+**Hook changes in `src/hooks/useStock.ts`**:
+- Update the `Product` interface to include `line: string`.
+- Update `useAddProduct` and `useUpdateProduct` to include the `line` field.
 
-- **Create**: Manager dashboard gets a "Create WO" form (same as operator's). RLS policy updated so admins can also INSERT.
-- **Edit**: Manager can edit line, machine, and description of any WO (dialog on the WO table). RLS already allows admin UPDATE.
-- **Delete**: Manager can delete any WO (with confirmation). New RLS policy for DELETE by admin.
+## Issue 3: Show Engineer Start/End Times in WO Tables
 
-## 3. Print Work Order
+The detail page already shows the timeline correctly. The problem is that the **table views** on Manager, Engineer, and Operator dashboards only show "Created" time.
 
-Add a "Print" button on the Work Order Detail page that uses `window.print()` with a print-friendly CSS layout. The printed view shows:
-- WO number, line, machine, description
-- Timeline (created, started, completed)
-- Operator, Engineer, Closer names
-- Parts used table
-- Response time and total time
+**Changes to all three dashboard tables**:
+- Add "Started" and "Completed" columns to the WO tables.
+- Display `started_at` and `completed_at` formatted as `dd/MM HH:mm`, or "--" if null.
 
-A print-specific CSS media query hides the sidebar and navigation.
-
-## 4. Dynamic Stock Categories
-
-Replace the hardcoded category dropdown with manager-defined categories stored in the database.
-
-- Database: new `product_categories` table (id, name, created_at)
-- RLS: admin can CRUD; engineers can SELECT
-- UI: Stock page shows category management section for managers (add/delete categories). The category dropdown in product forms pulls from the database instead of hardcoded values.
-
-## 5. User Edit and Deactivate
-
-Add edit and deactivate capabilities to the ManageUsers page:
-
-- **Edit**: Dialog to update name, role, shift, and active status. Uses the existing edge function pattern (new `update-user` edge function using service role key for role changes).
-- **Deactivate/Activate**: Toggle the `active` field on profiles. Deactivated users remain in the system but their sessions should be considered invalid.
+Files affected:
+- `src/pages/dashboard/ManagerDashboard.tsx` -- add Started/Completed columns
+- `src/pages/dashboard/EngineerDashboard.tsx` -- add Started/Completed columns
+- `src/pages/dashboard/OperatorDashboard.tsx` -- add Started/Completed columns
 
 ---
 
 ## Technical Details
 
 ### Database Migration
-
 ```sql
--- 1. Sequential WO number
-CREATE SEQUENCE IF NOT EXISTS wo_number_seq START 1;
-ALTER TABLE work_orders ADD COLUMN wo_number integer 
-  NOT NULL DEFAULT nextval('wo_number_seq');
-CREATE UNIQUE INDEX idx_wo_number ON work_orders(wo_number);
-
--- 2. Allow admin to INSERT and DELETE WOs
-CREATE POLICY "Admins can create WOs" ON work_orders
-  FOR INSERT TO authenticated
-  WITH CHECK (has_role(auth.uid(), 'admin'));
-
-CREATE POLICY "Admins can delete WOs" ON work_orders
-  FOR DELETE TO authenticated
-  USING (has_role(auth.uid(), 'admin'));
-
--- 3. Product categories table
-CREATE TABLE product_categories (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL UNIQUE,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-ALTER TABLE product_categories ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Admins can manage categories" ON product_categories
-  FOR ALL TO authenticated
-  USING (has_role(auth.uid(), 'admin'))
-  WITH CHECK (has_role(auth.uid(), 'admin'));
-
-CREATE POLICY "Engineers can view categories" ON product_categories
-  FOR SELECT TO authenticated
-  USING (has_role(auth.uid(), 'engineer'));
-
--- Seed existing categories
-INSERT INTO product_categories (name) VALUES ('BFM'), ('spare'), ('consumable');
+ALTER TABLE products ADD COLUMN line text NOT NULL DEFAULT '';
 ```
 
-### New Edge Function: `update-user`
-
-Handles profile updates (name, shift, active) and role changes via the service role key. Verifies the caller is an admin before making changes.
-
-### Files to Create
-- `supabase/functions/update-user/index.ts` -- edge function for user updates
-- `src/hooks/useCategories.ts` -- hook for fetching/managing product categories
-
 ### Files to Modify
-- `src/hooks/useWorkOrders.ts` -- add `wo_number` to the WorkOrder interface and queries; add `useDeleteWorkOrder` and `useUpdateWorkOrder` hooks
-- `src/pages/dashboard/ManagerDashboard.tsx` -- add Create WO form, Edit/Delete actions on WO table, show `wo_number`
-- `src/pages/dashboard/OperatorDashboard.tsx` -- display `wo_number` in table
-- `src/pages/dashboard/EngineerDashboard.tsx` -- display `wo_number` in table
-- `src/pages/dashboard/WorkOrderDetail.tsx` -- display `wo_number`, add Print button with print-friendly styles
-- `src/pages/dashboard/StockPage.tsx` -- replace hardcoded categories with dynamic ones from DB, add category management UI for managers
-- `src/pages/users/ManageUsers.tsx` -- add Edit and Deactivate buttons/dialogs per user row
-- `src/components/PartsUsedDialog.tsx` -- no changes needed
-- `src/lib/exportCsv.ts` -- add `wo_number` column to CSV export
-- `src/index.css` -- add `@media print` styles to hide sidebar/header
 
-### Summary of Changes by Feature
-
-| Feature | DB | Edge Fn | UI Files |
-|---------|-----|---------|----------|
-| Sequential WO# | sequence + column | -- | all dashboards, detail, CSV |
-| Manager CRUD WOs | 2 RLS policies | -- | ManagerDashboard |
-| Print WO | -- | -- | WorkOrderDetail, index.css |
-| Dynamic Categories | new table + RLS | -- | StockPage, new hook |
-| User Edit/Deactivate | -- | update-user | ManageUsers |
-
+| File | Change |
+|------|--------|
+| `src/hooks/useWOAlerts.ts` | Fix notified_engineers append logic |
+| `src/hooks/useStock.ts` | Add `line` to Product interface, add/update mutations |
+| `src/pages/dashboard/StockPage.tsx` | Add Line field in forms and table |
+| `src/pages/dashboard/ManagerDashboard.tsx` | Add Started/Completed columns, improve create toast |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Add Started/Completed columns |
+| `src/pages/dashboard/OperatorDashboard.tsx` | Add Started/Completed columns |
