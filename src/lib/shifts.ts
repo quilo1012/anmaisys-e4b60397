@@ -70,13 +70,42 @@ export function warmUpAudio() {
   }
 }
 
-export async function playAlertSound() {
-  console.log("[Alert] playAlertSound called");
-  // Play beep 3 times with gaps
-  for (let i = 0; i < 3; i++) {
+let alertIntervalId: ReturnType<typeof setInterval> | null = null;
+let alertTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+export function playAlertSound() {
+  console.log("[Alert] playAlertSound called — starting continuous loop");
+  stopAlertSound(); // clear any existing loop
+
+  const playLoop = async () => {
     await playBeepOnce();
-    if (i < 2) await sleep(400);
+  };
+
+  playLoop(); // play immediately
+  alertIntervalId = setInterval(playLoop, 1000);
+
+  // Auto-stop after 60 seconds
+  alertTimeoutId = setTimeout(() => {
+    console.log("[Alert] 60s timeout — stopping alert");
+    stopAlertSound();
+  }, 60000);
+}
+
+export function stopAlertSound() {
+  if (alertIntervalId) {
+    clearInterval(alertIntervalId);
+    alertIntervalId = null;
   }
+  if (alertTimeoutId) {
+    clearTimeout(alertTimeoutId);
+    alertTimeoutId = null;
+  }
+  // Stop any currently playing audio
+  if (audioElement) {
+    audioElement.pause();
+    audioElement.currentTime = 0;
+  }
+  console.log("[Alert] Sound stopped");
 }
 
 function playBeepOnce(): Promise<void> {

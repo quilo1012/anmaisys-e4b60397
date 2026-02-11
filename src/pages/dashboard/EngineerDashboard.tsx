@@ -163,7 +163,7 @@ export default function EngineerDashboard() {
                          <TableCell>
                           <div className="flex gap-2">
                             {wo.status === "open" && (
-                              <Button size="sm" onClick={() => startWO.mutate(wo.id)} disabled={startWO.isPending}>
+                              <Button size="sm" onClick={() => { stopAlertSound(); startWO.mutate(wo.id); }} disabled={startWO.isPending}>
                                 <Play className="h-3 w-3 mr-1" /> Start
                               </Button>
                             )}
