@@ -19,8 +19,19 @@ export default function StockPage() {
   const { data: products, isLoading } = useProducts();
   const addProduct = useAddProduct();
   const updateStock = useUpdateProductStock();
+  const updateProduct = useUpdateProduct();
+  const deleteProduct = useDeleteProduct();
   const { toast } = useToast();
   const isManager = role === "admin";
+
+  // Edit/Delete state
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editCode, setEditCode] = useState("");
+  const [editQty, setEditQty] = useState("");
+  const [editMinStock, setEditMinStock] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
