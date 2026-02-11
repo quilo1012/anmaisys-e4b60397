@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ClipboardList, Plus, Loader2 } from "lucide-react";
 import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
+import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
