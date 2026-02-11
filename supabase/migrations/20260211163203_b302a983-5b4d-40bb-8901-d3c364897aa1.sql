@@ -1,0 +1,1 @@
+ALTER TABLE products ADD COLUMN line text NOT NULL DEFAULT '';
