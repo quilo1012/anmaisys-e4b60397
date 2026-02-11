@@ -5,7 +5,7 @@ import { playAlertSound, warmUpAudio, requestNotificationPermission, sendWebNoti
 import { useToast } from "@/hooks/use-toast";
 
 export function useWOAlerts() {
-  const { user, profile, role } = useAuth();
+  const { user, role } = useAuth();
   const { toast } = useToast();
 
   // Warm up AudioContext on first user gesture
