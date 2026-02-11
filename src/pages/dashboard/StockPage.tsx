@@ -139,9 +139,8 @@ export default function StockPage() {
                     <TableHead>Category</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Min Stock</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
+                     <TableHead>Status</TableHead>
+                     {isManager && <TableHead>Actions</TableHead>}
                 <TableBody>
                   {products.map((p) => {
                     const isLow = p.quantity <= p.min_stock;
