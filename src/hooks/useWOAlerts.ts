@@ -47,6 +47,10 @@ export function useWOAlerts() {
 
           playAlertSound();
           const wo = payload.new as { id: string; line: string; machine: string; description: string; notified_engineers: string[] | null };
+          
+          const notifBody = `Line: ${wo.line} — Machine: ${wo.machine}\n${wo.description}`;
+          sendWebNotification("🔔 New Work Order!", notifBody);
+          
           toast({
             title: "🔔 New Work Order!",
             description: `Line: ${wo.line} — Machine: ${wo.machine}\n${wo.description}`,
