@@ -39,7 +39,7 @@ export default function ManageUsers() {
   const [editUser, setEditUser] = useState<Profile | null>(null);
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState<AppRole>("operator");
-  const [editShift, setEditShift] = useState("");
+  
   const [editActive, setEditActive] = useState(true);
   const [editLoading, setEditLoading] = useState(false);
 
