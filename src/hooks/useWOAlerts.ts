@@ -40,11 +40,6 @@ export function useWOAlerts() {
         (payload) => {
           console.log("[WOAlerts] Received INSERT payload", payload);
 
-          if (!isOnShift(profile?.shift ?? null)) {
-            console.log("[WOAlerts] Engineer not on shift, skipping");
-            return;
-          }
-
           playAlertSound();
           const wo = payload.new as { id: string; line: string; machine: string; description: string; notified_engineers: string[] | null };
           
