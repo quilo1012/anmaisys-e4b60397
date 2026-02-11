@@ -54,9 +54,9 @@ export default function StockPage() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await addProduct.mutateAsync({ name, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare" });
+      await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare" });
       toast({ title: "Product added" });
-      setName(""); setCode(""); setQty(""); setMinStock(""); setCategory("");
+      setName(""); setProductLine(""); setCode(""); setQty(""); setMinStock(""); setCategory("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
