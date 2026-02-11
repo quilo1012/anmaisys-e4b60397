@@ -64,7 +64,7 @@ export default function ManageUsers() {
       if (res.data?.error) throw new Error(res.data.error);
       toast({ title: "User created", description: `${name} has been added as ${roleLabels[role]}` });
       setOpen(false);
-      setEmail(""); setPassword(""); setName(""); setRole("operator"); setShift("");
+      setEmail(""); setPassword(""); setName(""); setRole("operator");
       fetchUsers();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
