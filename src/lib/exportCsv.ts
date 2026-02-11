@@ -32,7 +32,7 @@ export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_
       wo.completed_at || "",
       String(responseTime),
       String(totalTime),
-      String(partsCounts?.[wo.wo_number ? `WO-${String(wo.wo_number).padStart(4, "0")}` : ""] ?? (partsCounts && wo.wo_number ? "" : "")),
+      String(wo.id && partsCounts?.[wo.id] ? partsCounts[wo.id] : ""),
     ].join(",");
   });
   const csv = [headers.join(","), ...rows].join("\n");
