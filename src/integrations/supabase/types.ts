@@ -14,6 +14,88 @@ export type Database = {
   }
   public: {
     Tables: {
+      parts_used: {
+        Row: {
+          created_at: string
+          engineer_id: string
+          id: string
+          product_id: string
+          quantity: number
+          work_order_id: string
+        }
+        Insert: {
+          created_at?: string
+          engineer_id: string
+          id?: string
+          product_id: string
+          quantity: number
+          work_order_id: string
+        }
+        Update: {
+          created_at?: string
+          engineer_id?: string
+          id?: string
+          product_id?: string
+          quantity?: number
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parts_used_engineer_id_fkey"
+            columns: ["engineer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parts_used_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parts_used_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          category: string
+          code: string
+          created_at: string
+          id: string
+          min_stock: number
+          name: string
+          quantity: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          code: string
+          created_at?: string
+          id?: string
+          min_stock?: number
+          name: string
+          quantity?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          code?: string
+          created_at?: string
+          id?: string
+          min_stock?: number
+          name?: string
+          quantity?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           active: boolean
