@@ -76,6 +76,28 @@ export function useUpdateProductStock() {
   });
 }
 
+export function useUpdateProduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, name, code, quantity, min_stock, category }: { id: string; name: string; code: string; quantity: number; min_stock: number; category: string }) => {
+      const { error } = await supabase.from("products").update({ name, code, quantity, min_stock, category }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["products"] }),
+  });
+}
+
+export function useDeleteProduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("products").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["products"] }),
+  });
+}
+
 export function useRegisterPartsUsed() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
