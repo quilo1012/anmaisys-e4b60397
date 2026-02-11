@@ -117,7 +117,7 @@ export default function ManagerDashboard() {
     e.preventDefault();
     try {
       await createWO.mutateAsync({ line: newLine.trim(), machine: newMachine.trim(), description: newDesc.trim() });
-      toast({ title: "Work Order Created" });
+      toast({ title: "Work Order Created", description: "Engineers on shift will receive a sound notification." });
       setShowCreate(false);
       setNewLine(""); setNewMachine(""); setNewDesc("");
     } catch (err: any) {
