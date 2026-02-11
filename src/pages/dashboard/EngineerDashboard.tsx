@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Wrench, Play, CheckCircle, Loader2, Package, Activity, Timer } from "lucide-react";
+import { Wrench, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useWorkOrders, useStartWorkOrder, useCompleteWorkOrder } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
@@ -68,6 +69,18 @@ export default function EngineerDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {activeWOs && activeWOs.filter(wo => wo.status === "open").length > 0 && (
+          <Alert variant="destructive" className="border-destructive bg-destructive/10 animate-pulse">
+            <AlertTriangle className="h-5 w-5" />
+            <AlertTitle className="text-lg font-bold">
+              ⚠️ {activeWOs.filter(wo => wo.status === "open").length} Open Work Order(s) Waiting!
+            </AlertTitle>
+            <AlertDescription>
+              There are unassigned work orders that need attention. Click "Start" to begin working on one.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div>
           <h2 className="text-2xl font-bold">Engineer Panel</h2>
           <p className="text-muted-foreground">View and execute work orders</p>

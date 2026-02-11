@@ -1,15 +1,35 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { isOnShift, playAlertSound } from "@/lib/shifts";
+import { isOnShift, playAlertSound, warmUpAudio } from "@/lib/shifts";
 import { useToast } from "@/hooks/use-toast";
 
 export function useWOAlerts() {
   const { user, profile, role } = useAuth();
   const { toast } = useToast();
 
+  // Warm up AudioContext on first user gesture
+  useEffect(() => {
+    if (role !== "engineer") return;
+
+    const handler = () => {
+      warmUpAudio();
+      document.removeEventListener("click", handler);
+      document.removeEventListener("keydown", handler);
+    };
+    document.addEventListener("click", handler, { once: true });
+    document.addEventListener("keydown", handler, { once: true });
+
+    return () => {
+      document.removeEventListener("click", handler);
+      document.removeEventListener("keydown", handler);
+    };
+  }, [role]);
+
   useEffect(() => {
     if (role !== "engineer" || !user) return;
+
+    console.log("[WOAlerts] Subscribing to work_orders INSERT for engineer", user.id);
 
     const channel = supabase
       .channel("wo_alerts")
@@ -17,7 +37,12 @@ export function useWOAlerts() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "work_orders" },
         (payload) => {
-          if (!isOnShift(profile?.shift ?? null)) return;
+          console.log("[WOAlerts] Received INSERT payload", payload);
+
+          if (!isOnShift(profile?.shift ?? null)) {
+            console.log("[WOAlerts] Engineer not on shift, skipping");
+            return;
+          }
 
           playAlertSound();
           const wo = payload.new as { id: string; line: string; machine: string; description: string; notified_engineers: string[] | null };
