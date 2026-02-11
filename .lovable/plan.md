@@ -1,62 +1,51 @@
 
 
-# Fix: Remove Shift Filter and Ensure Reliable Real-time Alerts
+# Alerta Sonoro Contínuo Até o Engenheiro Aceitar a Ordem
 
-## Problem Diagnosis
+## O que muda
 
-After reviewing the code and database:
+Atualmente o som toca apenas 3 bipes curtos (menos de 2 segundos no total). O novo comportamento sera:
 
-1. **Realtime IS enabled** -- `work_orders` is in the `supabase_realtime` publication, so the subscription should fire.
-2. **The shift filter blocks notifications** -- In `useWOAlerts.ts`, the callback checks `isOnShift(profile?.shift)`. Since the user's profile has `shift: null`, the `isOnShift` function returns `true` (allows it), BUT this logic is unnecessary and confusing. The user wants to remove shifts entirely.
-3. **Sound may still fail** -- The HTML5 Audio approach should work, but we need to verify the warmup is happening correctly.
+- O som toca em loop contínuo (bipes repetidos a cada ~1 segundo)
+- Continua tocando por até **60 segundos**
+- Para imediatamente quando o engenheiro clica em **"Start"** (aceita a ordem)
+- Para também se outro engenheiro já aceitou a ordem (status muda para `in_progress`)
 
-## Changes
-
-### 1. Remove shift logic from `src/hooks/useWOAlerts.ts`
-- Remove the `isOnShift` check from the realtime callback -- all logged-in engineers receive alerts
-- Remove the `profile` dependency (no longer needed for shift check)
-- Keep `warmUpAudio`, `requestNotificationPermission`, `playAlertSound`, and `sendWebNotification`
-
-### 2. Simplify `src/lib/shifts.ts`
-- Remove `ShiftType`, `SHIFT_RANGES`, `getCurrentShift()`, and `isOnShift()` -- no longer used anywhere
-- Keep only the audio and notification utility functions
-
-### 3. Remove shift column usage from `src/pages/users/ManageUsers.tsx` (if shift editing exists)
-- Remove the shift field from user edit forms since it's no longer relevant
-
-### 4. Database migration
-- Remove the `shift` column from the `profiles` table (optional, can be left as nullable and unused)
-- OR simply stop using it in code (safer, no data loss)
-
-## Technical Details
-
-### `src/hooks/useWOAlerts.ts` -- Updated callback:
+## Como funciona
 
 ```text
-// Before (blocks if not on shift):
-if (!isOnShift(profile?.shift ?? null)) {
-  console.log("[WOAlerts] Engineer not on shift, skipping");
-  return;
-}
-
-// After (all logged-in engineers get alerts):
-// No shift check -- if you're logged in as engineer, you get notified
+Nova WO criada --> Som começa em loop --> Para quando:
+                                           1. Engenheiro clica "Start"
+                                           2. 60 segundos se passaram
+                                           3. Outro engenheiro aceitou
 ```
 
-### `src/lib/shifts.ts` -- Remove unused exports:
+## Detalhes Técnicos
 
-```text
-// REMOVE: ShiftType, SHIFT_RANGES, getCurrentShift, isOnShift
-// KEEP: warmUpAudio, playAlertSound, requestNotificationPermission, sendWebNotification
-```
+### Arquivo: `src/lib/shifts.ts`
 
-### Files to modify:
+- Adicionar variável `alertIntervalId` para controlar o loop
+- Modificar `playAlertSound()` para tocar bipes em loop contínuo (a cada 1s) por até 60 segundos
+- Adicionar nova função `stopAlertSound()` que para o loop e limpa o intervalo
+- A função retorna ou expoe o controle para parar externamente
 
-| File | Change |
-|------|--------|
-| `src/hooks/useWOAlerts.ts` | Remove `isOnShift` import and check from callback |
-| `src/lib/shifts.ts` | Remove shift-related types and functions |
-| `src/pages/users/ManageUsers.tsx` | Remove shift field from user edit form (if present) |
+### Arquivo: `src/hooks/useWOAlerts.ts`
 
-This ensures every engineer who is logged in and has the dashboard open will receive sound + web notification + toast when a new work order is created.
+- Importar `stopAlertSound` junto com `playAlertSound`
+- Guardar referência das WOs pendentes com som ativo
+- Adicionar listener para evento UPDATE na tabela `work_orders` -- quando o status muda de `open` para `in_progress`, chamar `stopAlertSound()`
+- Isso garante que quando qualquer engenheiro aceitar a ordem, o som para para todos
+
+### Arquivo: `src/pages/dashboard/EngineerDashboard.tsx`
+
+- No handler do botão "Start", chamar `stopAlertSound()` antes de executar `startWO.mutate()`
+- Isso para o som imediatamente ao clicar, sem esperar a resposta do banco
+
+### Resumo das alterações
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/lib/shifts.ts` | Loop contínuo de bipes + função `stopAlertSound()` |
+| `src/hooks/useWOAlerts.ts` | Escutar UPDATE para parar som quando WO for aceita |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Chamar `stopAlertSound()` ao clicar "Start" |
 
