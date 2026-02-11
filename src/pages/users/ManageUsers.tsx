@@ -85,7 +85,7 @@ export default function ManageUsers() {
     setEditLoading(true);
     try {
       const res = await supabase.functions.invoke("update-user", {
-        body: { userId: editUser.id, name: editName.trim(), role: editRole, shift: editRole === "engineer" ? editShift : null, active: editActive },
+        body: { userId: editUser.id, name: editName.trim(), role: editRole, active: editActive },
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
