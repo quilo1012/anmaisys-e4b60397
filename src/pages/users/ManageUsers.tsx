@@ -128,19 +128,6 @@ export default function ManageUsers() {
                     </SelectContent>
                   </Select>
                 </div>
-                {role === "engineer" && (
-                  <div className="space-y-2">
-                    <Label>Shift</Label>
-                    <Select value={shift} onValueChange={setShift}>
-                      <SelectTrigger><SelectValue placeholder="Select shift" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="morning">Morning</SelectItem>
-                        <SelectItem value="afternoon">Afternoon</SelectItem>
-                        <SelectItem value="night">Night</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Creating..." : "Create User"}
                 </Button>
