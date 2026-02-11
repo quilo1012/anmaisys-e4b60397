@@ -1,107 +1,124 @@
 
-# AN Maintenance – Industrial Maintenance Management System
 
-## Overview
-A professional industrial maintenance system with role-based access (Operator, Engineer, Manager), work order tracking, stock/inventory management, and real-time alerts. Built incrementally using Lovable Cloud (Supabase) for backend.
+# Phase 2 -- Work Orders System (Full Implementation)
 
----
-
-## Phase 1 – Authentication & User Management
-
-### Login Page
-- Clean industrial-themed login screen (dark blue #1E3A8A, gray, white)
-- Email/password authentication with input validation (trim + lowercase email)
-- Redirect to role-specific dashboard after login
-
-### First-User Flow
-- The very first person to sign up automatically becomes Manager
-- Only Managers can create additional users (Operators & Engineers)
-
-### User Management (Manager only)
-- Create, edit, activate/deactivate users
-- Assign roles: Operator, Engineer, Manager
-- Assign shift/schedule to Engineers (for alert targeting)
-
-### Database Tables
-- **profiles** – name, email, active status, shift/schedule, created_at
-- **user_roles** – separate table linking users to roles (admin/engineer/operator) with RLS security definer functions to prevent privilege escalation
+This phase implements the complete Work Order lifecycle: Operators create WOs, Engineers receive real-time alerts and execute them, and Managers have full oversight. It also adds the WO detail page and navigation updates.
 
 ---
 
-## Phase 2 – Work Orders (Core Flow)
+## 1. Database Changes
+
+### New enum: `wo_status`
+```
+'open', 'in_progress', 'completed', 'force_closed'
+```
+
+### New table: `work_orders`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid (PK) | auto-generated |
+| line | text | production line |
+| machine | text | machine name |
+| description | text | problem description |
+| status | wo_status | default 'open' |
+| operator_id | uuid | who created it (references profiles) |
+| engineer_id | uuid (nullable) | who is executing |
+| closed_by | uuid (nullable) | manager who force-closed |
+| notified_engineers | text[] | array of engineer IDs notified |
+| created_at | timestamptz | auto |
+| started_at | timestamptz (nullable) | when engineer started |
+| completed_at | timestamptz (nullable) | when finished |
+
+### RLS Policies for `work_orders`
+- **Operators**: SELECT own WOs only (`operator_id = auth.uid()`); INSERT with `operator_id = auth.uid()`
+- **Engineers**: SELECT all WOs; UPDATE (start/complete WOs assigned to them)
+- **Managers (admin)**: SELECT all; UPDATE all (force-close); no direct INSERT needed
+
+### Enable Realtime
+- Add `work_orders` to `supabase_realtime` publication for live engineer notifications
+
+---
+
+## 2. New Pages and Components
 
 ### Operator Dashboard (`/dashboard/operator`)
-- **Create Work Order** form: Line, Machine, Problem Description
-- Status auto-set to "Open", timestamp recorded automatically
-- List of own WOs only (filtered by operator_id)
+- **Create WO form**: Line (text input), Machine (text input), Problem Description (textarea)
+- **My Work Orders table**: lists only WOs created by the logged-in operator with status badges (Open = blue, In Progress = amber, Completed = green, Force Closed = gray)
+- Auto-refreshes via Realtime subscription so operator sees status changes live
 
 ### Engineer Dashboard (`/dashboard/engineer`)
-- View all open Work Orders
-- **Start** a WO → status changes to "In Progress", engineer_id assigned
-- **Finish** a WO → status changes to "Completed", close timestamp and total time recorded
-- Real-time sound alert + visual notification when a new WO is created (only if logged in and on current shift)
+- **Open WOs list**: all WOs with status "open" or "in_progress"
+- **Action buttons**: "Start" (sets status to in_progress, assigns engineer_id, records started_at), "Complete" (sets status to completed, records completed_at)
+- **Real-time alert system**:
+  - Subscribe to `work_orders` INSERT events via Supabase Realtime
+  - Check if current engineer's shift matches current time of day
+  - Play audio notification (generated programmatically using Web Audio API -- no external file needed)
+  - Show toast notification with WO details and quick-action button
+- **Stats cards**: WOs completed today, average response time
 
 ### Manager Dashboard (`/dashboard/manager`)
-- View ALL Work Orders across all statuses
-- Force-close any WO if needed
-- Full visibility of who created and who executed each WO
+- **KPI cards** (live data): Open WOs count, In Progress count, Completed today, total users
+- **All Work Orders table**: filterable by status, shows operator name, engineer name, timestamps
+- **Force Close button** on any open/in-progress WO
 
-### Work Order Detail Page (`/dashboard/wo/:id`)
-- Full details: line, machine, description, status, timestamps
-- Action history / timeline
-- Parts used (Phase 3)
-
-### Database
-- **work_orders** table with status enum, operator/engineer references, timestamps
-- Supabase Realtime subscriptions for live WO updates and engineer alerts
-- **notified_engineers** tracking array
+### WO Detail Page (`/dashboard/wo/:id`)
+- Full WO information: line, machine, description, status with colored badge
+- Timeline of events: created, started, completed/force-closed with timestamps
+- Duration calculations (response time, total time)
+- Placeholder for "Parts Used" section (Phase 3)
 
 ---
 
-## Phase 3 – Stock & Inventory
+## 3. Route Updates (App.tsx)
 
-### Stock Page (`/dashboard/stock`)
-- List all parts with current quantity, minimum threshold, category (BFM, spare, consumable)
-- Visual alert when stock falls below minimum
-- Manager-only: manual stock adjustments
-
-### Parts Usage (Engineer)
-- When finishing a WO, engineers register parts used
-- Stock automatically decreases based on usage
-- Parts usage history linked to each WO
-
-### Database
-- **products** – part name, code, current quantity, minimum stock, category
-- **parts_used** – links WO to product with quantity and engineer
+Add new route:
+- `/dashboard/wo/:id` -- accessible by all authenticated roles (operator can see own, engineer can see assigned, manager can see all)
 
 ---
 
-## Phase 4 – Reports & Dashboard
+## 4. Sidebar Navigation Updates
 
-### Manager Reports
-- Export Work Orders to CSV/PDF
-- Filter by date range, status, line, machine
-- Summary statistics: total WOs, avg resolution time, parts consumption
-
-### Manager Dashboard Overview
-- KPI cards: Open WOs, In Progress, Completed today
-- Charts: WOs over time, avg response time, top machines with issues
-- Stock alerts summary
+Update `DashboardLayout.tsx` nav items:
+- Operator gets: Dashboard, (no separate WO link since dashboard IS their WO view)
+- Engineer gets: Dashboard, Work Orders (separate list view)
+- Manager gets: Dashboard, Work Orders, Stock (Phase 3 placeholder), Users
 
 ---
 
-## Design & UX
-- **Industrial theme**: Dark blue (#1E3A8A) header/sidebar, clean white content area, gray accents
-- **Responsive**: Desktop-first with mobile-friendly layout
-- **Navigation**: Role-based sidebar showing only permitted sections
-- **Catch-all route**: Redirects unauthenticated users to `/login`
-- **Sound alerts**: Browser audio notification for engineers on new WOs
+## 5. Real-Time Alert Logic (Engineer)
+
+```text
+New WO inserted (Realtime subscription)
+  --> Check: Is engineer logged in? (yes, they're on the page)
+  --> Check: Does engineer's shift match current time?
+       Morning: 06:00-14:00
+       Afternoon: 14:00-22:00
+       Night: 22:00-06:00
+  --> If match:
+       - Play alert sound (Web Audio API beep)
+       - Show toast with WO summary
+       - Update notified_engineers array on the WO
+```
 
 ---
 
-## Security
-- Row-Level Security (RLS) on all tables
-- Roles stored in separate `user_roles` table (not on profiles) with security definer functions
-- Operators can only see their own WOs
-- Engineers can only act on WOs during their shift
-- Only Managers can manage users, adjust stock, and access reports
+## Technical Details
+
+### Files to create:
+- `src/pages/dashboard/WorkOrderDetail.tsx` -- WO detail page
+- `src/hooks/useWorkOrders.ts` -- shared hook for WO queries/mutations
+- `src/hooks/useWOAlerts.ts` -- real-time alert hook for engineers
+- `src/lib/shifts.ts` -- shift time matching utility
+
+### Files to modify:
+- `src/App.tsx` -- add WO detail route
+- `src/components/DashboardLayout.tsx` -- update nav items
+- `src/pages/dashboard/OperatorDashboard.tsx` -- full create WO + list implementation
+- `src/pages/dashboard/EngineerDashboard.tsx` -- full WO execution + alerts
+- `src/pages/dashboard/ManagerDashboard.tsx` -- live KPIs + all WOs table + force close
+
+### Database migration:
+- Create `wo_status` enum
+- Create `work_orders` table with RLS
+- Enable realtime on `work_orders`
+
