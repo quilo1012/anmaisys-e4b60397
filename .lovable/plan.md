@@ -1,44 +1,36 @@
 
 
-# Fix: Engineer Sound Notification Not Playing
+# Fix: Replace Web Audio API with HTML5 Audio for Reliable Sound
 
 ## Root Cause
 
-The `playAlertSound()` function creates a **new AudioContext** every time it's called. Modern browsers (Chrome, Firefox, Edge) **block AudioContext from producing sound** until the user has made at least one interaction (click, tap, key press) on the page. This is a browser autoplay policy.
-
-If the engineer opens the dashboard and just waits without clicking anything, the AudioContext is created in a "suspended" state and produces no sound -- silently failing.
-
-Additionally, the `catch` block only logs a warning, so the failure is invisible.
+The Web Audio API (`AudioContext` + oscillators) is unreliable for alert sounds in many browsers and environments. Even with the warmup pattern, some browsers still block or silently fail to play oscillator-generated sounds. The toast message works, but the sound does not.
 
 ## Solution
 
-1. **Reuse a single AudioContext** created lazily, and call `ctx.resume()` before playing to handle the suspended state.
-2. **Add a user-gesture warmup**: on the first click/keypress anywhere on the page, resume the AudioContext so it's ready when a WO arrives.
-3. **Add a visual fallback**: if sound fails, show a more prominent persistent alert (not just a toast) so the engineer never misses a WO.
+Replace the `AudioContext` oscillator approach with **HTML5 `Audio` element** using a base64-encoded WAV alarm sound. This is significantly more reliable because:
+- `new Audio(dataURI)` works more consistently across browsers
+- It can be pre-loaded ("warmed up") with a silent play on first user gesture
+- It does not depend on `AudioContext` state management
 
 ## Technical Details
 
 ### File: `src/lib/shifts.ts`
 
-Replace `playAlertSound()` with:
-- A module-level `AudioContext` singleton (created on first call)
-- A `warmUpAudio()` function that resumes the context on user gesture
-- `playAlertSound()` that calls `ctx.resume()` before scheduling oscillators, and repeats the 3-beep pattern twice for emphasis
+- Remove all `AudioContext` / oscillator code
+- Generate a short alarm WAV as a base64 data URI (a simple beep pattern)
+- Create an `Audio` element, pre-load it
+- `warmUpAudio()`: on first user gesture, call `audio.play()` with volume 0 to unlock playback
+- `playAlertSound()`: set volume to 1.0, reset `currentTime`, and call `audio.play()`
+- Add a fallback: if `Audio` fails, try `AudioContext` as backup
 
 ### File: `src/hooks/useWOAlerts.ts`
 
-- Import and call `warmUpAudio()` inside a one-time `click`/`keydown` event listener on `document` to ensure the AudioContext is active before any WO arrives.
-- Add `console.log` in the realtime callback so we can trace if the subscription is firing at all.
-
-### File: `src/pages/dashboard/EngineerDashboard.tsx`
-
-- Add a visual alert banner at the top when there are unacknowledged open WOs (WOs in "open" status), making missed notifications visually obvious even if sound fails.
+- No changes needed (already calls `warmUpAudio` on gesture and `playAlertSound` on WO insert)
 
 ### Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/lib/shifts.ts` | Singleton AudioContext + resume + warmUpAudio export |
-| `src/hooks/useWOAlerts.ts` | Warmup listener on user gesture + logging |
-| `src/pages/dashboard/EngineerDashboard.tsx` | Visual alert banner for open WOs |
+| `src/lib/shifts.ts` | Replace AudioContext with HTML5 Audio + base64 WAV |
 
