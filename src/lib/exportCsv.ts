@@ -13,8 +13,8 @@ interface WOForExport {
   completed_at: string | null;
 }
 
-export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_orders.csv") {
-  const headers = ["WO#", "Line", "Machine", "Description", "Status", "Operator", "Engineer", "Created", "Started", "Completed", "Response Time (min)", "Total Time (min)"];
+export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_orders.csv", partsCounts?: Record<string, number>) {
+  const headers = ["WO#", "Line", "Machine", "Description", "Status", "Operator", "Engineer", "Created", "Started", "Completed", "Response Time (min)", "Total Time (min)", "Parts Used"];
   const rows = workOrders.map((wo) => {
     const responseTime = wo.started_at ? differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at)) : "";
     const totalTime = wo.completed_at ? differenceInMinutes(new Date(wo.completed_at), new Date(wo.created_at)) : "";
