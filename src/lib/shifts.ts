@@ -21,27 +21,20 @@ export function isOnShift(userShift: string | null): boolean {
 export function playAlertSound() {
   try {
     const ctx = new AudioContext();
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-    oscillator.frequency.value = 880;
-    oscillator.type = "sine";
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.5);
-    // Second beep
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.frequency.value = 1100;
-    osc2.type = "sine";
-    gain2.gain.setValueAtTime(0.3, ctx.currentTime + 0.6);
-    gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.1);
-    osc2.start(ctx.currentTime + 0.6);
-    osc2.stop(ctx.currentTime + 1.1);
+    const freqs = [880, 1100, 1320];
+    freqs.forEach((freq, i) => {
+      const startTime = ctx.currentTime + i * 0.35;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = "square";
+      gain.gain.setValueAtTime(0.5, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3);
+      osc.start(startTime);
+      osc.stop(startTime + 0.3);
+    });
   } catch (e) {
     console.warn("Could not play alert sound", e);
   }

@@ -61,7 +61,7 @@ export function PartsUsedDialog({ open, onOpenChange, workOrderId }: PartsUsedDi
                 <SelectContent>
                   {products?.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name} ({p.code}) — Stock: {p.quantity}
+                      {p.name} ({p.code}) — Line: {p.line || "N/A"} — Stock: {p.quantity}
                     </SelectItem>
                   ))}
                 </SelectContent>
