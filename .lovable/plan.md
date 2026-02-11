@@ -1,124 +1,116 @@
 
 
-# Phase 2 -- Work Orders System (Full Implementation)
+# Phase 3 & 4 -- Stock/Inventory + Reports & KPIs
 
-This phase implements the complete Work Order lifecycle: Operators create WOs, Engineers receive real-time alerts and execute them, and Managers have full oversight. It also adds the WO detail page and navigation updates.
+This plan covers the remaining features: inventory management with automatic stock reduction, parts usage tracking, engineer KPIs, manager reports, and CSV export.
 
 ---
 
-## 1. Database Changes
+## Phase 3: Stock & Inventory
 
-### New enum: `wo_status`
-```
-'open', 'in_progress', 'completed', 'force_closed'
-```
+### Database Changes
 
-### New table: `work_orders`
+**New table: `products`**
 | Column | Type | Notes |
 |--------|------|-------|
 | id | uuid (PK) | auto-generated |
-| line | text | production line |
-| machine | text | machine name |
-| description | text | problem description |
-| status | wo_status | default 'open' |
-| operator_id | uuid | who created it (references profiles) |
-| engineer_id | uuid (nullable) | who is executing |
-| closed_by | uuid (nullable) | manager who force-closed |
-| notified_engineers | text[] | array of engineer IDs notified |
+| name | text | part name |
+| code | text (unique) | part code |
+| quantity | integer | current stock, default 0 |
+| min_stock | integer | minimum threshold, default 0 |
+| category | text | 'BFM', 'spare', or 'consumable' |
 | created_at | timestamptz | auto |
-| started_at | timestamptz (nullable) | when engineer started |
-| completed_at | timestamptz (nullable) | when finished |
+| updated_at | timestamptz | auto |
 
-### RLS Policies for `work_orders`
-- **Operators**: SELECT own WOs only (`operator_id = auth.uid()`); INSERT with `operator_id = auth.uid()`
-- **Engineers**: SELECT all WOs; UPDATE (start/complete WOs assigned to them)
-- **Managers (admin)**: SELECT all; UPDATE all (force-close); no direct INSERT needed
+**New table: `parts_used`**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid (PK) | auto-generated |
+| work_order_id | uuid | FK to work_orders |
+| product_id | uuid | FK to products |
+| quantity | integer | amount used |
+| engineer_id | uuid | who registered it |
+| created_at | timestamptz | auto |
 
-### Enable Realtime
-- Add `work_orders` to `supabase_realtime` publication for live engineer notifications
+**RLS Policies:**
+- `products`: Engineers can SELECT; Managers can SELECT, INSERT, UPDATE, DELETE
+- `parts_used`: Engineers can SELECT and INSERT (own records); Managers can SELECT all
 
----
+**Database trigger:** On `parts_used` INSERT, automatically reduce `products.quantity` by the amount used.
 
-## 2. New Pages and Components
+### New Pages
 
-### Operator Dashboard (`/dashboard/operator`)
-- **Create WO form**: Line (text input), Machine (text input), Problem Description (textarea)
-- **My Work Orders table**: lists only WOs created by the logged-in operator with status badges (Open = blue, In Progress = amber, Completed = green, Force Closed = gray)
-- Auto-refreshes via Realtime subscription so operator sees status changes live
+**Stock Page (`/dashboard/stock`)**
+- Table listing all parts: name, code, quantity, min_stock, category
+- Visual warning (red highlight) when quantity is at or below min_stock
+- Manager-only section: Add new product form and manual stock adjustment (+/- quantity)
+- Engineers see read-only stock view
 
-### Engineer Dashboard (`/dashboard/engineer`)
-- **Open WOs list**: all WOs with status "open" or "in_progress"
-- **Action buttons**: "Start" (sets status to in_progress, assigns engineer_id, records started_at), "Complete" (sets status to completed, records completed_at)
-- **Real-time alert system**:
-  - Subscribe to `work_orders` INSERT events via Supabase Realtime
-  - Check if current engineer's shift matches current time of day
-  - Play audio notification (generated programmatically using Web Audio API -- no external file needed)
-  - Show toast notification with WO details and quick-action button
-- **Stats cards**: WOs completed today, average response time
+**Parts Registration (Engineer Dashboard enhancement)**
+- When an engineer completes a WO, they can register parts used before marking complete
+- Dialog/form: select product, enter quantity
+- Stock is reduced automatically via database trigger
 
-### Manager Dashboard (`/dashboard/manager`)
-- **KPI cards** (live data): Open WOs count, In Progress count, Completed today, total users
-- **All Work Orders table**: filterable by status, shows operator name, engineer name, timestamps
-- **Force Close button** on any open/in-progress WO
+### Updated Pages
 
-### WO Detail Page (`/dashboard/wo/:id`)
-- Full WO information: line, machine, description, status with colored badge
-- Timeline of events: created, started, completed/force-closed with timestamps
-- Duration calculations (response time, total time)
-- Placeholder for "Parts Used" section (Phase 3)
+**Work Order Detail** (`/dashboard/wo/:id`)
+- Replace the Phase 3 placeholder with actual parts used list
+- Show product name, quantity used, engineer name, timestamp
 
----
-
-## 3. Route Updates (App.tsx)
-
-Add new route:
-- `/dashboard/wo/:id` -- accessible by all authenticated roles (operator can see own, engineer can see assigned, manager can see all)
+**Engineer Dashboard**
+- Add "Register Parts" button on in-progress WOs (opens parts dialog)
 
 ---
 
-## 4. Sidebar Navigation Updates
+## Phase 4: Reports & KPIs
 
-Update `DashboardLayout.tsx` nav items:
-- Operator gets: Dashboard, (no separate WO link since dashboard IS their WO view)
-- Engineer gets: Dashboard, Work Orders (separate list view)
-- Manager gets: Dashboard, Work Orders, Stock (Phase 3 placeholder), Users
+### Engineer KPIs (Engineer Dashboard)
 
----
+New stats cards:
+- Total WOs completed (all time)
+- Average Response Time (time from created to started)
+- Average MTTR (Mean Time To Repair: started to completed)
+- Total parts used
 
-## 5. Real-Time Alert Logic (Engineer)
+Computed by querying completed WOs where `engineer_id = current user`.
 
-```text
-New WO inserted (Realtime subscription)
-  --> Check: Is engineer logged in? (yes, they're on the page)
-  --> Check: Does engineer's shift match current time?
-       Morning: 06:00-14:00
-       Afternoon: 14:00-22:00
-       Night: 22:00-06:00
-  --> If match:
-       - Play alert sound (Web Audio API beep)
-       - Show toast with WO summary
-       - Update notified_engineers array on the WO
-```
+### Manager Dashboard Enhancements
+
+**KPI Summary Cards (enhanced):**
+- Average Response Time (all engineers)
+- Average MTTR (all engineers)
+- Total parts consumed today
+- Low stock alerts count
+
+**Charts (using Recharts, already installed):**
+- Bar chart: WOs per day (last 7 days)
+- Bar chart: Top 5 machines by WO count
+
+### CSV Export (Manager)
+
+- "Export" button on the Work Orders table
+- Generates CSV with: Line, Machine, Description, Status, Operator, Engineer, Created, Started, Completed, Response Time, Total Time
+- Date range filter before export
 
 ---
 
 ## Technical Details
 
 ### Files to create:
-- `src/pages/dashboard/WorkOrderDetail.tsx` -- WO detail page
-- `src/hooks/useWorkOrders.ts` -- shared hook for WO queries/mutations
-- `src/hooks/useWOAlerts.ts` -- real-time alert hook for engineers
-- `src/lib/shifts.ts` -- shift time matching utility
+- `src/pages/dashboard/StockPage.tsx` -- full stock management page
+- `src/hooks/useStock.ts` -- queries/mutations for products and parts_used
+- `src/components/PartsUsedDialog.tsx` -- dialog for engineers to register parts
+- `src/lib/exportCsv.ts` -- CSV generation utility
 
 ### Files to modify:
-- `src/App.tsx` -- add WO detail route
-- `src/components/DashboardLayout.tsx` -- update nav items
-- `src/pages/dashboard/OperatorDashboard.tsx` -- full create WO + list implementation
-- `src/pages/dashboard/EngineerDashboard.tsx` -- full WO execution + alerts
-- `src/pages/dashboard/ManagerDashboard.tsx` -- live KPIs + all WOs table + force close
+- `src/App.tsx` -- add `/dashboard/stock` route
+- `src/components/DashboardLayout.tsx` -- stock nav already exists, just verify routing
+- `src/pages/dashboard/EngineerDashboard.tsx` -- add KPI cards, parts registration button
+- `src/pages/dashboard/ManagerDashboard.tsx` -- add charts, enhanced KPIs, export button
+- `src/pages/dashboard/WorkOrderDetail.tsx` -- show actual parts used instead of placeholder
 
 ### Database migration:
-- Create `wo_status` enum
-- Create `work_orders` table with RLS
-- Enable realtime on `work_orders`
+- Create `products` and `parts_used` tables with RLS
+- Create trigger function to auto-reduce stock on parts_used INSERT
+- Enable realtime on `products` (for live stock updates)
 
