@@ -30,7 +30,7 @@ const navItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"] },
   { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"] },
   { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin"] },
-  { title: "Work Orders", url: "/dashboard/manager", icon: ClipboardList, roles: ["admin"] },
+  
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "engineer"] },
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin"] },
 ]; 

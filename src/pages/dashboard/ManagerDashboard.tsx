@@ -277,7 +277,7 @@ export default function ManagerDashboard() {
                   let filtered = workOrders;
                   if (dateFrom) filtered = filtered.filter((w) => w.created_at >= dateFrom);
                   if (dateTo) filtered = filtered.filter((w) => w.created_at <= dateTo + "T23:59:59");
-                  exportWorkOrdersCsv(filtered);
+                  exportWorkOrdersCsv(filtered, undefined, partsCounts);
                 }}>
                   <Download className="h-4 w-4 mr-1" /> Export CSV
                 </Button>

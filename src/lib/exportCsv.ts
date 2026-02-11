@@ -1,6 +1,7 @@
 import { differenceInMinutes } from "date-fns";
 
 interface WOForExport {
+  id?: string;
   wo_number?: number;
   line: string;
   machine: string;
@@ -13,8 +14,8 @@ interface WOForExport {
   completed_at: string | null;
 }
 
-export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_orders.csv") {
-  const headers = ["WO#", "Line", "Machine", "Description", "Status", "Operator", "Engineer", "Created", "Started", "Completed", "Response Time (min)", "Total Time (min)"];
+export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_orders.csv", partsCounts?: Record<string, number>) {
+  const headers = ["WO#", "Line", "Machine", "Description", "Status", "Operator", "Engineer", "Created", "Started", "Completed", "Response Time (min)", "Total Time (min)", "Parts Used"];
   const rows = workOrders.map((wo) => {
     const responseTime = wo.started_at ? differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at)) : "";
     const totalTime = wo.completed_at ? differenceInMinutes(new Date(wo.completed_at), new Date(wo.created_at)) : "";
@@ -31,6 +32,7 @@ export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_
       wo.completed_at || "",
       String(responseTime),
       String(totalTime),
+      String(wo.id && partsCounts?.[wo.id] ? partsCounts[wo.id] : ""),
     ].join(",");
   });
   const csv = [headers.join(","), ...rows].join("\n");
