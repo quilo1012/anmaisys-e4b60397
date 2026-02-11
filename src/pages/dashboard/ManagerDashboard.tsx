@@ -312,6 +312,7 @@ export default function ManagerDashboard() {
                      <TableHead>Operator</TableHead>
                      <TableHead>Engineer</TableHead>
                      <TableHead>Created</TableHead>
+                     <TableHead>Parts</TableHead>
                      <TableHead>Started</TableHead>
                      <TableHead>Completed</TableHead>
                      <TableHead>Actions</TableHead>
