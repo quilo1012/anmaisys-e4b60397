@@ -57,7 +57,7 @@ export function useProducts() {
 export function useAddProduct() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (product: { name: string; code: string; quantity: number; min_stock: number; category: string }) => {
+    mutationFn: async (product: { name: string; line?: string; code: string; quantity: number; min_stock: number; category: string }) => {
       const { data, error } = await supabase.from("products").insert(product).select().single();
       if (error) throw error;
       return data;
