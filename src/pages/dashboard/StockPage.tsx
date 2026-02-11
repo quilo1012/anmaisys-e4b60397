@@ -157,22 +157,24 @@ export default function StockPage() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Min Stock</TableHead>
-                    <TableHead>Status</TableHead>
-                    {isManager && <TableHead>Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {products.map((p) => {
-                    const isLow = p.quantity <= p.min_stock;
-                    return (
-                      <TableRow key={p.id} className={isLow ? "bg-destructive/10" : ""}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
+                 <TableRow>
+                     <TableHead>Name</TableHead>
+                     <TableHead>Line</TableHead>
+                     <TableHead>Code</TableHead>
+                     <TableHead>Category</TableHead>
+                     <TableHead>Quantity</TableHead>
+                     <TableHead>Min Stock</TableHead>
+                     <TableHead>Status</TableHead>
+                     {isManager && <TableHead>Actions</TableHead>}
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {products.map((p) => {
+                     const isLow = p.quantity <= p.min_stock;
+                     return (
+                       <TableRow key={p.id} className={isLow ? "bg-destructive/10" : ""}>
+                         <TableCell className="font-medium">{p.name}</TableCell>
+                         <TableCell>{p.line || "—"}</TableCell>
                         <TableCell>{p.code}</TableCell>
                         <TableCell><Badge variant="outline" className="capitalize">{p.category}</Badge></TableCell>
                         <TableCell className={isLow ? "text-destructive font-bold" : ""}>{p.quantity}</TableCell>
