@@ -58,7 +58,7 @@ export default function ManageUsers() {
     setLoading(true);
     try {
       const res = await supabase.functions.invoke("create-user", {
-        body: { email: email.trim().toLowerCase(), password, name: name.trim(), role, shift: role === "engineer" ? shift : null },
+        body: { email: email.trim().toLowerCase(), password, name: name.trim(), role },
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
