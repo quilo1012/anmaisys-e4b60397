@@ -162,7 +162,6 @@ export default function ManageUsers() {
                           {user.role ? roleLabels[user.role] : "No role"}
                         </div>
                       </TableCell>
-                      <TableCell className="capitalize">{user.shift || "—"}</TableCell>
                       <TableCell>
                         <Badge variant={user.active ? "default" : "secondary"}>
                           {user.active ? "Active" : "Inactive"}
