@@ -177,7 +177,7 @@ export default function ManageUsers() {
                 })}
                 {users.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">No users found</TableCell>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">No users found</TableCell>
                   </TableRow>
                 )}
               </TableBody>
