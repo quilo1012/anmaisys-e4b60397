@@ -126,3 +126,32 @@ function playBeepOnce(): Promise<void> {
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
+
+// --- Web Notifications API ---
+
+export async function requestNotificationPermission() {
+  if (!("Notification" in window)) {
+    console.warn("[Notify] Browser does not support Notifications API");
+    return;
+  }
+  if (Notification.permission === "granted" || Notification.permission === "denied") {
+    console.log("[Notify] Permission already:", Notification.permission);
+    return;
+  }
+  try {
+    const result = await Notification.requestPermission();
+    console.log("[Notify] Permission result:", result);
+  } catch (e) {
+    console.warn("[Notify] Permission request failed", e);
+  }
+}
+
+export function sendWebNotification(title: string, body: string) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    new Notification(title, { body, icon: "/favicon.ico" });
+    console.log("[Notify] Notification sent:", title);
+  } catch (e) {
+    console.warn("[Notify] Failed to send notification", e);
+  }
+}
