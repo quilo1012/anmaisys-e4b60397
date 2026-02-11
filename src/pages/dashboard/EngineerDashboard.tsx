@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Wrench, Play, CheckCircle, Loader2, Clock, BarChart3, Package, Activity, Timer } from "lucide-react";
+import { Wrench, Play, CheckCircle, Loader2, Package, Activity, Timer } from "lucide-react";
 import { useWorkOrders, useStartWorkOrder, useCompleteWorkOrder } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { useTotalPartsUsedByEngineer } from "@/hooks/useStock";
@@ -116,6 +116,7 @@ export default function EngineerDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>WO#</TableHead>
                     <TableHead>Line</TableHead>
                     <TableHead>Machine</TableHead>
                     <TableHead>Description</TableHead>
@@ -129,7 +130,8 @@ export default function EngineerDashboard() {
                     const cfg = statusConfig[wo.status];
                     return (
                       <TableRow key={wo.id}>
-                        <TableCell className="font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>{wo.line}</TableCell>
+                        <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
+                        <TableCell>{wo.line}</TableCell>
                         <TableCell>{wo.machine}</TableCell>
                         <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
                         <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
