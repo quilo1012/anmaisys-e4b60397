@@ -1,36 +1,37 @@
 
 
-# Fix: Replace Web Audio API with HTML5 Audio for Reliable Sound
+# Add Web Notifications API as Fallback for Sound Alerts
 
-## Root Cause
+## Problem
 
-The Web Audio API (`AudioContext` + oscillators) is unreliable for alert sounds in many browsers and environments. Even with the warmup pattern, some browsers still block or silently fail to play oscillator-generated sounds. The toast message works, but the sound does not.
+The HTML5 Audio sound alert may still fail silently in some browsers or environments (e.g., muted devices, strict autoplay policies). Engineers need a guaranteed way to be notified about new Work Orders.
 
 ## Solution
 
-Replace the `AudioContext` oscillator approach with **HTML5 `Audio` element** using a base64-encoded WAV alarm sound. This is significantly more reliable because:
-- `new Audio(dataURI)` works more consistently across browsers
-- It can be pre-loaded ("warmed up") with a silent play on first user gesture
-- It does not depend on `AudioContext` state management
+Add the **Web Notifications API** as a secondary notification channel. When a new WO arrives, the system will:
+1. Try to play the audio alert (existing behavior)
+2. Also send a browser push notification that appears even if the tab is in the background
+
+The notification permission will be requested on the first user gesture (same moment as audio warmup).
 
 ## Technical Details
 
 ### File: `src/lib/shifts.ts`
 
-- Remove all `AudioContext` / oscillator code
-- Generate a short alarm WAV as a base64 data URI (a simple beep pattern)
-- Create an `Audio` element, pre-load it
-- `warmUpAudio()`: on first user gesture, call `audio.play()` with volume 0 to unlock playback
-- `playAlertSound()`: set volume to 1.0, reset `currentTime`, and call `audio.play()`
-- Add a fallback: if `Audio` fails, try `AudioContext` as backup
+- Add `requestNotificationPermission()`: calls `Notification.requestPermission()` and logs the result
+- Add `sendWebNotification(title, body)`: creates a `new Notification(title, { body, icon })` if permission is granted
+- Export both functions
 
 ### File: `src/hooks/useWOAlerts.ts`
 
-- No changes needed (already calls `warmUpAudio` on gesture and `playAlertSound` on WO insert)
+- Import `requestNotificationPermission` and `sendWebNotification`
+- In the warmup gesture handler, also call `requestNotificationPermission()`
+- In the realtime INSERT callback, after `playAlertSound()`, also call `sendWebNotification()` with the WO details
 
-### Files to Modify
+## Changes
 
 | File | Change |
 |------|--------|
-| `src/lib/shifts.ts` | Replace AudioContext with HTML5 Audio + base64 WAV |
+| `src/lib/shifts.ts` | Add `requestNotificationPermission()` and `sendWebNotification()` |
+| `src/hooks/useWOAlerts.ts` | Request permission on gesture, send notification on new WO |
 
