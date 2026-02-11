@@ -103,3 +103,18 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  nav, aside, header, .sidebar, [data-sidebar], button {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .print-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+}
