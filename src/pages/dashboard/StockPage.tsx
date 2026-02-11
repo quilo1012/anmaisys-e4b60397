@@ -83,6 +83,7 @@ export default function StockPage() {
   const openEdit = (p: Product) => {
     setEditProduct(p);
     setEditName(p.name);
+    setEditLine(p.line || "");
     setEditCode(p.code);
     setEditQty(String(p.quantity));
     setEditMinStock(String(p.min_stock));
