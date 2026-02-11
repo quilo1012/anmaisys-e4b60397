@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle } from "lucide-react";
+import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer } from "lucide-react";
 import { useWorkOrderById } from "@/hooks/useWorkOrders";
 import { usePartsUsedByWO } from "@/hooks/useStock";
 import { format, differenceInMinutes } from "date-fns";
@@ -59,18 +59,24 @@ export default function WorkOrderDetail() {
   const cfg = statusConfig[wo.status];
   const responseTime = wo.started_at ? differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at)) : null;
   const totalTime = wo.completed_at ? differenceInMinutes(new Date(wo.completed_at), new Date(wo.created_at)) : null;
+  const woLabel = `WO-${String(wo.wo_number).padStart(4, "0")}`;
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-3xl">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-2">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Button>
+      <div className="space-y-6 max-w-3xl print-content">
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-2">
+            <ArrowLeft className="h-4 w-4" /> Back
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2 print:hidden">
+            <Printer className="h-4 w-4" /> Print
+          </Button>
+        </div>
 
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">{wo.line} — {wo.machine}</h2>
-            <p className="text-muted-foreground text-sm">WO #{wo.id.slice(0, 8)}</p>
+            <p className="text-muted-foreground text-sm font-mono">{woLabel}</p>
           </div>
           <Badge variant="outline" className={`text-sm px-3 py-1 ${cfg.className}`}>{cfg.label}</Badge>
         </div>

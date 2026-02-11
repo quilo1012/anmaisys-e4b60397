@@ -1,6 +1,7 @@
 import { differenceInMinutes } from "date-fns";
 
 interface WOForExport {
+  wo_number?: number;
   line: string;
   machine: string;
   description: string;
@@ -13,11 +14,12 @@ interface WOForExport {
 }
 
 export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_orders.csv") {
-  const headers = ["Line", "Machine", "Description", "Status", "Operator", "Engineer", "Created", "Started", "Completed", "Response Time (min)", "Total Time (min)"];
+  const headers = ["WO#", "Line", "Machine", "Description", "Status", "Operator", "Engineer", "Created", "Started", "Completed", "Response Time (min)", "Total Time (min)"];
   const rows = workOrders.map((wo) => {
     const responseTime = wo.started_at ? differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at)) : "";
     const totalTime = wo.completed_at ? differenceInMinutes(new Date(wo.completed_at), new Date(wo.created_at)) : "";
     return [
+      wo.wo_number ? `WO-${String(wo.wo_number).padStart(4, "0")}` : "",
       wo.line,
       wo.machine,
       `"${wo.description.replace(/"/g, '""')}"`,
@@ -31,7 +33,6 @@ export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_
       String(totalTime),
     ].join(",");
   });
-
   const csv = [headers.join(","), ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);

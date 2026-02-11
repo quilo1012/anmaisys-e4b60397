@@ -9,18 +9,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2 } from "lucide-react";
+import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2, Tags } from "lucide-react";
 import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
+import { useCategories, useAddCategory, useDeleteCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 export default function StockPage() {
   const { role } = useAuth();
   const { data: products, isLoading } = useProducts();
+  const { data: categories, isLoading: categoriesLoading } = useCategories();
   const addProduct = useAddProduct();
   const updateStock = useUpdateProductStock();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
+  const addCategory = useAddCategory();
+  const deleteCategory = useDeleteCategory();
   const { toast } = useToast();
   const isManager = role === "admin";
 
@@ -37,17 +41,20 @@ export default function StockPage() {
   const [code, setCode] = useState("");
   const [qty, setQty] = useState("");
   const [minStock, setMinStock] = useState("");
-  const [category, setCategory] = useState("spare");
+  const [category, setCategory] = useState("");
 
   const [adjustId, setAdjustId] = useState("");
   const [adjustQty, setAdjustQty] = useState("");
 
+  // Category management
+  const [newCategoryName, setNewCategoryName] = useState("");
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await addProduct.mutateAsync({ name, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category });
+      await addProduct.mutateAsync({ name, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare" });
       toast({ title: "Product added" });
-      setName(""); setCode(""); setQty(""); setMinStock(""); setCategory("spare");
+      setName(""); setCode(""); setQty(""); setMinStock(""); setCategory("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -102,7 +109,21 @@ export default function StockPage() {
     }
   };
 
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+    try {
+      await addCategory.mutateAsync(newCategoryName.trim());
+      toast({ title: "Category added" });
+      setNewCategoryName("");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
+
+  const categoryOptions = categories || [];
 
   return (
     <DashboardLayout>
@@ -139,10 +160,10 @@ export default function StockPage() {
                     <TableHead>Category</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Min Stock</TableHead>
-                     <TableHead>Status</TableHead>
-                     {isManager && <TableHead>Actions</TableHead>}
-                   </TableRow>
-                 </TableHeader>
+                    <TableHead>Status</TableHead>
+                    {isManager && <TableHead>Actions</TableHead>}
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {products.map((p) => {
                     const isLow = p.quantity <= p.min_stock;
@@ -178,61 +199,92 @@ export default function StockPage() {
         </Card>
 
         {isManager && (
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Plus className="h-4 w-4" /> Add Product</CardTitle></CardHeader>
-              <CardContent>
-                <form onSubmit={handleAdd} className="space-y-3">
-                  <div className="space-y-1"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
-                  <div className="space-y-1"><Label>Code</Label><Input value={code} onChange={(e) => setCode(e.target.value)} required /></div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1"><Label>Initial Qty</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
-                    <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} /></div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Category</Label>
-                    <Select value={category} onValueChange={setCategory}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="BFM">BFM</SelectItem>
-                        <SelectItem value="spare">Spare</SelectItem>
-                        <SelectItem value="consumable">Consumable</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={addProduct.isPending}>
-                    {addProduct.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Add Product
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
+          <>
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader><CardTitle className="text-base flex items-center gap-2"><Plus className="h-4 w-4" /> Add Product</CardTitle></CardHeader>
+                <CardContent>
+                  <form onSubmit={handleAdd} className="space-y-3">
+                    <div className="space-y-1"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
+                    <div className="space-y-1"><Label>Code</Label><Input value={code} onChange={(e) => setCode(e.target.value)} required /></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1"><Label>Initial Qty</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
+                      <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} /></div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Category</Label>
+                      <Select value={category} onValueChange={setCategory}>
+                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                        <SelectContent>
+                          {categoryOptions.map((c) => (
+                            <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button type="submit" className="w-full" disabled={addProduct.isPending}>
+                      {addProduct.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Add Product
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
 
+              <Card>
+                <CardHeader><CardTitle className="text-base">Manual Stock Adjustment</CardTitle></CardHeader>
+                <CardContent>
+                  <form onSubmit={handleAdjust} className="space-y-3">
+                    <div className="space-y-1">
+                      <Label>Product</Label>
+                      <Select value={adjustId} onValueChange={setAdjustId}>
+                        <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                        <SelectContent>
+                          {products?.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.name} ({p.code}) — Current: {p.quantity}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Adjustment (+/-)</Label>
+                      <Input type="number" value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} placeholder="e.g. +10 or -5" required />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={updateStock.isPending || !adjustId}>
+                      {updateStock.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Apply Adjustment
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Category Management */}
             <Card>
-              <CardHeader><CardTitle className="text-base">Manual Stock Adjustment</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Tags className="h-4 w-4" /> Manage Categories</CardTitle></CardHeader>
               <CardContent>
-                <form onSubmit={handleAdjust} className="space-y-3">
-                  <div className="space-y-1">
-                    <Label>Product</Label>
-                    <Select value={adjustId} onValueChange={setAdjustId}>
-                      <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                      <SelectContent>
-                        {products?.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.name} ({p.code}) — Current: {p.quantity}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                <div className="flex gap-2 mb-4">
+                  <form onSubmit={handleAddCategory} className="flex gap-2 flex-1">
+                    <Input value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder="New category name" className="flex-1" />
+                    <Button type="submit" size="sm" disabled={addCategory.isPending}>
+                      {addCategory.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    </Button>
+                  </form>
+                </div>
+                {categoriesLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {categoryOptions.map((c) => (
+                      <Badge key={c.id} variant="secondary" className="gap-1 pr-1">
+                        {c.name}
+                        <Button size="icon" variant="ghost" className="h-4 w-4 p-0 text-destructive hover:bg-transparent" onClick={() => deleteCategory.mutate(c.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </Badge>
+                    ))}
                   </div>
-                  <div className="space-y-1">
-                    <Label>Adjustment (+/-)</Label>
-                    <Input type="number" value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} placeholder="e.g. +10 or -5" required />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={updateStock.isPending || !adjustId}>
-                    {updateStock.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Apply Adjustment
-                  </Button>
-                </form>
+                )}
               </CardContent>
             </Card>
-          </div>
+          </>
         )}
 
         {/* Edit Product Dialog */}
@@ -251,9 +303,9 @@ export default function StockPage() {
                 <Select value={editCategory} onValueChange={setEditCategory}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="BFM">BFM</SelectItem>
-                    <SelectItem value="spare">Spare</SelectItem>
-                    <SelectItem value="consumable">Consumable</SelectItem>
+                    {categoryOptions.map((c) => (
+                      <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

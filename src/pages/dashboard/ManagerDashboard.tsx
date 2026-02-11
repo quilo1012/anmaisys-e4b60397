@@ -3,18 +3,24 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LayoutDashboard, ClipboardList, Users, XCircle, Loader2, Download, Timer, Activity, Package, AlertTriangle } from "lucide-react";
-import { useWorkOrders, useForceCloseWorkOrder, type WOStatus } from "@/hooks/useWorkOrders";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { LayoutDashboard, ClipboardList, Users, XCircle, Loader2, Download, Timer, Activity, Package, AlertTriangle, Plus, Pencil, Trash2 } from "lucide-react";
+import { useWorkOrders, useForceCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes, subDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { exportWorkOrdersCsv } from "@/lib/exportCsv";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { useToast } from "@/hooks/use-toast";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -24,6 +30,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 };
 
 export default function ManagerDashboard() {
+  const { user } = useAuth();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -31,9 +38,28 @@ export default function ManagerDashboard() {
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
   const { data: allWOs } = useWorkOrders();
   const forceClose = useForceCloseWorkOrder();
+  const createWO = useCreateWorkOrder();
+  const updateWO = useUpdateWorkOrder();
+  const deleteWO = useDeleteWorkOrder();
   const navigate = useNavigate();
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products } = useProducts();
+  const { toast } = useToast();
+
+  // Create WO state
+  const [showCreate, setShowCreate] = useState(false);
+  const [newLine, setNewLine] = useState("");
+  const [newMachine, setNewMachine] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+
+  // Edit WO state
+  const [editWO, setEditWO] = useState<WorkOrder | null>(null);
+  const [editLine, setEditLine] = useState("");
+  const [editMachine, setEditMachine] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+
+  // Delete WO state
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: userCount } = useQuery({
     queryKey: ["user_count"],
@@ -50,7 +76,6 @@ export default function ManagerDashboard() {
   const completedToday = allWOs?.filter((w) => w.status === "completed" && w.completed_at && new Date(w.completed_at).toDateString() === today).length ?? 0;
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
 
-  // KPIs
   const kpis = useMemo(() => {
     if (!allWOs) return { avgResponse: 0, avgMTTR: 0 };
     const completed = allWOs.filter((w) => w.status === "completed" && w.started_at && w.completed_at);
@@ -66,7 +91,6 @@ export default function ManagerDashboard() {
     };
   }, [allWOs]);
 
-  // Chart: WOs per day (last 7 days)
   const wosPerDay = useMemo(() => {
     if (!allWOs) return [];
     const days: { date: string; count: number }[] = [];
@@ -79,7 +103,6 @@ export default function ManagerDashboard() {
     return days;
   }, [allWOs]);
 
-  // Chart: Top 5 machines by WO count
   const topMachines = useMemo(() => {
     if (!allWOs) return [];
     const machineCount: Record<string, number> = {};
@@ -90,14 +113,61 @@ export default function ManagerDashboard() {
       .map(([machine, count]) => ({ machine, count }));
   }, [allWOs]);
 
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await createWO.mutateAsync({ line: newLine.trim(), machine: newMachine.trim(), description: newDesc.trim() });
+      toast({ title: "Work Order Created" });
+      setShowCreate(false);
+      setNewLine(""); setNewMachine(""); setNewDesc("");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const openEdit = (wo: WorkOrder) => {
+    setEditWO(wo);
+    setEditLine(wo.line);
+    setEditMachine(wo.machine);
+    setEditDesc(wo.description);
+  };
+
+  const handleEdit = async () => {
+    if (!editWO) return;
+    try {
+      await updateWO.mutateAsync({ id: editWO.id, line: editLine.trim(), machine: editMachine.trim(), description: editDesc.trim() });
+      toast({ title: "Work Order Updated" });
+      setEditWO(null);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+      await deleteWO.mutateAsync(deleteId);
+      toast({ title: "Work Order Deleted" });
+      setDeleteId(null);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold">Manager Dashboard</h2>
-          <p className="text-muted-foreground">Full system overview and control</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Manager Dashboard</h2>
+            <p className="text-muted-foreground">Full system overview and control</p>
+          </div>
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Create WO
+          </Button>
         </div>
 
+        {/* KPI cards - same as before */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -233,6 +303,7 @@ export default function ManagerDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>WO#</TableHead>
                     <TableHead>Line</TableHead>
                     <TableHead>Machine</TableHead>
                     <TableHead>Status</TableHead>
@@ -248,18 +319,23 @@ export default function ManagerDashboard() {
                     const canForceClose = wo.status === "open" || wo.status === "in_progress";
                     return (
                       <TableRow key={wo.id}>
-                        <TableCell className="font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>{wo.line}</TableCell>
+                        <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
+                        <TableCell>{wo.line}</TableCell>
                         <TableCell>{wo.machine}</TableCell>
                         <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
                         <TableCell className="text-sm">{wo.operator?.name || "—"}</TableCell>
                         <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
                         <TableCell>
-                          {canForceClose && (
-                            <Button size="sm" variant="destructive" onClick={() => forceClose.mutate(wo.id)} disabled={forceClose.isPending}>
-                              <XCircle className="h-3 w-3 mr-1" /> Force Close
-                            </Button>
-                          )}
+                          <div className="flex gap-1">
+                            <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(wo.id)}><Trash2 className="h-4 w-4" /></Button>
+                            {canForceClose && (
+                              <Button size="sm" variant="destructive" onClick={() => forceClose.mutate(wo.id)} disabled={forceClose.isPending}>
+                                <XCircle className="h-3 w-3 mr-1" /> Force Close
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -269,6 +345,53 @@ export default function ManagerDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Create WO Dialog */}
+        <Dialog open={showCreate} onOpenChange={setShowCreate}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Create Work Order</DialogTitle></DialogHeader>
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="space-y-2"><Label>Production Line</Label><Input value={newLine} onChange={(e) => setNewLine(e.target.value)} required /></div>
+              <div className="space-y-2"><Label>Machine</Label><Input value={newMachine} onChange={(e) => setNewMachine(e.target.value)} required /></div>
+              <div className="space-y-2"><Label>Problem Description</Label><Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={3} required /></div>
+              <Button type="submit" className="w-full" disabled={createWO.isPending}>
+                {createWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Create
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit WO Dialog */}
+        <Dialog open={!!editWO} onOpenChange={(open) => !open && setEditWO(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit Work Order</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Production Line</Label><Input value={editLine} onChange={(e) => setEditLine(e.target.value)} /></div>
+              <div className="space-y-2"><Label>Machine</Label><Input value={editMachine} onChange={(e) => setEditMachine(e.target.value)} /></div>
+              <div className="space-y-2"><Label>Problem Description</Label><Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={3} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditWO(null)}>Cancel</Button>
+              <Button onClick={handleEdit} disabled={updateWO.isPending}>
+                {updateWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete WO Confirmation */}
+        <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete work order?</AlertDialogTitle>
+              <AlertDialogDescription>This action cannot be undone. The work order will be permanently removed.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );

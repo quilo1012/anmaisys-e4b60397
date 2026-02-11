@@ -101,6 +101,7 @@ export default function OperatorDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>WO#</TableHead>
                     <TableHead>Line</TableHead>
                     <TableHead>Machine</TableHead>
                     <TableHead>Status</TableHead>
@@ -113,6 +114,7 @@ export default function OperatorDashboard() {
                     const cfg = statusConfig[wo.status] || statusConfig.open;
                     return (
                       <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                        <TableCell className="font-mono font-medium">WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
                         <TableCell className="font-medium">{wo.line}</TableCell>
                         <TableCell>{wo.machine}</TableCell>
                         <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
