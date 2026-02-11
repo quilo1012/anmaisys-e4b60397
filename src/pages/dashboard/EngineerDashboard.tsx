@@ -8,6 +8,7 @@ import { Wrench, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTria
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useWorkOrders, useStartWorkOrder, useCompleteWorkOrder } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
+import { stopAlertSound } from "@/lib/shifts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -162,7 +163,7 @@ export default function EngineerDashboard() {
                          <TableCell>
                           <div className="flex gap-2">
                             {wo.status === "open" && (
-                              <Button size="sm" onClick={() => startWO.mutate(wo.id)} disabled={startWO.isPending}>
+                              <Button size="sm" onClick={() => { stopAlertSound(); startWO.mutate(wo.id); }} disabled={startWO.isPending}>
                                 <Play className="h-3 w-3 mr-1" /> Start
                               </Button>
                             )}
