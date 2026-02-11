@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { isOnShift, playAlertSound, warmUpAudio, requestNotificationPermission, sendWebNotification } from "@/lib/shifts";
+import { playAlertSound, warmUpAudio, requestNotificationPermission, sendWebNotification } from "@/lib/shifts";
 import { useToast } from "@/hooks/use-toast";
 
 export function useWOAlerts() {
-  const { user, profile, role } = useAuth();
+  const { user, role } = useAuth();
   const { toast } = useToast();
 
   // Warm up AudioContext on first user gesture
@@ -40,11 +40,6 @@ export function useWOAlerts() {
         (payload) => {
           console.log("[WOAlerts] Received INSERT payload", payload);
 
-          if (!isOnShift(profile?.shift ?? null)) {
-            console.log("[WOAlerts] Engineer not on shift, skipping");
-            return;
-          }
-
           playAlertSound();
           const wo = payload.new as { id: string; line: string; machine: string; description: string; notified_engineers: string[] | null };
           
@@ -73,5 +68,5 @@ export function useWOAlerts() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [role, user, profile, toast]);
+  }, [role, user, toast]);
 }

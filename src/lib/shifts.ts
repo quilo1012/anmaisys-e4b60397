@@ -1,23 +1,3 @@
-export type ShiftType = "morning" | "afternoon" | "night";
-
-const SHIFT_RANGES: Record<ShiftType, [number, number]> = {
-  morning: [6, 14],
-  afternoon: [14, 22],
-  night: [22, 6],
-};
-
-export function getCurrentShift(): ShiftType {
-  const hour = new Date().getHours();
-  if (hour >= 6 && hour < 14) return "morning";
-  if (hour >= 14 && hour < 22) return "afternoon";
-  return "night";
-}
-
-export function isOnShift(userShift: string | null): boolean {
-  if (!userShift) return true;
-  return userShift.toLowerCase() === getCurrentShift();
-}
-
 // --- HTML5 Audio-based alert sound ---
 
 // Generate a simple beep WAV as base64 data URI

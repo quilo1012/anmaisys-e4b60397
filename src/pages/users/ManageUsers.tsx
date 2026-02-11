@@ -31,7 +31,7 @@ export default function ManageUsers() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<AppRole>("operator");
-  const [shift, setShift] = useState("");
+  
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -39,7 +39,7 @@ export default function ManageUsers() {
   const [editUser, setEditUser] = useState<Profile | null>(null);
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState<AppRole>("operator");
-  const [editShift, setEditShift] = useState("");
+  
   const [editActive, setEditActive] = useState(true);
   const [editLoading, setEditLoading] = useState(false);
 
@@ -58,13 +58,13 @@ export default function ManageUsers() {
     setLoading(true);
     try {
       const res = await supabase.functions.invoke("create-user", {
-        body: { email: email.trim().toLowerCase(), password, name: name.trim(), role, shift: role === "engineer" ? shift : null },
+        body: { email: email.trim().toLowerCase(), password, name: name.trim(), role },
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       toast({ title: "User created", description: `${name} has been added as ${roleLabels[role]}` });
       setOpen(false);
-      setEmail(""); setPassword(""); setName(""); setRole("operator"); setShift("");
+      setEmail(""); setPassword(""); setName(""); setRole("operator");
       fetchUsers();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -77,7 +77,6 @@ export default function ManageUsers() {
     setEditUser(u);
     setEditName(u.name);
     setEditRole(u.role || "operator");
-    setEditShift(u.shift || "");
     setEditActive(u.active);
   };
 
@@ -86,7 +85,7 @@ export default function ManageUsers() {
     setEditLoading(true);
     try {
       const res = await supabase.functions.invoke("update-user", {
-        body: { userId: editUser.id, name: editName.trim(), role: editRole, shift: editRole === "engineer" ? editShift : null, active: editActive },
+        body: { userId: editUser.id, name: editName.trim(), role: editRole, active: editActive },
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
@@ -129,19 +128,6 @@ export default function ManageUsers() {
                     </SelectContent>
                   </Select>
                 </div>
-                {role === "engineer" && (
-                  <div className="space-y-2">
-                    <Label>Shift</Label>
-                    <Select value={shift} onValueChange={setShift}>
-                      <SelectTrigger><SelectValue placeholder="Select shift" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="morning">Morning</SelectItem>
-                        <SelectItem value="afternoon">Afternoon</SelectItem>
-                        <SelectItem value="night">Night</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Creating..." : "Create User"}
                 </Button>
@@ -159,7 +145,6 @@ export default function ManageUsers() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead>Shift</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -177,7 +162,6 @@ export default function ManageUsers() {
                           {user.role ? roleLabels[user.role] : "No role"}
                         </div>
                       </TableCell>
-                      <TableCell className="capitalize">{user.shift || "—"}</TableCell>
                       <TableCell>
                         <Badge variant={user.active ? "default" : "secondary"}>
                           {user.active ? "Active" : "Inactive"}
@@ -193,7 +177,7 @@ export default function ManageUsers() {
                 })}
                 {users.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">No users found</TableCell>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">No users found</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -218,19 +202,6 @@ export default function ManageUsers() {
                   </SelectContent>
                 </Select>
               </div>
-              {editRole === "engineer" && (
-                <div className="space-y-2">
-                  <Label>Shift</Label>
-                  <Select value={editShift} onValueChange={setEditShift}>
-                    <SelectTrigger><SelectValue placeholder="Select shift" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="morning">Morning</SelectItem>
-                      <SelectItem value="afternoon">Afternoon</SelectItem>
-                      <SelectItem value="night">Night</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
               <div className="flex items-center justify-between">
                 <Label>Active</Label>
                 <Switch checked={editActive} onCheckedChange={setEditActive} />
