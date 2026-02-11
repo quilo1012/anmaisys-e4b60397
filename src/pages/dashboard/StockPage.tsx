@@ -141,6 +141,8 @@ export default function StockPage() {
                     <TableHead>Min Stock</TableHead>
                      <TableHead>Status</TableHead>
                      {isManager && <TableHead>Actions</TableHead>}
+                   </TableRow>
+                 </TableHeader>
                 <TableBody>
                   {products.map((p) => {
                     const isLow = p.quantity <= p.min_stock;
@@ -151,21 +153,22 @@ export default function StockPage() {
                         <TableCell><Badge variant="outline" className="capitalize">{p.category}</Badge></TableCell>
                         <TableCell className={isLow ? "text-destructive font-bold" : ""}>{p.quantity}</TableCell>
                         <TableCell>{p.min_stock}</TableCell>
-                         <TableCell>
-                           {isLow ? (
-                             <Badge variant="destructive">Low</Badge>
-                           ) : (
-                             <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">OK</Badge>
-                           )}
-                         </TableCell>
-                         {isManager && (
-                           <TableCell>
-                             <div className="flex gap-1">
-                               <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                               <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>
-                             </div>
-                           </TableCell>
-                         )}
+                        <TableCell>
+                          {isLow ? (
+                            <Badge variant="destructive">Low</Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">OK</Badge>
+                          )}
+                        </TableCell>
+                        {isManager && (
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
                     );
                   })}
                 </TableBody>
