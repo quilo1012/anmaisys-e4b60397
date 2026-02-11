@@ -202,19 +202,6 @@ export default function ManageUsers() {
                   </SelectContent>
                 </Select>
               </div>
-              {editRole === "engineer" && (
-                <div className="space-y-2">
-                  <Label>Shift</Label>
-                  <Select value={editShift} onValueChange={setEditShift}>
-                    <SelectTrigger><SelectValue placeholder="Select shift" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="morning">Morning</SelectItem>
-                      <SelectItem value="afternoon">Afternoon</SelectItem>
-                      <SelectItem value="night">Night</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
               <div className="flex items-center justify-between">
                 <Label>Active</Label>
                 <Switch checked={editActive} onCheckedChange={setEditActive} />

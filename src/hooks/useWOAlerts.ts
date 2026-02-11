@@ -68,5 +68,5 @@ export function useWOAlerts() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [role, user, profile, toast]);
+  }, [role, user, toast]);
 }
