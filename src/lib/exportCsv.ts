@@ -1,6 +1,7 @@
 import { differenceInMinutes } from "date-fns";
 
 interface WOForExport {
+  id?: string;
   wo_number?: number;
   line: string;
   machine: string;
