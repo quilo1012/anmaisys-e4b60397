@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { LayoutDashboard, ClipboardList, Users, XCircle, Loader2, Download, Timer, Activity, Package, AlertTriangle, Plus, Pencil, Trash2 } from "lucide-react";
 import { useWorkOrders, useForceCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
-import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
+import { useTotalPartsUsedToday, useProducts, usePartsCountByWOs } from "@/hooks/useStock";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes, subDays } from "date-fns";
@@ -44,6 +44,8 @@ export default function ManagerDashboard() {
   const navigate = useNavigate();
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products } = useProducts();
+  const woIds = useMemo(() => workOrders?.map((w) => w.id) ?? [], [workOrders]);
+  const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { toast } = useToast();
 
   // Create WO state
@@ -310,6 +312,7 @@ export default function ManagerDashboard() {
                      <TableHead>Operator</TableHead>
                      <TableHead>Engineer</TableHead>
                      <TableHead>Created</TableHead>
+                     <TableHead>Parts</TableHead>
                      <TableHead>Started</TableHead>
                      <TableHead>Completed</TableHead>
                      <TableHead>Actions</TableHead>
@@ -327,9 +330,10 @@ export default function ManagerDashboard() {
                          <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
                          <TableCell className="text-sm">{wo.operator?.name || "—"}</TableCell>
                          <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
-                         <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
-                         <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
-                         <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                          <TableCell className="text-sm font-medium">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
                         <TableCell>
                           <div className="flex gap-1">
                             <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>

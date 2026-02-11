@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Wrench, Play, CheckCircle, Loader2, Package, Activity, Timer } from "lucide-react";
 import { useWorkOrders, useStartWorkOrder, useCompleteWorkOrder } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
-import { useTotalPartsUsedByEngineer } from "@/hooks/useStock";
+import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
@@ -32,6 +32,10 @@ export default function EngineerDashboard() {
   useWOAlerts();
 
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
+  const activeWOIds = useMemo(() => workOrders?.filter(
+    (wo) => wo.status === "open" || (wo.status === "in_progress" && wo.engineer_id === user?.id)
+  ).map((w) => w.id) ?? [], [workOrders, user]);
+  const { data: partsCounts } = usePartsCountByWOs(activeWOIds);
 
   const kpis = useMemo(() => {
     if (!allCompleted || !user) return { totalCompleted: 0, avgResponse: 0, avgMTTR: 0 };
@@ -124,6 +128,7 @@ export default function EngineerDashboard() {
                      <TableHead>Created</TableHead>
                      <TableHead>Started</TableHead>
                      <TableHead>Completed</TableHead>
+                     <TableHead>Parts</TableHead>
                      <TableHead>Actions</TableHead>
                    </TableRow>
                  </TableHeader>
@@ -139,8 +144,9 @@ export default function EngineerDashboard() {
                          <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
                          <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
                          <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
-                         <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
-                        <TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
+                          <TableCell className="text-sm font-medium">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>
+                         <TableCell>
                           <div className="flex gap-2">
                             {wo.status === "open" && (
                               <Button size="sm" onClick={() => startWO.mutate(wo.id)} disabled={startWO.isPending}>
