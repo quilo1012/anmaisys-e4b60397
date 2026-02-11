@@ -1,39 +1,86 @@
 
 
-# Fix: Duplicate Stock Trigger + Dashboard Consistency + Parts Visibility
+# Improvements: Notifications, Stock Control, and Dashboard Consistency
 
-## Critical Bug Found: Stock Reduced TWICE
+## 1. Enhanced Alert Sound for Engineers
 
-The database has **two triggers** on `parts_used` that both call `reduce_stock_on_parts_used()`:
-- `trg_reduce_stock` (pre-existing)
-- `trg_reduce_stock_on_parts_used` (just added)
+**Problem**: The current sound is a short, subtle beep that engineers may miss, especially in a noisy factory environment.
 
-Every time an engineer registers parts, the stock quantity is reduced **double**. For example, if 2 parts are used, 4 are subtracted from stock.
+**Fix**: Replace the current single-beep sound with a louder, repeating alarm pattern (3 beeps) that is harder to miss. Also add a persistent visual banner at the top of the Engineer Dashboard when there are unacknowledged open WOs.
 
-**Fix**: Drop the duplicate trigger `trg_reduce_stock` and keep only `trg_reduce_stock_on_parts_used`.
+**File**: `src/lib/shifts.ts` -- rewrite `playAlertSound()` with a more aggressive alarm pattern (3 ascending beeps, louder volume).
 
-## Dashboard Consistency: Add Parts Column to Operator Dashboard
+## 2. Stock Insufficient Protection (Database Level)
 
-The Manager and Engineer dashboards already show a "Parts" column with badge counts. The Operator dashboard is missing this column. Add it for consistency so operators can also see how many parts were used on their orders.
+**Problem**: The client-side check in `PartsUsedDialog` prevents submitting if stock is insufficient, but there's no database-level protection. A race condition could allow stock to go negative.
 
-## Summary of Changes
+**Fix**: Add a database trigger `validate_stock_before_parts_used` that runs BEFORE INSERT on `parts_used` and raises an exception if `products.quantity < NEW.quantity`.
+
+**Database migration**:
+```sql
+CREATE OR REPLACE FUNCTION validate_stock_availability()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  available_qty integer;
+BEGIN
+  SELECT quantity INTO available_qty
+  FROM products WHERE id = NEW.product_id;
+  
+  IF available_qty IS NULL THEN
+    RAISE EXCEPTION 'Product not found';
+  END IF;
+  
+  IF available_qty < NEW.quantity THEN
+    RAISE EXCEPTION 'Insufficient stock. Available: %, Requested: %', available_qty, NEW.quantity;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_validate_stock
+  BEFORE INSERT ON parts_used
+  FOR EACH ROW
+  EXECUTE FUNCTION validate_stock_availability();
+```
+
+## 3. Show Product Line in Parts Used Dialog
+
+**Problem**: When an engineer selects a part, they see `Name (Code) -- Stock: X` but not which **Line** the part belongs to. Since the same part can have different models per line, this is critical.
+
+**Fix**: Update `PartsUsedDialog.tsx` to show the Line in the product selector: `Name (Code) -- Line: X -- Stock: Y`.
+
+## 4. Dashboard Consistency: Remove Duplicate "Work Orders" Nav Item
+
+**Problem**: The sidebar shows both "Dashboard" and "Work Orders" for the Manager, but both link to `/dashboard/manager` -- the same page. This is confusing.
+
+**Fix**: Remove the duplicate "Work Orders" nav item from `DashboardLayout.tsx` since the Manager Dashboard already contains the full work orders table.
+
+## 5. Parts Used in CSV Export
+
+**Problem**: The CSV export doesn't include parts used count.
+
+**Fix**: Add a "Parts Used" column to the CSV export in `exportCsv.ts`. Pass parts counts data to the export function.
+
+---
+
+## Technical Details
 
 ### Database Migration
-```sql
-DROP TRIGGER IF EXISTS trg_reduce_stock ON parts_used;
-```
+- Add `validate_stock_availability()` function and `trg_validate_stock` BEFORE INSERT trigger on `parts_used`
 
 ### Files to Modify
 
 | File | Change |
 |------|--------|
-| Database | Drop duplicate trigger `trg_reduce_stock` |
-| `src/pages/dashboard/OperatorDashboard.tsx` | Add "Parts" column with count badge (same pattern as Manager/Engineer dashboards) |
-
-### What's Already Working
-- Parts used display on WO Detail page (full table with product name, code, qty, engineer, date)
-- Parts count badges on Manager and Engineer dashboard tables
-- Stock reduction trigger (once we fix the duplicate)
-- Real-time stock updates when engineer registers parts
-- Parts Used dialog for engineers to register parts during in-progress WOs
+| Database | Add stock validation trigger |
+| `src/lib/shifts.ts` | Louder, 3-beep alarm pattern |
+| `src/components/PartsUsedDialog.tsx` | Show product Line in selector |
+| `src/components/DashboardLayout.tsx` | Remove duplicate "Work Orders" nav item |
+| `src/lib/exportCsv.ts` | Add "Parts Used" column to CSV |
+| `src/pages/dashboard/ManagerDashboard.tsx` | Pass parts counts to CSV export |
 
