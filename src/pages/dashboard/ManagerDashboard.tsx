@@ -44,6 +44,8 @@ export default function ManagerDashboard() {
   const navigate = useNavigate();
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products } = useProducts();
+  const woIds = useMemo(() => workOrders?.map((w) => w.id) ?? [], [workOrders]);
+  const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { toast } = useToast();
 
   // Create WO state
