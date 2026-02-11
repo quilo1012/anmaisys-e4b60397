@@ -7,6 +7,7 @@ export type WOStatus = "open" | "in_progress" | "completed" | "force_closed";
 
 export interface WorkOrder {
   id: string;
+  wo_number: number;
   line: string;
   machine: string;
   description: string;
