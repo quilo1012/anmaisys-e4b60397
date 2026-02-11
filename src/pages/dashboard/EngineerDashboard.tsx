@@ -1,15 +1,18 @@
+import { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Wrench, Play, CheckCircle, Loader2, Clock, BarChart3 } from "lucide-react";
+import { Wrench, Play, CheckCircle, Loader2, Clock, BarChart3, Package, Activity, Timer } from "lucide-react";
 import { useWorkOrders, useStartWorkOrder, useCompleteWorkOrder } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
+import { useTotalPartsUsedByEngineer } from "@/hooks/useStock";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
 import { useMemo } from "react";
+import { PartsUsedDialog } from "@/components/PartsUsedDialog";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -21,17 +24,38 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 export default function EngineerDashboard() {
   const { user } = useAuth();
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: ["open", "in_progress"] });
+  const { data: allCompleted } = useWorkOrders({ statusIn: ["completed"] });
   const startWO = useStartWorkOrder();
   const completeWO = useCompleteWorkOrder();
   const navigate = useNavigate();
+  const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
   useWOAlerts();
 
-  const stats = useMemo(() => {
-    if (!workOrders) return { completedToday: 0, avgResponse: 0 };
-    const today = new Date().toDateString();
-    // We need all WOs for stats, but we filter open/in_progress for the list
-    return { completedToday: 0, avgResponse: 0 }; // Will be computed with full data
-  }, [workOrders]);
+  const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
+
+  const kpis = useMemo(() => {
+    if (!allCompleted || !user) return { totalCompleted: 0, avgResponse: 0, avgMTTR: 0 };
+    const myCompleted = allCompleted.filter((w) => w.engineer_id === user.id);
+    const totalCompleted = myCompleted.length;
+
+    let totalResponse = 0, responseCount = 0, totalMTTR = 0, mttrCount = 0;
+    myCompleted.forEach((wo) => {
+      if (wo.started_at) {
+        totalResponse += differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at));
+        responseCount++;
+        if (wo.completed_at) {
+          totalMTTR += differenceInMinutes(new Date(wo.completed_at), new Date(wo.started_at));
+          mttrCount++;
+        }
+      }
+    });
+
+    return {
+      totalCompleted,
+      avgResponse: responseCount ? Math.round(totalResponse / responseCount) : 0,
+      avgMTTR: mttrCount ? Math.round(totalMTTR / mttrCount) : 0,
+    };
+  }, [allCompleted, user]);
 
   const activeWOs = workOrders?.filter(
     (wo) => wo.status === "open" || (wo.status === "in_progress" && wo.engineer_id === user?.id)
@@ -45,24 +69,34 @@ export default function EngineerDashboard() {
           <p className="text-muted-foreground">View and execute work orders</p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Open WOs</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Total Completed</CardTitle>
+              <CheckCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{workOrders?.filter(w => w.status === "open").length ?? 0}</div>
-            </CardContent>
+            <CardContent><div className="text-2xl font-bold">{kpis.totalCompleted}</div></CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">My In Progress</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Avg Response</CardTitle>
+              <Timer className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{workOrders?.filter(w => w.status === "in_progress" && w.engineer_id === user?.id).length ?? 0}</div>
-            </CardContent>
+            <CardContent><div className="text-2xl font-bold">{kpis.avgResponse} min</div></CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Avg MTTR</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent><div className="text-2xl font-bold">{kpis.avgMTTR} min</div></CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Parts Used</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent><div className="text-2xl font-bold">{totalParts ?? 0}</div></CardContent>
           </Card>
         </div>
 
@@ -108,9 +142,14 @@ export default function EngineerDashboard() {
                               </Button>
                             )}
                             {wo.status === "in_progress" && wo.engineer_id === user?.id && (
-                              <Button size="sm" variant="secondary" onClick={() => completeWO.mutate(wo.id)} disabled={completeWO.isPending}>
-                                <CheckCircle className="h-3 w-3 mr-1" /> Complete
-                              </Button>
+                              <>
+                                <Button size="sm" variant="outline" onClick={() => setPartsDialogWO(wo.id)}>
+                                  <Package className="h-3 w-3 mr-1" /> Parts
+                                </Button>
+                                <Button size="sm" variant="secondary" onClick={() => completeWO.mutate(wo.id)} disabled={completeWO.isPending}>
+                                  <CheckCircle className="h-3 w-3 mr-1" /> Complete
+                                </Button>
+                              </>
                             )}
                           </div>
                         </TableCell>
@@ -123,6 +162,10 @@ export default function EngineerDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {partsDialogWO && (
+        <PartsUsedDialog open={!!partsDialogWO} onOpenChange={(o) => !o && setPartsDialogWO(null)} workOrderId={partsDialogWO} />
+      )}
     </DashboardLayout>
   );
 }

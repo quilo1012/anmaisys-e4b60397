@@ -10,6 +10,7 @@ import OperatorDashboard from "./pages/dashboard/OperatorDashboard";
 import EngineerDashboard from "./pages/dashboard/EngineerDashboard";
 import ManagerDashboard from "./pages/dashboard/ManagerDashboard";
 import WorkOrderDetail from "./pages/dashboard/WorkOrderDetail";
+import StockPage from "./pages/dashboard/StockPage";
 import ManageUsers from "./pages/users/ManageUsers";
 
 const queryClient = new QueryClient();
@@ -23,46 +24,12 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route
-              path="/dashboard/operator"
-              element={
-                <ProtectedRoute allowedRoles={["operator"]}>
-                  <OperatorDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/engineer"
-              element={
-                <ProtectedRoute allowedRoles={["engineer"]}>
-                  <EngineerDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/manager"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <ManagerDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/wo/:id"
-              element={
-                <ProtectedRoute allowedRoles={["operator", "engineer", "admin"]}>
-                  <WorkOrderDetail />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/users/manage"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <ManageUsers />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/dashboard/operator" element={<ProtectedRoute allowedRoles={["operator"]}><OperatorDashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/engineer" element={<ProtectedRoute allowedRoles={["engineer"]}><EngineerDashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/manager" element={<ProtectedRoute allowedRoles={["admin"]}><ManagerDashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/wo/:id" element={<ProtectedRoute allowedRoles={["operator", "engineer", "admin"]}><WorkOrderDetail /></ProtectedRoute>} />
+            <Route path="/dashboard/stock" element={<ProtectedRoute allowedRoles={["engineer", "admin"]}><StockPage /></ProtectedRoute>} />
+            <Route path="/users/manage" element={<ProtectedRoute allowedRoles={["admin"]}><ManageUsers /></ProtectedRoute>} />
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
