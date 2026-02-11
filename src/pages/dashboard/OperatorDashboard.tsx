@@ -112,6 +112,7 @@ export default function OperatorDashboard() {
                      <TableHead>Started</TableHead>
                      <TableHead>Completed</TableHead>
                      <TableHead>Engineer</TableHead>
+                     <TableHead>Parts</TableHead>
                    </TableRow>
                  </TableHeader>
                  <TableBody>
