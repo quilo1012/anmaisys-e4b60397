@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { playAlertSound, warmUpAudio, requestNotificationPermission, sendWebNotification } from "@/lib/shifts";
+import { playAlertSound, stopAlertSound, warmUpAudio, requestNotificationPermission, sendWebNotification } from "@/lib/shifts";
 import { useToast } from "@/hooks/use-toast";
 
 export function useWOAlerts() {
