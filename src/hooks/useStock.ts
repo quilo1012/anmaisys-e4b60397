@@ -6,6 +6,7 @@ import { useEffect } from "react";
 export interface Product {
   id: string;
   name: string;
+  line: string;
   code: string;
   quantity: number;
   min_stock: number;
