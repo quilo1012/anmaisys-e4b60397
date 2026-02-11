@@ -127,8 +127,15 @@ export default function OperatorDashboard() {
                          <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
                          <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
                          <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
-                        <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
-                      </TableRow>
+                         <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
+                         <TableCell>
+                           {partsCounts?.[wo.id] ? (
+                             <Badge variant="secondary">{partsCounts[wo.id]}</Badge>
+                           ) : (
+                             <span className="text-muted-foreground">—</span>
+                           )}
+                         </TableCell>
+                       </TableRow>
                     );
                   })}
                 </TableBody>
