@@ -31,6 +31,7 @@ export default function StockPage() {
   // Edit/Delete state
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [editName, setEditName] = useState("");
+  const [editLine, setEditLine] = useState("");
   const [editCode, setEditCode] = useState("");
   const [editQty, setEditQty] = useState("");
   const [editMinStock, setEditMinStock] = useState("");
