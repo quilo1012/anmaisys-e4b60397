@@ -1,60 +1,69 @@
 
-# Fix: Notifications, Product Line Field, and WO Time Display
+# Fix: Stock Reduction Trigger + Parts Used Visibility on Dashboards
 
-## Issue 1: Engineer Notifications Not Working
+## Critical Bug: Stock Not Decreasing
 
-**Root cause**: Two problems found:
-- The `notified_engineers` update always starts from an empty array (`[...([] as string[]), user.id]`) instead of appending to the existing list from the payload.
-- The manager has no way to verify notifications are being sent. We'll add a visual confirmation toast on the manager side when a WO is created ("WO created -- engineers on shift will be notified").
+The database function `reduce_stock_on_parts_used()` exists but **no trigger is attached** to the `parts_used` table. This means when an engineer registers parts, the stock quantity never decreases.
 
-**Fix in `src/hooks/useWOAlerts.ts`**:
-- Read the existing `notified_engineers` array from `payload.new` and append the current user's ID to it.
-- This ensures the list accumulates all notified engineers instead of resetting.
+**Fix**: Create the missing database trigger that fires AFTER INSERT on `parts_used`, calling the existing `reduce_stock_on_parts_used()` function.
 
-**Fix in `src/pages/dashboard/ManagerDashboard.tsx`**:
-- After successful WO creation, show a more descriptive toast: "Work Order Created -- Engineers on shift will receive a sound notification."
+```sql
+CREATE TRIGGER trg_reduce_stock_on_parts_used
+  AFTER INSERT ON parts_used
+  FOR EACH ROW
+  EXECUTE FUNCTION reduce_stock_on_parts_used();
+```
 
-## Issue 2: Add "Line" Field to Products
+## Dashboard and WO Detail: Show Parts Used Consistently
 
-**Database change**: Add a `line` column (text, nullable, default empty) to the `products` table so the same part can be distinguished by which production line it belongs to.
+Currently, parts used are only visible on the Work Order Detail page. The Manager Dashboard and Engineer Dashboard WO tables do not show parts information.
 
-**UI changes in `src/pages/dashboard/StockPage.tsx`**:
-- Add a "Line" input field in both the Add Product and Edit Product forms.
-- Add a "Line" column in the products table between Name and Code.
+**Changes**:
+- Add a "Parts" column to the Manager Dashboard WO table showing the count of parts used per WO (fetched via a summary query or inline display).
+- The Engineer Dashboard already has a "Parts" button for in-progress WOs -- add a parts count badge next to completed WOs too.
+- Ensure the Work Order Detail page continues to show the full parts table (already working).
 
-**Hook changes in `src/hooks/useStock.ts`**:
-- Update the `Product` interface to include `line: string`.
-- Update `useAddProduct` and `useUpdateProduct` to include the `line` field.
+Since fetching parts count per WO individually would be expensive (N+1 queries), a better approach is to add a summary hook that fetches parts counts for all visible WOs in one query, or show parts info only when clicking into the WO detail (which already works). The most practical approach: add a "Parts" column in both dashboard tables that shows a clickable count linking to the WO detail.
 
-## Issue 3: Show Engineer Start/End Times in WO Tables
-
-The detail page already shows the timeline correctly. The problem is that the **table views** on Manager, Engineer, and Operator dashboards only show "Created" time.
-
-**Changes to all three dashboard tables**:
-- Add "Started" and "Completed" columns to the WO tables.
-- Display `started_at` and `completed_at` formatted as `dd/MM HH:mm`, or "--" if null.
-
-Files affected:
-- `src/pages/dashboard/ManagerDashboard.tsx` -- add Started/Completed columns
-- `src/pages/dashboard/EngineerDashboard.tsx` -- add Started/Completed columns
-- `src/pages/dashboard/OperatorDashboard.tsx` -- add Started/Completed columns
+**Implementation**: Use a single query to get parts counts grouped by `work_order_id` for all displayed WOs, then show the count in the table.
 
 ---
 
 ## Technical Details
 
 ### Database Migration
+
 ```sql
-ALTER TABLE products ADD COLUMN line text NOT NULL DEFAULT '';
+-- Create the missing trigger for automatic stock reduction
+CREATE TRIGGER trg_reduce_stock_on_parts_used
+  AFTER INSERT ON parts_used
+  FOR EACH ROW
+  EXECUTE FUNCTION reduce_stock_on_parts_used();
 ```
+
+### New Hook: `usePartsCountByWOs`
+
+Add a hook in `src/hooks/useStock.ts` that fetches parts counts grouped by work order:
+
+```typescript
+// Fetches { work_order_id, total_qty } for a set of WO IDs
+usePartsCountByWOs(woIds: string[])
+```
+
+This uses a single query: `select work_order_id, sum(quantity) from parts_used where work_order_id in (...) group by work_order_id`.
 
 ### Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/hooks/useWOAlerts.ts` | Fix notified_engineers append logic |
-| `src/hooks/useStock.ts` | Add `line` to Product interface, add/update mutations |
-| `src/pages/dashboard/StockPage.tsx` | Add Line field in forms and table |
-| `src/pages/dashboard/ManagerDashboard.tsx` | Add Started/Completed columns, improve create toast |
-| `src/pages/dashboard/EngineerDashboard.tsx` | Add Started/Completed columns |
-| `src/pages/dashboard/OperatorDashboard.tsx` | Add Started/Completed columns |
+| Database | Add trigger `trg_reduce_stock_on_parts_used` |
+| `src/hooks/useStock.ts` | Add `usePartsCountByWOs` hook |
+| `src/pages/dashboard/ManagerDashboard.tsx` | Add "Parts" column showing count per WO |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Add "Parts" column showing count per WO |
+| `src/pages/dashboard/WorkOrderDetail.tsx` | No changes needed (already shows parts) |
+
+### Summary
+
+1. **Trigger fix** -- stock will now correctly decrease when engineer registers parts
+2. **Parts count on dashboards** -- both Manager and Engineer tables will show how many parts were used per WO
+3. **Consistent view** -- clicking the WO number still navigates to the detail page with full parts table
