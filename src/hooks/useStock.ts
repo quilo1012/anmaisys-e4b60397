@@ -6,6 +6,7 @@ import { useEffect } from "react";
 export interface Product {
   id: string;
   name: string;
+  line: string;
   code: string;
   quantity: number;
   min_stock: number;
@@ -56,7 +57,7 @@ export function useProducts() {
 export function useAddProduct() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (product: { name: string; code: string; quantity: number; min_stock: number; category: string }) => {
+    mutationFn: async (product: { name: string; line?: string; code: string; quantity: number; min_stock: number; category: string }) => {
       const { data, error } = await supabase.from("products").insert(product).select().single();
       if (error) throw error;
       return data;
@@ -79,8 +80,8 @@ export function useUpdateProductStock() {
 export function useUpdateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, name, code, quantity, min_stock, category }: { id: string; name: string; code: string; quantity: number; min_stock: number; category: string }) => {
-      const { error } = await supabase.from("products").update({ name, code, quantity, min_stock, category }).eq("id", id);
+    mutationFn: async ({ id, name, line, code, quantity, min_stock, category }: { id: string; name: string; line?: string; code: string; quantity: number; min_stock: number; category: string }) => {
+      const { error } = await supabase.from("products").update({ name, line: line ?? '', code, quantity, min_stock, category }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["products"] }),

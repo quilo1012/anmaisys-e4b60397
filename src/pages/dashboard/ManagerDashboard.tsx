@@ -117,7 +117,7 @@ export default function ManagerDashboard() {
     e.preventDefault();
     try {
       await createWO.mutateAsync({ line: newLine.trim(), machine: newMachine.trim(), description: newDesc.trim() });
-      toast({ title: "Work Order Created" });
+      toast({ title: "Work Order Created", description: "Engineers on shift will receive a sound notification." });
       setShowCreate(false);
       setNewLine(""); setNewMachine(""); setNewDesc("");
     } catch (err: any) {
@@ -303,29 +303,33 @@ export default function ManagerDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>WO#</TableHead>
-                    <TableHead>Line</TableHead>
-                    <TableHead>Machine</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Operator</TableHead>
-                    <TableHead>Engineer</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {workOrders.map((wo) => {
-                    const cfg = statusConfig[wo.status];
-                    const canForceClose = wo.status === "open" || wo.status === "in_progress";
-                    return (
-                      <TableRow key={wo.id}>
-                        <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
-                        <TableCell>{wo.line}</TableCell>
-                        <TableCell>{wo.machine}</TableCell>
-                        <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
-                        <TableCell className="text-sm">{wo.operator?.name || "—"}</TableCell>
-                        <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                     <TableHead>WO#</TableHead>
+                     <TableHead>Line</TableHead>
+                     <TableHead>Machine</TableHead>
+                     <TableHead>Status</TableHead>
+                     <TableHead>Operator</TableHead>
+                     <TableHead>Engineer</TableHead>
+                     <TableHead>Created</TableHead>
+                     <TableHead>Started</TableHead>
+                     <TableHead>Completed</TableHead>
+                     <TableHead>Actions</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {workOrders.map((wo) => {
+                     const cfg = statusConfig[wo.status];
+                     const canForceClose = wo.status === "open" || wo.status === "in_progress";
+                     return (
+                       <TableRow key={wo.id}>
+                         <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
+                         <TableCell>{wo.line}</TableCell>
+                         <TableCell>{wo.machine}</TableCell>
+                         <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
+                         <TableCell className="text-sm">{wo.operator?.name || "—"}</TableCell>
+                         <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
+                         <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                         <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
+                         <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
                         <TableCell>
                           <div className="flex gap-1">
                             <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>

@@ -31,6 +31,7 @@ export default function StockPage() {
   // Edit/Delete state
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [editName, setEditName] = useState("");
+  const [editLine, setEditLine] = useState("");
   const [editCode, setEditCode] = useState("");
   const [editQty, setEditQty] = useState("");
   const [editMinStock, setEditMinStock] = useState("");
@@ -38,6 +39,7 @@ export default function StockPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
+  const [productLine, setProductLine] = useState("");
   const [code, setCode] = useState("");
   const [qty, setQty] = useState("");
   const [minStock, setMinStock] = useState("");
@@ -52,9 +54,9 @@ export default function StockPage() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await addProduct.mutateAsync({ name, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare" });
+      await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare" });
       toast({ title: "Product added" });
-      setName(""); setCode(""); setQty(""); setMinStock(""); setCategory("");
+      setName(""); setProductLine(""); setCode(""); setQty(""); setMinStock(""); setCategory("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -81,6 +83,7 @@ export default function StockPage() {
   const openEdit = (p: Product) => {
     setEditProduct(p);
     setEditName(p.name);
+    setEditLine(p.line || "");
     setEditCode(p.code);
     setEditQty(String(p.quantity));
     setEditMinStock(String(p.min_stock));
@@ -90,7 +93,7 @@ export default function StockPage() {
   const handleEdit = async () => {
     if (!editProduct) return;
     try {
-      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory });
+      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory });
       toast({ title: "Product updated" });
       setEditProduct(null);
     } catch (err: any) {
@@ -154,22 +157,24 @@ export default function StockPage() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Min Stock</TableHead>
-                    <TableHead>Status</TableHead>
-                    {isManager && <TableHead>Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {products.map((p) => {
-                    const isLow = p.quantity <= p.min_stock;
-                    return (
-                      <TableRow key={p.id} className={isLow ? "bg-destructive/10" : ""}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
+                 <TableRow>
+                     <TableHead>Name</TableHead>
+                     <TableHead>Line</TableHead>
+                     <TableHead>Code</TableHead>
+                     <TableHead>Category</TableHead>
+                     <TableHead>Quantity</TableHead>
+                     <TableHead>Min Stock</TableHead>
+                     <TableHead>Status</TableHead>
+                     {isManager && <TableHead>Actions</TableHead>}
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {products.map((p) => {
+                     const isLow = p.quantity <= p.min_stock;
+                     return (
+                       <TableRow key={p.id} className={isLow ? "bg-destructive/10" : ""}>
+                         <TableCell className="font-medium">{p.name}</TableCell>
+                         <TableCell>{p.line || "—"}</TableCell>
                         <TableCell>{p.code}</TableCell>
                         <TableCell><Badge variant="outline" className="capitalize">{p.category}</Badge></TableCell>
                         <TableCell className={isLow ? "text-destructive font-bold" : ""}>{p.quantity}</TableCell>
@@ -205,8 +210,9 @@ export default function StockPage() {
                 <CardHeader><CardTitle className="text-base flex items-center gap-2"><Plus className="h-4 w-4" /> Add Product</CardTitle></CardHeader>
                 <CardContent>
                   <form onSubmit={handleAdd} className="space-y-3">
-                    <div className="space-y-1"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
-                    <div className="space-y-1"><Label>Code</Label><Input value={code} onChange={(e) => setCode(e.target.value)} required /></div>
+                     <div className="space-y-1"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
+                     <div className="space-y-1"><Label>Line</Label><Input value={productLine} onChange={(e) => setProductLine(e.target.value)} placeholder="e.g. Line A1" /></div>
+                     <div className="space-y-1"><Label>Code</Label><Input value={code} onChange={(e) => setCode(e.target.value)} required /></div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1"><Label>Initial Qty</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
                       <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} /></div>
@@ -292,8 +298,9 @@ export default function StockPage() {
           <DialogContent>
             <DialogHeader><DialogTitle>Edit Product</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              <div className="space-y-1"><Label>Name</Label><Input value={editName} onChange={(e) => setEditName(e.target.value)} /></div>
-              <div className="space-y-1"><Label>Code</Label><Input value={editCode} onChange={(e) => setEditCode(e.target.value)} /></div>
+               <div className="space-y-1"><Label>Name</Label><Input value={editName} onChange={(e) => setEditName(e.target.value)} /></div>
+               <div className="space-y-1"><Label>Line</Label><Input value={editLine} onChange={(e) => setEditLine(e.target.value)} placeholder="e.g. Line A1" /></div>
+               <div className="space-y-1"><Label>Code</Label><Input value={editCode} onChange={(e) => setEditCode(e.target.value)} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1"><Label>Quantity</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
                 <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} /></div>

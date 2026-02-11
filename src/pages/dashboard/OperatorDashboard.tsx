@@ -101,24 +101,28 @@ export default function OperatorDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>WO#</TableHead>
-                    <TableHead>Line</TableHead>
-                    <TableHead>Machine</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Engineer</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {workOrders.map((wo) => {
-                    const cfg = statusConfig[wo.status] || statusConfig.open;
-                    return (
-                      <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-                        <TableCell className="font-mono font-medium">WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
-                        <TableCell className="font-medium">{wo.line}</TableCell>
-                        <TableCell>{wo.machine}</TableCell>
-                        <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                     <TableHead>WO#</TableHead>
+                     <TableHead>Line</TableHead>
+                     <TableHead>Machine</TableHead>
+                     <TableHead>Status</TableHead>
+                     <TableHead>Created</TableHead>
+                     <TableHead>Started</TableHead>
+                     <TableHead>Completed</TableHead>
+                     <TableHead>Engineer</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {workOrders.map((wo) => {
+                     const cfg = statusConfig[wo.status] || statusConfig.open;
+                     return (
+                       <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                         <TableCell className="font-mono font-medium">WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
+                         <TableCell className="font-medium">{wo.line}</TableCell>
+                         <TableCell>{wo.machine}</TableCell>
+                         <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
+                         <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                         <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
+                         <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
                         <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
                       </TableRow>
                     );

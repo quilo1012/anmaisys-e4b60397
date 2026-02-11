@@ -87,6 +87,7 @@ export type Database = {
           code: string
           created_at: string
           id: string
+          line: string
           min_stock: number
           name: string
           quantity: number
@@ -97,6 +98,7 @@ export type Database = {
           code: string
           created_at?: string
           id?: string
+          line?: string
           min_stock?: number
           name: string
           quantity?: number
@@ -107,6 +109,7 @@ export type Database = {
           code?: string
           created_at?: string
           id?: string
+          line?: string
           min_stock?: number
           name?: string
           quantity?: number
