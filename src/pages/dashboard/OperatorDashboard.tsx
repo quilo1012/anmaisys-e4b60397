@@ -26,6 +26,8 @@ export default function OperatorDashboard() {
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
   const { data: workOrders, isLoading } = useWorkOrders({ operatorOnly: true });
+  const woIds = workOrders?.map((wo) => wo.id) || [];
+  const { data: partsCounts } = usePartsCountByWOs(woIds);
   const createWO = useCreateWorkOrder();
   const { toast } = useToast();
   const navigate = useNavigate();
