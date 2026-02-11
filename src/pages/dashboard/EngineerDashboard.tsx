@@ -32,6 +32,10 @@ export default function EngineerDashboard() {
   useWOAlerts();
 
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
+  const activeWOIds = useMemo(() => workOrders?.filter(
+    (wo) => wo.status === "open" || (wo.status === "in_progress" && wo.engineer_id === user?.id)
+  ).map((w) => w.id) ?? [], [workOrders, user]);
+  const { data: partsCounts } = usePartsCountByWOs(activeWOIds);
 
   const kpis = useMemo(() => {
     if (!allCompleted || !user) return { totalCompleted: 0, avgResponse: 0, avgMTTR: 0 };
