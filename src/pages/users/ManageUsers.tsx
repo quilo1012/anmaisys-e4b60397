@@ -77,7 +77,6 @@ export default function ManageUsers() {
     setEditUser(u);
     setEditName(u.name);
     setEditRole(u.role || "operator");
-    setEditShift(u.shift || "");
     setEditActive(u.active);
   };
 
