@@ -150,6 +150,26 @@ export function useTotalPartsUsedByEngineer(engineerId?: string) {
   });
 }
 
+export function usePartsCountByWOs(woIds: string[]) {
+  return useQuery({
+    queryKey: ["parts_count_by_wo", woIds],
+    queryFn: async () => {
+      if (!woIds.length) return {} as Record<string, number>;
+      const { data, error } = await supabase
+        .from("parts_used")
+        .select("work_order_id, quantity")
+        .in("work_order_id", woIds);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      data.forEach((r) => {
+        counts[r.work_order_id] = (counts[r.work_order_id] || 0) + r.quantity;
+      });
+      return counts;
+    },
+    enabled: woIds.length > 0,
+  });
+}
+
 export function useTotalPartsUsedToday() {
   return useQuery({
     queryKey: ["parts_used_today"],
