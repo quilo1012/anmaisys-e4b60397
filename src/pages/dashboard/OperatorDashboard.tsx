@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ClipboardList, Plus, Loader2 } from "lucide-react";
 import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
+import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -25,6 +26,8 @@ export default function OperatorDashboard() {
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
   const { data: workOrders, isLoading } = useWorkOrders({ operatorOnly: true });
+  const woIds = workOrders?.map((wo) => wo.id) || [];
+  const { data: partsCounts } = usePartsCountByWOs(woIds);
   const createWO = useCreateWorkOrder();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -109,6 +112,7 @@ export default function OperatorDashboard() {
                      <TableHead>Started</TableHead>
                      <TableHead>Completed</TableHead>
                      <TableHead>Engineer</TableHead>
+                     <TableHead>Parts</TableHead>
                    </TableRow>
                  </TableHeader>
                  <TableBody>
@@ -123,8 +127,15 @@ export default function OperatorDashboard() {
                          <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
                          <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
                          <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
-                        <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
-                      </TableRow>
+                         <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
+                         <TableCell>
+                           {partsCounts?.[wo.id] ? (
+                             <Badge variant="secondary">{partsCounts[wo.id]}</Badge>
+                           ) : (
+                             <span className="text-muted-foreground">—</span>
+                           )}
+                         </TableCell>
+                       </TableRow>
                     );
                   })}
                 </TableBody>

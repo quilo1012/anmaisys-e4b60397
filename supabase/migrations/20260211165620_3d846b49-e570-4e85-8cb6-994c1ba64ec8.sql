@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS trg_reduce_stock ON parts_used;
