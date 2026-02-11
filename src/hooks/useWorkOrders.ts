@@ -130,6 +130,31 @@ export function useForceCloseWorkOrder() {
   });
 }
 
+export function useUpdateWorkOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, line, machine, description }: { id: string; line: string; machine: string; description: string }) => {
+      const { error } = await supabase
+        .from("work_orders")
+        .update({ line, machine, description })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+  });
+}
+
+export function useDeleteWorkOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("work_orders").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+  });
+}
+
 export function useWorkOrderById(id: string) {
   return useQuery({
     queryKey: ["work_orders", id],
