@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { isOnShift, playAlertSound, warmUpAudio } from "@/lib/shifts";
+import { isOnShift, playAlertSound, warmUpAudio, requestNotificationPermission, sendWebNotification } from "@/lib/shifts";
 import { useToast } from "@/hooks/use-toast";
 
 export function useWOAlerts() {
@@ -14,6 +14,7 @@ export function useWOAlerts() {
 
     const handler = () => {
       warmUpAudio();
+      requestNotificationPermission();
       document.removeEventListener("click", handler);
       document.removeEventListener("keydown", handler);
     };
@@ -46,6 +47,10 @@ export function useWOAlerts() {
 
           playAlertSound();
           const wo = payload.new as { id: string; line: string; machine: string; description: string; notified_engineers: string[] | null };
+          
+          const notifBody = `Line: ${wo.line} — Machine: ${wo.machine}\n${wo.description}`;
+          sendWebNotification("🔔 New Work Order!", notifBody);
+          
           toast({
             title: "🔔 New Work Order!",
             description: `Line: ${wo.line} — Machine: ${wo.machine}\n${wo.description}`,
