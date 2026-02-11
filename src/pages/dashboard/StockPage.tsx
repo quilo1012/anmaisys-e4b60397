@@ -93,7 +93,7 @@ export default function StockPage() {
   const handleEdit = async () => {
     if (!editProduct) return;
     try {
-      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory });
+      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory });
       toast({ title: "Product updated" });
       setEditProduct(null);
     } catch (err: any) {
