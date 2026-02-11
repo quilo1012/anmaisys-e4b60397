@@ -63,6 +63,24 @@ export type Database = {
           },
         ]
       }
+      product_categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           category: string
@@ -158,6 +176,7 @@ export type Database = {
           operator_id: string
           started_at: string | null
           status: Database["public"]["Enums"]["wo_status"]
+          wo_number: number
         }
         Insert: {
           closed_by?: string | null
@@ -172,6 +191,7 @@ export type Database = {
           operator_id: string
           started_at?: string | null
           status?: Database["public"]["Enums"]["wo_status"]
+          wo_number?: number
         }
         Update: {
           closed_by?: string | null
@@ -186,6 +206,7 @@ export type Database = {
           operator_id?: string
           started_at?: string | null
           status?: Database["public"]["Enums"]["wo_status"]
+          wo_number?: number
         }
         Relationships: [
           {
