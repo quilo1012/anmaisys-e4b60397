@@ -14,6 +14,7 @@ export function useWOAlerts() {
 
     const handler = () => {
       warmUpAudio();
+      requestNotificationPermission();
       document.removeEventListener("click", handler);
       document.removeEventListener("keydown", handler);
     };
