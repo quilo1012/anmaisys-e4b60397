@@ -7,8 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Package, Plus, Loader2, AlertTriangle } from "lucide-react";
-import { useProducts, useAddProduct, useUpdateProductStock } from "@/hooks/useStock";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2 } from "lucide-react";
+import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -17,8 +19,19 @@ export default function StockPage() {
   const { data: products, isLoading } = useProducts();
   const addProduct = useAddProduct();
   const updateStock = useUpdateProductStock();
+  const updateProduct = useUpdateProduct();
+  const deleteProduct = useDeleteProduct();
   const { toast } = useToast();
   const isManager = role === "admin";
+
+  // Edit/Delete state
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editCode, setEditCode] = useState("");
+  const [editQty, setEditQty] = useState("");
+  const [editMinStock, setEditMinStock] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -53,6 +66,37 @@ export default function StockPage() {
       await updateStock.mutateAsync({ id: adjustId, quantity: newQty });
       toast({ title: "Stock updated" });
       setAdjustId(""); setAdjustQty("");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const openEdit = (p: Product) => {
+    setEditProduct(p);
+    setEditName(p.name);
+    setEditCode(p.code);
+    setEditQty(String(p.quantity));
+    setEditMinStock(String(p.min_stock));
+    setEditCategory(p.category);
+  };
+
+  const handleEdit = async () => {
+    if (!editProduct) return;
+    try {
+      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory });
+      toast({ title: "Product updated" });
+      setEditProduct(null);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+      await deleteProduct.mutateAsync(deleteId);
+      toast({ title: "Product deleted" });
+      setDeleteId(null);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -95,9 +139,10 @@ export default function StockPage() {
                     <TableHead>Category</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Min Stock</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
+                     <TableHead>Status</TableHead>
+                     {isManager && <TableHead>Actions</TableHead>}
+                   </TableRow>
+                 </TableHeader>
                 <TableBody>
                   {products.map((p) => {
                     const isLow = p.quantity <= p.min_stock;
@@ -115,6 +160,14 @@ export default function StockPage() {
                             <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">OK</Badge>
                           )}
                         </TableCell>
+                        {isManager && (
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
@@ -181,6 +234,52 @@ export default function StockPage() {
             </Card>
           </div>
         )}
+
+        {/* Edit Product Dialog */}
+        <Dialog open={!!editProduct} onOpenChange={(open) => !open && setEditProduct(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit Product</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1"><Label>Name</Label><Input value={editName} onChange={(e) => setEditName(e.target.value)} /></div>
+              <div className="space-y-1"><Label>Code</Label><Input value={editCode} onChange={(e) => setEditCode(e.target.value)} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1"><Label>Quantity</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
+                <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} /></div>
+              </div>
+              <div className="space-y-1">
+                <Label>Category</Label>
+                <Select value={editCategory} onValueChange={setEditCategory}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BFM">BFM</SelectItem>
+                    <SelectItem value="spare">Spare</SelectItem>
+                    <SelectItem value="consumable">Consumable</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditProduct(null)}>Cancel</Button>
+              <Button onClick={handleEdit} disabled={updateProduct.isPending}>
+                {updateProduct.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation */}
+        <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete product?</AlertDialogTitle>
+              <AlertDialogDescription>This action cannot be undone. The product will be permanently removed.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );
