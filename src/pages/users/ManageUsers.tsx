@@ -31,7 +31,7 @@ export default function ManageUsers() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<AppRole>("operator");
-  const [shift, setShift] = useState("");
+  
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
