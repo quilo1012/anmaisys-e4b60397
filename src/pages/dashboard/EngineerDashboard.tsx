@@ -144,8 +144,9 @@ export default function EngineerDashboard() {
                          <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
                          <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
                          <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
-                         <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
-                        <TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
+                          <TableCell className="text-sm font-medium">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>
+                         <TableCell>
                           <div className="flex gap-2">
                             {wo.status === "open" && (
                               <Button size="sm" onClick={() => startWO.mutate(wo.id)} disabled={startWO.isPending}>
