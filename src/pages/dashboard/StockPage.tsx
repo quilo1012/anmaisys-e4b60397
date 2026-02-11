@@ -39,6 +39,7 @@ export default function StockPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
+  const [productLine, setProductLine] = useState("");
   const [code, setCode] = useState("");
   const [qty, setQty] = useState("");
   const [minStock, setMinStock] = useState("");
