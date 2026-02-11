@@ -62,6 +62,73 @@ export type Database = {
         }
         Relationships: []
       }
+      work_orders: {
+        Row: {
+          closed_by: string | null
+          completed_at: string | null
+          created_at: string
+          description: string
+          engineer_id: string | null
+          id: string
+          line: string
+          machine: string
+          notified_engineers: string[] | null
+          operator_id: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["wo_status"]
+        }
+        Insert: {
+          closed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description: string
+          engineer_id?: string | null
+          id?: string
+          line: string
+          machine: string
+          notified_engineers?: string[] | null
+          operator_id: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"]
+        }
+        Update: {
+          closed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string
+          engineer_id?: string | null
+          id?: string
+          line?: string
+          machine?: string
+          notified_engineers?: string[] | null
+          operator_id?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_orders_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_engineer_id_fkey"
+            columns: ["engineer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -81,6 +148,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "engineer" | "operator"
+      wo_status: "open" | "in_progress" | "completed" | "force_closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -209,6 +277,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "engineer", "operator"],
+      wo_status: ["open", "in_progress", "completed", "force_closed"],
     },
   },
 } as const

@@ -1,8 +1,42 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wrench } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Wrench, Play, CheckCircle, Loader2, Clock, BarChart3 } from "lucide-react";
+import { useWorkOrders, useStartWorkOrder, useCompleteWorkOrder } from "@/hooks/useWorkOrders";
+import { useWOAlerts } from "@/hooks/useWOAlerts";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { format, differenceInMinutes } from "date-fns";
+import { useMemo } from "react";
+
+const statusConfig: Record<string, { label: string; className: string }> = {
+  open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
+  in_progress: { label: "In Progress", className: "bg-amber-100 text-amber-800 border-amber-200" },
+  completed: { label: "Completed", className: "bg-green-100 text-green-800 border-green-200" },
+  force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
+};
 
 export default function EngineerDashboard() {
+  const { user } = useAuth();
+  const { data: workOrders, isLoading } = useWorkOrders({ statusIn: ["open", "in_progress"] });
+  const startWO = useStartWorkOrder();
+  const completeWO = useCompleteWorkOrder();
+  const navigate = useNavigate();
+  useWOAlerts();
+
+  const stats = useMemo(() => {
+    if (!workOrders) return { completedToday: 0, avgResponse: 0 };
+    const today = new Date().toDateString();
+    // We need all WOs for stats, but we filter open/in_progress for the list
+    return { completedToday: 0, avgResponse: 0 }; // Will be computed with full data
+  }, [workOrders]);
+
+  const activeWOs = workOrders?.filter(
+    (wo) => wo.status === "open" || (wo.status === "in_progress" && wo.engineer_id === user?.id)
+  );
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -10,15 +44,82 @@ export default function EngineerDashboard() {
           <h2 className="text-2xl font-bold">Engineer Panel</h2>
           <p className="text-muted-foreground">View and execute work orders</p>
         </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Open WOs</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{workOrders?.filter(w => w.status === "open").length ?? 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">My In Progress</CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{workOrders?.filter(w => w.status === "in_progress" && w.engineer_id === user?.id).length ?? 0}</div>
+            </CardContent>
+          </Card>
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Wrench className="h-5 w-5" />
-              Open Work Orders
+              Work Orders
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">Work orders will be available in Phase 2.</p>
+            {isLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : !activeWOs?.length ? (
+              <p className="text-muted-foreground text-center py-8">No open work orders right now.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Line</TableHead>
+                    <TableHead>Machine</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {activeWOs.map((wo) => {
+                    const cfg = statusConfig[wo.status];
+                    return (
+                      <TableRow key={wo.id}>
+                        <TableCell className="font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>{wo.line}</TableCell>
+                        <TableCell>{wo.machine}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
+                        <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            {wo.status === "open" && (
+                              <Button size="sm" onClick={() => startWO.mutate(wo.id)} disabled={startWO.isPending}>
+                                <Play className="h-3 w-3 mr-1" /> Start
+                              </Button>
+                            )}
+                            {wo.status === "in_progress" && wo.engineer_id === user?.id && (
+                              <Button size="sm" variant="secondary" onClick={() => completeWO.mutate(wo.id)} disabled={completeWO.isPending}>
+                                <CheckCircle className="h-3 w-3 mr-1" /> Complete
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>

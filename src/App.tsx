@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import OperatorDashboard from "./pages/dashboard/OperatorDashboard";
 import EngineerDashboard from "./pages/dashboard/EngineerDashboard";
 import ManagerDashboard from "./pages/dashboard/ManagerDashboard";
+import WorkOrderDetail from "./pages/dashboard/WorkOrderDetail";
 import ManageUsers from "./pages/users/ManageUsers";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
                   <ManagerDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/wo/:id"
+              element={
+                <ProtectedRoute allowedRoles={["operator", "engineer", "admin"]}>
+                  <WorkOrderDetail />
                 </ProtectedRoute>
               }
             />

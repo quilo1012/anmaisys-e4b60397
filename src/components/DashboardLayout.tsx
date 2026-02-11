@@ -33,7 +33,7 @@ const navItems: NavItem[] = [
   { title: "Work Orders", url: "/dashboard/manager", icon: ClipboardList, roles: ["admin"] },
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "engineer"] },
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin"] },
-];
+]; 
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { role, profile, signOut } = useAuth();
