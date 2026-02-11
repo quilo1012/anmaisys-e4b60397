@@ -71,6 +71,37 @@ export default function StockPage() {
     }
   };
 
+  const openEdit = (p: Product) => {
+    setEditProduct(p);
+    setEditName(p.name);
+    setEditCode(p.code);
+    setEditQty(String(p.quantity));
+    setEditMinStock(String(p.min_stock));
+    setEditCategory(p.category);
+  };
+
+  const handleEdit = async () => {
+    if (!editProduct) return;
+    try {
+      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory });
+      toast({ title: "Product updated" });
+      setEditProduct(null);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+      await deleteProduct.mutateAsync(deleteId);
+      toast({ title: "Product deleted" });
+      setDeleteId(null);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
 
   return (

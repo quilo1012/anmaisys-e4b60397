@@ -197,8 +197,16 @@ export default function ManagerDashboard() {
               <CardTitle className="flex items-center gap-2">
                 <ClipboardList className="h-5 w-5" /> All Work Orders
               </CardTitle>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => workOrders && exportWorkOrdersCsv(workOrders)}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" placeholder="From" />
+                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" placeholder="To" />
+                <Button variant="outline" size="sm" onClick={() => {
+                  if (!workOrders) return;
+                  let filtered = workOrders;
+                  if (dateFrom) filtered = filtered.filter((w) => w.created_at >= dateFrom);
+                  if (dateTo) filtered = filtered.filter((w) => w.created_at <= dateTo + "T23:59:59");
+                  exportWorkOrdersCsv(filtered);
+                }}>
                   <Download className="h-4 w-4 mr-1" /> Export CSV
                 </Button>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
