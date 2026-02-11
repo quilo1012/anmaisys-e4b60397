@@ -69,6 +69,18 @@ export default function EngineerDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {activeWOs && activeWOs.filter(wo => wo.status === "open").length > 0 && (
+          <Alert variant="destructive" className="border-destructive bg-destructive/10 animate-pulse">
+            <AlertTriangle className="h-5 w-5" />
+            <AlertTitle className="text-lg font-bold">
+              ⚠️ {activeWOs.filter(wo => wo.status === "open").length} Open Work Order(s) Waiting!
+            </AlertTitle>
+            <AlertDescription>
+              There are unassigned work orders that need attention. Click "Start" to begin working on one.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div>
           <h2 className="text-2xl font-bold">Engineer Panel</h2>
           <p className="text-muted-foreground">View and execute work orders</p>
