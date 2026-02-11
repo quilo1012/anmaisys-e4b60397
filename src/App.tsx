@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import OperatorDashboard from "./pages/dashboard/OperatorDashboard";
 import EngineerDashboard from "./pages/dashboard/EngineerDashboard";
 import ManagerDashboard from "./pages/dashboard/ManagerDashboard";
+import WorkOrderDetail from "./pages/dashboard/WorkOrderDetail";
 import ManageUsers from "./pages/users/ManageUsers";
 
 const queryClient = new QueryClient();
