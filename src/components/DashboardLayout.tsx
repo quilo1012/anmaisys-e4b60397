@@ -13,7 +13,8 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { ClipboardList, Wrench, Users, Package, LogOut, LayoutDashboard } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard } from "lucide-react";
+import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -45,7 +46,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen w-full">
         <Sidebar className="border-r-0">
           <div className="flex items-center gap-2 px-4 py-4">
-            <Wrench className="h-6 w-6 text-sidebar-primary" />
+            <img src={appliedLogo} alt="Applied Nutrition" className="h-8 w-8 rounded object-contain" />
             <span className="text-lg font-bold text-sidebar-foreground">AN Maintenance</span>
           </div>
           <SidebarContent>

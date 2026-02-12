@@ -3,16 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Wrench } from "lucide-react";
+import { Mail, Lock } from "lucide-react";
+import appliedLogo from "@/assets/appliedlogo.jpeg";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -24,26 +21,12 @@ export default function Login() {
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email: normalizedEmail,
-          password,
-          options: {
-            data: { name: name.trim() },
-            emailRedirectTo: window.location.origin,
-          },
-        });
-        if (error) throw error;
-        toast({ title: "Account created!", description: "You are now logged in." });
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password,
-        });
-        if (error) throw error;
-      }
+      const { error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+      if (error) throw error;
 
-      // Fetch role to redirect properly
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: role } = await supabase.rpc("get_user_role", { _user_id: user.id });
@@ -66,73 +49,57 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-primary p-4">
-      <Card className="w-full max-w-md shadow-2xl border-0">
-        <CardHeader className="text-center space-y-3">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-            <Wrench className="h-7 w-7 text-primary-foreground" />
+    <div className="flex min-h-screen items-center justify-center p-4"
+      style={{ background: "linear-gradient(135deg, hsl(222 47% 11%) 0%, hsl(217 33% 17%) 50%, hsl(222 47% 11%) 100%)" }}
+    >
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-2xl">
+        <div className="flex flex-col items-center space-y-4 mb-8">
+          <img
+            src={appliedLogo}
+            alt="Applied Nutrition Logo"
+            className="h-[120px] w-auto object-contain rounded-lg"
+          />
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-white tracking-wide">Applied Nutrition</h1>
+            <p className="text-sm text-white/60 mt-1">Maintenance Portal</p>
           </div>
-          <CardTitle className="text-2xl font-bold">AN Maintenance</CardTitle>
-          <CardDescription>
-            {isSignUp
-              ? "Create the first manager account"
-              : "Sign in to your maintenance portal"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {isSignUp && (
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="John Doe"
-                  required
-                />
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                minLength={6}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Please wait..." : isSignUp ? "Create Account" : "Sign In"}
-            </Button>
-          </form>
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            <button
-              type="button"
-              className="underline hover:text-foreground transition-colors"
-              onClick={() => setIsSignUp(!isSignUp)}
-            >
-              {isSignUp
-                ? "Already have an account? Sign in"
-                : "First time? Create manager account"}
-            </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              required
+              className="w-full h-11 rounded-lg bg-white/10 border border-white/15 pl-10 pr-4 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-colors"
+            />
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              minLength={6}
+              required
+              className="w-full h-11 rounded-lg bg-white/10 border border-white/15 pl-10 pr-4 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-colors"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full h-11 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {loading ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
