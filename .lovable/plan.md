@@ -1,117 +1,92 @@
 
 
-# Melhorias Pendentes - AN Maintenance
+# Problem Descriptions Padronizadas
 
-## Status Atual
+## Resumo
 
-A grande maioria dos itens solicitados ja esta implementada:
-- Logo e branding (login 120px, sidebar 32px, titulo "AN Maintenance")
-- Login com gradiente escuro, blur, icones, sem sign-up
-- Icones Lucide consistentes (ClipboardList, Play, PenTool, Package, etc.)
-- Alertas sonoros HTML5 Audio WAV em loop (1s/60s) + Web Notifications
-- Campo "Requested By" (substituiu "Production Line")
-- Assinatura digital por nome ao completar WO
-- Categorias dinamicas de estoque gerenciadas pelo admin
-- Registro de pecas por engenheiro com atualizacao de estoque
-- CRUD de usuarios pelo manager
-- CRUD de WOs pelo manager (criar/editar/deletar/force close)
-- Exportacao CSV
-- KPIs (response time, MTTR, parts used)
-- Graficos (WOs por dia, top maquinas)
-- Timeline completa no WO detail
-- Realtime updates via channels
-- Coluna "Parts" no Operator e Engineer Dashboard
-- Impressao basica com botao Print
+Criar um sistema de descricoes de problema padronizadas que o Manager gerencia e o Operador seleciona ao criar uma WO. Isso substitui o campo livre "Problem Description" por um dropdown com opcoes predefinidas, seguindo o mesmo padrao ja usado para Machines.
 
-## Funcionalidades Novas a Implementar
+---
 
-### 1. Relogio Digital no Header
+## 1. Banco de Dados
 
-Adicionar componente `LiveClock` no header do `DashboardLayout.tsx` exibindo hora (HH:MM:SS) e data (DD/MM/YYYY), atualizado a cada segundo, estilo industrial/clean.
-
-**Arquivo:** `src/components/DashboardLayout.tsx`
-
-### 2. Tabela de Maquinas + Dropdown
-
-Substituir o campo livre "Machine" por um dropdown com maquinas predefinidas da fabrica.
-
-**Database:**
-```text
-CREATE TABLE public.machines (id, name, created_at)
-RLS: admins CRUD, todos authenticated SELECT
-```
-
-**Novos arquivos:**
-- `src/hooks/useMachines.ts` -- hook para listar/criar/deletar maquinas
-
-**Arquivos modificados:**
-- `src/pages/dashboard/OperatorDashboard.tsx` -- Input vira Select para Machine
-- `src/pages/dashboard/ManagerDashboard.tsx` -- Input vira Select para Machine (criar/editar WO)
-- Manager Dashboard tera uma secao para gerenciar maquinas (adicionar/remover) inline ou via dialog
-
-### 3. Filtros Rapidos de Data no Manager Dashboard
-
-Adicionar botoes de filtro rapido acima da tabela de WOs:
-- Hoje (default quando nenhuma data selecionada)
-- Ontem
-- Ultimos 7 Dias
-- Este Mes
-
-Filtrar tanto a tabela quanto os KPIs e graficos.
-
-**Arquivo:** `src/pages/dashboard/ManagerDashboard.tsx`
-
-### 4. Layout de Impressao Profissional
-
-Melhorar o CSS de impressao no `WorkOrderDetail.tsx`:
-- Cabecalho com logo da empresa + "AN Maintenance" (visivel apenas no print)
-- Todos os timestamps formatados
-- Assinatura do engenheiro
-- Pecas usadas
-- Numero da WO em destaque
-- Area reservada para stamp (sera adicionado quando a imagem for enviada)
-
-**Arquivo:** `src/pages/dashboard/WorkOrderDetail.tsx` + `src/index.css`
-
-## Detalhes Tecnicos
-
-### Migration SQL
+### Nova tabela: `problem_descriptions`
 
 ```text
-CREATE TABLE public.machines (
+CREATE TABLE public.problem_descriptions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL UNIQUE,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-ALTER TABLE public.machines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.problem_descriptions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admins can manage machines" ON public.machines
-  FOR ALL USING (has_role(auth.uid(), 'admin'::app_role))
+-- Admins CRUD
+CREATE POLICY "Admins can manage problem_descriptions"
+  ON public.problem_descriptions FOR ALL
+  USING (has_role(auth.uid(), 'admin'::app_role))
   WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
 
-CREATE POLICY "Authenticated can view machines" ON public.machines
-  FOR SELECT USING (
+-- Operators e Engineers podem visualizar
+CREATE POLICY "Authenticated can view problem_descriptions"
+  ON public.problem_descriptions FOR SELECT
+  USING (
     has_role(auth.uid(), 'operator'::app_role) OR
     has_role(auth.uid(), 'engineer'::app_role) OR
     has_role(auth.uid(), 'admin'::app_role)
   );
 ```
 
-### Resumo de Arquivos
+### Abordagem para o campo `description` na tabela `work_orders`
+
+O campo `description` (text) continuara armazenando o texto da descricao selecionada. Nao sera criado um FK para `problem_descriptions` — isso garante flexibilidade e evita problemas se uma descricao for deletada futuramente. O valor selecionado do dropdown e salvo diretamente como texto no campo `description`.
+
+---
+
+## 2. Novo Hook: `src/hooks/useProblemDescriptions.ts`
+
+Seguindo o padrao do `useMachines.ts`:
+- `useProblemDescriptions()` — lista todas as descricoes (SELECT)
+- `useAddProblemDescription()` — insere nova (INSERT)
+- `useDeleteProblemDescription()` — remove (DELETE)
+
+---
+
+## 3. Alteracoes no OperatorDashboard.tsx
+
+- Substituir o `<Textarea>` de "Problem Description" por um `<Select>` dropdown
+- Listar as descricoes vindas do hook `useProblemDescriptions()`
+- Campo obrigatorio: operador deve selecionar uma opcao
+- O valor selecionado e salvo no campo `description` da WO (como texto)
+
+---
+
+## 4. Alteracoes no ManagerDashboard.tsx
+
+### 4a. Gestao de Problem Descriptions
+- Adicionar botao "Problems" ao lado do botao "Machines" no header
+- Ao clicar, abre um Dialog identico ao de Machines (lista + input para adicionar + botao deletar)
+- Manager pode adicionar e remover descricoes
+
+### 4b. Criar/Editar WO
+- No dialog "Create WO": substituir `<Textarea>` de description por `<Select>` com as descricoes padronizadas
+- No dialog "Edit WO": mesmo — `<Select>` em vez de `<Textarea>`
+
+---
+
+## 5. Arquivos Modificados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| **Migration SQL** | Tabela `machines` com RLS |
-| `src/hooks/useMachines.ts` | Novo hook CRUD maquinas |
-| `src/components/DashboardLayout.tsx` | LiveClock no header |
-| `src/pages/dashboard/ManagerDashboard.tsx` | Filtros rapidos de data + dropdown maquinas + gestao de maquinas |
-| `src/pages/dashboard/OperatorDashboard.tsx` | Dropdown maquinas |
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Layout de impressao profissional com cabecalho |
-| `src/index.css` | Melhorias no `@media print` |
+| **Migration SQL** | Nova tabela `problem_descriptions` com RLS |
+| `src/hooks/useProblemDescriptions.ts` | Novo hook (list, add, delete) |
+| `src/pages/dashboard/OperatorDashboard.tsx` | Textarea vira Select para Problem Description |
+| `src/pages/dashboard/ManagerDashboard.tsx` | Botao "Problems" + dialog gestao + Select nos dialogs de criar/editar WO |
 
-### Itens Diferidos
-- **Stamp/Carimbo**: layout preparado, imagem sera adicionada quando enviada
-- **QR Code**: proxima etapa conforme combinado
-- **Auditor role**: pode ser adicionado futuramente como nova enum
+---
+
+## 6. Nota
+
+- O campo `description` na tabela `work_orders` permanece como `text` — nenhuma migration de schema na tabela work_orders
+- Nao sera necessario alterar `EngineerDashboard`, `WorkOrderDetail`, `exportCsv`, ou `useWorkOrders` — o campo `description` continua funcionando como antes, apenas a origem do valor muda (de digitacao livre para selecao)
 
