@@ -23,7 +23,7 @@ export default function Login() {
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
-        password,
+        password
       });
       if (error) throw error;
 
@@ -33,7 +33,7 @@ export default function Login() {
         const dashMap: Record<string, string> = {
           admin: "/dashboard/manager",
           engineer: "/dashboard/engineer",
-          operator: "/dashboard/operator",
+          operator: "/dashboard/operator"
         };
         navigate(dashMap[role as string] || "/dashboard/manager");
       }
@@ -41,7 +41,7 @@ export default function Login() {
       toast({
         title: "Error",
         description: error.message,
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
@@ -50,15 +50,15 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4"
-      style={{ background: "linear-gradient(135deg, hsl(222 47% 11%) 0%, hsl(217 33% 17%) 50%, hsl(222 47% 11%) 100%)" }}
-    >
+    style={{ background: "linear-gradient(135deg, hsl(222 47% 11%) 0%, hsl(217 33% 17%) 50%, hsl(222 47% 11%) 100%)" }}>
+
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-2xl">
         <div className="flex flex-col items-center space-y-4 mb-8">
           <img
             src={appliedLogo}
             alt="Applied Nutrition Logo"
-            className="h-[120px] w-auto object-contain rounded-lg"
-          />
+            className="h-[120px] w-auto object-contain rounded-lg" />
+
           <div className="text-center">
             <h1 className="text-2xl font-bold text-white tracking-wide">Applied Nutrition</h1>
             <p className="text-sm text-white/60 mt-1">Maintenance Portal</p>
@@ -74,8 +74,8 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
               required
-              className="w-full h-11 rounded-lg bg-white/10 border border-white/15 pl-10 pr-4 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-colors"
-            />
+              className="w-full h-11 rounded-lg bg-white/10 border border-white/15 pl-10 pr-4 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-colors" />
+
           </div>
 
           <div className="relative">
@@ -87,19 +87,19 @@ export default function Login() {
               placeholder="Password"
               minLength={6}
               required
-              className="w-full h-11 rounded-lg bg-white/10 border border-white/15 pl-10 pr-4 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-colors"
-            />
+              className="w-full h-11 rounded-lg bg-white/10 border border-white/15 pl-10 pr-4 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-colors" />
+
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-11 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
-          >
+            className="w-full h-11 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none bg-blue-700 hover:bg-blue-600 text-white">
+
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
       </div>
-    </div>
-  );
+    </div>);
+
 }
