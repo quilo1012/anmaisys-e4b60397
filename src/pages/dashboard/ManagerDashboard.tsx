@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,6 +14,7 @@ import { LayoutDashboard, ClipboardList, Users, XCircle, Loader2, Download, Time
 import { useWorkOrders, useForceCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts, usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines, useAddMachine, useDeleteMachine } from "@/hooks/useMachines";
+import { useProblemDescriptions, useAddProblemDescription, useDeleteProblemDescription } from "@/hooks/useProblemDescriptions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes, subDays, startOfDay, endOfDay, startOfMonth } from "date-fns";
@@ -54,6 +55,11 @@ export default function ManagerDashboard() {
   const [newMachineName, setNewMachineName] = useState("");
   const [showMachines, setShowMachines] = useState(false);
   const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
+  const { data: problemDescriptions } = useProblemDescriptions();
+  const addProblem = useAddProblemDescription();
+  const deleteProblem = useDeleteProblemDescription();
+  const [showProblems, setShowProblems] = useState(false);
+  const [newProblemName, setNewProblemName] = useState("");
 
   // Create WO state
   const [showCreate, setShowCreate] = useState(false);
@@ -198,6 +204,9 @@ export default function ManagerDashboard() {
             <p className="text-muted-foreground">Full system overview and control</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowProblems(true)}>
+              <ClipboardList className="h-4 w-4 mr-2" /> Problems
+            </Button>
             <Button variant="outline" onClick={() => setShowMachines(true)}>
               <Settings className="h-4 w-4 mr-2" /> Machines
             </Button>
@@ -408,7 +417,12 @@ export default function ManagerDashboard() {
                   <SelectContent>{machines?.map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2"><Label>Problem Description</Label><Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={3} required /></div>
+              <div className="space-y-2"><Label>Problem Description</Label>
+                <Select value={newDesc} onValueChange={setNewDesc}>
+                  <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
+                  <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
               <Button type="submit" className="w-full" disabled={createWO.isPending}>
                 {createWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Create
               </Button>
@@ -428,7 +442,12 @@ export default function ManagerDashboard() {
                   <SelectContent>{machines?.map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2"><Label>Problem Description</Label><Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={3} /></div>
+              <div className="space-y-2"><Label>Problem Description</Label>
+                <Select value={editDesc} onValueChange={setEditDesc}>
+                  <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
+                  <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditWO(null)}>Cancel</Button>
@@ -481,6 +500,39 @@ export default function ManagerDashboard() {
                   </div>
                 ))}
                 {!machines?.length && <p className="text-muted-foreground text-sm text-center py-4">No machines yet.</p>}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Manage Problem Descriptions Dialog */}
+        <Dialog open={showProblems} onOpenChange={setShowProblems}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Manage Problem Descriptions</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <Input value={newProblemName} onChange={(e) => setNewProblemName(e.target.value)} placeholder="New problem description..." />
+                <Button onClick={async () => {
+                  if (!newProblemName.trim()) return;
+                  try {
+                    await addProblem.mutateAsync(newProblemName.trim());
+                    setNewProblemName("");
+                    toast({ title: "Problem description added" });
+                  } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                }} disabled={addProblem.isPending}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="space-y-1 max-h-60 overflow-y-auto">
+                {problemDescriptions?.map((pd) => (
+                  <div key={pd.id} className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-muted">
+                    <span className="text-sm">{pd.name}</span>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteProblem.mutate(pd.id)}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+                {!problemDescriptions?.length && <p className="text-muted-foreground text-sm text-center py-4">No problem descriptions yet.</p>}
               </div>
             </div>
           </DialogContent>

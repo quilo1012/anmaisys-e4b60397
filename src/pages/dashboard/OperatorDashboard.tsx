@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,6 +12,7 @@ import { ClipboardList, Plus, Loader2 } from "lucide-react";
 import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines } from "@/hooks/useMachines";
+import { useProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -31,6 +32,7 @@ export default function OperatorDashboard() {
   const woIds = workOrders?.map((wo) => wo.id) || [];
   const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { data: machines } = useMachines();
+  const { data: problemDescriptions } = useProblemDescriptions();
   const createWO = useCreateWorkOrder();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -88,7 +90,16 @@ export default function OperatorDashboard() {
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="desc">Problem Description</Label>
-                <Textarea id="desc" placeholder="Describe the issue..." value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+                <Select value={description} onValueChange={setDescription}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select problem..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {problemDescriptions?.map((pd) => (
+                      <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="md:col-span-2">
                 <Button type="submit" disabled={createWO.isPending}>

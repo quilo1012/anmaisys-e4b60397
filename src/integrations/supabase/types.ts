@@ -81,6 +81,24 @@ export type Database = {
           },
         ]
       }
+      problem_descriptions: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       product_categories: {
         Row: {
           created_at: string
