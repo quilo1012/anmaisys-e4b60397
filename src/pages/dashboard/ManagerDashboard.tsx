@@ -36,6 +36,7 @@ export default function ManagerDashboard() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [problemFilter, setProblemFilter] = useState<string>("all");
   const filterStatuses = statusFilter === "all" ? undefined : [statusFilter as WOStatus];
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
   const { data: allWOs } = useWorkOrders();
@@ -129,8 +130,11 @@ export default function ManagerDashboard() {
       if (dateFrom) filtered = filtered.filter((w) => w.created_at >= dateFrom);
       if (dateTo) filtered = filtered.filter((w) => w.created_at <= dateTo + "T23:59:59");
     }
+    if (problemFilter !== "all") {
+      filtered = filtered.filter((w) => w.description === problemFilter);
+    }
     return filtered;
-  }, [workOrders, dateQuickFilter, dateFrom, dateTo]);
+  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter]);
 
   const wosPerDay = useMemo(() => {
     if (!allWOs) return [];
@@ -152,6 +156,16 @@ export default function ManagerDashboard() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([machine, count]) => ({ machine, count }));
+  }, [allWOs]);
+
+  const topProblems = useMemo(() => {
+    if (!allWOs) return [];
+    const counts: Record<string, number> = {};
+    allWOs.forEach((w) => { counts[w.description] = (counts[w.description] || 0) + 1; });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([problem, count]) => ({ problem, count }));
   }, [allWOs]);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -279,7 +293,7 @@ export default function ManagerDashboard() {
           </Card>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader><CardTitle className="text-base">WOs per Day (Last 7 Days)</CardTitle></CardHeader>
             <CardContent>
@@ -304,6 +318,20 @@ export default function ManagerDashboard() {
                   <YAxis type="category" dataKey="machine" width={120} />
                   <Tooltip />
                   <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-base">Top 5 Problems by WO Count</CardTitle></CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={topProblems} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" allowDecimals={false} />
+                  <YAxis type="category" dataKey="problem" width={120} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -342,6 +370,17 @@ export default function ManagerDashboard() {
                     <SelectItem value="in_progress">In Progress</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="force_closed">Force Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={problemFilter} onValueChange={setProblemFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filter problem" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Problems</SelectItem>
+                    {problemDescriptions?.map((pd) => (
+                      <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
