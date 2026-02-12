@@ -1,9 +1,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://esm.sh/zod@3.23.8";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const deleteUserSchema = z.object({
+  userId: z.string().uuid("Invalid user ID"),
+});
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -35,8 +40,8 @@ Deno.serve(async (req) => {
 
     if (!isAdmin) throw new Error("Only managers can delete users");
 
-    const { userId } = await req.json();
-    if (!userId) throw new Error("userId is required");
+    const body = deleteUserSchema.parse(await req.json());
+    const { userId } = body;
 
     if (userId === caller.id) throw new Error("You cannot delete your own account");
 
@@ -54,6 +59,12 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return new Response(JSON.stringify({ error: error.errors[0].message }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(JSON.stringify({ error: message }), {
       status: 400,
