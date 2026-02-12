@@ -1,9 +1,20 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://esm.sh/zod@3.23.8";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const updateUserSchema = z.object({
+  userId: z.string().uuid("Invalid user ID"),
+  name: z.string().trim().min(1).max(100).optional(),
+  role: z.enum(["admin", "engineer", "operator"]).optional(),
+  shift: z.string().max(50).optional(),
+  active: z.boolean().optional(),
+  email: z.string().email("Invalid email format").max(255).optional(),
+  password: z.string().min(6, "Password must be at least 6 characters").max(128).optional(),
+});
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -35,24 +46,20 @@ Deno.serve(async (req) => {
 
     if (!isAdmin) throw new Error("Only managers can update users");
 
-    const { userId, name, role, shift, active, email, password } = await req.json();
-    if (!userId) throw new Error("userId is required");
+    const body = updateUserSchema.parse(await req.json());
+    const { userId, name, role, shift, active, email, password } = body;
 
-    // Update auth credentials if provided
     if (email) {
       const { error: emailError } = await supabaseAdmin.auth.admin.updateUserById(userId, { email });
       if (emailError) throw emailError;
-      // Sync email in profiles table
       await supabaseAdmin.from("profiles").update({ email }).eq("id", userId);
     }
 
     if (password) {
-      if (password.length < 6) throw new Error("Password must be at least 6 characters");
       const { error: pwError } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
       if (pwError) throw pwError;
     }
 
-    // Update profile fields
     const profileUpdate: Record<string, unknown> = {};
     if (name !== undefined) profileUpdate.name = name;
     if (shift !== undefined) profileUpdate.shift = shift;
@@ -66,7 +73,6 @@ Deno.serve(async (req) => {
       if (profileError) throw profileError;
     }
 
-    // Update role if provided
     if (role) {
       const { data: existingRole } = await supabaseAdmin
         .from("user_roles")
@@ -90,6 +96,12 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return new Response(JSON.stringify({ error: error.errors[0].message }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(JSON.stringify({ error: message }), {
       status: 400,
