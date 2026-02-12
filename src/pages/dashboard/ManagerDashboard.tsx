@@ -10,12 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { LayoutDashboard, ClipboardList, Users, XCircle, Loader2, Download, Timer, Activity, Package, AlertTriangle, Plus, Pencil, Trash2 } from "lucide-react";
+import { LayoutDashboard, ClipboardList, Users, XCircle, Loader2, Download, Timer, Activity, Package, AlertTriangle, Plus, Pencil, Trash2, Settings, X } from "lucide-react";
 import { useWorkOrders, useForceCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts, usePartsCountByWOs } from "@/hooks/useStock";
+import { useMachines, useAddMachine, useDeleteMachine } from "@/hooks/useMachines";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { format, differenceInMinutes, subDays } from "date-fns";
+import { format, differenceInMinutes, subDays, startOfDay, endOfDay, startOfMonth } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { exportWorkOrdersCsv } from "@/lib/exportCsv";
@@ -47,6 +48,12 @@ export default function ManagerDashboard() {
   const woIds = useMemo(() => workOrders?.map((w) => w.id) ?? [], [workOrders]);
   const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { toast } = useToast();
+  const { data: machines } = useMachines();
+  const addMachine = useAddMachine();
+  const deleteMachine = useDeleteMachine();
+  const [newMachineName, setNewMachineName] = useState("");
+  const [showMachines, setShowMachines] = useState(false);
+  const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
 
   // Create WO state
   const [showCreate, setShowCreate] = useState(false);
@@ -92,6 +99,32 @@ export default function ManagerDashboard() {
       avgMTTR: count ? Math.round(totalMTTR / count) : 0,
     };
   }, [allWOs]);
+
+  // Date filtering logic
+  const filteredWOs = useMemo(() => {
+    if (!workOrders) return [];
+    let filtered = workOrders;
+    const now = new Date();
+    if (dateQuickFilter === "today") {
+      const start = startOfDay(now);
+      const end = endOfDay(now);
+      filtered = filtered.filter((w) => { const d = new Date(w.created_at); return d >= start && d <= end; });
+    } else if (dateQuickFilter === "yesterday") {
+      const start = startOfDay(subDays(now, 1));
+      const end = endOfDay(subDays(now, 1));
+      filtered = filtered.filter((w) => { const d = new Date(w.created_at); return d >= start && d <= end; });
+    } else if (dateQuickFilter === "7days") {
+      const start = startOfDay(subDays(now, 6));
+      filtered = filtered.filter((w) => new Date(w.created_at) >= start);
+    } else if (dateQuickFilter === "month") {
+      const start = startOfMonth(now);
+      filtered = filtered.filter((w) => new Date(w.created_at) >= start);
+    } else {
+      if (dateFrom) filtered = filtered.filter((w) => w.created_at >= dateFrom);
+      if (dateTo) filtered = filtered.filter((w) => w.created_at <= dateTo + "T23:59:59");
+    }
+    return filtered;
+  }, [workOrders, dateQuickFilter, dateFrom, dateTo]);
 
   const wosPerDay = useMemo(() => {
     if (!allWOs) return [];
@@ -159,14 +192,19 @@ export default function ManagerDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="text-2xl font-bold">Manager Dashboard</h2>
             <p className="text-muted-foreground">Full system overview and control</p>
           </div>
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4 mr-2" /> Create WO
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowMachines(true)}>
+              <Settings className="h-4 w-4 mr-2" /> Machines
+            </Button>
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4 mr-2" /> Create WO
+            </Button>
+          </div>
         </div>
 
         {/* KPI cards - same as before */}
@@ -265,19 +303,23 @@ export default function ManagerDashboard() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="flex items-center gap-2">
                 <ClipboardList className="h-5 w-5" /> All Work Orders
               </CardTitle>
               <div className="flex items-center gap-2 flex-wrap">
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" placeholder="From" />
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" placeholder="To" />
+                <div className="flex gap-1">
+                  {([["today", "Today"], ["yesterday", "Yesterday"], ["7days", "7 Days"], ["month", "This Month"], ["all", "All"]] as const).map(([key, label]) => (
+                    <Button key={key} variant={dateQuickFilter === key ? "default" : "outline"} size="sm" onClick={() => { setDateQuickFilter(key); setDateFrom(""); setDateTo(""); }}>
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateQuickFilter(""); }} className="w-[150px]" placeholder="From" />
+                <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateQuickFilter(""); }} className="w-[150px]" placeholder="To" />
                 <Button variant="outline" size="sm" onClick={() => {
-                  if (!workOrders) return;
-                  let filtered = workOrders;
-                  if (dateFrom) filtered = filtered.filter((w) => w.created_at >= dateFrom);
-                  if (dateTo) filtered = filtered.filter((w) => w.created_at <= dateTo + "T23:59:59");
-                  exportWorkOrdersCsv(filtered, undefined, partsCounts);
+                  if (!filteredWOs) return;
+                  exportWorkOrdersCsv(filteredWOs, undefined, partsCounts);
                 }}>
                   <Download className="h-4 w-4 mr-1" /> Export CSV
                 </Button>
@@ -299,7 +341,7 @@ export default function ManagerDashboard() {
           <CardContent>
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-            ) : !workOrders?.length ? (
+             ) : !filteredWOs?.length ? (
               <p className="text-muted-foreground text-center py-8">No work orders found.</p>
             ) : (
               <Table>
@@ -319,7 +361,7 @@ export default function ManagerDashboard() {
                    </TableRow>
                  </TableHeader>
                  <TableBody>
-                   {workOrders.map((wo) => {
+                   {filteredWOs.map((wo) => {
                      const cfg = statusConfig[wo.status];
                      const canForceClose = wo.status === "open" || wo.status === "in_progress";
                      return (
@@ -360,7 +402,12 @@ export default function ManagerDashboard() {
             <DialogHeader><DialogTitle>Create Work Order</DialogTitle></DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="space-y-2"><Label>Requested By</Label><Input value={newRequester} onChange={(e) => setNewRequester(e.target.value)} placeholder="e.g. John Smith" required /></div>
-              <div className="space-y-2"><Label>Machine</Label><Input value={newMachine} onChange={(e) => setNewMachine(e.target.value)} required /></div>
+              <div className="space-y-2"><Label>Machine</Label>
+                <Select value={newMachine} onValueChange={setNewMachine}>
+                  <SelectTrigger><SelectValue placeholder="Select machine..." /></SelectTrigger>
+                  <SelectContent>{machines?.map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2"><Label>Problem Description</Label><Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={3} required /></div>
               <Button type="submit" className="w-full" disabled={createWO.isPending}>
                 {createWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Create
@@ -375,7 +422,12 @@ export default function ManagerDashboard() {
             <DialogHeader><DialogTitle>Edit Work Order</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2"><Label>Requested By</Label><Input value={editRequester} onChange={(e) => setEditRequester(e.target.value)} /></div>
-              <div className="space-y-2"><Label>Machine</Label><Input value={editMachine} onChange={(e) => setEditMachine(e.target.value)} /></div>
+              <div className="space-y-2"><Label>Machine</Label>
+                <Select value={editMachine} onValueChange={setEditMachine}>
+                  <SelectTrigger><SelectValue placeholder="Select machine..." /></SelectTrigger>
+                  <SelectContent>{machines?.map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2"><Label>Problem Description</Label><Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={3} /></div>
             </div>
             <DialogFooter>
@@ -400,6 +452,39 @@ export default function ManagerDashboard() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Manage Machines Dialog */}
+        <Dialog open={showMachines} onOpenChange={setShowMachines}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Manage Machines</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <Input value={newMachineName} onChange={(e) => setNewMachineName(e.target.value)} placeholder="New machine name..." />
+                <Button onClick={async () => {
+                  if (!newMachineName.trim()) return;
+                  try {
+                    await addMachine.mutateAsync(newMachineName.trim());
+                    setNewMachineName("");
+                    toast({ title: "Machine added" });
+                  } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                }} disabled={addMachine.isPending}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="space-y-1 max-h-60 overflow-y-auto">
+                {machines?.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-muted">
+                    <span className="text-sm">{m.name}</span>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMachine.mutate(m.id)}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+                {!machines?.length && <p className="text-muted-foreground text-sm text-center py-4">No machines yet.</p>}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

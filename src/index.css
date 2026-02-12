@@ -105,16 +105,26 @@
 }
 
 @media print {
-  nav, aside, header, .sidebar, [data-sidebar], button {
+  nav, aside, header, .sidebar, [data-sidebar], button, .print\\:hidden {
     display: none !important;
   }
   body {
     background: white !important;
     color: black !important;
+    font-size: 12pt;
   }
   .print-content {
     margin: 0 !important;
     padding: 0 !important;
     max-width: 100% !important;
+  }
+  .print\\:block {
+    display: block !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .border-b {
+    border-color: #333 !important;
   }
 }

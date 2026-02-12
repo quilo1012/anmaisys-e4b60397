@@ -7,9 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ClipboardList, Plus, Loader2 } from "lucide-react";
 import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
+import { useMachines } from "@/hooks/useMachines";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -28,6 +30,7 @@ export default function OperatorDashboard() {
   const { data: workOrders, isLoading } = useWorkOrders({ operatorOnly: true });
   const woIds = workOrders?.map((wo) => wo.id) || [];
   const { data: partsCounts } = usePartsCountByWOs(woIds);
+  const { data: machines } = useMachines();
   const createWO = useCreateWorkOrder();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -72,7 +75,16 @@ export default function OperatorDashboard() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="machine">Machine</Label>
-                <Input id="machine" placeholder="e.g. Press #3" value={machine} onChange={(e) => setMachine(e.target.value)} />
+                <Select value={machine} onValueChange={setMachine}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select machine..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {machines?.map((m) => (
+                      <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="desc">Problem Description</Label>

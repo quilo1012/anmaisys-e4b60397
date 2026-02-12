@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      machines: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       parts_used: {
         Row: {
           created_at: string
