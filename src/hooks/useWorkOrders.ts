@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 
-export type WOStatus = "open" | "in_progress" | "completed" | "force_closed";
+export type WOStatus = "open" | "received" | "arrived" | "in_progress" | "finished" | "closed" | "force_closed";
 
 export interface WorkOrder {
   id: string;
@@ -12,6 +12,7 @@ export interface WorkOrder {
   machine: string;
   description: string;
   status: WOStatus;
+  priority: string;
   operator_id: string;
   engineer_id: string | null;
   closed_by: string | null;
@@ -19,7 +20,11 @@ export interface WorkOrder {
   notified_engineers: string[];
   notes: string;
   created_at: string;
+  received_at: string | null;
+  arrived_at: string | null;
   started_at: string | null;
+  finished_at: string | null;
+  closed_at: string | null;
   completed_at: string | null;
   operator?: { name: string };
   engineer?: { name: string };
@@ -52,7 +57,6 @@ export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOSt
     enabled: !!user,
   });
 
-  // Realtime subscription
   useEffect(() => {
     const channel = supabase
       .channel("work_orders_changes")
@@ -72,10 +76,10 @@ export function useCreateWorkOrder() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (wo: { requester_name: string; machine: string; description: string; notes?: string }) => {
+    mutationFn: async (wo: { requester_name: string; machine: string; description: string; notes?: string; priority?: string }) => {
       const { data, error } = await supabase
         .from("work_orders")
-        .insert({ ...wo, operator_id: user!.id })
+        .insert({ ...wo, operator_id: user!.id, priority: wo.priority || "medium" } as any)
         .select()
         .single();
       if (error) throw error;
@@ -85,7 +89,7 @@ export function useCreateWorkOrder() {
   });
 }
 
-export function useStartWorkOrder() {
+export function useReceiveWorkOrder() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -93,7 +97,68 @@ export function useStartWorkOrder() {
     mutationFn: async (woId: string) => {
       const { error } = await supabase
         .from("work_orders")
-        .update({ status: "in_progress" as WOStatus, engineer_id: user!.id, started_at: new Date().toISOString() })
+        .update({ status: "received" as any, engineer_id: user!.id, received_at: new Date().toISOString() } as any)
+        .eq("id", woId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+  });
+}
+
+export function useArriveWorkOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (woId: string) => {
+      const { error } = await supabase
+        .from("work_orders")
+        .update({ status: "arrived" as any, arrived_at: new Date().toISOString() } as any)
+        .eq("id", woId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+  });
+}
+
+export function useStartWorkOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (woId: string) => {
+      const { error } = await supabase
+        .from("work_orders")
+        .update({ status: "in_progress" as any, started_at: new Date().toISOString() } as any)
+        .eq("id", woId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+  });
+}
+
+export function useFinishWorkOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ woId, signedByName }: { woId: string; signedByName: string }) => {
+      const { error } = await supabase
+        .from("work_orders")
+        .update({ status: "finished" as any, finished_at: new Date().toISOString(), signed_by_name: signedByName } as any)
+        .eq("id", woId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+  });
+}
+
+export function useCloseWorkOrder() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (woId: string) => {
+      const { error } = await supabase
+        .from("work_orders")
+        .update({ status: "closed" as any, closed_by: user!.id, closed_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
     },
@@ -108,7 +173,7 @@ export function useCompleteWorkOrder() {
     mutationFn: async ({ woId, signedByName }: { woId: string; signedByName: string }) => {
       const { error } = await supabase
         .from("work_orders")
-        .update({ status: "completed" as WOStatus, completed_at: new Date().toISOString(), signed_by_name: signedByName })
+        .update({ status: "completed" as any, completed_at: new Date().toISOString(), signed_by_name: signedByName } as any)
         .eq("id", woId);
       if (error) throw error;
     },
@@ -124,7 +189,7 @@ export function useForceCloseWorkOrder() {
     mutationFn: async (woId: string) => {
       const { error } = await supabase
         .from("work_orders")
-        .update({ status: "force_closed" as WOStatus, closed_by: user!.id, completed_at: new Date().toISOString() })
+        .update({ status: "force_closed" as any, closed_by: user!.id, completed_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
     },
@@ -135,10 +200,12 @@ export function useForceCloseWorkOrder() {
 export function useUpdateWorkOrder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, requester_name, machine, description, notes }: { id: string; requester_name: string; machine: string; description: string; notes?: string }) => {
+    mutationFn: async ({ id, requester_name, machine, description, notes, priority }: { id: string; requester_name: string; machine: string; description: string; notes?: string; priority?: string }) => {
+      const update: any = { requester_name, machine, description, notes: notes ?? "" };
+      if (priority) update.priority = priority;
       const { error } = await supabase
         .from("work_orders")
-        .update({ requester_name, machine, description, notes: notes ?? "" })
+        .update(update)
         .eq("id", id);
       if (error) throw error;
     },

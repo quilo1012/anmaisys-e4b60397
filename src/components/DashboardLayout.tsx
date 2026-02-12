@@ -13,7 +13,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield } from "lucide-react";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
@@ -39,6 +39,7 @@ const navItems: NavItem[] = [
   { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin"] },
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "engineer"] },
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin"] },
+  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"] },
 ];
 
 function LiveClock() {

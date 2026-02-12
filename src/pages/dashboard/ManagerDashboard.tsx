@@ -8,7 +8,8 @@ import { differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+
+const DONE_STATUSES = ["completed", "closed", "finished"];
 
 export default function ManagerDashboard() {
   const { data: allWOs } = useWorkOrders();
@@ -28,16 +29,19 @@ export default function ManagerDashboard() {
   const today = new Date().toDateString();
   const openCount = allWOs?.filter((w) => w.status === "open").length ?? 0;
   const inProgressCount = allWOs?.filter((w) => w.status === "in_progress").length ?? 0;
-  const completedToday = allWOs?.filter((w) => w.status === "completed" && w.completed_at && new Date(w.completed_at).toDateString() === today).length ?? 0;
+  const completedToday = allWOs?.filter((w) => DONE_STATUSES.includes(w.status) && (w.closed_at || w.completed_at || w.finished_at) && new Date(w.closed_at || w.completed_at || w.finished_at!).toDateString() === today).length ?? 0;
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
 
   const kpis = useMemo(() => {
     if (!allWOs) return { avgResponse: 0, avgMTTR: 0 };
-    const completed = allWOs.filter((w) => w.status === "completed" && w.started_at && w.completed_at);
+    const done = allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.started_at);
     let totalResp = 0, totalMTTR = 0, count = 0;
-    completed.forEach((wo) => {
+    done.forEach((wo) => {
       totalResp += differenceInMinutes(new Date(wo.started_at!), new Date(wo.created_at));
-      totalMTTR += differenceInMinutes(new Date(wo.completed_at!), new Date(wo.started_at!));
+      const end = wo.finished_at || wo.completed_at;
+      if (end) {
+        totalMTTR += differenceInMinutes(new Date(end), new Date(wo.started_at!));
+      }
       count++;
     });
     return { avgResponse: count ? Math.round(totalResp / count) : 0, avgMTTR: count ? Math.round(totalMTTR / count) : 0 };

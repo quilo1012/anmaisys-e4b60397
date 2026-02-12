@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,16 +12,27 @@ import { ClipboardList, Plus, Loader2 } from "lucide-react";
 import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines } from "@/hooks/useMachines";
-import { useProblemDescriptions } from "@/hooks/useProblemDescriptions";
+import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
+  received: { label: "Received", className: "bg-indigo-100 text-indigo-800 border-indigo-200" },
+  arrived: { label: "Arrived", className: "bg-purple-100 text-purple-800 border-purple-200" },
   in_progress: { label: "In Progress", className: "bg-amber-100 text-amber-800 border-amber-200" },
+  finished: { label: "Finished", className: "bg-teal-100 text-teal-800 border-teal-200" },
+  closed: { label: "Closed", className: "bg-green-100 text-green-800 border-green-200" },
   completed: { label: "Completed", className: "bg-green-100 text-green-800 border-green-200" },
   force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
+};
+
+const priorityConfig: Record<string, { label: string; className: string }> = {
+  low: { label: "Low", className: "bg-slate-100 text-slate-700" },
+  medium: { label: "Medium", className: "bg-blue-100 text-blue-700" },
+  high: { label: "High", className: "bg-orange-100 text-orange-700" },
+  critical: { label: "Critical", className: "bg-red-100 text-red-700" },
 };
 
 export default function OperatorDashboard() {
@@ -30,11 +40,12 @@ export default function OperatorDashboard() {
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
+  const [priority, setPriority] = useState("medium");
   const { data: workOrders, isLoading } = useWorkOrders({ operatorOnly: true });
   const woIds = workOrders?.map((wo) => wo.id) || [];
   const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { data: machines } = useMachines();
-  const { data: problemDescriptions } = useProblemDescriptions();
+  const { data: problemDescriptions } = useActiveProblemDescriptions();
   const createWO = useCreateWorkOrder();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -46,12 +57,9 @@ export default function OperatorDashboard() {
       return;
     }
     try {
-      await createWO.mutateAsync({ requester_name: requesterName.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim() });
+      await createWO.mutateAsync({ requester_name: requesterName.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority });
       toast({ title: "Work Order Created", description: "Your WO has been submitted." });
-      setRequesterName("");
-      setMachine("");
-      setDescription("");
-      setNotes("");
+      setRequesterName(""); setMachine(""); setDescription(""); setNotes(""); setPriority("medium");
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
     }
@@ -81,9 +89,7 @@ export default function OperatorDashboard() {
               <div className="space-y-2">
                 <Label htmlFor="machine">Machine</Label>
                 <Select value={machine} onValueChange={setMachine}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select machine..." />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select machine..." /></SelectTrigger>
                   <SelectContent>
                     {machines?.map((m) => (
                       <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
@@ -91,16 +97,26 @@ export default function OperatorDashboard() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2">
                 <Label htmlFor="desc">Problem Description</Label>
                 <Select value={description} onValueChange={setDescription}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select problem..." />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
                   <SelectContent>
                     {problemDescriptions?.map((pd) => (
                       <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="priority">Priority</Label>
+                <Select value={priority} onValueChange={setPriority}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">🟢 Low (2h SLA)</SelectItem>
+                    <SelectItem value="medium">🔵 Medium (1h SLA)</SelectItem>
+                    <SelectItem value="high">🟠 High (30min SLA)</SelectItem>
+                    <SelectItem value="critical">🔴 Critical (10min SLA)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -135,12 +151,11 @@ export default function OperatorDashboard() {
                 <TableHeader>
                   <TableRow>
                      <TableHead>WO#</TableHead>
+                     <TableHead>Priority</TableHead>
                      <TableHead>Requester</TableHead>
                      <TableHead>Machine</TableHead>
                      <TableHead>Status</TableHead>
                      <TableHead>Created</TableHead>
-                     <TableHead>Started</TableHead>
-                     <TableHead>Completed</TableHead>
                      <TableHead>Engineer</TableHead>
                      <TableHead>Parts</TableHead>
                    </TableRow>
@@ -148,15 +163,15 @@ export default function OperatorDashboard() {
                  <TableBody>
                    {workOrders.map((wo) => {
                      const cfg = statusConfig[wo.status] || statusConfig.open;
+                     const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
                      return (
                        <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
                          <TableCell className="font-mono font-medium">WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
+                         <TableCell><Badge variant="outline" className={pri.className}>{pri.label}</Badge></TableCell>
                          <TableCell className="font-medium">{wo.requester_name}</TableCell>
                          <TableCell>{wo.machine}</TableCell>
                          <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
                          <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
-                         <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
-                         <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
                          <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
                          <TableCell>
                            {partsCounts?.[wo.id] ? (

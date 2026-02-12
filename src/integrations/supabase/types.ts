@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          user_id: string | null
+          user_name: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          user_id?: string | null
+          user_name: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          user_id?: string | null
+          user_name?: string
+        }
+        Relationships: []
+      }
       machines: {
         Row: {
           code: string | null
@@ -230,16 +266,21 @@ export type Database = {
       }
       work_orders: {
         Row: {
+          arrived_at: string | null
+          closed_at: string | null
           closed_by: string | null
           completed_at: string | null
           created_at: string
           description: string
           engineer_id: string | null
+          finished_at: string | null
           id: string
           machine: string
           notes: string | null
           notified_engineers: string[] | null
           operator_id: string
+          priority: string
+          received_at: string | null
           requester_name: string
           signed_by_name: string | null
           started_at: string | null
@@ -247,16 +288,21 @@ export type Database = {
           wo_number: number
         }
         Insert: {
+          arrived_at?: string | null
+          closed_at?: string | null
           closed_by?: string | null
           completed_at?: string | null
           created_at?: string
           description: string
           engineer_id?: string | null
+          finished_at?: string | null
           id?: string
           machine: string
           notes?: string | null
           notified_engineers?: string[] | null
           operator_id: string
+          priority?: string
+          received_at?: string | null
           requester_name: string
           signed_by_name?: string | null
           started_at?: string | null
@@ -264,16 +310,21 @@ export type Database = {
           wo_number?: number
         }
         Update: {
+          arrived_at?: string | null
+          closed_at?: string | null
           closed_by?: string | null
           completed_at?: string | null
           created_at?: string
           description?: string
           engineer_id?: string | null
+          finished_at?: string | null
           id?: string
           machine?: string
           notes?: string | null
           notified_engineers?: string[] | null
           operator_id?: string
+          priority?: string
+          received_at?: string | null
           requester_name?: string
           signed_by_name?: string | null
           started_at?: string | null
@@ -320,10 +371,27 @@ export type Database = {
         }
         Returns: boolean
       }
+      log_audit_event: {
+        Args: {
+          _action: string
+          _details?: Json
+          _entity_id?: string
+          _entity_type: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "engineer" | "operator"
-      wo_status: "open" | "in_progress" | "completed" | "force_closed"
+      wo_status:
+        | "open"
+        | "in_progress"
+        | "completed"
+        | "force_closed"
+        | "received"
+        | "arrived"
+        | "finished"
+        | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -452,7 +520,16 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "engineer", "operator"],
-      wo_status: ["open", "in_progress", "completed", "force_closed"],
+      wo_status: [
+        "open",
+        "in_progress",
+        "completed",
+        "force_closed",
+        "received",
+        "arrived",
+        "finished",
+        "closed",
+      ],
     },
   },
 } as const
