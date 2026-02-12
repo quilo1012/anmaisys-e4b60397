@@ -210,6 +210,7 @@ export type Database = {
           engineer_id: string | null
           id: string
           machine: string
+          notes: string | null
           notified_engineers: string[] | null
           operator_id: string
           requester_name: string
@@ -226,6 +227,7 @@ export type Database = {
           engineer_id?: string | null
           id?: string
           machine: string
+          notes?: string | null
           notified_engineers?: string[] | null
           operator_id: string
           requester_name: string
@@ -242,6 +244,7 @@ export type Database = {
           engineer_id?: string | null
           id?: string
           machine?: string
+          notes?: string | null
           notified_engineers?: string[] | null
           operator_id?: string
           requester_name?: string

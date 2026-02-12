@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,6 +29,7 @@ export default function OperatorDashboard() {
   const [requesterName, setRequesterName] = useState("");
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
+  const [notes, setNotes] = useState("");
   const { data: workOrders, isLoading } = useWorkOrders({ operatorOnly: true });
   const woIds = workOrders?.map((wo) => wo.id) || [];
   const { data: partsCounts } = usePartsCountByWOs(woIds);
@@ -44,11 +46,12 @@ export default function OperatorDashboard() {
       return;
     }
     try {
-      await createWO.mutateAsync({ requester_name: requesterName.trim(), machine: machine.trim(), description: description.trim() });
+      await createWO.mutateAsync({ requester_name: requesterName.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim() });
       toast({ title: "Work Order Created", description: "Your WO has been submitted." });
       setRequesterName("");
       setMachine("");
       setDescription("");
+      setNotes("");
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
     }
@@ -100,6 +103,10 @@ export default function OperatorDashboard() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="notes">Observations (optional)</Label>
+                <Textarea id="notes" placeholder="Additional notes or context..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
               </div>
               <div className="md:col-span-2">
                 <Button type="submit" disabled={createWO.isPending}>

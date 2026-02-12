@@ -103,6 +103,13 @@ export default function WorkOrderDetail() {
           <CardContent><p>{wo.description}</p></CardContent>
         </Card>
 
+        {(wo as any).notes && (
+          <Card>
+            <CardHeader><CardTitle className="text-base">Observations</CardTitle></CardHeader>
+            <CardContent><p>{(wo as any).notes}</p></CardContent>
+          </Card>
+        )}
+
         <div className="grid gap-4 md:grid-cols-3">
           <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Requested By</p><p className="font-medium">{wo.requester_name}</p></CardContent></Card>
           <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Operator</p><p className="font-medium">{wo.operator?.name || "—"}</p></CardContent></Card>
