@@ -9,9 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -31,17 +33,21 @@ export default function ManageUsers() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<AppRole>("operator");
-  
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
 
   // Edit user state
   const [editUser, setEditUser] = useState<Profile | null>(null);
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState<AppRole>("operator");
-  
   const [editActive, setEditActive] = useState(true);
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
   const [editLoading, setEditLoading] = useState(false);
+
+  // Delete state
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     const { data: profiles } = await supabase.from("profiles").select("*");
@@ -78,15 +84,27 @@ export default function ManageUsers() {
     setEditName(u.name);
     setEditRole(u.role || "operator");
     setEditActive(u.active);
+    setEditEmail(u.email);
+    setEditPassword("");
   };
 
   const handleEditUser = async () => {
     if (!editUser) return;
     setEditLoading(true);
     try {
-      const res = await supabase.functions.invoke("update-user", {
-        body: { userId: editUser.id, name: editName.trim(), role: editRole, active: editActive },
-      });
+      const body: Record<string, unknown> = {
+        userId: editUser.id,
+        name: editName.trim(),
+        role: editRole,
+        active: editActive,
+      };
+      if (editEmail.trim() !== editUser.email) {
+        body.email = editEmail.trim().toLowerCase();
+      }
+      if (editPassword) {
+        body.password = editPassword;
+      }
+      const res = await supabase.functions.invoke("update-user", { body });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       toast({ title: "User updated" });
@@ -96,6 +114,21 @@ export default function ManageUsers() {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    setDeleteLoading(userId);
+    try {
+      const res = await supabase.functions.invoke("delete-user", { body: { userId } });
+      if (res.error) throw new Error(res.error.message);
+      if (res.data?.error) throw new Error(res.data.error);
+      toast({ title: "User deleted" });
+      fetchUsers();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setDeleteLoading(null);
     }
   };
 
@@ -152,6 +185,7 @@ export default function ManageUsers() {
               <TableBody>
                 {users.map((user) => {
                   const RoleIcon = user.role ? roleIcons[user.role] : Shield;
+                  const isCurrentUser = user.id === currentUser?.id;
                   return (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.name}</TableCell>
@@ -168,9 +202,38 @@ export default function ManageUsers() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button size="icon" variant="ghost" onClick={() => openEditUser(user)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button size="icon" variant="ghost" onClick={() => openEditUser(user)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          {!isCurrentUser && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete user?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently delete <strong>{user.name}</strong> ({user.email}). This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteUser(user.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    {deleteLoading === user.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -191,6 +254,11 @@ export default function ManageUsers() {
             <DialogHeader><DialogTitle>Edit User</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2"><Label>Full Name</Label><Input value={editName} onChange={(e) => setEditName(e.target.value)} /></div>
+              <div className="space-y-2"><Label>Email</Label><Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} /></div>
+              <div className="space-y-2">
+                <Label>New Password</Label>
+                <Input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="Leave blank to keep current" minLength={6} />
+              </div>
               <div className="space-y-2">
                 <Label>Role</Label>
                 <Select value={editRole} onValueChange={(v) => setEditRole(v as AppRole)}>
