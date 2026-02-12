@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
+import { logAuditEvent } from "@/hooks/useAuditLogs";
 
 export type WOStatus = "open" | "received" | "arrived" | "in_progress" | "finished" | "closed" | "force_closed";
 
@@ -85,7 +86,10 @@ export function useCreateWorkOrder() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("create", "work_order", undefined, { requester_name: vars.requester_name, machine: vars.machine, description: vars.description, priority: vars.priority });
+    },
   });
 }
 
@@ -101,7 +105,10 @@ export function useReceiveWorkOrder() {
         .eq("id", woId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+    onSuccess: (_data, woId) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("receive", "work_order", woId, { status: "received" });
+    },
   });
 }
 
@@ -116,7 +123,10 @@ export function useArriveWorkOrder() {
         .eq("id", woId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+    onSuccess: (_data, woId) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("arrive", "work_order", woId, { status: "arrived" });
+    },
   });
 }
 
@@ -131,7 +141,10 @@ export function useStartWorkOrder() {
         .eq("id", woId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+    onSuccess: (_data, woId) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("start", "work_order", woId, { status: "in_progress" });
+    },
   });
 }
 
@@ -146,7 +159,10 @@ export function useFinishWorkOrder() {
         .eq("id", woId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("finish", "work_order", vars.woId, { status: "finished", signed_by: vars.signedByName });
+    },
   });
 }
 
@@ -162,7 +178,10 @@ export function useCloseWorkOrder() {
         .eq("id", woId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+    onSuccess: (_data, woId) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("close", "work_order", woId, { status: "closed" });
+    },
   });
 }
 
@@ -177,7 +196,10 @@ export function useCompleteWorkOrder() {
         .eq("id", woId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("complete", "work_order", vars.woId, { status: "completed", signed_by: vars.signedByName });
+    },
   });
 }
 
@@ -193,7 +215,10 @@ export function useForceCloseWorkOrder() {
         .eq("id", woId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+    onSuccess: (_data, woId) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("force_close", "work_order", woId, { status: "force_closed" });
+    },
   });
 }
 
@@ -209,7 +234,10 @@ export function useUpdateWorkOrder() {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("update", "work_order", vars.id, { requester_name: vars.requester_name, machine: vars.machine });
+    },
   });
 }
 
@@ -220,7 +248,10 @@ export function useDeleteWorkOrder() {
       const { error } = await supabase.from("work_orders").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("delete", "work_order", id);
+    },
   });
 }
 

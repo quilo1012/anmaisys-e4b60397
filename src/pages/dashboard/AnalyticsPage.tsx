@@ -85,7 +85,7 @@ export default function AnalyticsPage() {
     const relevant = allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.received_at);
     let met = 0;
     relevant.forEach((wo) => {
-      const target = SLA_TARGETS[(wo as any).priority || "medium"] || 60;
+      const target = SLA_TARGETS[wo.priority || "medium"] || 60;
       const responseMin = differenceInMinutes(new Date(wo.received_at!), new Date(wo.created_at));
       if (responseMin <= target) met++;
     });
@@ -96,7 +96,7 @@ export default function AnalyticsPage() {
   const ordersByPriority = useMemo(() => {
     if (!allWOs) return [];
     const pc: Record<string, number> = {};
-    allWOs.forEach((w) => { pc[(w as any).priority || "medium"] = (pc[(w as any).priority || "medium"] || 0) + 1; });
+    allWOs.forEach((w) => { pc[w.priority || "medium"] = (pc[w.priority || "medium"] || 0) + 1; });
     return Object.entries(pc).map(([priority, count]) => ({ priority, count }));
   }, [allWOs]);
 

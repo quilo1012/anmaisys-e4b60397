@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Trash2, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle } from "lucide-react";
 import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
@@ -106,7 +106,7 @@ export default function WorkOrdersPage() {
     }
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
-    if (priorityFilter !== "all") filtered = filtered.filter((w) => (w as any).priority === priorityFilter);
+    if (priorityFilter !== "all") filtered = filtered.filter((w) => w.priority === priorityFilter);
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter((w) =>
@@ -165,7 +165,7 @@ export default function WorkOrdersPage() {
   };
 
   const KanbanCard = ({ wo, borderColor }: { wo: WorkOrder; borderColor: string }) => {
-    const pri = priorityConfig[(wo as any).priority || "medium"] || priorityConfig.medium;
+    const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
     return (
       <Card className={`cursor-pointer hover:shadow-md transition-shadow border-l-4 ${borderColor}`} onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
         <CardContent className="p-3 space-y-1">
@@ -295,7 +295,7 @@ export default function WorkOrdersPage() {
                   <TableBody>
                     {paginatedWOs.map((wo) => {
                       const cfg = statusConfig[wo.status];
-                      const pri = priorityConfig[(wo as any).priority || "medium"] || priorityConfig.medium;
+                      const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
                       const canForceClose = ["open", "received", "arrived", "in_progress"].includes(wo.status);
                       const canClose = wo.status === "finished";
                       return (
@@ -348,7 +348,7 @@ export default function WorkOrdersPage() {
         {/* Create WO Dialog */}
         <Dialog open={showCreate} onOpenChange={setShowCreate}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Create Work Order</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Create Work Order</DialogTitle><DialogDescription className="sr-only">Fill in work order details</DialogDescription></DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="space-y-2"><Label>Requested By</Label><Input value={newRequester} onChange={(e) => setNewRequester(e.target.value)} placeholder="e.g. John Smith" required /></div>
               <div className="space-y-2"><Label>Machine</Label>
@@ -387,7 +387,7 @@ export default function WorkOrdersPage() {
         {/* Edit WO Dialog */}
         <Dialog open={!!editWO} onOpenChange={(open) => !open && setEditWO(null)}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Edit Work Order</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Edit Work Order</DialogTitle><DialogDescription className="sr-only">Modify work order details</DialogDescription></DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2"><Label>Requested By</Label><Input value={editRequester} onChange={(e) => setEditRequester(e.target.value)} /></div>
               <div className="space-y-2"><Label>Machine</Label>

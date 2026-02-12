@@ -7,11 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, Loader2, Cog } from "lucide-react";
 import { useMachines, useAddMachine, useUpdateMachine, useDeleteMachine, type Machine } from "@/hooks/useMachines";
 import { useToast } from "@/hooks/use-toast";
+import { logAuditEvent } from "@/hooks/useAuditLogs";
 
 export default function MachinesPage() {
   const { data: machines, isLoading } = useMachines();
@@ -45,8 +46,9 @@ export default function MachinesPage() {
   const handleAdd = async () => {
     if (!name.trim()) return;
     try {
-      await addMachine.mutateAsync({ name: name.trim(), line: line.trim(), sector: sector.trim(), code: code.trim(), status });
+      const result = await addMachine.mutateAsync({ name: name.trim(), line: line.trim(), sector: sector.trim(), code: code.trim(), status });
       toast({ title: "Machine added" });
+      logAuditEvent("create", "machine", (result as any)?.id, { name: name.trim() });
       setShowAdd(false);
       resetForm();
     } catch (err: any) {
@@ -59,6 +61,7 @@ export default function MachinesPage() {
     try {
       await updateMachine.mutateAsync({ id: editMachine.id, name: name.trim(), line: line.trim(), sector: sector.trim(), code: code.trim(), status });
       toast({ title: "Machine updated" });
+      logAuditEvent("update", "machine", editMachine.id, { name: name.trim() });
       setEditMachine(null);
       resetForm();
     } catch (err: any) {
@@ -71,6 +74,7 @@ export default function MachinesPage() {
     try {
       await deleteMachine.mutateAsync(deleteId);
       toast({ title: "Machine deleted" });
+      logAuditEvent("delete", "machine", deleteId);
       setDeleteId(null);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -158,7 +162,7 @@ export default function MachinesPage() {
         {/* Add Dialog */}
         <Dialog open={showAdd} onOpenChange={setShowAdd}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Add Machine</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Add Machine</DialogTitle><DialogDescription className="sr-only">Add a new machine to the system</DialogDescription></DialogHeader>
             {formContent}
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
@@ -172,7 +176,7 @@ export default function MachinesPage() {
         {/* Edit Dialog */}
         <Dialog open={!!editMachine} onOpenChange={(open) => { if (!open) { setEditMachine(null); resetForm(); } }}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Edit Machine</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Edit Machine</DialogTitle><DialogDescription className="sr-only">Edit machine details</DialogDescription></DialogHeader>
             {formContent}
             <DialogFooter>
               <Button variant="outline" onClick={() => { setEditMachine(null); resetForm(); }}>Cancel</Button>
