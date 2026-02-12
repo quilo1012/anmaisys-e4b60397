@@ -60,8 +60,8 @@ export default function Login() {
             className="h-[120px] w-auto object-contain rounded-lg" />
 
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-white tracking-wide">Applied Nutrition</h1>
-            <p className="text-sm text-white/60 mt-1">Maintenance Portal</p>
+            <h1 className="text-2xl font-bold text-white tracking-wide">MAINTENANCE PORTAL</h1>
+            
           </div>
         </div>
 
