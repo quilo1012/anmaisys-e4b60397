@@ -9,11 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { useProblemDescriptions, useAddProblemDescription, useUpdateProblemDescription, useDeleteProblemDescription, type ProblemDescription } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
+import { logAuditEvent } from "@/hooks/useAuditLogs";
 
 const severityColors: Record<string, string> = {
   low: "bg-green-100 text-green-800 border-green-200",
@@ -52,8 +53,9 @@ export default function ProblemsPage() {
   const handleAdd = async () => {
     if (!name.trim()) return;
     try {
-      await addProblem.mutateAsync({ name: name.trim(), category: category.trim(), severity, description: description.trim(), active });
+      const result = await addProblem.mutateAsync({ name: name.trim(), category: category.trim(), severity, description: description.trim(), active });
       toast({ title: "Problem added" });
+      logAuditEvent("create", "problem", (result as any)?.id, { name: name.trim() });
       setShowAdd(false);
       resetForm();
     } catch (err: any) {
@@ -66,6 +68,7 @@ export default function ProblemsPage() {
     try {
       await updateProblem.mutateAsync({ id: editProblem.id, name: name.trim(), category: category.trim(), severity, description: description.trim(), active });
       toast({ title: "Problem updated" });
+      logAuditEvent("update", "problem", editProblem.id, { name: name.trim() });
       setEditProblem(null);
       resetForm();
     } catch (err: any) {
@@ -78,6 +81,7 @@ export default function ProblemsPage() {
     try {
       await deleteProblem.mutateAsync(deleteId);
       toast({ title: "Problem deleted" });
+      logAuditEvent("delete", "problem", deleteId);
       setDeleteId(null);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -176,7 +180,7 @@ export default function ProblemsPage() {
 
         <Dialog open={showAdd} onOpenChange={setShowAdd}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Add Problem</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Add Problem</DialogTitle><DialogDescription className="sr-only">Add a new problem description</DialogDescription></DialogHeader>
             {formContent}
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
@@ -189,7 +193,7 @@ export default function ProblemsPage() {
 
         <Dialog open={!!editProblem} onOpenChange={(open) => { if (!open) { setEditProblem(null); resetForm(); } }}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Edit Problem</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Edit Problem</DialogTitle><DialogDescription className="sr-only">Edit problem details</DialogDescription></DialogHeader>
             {formContent}
             <DialogFooter>
               <Button variant="outline" onClick={() => { setEditProblem(null); resetForm(); }}>Cancel</Button>

@@ -67,7 +67,7 @@ export function useWOAlerts() {
         { event: "UPDATE", schema: "public", table: "work_orders" },
         (payload) => {
           const updated = payload.new as { status: string };
-          if (updated.status === "in_progress") {
+          if (["received", "in_progress"].includes(updated.status)) {
             console.log("[WOAlerts] WO accepted by an engineer — stopping sound");
             stopAlertSound();
           }

@@ -76,14 +76,14 @@ export default function WorkOrderDetail() {
   }
 
   const cfg = statusConfig[wo.status];
-  const pri = priorityConfig[(wo as any).priority || "medium"] || priorityConfig.medium;
+  const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
   const woLabel = `WO-${String(wo.wo_number).padStart(4, "0")}`;
 
   // Calculated times
-  const responseTime = (wo as any).received_at ? differenceInMinutes(new Date((wo as any).received_at), new Date(wo.created_at)) : null;
-  const travelTime = (wo as any).received_at && (wo as any).arrived_at ? differenceInMinutes(new Date((wo as any).arrived_at), new Date((wo as any).received_at)) : null;
-  const repairTime = wo.started_at && ((wo as any).finished_at || wo.completed_at) ? differenceInMinutes(new Date((wo as any).finished_at || wo.completed_at!), new Date(wo.started_at)) : null;
-  const totalTime = ((wo as any).closed_at || wo.completed_at) ? differenceInMinutes(new Date((wo as any).closed_at || wo.completed_at!), new Date(wo.created_at)) : null;
+  const responseTime = wo.received_at ? differenceInMinutes(new Date(wo.received_at), new Date(wo.created_at)) : null;
+  const travelTime = wo.received_at && wo.arrived_at ? differenceInMinutes(new Date(wo.arrived_at), new Date(wo.received_at)) : null;
+  const repairTime = wo.started_at && (wo.finished_at || wo.completed_at) ? differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at)) : null;
+  const totalTime = (wo.closed_at || wo.completed_at) ? differenceInMinutes(new Date(wo.closed_at || wo.completed_at!), new Date(wo.created_at)) : null;
 
   return (
     <DashboardLayout>
@@ -158,11 +158,11 @@ export default function WorkOrderDetail() {
           <CardContent>
             <div className="space-y-4">
               <TimelineItem icon={Clock} label="Created" time={wo.created_at} className="bg-blue-100 text-blue-700" />
-              <TimelineItem icon={Phone} label="Received" time={(wo as any).received_at} className="bg-indigo-100 text-indigo-700" />
-              <TimelineItem icon={MapPin} label="Arrived" time={(wo as any).arrived_at} className="bg-purple-100 text-purple-700" />
+              <TimelineItem icon={Phone} label="Received" time={wo.received_at} className="bg-indigo-100 text-indigo-700" />
+              <TimelineItem icon={MapPin} label="Arrived" time={wo.arrived_at} className="bg-purple-100 text-purple-700" />
               <TimelineItem icon={Play} label="Started" time={wo.started_at} className="bg-amber-100 text-amber-700" />
-              <TimelineItem icon={Wrench} label="Finished" time={(wo as any).finished_at} className="bg-teal-100 text-teal-700" />
-              {["closed", "completed"].includes(wo.status) && <TimelineItem icon={CheckCircle} label="Closed" time={(wo as any).closed_at || wo.completed_at} className="bg-green-100 text-green-700" />}
+              <TimelineItem icon={Wrench} label="Finished" time={wo.finished_at} className="bg-teal-100 text-teal-700" />
+              {["closed", "completed"].includes(wo.status) && <TimelineItem icon={CheckCircle} label="Closed" time={wo.closed_at || wo.completed_at} className="bg-green-100 text-green-700" />}
               {wo.status === "force_closed" && <TimelineItem icon={XCircle} label="Force Closed" time={wo.completed_at} className="bg-gray-100 text-gray-700" />}
             </div>
           </CardContent>

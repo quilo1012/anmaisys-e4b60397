@@ -7,13 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2, Tags } from "lucide-react";
 import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
 import { useCategories, useAddCategory, useDeleteCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { logAuditEvent } from "@/hooks/useAuditLogs";
 
 export default function StockPage() {
   const { role } = useAuth();
@@ -54,8 +55,9 @@ export default function StockPage() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare" });
+      const result = await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare" });
       toast({ title: "Product added" });
+      logAuditEvent("create", "product", (result as any)?.id, { name, code });
       setName(""); setProductLine(""); setCode(""); setQty(""); setMinStock(""); setCategory("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -74,6 +76,7 @@ export default function StockPage() {
     try {
       await updateStock.mutateAsync({ id: adjustId, quantity: newQty });
       toast({ title: "Stock updated" });
+      logAuditEvent("adjust_stock", "product", adjustId, { adjustment: parseInt(adjustQty), new_quantity: newQty });
       setAdjustId(""); setAdjustQty("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -95,6 +98,7 @@ export default function StockPage() {
     try {
       await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory });
       toast({ title: "Product updated" });
+      logAuditEvent("update", "product", editProduct.id, { name: editName });
       setEditProduct(null);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -106,6 +110,7 @@ export default function StockPage() {
     try {
       await deleteProduct.mutateAsync(deleteId);
       toast({ title: "Product deleted" });
+      logAuditEvent("delete", "product", deleteId);
       setDeleteId(null);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -118,6 +123,7 @@ export default function StockPage() {
     try {
       await addCategory.mutateAsync(newCategoryName.trim());
       toast({ title: "Category added" });
+      logAuditEvent("create", "product_category", undefined, { name: newCategoryName.trim() });
       setNewCategoryName("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -296,7 +302,7 @@ export default function StockPage() {
         {/* Edit Product Dialog */}
         <Dialog open={!!editProduct} onOpenChange={(open) => !open && setEditProduct(null)}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Edit Product</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Edit Product</DialogTitle><DialogDescription className="sr-only">Edit product details</DialogDescription></DialogHeader>
             <div className="space-y-3">
                <div className="space-y-1"><Label>Name</Label><Input value={editName} onChange={(e) => setEditName(e.target.value)} /></div>
                <div className="space-y-1"><Label>Line</Label><Input value={editLine} onChange={(e) => setEditLine(e.target.value)} placeholder="e.g. Line A1" /></div>
