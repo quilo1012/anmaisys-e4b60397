@@ -13,9 +13,11 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle } from "lucide-react";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
+import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
+import { useHeartbeat } from "@/hooks/useHeartbeat";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -31,10 +33,13 @@ const navItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"] },
   { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"] },
   { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin"] },
-  
+  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin"] },
+  { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin"] },
+  { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin"] },
+  { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin"] },
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "engineer"] },
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin"] },
-]; 
+];
 
 function LiveClock() {
   const [now, setNow] = useState(new Date());
@@ -55,6 +60,9 @@ function LiveClock() {
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { role, profile, signOut } = useAuth();
+
+  // Engineer heartbeat for online tracking
+  useHeartbeat();
 
   const filteredItems = navItems.filter((item) => role && item.roles.includes(role));
 
@@ -115,6 +123,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             <h1 className="text-lg font-semibold text-foreground">
               {role === "admin" ? "Manager" : role === "engineer" ? "Engineer" : "Operator"} Dashboard
             </h1>
+            {role === "admin" && (
+              <div className="ml-4">
+                <OnlineEngineersPanel />
+              </div>
+            )}
             <div className="ml-auto">
               <LiveClock />
             </div>

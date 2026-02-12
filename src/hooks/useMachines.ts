@@ -4,6 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 export interface Machine {
   id: string;
   name: string;
+  line: string;
+  sector: string;
+  code: string;
+  status: string;
   created_at: string;
 }
 
@@ -24,8 +28,19 @@ export function useMachines() {
 export function useAddMachine() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (name: string) => {
-      const { error } = await supabase.from("machines").insert({ name });
+    mutationFn: async (machine: { name: string; line?: string; sector?: string; code?: string; status?: string }) => {
+      const { error } = await supabase.from("machines").insert(machine);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["machines"] }),
+  });
+}
+
+export function useUpdateMachine() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; name?: string; line?: string; sector?: string; code?: string; status?: string }) => {
+      const { error } = await supabase.from("machines").update(updates).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["machines"] }),

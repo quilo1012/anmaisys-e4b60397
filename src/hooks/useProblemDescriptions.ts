@@ -4,6 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 export interface ProblemDescription {
   id: string;
   name: string;
+  category: string;
+  severity: string;
+  description: string;
+  active: boolean;
   created_at: string;
 }
 
@@ -21,11 +25,37 @@ export function useProblemDescriptions() {
   });
 }
 
+export function useActiveProblemDescriptions() {
+  return useQuery({
+    queryKey: ["problem_descriptions", "active"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("problem_descriptions")
+        .select("*")
+        .eq("active", true)
+        .order("name");
+      if (error) throw error;
+      return data as ProblemDescription[];
+    },
+  });
+}
+
 export function useAddProblemDescription() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (name: string) => {
-      const { error } = await (supabase as any).from("problem_descriptions").insert({ name });
+    mutationFn: async (problem: { name: string; category?: string; severity?: string; description?: string; active?: boolean }) => {
+      const { error } = await (supabase as any).from("problem_descriptions").insert(problem);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["problem_descriptions"] }),
+  });
+}
+
+export function useUpdateProblemDescription() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; name?: string; category?: string; severity?: string; description?: string; active?: boolean }) => {
+      const { error } = await (supabase as any).from("problem_descriptions").update(updates).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["problem_descriptions"] }),
