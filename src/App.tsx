@@ -9,6 +9,10 @@ import Login from "./pages/Login";
 import OperatorDashboard from "./pages/dashboard/OperatorDashboard";
 import EngineerDashboard from "./pages/dashboard/EngineerDashboard";
 import ManagerDashboard from "./pages/dashboard/ManagerDashboard";
+import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
+import WorkOrdersPage from "./pages/dashboard/WorkOrdersPage";
+import MachinesPage from "./pages/dashboard/MachinesPage";
+import ProblemsPage from "./pages/dashboard/ProblemsPage";
 import WorkOrderDetail from "./pages/dashboard/WorkOrderDetail";
 import StockPage from "./pages/dashboard/StockPage";
 import ManageUsers from "./pages/users/ManageUsers";
@@ -27,6 +31,10 @@ const App = () => (
             <Route path="/dashboard/operator" element={<ProtectedRoute allowedRoles={["operator"]}><OperatorDashboard /></ProtectedRoute>} />
             <Route path="/dashboard/engineer" element={<ProtectedRoute allowedRoles={["engineer"]}><EngineerDashboard /></ProtectedRoute>} />
             <Route path="/dashboard/manager" element={<ProtectedRoute allowedRoles={["admin"]}><ManagerDashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/analytics" element={<ProtectedRoute allowedRoles={["admin"]}><AnalyticsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/work-orders" element={<ProtectedRoute allowedRoles={["admin"]}><WorkOrdersPage /></ProtectedRoute>} />
+            <Route path="/dashboard/machines" element={<ProtectedRoute allowedRoles={["admin"]}><MachinesPage /></ProtectedRoute>} />
+            <Route path="/dashboard/problems" element={<ProtectedRoute allowedRoles={["admin"]}><ProblemsPage /></ProtectedRoute>} />
             <Route path="/dashboard/wo/:id" element={<ProtectedRoute allowedRoles={["operator", "engineer", "admin"]}><WorkOrderDetail /></ProtectedRoute>} />
             <Route path="/dashboard/stock" element={<ProtectedRoute allowedRoles={["engineer", "admin"]}><StockPage /></ProtectedRoute>} />
             <Route path="/users/manage" element={<ProtectedRoute allowedRoles={["admin"]}><ManageUsers /></ProtectedRoute>} />

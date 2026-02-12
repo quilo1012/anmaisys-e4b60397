@@ -16,19 +16,31 @@ export type Database = {
     Tables: {
       machines: {
         Row: {
+          code: string | null
           created_at: string
           id: string
+          line: string | null
           name: string
+          sector: string | null
+          status: string | null
         }
         Insert: {
+          code?: string | null
           created_at?: string
           id?: string
+          line?: string | null
           name: string
+          sector?: string | null
+          status?: string | null
         }
         Update: {
+          code?: string | null
           created_at?: string
           id?: string
+          line?: string | null
           name?: string
+          sector?: string | null
+          status?: string | null
         }
         Relationships: []
       }
@@ -83,19 +95,31 @@ export type Database = {
       }
       problem_descriptions: {
         Row: {
+          active: boolean | null
+          category: string | null
           created_at: string
+          description: string | null
           id: string
           name: string
+          severity: string | null
         }
         Insert: {
+          active?: boolean | null
+          category?: string | null
           created_at?: string
+          description?: string | null
           id?: string
           name: string
+          severity?: string | null
         }
         Update: {
+          active?: boolean | null
+          category?: string | null
           created_at?: string
+          description?: string | null
           id?: string
           name?: string
+          severity?: string | null
         }
         Relationships: []
       }
@@ -159,6 +183,7 @@ export type Database = {
           created_at: string
           email: string
           id: string
+          last_seen_at: string | null
           name: string
           shift: string | null
           updated_at: string
@@ -168,6 +193,7 @@ export type Database = {
           created_at?: string
           email: string
           id: string
+          last_seen_at?: string | null
           name: string
           shift?: string | null
           updated_at?: string
@@ -177,6 +203,7 @@ export type Database = {
           created_at?: string
           email?: string
           id?: string
+          last_seen_at?: string | null
           name?: string
           shift?: string | null
           updated_at?: string
