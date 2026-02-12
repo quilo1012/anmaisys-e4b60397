@@ -40,12 +40,15 @@ Deno.serve(async (req) => {
 
     if (userId === caller.id) throw new Error("You cannot delete your own account");
 
-    // Delete user from auth (cascades to profiles via FK)
+    // Nullify FK references in work_orders and parts_used before deleting
+    await supabaseAdmin.from("work_orders").update({ operator_id: caller.id }).eq("operator_id", userId);
+    await supabaseAdmin.from("work_orders").update({ engineer_id: null }).eq("engineer_id", userId);
+    await supabaseAdmin.from("work_orders").update({ closed_by: null }).eq("closed_by", userId);
+    await supabaseAdmin.from("parts_used").delete().eq("engineer_id", userId);
+
+    // Delete user from auth (cascades to profiles and user_roles via FK)
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (deleteError) throw deleteError;
-
-    // Clean up role manually in case no cascade
-    await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
