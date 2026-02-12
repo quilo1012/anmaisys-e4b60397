@@ -41,14 +41,14 @@ export function useWOAlerts() {
           console.log("[WOAlerts] Received INSERT payload", payload);
 
           playAlertSound();
-          const wo = payload.new as { id: string; line: string; machine: string; description: string; notified_engineers: string[] | null };
+          const wo = payload.new as { id: string; requester_name: string; machine: string; description: string; notified_engineers: string[] | null };
           
-          const notifBody = `Line: ${wo.line} — Machine: ${wo.machine}\n${wo.description}`;
+          const notifBody = `Requester: ${wo.requester_name} — Machine: ${wo.machine}\n${wo.description}`;
           sendWebNotification("🔔 New Work Order!", notifBody);
           
           toast({
             title: "🔔 New Work Order!",
-            description: `Line: ${wo.line} — Machine: ${wo.machine}\n${wo.description}`,
+            description: `Requester: ${wo.requester_name} — Machine: ${wo.machine}\n${wo.description}`,
             duration: 10000,
           });
 

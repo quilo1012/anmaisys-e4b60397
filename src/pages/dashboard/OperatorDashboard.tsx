@@ -22,7 +22,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 };
 
 export default function OperatorDashboard() {
-  const [line, setLine] = useState("");
+  const [requesterName, setRequesterName] = useState("");
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
   const { data: workOrders, isLoading } = useWorkOrders({ operatorOnly: true });
@@ -34,14 +34,14 @@ export default function OperatorDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!line.trim() || !machine.trim() || !description.trim()) {
+    if (!requesterName.trim() || !machine.trim() || !description.trim()) {
       toast({ title: "Error", description: "All fields are required", variant: "destructive" });
       return;
     }
     try {
-      await createWO.mutateAsync({ line: line.trim(), machine: machine.trim(), description: description.trim() });
+      await createWO.mutateAsync({ requester_name: requesterName.trim(), machine: machine.trim(), description: description.trim() });
       toast({ title: "Work Order Created", description: "Your WO has been submitted." });
-      setLine("");
+      setRequesterName("");
       setMachine("");
       setDescription("");
     } catch {
@@ -67,8 +67,8 @@ export default function OperatorDashboard() {
           <CardContent>
             <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="line">Production Line</Label>
-                <Input id="line" placeholder="e.g. Line A1" value={line} onChange={(e) => setLine(e.target.value)} />
+                <Label htmlFor="requester">Requested By</Label>
+                <Input id="requester" placeholder="e.g. John Smith" value={requesterName} onChange={(e) => setRequesterName(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="machine">Machine</Label>
@@ -105,7 +105,7 @@ export default function OperatorDashboard() {
                 <TableHeader>
                   <TableRow>
                      <TableHead>WO#</TableHead>
-                     <TableHead>Line</TableHead>
+                     <TableHead>Requester</TableHead>
                      <TableHead>Machine</TableHead>
                      <TableHead>Status</TableHead>
                      <TableHead>Created</TableHead>
@@ -121,7 +121,7 @@ export default function OperatorDashboard() {
                      return (
                        <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
                          <TableCell className="font-mono font-medium">WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
-                         <TableCell className="font-medium">{wo.line}</TableCell>
+                         <TableCell className="font-medium">{wo.requester_name}</TableCell>
                          <TableCell>{wo.machine}</TableCell>
                          <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
                          <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>

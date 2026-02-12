@@ -8,13 +8,14 @@ export type WOStatus = "open" | "in_progress" | "completed" | "force_closed";
 export interface WorkOrder {
   id: string;
   wo_number: number;
-  line: string;
+  requester_name: string;
   machine: string;
   description: string;
   status: WOStatus;
   operator_id: string;
   engineer_id: string | null;
   closed_by: string | null;
+  signed_by_name: string | null;
   notified_engineers: string[];
   created_at: string;
   started_at: string | null;
@@ -70,7 +71,7 @@ export function useCreateWorkOrder() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (wo: { line: string; machine: string; description: string }) => {
+    mutationFn: async (wo: { requester_name: string; machine: string; description: string }) => {
       const { data, error } = await supabase
         .from("work_orders")
         .insert({ ...wo, operator_id: user!.id })
@@ -103,10 +104,10 @@ export function useCompleteWorkOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (woId: string) => {
+    mutationFn: async ({ woId, signedByName }: { woId: string; signedByName: string }) => {
       const { error } = await supabase
         .from("work_orders")
-        .update({ status: "completed" as WOStatus, completed_at: new Date().toISOString() })
+        .update({ status: "completed" as WOStatus, completed_at: new Date().toISOString(), signed_by_name: signedByName })
         .eq("id", woId);
       if (error) throw error;
     },
@@ -133,10 +134,10 @@ export function useForceCloseWorkOrder() {
 export function useUpdateWorkOrder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, line, machine, description }: { id: string; line: string; machine: string; description: string }) => {
+    mutationFn: async ({ id, requester_name, machine, description }: { id: string; requester_name: string; machine: string; description: string }) => {
       const { error } = await supabase
         .from("work_orders")
-        .update({ line, machine, description })
+        .update({ requester_name, machine, description })
         .eq("id", id);
       if (error) throw error;
     },

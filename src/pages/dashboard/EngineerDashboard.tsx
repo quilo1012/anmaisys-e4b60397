@@ -3,8 +3,11 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Wrench, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useWorkOrders, useStartWorkOrder, useCompleteWorkOrder } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
@@ -34,6 +37,11 @@ export default function EngineerDashboard() {
   useWOAlerts();
 
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
+
+  // Signature dialog state
+  const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
+  const [signName, setSignName] = useState("");
+
   const activeWOIds = useMemo(() => workOrders?.filter(
     (wo) => wo.status === "open" || (wo.status === "in_progress" && wo.engineer_id === user?.id)
   ).map((w) => w.id) ?? [], [workOrders, user]);
@@ -66,6 +74,13 @@ export default function EngineerDashboard() {
   const activeWOs = workOrders?.filter(
     (wo) => wo.status === "open" || (wo.status === "in_progress" && wo.engineer_id === user?.id)
   );
+
+  const handleCompleteConfirm = async () => {
+    if (!signDialogWO || !signName.trim()) return;
+    await completeWO.mutateAsync({ woId: signDialogWO, signedByName: signName.trim() });
+    setSignDialogWO(null);
+    setSignName("");
+  };
 
   return (
     <DashboardLayout>
@@ -121,7 +136,7 @@ export default function EngineerDashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Wrench className="h-5 w-5" />
+              <ClipboardList className="h-5 w-5" />
               Work Orders
             </CardTitle>
           </CardHeader>
@@ -135,7 +150,7 @@ export default function EngineerDashboard() {
                 <TableHeader>
                   <TableRow>
                      <TableHead>WO#</TableHead>
-                     <TableHead>Line</TableHead>
+                     <TableHead>Requester</TableHead>
                      <TableHead>Machine</TableHead>
                      <TableHead>Description</TableHead>
                      <TableHead>Status</TableHead>
@@ -151,8 +166,8 @@ export default function EngineerDashboard() {
                      const cfg = statusConfig[wo.status];
                      return (
                        <TableRow key={wo.id}>
-                         <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
-                         <TableCell>{wo.line}</TableCell>
+                         <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}> WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
+                         <TableCell>{wo.requester_name}</TableCell>
                          <TableCell>{wo.machine}</TableCell>
                          <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
                          <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
@@ -172,8 +187,8 @@ export default function EngineerDashboard() {
                                 <Button size="sm" variant="outline" onClick={() => setPartsDialogWO(wo.id)}>
                                   <Package className="h-3 w-3 mr-1" /> Parts
                                 </Button>
-                                <Button size="sm" variant="secondary" onClick={() => completeWO.mutate(wo.id)} disabled={completeWO.isPending}>
-                                  <CheckCircle className="h-3 w-3 mr-1" /> Complete
+                                <Button size="sm" variant="secondary" onClick={() => setSignDialogWO(wo.id)}>
+                                  <PenTool className="h-3 w-3 mr-1" /> Complete
                                 </Button>
                               </>
                             )}
@@ -192,6 +207,39 @@ export default function EngineerDashboard() {
       {partsDialogWO && (
         <PartsUsedDialog open={!!partsDialogWO} onOpenChange={(o) => !o && setPartsDialogWO(null)} workOrderId={partsDialogWO} />
       )}
+
+      {/* Signature confirmation dialog */}
+      <Dialog open={!!signDialogWO} onOpenChange={(open) => { if (!open) { setSignDialogWO(null); setSignName(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PenTool className="h-5 w-5" /> Confirm & Complete Work Order
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Type your full name below to sign and complete this work order.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="sign-name">Full Name (Digital Signature)</Label>
+              <Input
+                id="sign-name"
+                placeholder="e.g. John Smith"
+                value={signName}
+                onChange={(e) => setSignName(e.target.value)}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); }}>Cancel</Button>
+            <Button onClick={handleCompleteConfirm} disabled={!signName.trim() || completeWO.isPending}>
+              {completeWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Confirm & Complete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

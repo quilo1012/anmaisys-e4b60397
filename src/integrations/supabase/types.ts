@@ -173,10 +173,11 @@ export type Database = {
           description: string
           engineer_id: string | null
           id: string
-          line: string
           machine: string
           notified_engineers: string[] | null
           operator_id: string
+          requester_name: string
+          signed_by_name: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["wo_status"]
           wo_number: number
@@ -188,10 +189,11 @@ export type Database = {
           description: string
           engineer_id?: string | null
           id?: string
-          line: string
           machine: string
           notified_engineers?: string[] | null
           operator_id: string
+          requester_name: string
+          signed_by_name?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["wo_status"]
           wo_number?: number
@@ -203,10 +205,11 @@ export type Database = {
           description?: string
           engineer_id?: string | null
           id?: string
-          line?: string
           machine?: string
           notified_engineers?: string[] | null
           operator_id?: string
+          requester_name?: string
+          signed_by_name?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["wo_status"]
           wo_number?: number
