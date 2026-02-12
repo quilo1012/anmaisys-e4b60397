@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer } from "lucide-react";
+import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool } from "lucide-react";
 import { useWorkOrderById } from "@/hooks/useWorkOrders";
 import { usePartsUsedByWO } from "@/hooks/useStock";
 import { format, differenceInMinutes } from "date-fns";
@@ -75,7 +75,7 @@ export default function WorkOrderDetail() {
 
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">{wo.line} — {wo.machine}</h2>
+            <h2 className="text-2xl font-bold">{wo.requester_name} — {wo.machine}</h2>
             <p className="text-muted-foreground text-sm font-mono">{woLabel}</p>
           </div>
           <Badge variant="outline" className={`text-sm px-3 py-1 ${cfg.className}`}>{cfg.label}</Badge>
@@ -87,9 +87,11 @@ export default function WorkOrderDetail() {
         </Card>
 
         <div className="grid gap-4 md:grid-cols-3">
+          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Requested By</p><p className="font-medium">{wo.requester_name}</p></CardContent></Card>
           <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Operator</p><p className="font-medium">{wo.operator?.name || "—"}</p></CardContent></Card>
           <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Engineer</p><p className="font-medium">{wo.engineer?.name || "—"}</p></CardContent></Card>
           {wo.closer?.name && <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Closed By</p><p className="font-medium">{wo.closer.name}</p></CardContent></Card>}
+          {wo.signed_by_name && <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Signed By</p><p className="font-medium flex items-center gap-2"><PenTool className="h-4 w-4" />{wo.signed_by_name}</p></CardContent></Card>}
         </div>
 
         {(responseTime !== null || totalTime !== null) && (

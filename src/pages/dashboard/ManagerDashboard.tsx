@@ -50,13 +50,13 @@ export default function ManagerDashboard() {
 
   // Create WO state
   const [showCreate, setShowCreate] = useState(false);
-  const [newLine, setNewLine] = useState("");
+  const [newRequester, setNewRequester] = useState("");
   const [newMachine, setNewMachine] = useState("");
   const [newDesc, setNewDesc] = useState("");
 
   // Edit WO state
   const [editWO, setEditWO] = useState<WorkOrder | null>(null);
-  const [editLine, setEditLine] = useState("");
+  const [editRequester, setEditRequester] = useState("");
   const [editMachine, setEditMachine] = useState("");
   const [editDesc, setEditDesc] = useState("");
 
@@ -118,10 +118,10 @@ export default function ManagerDashboard() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createWO.mutateAsync({ line: newLine.trim(), machine: newMachine.trim(), description: newDesc.trim() });
+      await createWO.mutateAsync({ requester_name: newRequester.trim(), machine: newMachine.trim(), description: newDesc.trim() });
       toast({ title: "Work Order Created", description: "Engineers on shift will receive a sound notification." });
       setShowCreate(false);
-      setNewLine(""); setNewMachine(""); setNewDesc("");
+      setNewRequester(""); setNewMachine(""); setNewDesc("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -129,7 +129,7 @@ export default function ManagerDashboard() {
 
   const openEdit = (wo: WorkOrder) => {
     setEditWO(wo);
-    setEditLine(wo.line);
+    setEditRequester(wo.requester_name);
     setEditMachine(wo.machine);
     setEditDesc(wo.description);
   };
@@ -137,7 +137,7 @@ export default function ManagerDashboard() {
   const handleEdit = async () => {
     if (!editWO) return;
     try {
-      await updateWO.mutateAsync({ id: editWO.id, line: editLine.trim(), machine: editMachine.trim(), description: editDesc.trim() });
+      await updateWO.mutateAsync({ id: editWO.id, requester_name: editRequester.trim(), machine: editMachine.trim(), description: editDesc.trim() });
       toast({ title: "Work Order Updated" });
       setEditWO(null);
     } catch (err: any) {
@@ -306,7 +306,7 @@ export default function ManagerDashboard() {
                 <TableHeader>
                   <TableRow>
                      <TableHead>WO#</TableHead>
-                     <TableHead>Line</TableHead>
+                     <TableHead>Requester</TableHead>
                      <TableHead>Machine</TableHead>
                      <TableHead>Status</TableHead>
                      <TableHead>Operator</TableHead>
@@ -325,7 +325,7 @@ export default function ManagerDashboard() {
                      return (
                        <TableRow key={wo.id}>
                          <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
-                         <TableCell>{wo.line}</TableCell>
+                         <TableCell>{wo.requester_name}</TableCell>
                          <TableCell>{wo.machine}</TableCell>
                          <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
                          <TableCell className="text-sm">{wo.operator?.name || "—"}</TableCell>
@@ -359,7 +359,7 @@ export default function ManagerDashboard() {
           <DialogContent>
             <DialogHeader><DialogTitle>Create Work Order</DialogTitle></DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4">
-              <div className="space-y-2"><Label>Production Line</Label><Input value={newLine} onChange={(e) => setNewLine(e.target.value)} required /></div>
+              <div className="space-y-2"><Label>Requested By</Label><Input value={newRequester} onChange={(e) => setNewRequester(e.target.value)} placeholder="e.g. John Smith" required /></div>
               <div className="space-y-2"><Label>Machine</Label><Input value={newMachine} onChange={(e) => setNewMachine(e.target.value)} required /></div>
               <div className="space-y-2"><Label>Problem Description</Label><Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={3} required /></div>
               <Button type="submit" className="w-full" disabled={createWO.isPending}>
@@ -374,7 +374,7 @@ export default function ManagerDashboard() {
           <DialogContent>
             <DialogHeader><DialogTitle>Edit Work Order</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2"><Label>Production Line</Label><Input value={editLine} onChange={(e) => setEditLine(e.target.value)} /></div>
+              <div className="space-y-2"><Label>Requested By</Label><Input value={editRequester} onChange={(e) => setEditRequester(e.target.value)} /></div>
               <div className="space-y-2"><Label>Machine</Label><Input value={editMachine} onChange={(e) => setEditMachine(e.target.value)} /></div>
               <div className="space-y-2"><Label>Problem Description</Label><Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={3} /></div>
             </div>
