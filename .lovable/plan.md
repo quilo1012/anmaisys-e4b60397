@@ -1,107 +1,117 @@
 
 
-# Redesign Completo AN Maintenance
+# Melhorias Pendentes - AN Maintenance
 
-## Resumo das Alteracoes
+## Status Atual
 
-Este plano cobre as melhorias visuais, mudanca do campo "Production Line" para nome do solicitante, assinatura digital por texto, e consistencia de icones. QR Code e stamp de impressao ficam para a proxima etapa.
+A grande maioria dos itens solicitados ja esta implementada:
+- Logo e branding (login 120px, sidebar 32px, titulo "AN Maintenance")
+- Login com gradiente escuro, blur, icones, sem sign-up
+- Icones Lucide consistentes (ClipboardList, Play, PenTool, Package, etc.)
+- Alertas sonoros HTML5 Audio WAV em loop (1s/60s) + Web Notifications
+- Campo "Requested By" (substituiu "Production Line")
+- Assinatura digital por nome ao completar WO
+- Categorias dinamicas de estoque gerenciadas pelo admin
+- Registro de pecas por engenheiro com atualizacao de estoque
+- CRUD de usuarios pelo manager
+- CRUD de WOs pelo manager (criar/editar/deletar/force close)
+- Exportacao CSV
+- KPIs (response time, MTTR, parts used)
+- Graficos (WOs por dia, top maquinas)
+- Timeline completa no WO detail
+- Realtime updates via channels
+- Coluna "Parts" no Operator e Engineer Dashboard
+- Impressao basica com botao Print
 
----
+## Funcionalidades Novas a Implementar
 
-## 1. Banco de Dados - Renomear campo "line" para "requester_name"
+### 1. Relogio Digital no Header
 
-Criar migration para renomear a coluna `line` na tabela `work_orders` para `requester_name`:
+Adicionar componente `LiveClock` no header do `DashboardLayout.tsx` exibindo hora (HH:MM:SS) e data (DD/MM/YYYY), atualizado a cada segundo, estilo industrial/clean.
 
-```sql
-ALTER TABLE work_orders RENAME COLUMN line TO requester_name;
+**Arquivo:** `src/components/DashboardLayout.tsx`
+
+### 2. Tabela de Maquinas + Dropdown
+
+Substituir o campo livre "Machine" por um dropdown com maquinas predefinidas da fabrica.
+
+**Database:**
+```text
+CREATE TABLE public.machines (id, name, created_at)
+RLS: admins CRUD, todos authenticated SELECT
 ```
 
-Adicionar coluna `signed_by_name` para a assinatura digital do engenheiro:
+**Novos arquivos:**
+- `src/hooks/useMachines.ts` -- hook para listar/criar/deletar maquinas
 
-```sql
-ALTER TABLE work_orders ADD COLUMN signed_by_name text;
-```
+**Arquivos modificados:**
+- `src/pages/dashboard/OperatorDashboard.tsx` -- Input vira Select para Machine
+- `src/pages/dashboard/ManagerDashboard.tsx` -- Input vira Select para Machine (criar/editar WO)
+- Manager Dashboard tera uma secao para gerenciar maquinas (adicionar/remover) inline ou via dialog
 
----
+### 3. Filtros Rapidos de Data no Manager Dashboard
 
-## 2. Atualizar codigo que usa o campo `line`
+Adicionar botoes de filtro rapido acima da tabela de WOs:
+- Hoje (default quando nenhuma data selecionada)
+- Ontem
+- Ultimos 7 Dias
+- Este Mes
 
-Todos os arquivos que referenciam `wo.line` ou o campo `line` em work_orders precisam mudar para `requester_name`:
+Filtrar tanto a tabela quanto os KPIs e graficos.
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/hooks/useWorkOrders.ts` | Mudar `line` para `requester_name` no tipo `WorkOrder`, em `useCreateWorkOrder`, `useUpdateWorkOrder` |
-| `src/pages/dashboard/OperatorDashboard.tsx` | Label "Production Line" vira "Requested By" (nome da pessoa). Campo `line` vira `requester_name` |
-| `src/pages/dashboard/ManagerDashboard.tsx` | Mesma mudanca: labels e campos `line` viram `requester_name` |
-| `src/pages/dashboard/EngineerDashboard.tsx` | Coluna "Line" vira "Requester" na tabela |
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Exibir "Requested By" ao inves de "Line" no titulo e detalhes |
-| `src/lib/exportCsv.ts` | Atualizar header do CSV |
+**Arquivo:** `src/pages/dashboard/ManagerDashboard.tsx`
 
----
+### 4. Layout de Impressao Profissional
 
-## 3. Assinatura Digital (texto) ao Completar WO
+Melhorar o CSS de impressao no `WorkOrderDetail.tsx`:
+- Cabecalho com logo da empresa + "AN Maintenance" (visivel apenas no print)
+- Todos os timestamps formatados
+- Assinatura do engenheiro
+- Pecas usadas
+- Numero da WO em destaque
+- Area reservada para stamp (sera adicionado quando a imagem for enviada)
 
-No `EngineerDashboard.tsx`, ao clicar "Complete":
-- Abrir um Dialog pedindo o nome completo do engenheiro como confirmacao
-- O engenheiro digita seu nome e clica "Confirm & Complete"
-- O nome digitado e salvo no campo `signed_by_name` da WO
+**Arquivo:** `src/pages/dashboard/WorkOrderDetail.tsx` + `src/index.css`
 
-No `WorkOrderDetail.tsx`:
-- Exibir campo "Signed By" com o nome digitado, visivel na tela e na impressao
+## Detalhes Tecnicos
 
-Atualizar `useCompleteWorkOrder` para aceitar `signedByName` como parametro:
+### Migration SQL
 
 ```text
-update({ status: "completed", completed_at: now, signed_by_name: signedByName })
+CREATE TABLE public.machines (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL UNIQUE,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.machines ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can manage machines" ON public.machines
+  FOR ALL USING (has_role(auth.uid(), 'admin'::app_role))
+  WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
+
+CREATE POLICY "Authenticated can view machines" ON public.machines
+  FOR SELECT USING (
+    has_role(auth.uid(), 'operator'::app_role) OR
+    has_role(auth.uid(), 'engineer'::app_role) OR
+    has_role(auth.uid(), 'admin'::app_role)
+  );
 ```
 
----
-
-## 4. Consistencia de Icones
-
-Substituir icones genericos por icones Lucide mais adequados ao contexto industrial em todos os dashboards:
-
-| Contexto | Icone Atual | Novo Icone |
-|----------|------------|------------|
-| Dashboard (sidebar) | `LayoutDashboard` | `LayoutDashboard` (manter) |
-| Work Orders (card header) | `Wrench` | `ClipboardList` |
-| Stock (sidebar) | `Package` | `Package` (manter) |
-| Users (sidebar) | `Users` | `Users` (manter) |
-| Start button | `Play` | `Play` (manter) |
-| Complete button | `CheckCircle` | `CheckCircle` (manter) |
-| Print | `Printer` | `Printer` (manter) |
-| Alert WO | `AlertTriangle` | `AlertTriangle` (manter) |
-| Sign/Complete | N/A | `PenTool` (novo, para assinatura) |
-
-Os icones atuais ja sao consistentes com Lucide. A principal melhoria e trocar o `Wrench` por `ClipboardList` no header de Work Orders do EngineerDashboard.
-
----
-
-## 5. Melhorias Visuais nos Dashboards
-
-- Manter o estilo atual dos cards e tabelas (ja esta profissional)
-- Garantir que badges de status usam cores consistentes em todos os dashboards
-- Login ja foi redesenhado com gradiente industrial e logo
-
----
-
-## 6. Arquivos Modificados (resumo)
+### Resumo de Arquivos
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| **Migration SQL** | Renomear `line` para `requester_name`, adicionar `signed_by_name` |
-| `src/hooks/useWorkOrders.ts` | Tipo WorkOrder + mutations atualizados |
-| `src/pages/dashboard/OperatorDashboard.tsx` | Label e campo `requester_name` |
-| `src/pages/dashboard/ManagerDashboard.tsx` | Label e campo `requester_name`, create/edit WO |
-| `src/pages/dashboard/EngineerDashboard.tsx` | Coluna "Requester", dialog de assinatura ao completar |
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Exibir "Requested By" e "Signed By" |
-| `src/lib/exportCsv.ts` | Header CSV atualizado |
-| `src/hooks/useWOAlerts.ts` | Mudar `wo.line` para `wo.requester_name` na notificacao |
+| **Migration SQL** | Tabela `machines` com RLS |
+| `src/hooks/useMachines.ts` | Novo hook CRUD maquinas |
+| `src/components/DashboardLayout.tsx` | LiveClock no header |
+| `src/pages/dashboard/ManagerDashboard.tsx` | Filtros rapidos de data + dropdown maquinas + gestao de maquinas |
+| `src/pages/dashboard/OperatorDashboard.tsx` | Dropdown maquinas |
+| `src/pages/dashboard/WorkOrderDetail.tsx` | Layout de impressao profissional com cabecalho |
+| `src/index.css` | Melhorias no `@media print` |
 
----
-
-## Nota
-
-- **Stamp de impressao**: sera adicionado quando voce enviar a imagem separada
-- **QR Code**: sera implementado em uma proxima etapa conforme combinado
+### Itens Diferidos
+- **Stamp/Carimbo**: layout preparado, imagem sera adicionada quando enviada
+- **QR Code**: proxima etapa conforme combinado
+- **Auditor role**: pode ser adicionado futuramente como nova enum
 
