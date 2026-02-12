@@ -1,92 +1,62 @@
 
 
-# Problem Descriptions Padronizadas
+# Top 5 Problems Chart + Problem Filter + Role Security Verification
 
-## Resumo
+## 1. Top 5 Problems Chart
 
-Criar um sistema de descricoes de problema padronizadas que o Manager gerencia e o Operador seleciona ao criar uma WO. Isso substitui o campo livre "Problem Description" por um dropdown com opcoes predefinidas, seguindo o mesmo padrao ja usado para Machines.
+Add a new bar chart next to the existing "Top 5 Machines" chart showing the most frequent problem descriptions across all WOs.
 
----
+**File:** `src/pages/dashboard/ManagerDashboard.tsx`
 
-## 1. Banco de Dados
+- Add a `topProblems` useMemo that aggregates `allWOs` by `description` field, counts occurrences, sorts descending, and takes top 5
+- Add a third chart card in the charts grid (change from `md:grid-cols-2` to `lg:grid-cols-3` or stack the third below)
+- Use a horizontal `BarChart` (same style as Top 5 Machines) with `description` on Y-axis and `count` on X-axis
 
-### Nova tabela: `problem_descriptions`
+## 2. Problem Description Filter on WO Table
 
+Add a dropdown filter next to the existing Status filter to filter WOs by problem description.
+
+**File:** `src/pages/dashboard/ManagerDashboard.tsx`
+
+- Add state: `const [problemFilter, setProblemFilter] = useState<string>("all")`
+- Add a `Select` component next to the Status filter with options from `problemDescriptions` list + "All Problems" default
+- Update the `filteredWOs` useMemo to also filter by `problemFilter` when not "all" (match against `wo.description`)
+
+## 3. Role Change Security (Already Implemented)
+
+The system already restricts role changes to managers only:
+- The `update-user` edge function checks `has_role(caller.id, 'admin')` before allowing any updates
+- The `user_roles` table has RLS policies: only admins can INSERT, UPDATE, or DELETE roles
+- The ManageUsers page is behind `ProtectedRoute` with `allowedRoles={['admin']}`
+
+No changes needed -- the security is already in place at both the edge function level and database RLS level.
+
+## Files Modified
+
+| File | Change |
+|------|--------|
+| `src/pages/dashboard/ManagerDashboard.tsx` | Add Top 5 Problems chart + Problem Description filter dropdown |
+
+## Technical Details
+
+### Top 5 Problems useMemo
 ```text
-CREATE TABLE public.problem_descriptions (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL UNIQUE,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
-ALTER TABLE public.problem_descriptions ENABLE ROW LEVEL SECURITY;
-
--- Admins CRUD
-CREATE POLICY "Admins can manage problem_descriptions"
-  ON public.problem_descriptions FOR ALL
-  USING (has_role(auth.uid(), 'admin'::app_role))
-  WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
-
--- Operators e Engineers podem visualizar
-CREATE POLICY "Authenticated can view problem_descriptions"
-  ON public.problem_descriptions FOR SELECT
-  USING (
-    has_role(auth.uid(), 'operator'::app_role) OR
-    has_role(auth.uid(), 'engineer'::app_role) OR
-    has_role(auth.uid(), 'admin'::app_role)
-  );
+const topProblems = useMemo(() => {
+  if (!allWOs) return [];
+  const counts: Record<string, number> = {};
+  allWOs.forEach(w => { counts[w.description] = (counts[w.description] || 0) + 1; });
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([problem, count]) => ({ problem, count }));
+}, [allWOs]);
 ```
 
-### Abordagem para o campo `description` na tabela `work_orders`
-
-O campo `description` (text) continuara armazenando o texto da descricao selecionada. Nao sera criado um FK para `problem_descriptions` — isso garante flexibilidade e evita problemas se uma descricao for deletada futuramente. O valor selecionado do dropdown e salvo diretamente como texto no campo `description`.
-
----
-
-## 2. Novo Hook: `src/hooks/useProblemDescriptions.ts`
-
-Seguindo o padrao do `useMachines.ts`:
-- `useProblemDescriptions()` — lista todas as descricoes (SELECT)
-- `useAddProblemDescription()` — insere nova (INSERT)
-- `useDeleteProblemDescription()` — remove (DELETE)
-
----
-
-## 3. Alteracoes no OperatorDashboard.tsx
-
-- Substituir o `<Textarea>` de "Problem Description" por um `<Select>` dropdown
-- Listar as descricoes vindas do hook `useProblemDescriptions()`
-- Campo obrigatorio: operador deve selecionar uma opcao
-- O valor selecionado e salvo no campo `description` da WO (como texto)
-
----
-
-## 4. Alteracoes no ManagerDashboard.tsx
-
-### 4a. Gestao de Problem Descriptions
-- Adicionar botao "Problems" ao lado do botao "Machines" no header
-- Ao clicar, abre um Dialog identico ao de Machines (lista + input para adicionar + botao deletar)
-- Manager pode adicionar e remover descricoes
-
-### 4b. Criar/Editar WO
-- No dialog "Create WO": substituir `<Textarea>` de description por `<Select>` com as descricoes padronizadas
-- No dialog "Edit WO": mesmo — `<Select>` em vez de `<Textarea>`
-
----
-
-## 5. Arquivos Modificados
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| **Migration SQL** | Nova tabela `problem_descriptions` com RLS |
-| `src/hooks/useProblemDescriptions.ts` | Novo hook (list, add, delete) |
-| `src/pages/dashboard/OperatorDashboard.tsx` | Textarea vira Select para Problem Description |
-| `src/pages/dashboard/ManagerDashboard.tsx` | Botao "Problems" + dialog gestao + Select nos dialogs de criar/editar WO |
-
----
-
-## 6. Nota
-
-- O campo `description` na tabela `work_orders` permanece como `text` — nenhuma migration de schema na tabela work_orders
-- Nao sera necessario alterar `EngineerDashboard`, `WorkOrderDetail`, `exportCsv`, ou `useWorkOrders` — o campo `description` continua funcionando como antes, apenas a origem do valor muda (de digitacao livre para selecao)
+### Problem Filter in filteredWOs
+Add condition inside the existing `filteredWOs` useMemo:
+```text
+if (problemFilter !== "all") {
+  filtered = filtered.filter(w => w.description === problemFilter);
+}
+```
 
