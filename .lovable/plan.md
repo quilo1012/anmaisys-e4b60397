@@ -1,51 +1,70 @@
 
 
-# Alerta Sonoro Contínuo Até o Engenheiro Aceitar a Ordem
+# Login Profissional com Logo Applied Nutrition
 
-## O que muda
+## Objetivo
 
-Atualmente o som toca apenas 3 bipes curtos (menos de 2 segundos no total). O novo comportamento sera:
+Substituir o icone generico (Wrench) pelo logo da Applied Nutrition e redesenhar a tela de login com aparencia profissional industrial. O stamp de impressao sera adicionado quando voce enviar a imagem separada.
 
-- O som toca em loop contínuo (bipes repetidos a cada ~1 segundo)
-- Continua tocando por até **60 segundos**
-- Para imediatamente quando o engenheiro clica em **"Start"** (aceita a ordem)
-- Para também se outro engenheiro já aceitou a ordem (status muda para `in_progress`)
+## Alteracoes
 
-## Como funciona
+### 1. Copiar o logo para o projeto
+- Copiar `user-uploads://appliedlogo.jpeg` para `src/assets/appliedlogo.jpeg`
+- Importar como modulo ES6 nos componentes que usam
+
+### 2. Tela de Login (`src/pages/Login.tsx`)
+- Substituir o icone Wrench pelo logo da Applied Nutrition (imagem grande, centralizada)
+- Redesenhar com visual industrial profissional:
+  - Fundo com gradiente escuro (azul industrial para preto)
+  - Card com backdrop blur e borda sutil
+  - Logo grande no topo (120px)
+  - Titulo "Applied Nutrition" com subtitulo "Maintenance Portal"
+  - Inputs com estilo mais limpo e icones internos (email, lock)
+  - Botao de login com destaque (amarelo/accent)
+  - Remover opcao de sign-up (apenas login, usuarios sao criados pelo admin)
+
+### 3. Sidebar (`src/components/DashboardLayout.tsx`)
+- Substituir o icone Wrench + texto "AN Maintenance" pelo logo da Applied Nutrition (versao menor, ~32px)
+- Manter o texto "AN Maintenance" ao lado do logo
+
+### 4. Titulo da pagina (`index.html`)
+- Atualizar o titulo de "Lovable App" para "AN Maintenance"
+
+## Detalhes Tecnicos
+
+### Login redesenhado -- estrutura visual:
 
 ```text
-Nova WO criada --> Som começa em loop --> Para quando:
-                                           1. Engenheiro clica "Start"
-                                           2. 60 segundos se passaram
-                                           3. Outro engenheiro aceitou
++---------------------------------------+
+|                                        |
+|     [Fundo gradiente azul escuro]      |
+|                                        |
+|        +---------------------+         |
+|        |                     |         |
+|        |   [LOGO 120px]     |         |
+|        |                     |         |
+|        |  Applied Nutrition  |         |
+|        |  Maintenance Portal |         |
+|        |                     |         |
+|        |  [Email input]      |         |
+|        |  [Password input]   |         |
+|        |                     |         |
+|        |  [  Sign In  ]      |         |
+|        |                     |         |
+|        +---------------------+         |
+|                                        |
++---------------------------------------+
 ```
 
-## Detalhes Técnicos
+### Arquivos modificados:
 
-### Arquivo: `src/lib/shifts.ts`
-
-- Adicionar variável `alertIntervalId` para controlar o loop
-- Modificar `playAlertSound()` para tocar bipes em loop contínuo (a cada 1s) por até 60 segundos
-- Adicionar nova função `stopAlertSound()` que para o loop e limpa o intervalo
-- A função retorna ou expoe o controle para parar externamente
-
-### Arquivo: `src/hooks/useWOAlerts.ts`
-
-- Importar `stopAlertSound` junto com `playAlertSound`
-- Guardar referência das WOs pendentes com som ativo
-- Adicionar listener para evento UPDATE na tabela `work_orders` -- quando o status muda de `open` para `in_progress`, chamar `stopAlertSound()`
-- Isso garante que quando qualquer engenheiro aceitar a ordem, o som para para todos
-
-### Arquivo: `src/pages/dashboard/EngineerDashboard.tsx`
-
-- No handler do botão "Start", chamar `stopAlertSound()` antes de executar `startWO.mutate()`
-- Isso para o som imediatamente ao clicar, sem esperar a resposta do banco
-
-### Resumo das alterações
-
-| Arquivo | Alteração |
+| Arquivo | Alteracao |
 |---------|-----------|
-| `src/lib/shifts.ts` | Loop contínuo de bipes + função `stopAlertSound()` |
-| `src/hooks/useWOAlerts.ts` | Escutar UPDATE para parar som quando WO for aceita |
-| `src/pages/dashboard/EngineerDashboard.tsx` | Chamar `stopAlertSound()` ao clicar "Start" |
+| `src/assets/appliedlogo.jpeg` | Logo copiado do upload |
+| `src/pages/Login.tsx` | Redesign completo com logo e visual industrial |
+| `src/components/DashboardLayout.tsx` | Logo no sidebar |
+| `index.html` | Titulo atualizado |
+
+### Nota sobre o stamp de impressao
+Quando voce enviar a imagem do stamp, ela sera adicionada ao `WorkOrderDetail.tsx` para aparecer no cabecalho ou rodape ao imprimir a ordem de servico.
 
