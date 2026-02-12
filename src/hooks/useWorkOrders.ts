@@ -17,6 +17,7 @@ export interface WorkOrder {
   closed_by: string | null;
   signed_by_name: string | null;
   notified_engineers: string[];
+  notes: string;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
@@ -71,7 +72,7 @@ export function useCreateWorkOrder() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (wo: { requester_name: string; machine: string; description: string }) => {
+    mutationFn: async (wo: { requester_name: string; machine: string; description: string; notes?: string }) => {
       const { data, error } = await supabase
         .from("work_orders")
         .insert({ ...wo, operator_id: user!.id })
@@ -134,10 +135,10 @@ export function useForceCloseWorkOrder() {
 export function useUpdateWorkOrder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, requester_name, machine, description }: { id: string; requester_name: string; machine: string; description: string }) => {
+    mutationFn: async ({ id, requester_name, machine, description, notes }: { id: string; requester_name: string; machine: string; description: string; notes?: string }) => {
       const { error } = await supabase
         .from("work_orders")
-        .update({ requester_name, machine, description })
+        .update({ requester_name, machine, description, notes: notes ?? "" })
         .eq("id", id);
       if (error) throw error;
     },

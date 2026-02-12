@@ -1,0 +1,1 @@
+ALTER TABLE public.work_orders ADD COLUMN notes text DEFAULT '';

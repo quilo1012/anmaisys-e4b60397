@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { LayoutDashboard, ClipboardList, Users, XCircle, Loader2, Download, Timer, Activity, Package, AlertTriangle, Plus, Pencil, Trash2, Settings, X } from "lucide-react";
+import { LayoutDashboard, ClipboardList, Users, XCircle, Loader2, Download, Timer, Activity, Package, AlertTriangle, Plus, Pencil, Trash2, Settings, X, Search, LayoutGrid, List, ChevronLeft, ChevronRight } from "lucide-react";
 import { useWorkOrders, useForceCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts, usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines, useAddMachine, useDeleteMachine } from "@/hooks/useMachines";
@@ -31,12 +32,18 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
 };
 
+const ITEMS_PER_PAGE = 20;
+
 export default function ManagerDashboard() {
   const { user } = useAuth();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [problemFilter, setProblemFilter] = useState<string>("all");
+  const [machineFilter, setMachineFilter] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<"table" | "board">("table");
+  const [currentPage, setCurrentPage] = useState(1);
   const filterStatuses = statusFilter === "all" ? undefined : [statusFilter as WOStatus];
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
   const { data: allWOs } = useWorkOrders();
@@ -67,12 +74,14 @@ export default function ManagerDashboard() {
   const [newRequester, setNewRequester] = useState("");
   const [newMachine, setNewMachine] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [newNotes, setNewNotes] = useState("");
 
   // Edit WO state
   const [editWO, setEditWO] = useState<WorkOrder | null>(null);
   const [editRequester, setEditRequester] = useState("");
   const [editMachine, setEditMachine] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [editNotes, setEditNotes] = useState("");
 
   // Delete WO state
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -85,6 +94,30 @@ export default function ManagerDashboard() {
       return count ?? 0;
     },
   });
+
+  // Parts used by category query
+  const { data: partsByCategory } = useQuery({
+    queryKey: ["parts_by_category"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("parts_used")
+        .select("quantity, product:products(category)");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const partsCategoryChart = useMemo(() => {
+    if (!partsByCategory) return [];
+    const cats: Record<string, number> = {};
+    partsByCategory.forEach((pu: any) => {
+      const cat = pu.product?.category || "Unknown";
+      cats[cat] = (cats[cat] || 0) + pu.quantity;
+    });
+    return Object.entries(cats)
+      .sort((a, b) => b[1] - a[1])
+      .map(([category, count]) => ({ category, count }));
+  }, [partsByCategory]);
 
   const today = new Date().toDateString();
   const openCount = allWOs?.filter((w) => w.status === "open").length ?? 0;
@@ -133,8 +166,32 @@ export default function ManagerDashboard() {
     if (problemFilter !== "all") {
       filtered = filtered.filter((w) => w.description === problemFilter);
     }
+    if (machineFilter !== "all") {
+      filtered = filtered.filter((w) => w.machine === machineFilter);
+    }
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter((w) =>
+        `WO-${String(w.wo_number).padStart(4, "0")}`.toLowerCase().includes(term) ||
+        w.requester_name.toLowerCase().includes(term) ||
+        w.machine.toLowerCase().includes(term) ||
+        w.description.toLowerCase().includes(term) ||
+        (w.operator?.name || "").toLowerCase().includes(term) ||
+        (w.engineer?.name || "").toLowerCase().includes(term)
+      );
+    }
     return filtered;
-  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter]);
+  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, searchTerm]);
+
+  // Pagination
+  const totalPages = Math.ceil((filteredWOs?.length ?? 0) / ITEMS_PER_PAGE);
+  const paginatedWOs = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredWOs.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredWOs, currentPage]);
+
+  // Reset page when filters change
+  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, searchTerm, dateQuickFilter, dateFrom, dateTo]);
 
   const wosPerDay = useMemo(() => {
     if (!allWOs) return [];
@@ -171,10 +228,10 @@ export default function ManagerDashboard() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createWO.mutateAsync({ requester_name: newRequester.trim(), machine: newMachine.trim(), description: newDesc.trim() });
+      await createWO.mutateAsync({ requester_name: newRequester.trim(), machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim() });
       toast({ title: "Work Order Created", description: "Engineers on shift will receive a sound notification." });
       setShowCreate(false);
-      setNewRequester(""); setNewMachine(""); setNewDesc("");
+      setNewRequester(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -185,12 +242,13 @@ export default function ManagerDashboard() {
     setEditRequester(wo.requester_name);
     setEditMachine(wo.machine);
     setEditDesc(wo.description);
+    setEditNotes((wo as any).notes || "");
   };
 
   const handleEdit = async () => {
     if (!editWO) return;
     try {
-      await updateWO.mutateAsync({ id: editWO.id, requester_name: editRequester.trim(), machine: editMachine.trim(), description: editDesc.trim() });
+      await updateWO.mutateAsync({ id: editWO.id, requester_name: editRequester.trim(), machine: editMachine.trim(), description: editDesc.trim(), notes: editNotes.trim() });
       toast({ title: "Work Order Updated" });
       setEditWO(null);
     } catch (err: any) {
@@ -208,6 +266,14 @@ export default function ManagerDashboard() {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
   };
+
+  // Kanban groups
+  const kanbanColumns = useMemo(() => {
+    const open = filteredWOs.filter((w) => w.status === "open");
+    const inProgress = filteredWOs.filter((w) => w.status === "in_progress");
+    const completed = filteredWOs.filter((w) => w.status === "completed" || w.status === "force_closed");
+    return { open, inProgress, completed };
+  }, [filteredWOs]);
 
   return (
     <DashboardLayout>
@@ -230,7 +296,7 @@ export default function ManagerDashboard() {
           </div>
         </div>
 
-        {/* KPI cards - same as before */}
+        {/* KPI cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -293,7 +359,8 @@ export default function ManagerDashboard() {
           </Card>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Charts */}
+        <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader><CardTitle className="text-base">WOs per Day (Last 7 Days)</CardTitle></CardHeader>
             <CardContent>
@@ -336,8 +403,27 @@ export default function ManagerDashboard() {
               </ResponsiveContainer>
             </CardContent>
           </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-base">Parts Used by Category</CardTitle></CardHeader>
+            <CardContent>
+              {!partsCategoryChart.length ? (
+                <p className="text-muted-foreground text-sm text-center py-8">No parts usage data available.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={partsCategoryChart} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" allowDecimals={false} />
+                    <YAxis type="category" dataKey="category" width={120} />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="hsl(var(--chart-4, var(--primary)))" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
+        {/* Work Orders section */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -345,6 +431,15 @@ export default function ManagerDashboard() {
                 <ClipboardList className="h-5 w-5" /> All Work Orders
               </CardTitle>
               <div className="flex items-center gap-2 flex-wrap">
+                {/* View toggle */}
+                <div className="flex border rounded-md">
+                  <Button variant={viewMode === "table" ? "default" : "ghost"} size="sm" onClick={() => setViewMode("table")} className="rounded-r-none">
+                    <List className="h-4 w-4" />
+                  </Button>
+                  <Button variant={viewMode === "board" ? "default" : "ghost"} size="sm" onClick={() => setViewMode("board")} className="rounded-l-none">
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                </div>
                 <div className="flex gap-1">
                   {([["today", "Today"], ["yesterday", "Yesterday"], ["7days", "7 Days"], ["month", "This Month"], ["all", "All"]] as const).map(([key, label]) => (
                     <Button key={key} variant={dateQuickFilter === key ? "default" : "outline"} size="sm" onClick={() => { setDateQuickFilter(key); setDateFrom(""); setDateTo(""); }}>
@@ -360,86 +455,199 @@ export default function ManagerDashboard() {
                 }}>
                   <Download className="h-4 w-4 mr-1" /> Export CSV
                 </Button>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue placeholder="Filter status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="open">Open</SelectItem>
-                    <SelectItem value="in_progress">In Progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="force_closed">Force Closed</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={problemFilter} onValueChange={setProblemFilter}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Filter problem" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Problems</SelectItem>
-                    {problemDescriptions?.map((pd) => (
-                      <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
+            </div>
+            {/* Filters row */}
+            <div className="flex items-center gap-2 flex-wrap mt-2">
+              <div className="relative flex-1 min-w-[200px] max-w-[300px]">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search WO#, requester, machine..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8" />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Filter status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="force_closed">Force Closed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={problemFilter} onValueChange={setProblemFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter problem" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Problems</SelectItem>
+                  {problemDescriptions?.map((pd) => (
+                    <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={machineFilter} onValueChange={setMachineFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter machine" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Machines</SelectItem>
+                  {machines?.map((m) => (
+                    <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-             ) : !filteredWOs?.length ? (
+            ) : !filteredWOs?.length ? (
               <p className="text-muted-foreground text-center py-8">No work orders found.</p>
+            ) : viewMode === "board" ? (
+              /* Kanban Board View */
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Open column */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-3 h-3 rounded-full bg-blue-500" />
+                    <h3 className="font-semibold text-sm">Open ({kanbanColumns.open.length})</h3>
+                  </div>
+                  {kanbanColumns.open.map((wo) => (
+                    <Card key={wo.id} className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                      <CardContent className="p-3 space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="font-mono text-xs font-medium">WO-{String(wo.wo_number).padStart(4, "0")}</span>
+                          <span className="text-xs text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</span>
+                        </div>
+                        <p className="text-sm font-medium">{wo.machine}</p>
+                        <p className="text-xs text-muted-foreground truncate">{wo.description}</p>
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{wo.requester_name}</span>
+                          <span>{wo.engineer?.name || "—"}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {!kanbanColumns.open.length && <p className="text-muted-foreground text-xs text-center py-4">No open WOs</p>}
+                </div>
+                {/* In Progress column */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-3 h-3 rounded-full bg-amber-500" />
+                    <h3 className="font-semibold text-sm">In Progress ({kanbanColumns.inProgress.length})</h3>
+                  </div>
+                  {kanbanColumns.inProgress.map((wo) => (
+                    <Card key={wo.id} className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-amber-500" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                      <CardContent className="p-3 space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="font-mono text-xs font-medium">WO-{String(wo.wo_number).padStart(4, "0")}</span>
+                          <span className="text-xs text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</span>
+                        </div>
+                        <p className="text-sm font-medium">{wo.machine}</p>
+                        <p className="text-xs text-muted-foreground truncate">{wo.description}</p>
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{wo.requester_name}</span>
+                          <span>{wo.engineer?.name || "—"}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {!kanbanColumns.inProgress.length && <p className="text-muted-foreground text-xs text-center py-4">No WOs in progress</p>}
+                </div>
+                {/* Completed column */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                    <h3 className="font-semibold text-sm">Completed ({kanbanColumns.completed.length})</h3>
+                  </div>
+                  {kanbanColumns.completed.map((wo) => (
+                    <Card key={wo.id} className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-green-500" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                      <CardContent className="p-3 space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="font-mono text-xs font-medium">WO-{String(wo.wo_number).padStart(4, "0")}</span>
+                          <span className="text-xs text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</span>
+                        </div>
+                        <p className="text-sm font-medium">{wo.machine}</p>
+                        <p className="text-xs text-muted-foreground truncate">{wo.description}</p>
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{wo.requester_name}</span>
+                          <span>{wo.engineer?.name || "—"}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {!kanbanColumns.completed.length && <p className="text-muted-foreground text-xs text-center py-4">No completed WOs</p>}
+                </div>
+              </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                     <TableHead>WO#</TableHead>
-                     <TableHead>Requester</TableHead>
-                     <TableHead>Machine</TableHead>
-                     <TableHead>Status</TableHead>
-                     <TableHead>Operator</TableHead>
-                     <TableHead>Engineer</TableHead>
-                     <TableHead>Created</TableHead>
-                     <TableHead>Parts</TableHead>
-                     <TableHead>Started</TableHead>
-                     <TableHead>Completed</TableHead>
-                     <TableHead>Actions</TableHead>
-                   </TableRow>
-                 </TableHeader>
-                 <TableBody>
-                   {filteredWOs.map((wo) => {
-                     const cfg = statusConfig[wo.status];
-                     const canForceClose = wo.status === "open" || wo.status === "in_progress";
-                     return (
-                       <TableRow key={wo.id}>
-                         <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
-                         <TableCell>{wo.requester_name}</TableCell>
-                         <TableCell>{wo.machine}</TableCell>
-                         <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
-                         <TableCell className="text-sm">{wo.operator?.name || "—"}</TableCell>
-                         <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
-                          <TableCell className="text-sm font-medium">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
-                            <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(wo.id)}><Trash2 className="h-4 w-4" /></Button>
-                            {canForceClose && (
-                              <Button size="sm" variant="destructive" onClick={() => forceClose.mutate(wo.id)} disabled={forceClose.isPending}>
-                                <XCircle className="h-3 w-3 mr-1" /> Force Close
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              /* Table View */
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                       <TableHead>WO#</TableHead>
+                       <TableHead>Requester</TableHead>
+                       <TableHead>Machine</TableHead>
+                       <TableHead>Status</TableHead>
+                       <TableHead>Operator</TableHead>
+                       <TableHead>Engineer</TableHead>
+                       <TableHead>Created</TableHead>
+                       <TableHead>Parts</TableHead>
+                       <TableHead>Started</TableHead>
+                       <TableHead>Completed</TableHead>
+                       <TableHead>Actions</TableHead>
+                     </TableRow>
+                   </TableHeader>
+                   <TableBody>
+                     {paginatedWOs.map((wo) => {
+                       const cfg = statusConfig[wo.status];
+                       const canForceClose = wo.status === "open" || wo.status === "in_progress";
+                       return (
+                         <TableRow key={wo.id}>
+                           <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
+                           <TableCell>{wo.requester_name}</TableCell>
+                           <TableCell>{wo.machine}</TableCell>
+                           <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
+                           <TableCell className="text-sm">{wo.operator?.name || "—"}</TableCell>
+                           <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                            <TableCell className="text-sm font-medium">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(wo.id)}><Trash2 className="h-4 w-4" /></Button>
+                              {canForceClose && (
+                                <Button size="sm" variant="destructive" onClick={() => forceClose.mutate(wo.id)} disabled={forceClose.isPending}>
+                                  <XCircle className="h-3 w-3 mr-1" /> Force Close
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredWOs.length)} of {filteredWOs.length}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>
+                        <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                      </Button>
+                      <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)}>
+                        Next <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -461,6 +669,9 @@ export default function ManagerDashboard() {
                   <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
                   <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2"><Label>Observations (optional)</Label>
+                <Textarea value={newNotes} onChange={(e) => setNewNotes(e.target.value)} placeholder="Additional notes or context..." rows={3} />
               </div>
               <Button type="submit" className="w-full" disabled={createWO.isPending}>
                 {createWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Create
@@ -486,6 +697,9 @@ export default function ManagerDashboard() {
                   <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
                   <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2"><Label>Observations (optional)</Label>
+                <Textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Additional notes or context..." rows={3} />
               </div>
             </div>
             <DialogFooter>
