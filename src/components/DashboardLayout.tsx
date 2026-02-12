@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -35,6 +35,23 @@ const navItems: NavItem[] = [
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "engineer"] },
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin"] },
 ]; 
+
+function LiveClock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const time = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const date = now.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return (
+    <div className="text-sm font-mono text-muted-foreground tabular-nums">
+      <span className="font-semibold text-foreground">{time}</span>
+      <span className="mx-2">—</span>
+      <span>{date}</span>
+    </div>
+  );
+}
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { role, profile, signOut } = useAuth();
@@ -98,6 +115,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             <h1 className="text-lg font-semibold text-foreground">
               {role === "admin" ? "Manager" : role === "engineer" ? "Engineer" : "Operator"} Dashboard
             </h1>
+            <div className="ml-auto">
+              <LiveClock />
+            </div>
           </header>
           <div className="flex-1 p-6">
             {children}

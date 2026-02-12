@@ -64,11 +64,28 @@ export default function WorkOrderDetail() {
   return (
     <DashboardLayout>
       <div className="space-y-6 max-w-3xl print-content">
-        <div className="flex items-center justify-between">
+        {/* Print-only header */}
+        <div className="hidden print:block mb-6 border-b-2 border-foreground pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img src="/appliedlogo.jpeg" alt="AN" className="h-12 w-12 rounded object-contain" />
+              <div>
+                <h1 className="text-xl font-bold">AN Maintenance</h1>
+                <p className="text-sm text-muted-foreground">Work Order Report</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold font-mono">{woLabel}</p>
+              <p className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM/yyyy HH:mm:ss")}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between print:hidden">
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-2">
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2 print:hidden">
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
             <Printer className="h-4 w-4" /> Print
           </Button>
         </div>
