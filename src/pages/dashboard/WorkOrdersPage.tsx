@@ -10,8 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Trash2, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer } from "lucide-react";
-import { useWorkOrders, useForceCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
+import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Trash2, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle } from "lucide-react";
+import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
@@ -23,9 +23,20 @@ import { useToast } from "@/hooks/use-toast";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
+  received: { label: "Received", className: "bg-indigo-100 text-indigo-800 border-indigo-200" },
+  arrived: { label: "Arrived", className: "bg-purple-100 text-purple-800 border-purple-200" },
   in_progress: { label: "In Progress", className: "bg-amber-100 text-amber-800 border-amber-200" },
+  finished: { label: "Finished", className: "bg-teal-100 text-teal-800 border-teal-200" },
+  closed: { label: "Closed", className: "bg-green-100 text-green-800 border-green-200" },
   completed: { label: "Completed", className: "bg-green-100 text-green-800 border-green-200" },
   force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
+};
+
+const priorityConfig: Record<string, { label: string; className: string }> = {
+  low: { label: "Low", className: "bg-slate-100 text-slate-700" },
+  medium: { label: "Medium", className: "bg-blue-100 text-blue-700" },
+  high: { label: "High", className: "bg-orange-100 text-orange-700" },
+  critical: { label: "Critical", className: "bg-red-100 text-red-700" },
 };
 
 const ITEMS_PER_PAGE = 20;
@@ -38,6 +49,7 @@ export default function WorkOrdersPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [problemFilter, setProblemFilter] = useState<string>("all");
   const [machineFilter, setMachineFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -48,6 +60,7 @@ export default function WorkOrdersPage() {
   const filterStatuses = statusFilter === "all" ? undefined : [statusFilter as WOStatus];
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
   const forceClose = useForceCloseWorkOrder();
+  const closeWO = useCloseWorkOrder();
   const createWO = useCreateWorkOrder();
   const updateWO = useUpdateWorkOrder();
   const deleteWO = useDeleteWorkOrder();
@@ -58,14 +71,13 @@ export default function WorkOrdersPage() {
   const woIds = useMemo(() => workOrders?.map((w) => w.id) ?? [], [workOrders]);
   const { data: partsCounts } = usePartsCountByWOs(woIds);
 
-  // Create WO state
   const [showCreate, setShowCreate] = useState(false);
   const [newRequester, setNewRequester] = useState("");
   const [newMachine, setNewMachine] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newNotes, setNewNotes] = useState("");
+  const [newPriority, setNewPriority] = useState("medium");
 
-  // Edit WO state
   const [editWO, setEditWO] = useState<WorkOrder | null>(null);
   const [editRequester, setEditRequester] = useState("");
   const [editMachine, setEditMachine] = useState("");
@@ -94,6 +106,7 @@ export default function WorkOrdersPage() {
     }
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
+    if (priorityFilter !== "all") filtered = filtered.filter((w) => (w as any).priority === priorityFilter);
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter((w) =>
@@ -106,7 +119,7 @@ export default function WorkOrdersPage() {
       );
     }
     return filtered;
-  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, searchTerm]);
+  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, priorityFilter, searchTerm]);
 
   const totalPages = Math.ceil((filteredWOs?.length ?? 0) / ITEMS_PER_PAGE);
   const paginatedWOs = useMemo(() => {
@@ -114,25 +127,27 @@ export default function WorkOrdersPage() {
     return filteredWOs.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredWOs, currentPage]);
 
-  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, searchTerm, dateQuickFilter, dateFrom, dateTo]);
+  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, priorityFilter, searchTerm, dateQuickFilter, dateFrom, dateTo]);
 
   const kanbanColumns = useMemo(() => ({
     open: filteredWOs.filter((w) => w.status === "open"),
+    received: filteredWOs.filter((w) => ["received", "arrived"].includes(w.status)),
     inProgress: filteredWOs.filter((w) => w.status === "in_progress"),
-    completed: filteredWOs.filter((w) => w.status === "completed" || w.status === "force_closed"),
+    finished: filteredWOs.filter((w) => w.status === "finished"),
+    done: filteredWOs.filter((w) => ["closed", "completed", "force_closed"].includes(w.status)),
   }), [filteredWOs]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createWO.mutateAsync({ requester_name: newRequester.trim(), machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim() });
+      await createWO.mutateAsync({ requester_name: newRequester.trim(), machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), priority: newPriority });
       toast({ title: "Work Order Created" });
-      setShowCreate(false); setNewRequester(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
+      setShowCreate(false); setNewRequester(""); setNewMachine(""); setNewDesc(""); setNewNotes(""); setNewPriority("medium");
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
 
   const openEdit = (wo: WorkOrder) => {
-    setEditWO(wo); setEditRequester(wo.requester_name); setEditMachine(wo.machine); setEditDesc(wo.description); setEditNotes((wo as any).notes || "");
+    setEditWO(wo); setEditRequester(wo.requester_name); setEditMachine(wo.machine); setEditDesc(wo.description); setEditNotes(wo.notes || "");
   };
 
   const handleEdit = async () => {
@@ -149,21 +164,32 @@ export default function WorkOrdersPage() {
     catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
 
-  const KanbanCard = ({ wo, borderColor }: { wo: WorkOrder; borderColor: string }) => (
-    <Card className={`cursor-pointer hover:shadow-md transition-shadow border-l-4 ${borderColor}`} onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-      <CardContent className="p-3 space-y-1">
-        <div className="flex justify-between items-center">
-          <span className="font-mono text-xs font-medium">WO-{String(wo.wo_number).padStart(4, "0")}</span>
-          <span className="text-xs text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</span>
-        </div>
-        <p className="text-sm font-medium">{wo.machine}</p>
-        <p className="text-xs text-muted-foreground truncate">{wo.description}</p>
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>{wo.requester_name}</span>
-          <span>{wo.engineer?.name || "—"}</span>
-        </div>
-      </CardContent>
-    </Card>
+  const KanbanCard = ({ wo, borderColor }: { wo: WorkOrder; borderColor: string }) => {
+    const pri = priorityConfig[(wo as any).priority || "medium"] || priorityConfig.medium;
+    return (
+      <Card className={`cursor-pointer hover:shadow-md transition-shadow border-l-4 ${borderColor}`} onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+        <CardContent className="p-3 space-y-1">
+          <div className="flex justify-between items-center">
+            <span className="font-mono text-xs font-medium">WO-{String(wo.wo_number).padStart(4, "0")}</span>
+            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${pri.className}`}>{pri.label}</Badge>
+          </div>
+          <p className="text-sm font-medium">{wo.machine}</p>
+          <p className="text-xs text-muted-foreground truncate">{wo.description}</p>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>{wo.requester_name}</span>
+            <span>{wo.engineer?.name || "—"}</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const KanbanColumn = ({ title, items, color, borderColor }: { title: string; items: WorkOrder[]; color: string; borderColor: string }) => (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 mb-3"><div className={`w-3 h-3 rounded-full ${color}`} /><h3 className="font-semibold text-sm">{title} ({items.length})</h3></div>
+      {items.map((wo) => <KanbanCard key={wo.id} wo={wo} borderColor={borderColor} />)}
+      {!items.length && <p className="text-muted-foreground text-xs text-center py-4">No WOs</p>}
+    </div>
   );
 
   return (
@@ -209,9 +235,22 @@ export default function WorkOrdersPage() {
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="received">Received</SelectItem>
+                  <SelectItem value="arrived">Arrived</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="finished">Finished</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
                   <SelectItem value="force_closed">Force Closed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger className="w-[140px]"><SelectValue placeholder="Priority" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={problemFilter} onValueChange={setProblemFilter}>
@@ -236,41 +275,33 @@ export default function WorkOrdersPage() {
             ) : !filteredWOs?.length ? (
               <p className="text-muted-foreground text-center py-8">No work orders found.</p>
             ) : viewMode === "board" ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-3"><div className="w-3 h-3 rounded-full bg-blue-500" /><h3 className="font-semibold text-sm">Open ({kanbanColumns.open.length})</h3></div>
-                  {kanbanColumns.open.map((wo) => <KanbanCard key={wo.id} wo={wo} borderColor="border-l-blue-500" />)}
-                  {!kanbanColumns.open.length && <p className="text-muted-foreground text-xs text-center py-4">No open WOs</p>}
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-3"><div className="w-3 h-3 rounded-full bg-amber-500" /><h3 className="font-semibold text-sm">In Progress ({kanbanColumns.inProgress.length})</h3></div>
-                  {kanbanColumns.inProgress.map((wo) => <KanbanCard key={wo.id} wo={wo} borderColor="border-l-amber-500" />)}
-                  {!kanbanColumns.inProgress.length && <p className="text-muted-foreground text-xs text-center py-4">No WOs in progress</p>}
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-3"><div className="w-3 h-3 rounded-full bg-green-500" /><h3 className="font-semibold text-sm">Completed ({kanbanColumns.completed.length})</h3></div>
-                  {kanbanColumns.completed.map((wo) => <KanbanCard key={wo.id} wo={wo} borderColor="border-l-green-500" />)}
-                  {!kanbanColumns.completed.length && <p className="text-muted-foreground text-xs text-center py-4">No completed WOs</p>}
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-blue-500" borderColor="border-l-blue-500" />
+                <KanbanColumn title="Received/Arrived" items={kanbanColumns.received} color="bg-indigo-500" borderColor="border-l-indigo-500" />
+                <KanbanColumn title="In Progress" items={kanbanColumns.inProgress} color="bg-amber-500" borderColor="border-l-amber-500" />
+                <KanbanColumn title="Finished" items={kanbanColumns.finished} color="bg-teal-500" borderColor="border-l-teal-500" />
+                <KanbanColumn title="Done" items={kanbanColumns.done} color="bg-green-500" borderColor="border-l-green-500" />
               </div>
             ) : (
               <>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>WO#</TableHead><TableHead>Requester</TableHead><TableHead>Machine</TableHead>
+                      <TableHead>WO#</TableHead><TableHead>Priority</TableHead><TableHead>Requester</TableHead><TableHead>Machine</TableHead>
                       <TableHead>Status</TableHead><TableHead>Operator</TableHead><TableHead>Engineer</TableHead>
-                      <TableHead>Created</TableHead><TableHead>Parts</TableHead><TableHead>Started</TableHead>
-                      <TableHead>Completed</TableHead><TableHead>Actions</TableHead>
+                      <TableHead>Created</TableHead><TableHead>Parts</TableHead><TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedWOs.map((wo) => {
                       const cfg = statusConfig[wo.status];
-                      const canForceClose = wo.status === "open" || wo.status === "in_progress";
+                      const pri = priorityConfig[(wo as any).priority || "medium"] || priorityConfig.medium;
+                      const canForceClose = ["open", "received", "arrived", "in_progress"].includes(wo.status);
+                      const canClose = wo.status === "finished";
                       return (
                         <TableRow key={wo.id}>
                           <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
+                          <TableCell><Badge variant="outline" className={pri.className}>{pri.label}</Badge></TableCell>
                           <TableCell>{wo.requester_name}</TableCell>
                           <TableCell>{wo.machine}</TableCell>
                           <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
@@ -278,16 +309,19 @@ export default function WorkOrdersPage() {
                           <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
                           <TableCell>{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{wo.started_at ? format(new Date(wo.started_at), "dd/MM HH:mm") : "—"}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{wo.completed_at ? format(new Date(wo.completed_at), "dd/MM HH:mm") : "—"}</TableCell>
                           <TableCell>
                             <div className="flex gap-1">
                               <Button size="icon" variant="ghost" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(wo.id)}><Trash2 className="h-4 w-4" /></Button>
+                              {canClose && (
+                                <Button size="sm" variant="default" onClick={() => closeWO.mutate(wo.id)} disabled={closeWO.isPending}>
+                                  <CheckCircle className="h-3 w-3 mr-1" /> Close
+                                </Button>
+                              )}
                               {canForceClose && (
                                 <Button size="sm" variant="destructive" onClick={() => forceClose.mutate(wo.id)} disabled={forceClose.isPending}>
-                                  <XCircle className="h-3 w-3 mr-1" /> Close
+                                  <XCircle className="h-3 w-3 mr-1" /> Force
                                 </Button>
                               )}
                             </div>
@@ -327,6 +361,17 @@ export default function WorkOrdersPage() {
                 <Select value={newDesc} onValueChange={setNewDesc}>
                   <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
                   <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2"><Label>Priority</Label>
+                <Select value={newPriority} onValueChange={setNewPriority}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">🟢 Low</SelectItem>
+                    <SelectItem value="medium">🔵 Medium</SelectItem>
+                    <SelectItem value="high">🟠 High</SelectItem>
+                    <SelectItem value="critical">🔴 Critical</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2"><Label>Observations (optional)</Label>

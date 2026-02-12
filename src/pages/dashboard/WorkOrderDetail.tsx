@@ -4,16 +4,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool } from "lucide-react";
+import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool, Phone, MapPin, Wrench, Lock } from "lucide-react";
 import { useWorkOrderById } from "@/hooks/useWorkOrders";
 import { usePartsUsedByWO } from "@/hooks/useStock";
 import { format, differenceInMinutes } from "date-fns";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
+  received: { label: "Received", className: "bg-indigo-100 text-indigo-800 border-indigo-200" },
+  arrived: { label: "Arrived", className: "bg-purple-100 text-purple-800 border-purple-200" },
   in_progress: { label: "In Progress", className: "bg-amber-100 text-amber-800 border-amber-200" },
+  finished: { label: "Finished", className: "bg-teal-100 text-teal-800 border-teal-200" },
+  closed: { label: "Closed", className: "bg-green-100 text-green-800 border-green-200" },
   completed: { label: "Completed", className: "bg-green-100 text-green-800 border-green-200" },
   force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
+};
+
+const priorityConfig: Record<string, { label: string; className: string }> = {
+  low: { label: "Low", className: "bg-slate-100 text-slate-700" },
+  medium: { label: "Medium", className: "bg-blue-100 text-blue-700" },
+  high: { label: "High", className: "bg-orange-100 text-orange-700" },
+  critical: { label: "Critical", className: "bg-red-100 text-red-700" },
 };
 
 function TimelineItem({ icon: Icon, label, time, className }: { icon: React.ComponentType<{ className?: string }>; label: string; time: string | null; className?: string }) {
@@ -29,6 +40,14 @@ function TimelineItem({ icon: Icon, label, time, className }: { icon: React.Comp
       </div>
     </div>
   );
+}
+
+function formatDuration(minutes: number | null) {
+  if (minutes === null) return "—";
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}h ${m}min`;
 }
 
 export default function WorkOrderDetail() {
@@ -57,9 +76,14 @@ export default function WorkOrderDetail() {
   }
 
   const cfg = statusConfig[wo.status];
-  const responseTime = wo.started_at ? differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at)) : null;
-  const totalTime = wo.completed_at ? differenceInMinutes(new Date(wo.completed_at), new Date(wo.created_at)) : null;
+  const pri = priorityConfig[(wo as any).priority || "medium"] || priorityConfig.medium;
   const woLabel = `WO-${String(wo.wo_number).padStart(4, "0")}`;
+
+  // Calculated times
+  const responseTime = (wo as any).received_at ? differenceInMinutes(new Date((wo as any).received_at), new Date(wo.created_at)) : null;
+  const travelTime = (wo as any).received_at && (wo as any).arrived_at ? differenceInMinutes(new Date((wo as any).arrived_at), new Date((wo as any).received_at)) : null;
+  const repairTime = wo.started_at && ((wo as any).finished_at || wo.completed_at) ? differenceInMinutes(new Date((wo as any).finished_at || wo.completed_at!), new Date(wo.started_at)) : null;
+  const totalTime = ((wo as any).closed_at || wo.completed_at) ? differenceInMinutes(new Date((wo as any).closed_at || wo.completed_at!), new Date(wo.created_at)) : null;
 
   return (
     <DashboardLayout>
@@ -95,7 +119,10 @@ export default function WorkOrderDetail() {
             <h2 className="text-2xl font-bold">{wo.requester_name} — {wo.machine}</h2>
             <p className="text-muted-foreground text-sm font-mono">{woLabel}</p>
           </div>
-          <Badge variant="outline" className={`text-sm px-3 py-1 ${cfg.className}`}>{cfg.label}</Badge>
+          <div className="flex gap-2">
+            <Badge variant="outline" className={`text-sm px-3 py-1 ${pri.className}`}>{pri.label}</Badge>
+            <Badge variant="outline" className={`text-sm px-3 py-1 ${cfg.className}`}>{cfg.label}</Badge>
+          </div>
         </div>
 
         <Card>
@@ -103,10 +130,10 @@ export default function WorkOrderDetail() {
           <CardContent><p>{wo.description}</p></CardContent>
         </Card>
 
-        {(wo as any).notes && (
+        {wo.notes && (
           <Card>
             <CardHeader><CardTitle className="text-base">Observations</CardTitle></CardHeader>
-            <CardContent><p>{(wo as any).notes}</p></CardContent>
+            <CardContent><p>{wo.notes}</p></CardContent>
           </Card>
         )}
 
@@ -118,20 +145,24 @@ export default function WorkOrderDetail() {
           {wo.signed_by_name && <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Signed By</p><p className="font-medium flex items-center gap-2"><PenTool className="h-4 w-4" />{wo.signed_by_name}</p></CardContent></Card>}
         </div>
 
-        {(responseTime !== null || totalTime !== null) && (
-          <div className="grid gap-4 md:grid-cols-2">
-            {responseTime !== null && <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Response Time</p><p className="text-xl font-bold">{responseTime} min</p></CardContent></Card>}
-            {totalTime !== null && <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Total Time</p><p className="text-xl font-bold">{totalTime} min</p></CardContent></Card>}
-          </div>
-        )}
+        {/* Calculated Metrics */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Response Time</p><p className="text-xl font-bold">{formatDuration(responseTime)}</p></CardContent></Card>
+          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Travel Time</p><p className="text-xl font-bold">{formatDuration(travelTime)}</p></CardContent></Card>
+          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Repair Time</p><p className="text-xl font-bold">{formatDuration(repairTime)}</p></CardContent></Card>
+          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Total Time</p><p className="text-xl font-bold">{formatDuration(totalTime)}</p></CardContent></Card>
+        </div>
 
         <Card>
           <CardHeader><CardTitle className="text-base">Timeline</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-4">
               <TimelineItem icon={Clock} label="Created" time={wo.created_at} className="bg-blue-100 text-blue-700" />
+              <TimelineItem icon={Phone} label="Received" time={(wo as any).received_at} className="bg-indigo-100 text-indigo-700" />
+              <TimelineItem icon={MapPin} label="Arrived" time={(wo as any).arrived_at} className="bg-purple-100 text-purple-700" />
               <TimelineItem icon={Play} label="Started" time={wo.started_at} className="bg-amber-100 text-amber-700" />
-              {wo.status === "completed" && <TimelineItem icon={CheckCircle} label="Completed" time={wo.completed_at} className="bg-green-100 text-green-700" />}
+              <TimelineItem icon={Wrench} label="Finished" time={(wo as any).finished_at} className="bg-teal-100 text-teal-700" />
+              {["closed", "completed"].includes(wo.status) && <TimelineItem icon={CheckCircle} label="Closed" time={(wo as any).closed_at || wo.completed_at} className="bg-green-100 text-green-700" />}
               {wo.status === "force_closed" && <TimelineItem icon={XCircle} label="Force Closed" time={wo.completed_at} className="bg-gray-100 text-gray-700" />}
             </div>
           </CardContent>

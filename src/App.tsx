@@ -15,6 +15,7 @@ import MachinesPage from "./pages/dashboard/MachinesPage";
 import ProblemsPage from "./pages/dashboard/ProblemsPage";
 import WorkOrderDetail from "./pages/dashboard/WorkOrderDetail";
 import StockPage from "./pages/dashboard/StockPage";
+import AuditLogsPage from "./pages/dashboard/AuditLogsPage";
 import ManageUsers from "./pages/users/ManageUsers";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/dashboard/work-orders" element={<ProtectedRoute allowedRoles={["admin"]}><WorkOrdersPage /></ProtectedRoute>} />
             <Route path="/dashboard/machines" element={<ProtectedRoute allowedRoles={["admin"]}><MachinesPage /></ProtectedRoute>} />
             <Route path="/dashboard/problems" element={<ProtectedRoute allowedRoles={["admin"]}><ProblemsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/audit-logs" element={<ProtectedRoute allowedRoles={["admin"]}><AuditLogsPage /></ProtectedRoute>} />
             <Route path="/dashboard/wo/:id" element={<ProtectedRoute allowedRoles={["operator", "engineer", "admin"]}><WorkOrderDetail /></ProtectedRoute>} />
             <Route path="/dashboard/stock" element={<ProtectedRoute allowedRoles={["engineer", "admin"]}><StockPage /></ProtectedRoute>} />
             <Route path="/users/manage" element={<ProtectedRoute allowedRoles={["admin"]}><ManageUsers /></ProtectedRoute>} />
