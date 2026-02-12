@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
@@ -35,8 +35,22 @@ Deno.serve(async (req) => {
 
     if (!isAdmin) throw new Error("Only managers can update users");
 
-    const { userId, name, role, shift, active } = await req.json();
+    const { userId, name, role, shift, active, email, password } = await req.json();
     if (!userId) throw new Error("userId is required");
+
+    // Update auth credentials if provided
+    if (email) {
+      const { error: emailError } = await supabaseAdmin.auth.admin.updateUserById(userId, { email });
+      if (emailError) throw emailError;
+      // Sync email in profiles table
+      await supabaseAdmin.from("profiles").update({ email }).eq("id", userId);
+    }
+
+    if (password) {
+      if (password.length < 6) throw new Error("Password must be at least 6 characters");
+      const { error: pwError } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
+      if (pwError) throw pwError;
+    }
 
     // Update profile fields
     const profileUpdate: Record<string, unknown> = {};
