@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Pencil, Trash2, Loader2, Cog, History } from "lucide-react";
 import { useMachines, useAddMachine, useUpdateMachine, useDeleteMachine, type Machine } from "@/hooks/useMachines";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 
 export default function MachinesPage() {
@@ -20,6 +21,7 @@ export default function MachinesPage() {
   const updateMachine = useUpdateMachine();
   const deleteMachine = useDeleteMachine();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [showAdd, setShowAdd] = useState(false);
   const [editMachine, setEditMachine] = useState<Machine | null>(null);
@@ -147,6 +149,7 @@ export default function MachinesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button size="icon" variant="ghost" onClick={() => navigate(`/dashboard/machines/${encodeURIComponent(m.name)}/history`)} title="History"><History className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(m.id)}><Trash2 className="h-4 w-4" /></Button>
                         </div>
