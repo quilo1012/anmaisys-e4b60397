@@ -10,7 +10,7 @@ export function useWOAlerts() {
 
   // Warm up AudioContext on first user gesture
   useEffect(() => {
-    if (role !== "engineer") return;
+    if (role !== "engineer" && role !== "admin") return;
 
     const handler = () => {
       warmUpAudio();
@@ -28,7 +28,7 @@ export function useWOAlerts() {
   }, [role]);
 
   useEffect(() => {
-    if (role !== "engineer" || !user) return;
+    if ((role !== "engineer" && role !== "admin") || !user) return;
 
     console.log("[WOAlerts] Subscribing to work_orders INSERT for engineer", user.id);
 

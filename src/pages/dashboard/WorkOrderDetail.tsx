@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool, Phone, MapPin, Wrench, Lock } from "lucide-react";
+import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool, Phone, MapPin, Wrench, Lock, Camera } from "lucide-react";
 import { useWorkOrderById } from "@/hooks/useWorkOrders";
 import { usePartsUsedByWO } from "@/hooks/useStock";
+import { useWOPhotos, getWOPhotoUrl } from "@/hooks/useWOPhotos";
 import { format, differenceInMinutes } from "date-fns";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -55,6 +56,7 @@ export default function WorkOrderDetail() {
   const navigate = useNavigate();
   const { data: wo, isLoading } = useWorkOrderById(id!);
   const { data: partsUsed, isLoading: partsLoading } = usePartsUsedByWO(id!);
+  const { data: woPhotos } = useWOPhotos(id!);
 
   if (isLoading) {
     return (
@@ -201,6 +203,39 @@ export default function WorkOrderDetail() {
             )}
           </CardContent>
         </Card>
+
+        {/* Photos */}
+        {woPhotos && woPhotos.length > 0 && (
+          <Card>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Camera className="h-4 w-4" /> Photos</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2">
+                {["before", "after"].map((type) => {
+                  const photos = woPhotos.filter((p) => p.photo_type === type);
+                  return (
+                    <div key={type}>
+                      <p className="text-sm font-medium mb-2 capitalize">{type}</p>
+                      {photos.length ? (
+                        <div className="grid gap-2">
+                          {photos.map((p) => (
+                            <img
+                              key={p.id}
+                              src={getWOPhotoUrl(p.storage_path)}
+                              alt={`${type} photo`}
+                              className="rounded-lg border w-full max-h-64 object-cover"
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">No {type} photo</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );

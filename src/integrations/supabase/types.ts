@@ -264,9 +264,52 @@ export type Database = {
         }
         Relationships: []
       }
+      wo_photos: {
+        Row: {
+          created_at: string
+          id: string
+          photo_type: string
+          storage_path: string
+          uploaded_by: string
+          work_order_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          photo_type: string
+          storage_path: string
+          uploaded_by: string
+          work_order_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          photo_type?: string
+          storage_path?: string
+          uploaded_by?: string
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wo_photos_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wo_photos_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_orders: {
         Row: {
           arrived_at: string | null
+          checklist_completed: boolean
           closed_at: string | null
           closed_by: string | null
           completed_at: string | null
@@ -289,6 +332,7 @@ export type Database = {
         }
         Insert: {
           arrived_at?: string | null
+          checklist_completed?: boolean
           closed_at?: string | null
           closed_by?: string | null
           completed_at?: string | null
@@ -311,6 +355,7 @@ export type Database = {
         }
         Update: {
           arrived_at?: string | null
+          checklist_completed?: boolean
           closed_at?: string | null
           closed_by?: string | null
           completed_at?: string | null

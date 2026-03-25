@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,17 +7,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Phone, MapPin, Wrench } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Phone, MapPin, Wrench, Camera } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { stopAlertSound } from "@/lib/shifts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
+import { useWOPhotos, useUploadWOPhoto } from "@/hooks/useWOPhotos";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
-import { useMemo } from "react";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
+import { useToast } from "@/hooks/use-toast";
 
 const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
 
@@ -53,14 +55,23 @@ function SLACountdown({ wo }: { wo: any }) {
   );
 }
 
+const CHECKLIST_ITEMS = [
+  { id: "machine_off", label: "Machine switched off" },
+  { id: "energy_lockout", label: "Energy lockout applied" },
+  { id: "inspection_done", label: "Inspection completed" },
+  { id: "final_test", label: "Final test passed" },
+];
+
 export default function EngineerDashboard() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });
   const { data: allCompleted } = useWorkOrders({ statusIn: ["completed", "closed", "finished"] as any });
   const receiveWO = useReceiveWorkOrder();
   const arriveWO = useArriveWorkOrder();
   const startWO = useStartWorkOrder();
   const finishWO = useFinishWorkOrder();
+  const uploadPhoto = useUploadWOPhoto();
   const navigate = useNavigate();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
   useWOAlerts();
@@ -68,11 +79,20 @@ export default function EngineerDashboard() {
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
+  const [checklistWO, setChecklistWO] = useState<string | null>(null);
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  const [photoDialogWO, setPhotoDialogWO] = useState<string | null>(null);
+  const [photoType, setPhotoType] = useState<"before" | "after">("before");
+  const beforeInputRef = useRef<HTMLInputElement>(null);
+  const afterInputRef = useRef<HTMLInputElement>(null);
 
   const activeWOIds = useMemo(() => workOrders?.filter(
     (wo) => wo.status === "open" || (["received", "arrived", "in_progress"].includes(wo.status) && wo.engineer_id === user?.id)
   ).map((w) => w.id) ?? [], [workOrders, user]);
   const { data: partsCounts } = usePartsCountByWOs(activeWOIds);
+
+  // Track which WOs have before/after photos uploaded this session
+  const [photosUploaded, setPhotosUploaded] = useState<Record<string, { before: boolean; after: boolean }>>({});
 
   const kpis = useMemo(() => {
     if (!allCompleted || !user) return { totalCompleted: 0, avgResponse: 0, avgMTTR: 0 };
@@ -103,12 +123,46 @@ export default function EngineerDashboard() {
     (wo) => wo.status === "open" || (["received", "arrived", "in_progress"].includes(wo.status) && wo.engineer_id === user?.id)
   );
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, woId: string, type: "before" | "after") => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await uploadPhoto.mutateAsync({ workOrderId: woId, photoType: type, file });
+      setPhotosUploaded((prev) => ({
+        ...prev,
+        [woId]: { ...prev[woId], [type]: true },
+      }));
+      toast({ title: `${type === "before" ? "Before" : "After"} photo uploaded` });
+    } catch (err: any) {
+      toast({ title: "Upload error", description: err.message, variant: "destructive" });
+    }
+    e.target.value = "";
+  };
+
+  const handleFinishClick = (woId: string) => {
+    const photos = photosUploaded[woId];
+    if (!photos?.before || !photos?.after) {
+      toast({ title: "Photos required", description: "Upload both Before and After photos before finishing.", variant: "destructive" });
+      return;
+    }
+    setCheckedItems({});
+    setChecklistWO(woId);
+  };
+
+  const handleChecklistComplete = () => {
+    if (!checklistWO) return;
+    setChecklistWO(null);
+    setSignDialogWO(checklistWO);
+  };
+
   const handleFinishConfirm = async () => {
     if (!signDialogWO || !signName.trim()) return;
     await finishWO.mutateAsync({ woId: signDialogWO, signedByName: signName.trim() });
     setSignDialogWO(null);
     setSignName("");
   };
+
+  const allChecked = CHECKLIST_ITEMS.every((item) => checkedItems[item.id]);
 
   return (
     <DashboardLayout>
@@ -193,6 +247,7 @@ export default function EngineerDashboard() {
                    {activeWOs.map((wo) => {
                      const cfg = statusConfig[wo.status] || statusConfig.open;
                      const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
+                     const woPhotos = photosUploaded[wo.id] || { before: false, after: false };
                      return (
                        <TableRow key={wo.id} className={wo.priority === "critical" ? "bg-red-50" : ""}>
                          <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
@@ -226,7 +281,15 @@ export default function EngineerDashboard() {
                                 <Button size="sm" variant="outline" onClick={() => setPartsDialogWO(wo.id)}>
                                   <Package className="h-3 w-3 mr-1" /> Parts
                                 </Button>
-                                <Button size="sm" variant="secondary" onClick={() => setSignDialogWO(wo.id)}>
+                                <input type="file" accept="image/*" capture="environment" className="hidden" ref={beforeInputRef} onChange={(e) => handlePhotoUpload(e, wo.id, "before")} />
+                                <Button size="sm" variant={woPhotos.before ? "default" : "outline"} onClick={() => beforeInputRef.current?.click()} disabled={uploadPhoto.isPending}>
+                                  <Camera className="h-3 w-3 mr-1" /> {woPhotos.before ? "✓ Before" : "Before"}
+                                </Button>
+                                <input type="file" accept="image/*" capture="environment" className="hidden" ref={afterInputRef} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
+                                <Button size="sm" variant={woPhotos.after ? "default" : "outline"} onClick={() => afterInputRef.current?.click()} disabled={uploadPhoto.isPending}>
+                                  <Camera className="h-3 w-3 mr-1" /> {woPhotos.after ? "✓ After" : "After"}
+                                </Button>
+                                <Button size="sm" variant="secondary" onClick={() => handleFinishClick(wo.id)}>
                                   <PenTool className="h-3 w-3 mr-1" /> Finish
                                 </Button>
                               </>
@@ -247,13 +310,44 @@ export default function EngineerDashboard() {
         <PartsUsedDialog open={!!partsDialogWO} onOpenChange={(o) => !o && setPartsDialogWO(null)} workOrderId={partsDialogWO} />
       )}
 
+      {/* Checklist Dialog */}
+      <Dialog open={!!checklistWO} onOpenChange={(open) => { if (!open) setChecklistWO(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5" /> Safety Checklist
+            </DialogTitle>
+            <DialogDescription>Complete all items before finishing the work order.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {CHECKLIST_ITEMS.map((item) => (
+              <div key={item.id} className="flex items-center gap-3">
+                <Checkbox
+                  id={item.id}
+                  checked={!!checkedItems[item.id]}
+                  onCheckedChange={(checked) => setCheckedItems((prev) => ({ ...prev, [item.id]: !!checked }))}
+                />
+                <Label htmlFor={item.id} className="cursor-pointer">{item.label}</Label>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setChecklistWO(null)}>Cancel</Button>
+            <Button onClick={handleChecklistComplete} disabled={!allChecked}>
+              Continue to Signature
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sign Dialog */}
       <Dialog open={!!signDialogWO} onOpenChange={(open) => { if (!open) { setSignDialogWO(null); setSignName(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <PenTool className="h-5 w-5" /> Confirm & Finish Work Order
             </DialogTitle>
-            <DialogDescription className="sr-only">Sign and finish the work order</DialogDescription>
+            <DialogDescription>Sign and finish the work order</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">

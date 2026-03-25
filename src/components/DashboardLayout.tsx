@@ -13,7 +13,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor } from "lucide-react";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
@@ -34,6 +34,7 @@ const navItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"] },
   { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin"] },
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin"] },
+  { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin"] },
   { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin"] },
   { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin"] },
   { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin"] },
