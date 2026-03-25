@@ -1,122 +1,113 @@
 
 
-# Professional Finalization -- Complete Bug Fix and Polish
+# AN Maintenance -- Professional Upgrade (Phase 2: New Features)
 
-## Current State Assessment
+## Already Implemented (no work needed)
 
-After thorough code review, the system is already well-structured with most features implemented. This plan addresses the remaining bugs, inconsistencies, and polish items to make it production-ready.
-
----
-
-## 1. Bug Fixes
-
-### 1a. Console Error: DialogFooter ref warning
-The `DialogFooter` component in `WorkOrdersPage.tsx` triggers a "Function components cannot be given refs" warning because Radix Dialog tries to pass a ref to it. Fix: wrap `DialogFooter` with `React.forwardRef`.
-
-**File:** `src/components/ui/dialog.tsx` (line 59-61)
-
-### 1b. Console Warning: Missing DialogDescription
-Dialogs in `WorkOrdersPage.tsx` and `EngineerDashboard.tsx` are missing `DialogDescription`, causing an accessibility warning.
-
-**Files:** `src/pages/dashboard/WorkOrdersPage.tsx`, `src/pages/dashboard/EngineerDashboard.tsx`
-- Add `<DialogDescription>` (can be visually hidden with `sr-only` class) inside each `DialogContent`.
-
-### 1c. WO Alert Sound Not Stopping on "Received"
-In `useWOAlerts.ts`, the sound stops when status changes to `in_progress`, but with the new pipeline the first acceptance is `received`. The sound should stop on `received` as well.
-
-**File:** `src/hooks/useWOAlerts.ts` (line 70-71)
-- Change condition from `status === "in_progress"` to `["received", "in_progress"].includes(updated.status)`
-
-### 1d. Type casting issues with `(wo as any).priority`
-Multiple files cast `wo.priority` as `any` even though `priority` is now part of the `WorkOrder` type. Clean up unnecessary `as any` casts throughout.
-
-**Files:** `src/pages/dashboard/WorkOrdersPage.tsx`, `src/pages/dashboard/WorkOrderDetail.tsx`, `src/pages/dashboard/AnalyticsPage.tsx`
-
-### 1e. `received_at`, `arrived_at`, `finished_at`, `closed_at` typed as `any`
-The `WorkOrder` interface in `useWorkOrders.ts` already has these fields but `WorkOrderDetail.tsx` still casts them as `(wo as any).received_at`. Clean up.
-
-**File:** `src/pages/dashboard/WorkOrderDetail.tsx`
+All of these are confirmed working in the codebase:
+- Full 6-step WO pipeline (open → received → arrived → in_progress → finished → closed)
+- SLA countdown with priority targets (low/med/high/critical)
+- Engineer alerts (sound loop, web notification, toast, stops on received)
+- Stock management with categories, low stock alerts, zero-stock block
+- Analytics page with KPIs, status/priority/problem/machine charts, engineer performance
+- Machines and Problems CRUD pages
+- Sidebar with all modules, Online Engineers panel, Live clock
+- Digital signature (name) before finishing WO
+- Audit logging on all mutations
+- Print layout with logo, timeline, parts, signature
+- Role-based permissions (operator/engineer/admin)
+- Realtime subscriptions on work_orders
+- Lazy loading, skeletons, QueryClient caching
 
 ---
 
-## 2. Performance Optimizations
+## NEW Features to Implement
 
-### 2a. Loading Skeletons
-Add skeleton loading states to all major pages instead of just spinner icons.
+### 1. Manager Receives WO Alerts (like Engineers)
 
-**Files:** `src/pages/dashboard/AnalyticsPage.tsx`, `src/pages/dashboard/WorkOrdersPage.tsx`, `src/pages/dashboard/MachinesPage.tsx`, `src/pages/dashboard/ProblemsPage.tsx`
-- Replace `<Loader2 className="animate-spin" />` with `<Skeleton>` grid layouts matching the actual content shape.
+Currently `useWOAlerts` only activates for `role === "engineer"`. The prompt requires managers to also receive alerts.
 
-### 2b. Lazy Loading Pages
-Wrap all page imports in `App.tsx` with `React.lazy()` and `Suspense` for code splitting.
+**File:** `src/hooks/useWOAlerts.ts`
+- Change `role !== "engineer"` checks to `role !== "engineer" && role !== "admin"`
+- Manager gets same sound, notification, toast on new WO
 
-**File:** `src/App.tsx`
+### 2. Photo Upload (Before/After) -- Storage Bucket + UI
 
-### 2c. Debounce Search Filter
-Add debounce (300ms) to search input in `WorkOrdersPage.tsx` to avoid filtering on every keystroke.
-
-**File:** `src/pages/dashboard/WorkOrdersPage.tsx`
-
-### 2d. QueryClient Stale Time
-Configure the `QueryClient` with sensible `staleTime` (30s) and `gcTime` to reduce unnecessary refetches.
-
-**File:** `src/App.tsx`
-
----
-
-## 3. Double-Submit Prevention
-Add `disabled` state during mutations on all action buttons that don't already have it (some Close/Force Close buttons in WorkOrdersPage already do this but not consistently).
-
-**Files:** `src/pages/dashboard/WorkOrdersPage.tsx`, `src/pages/dashboard/EngineerDashboard.tsx`
-
----
-
-## 4. Audit Logging Integration
-The `logAuditEvent` function exists but is not called anywhere. Wire it into key mutations:
-
-**File:** `src/hooks/useWorkOrders.ts`
-- Call `logAuditEvent` in `onSuccess` callbacks for: create, update, delete, receive, arrive, start, finish, close, force_close
-
-**File:** `src/pages/dashboard/MachinesPage.tsx`
-- Call `logAuditEvent` when adding/editing/deleting machines
-
-**File:** `src/pages/dashboard/ProblemsPage.tsx`
-- Call `logAuditEvent` when adding/editing/deleting problems
-
-**File:** `src/pages/dashboard/StockPage.tsx`
-- Call `logAuditEvent` when adding/editing/deleting products and adjusting stock
-
----
-
-## 5. Profiles RLS Fix for Online Engineers Panel
-The `OnlineEngineersPanel` queries all profiles with recent `last_seen_at`, but the current RLS on `profiles` only allows users to view their own profile or admins to view all. Engineers querying other engineers' online status would fail. Need to add a SELECT policy allowing engineers to see basic profile info of other engineers.
+Create a storage bucket for WO photos and add upload UI to the engineer finish flow.
 
 **Database migration:**
 ```sql
-CREATE POLICY "Engineers can view engineer profiles"
-ON public.profiles FOR SELECT
-USING (
-  has_role(auth.uid(), 'engineer'::app_role)
-  AND has_role(id, 'engineer'::app_role)
-);
+INSERT INTO storage.buckets (id, name, public) VALUES ('wo-photos', 'wo-photos', true);
+-- RLS: engineers and admins can upload/view
+CREATE POLICY "Engineers can upload photos" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'wo-photos' AND (has_role(auth.uid(), 'engineer'::app_role) OR has_role(auth.uid(), 'admin'::app_role)));
+CREATE POLICY "Anyone authenticated can view photos" ON storage.objects FOR SELECT USING (bucket_id = 'wo-photos');
 ```
 
-This allows engineers to see other engineers' profiles (for the online panel display).
+**New table** `wo_photos`:
+```sql
+CREATE TABLE public.wo_photos (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  work_order_id uuid NOT NULL,
+  photo_type text NOT NULL CHECK (photo_type IN ('before', 'after')),
+  storage_path text NOT NULL,
+  uploaded_by uuid NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.wo_photos ENABLE ROW LEVEL SECURITY;
+-- Policies for engineer insert + admin/engineer select
+```
 
----
+**UI changes:**
+- `src/pages/dashboard/EngineerDashboard.tsx`: Add photo upload buttons (before/after) in the in_progress state, require both before allowing "Finish"
+- `src/pages/dashboard/WorkOrderDetail.tsx`: Display uploaded photos in the detail view
+- New hook: `src/hooks/useWOPhotos.ts`
 
-## 6. UI Consistency Polish
+### 3. Maintenance Checklist Before Finishing
 
-### 6a. Standardize page headers
-All pages should follow the same pattern: icon + title + subtitle. Some pages are inconsistent.
+**Database migration:**
+Add `checklist_completed` boolean column to `work_orders` (default false).
 
-**Files:** All dashboard pages (minor formatting alignment)
+**UI changes:**
+- `src/pages/dashboard/EngineerDashboard.tsx`: Before the sign dialog, show a checklist dialog with 4 items (machine off, energy lockout, inspection done, final test). All must be checked before proceeding to signature.
+- Block "Finish" button until checklist is completed
 
-### 6b. Print Styles Enhancement
-Ensure `@media print` rules hide sidebar, header, and action buttons properly. Add stamp/signature area to print layout.
+### 4. Machine History Page with Reliability Score
 
-**File:** `src/index.css` -- add print media rules
-**File:** `src/pages/dashboard/WorkOrderDetail.tsx` -- add stamp area for print
+**New file:** `src/pages/dashboard/MachineHistoryPage.tsx`
+**Route:** `/dashboard/machines/:name/history`
+
+Contents:
+- List of all WOs for this machine
+- Parts used on this machine
+- Total downtime calculation (sum of repair_time for all WOs)
+- Reliability Score = 100 - (downtime_minutes / total_period_minutes * 100)
+- Visual indicator: green (>80), yellow (50-80), red (<50)
+- Failure frequency chart
+
+**Files:**
+- `src/App.tsx`: Add route
+- `src/pages/dashboard/MachinesPage.tsx`: Add "History" link per machine row
+- `src/components/DashboardLayout.tsx`: No sidebar change needed (accessed from Machines page)
+
+### 5. Control Center -- Factory Map
+
+**New file:** `src/pages/dashboard/ControlCenterPage.tsx`
+**Route:** `/dashboard/control-center`
+
+- Visual grid of all machines grouped by line/sector
+- Color-coded: green (no open WOs), yellow (WO open but received), red (WO open unattended)
+- Realtime updates via existing work_orders subscription
+- Click machine to see active WO or navigate to history
+
+**Files:**
+- `src/App.tsx`: Add route
+- `src/components/DashboardLayout.tsx`: Add "Control Center" to sidebar nav for admin
+
+### 6. Downtime Chart in Analytics
+
+**File:** `src/pages/dashboard/AnalyticsPage.tsx`
+- Add "Machines with Most Downtime" chart: sum repair_time per machine, show top 10 as horizontal bar chart
+- Remove or keep existing charts as-is (all are useful, none redundant)
 
 ---
 
@@ -124,30 +115,26 @@ Ensure `@media print` rules hide sidebar, header, and action buttons properly. A
 
 | File | Action |
 |------|--------|
-| `src/components/ui/dialog.tsx` | Fix DialogFooter forwardRef |
-| `src/App.tsx` | Lazy loading + QueryClient config |
-| `src/hooks/useWOAlerts.ts` | Stop sound on "received" status |
-| `src/hooks/useWorkOrders.ts` | Add audit logging to mutations |
-| `src/pages/dashboard/WorkOrdersPage.tsx` | Add DialogDescription, debounce search, clean types |
-| `src/pages/dashboard/EngineerDashboard.tsx` | Add DialogDescription |
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Clean up `as any` casts, add stamp area |
-| `src/pages/dashboard/AnalyticsPage.tsx` | Add skeleton loading, clean types |
-| `src/pages/dashboard/MachinesPage.tsx` | Add skeleton loading, audit logging |
-| `src/pages/dashboard/ProblemsPage.tsx` | Add skeleton loading, audit logging |
-| `src/pages/dashboard/StockPage.tsx` | Add audit logging |
-| `src/index.css` | Print media rules |
-| Migration SQL | Profiles RLS for engineer visibility |
-
----
+| Migration SQL | wo_photos table, storage bucket, checklist_completed column |
+| `src/hooks/useWOAlerts.ts` | Add admin role to alert listeners |
+| `src/hooks/useWOPhotos.ts` | NEW -- upload/query WO photos |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Photo upload + checklist dialog before finish |
+| `src/pages/dashboard/WorkOrderDetail.tsx` | Display photos |
+| `src/pages/dashboard/MachineHistoryPage.tsx` | NEW -- machine history + reliability score |
+| `src/pages/dashboard/ControlCenterPage.tsx` | NEW -- factory map |
+| `src/pages/dashboard/AnalyticsPage.tsx` | Add downtime chart |
+| `src/pages/dashboard/MachinesPage.tsx` | Add history link |
+| `src/components/DashboardLayout.tsx` | Add Control Center to sidebar |
+| `src/App.tsx` | Add 2 new routes |
 
 ## Implementation Sequence
 
-1. Database migration (profiles RLS for engineers)
-2. Fix DialogFooter forwardRef + add DialogDescription to all dialogs
-3. Fix useWOAlerts sound stop condition
-4. Clean up type casts across all files
-5. Add audit logging to all mutations
-6. Add lazy loading + QueryClient config
-7. Add debounce search + skeleton loaders
-8. Print styles polish
+1. Database migration (wo_photos table, storage bucket, checklist column)
+2. useWOAlerts -- add admin support
+3. useWOPhotos hook
+4. Engineer Dashboard -- checklist + photo upload + finish flow
+5. WorkOrderDetail -- display photos
+6. Analytics -- downtime chart
+7. Machine History page + route
+8. Control Center page + route + sidebar
 
