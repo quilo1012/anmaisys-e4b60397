@@ -119,6 +119,17 @@ export default function AnalyticsPage() {
     return Math.round((noParts.length / done.length) * 100);
   }, [allWOs, partsCountData]);
 
+  // Downtime by machine
+  const downtimeByMachine = useMemo(() => {
+    if (!allWOs) return [];
+    const map: Record<string, number> = {};
+    allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.started_at && (w.finished_at || w.completed_at)).forEach((wo) => {
+      const repair = differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at!));
+      map[wo.machine] = (map[wo.machine] || 0) + repair;
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([machine, minutes]) => ({ machine, minutes }));
+  }, [allWOs]);
+
   // Engineer performance
   const engineerPerformance = useMemo(() => {
     if (!allWOs) return [];
@@ -207,6 +218,18 @@ export default function AnalyticsPage() {
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={ordersByPriority}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="priority" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} /></BarChart>
               </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-base">Machines with Most Downtime</CardTitle></CardHeader>
+            <CardContent>
+              {!downtimeByMachine.length ? (
+                <p className="text-muted-foreground text-sm text-center py-8">No downtime data yet.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={downtimeByMachine} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="machine" width={120} /><Tooltip formatter={(v: number) => `${v} min`} /><Bar dataKey="minutes" fill="#ef4444" name="Downtime (min)" radius={[0, 4, 4, 0]} /></BarChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
         </div>
