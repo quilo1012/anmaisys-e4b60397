@@ -10,7 +10,7 @@ export function useWOAlerts() {
 
   // Warm up AudioContext on first user gesture
   useEffect(() => {
-    if (role !== "engineer") return;
+    if (role !== "engineer" && role !== "admin") return;
 
     const handler = () => {
       warmUpAudio();
