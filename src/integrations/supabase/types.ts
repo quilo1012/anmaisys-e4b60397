@@ -207,6 +207,7 @@ export type Database = {
           line: string
           min_stock: number
           name: string
+          price: number
           quantity: number
           updated_at: string
         }
@@ -218,6 +219,7 @@ export type Database = {
           line?: string
           min_stock?: number
           name: string
+          price?: number
           quantity?: number
           updated_at?: string
         }
@@ -229,6 +231,7 @@ export type Database = {
           line?: string
           min_stock?: number
           name?: string
+          price?: number
           quantity?: number
           updated_at?: string
         }
@@ -240,6 +243,7 @@ export type Database = {
           created_at: string
           email: string
           id: string
+          labor_rate: number
           last_seen_at: string | null
           name: string
           shift: string | null
@@ -250,6 +254,7 @@ export type Database = {
           created_at?: string
           email: string
           id: string
+          labor_rate?: number
           last_seen_at?: string | null
           name: string
           shift?: string | null
@@ -260,6 +265,7 @@ export type Database = {
           created_at?: string
           email?: string
           id?: string
+          labor_rate?: number
           last_seen_at?: string | null
           name?: string
           shift?: string | null
