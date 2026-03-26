@@ -1,112 +1,48 @@
 
 
-# Phase 4: Cost System, Financial Dashboard, Demo Mode
+# Phase 5: Polish and Adjustments
 
-## What's genuinely new (not already built)
+## 1. Configurable Admin PIN (not hardcoded)
 
-Everything else in the prompt (WO pipeline, alerts, checklist, photos, signature, print CSS, CSV export, chat, heatmap, control center, ranking, filters, LINE column) is already implemented and working.
+**Database:** Create `system_settings` table with a single row containing `admin_pin` (text, default '1234').
 
----
+**Manager Dashboard:** Add a small "Change PIN" section where admin can update the PIN. The `handleClearSystem` function validates against the DB value instead of hardcoded '1234'.
 
-## 1. Cost Tracking System
+## 2. Move "Clear" to Work Orders Page (not whole system)
 
-**Database migration:**
-- Add `price` column (numeric, default 0) to `products` table
-- Add `labor_rate` column (numeric, default 0) to `profiles` table (hourly rate per engineer)
+Remove the "Clear System" button from `ManagerDashboard.tsx`. Add a "Clear All Work Orders" button to `WorkOrdersPage.tsx` (admin only). The edge function already deletes only WO-related data (messages, photos, parts_used, work_orders, engineer_scores), so it stays as-is.
 
-**Cost calculation** (computed client-side per WO):
-- **Parts cost**: SUM(product.price * parts_used.quantity) for each WO
-- **Labor cost**: repair_hours * engineer's labor_rate (repair_hours = difference between started_at and finished_at)
-- **Overtime cost**: hours beyond 8h shift * 1.5x labor_rate
-- **Total**: parts + labor + overtime
+## 3. Fix Print Layout
 
-**Files:**
-- Migration SQL: add `price` to products, `labor_rate` to profiles
-- `src/hooks/useStock.ts`: Update Product interface to include `price`
-- `src/pages/dashboard/StockPage.tsx`: Add price field to product form
-- `src/pages/dashboard/WorkOrderDetail.tsx`: Add cost breakdown card showing parts cost, labor cost, overtime, total
+**`src/index.css`:** Strengthen `@media print` rules — force-hide `[data-sidebar]`, `header`, `nav`, `.no-print`, and all buttons. Only `.print-content` is visible.
 
----
+**`WorkOrderDetail.tsx`:** Add a "Requested By Signature" line at the bottom of the print layout — a blank signature line with the requester's name so they can sign the printed document.
 
-## 2. Financial Dashboard
+## 4. Stock Value on Financial Dashboard
 
-**New page:** `src/pages/dashboard/FinancialDashboard.tsx`
-**Route:** `/dashboard/financial`
+**`FinancialDashboard.tsx`:** Add a card "Stock Inventory Value" that calculates `SUM(price × quantity)` from the already-fetched `products` data and displays the total.
 
-Cards:
-- Total cost today / this month
-- Cost by machine (bar chart)
-- Cost by line (bar chart)
-- Table of WOs with cost breakdown
+## 5. Verify Mobile Engineer Layout
 
-Data computed from existing `work_orders` + `parts_used` + `products` (with new price field).
-
-**Files:**
-- `src/pages/dashboard/FinancialDashboard.tsx` (NEW)
-- `src/App.tsx`: Add route
-- `src/components/DashboardLayout.tsx`: Add "Financial" to sidebar for admin
+Test Engineer Dashboard at 375px viewport width to confirm cards and buttons render properly.
 
 ---
 
-## 3. Demo Mode: Clear All Work Orders
+## Files Modified
 
-**Edge function:** `supabase/functions/clear-system/index.ts`
-- Deletes all `wo_messages`, `wo_photos`, `parts_used`, `work_orders` in order (respecting dependencies)
-- Requires admin role (verified via service role key + user check)
-
-**UI:**
-- `src/pages/dashboard/ManagerDashboard.tsx`: Add "Clear System" button with confirmation dialog
-- Only visible to admin role
-
----
-
-## 4. Remove Severity from Problems
-
-**File:** `src/pages/dashboard/ProblemsPage.tsx`
-- Remove severity Select from create/edit form
-- Remove severity column from table
-- Remove `severityColors` config
-
-**File:** `src/hooks/useProblemDescriptions.ts`
-- Remove severity from add/update mutations
-
----
-
-## 5. Financial Summary in PDF Report
-
-**File:** `src/lib/generatePdfReport.ts`
-- Add financial section after KPIs: total parts cost, total labor cost, total overtime cost, grand total
-- Update `ReportData` interface to include cost fields
-
-**File:** `src/pages/dashboard/WorkOrdersPage.tsx`
-- Pass cost data to `generatePdfReport()`
-
----
-
-## Implementation Sequence
-
-1. Database migration (price on products, labor_rate on profiles)
-2. Remove severity from ProblemsPage
-3. Cost calculation in WorkOrderDetail
-4. Financial Dashboard page + route + sidebar
-5. Clear System edge function + UI button
-6. PDF report with financial summary
-
-## Files Summary
-
-| File | Action |
+| File | Change |
 |------|--------|
-| Migration SQL | Add `price` to products, `labor_rate` to profiles |
-| `supabase/functions/clear-system/index.ts` | NEW -- bulk delete all WOs |
-| `src/pages/dashboard/FinancialDashboard.tsx` | NEW -- cost charts and tables |
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Add cost breakdown card |
-| `src/pages/dashboard/ManagerDashboard.tsx` | Add Clear System button |
-| `src/pages/dashboard/ProblemsPage.tsx` | Remove severity field |
-| `src/pages/dashboard/StockPage.tsx` | Add price field |
-| `src/hooks/useStock.ts` | Add price to Product interface |
-| `src/hooks/useProblemDescriptions.ts` | Remove severity |
-| `src/lib/generatePdfReport.ts` | Add financial summary |
-| `src/pages/dashboard/WorkOrdersPage.tsx` | Pass cost data to PDF |
-| `src/App.tsx` | Add financial route |
-| `src/components/DashboardLayout.tsx` | Add Financial to sidebar |
+| Migration SQL | Create `system_settings` table |
+| `ManagerDashboard.tsx` | Remove Clear System button, add Change PIN UI |
+| `WorkOrdersPage.tsx` | Add Clear WOs button (admin), use DB PIN |
+| `WorkOrderDetail.tsx` | Add requester signature line for print |
+| `FinancialDashboard.tsx` | Add stock inventory value card |
+| `src/index.css` | Strengthen print CSS |
+
+## Sequence
+1. Database migration (system_settings)
+2. Move Clear WOs + configurable PIN
+3. Print fix + signature line
+4. Stock value card
+5. Mobile verification
 
