@@ -77,7 +77,7 @@ export default function MachineHistoryPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <Card>
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground">Total WOs</p>
@@ -102,6 +102,14 @@ export default function MachineHistoryPage() {
               <p className={`text-2xl font-bold ${reliabilityColor}`}>{stats.reliability}%</p>
               <p className="text-xs mt-1">{reliabilityLabel}</p>
             </CardContent>
+          </Card>
+          <Card className="border-primary/30">
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground flex items-center gap-1"><Heart className="h-4 w-4" /> Health Score</p>
+              <p className={`text-2xl font-bold ${healthColor}`}>{healthScore}</p>
+              <p className="text-xs mt-1">{healthScore >= 70 ? "🟢 Healthy" : healthScore >= 40 ? "🟡 Warning" : "🔴 Critical"}</p>
+            </CardContent>
+          </Card>
           </Card>
         </div>
 
