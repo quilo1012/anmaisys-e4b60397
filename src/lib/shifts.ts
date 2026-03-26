@@ -1,8 +1,9 @@
 // --- Professional Industrial Alert Sound ---
+// Three-tone descending siren: 1200Hz → 900Hz → 600Hz with harmonics
 
-function generateTwoToneChime(): string {
-  const sampleRate = 16000;
-  const duration = 0.6;
+function generateIndustrialSiren(): string {
+  const sampleRate = 22050;
+  const duration = 1.2;
   const numSamples = Math.floor(sampleRate * duration);
   const dataSize = numSamples * 2;
   const fileSize = 44 + dataSize;
@@ -27,27 +28,38 @@ function generateTwoToneChime(): string {
   writeString(36, "data");
   view.setUint32(40, dataSize, true);
 
-  const freq1 = 880;
-  const freq2 = 660;
-  const halfDuration = duration / 2;
+  // Three descending tones: urgent industrial feel
+  const tones = [
+    { freq: 1200, start: 0, end: 0.35 },
+    { freq: 900, start: 0.35, end: 0.7 },
+    { freq: 600, start: 0.7, end: 1.05 },
+  ];
 
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
-    const fadeIn = Math.min(1, t / 0.02);
-    const fadeOut = Math.min(1, (duration - t) / 0.05);
-    const crossfade = t < halfDuration
-      ? Math.cos((t / halfDuration) * Math.PI * 0.5)
-      : 0;
-    const crossfade2 = t < halfDuration
-      ? Math.sin((t / halfDuration) * Math.PI * 0.5)
-      : 1;
+    const fadeIn = Math.min(1, t / 0.01);
+    const fadeOut = Math.min(1, (duration - t) / 0.1);
 
-    const tone1 = Math.sin(2 * Math.PI * freq1 * t) * crossfade;
-    const tone2 = Math.sin(2 * Math.PI * freq2 * t) * crossfade2;
-    const harmonic = Math.sin(2 * Math.PI * freq2 * 1.5 * t) * 0.15;
+    let sample = 0;
+    for (const tone of tones) {
+      if (t >= tone.start && t < tone.end) {
+        const localT = (t - tone.start) / (tone.end - tone.start);
+        const env = Math.sin(localT * Math.PI); // bell curve envelope
+        const fundamental = Math.sin(2 * Math.PI * tone.freq * t);
+        const harmonic2 = Math.sin(2 * Math.PI * tone.freq * 2 * t) * 0.3;
+        const harmonic3 = Math.sin(2 * Math.PI * tone.freq * 3 * t) * 0.1;
+        sample += (fundamental + harmonic2 + harmonic3) * env;
+      }
+    }
 
-    const sample = (tone1 + tone2 + harmonic) * fadeIn * fadeOut * 0.7;
-    view.setInt16(44 + i * 2, Math.floor(sample * 32767), true);
+    // Tail reverb effect
+    if (t >= 1.05) {
+      const tailEnv = Math.max(0, 1 - (t - 1.05) / 0.15);
+      sample += Math.sin(2 * Math.PI * 600 * t) * tailEnv * 0.3;
+    }
+
+    sample *= fadeIn * fadeOut * 0.55;
+    view.setInt16(44 + i * 2, Math.floor(Math.max(-1, Math.min(1, sample)) * 32767), true);
   }
 
   const bytes = new Uint8Array(buffer);
@@ -84,7 +96,6 @@ function generateNotificationChime(): string {
   writeString(36, "data");
   view.setUint32(40, dataSize, true);
 
-  // Ascending two-tone: C5 → E5 (pleasant)
   const freq1 = 523;
   const freq2 = 659;
 
@@ -103,7 +114,7 @@ function generateNotificationChime(): string {
   return "data:audio/wav;base64," + btoa(binary);
 }
 
-const ALERT_WAV = generateTwoToneChime();
+const ALERT_WAV = generateIndustrialSiren();
 const NOTIFICATION_WAV = generateNotificationChime();
 let alertAudio: HTMLAudioElement | null = null;
 let notifAudio: HTMLAudioElement | null = null;
@@ -159,7 +170,7 @@ export function playAlertSound() {
   };
 
   playLoop();
-  alertIntervalId = setInterval(playLoop, 2500);
+  alertIntervalId = setInterval(playLoop, 3000);
 
   alertTimeoutId = setTimeout(() => {
     console.log("[Alert] 60s timeout — stopping alert");
