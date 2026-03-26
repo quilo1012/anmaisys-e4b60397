@@ -77,6 +77,9 @@ export default function EngineerDashboard() {
   const navigate = useNavigate();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
   useWOAlerts();
+  const { alerts: predictiveAlerts } = usePredictiveAlerts();
+  const { data: onlineEngineers } = useOnlineEngineers();
+  const [focusMode, setFocusMode] = useState(false);
 
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
