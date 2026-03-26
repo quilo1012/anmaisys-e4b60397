@@ -298,6 +298,23 @@ export default function WorkOrderDetail() {
           </Card>
         )}
 
+        {/* Requester Signature (print only) */}
+        <div className="hidden print:block mt-12 pt-8 border-t-2 border-foreground">
+          <div className="grid grid-cols-2 gap-16">
+            <div>
+              <p className="text-sm font-medium mb-12">Requested By:</p>
+              <div className="border-b border-foreground w-full" />
+              <p className="text-sm mt-1">{wo.requester_name}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-12">Approved By:</p>
+              <div className="border-b border-foreground w-full" />
+              <p className="text-sm mt-1">Signature / Name</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-4 text-center">Date: {format(new Date(), "dd/MM/yyyy")}</p>
+        </div>
+
         {/* Internal Chat */}
         <WOChat workOrderId={wo.id} />
       </div>

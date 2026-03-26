@@ -112,7 +112,8 @@
 @media print {
   nav, aside, header, footer, .sidebar, [data-sidebar], button,
   .print\\:hidden, .no-print, [data-radix-popper-content-wrapper],
-  .pagination, .filters-section {
+  .pagination, .filters-section, [data-radix-dialog-overlay],
+  [role="dialog"], .sonner-toast, [data-sonner-toaster] {
     display: none !important;
   }
 
@@ -124,11 +125,19 @@
     print-color-adjust: exact;
   }
 
+  /* Force only print-content visible */
+  body > *:not(#root) {
+    display: none !important;
+  }
+
   .print-content {
     margin: 0 !important;
     padding: 0 !important;
     max-width: 100% !important;
     width: 100% !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
   }
 
   .print\\:block {
@@ -145,6 +154,14 @@
   main {
     padding: 0 !important;
     margin: 0 !important;
+  }
+
+  /* Hide sidebar wrapper completely */
+  [data-sidebar="sidebar"],
+  [data-sidebar="trigger"],
+  .peer[data-sidebar] {
+    display: none !important;
+    width: 0 !important;
   }
 
   table {
