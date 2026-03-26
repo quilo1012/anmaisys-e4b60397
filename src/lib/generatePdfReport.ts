@@ -9,6 +9,7 @@ interface ReportData {
   engineerRanking: { name: string; score: number; completed: number }[];
   kpis: { avgResponse: number; avgMTTR: number; totalWOs: number; openWOs: number; slaRate: number };
   dateRange: string;
+  financials?: { totalPartsCost: number; totalLaborCost: number; totalOvertimeCost: number; grandTotal: number };
 }
 
 export function generatePdfReport(data: ReportData) {
@@ -67,11 +68,30 @@ export function generatePdfReport(data: ReportData) {
     alternateRowStyles: { fillColor: [245, 245, 245] },
   });
 
+  // Financial summary
+  if (data.financials && data.financials.grandTotal > 0) {
+    doc.addPage();
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0);
+    doc.text("Financial Summary", 14, 20);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const finY = 28;
+    doc.text(`Total Parts Cost: £${data.financials.totalPartsCost.toFixed(2)}`, 14, finY);
+    doc.text(`Total Labor Cost: £${data.financials.totalLaborCost.toFixed(2)}`, 14, finY + 6);
+    doc.text(`Total Overtime Cost: £${data.financials.totalOvertimeCost.toFixed(2)}`, 14, finY + 12);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(`Grand Total: £${data.financials.grandTotal.toFixed(2)}`, 14, finY + 22);
+  }
+
   // Engineer ranking on new page if data exists
   if (data.engineerRanking.length > 0) {
     doc.addPage();
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(0);
     doc.text("Engineer Ranking", 14, 20);
 
     autoTable(doc, {

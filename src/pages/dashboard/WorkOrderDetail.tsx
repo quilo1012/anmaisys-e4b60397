@@ -1,15 +1,18 @@
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool, Phone, MapPin, Wrench, Lock, Camera } from "lucide-react";
+import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool, Phone, MapPin, Wrench, Lock, Camera, DollarSign } from "lucide-react";
 import { useWorkOrderById } from "@/hooks/useWorkOrders";
 import { usePartsUsedByWO } from "@/hooks/useStock";
 import { useWOPhotos, getWOPhotoUrl } from "@/hooks/useWOPhotos";
 import { WOChat } from "@/components/WOChat";
 import { format, differenceInMinutes } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -58,6 +61,48 @@ export default function WorkOrderDetail() {
   const { data: wo, isLoading } = useWorkOrderById(id!);
   const { data: partsUsed, isLoading: partsLoading } = usePartsUsedByWO(id!);
   const { data: woPhotos } = useWOPhotos(id!);
+
+  // Fetch parts with prices for cost calculation
+  const { data: partsWithPrice } = useQuery({
+    queryKey: ["parts_used_price", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("parts_used")
+        .select("*, product:products(name, code, price)")
+        .eq("work_order_id", id!);
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!id,
+  });
+
+  // Fetch engineer labor rate
+  const { data: engineerProfile } = useQuery({
+    queryKey: ["engineer_rate", wo?.engineer_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("labor_rate")
+        .eq("id", wo!.engineer_id!)
+        .single();
+      if (error) throw error;
+      return data as { labor_rate: number };
+    },
+    enabled: !!wo?.engineer_id,
+  });
+
+  const costBreakdown = useMemo(() => {
+    if (!wo) return null;
+    const partsCost = (partsWithPrice || []).reduce((sum, p) => sum + (p.product?.price || 0) * p.quantity, 0);
+    const repairMinutes = wo.started_at && wo.finished_at ? differenceInMinutes(new Date(wo.finished_at), new Date(wo.started_at)) : 0;
+    const repairHours = repairMinutes / 60;
+    const rate = engineerProfile?.labor_rate || 0;
+    const laborCost = repairHours * rate;
+    const overtimeHours = Math.max(0, repairHours - 8);
+    const overtimeCost = overtimeHours * rate * 0.5;
+    const totalCost = partsCost + laborCost + overtimeCost;
+    return { partsCost, laborCost, overtimeCost, totalCost, repairHours: Math.round(repairHours * 10) / 10 };
+  }, [wo, partsWithPrice, engineerProfile]);
 
   if (isLoading) {
     return (
@@ -233,6 +278,21 @@ export default function WorkOrderDetail() {
                     </div>
                   );
                 })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Cost Breakdown */}
+        {costBreakdown && costBreakdown.totalCost > 0 && (
+          <Card>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><DollarSign className="h-4 w-4" /> Cost Breakdown</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-4">
+                <div><p className="text-sm text-muted-foreground">Parts Cost</p><p className="text-xl font-bold">£{costBreakdown.partsCost.toFixed(2)}</p></div>
+                <div><p className="text-sm text-muted-foreground">Labor Cost ({costBreakdown.repairHours}h)</p><p className="text-xl font-bold">£{costBreakdown.laborCost.toFixed(2)}</p></div>
+                <div><p className="text-sm text-muted-foreground">Overtime</p><p className="text-xl font-bold">{costBreakdown.overtimeCost > 0 ? <span className="text-destructive">£{costBreakdown.overtimeCost.toFixed(2)}</span> : "—"}</p></div>
+                <div><p className="text-sm text-muted-foreground">Total Cost</p><p className="text-2xl font-bold text-primary">£{costBreakdown.totalCost.toFixed(2)}</p></div>
               </div>
             </CardContent>
           </Card>

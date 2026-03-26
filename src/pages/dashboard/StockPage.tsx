@@ -37,6 +37,7 @@ export default function StockPage() {
   const [editQty, setEditQty] = useState("");
   const [editMinStock, setEditMinStock] = useState("");
   const [editCategory, setEditCategory] = useState("");
+  const [editPrice, setEditPrice] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
@@ -45,6 +46,7 @@ export default function StockPage() {
   const [qty, setQty] = useState("");
   const [minStock, setMinStock] = useState("");
   const [category, setCategory] = useState("");
+  const [price, setPrice] = useState("");
 
   const [adjustId, setAdjustId] = useState("");
   const [adjustQty, setAdjustQty] = useState("");
@@ -55,10 +57,10 @@ export default function StockPage() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const result = await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare" });
+      const result = await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare", price: parseFloat(price) || 0 });
       toast({ title: "Product added" });
       logAuditEvent("create", "product", (result as any)?.id, { name, code });
-      setName(""); setProductLine(""); setCode(""); setQty(""); setMinStock(""); setCategory("");
+      setName(""); setProductLine(""); setCode(""); setQty(""); setMinStock(""); setCategory(""); setPrice("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -91,12 +93,13 @@ export default function StockPage() {
     setEditQty(String(p.quantity));
     setEditMinStock(String(p.min_stock));
     setEditCategory(p.category);
+    setEditPrice(String(p.price || 0));
   };
 
   const handleEdit = async () => {
     if (!editProduct) return;
     try {
-      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory });
+      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: parseFloat(editPrice) || 0 });
       toast({ title: "Product updated" });
       logAuditEvent("update", "product", editProduct.id, { name: editName });
       setEditProduct(null);
@@ -168,6 +171,7 @@ export default function StockPage() {
                      <TableHead>Line</TableHead>
                      <TableHead>Code</TableHead>
                      <TableHead>Category</TableHead>
+                     <TableHead>Price</TableHead>
                      <TableHead>Quantity</TableHead>
                      <TableHead>Min Stock</TableHead>
                      <TableHead>Status</TableHead>
@@ -183,6 +187,7 @@ export default function StockPage() {
                          <TableCell>{p.line || "—"}</TableCell>
                         <TableCell>{p.code}</TableCell>
                         <TableCell><Badge variant="outline" className="capitalize">{p.category}</Badge></TableCell>
+                        <TableCell>£{(p.price || 0).toFixed(2)}</TableCell>
                         <TableCell className={isLow ? "text-destructive font-bold" : ""}>{p.quantity}</TableCell>
                         <TableCell>{p.min_stock}</TableCell>
                         <TableCell>
@@ -219,10 +224,11 @@ export default function StockPage() {
                      <div className="space-y-1"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
                      <div className="space-y-1"><Label>Line</Label><Input value={productLine} onChange={(e) => setProductLine(e.target.value)} placeholder="e.g. Line A1" /></div>
                      <div className="space-y-1"><Label>Code</Label><Input value={code} onChange={(e) => setCode(e.target.value)} required /></div>
-                    <div className="grid grid-cols-2 gap-3">
+                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1"><Label>Initial Qty</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
                       <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} /></div>
-                    </div>
+                      <div className="space-y-1"><Label>Price (£)</Label><Input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+                     </div>
                     <div className="space-y-1">
                       <Label>Category</Label>
                       <Select value={category} onValueChange={setCategory}>
@@ -307,9 +313,10 @@ export default function StockPage() {
                <div className="space-y-1"><Label>Name</Label><Input value={editName} onChange={(e) => setEditName(e.target.value)} /></div>
                <div className="space-y-1"><Label>Line</Label><Input value={editLine} onChange={(e) => setEditLine(e.target.value)} placeholder="e.g. Line A1" /></div>
                <div className="space-y-1"><Label>Code</Label><Input value={editCode} onChange={(e) => setEditCode(e.target.value)} /></div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1"><Label>Quantity</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
                 <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} /></div>
+                <div className="space-y-1"><Label>Price (£)</Label><Input type="number" step="0.01" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>
               </div>
               <div className="space-y-1">
                 <Label>Category</Label>
