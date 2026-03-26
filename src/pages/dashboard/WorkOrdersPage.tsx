@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Trash2, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle } from "lucide-react";
+import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Trash2, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle } from "lucide-react";
 import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines } from "@/hooks/useMachines";
@@ -45,7 +45,7 @@ const priorityConfig: Record<string, { label: string; className: string }> = {
 const ITEMS_PER_PAGE = 20;
 
 export default function WorkOrdersPage() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -90,6 +90,9 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const [editNotes, setEditNotes] = useState("");
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showClearWOs, setShowClearWOs] = useState(false);
+  const [clearPin, setClearPin] = useState("");
+  const [clearing, setClearing] = useState(false);
 
   // Build machine line lookup
   const machineLineMap = useMemo(() => {
@@ -225,7 +228,14 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
             <h2 className="text-2xl font-bold flex items-center gap-2"><ClipboardList className="h-6 w-6" /> Work Orders</h2>
             <p className="text-muted-foreground">Manage and track all work orders</p>
           </div>
-          <Button onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 mr-2" /> Create WO</Button>
+          <div className="flex gap-2">
+            {role === "admin" && (
+              <Button variant="destructive" size="sm" onClick={() => setShowClearWOs(true)}>
+                <AlertTriangle className="h-4 w-4 mr-2" /> Clear WOs
+              </Button>
+            )}
+            <Button onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 mr-2" /> Create WO</Button>
+          </div>
         </div>
 
         <Card>
@@ -463,6 +473,53 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Clear All WOs */}
+        <AlertDialog open={showClearWOs} onOpenChange={(o) => { setShowClearWOs(o); if (!o) setClearPin(""); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Clear all work orders?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete ALL work orders, messages, photos, parts used records, and engineer scores. This action cannot be undone. Enter the admin PIN to confirm.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="px-6 pb-2">
+              <Label htmlFor="clear-pin">Security PIN</Label>
+              <Input id="clear-pin" type="password" placeholder="Enter PIN..." value={clearPin} onChange={(e) => setClearPin(e.target.value)} maxLength={8} className="mt-1" />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={clearing}>Cancel</AlertDialogCancel>
+              <Button variant="destructive" disabled={clearing || clearPin.length < 4} onClick={async () => {
+                setClearing(true);
+                try {
+                  const { data: settings } = await (await import("@/integrations/supabase/client")).supabase.from("system_settings").select("admin_pin").limit(1).single();
+                  if (!settings || clearPin !== settings.admin_pin) {
+                    toast({ title: "Invalid PIN", description: "The PIN entered is incorrect.", variant: "destructive" });
+                    setClearing(false);
+                    return;
+                  }
+                  const { data: { session } } = await (await import("@/integrations/supabase/client")).supabase.auth.getSession();
+                  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clear-system`, {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${session?.access_token}`, "Content-Type": "application/json" },
+                  });
+                  const result = await res.json();
+                  if (!res.ok) throw new Error(result.error || "Failed");
+                  toast({ title: "Work orders cleared", description: "All work order data has been removed." });
+                  setShowClearWOs(false);
+                  setClearPin("");
+                } catch (err: any) {
+                  toast({ title: "Error", description: err.message, variant: "destructive" });
+                } finally {
+                  setClearing(false);
+                }
+              }}>
+                {clearing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Yes, Clear All
+              </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

@@ -107,6 +107,11 @@ export default function FinancialDashboard() {
     return Object.entries(map).map(([name, cost]) => ({ name, cost: Math.round(cost * 100) / 100 })).sort((a, b) => b.cost - a.cost);
   }, [woCosts]);
 
+  const stockValue = useMemo(() => {
+    if (!products) return 0;
+    return products.reduce((sum, p) => sum + (p.price || 0) * p.quantity, 0);
+  }, [products]);
+
   const fmt = (v: number) => `£${v.toFixed(2)}`;
 
   return (
@@ -117,7 +122,7 @@ export default function FinancialDashboard() {
           <p className="text-muted-foreground">Cost tracking and financial analysis</p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Today's Cost</CardTitle>
@@ -145,6 +150,13 @@ export default function FinancialDashboard() {
               <Factory className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent><div className="text-2xl font-bold">{fmt(totalLabor)}</div></CardContent>
+          </Card>
+          <Card className="border-primary/30">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Stock Inventory Value</CardTitle>
+              <Wrench className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent><div className="text-2xl font-bold text-primary">{fmt(stockValue)}</div></CardContent>
           </Card>
         </div>
 

@@ -1,19 +1,19 @@
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Trash2, Loader2 } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 
@@ -23,9 +23,11 @@ export default function ManagerDashboard() {
   const { data: products } = useProducts();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [showClear, setShowClear] = useState(false);
-  const [clearing, setClearing] = useState(false);
-  const [pin, setPin] = useState("");
+  const queryClient = useQueryClient();
+  const [showChangePin, setShowChangePin] = useState(false);
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [savingPin, setSavingPin] = useState(false);
   useWOAlerts();
 
   const { data: userCount } = useQuery({
@@ -58,30 +60,31 @@ export default function ManagerDashboard() {
     return { avgResponse: count ? Math.round(totalResp / count) : 0, avgMTTR: count ? Math.round(totalMTTR / count) : 0 };
   }, [allWOs]);
 
-  const handleClearSystem = async () => {
-    if (pin !== "1234") {
-      toast({ title: "Invalid PIN", description: "Enter the correct PIN to proceed.", variant: "destructive" });
+  const handleChangePin = async () => {
+    if (newPin.length < 4) {
+      toast({ title: "PIN too short", description: "PIN must be at least 4 characters.", variant: "destructive" });
       return;
     }
-    setClearing(true);
+    if (newPin !== confirmPin) {
+      toast({ title: "PINs don't match", description: "Please confirm the new PIN.", variant: "destructive" });
+      return;
+    }
+    setSavingPin(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clear-system`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${session?.access_token}`,
-          "Content-Type": "application/json",
-        },
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to clear system");
-      toast({ title: "System cleared", description: "All work orders and related data have been removed." });
-      setShowClear(false);
-      setPin("");
+      const { data: settings } = await supabase.from("system_settings").select("id").limit(1).single();
+      if (settings) {
+        const { error } = await supabase.from("system_settings").update({ admin_pin: newPin, updated_at: new Date().toISOString() }).eq("id", settings.id);
+        if (error) throw error;
+      }
+      toast({ title: "PIN updated", description: "The admin PIN has been changed successfully." });
+      setShowChangePin(false);
+      setNewPin("");
+      setConfirmPin("");
+      queryClient.invalidateQueries({ queryKey: ["system_settings"] });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
-      setClearing(false);
+      setSavingPin(false);
     }
   };
 
@@ -100,8 +103,8 @@ export default function ManagerDashboard() {
             <h2 className="text-2xl font-bold">Manager Dashboard</h2>
             <p className="text-muted-foreground">System overview and quick access</p>
           </div>
-          <Button variant="destructive" size="sm" onClick={() => setShowClear(true)}>
-            <Trash2 className="h-4 w-4 mr-2" /> Clear System
+          <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
+            <Lock className="h-4 w-4 mr-2" /> Change PIN
           </Button>
         </div>
 
@@ -135,39 +138,30 @@ export default function ManagerDashboard() {
           ))}
         </div>
 
-        <AlertDialog open={showClear} onOpenChange={(o) => { setShowClear(o); if (!o) setPin(""); }}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Clear entire system?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete ALL work orders, messages, photos, parts used records, and engineer scores. This action cannot be undone. Enter the PIN <strong>1234</strong> to confirm.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="px-6 pb-2">
-              <Label htmlFor="clear-pin">Security PIN</Label>
-              <Input
-                id="clear-pin"
-                type="password"
-                placeholder="Enter PIN..."
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                maxLength={4}
-                className="mt-1"
-              />
+        <Dialog open={showChangePin} onOpenChange={(o) => { setShowChangePin(o); if (!o) { setNewPin(""); setConfirmPin(""); } }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Change Admin PIN</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-pin">New PIN</Label>
+                <Input id="new-pin" type="password" placeholder="Enter new PIN..." value={newPin} onChange={(e) => setNewPin(e.target.value)} maxLength={8} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-pin">Confirm PIN</Label>
+                <Input id="confirm-pin" type="password" placeholder="Confirm new PIN..." value={confirmPin} onChange={(e) => setConfirmPin(e.target.value)} maxLength={8} />
+              </div>
             </div>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={clearing}>Cancel</AlertDialogCancel>
-              <Button
-                variant="destructive"
-                onClick={handleClearSystem}
-                disabled={clearing || pin.length < 4}
-              >
-                {clearing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Yes, Clear Everything
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowChangePin(false)}>Cancel</Button>
+              <Button onClick={handleChangePin} disabled={savingPin || newPin.length < 4}>
+                {savingPin && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Save PIN
               </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
