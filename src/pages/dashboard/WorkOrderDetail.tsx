@@ -125,7 +125,7 @@ export default function WorkOrderDetail() {
 
   const cfg = statusConfig[wo.status];
   const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
-  const woLabel = `WO-${String(wo.wo_number).padStart(4, "0")}`;
+  const woLabel = `AN-${String(wo.wo_number).padStart(4, "0")}`;
 
   // Calculated times
   const responseTime = wo.received_at ? differenceInMinutes(new Date(wo.received_at), new Date(wo.created_at)) : null;
