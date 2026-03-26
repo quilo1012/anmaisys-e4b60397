@@ -1,10 +1,8 @@
-// --- HTML5 Audio-based alert sound ---
+// --- Professional Industrial Alert Sound ---
 
-// Generate a simple beep WAV as base64 data URI
-function generateBeepWav(): string {
-  const sampleRate = 8000;
-  const duration = 0.3;
-  const freq = 1000;
+function generateTwoToneChime(): string {
+  const sampleRate = 16000;
+  const duration = 0.6;
   const numSamples = Math.floor(sampleRate * duration);
   const dataSize = numSamples * 2;
   const fileSize = 44 + dataSize;
@@ -12,7 +10,6 @@ function generateBeepWav(): string {
   const buffer = new ArrayBuffer(fileSize);
   const view = new DataView(buffer);
 
-  // WAV header
   const writeString = (offset: number, str: string) => {
     for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
   };
@@ -21,8 +18,8 @@ function generateBeepWav(): string {
   writeString(8, "WAVE");
   writeString(12, "fmt ");
   view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, sampleRate * 2, true);
   view.setUint16(32, 2, true);
@@ -30,10 +27,26 @@ function generateBeepWav(): string {
   writeString(36, "data");
   view.setUint32(40, dataSize, true);
 
+  const freq1 = 880;
+  const freq2 = 660;
+  const halfDuration = duration / 2;
+
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
-    const envelope = Math.min(1, Math.min(t / 0.01, (duration - t) / 0.01));
-    const sample = Math.sin(2 * Math.PI * freq * t) * envelope * 0.9;
+    const fadeIn = Math.min(1, t / 0.02);
+    const fadeOut = Math.min(1, (duration - t) / 0.05);
+    const crossfade = t < halfDuration
+      ? Math.cos((t / halfDuration) * Math.PI * 0.5)
+      : 0;
+    const crossfade2 = t < halfDuration
+      ? Math.sin((t / halfDuration) * Math.PI * 0.5)
+      : 1;
+
+    const tone1 = Math.sin(2 * Math.PI * freq1 * t) * crossfade;
+    const tone2 = Math.sin(2 * Math.PI * freq2 * t) * crossfade2;
+    const harmonic = Math.sin(2 * Math.PI * freq2 * 1.5 * t) * 0.15;
+
+    const sample = (tone1 + tone2 + harmonic) * fadeIn * fadeOut * 0.7;
     view.setInt16(44 + i * 2, Math.floor(sample * 32767), true);
   }
 
@@ -43,22 +56,79 @@ function generateBeepWav(): string {
   return "data:audio/wav;base64," + btoa(binary);
 }
 
-const BEEP_WAV = generateBeepWav();
-let audioElement: HTMLAudioElement | null = null;
+// Single pleasant notification chime (for operator feedback)
+function generateNotificationChime(): string {
+  const sampleRate = 16000;
+  const duration = 0.4;
+  const numSamples = Math.floor(sampleRate * duration);
+  const dataSize = numSamples * 2;
+  const fileSize = 44 + dataSize;
+
+  const buffer = new ArrayBuffer(fileSize);
+  const view = new DataView(buffer);
+
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  writeString(0, "RIFF");
+  view.setUint32(4, fileSize - 8, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, "data");
+  view.setUint32(40, dataSize, true);
+
+  // Ascending two-tone: C5 → E5 (pleasant)
+  const freq1 = 523;
+  const freq2 = 659;
+
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    const fadeIn = Math.min(1, t / 0.01);
+    const fadeOut = Math.min(1, (duration - t) / 0.08);
+    const freq = t < duration * 0.45 ? freq1 : freq2;
+    const sample = Math.sin(2 * Math.PI * freq * t) * fadeIn * fadeOut * 0.6;
+    view.setInt16(44 + i * 2, Math.floor(sample * 32767), true);
+  }
+
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return "data:audio/wav;base64," + btoa(binary);
+}
+
+const ALERT_WAV = generateTwoToneChime();
+const NOTIFICATION_WAV = generateNotificationChime();
+let alertAudio: HTMLAudioElement | null = null;
+let notifAudio: HTMLAudioElement | null = null;
 let warmedUp = false;
 
-function getAudioElement(): HTMLAudioElement {
-  if (!audioElement) {
-    audioElement = new Audio(BEEP_WAV);
-    audioElement.preload = "auto";
+function getAlertAudio(): HTMLAudioElement {
+  if (!alertAudio) {
+    alertAudio = new Audio(ALERT_WAV);
+    alertAudio.preload = "auto";
   }
-  return audioElement;
+  return alertAudio;
+}
+
+function getNotifAudio(): HTMLAudioElement {
+  if (!notifAudio) {
+    notifAudio = new Audio(NOTIFICATION_WAV);
+    notifAudio.preload = "auto";
+  }
+  return notifAudio;
 }
 
 export function warmUpAudio() {
   if (warmedUp) return;
   try {
-    const audio = getAudioElement();
+    const audio = getAlertAudio();
     audio.volume = 0;
     audio.currentTime = 0;
     const p = audio.play();
@@ -75,16 +145,22 @@ let alertTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
 export function playAlertSound() {
   console.log("[Alert] playAlertSound called — starting continuous loop");
-  stopAlertSound(); // clear any existing loop
+  stopAlertSound();
 
   const playLoop = async () => {
-    await playBeepOnce();
+    try {
+      const audio = getAlertAudio();
+      audio.volume = 1.0;
+      audio.currentTime = 0;
+      await audio.play();
+    } catch (e) {
+      console.warn("[Alert] Play failed", e);
+    }
   };
 
-  playLoop(); // play immediately
-  alertIntervalId = setInterval(playLoop, 1000);
+  playLoop();
+  alertIntervalId = setInterval(playLoop, 2500);
 
-  // Auto-stop after 60 seconds
   alertTimeoutId = setTimeout(() => {
     console.log("[Alert] 60s timeout — stopping alert");
     stopAlertSound();
@@ -100,40 +176,25 @@ export function stopAlertSound() {
     clearTimeout(alertTimeoutId);
     alertTimeoutId = null;
   }
-  // Stop any currently playing audio
-  if (audioElement) {
-    audioElement.pause();
-    audioElement.currentTime = 0;
+  if (alertAudio) {
+    alertAudio.pause();
+    alertAudio.currentTime = 0;
   }
   console.log("[Alert] Sound stopped");
 }
 
-function playBeepOnce(): Promise<void> {
-  return new Promise((resolve) => {
-    try {
-      const audio = getAudioElement();
-      audio.volume = 1.0;
-      audio.currentTime = 0;
-      const p = audio.play();
-      if (p) {
-        p.then(() => {
-          audio.addEventListener("ended", () => resolve(), { once: true });
-        }).catch((e) => {
-          console.warn("[Alert] Beep play failed", e);
-          resolve();
-        });
-      } else {
-        setTimeout(resolve, 350);
-      }
-    } catch (e) {
-      console.warn("[Alert] Beep error", e);
-      resolve();
-    }
-  });
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+/** Single pleasant chime — no loop */
+export function playNotificationChime() {
+  try {
+    const audio = getNotifAudio();
+    audio.volume = 1.0;
+    audio.currentTime = 0;
+    const p = audio.play();
+    if (p) p.catch((e) => console.warn("[Alert] Notification chime failed", e));
+    console.log("[Alert] Notification chime played");
+  } catch (e) {
+    console.warn("[Alert] Notification chime error", e);
+  }
 }
 
 // --- Web Notifications API ---

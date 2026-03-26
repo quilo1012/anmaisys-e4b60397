@@ -55,7 +55,8 @@ export default function WorkOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [currentPage, setCurrentPage] = useState(1);
-  const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
+const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
+  const [lineFilter, setLineFilter] = useState<string>("all");
 
   const filterStatuses = statusFilter === "all" ? undefined : [statusFilter as WOStatus];
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
