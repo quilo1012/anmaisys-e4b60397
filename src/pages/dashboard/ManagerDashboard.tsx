@@ -59,6 +59,10 @@ export default function ManagerDashboard() {
   }, [allWOs]);
 
   const handleClearSystem = async () => {
+    if (pin !== "1234") {
+      toast({ title: "Invalid PIN", description: "Enter the correct PIN to proceed.", variant: "destructive" });
+      return;
+    }
     setClearing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -73,6 +77,7 @@ export default function ManagerDashboard() {
       if (!res.ok) throw new Error(result.error || "Failed to clear system");
       toast({ title: "System cleared", description: "All work orders and related data have been removed." });
       setShowClear(false);
+      setPin("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -130,20 +135,36 @@ export default function ManagerDashboard() {
           ))}
         </div>
 
-        <AlertDialog open={showClear} onOpenChange={setShowClear}>
+        <AlertDialog open={showClear} onOpenChange={(o) => { setShowClear(o); if (!o) setPin(""); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Clear entire system?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete ALL work orders, messages, photos, parts used records, and engineer scores. This action cannot be undone. Use this only for demo/presentation purposes.
+                This will permanently delete ALL work orders, messages, photos, parts used records, and engineer scores. This action cannot be undone. Enter the PIN <strong>1234</strong> to confirm.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <div className="px-6 pb-2">
+              <Label htmlFor="clear-pin">Security PIN</Label>
+              <Input
+                id="clear-pin"
+                type="password"
+                placeholder="Enter PIN..."
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                maxLength={4}
+                className="mt-1"
+              />
+            </div>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={clearing}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleClearSystem} disabled={clearing} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              <Button
+                variant="destructive"
+                onClick={handleClearSystem}
+                disabled={clearing || pin.length < 4}
+              >
                 {clearing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Yes, Clear Everything
-              </AlertDialogAction>
+              </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
