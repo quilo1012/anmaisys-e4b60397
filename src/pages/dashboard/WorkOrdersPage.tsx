@@ -148,7 +148,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
     return filteredWOs.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredWOs, currentPage]);
 
-  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, priorityFilter, searchTerm, dateQuickFilter, dateFrom, dateTo]);
+  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, lineFilter, searchTerm, dateQuickFilter, dateFrom, dateTo]);
 
   const kanbanColumns = useMemo(() => ({
     open: filteredWOs.filter((w) => w.status === "open"),
@@ -244,9 +244,12 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 <Button variant="outline" size="sm" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
                   <Download className="h-4 w-4 mr-1" /> CSV
                 </Button>
+                <Button variant="outline" size="sm" className="no-print" onClick={() => window.print()}>
+                  <Printer className="h-4 w-4 mr-1" /> Print
+                </Button>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-wrap mt-2">
+            <div className="flex items-center gap-2 flex-wrap mt-2 filters-section">
               <div className="relative flex-1 min-w-[200px] max-w-[300px]">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input placeholder="Search WO#, requester, machine..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8" />
@@ -264,14 +267,11 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                   <SelectItem value="force_closed">Force Closed</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="w-[140px]"><SelectValue placeholder="Priority" /></SelectTrigger>
+              <Select value={lineFilter} onValueChange={setLineFilter}>
+                <SelectTrigger className="w-[150px]"><SelectValue placeholder="Line" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Priorities</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="all">All Lines</SelectItem>
+                  {distinctLines.map((line) => <SelectItem key={line} value={line}>{line}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={problemFilter} onValueChange={setProblemFilter}>
