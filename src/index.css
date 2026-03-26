@@ -110,24 +110,52 @@
 }
 
 @media print {
-  nav, aside, header, footer, .sidebar, [data-sidebar], button,
-  .print\\:hidden, .no-print, [data-radix-popper-content-wrapper],
-  .pagination, .filters-section, [data-radix-dialog-overlay],
-  [role="dialog"], .sonner-toast, [data-sonner-toaster] {
+  /* Hide EVERYTHING that is not content */
+  nav, aside, header, footer, button,
+  .sidebar, [data-sidebar], [data-sidebar="sidebar"],
+  [data-sidebar="trigger"], .peer[data-sidebar],
+  .print\\:hidden, .no-print,
+  [data-radix-popper-content-wrapper],
+  .pagination, .filters-section,
+  [data-radix-dialog-overlay], [role="dialog"],
+  .sonner-toast, [data-sonner-toaster],
+  .SidebarProvider, [data-slot="sidebar"] {
     display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+    position: absolute !important;
+    left: -9999px !important;
   }
 
-  body {
+  * {
+    box-shadow: none !important;
+  }
+
+  html, body {
     background: white !important;
     color: black !important;
     font-size: 11pt;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
   }
 
-  /* Force only print-content visible */
-  body > *:not(#root) {
-    display: none !important;
+  #root {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #root > * {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   .print-content {
@@ -135,7 +163,7 @@
     padding: 0 !important;
     max-width: 100% !important;
     width: 100% !important;
-    position: absolute !important;
+    position: relative !important;
     left: 0 !important;
     top: 0 !important;
   }
@@ -154,14 +182,21 @@
   main {
     padding: 0 !important;
     margin: 0 !important;
+    width: 100% !important;
   }
 
-  /* Hide sidebar wrapper completely */
-  [data-sidebar="sidebar"],
-  [data-sidebar="trigger"],
-  .peer[data-sidebar] {
-    display: none !important;
-    width: 0 !important;
+  /* Reset any flex/grid parents */
+  [class*="flex"], [class*="grid"] {
+    display: block !important;
+  }
+
+  .print-content [class*="flex"],
+  .print-content [class*="grid"] {
+    display: flex !important;
+  }
+
+  .print-content .grid {
+    display: grid !important;
   }
 
   table {
@@ -176,5 +211,10 @@
 
   .border-b {
     border-color: #333 !important;
+  }
+
+  /* Page breaks */
+  .print-content > .space-y-6 > * {
+    page-break-inside: avoid;
   }
 }

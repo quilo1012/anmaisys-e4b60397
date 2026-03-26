@@ -135,7 +135,7 @@ export default function WorkOrderDetail() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-3xl print-content">
+      <div className="space-y-6 max-w-3xl print-content" id="wo-print-content">
         {/* Print-only header */}
         <div className="hidden print:block mb-6 border-b-2 border-foreground pb-4">
           <div className="flex items-center justify-between">

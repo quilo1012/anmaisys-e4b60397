@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,12 @@ export default function ControlCenterPage() {
     } else {
       document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
     }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
 
   const isLoading = machinesLoading || wosLoading;
@@ -53,14 +59,12 @@ export default function ControlCenterPage() {
     return map;
   }, [machines, workOrders]);
 
-  // Downtime per line
   const lineDowntime = useMemo(() => {
     if (!workOrders || !machines) return {} as Record<string, number>;
     const map: Record<string, number> = {};
     const now = new Date();
     const machineLineMap: Record<string, string> = {};
     machines.forEach((m) => { machineLineMap[m.name] = m.line || "Unassigned"; });
-
     workOrders.forEach((wo) => {
       const line = machineLineMap[wo.machine] || "Unassigned";
       const mins = differenceInMinutes(now, new Date(wo.created_at));
@@ -75,7 +79,7 @@ export default function ControlCenterPage() {
     red: "bg-red-500/20 border-red-500 text-red-700 animate-pulse",
   };
 
-  const statusLabels = { green: "🟢 Running", yellow: "🟡 WO Active", red: "🔴 Unattended" };
+  const statusLabels = { green: "🟢", yellow: "🟡", red: "🔴" };
 
   const top5 = engineerScores?.slice(0, 5) || [];
 
@@ -85,61 +89,68 @@ export default function ControlCenterPage() {
     return `${h}h ${mins % 60}m`;
   };
 
+  // TV mode uses compact styling
+  const tvMode = isFullscreen;
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className={`space-y-4 ${tvMode ? "p-2" : ""}`}>
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2"><Monitor className="h-6 w-6" /> Control Center</h2>
-            <p className="text-muted-foreground">Real-time factory machine status</p>
+            <h2 className={`font-bold flex items-center gap-2 ${tvMode ? "text-lg" : "text-2xl"}`}>
+              <Monitor className={tvMode ? "h-4 w-4" : "h-6 w-6"} /> Control Center
+            </h2>
+            {!tvMode && <p className="text-muted-foreground">Real-time factory machine status</p>}
           </div>
           <Button variant="outline" size="sm" onClick={toggleFullscreen} className="gap-2">
             {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-            {isFullscreen ? "Exit Fullscreen" : "TV Mode"}
+            {isFullscreen ? "Exit" : "TV Mode"}
           </Button>
         </div>
 
-        {/* Legend */}
-        <div className="flex gap-4 flex-wrap">
-          <Badge variant="outline" className="bg-green-500/20 border-green-500 text-green-700">🟢 Running</Badge>
-          <Badge variant="outline" className="bg-yellow-500/20 border-yellow-500 text-yellow-700">🟡 WO Active</Badge>
-          <Badge variant="outline" className="bg-red-500/20 border-red-500 text-red-700">🔴 Unattended</Badge>
+        {/* Legend - compact in TV mode */}
+        <div className={`flex gap-2 flex-wrap ${tvMode ? "text-xs" : ""}`}>
+          <Badge variant="outline" className={`bg-green-500/20 border-green-500 text-green-700 ${tvMode ? "text-[10px] px-1.5 py-0" : ""}`}>🟢 Running</Badge>
+          <Badge variant="outline" className={`bg-yellow-500/20 border-yellow-500 text-yellow-700 ${tvMode ? "text-[10px] px-1.5 py-0" : ""}`}>🟡 WO Active</Badge>
+          <Badge variant="outline" className={`bg-red-500/20 border-red-500 text-red-700 ${tvMode ? "text-[10px] px-1.5 py-0" : ""}`}>🔴 Unattended</Badge>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-4">
+        <div className={`grid gap-4 ${tvMode ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
           {/* Main machine grid */}
-          <div className="lg:col-span-3 space-y-4">
+          <div className={`space-y-3 ${tvMode ? "lg:col-span-4" : "lg:col-span-3"}`}>
             {isLoading ? (
               <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
             ) : !machines?.length ? (
               <p className="text-muted-foreground text-center py-16">No machines registered yet.</p>
             ) : (
               Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([line, lineMachines]) => (
-                <Card key={line}>
-                  <CardHeader className="pb-3">
+                <Card key={line} className={tvMode ? "shadow-sm" : ""}>
+                  <CardHeader className={tvMode ? "pb-1 p-2" : "pb-3"}>
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">{line}</CardTitle>
+                      <CardTitle className={tvMode ? "text-xs font-bold" : "text-base"}>{line}</CardTitle>
                       {lineDowntime[line] > 0 && (
-                        <Badge variant="destructive" className="gap-1">
-                          <Clock className="h-3 w-3" /> {formatDowntime(lineDowntime[line])} downtime
+                        <Badge variant="destructive" className={`gap-1 ${tvMode ? "text-[9px] px-1 py-0" : ""}`}>
+                          <Clock className={tvMode ? "h-2 w-2" : "h-3 w-3"} /> {formatDowntime(lineDowntime[line])}
                         </Badge>
                       )}
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                  <CardContent className={tvMode ? "p-2 pt-0" : ""}>
+                    <div className={`grid gap-1.5 ${tvMode 
+                      ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12" 
+                      : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"}`}>
                       {lineMachines.map((m) => {
                         const ms = machineStatus[m.name] || { status: "green" as const, woCount: 0 };
                         return (
                           <div
                             key={m.id}
                             onClick={() => navigate(`/dashboard/machines/${encodeURIComponent(m.name)}/history`)}
-                            className={`border-2 rounded-lg p-3 cursor-pointer transition-all hover:scale-105 ${statusColors[ms.status]}`}
+                            className={`border rounded-md cursor-pointer transition-all hover:scale-105 ${statusColors[ms.status]} ${tvMode ? "p-1.5 border" : "p-3 border-2"}`}
                           >
-                            <p className="font-medium text-sm truncate">{m.name}</p>
-                            {m.code && <p className="text-xs font-mono opacity-70">{m.code}</p>}
-                            <p className="text-xs mt-1">{statusLabels[ms.status]}</p>
-                            {ms.woCount > 0 && (
+                            <p className={`font-medium truncate ${tvMode ? "text-[10px]" : "text-sm"}`}>{m.name}</p>
+                            {m.code && !tvMode && <p className="text-xs font-mono opacity-70">{m.code}</p>}
+                            <p className={tvMode ? "text-[9px]" : "text-xs mt-1"}>{statusLabels[ms.status]} {!tvMode && (ms.status === "green" ? "Running" : ms.status === "yellow" ? "WO Active" : "Unattended")}</p>
+                            {ms.woCount > 0 && !tvMode && (
                               <Badge variant="secondary" className="mt-1 text-xs">{ms.woCount} WO(s)</Badge>
                             )}
                           </div>
@@ -152,24 +163,26 @@ export default function ControlCenterPage() {
             )}
           </div>
 
-          {/* Sidebar: Top 5 Engineers */}
-          <div className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2"><Trophy className="h-4 w-4 text-yellow-500" /> Top 5 Engineers</CardTitle>
+          {/* Sidebar: Top 5 + Active WOs */}
+          <div className="space-y-3">
+            <Card className={tvMode ? "shadow-sm" : ""}>
+              <CardHeader className={tvMode ? "pb-1 p-2" : "pb-3"}>
+                <CardTitle className={`flex items-center gap-2 ${tvMode ? "text-xs" : "text-base"}`}>
+                  <Trophy className={tvMode ? "h-3 w-3 text-yellow-500" : "h-4 w-4 text-yellow-500"} /> Top 5
+                </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className={tvMode ? "p-2 pt-0" : ""}>
                 {!top5.length ? (
-                  <p className="text-muted-foreground text-xs text-center py-4">No scores yet</p>
+                  <p className="text-muted-foreground text-xs text-center py-2">No scores yet</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className={`space-y-1 ${tvMode ? "" : "space-y-2"}`}>
                     {top5.map((eng, i) => (
-                      <div key={eng.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-                        <span className="text-lg font-bold w-6 text-center">{i + 1}</span>
+                      <div key={eng.id} className={`flex items-center gap-1.5 rounded-lg bg-muted/50 ${tvMode ? "p-1 text-[10px]" : "p-2"}`}>
+                        <span className={`font-bold ${tvMode ? "w-4 text-center text-[10px]" : "text-lg w-6 text-center"}`}>{i + 1}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{eng.engineer_name}</p>
+                          <p className={`font-medium truncate ${tvMode ? "text-[10px]" : "text-sm"}`}>{eng.engineer_name}</p>
                         </div>
-                        <Badge variant={eng.score >= 0 ? "default" : "destructive"} className="text-xs">
+                        <Badge variant={eng.score >= 0 ? "default" : "destructive"} className={tvMode ? "text-[9px] px-1 py-0" : "text-xs"}>
                           {eng.score}
                         </Badge>
                       </div>
@@ -179,17 +192,16 @@ export default function ControlCenterPage() {
               </CardContent>
             </Card>
 
-            {/* Active WO summary */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Active WOs</CardTitle>
+            <Card className={tvMode ? "shadow-sm" : ""}>
+              <CardHeader className={tvMode ? "pb-1 p-2" : "pb-3"}>
+                <CardTitle className={tvMode ? "text-xs" : "text-base"}>Active WOs</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-1 text-sm">
+              <CardContent className={tvMode ? "p-2 pt-0" : ""}>
+                <div className={`space-y-1 ${tvMode ? "text-[10px]" : "text-sm"}`}>
                   <div className="flex justify-between"><span className="text-muted-foreground">Open</span><span className="font-bold">{workOrders?.filter((w) => w.status === "open").length ?? 0}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Received</span><span className="font-bold">{workOrders?.filter((w) => w.status === "received").length ?? 0}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">In Progress</span><span className="font-bold">{workOrders?.filter((w) => w.status === "in_progress").length ?? 0}</span></div>
-                  <div className="flex justify-between pt-2 border-t"><span className="font-medium">Total Active</span><span className="font-bold text-primary">{workOrders?.length ?? 0}</span></div>
+                  <div className="flex justify-between pt-1 border-t"><span className="font-medium">Total</span><span className="font-bold text-primary">{workOrders?.length ?? 0}</span></div>
                 </div>
               </CardContent>
             </Card>
