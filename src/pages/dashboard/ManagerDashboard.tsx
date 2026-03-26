@@ -1,13 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Trash2, Loader2 } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 
@@ -16,6 +19,9 @@ export default function ManagerDashboard() {
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products } = useProducts();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [showClear, setShowClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const { data: userCount } = useQuery({
     queryKey: ["user_count"],
@@ -47,6 +53,28 @@ export default function ManagerDashboard() {
     return { avgResponse: count ? Math.round(totalResp / count) : 0, avgMTTR: count ? Math.round(totalMTTR / count) : 0 };
   }, [allWOs]);
 
+  const handleClearSystem = async () => {
+    setClearing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clear-system`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session?.access_token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to clear system");
+      toast({ title: "System cleared", description: "All work orders and related data have been removed." });
+      setShowClear(false);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const quickLinks = [
     { title: "Analytics", desc: "Charts & performance", icon: BarChart3, url: "/dashboard/analytics" },
     { title: "Work Orders", desc: "Table & Kanban", icon: ClipboardList, url: "/dashboard/work-orders" },
@@ -57,9 +85,14 @@ export default function ManagerDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold">Manager Dashboard</h2>
-          <p className="text-muted-foreground">System overview and quick access</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Manager Dashboard</h2>
+            <p className="text-muted-foreground">System overview and quick access</p>
+          </div>
+          <Button variant="destructive" size="sm" onClick={() => setShowClear(true)}>
+            <Trash2 className="h-4 w-4 mr-2" /> Clear System
+          </Button>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -91,6 +124,24 @@ export default function ManagerDashboard() {
             </Card>
           ))}
         </div>
+
+        <AlertDialog open={showClear} onOpenChange={setShowClear}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Clear entire system?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete ALL work orders, messages, photos, parts used records, and engineer scores. This action cannot be undone. Use this only for demo/presentation purposes.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={clearing}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleClearSystem} disabled={clearing} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                {clearing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Yes, Clear Everything
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );

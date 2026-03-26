@@ -12,6 +12,7 @@ import Login from "./pages/Login";
 const OperatorDashboard = lazy(() => import("./pages/dashboard/OperatorDashboard"));
 const EngineerDashboard = lazy(() => import("./pages/dashboard/EngineerDashboard"));
 const ManagerDashboard = lazy(() => import("./pages/dashboard/ManagerDashboard"));
+const FinancialDashboard = lazy(() => import("./pages/dashboard/FinancialDashboard"));
 const MachineHistoryPage = lazy(() => import("./pages/dashboard/MachineHistoryPage"));
 const ControlCenterPage = lazy(() => import("./pages/dashboard/ControlCenterPage"));
 const AnalyticsPage = lazy(() => import("./pages/dashboard/AnalyticsPage"));
@@ -60,6 +61,7 @@ const App = () => (
               <Route path="/dashboard/engineer" element={<ProtectedRoute allowedRoles={["engineer"]}><EngineerDashboard /></ProtectedRoute>} />
               <Route path="/dashboard/manager" element={<ProtectedRoute allowedRoles={["admin"]}><ManagerDashboard /></ProtectedRoute>} />
               <Route path="/dashboard/analytics" element={<ProtectedRoute allowedRoles={["admin"]}><AnalyticsPage /></ProtectedRoute>} />
+              <Route path="/dashboard/financial" element={<ProtectedRoute allowedRoles={["admin"]}><FinancialDashboard /></ProtectedRoute>} />
               <Route path="/dashboard/work-orders" element={<ProtectedRoute allowedRoles={["admin"]}><WorkOrdersPage /></ProtectedRoute>} />
               <Route path="/dashboard/machines" element={<ProtectedRoute allowedRoles={["admin"]}><MachinesPage /></ProtectedRoute>} />
               <Route path="/dashboard/problems" element={<ProtectedRoute allowedRoles={["admin"]}><ProblemsPage /></ProtectedRoute>} />
