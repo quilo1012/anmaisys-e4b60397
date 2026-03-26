@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Phone, MapPin, Wrench, Camera } from "lucide-react";
+import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Phone, MapPin, Wrench, Camera, Printer } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
@@ -40,7 +40,6 @@ function SLACountdown({ wo }: { wo: any }) {
   const elapsed = differenceInMinutes(new Date(), new Date(wo.created_at));
   const remaining = target - elapsed;
   const breached = remaining <= 0;
-
   return (
     <span className={`text-xs font-mono font-bold ${breached ? "text-red-600" : remaining <= 10 ? "text-orange-600" : "text-green-600"}`}>
       {breached ? `⚠️ +${Math.abs(remaining)}min` : `${remaining}min`}
@@ -48,11 +47,18 @@ function SLACountdown({ wo }: { wo: any }) {
   );
 }
 
-const CHECKLIST_ITEMS = [
+const PRE_SERVICE_CHECKLIST = [
   { id: "machine_off", label: "Machine switched off" },
   { id: "energy_lockout", label: "Energy lockout applied" },
+  { id: "area_clear", label: "Work area clear and safe" },
+  { id: "tools_ready", label: "Tools and PPE ready" },
+];
+
+const POST_SERVICE_CHECKLIST = [
   { id: "inspection_done", label: "Inspection completed" },
   { id: "final_test", label: "Final test passed" },
+  { id: "machine_clean", label: "Machine cleaned" },
+  { id: "operator_approved", label: "Operator/Line leader approved" },
 ];
 
 export default function EngineerDashboard() {
@@ -73,8 +79,15 @@ export default function EngineerDashboard() {
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
-  const [checklistWO, setChecklistWO] = useState<string | null>(null);
-  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  
+  // Pre-service checklist state
+  const [preChecklistWO, setPreChecklistWO] = useState<string | null>(null);
+  const [preCheckedItems, setPreCheckedItems] = useState<Record<string, boolean>>({});
+  
+  // Post-service checklist state (FINISH flow)
+  const [postChecklistWO, setPostChecklistWO] = useState<string | null>(null);
+  const [postCheckedItems, setPostCheckedItems] = useState<Record<string, boolean>>({});
+  
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const activeWOIds = useMemo(() => workOrders?.filter(
@@ -88,20 +101,17 @@ export default function EngineerDashboard() {
     if (!allCompleted || !user) return { totalCompleted: 0, avgResponse: 0, avgMTTR: 0 };
     const myCompleted = allCompleted.filter((w) => w.engineer_id === user.id);
     const totalCompleted = myCompleted.length;
-
     let totalResponse = 0, responseCount = 0, totalMTTR = 0, mttrCount = 0;
     myCompleted.forEach((wo) => {
       if (wo.started_at) {
         totalResponse += differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at));
         responseCount++;
         if (wo.finished_at || wo.completed_at) {
-          const endTime = wo.finished_at || wo.completed_at!;
-          totalMTTR += differenceInMinutes(new Date(endTime), new Date(wo.started_at));
+          totalMTTR += differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at));
           mttrCount++;
         }
       }
     });
-
     return {
       totalCompleted,
       avgResponse: responseCount ? Math.round(totalResponse / responseCount) : 0,
@@ -118,10 +128,7 @@ export default function EngineerDashboard() {
     if (!file) return;
     try {
       await uploadPhoto.mutateAsync({ workOrderId: woId, photoType: type, file });
-      setPhotosUploaded((prev) => ({
-        ...prev,
-        [woId]: { ...prev[woId], [type]: true },
-      }));
+      setPhotosUploaded((prev) => ({ ...prev, [woId]: { ...prev[woId], [type]: true } }));
       toast({ title: `${type === "before" ? "Before" : "After"} photo uploaded` });
     } catch (err: any) {
       toast({ title: "Upload error", description: err.message, variant: "destructive" });
@@ -129,20 +136,34 @@ export default function EngineerDashboard() {
     e.target.value = "";
   };
 
+  // ACCEPT → show pre-service checklist
+  const handleAcceptClick = (woId: string) => {
+    stopAlertSound();
+    setPreCheckedItems({});
+    setPreChecklistWO(woId);
+  };
+
+  const handlePreChecklistComplete = () => {
+    if (!preChecklistWO) return;
+    receiveWO.mutate(preChecklistWO);
+    setPreChecklistWO(null);
+  };
+
+  // FINISH → check photos first, then post-service checklist
   const handleFinishClick = (woId: string) => {
     const photos = photosUploaded[woId];
     if (!photos?.before || !photos?.after) {
       toast({ title: "Photos required", description: "Upload both Before and After photos before finishing.", variant: "destructive" });
       return;
     }
-    setCheckedItems({});
-    setChecklistWO(woId);
+    setPostCheckedItems({});
+    setPostChecklistWO(woId);
   };
 
-  const handleChecklistComplete = () => {
-    if (!checklistWO) return;
-    setChecklistWO(null);
-    setSignDialogWO(checklistWO);
+  const handlePostChecklistComplete = () => {
+    if (!postChecklistWO) return;
+    setPostChecklistWO(null);
+    setSignDialogWO(postChecklistWO);
   };
 
   const handleFinishConfirm = async () => {
@@ -152,140 +173,71 @@ export default function EngineerDashboard() {
     setSignName("");
   };
 
-  const allChecked = CHECKLIST_ITEMS.every((item) => checkedItems[item.id]);
+  const allPreChecked = PRE_SERVICE_CHECKLIST.every((item) => preCheckedItems[item.id]);
+  const allPostChecked = POST_SERVICE_CHECKLIST.every((item) => postCheckedItems[item.id]);
 
   const triggerFileInput = (woId: string, type: "before" | "after") => {
-    const key = `${woId}-${type}`;
-    fileInputRefs.current[key]?.click();
+    fileInputRefs.current[`${woId}-${type}`]?.click();
   };
 
-  // Mobile card view for a single WO
+  // Mobile card view
   const MobileWOCard = ({ wo }: { wo: any }) => {
     const cfg = statusConfig[wo.status] || statusConfig.open;
     const woPhotos = photosUploaded[wo.id] || { before: false, after: false };
     const isOpen = wo.status === "open";
-
     return (
       <Card className={`${isOpen ? "border-destructive bg-destructive/5 animate-pulse" : ""}`}>
         <CardContent className="p-4 space-y-3">
-          {/* Header row */}
           <div className="flex items-center justify-between">
-            <span
-              className="font-mono font-bold text-lg cursor-pointer hover:underline"
-              onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
-            >
+            <span className="font-mono font-bold text-lg cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
               WO-{String(wo.wo_number).padStart(4, "0")}
             </span>
-            <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
+            <div className="flex gap-1.5 items-center">
+              <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
+              {!isOpen && (
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}>
+                  <Printer className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
-
-          {/* Info grid */}
           <div className="grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <span className="text-muted-foreground">Machine:</span>
-              <p className="font-medium">{wo.machine}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">SLA:</span>
-              <p><SLACountdown wo={wo} /></p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Requester:</span>
-              <p className="font-medium">{wo.requester_name}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Created:</span>
-              <p className="font-medium">{format(new Date(wo.created_at), "dd/MM HH:mm")}</p>
-            </div>
+            <div><span className="text-muted-foreground">Machine:</span><p className="font-medium">{wo.machine}</p></div>
+            <div><span className="text-muted-foreground">SLA:</span><p><SLACountdown wo={wo} /></p></div>
+            <div><span className="text-muted-foreground">Requester:</span><p className="font-medium">{wo.requester_name}</p></div>
+            <div><span className="text-muted-foreground">Created:</span><p className="font-medium">{format(new Date(wo.created_at), "dd/MM HH:mm")}</p></div>
           </div>
-
           <p className="text-sm text-muted-foreground truncate">{wo.description}</p>
-
-          {/* Action buttons - large touch targets */}
           <div className="grid grid-cols-2 gap-2 pt-1">
             {wo.status === "open" && (
-              <Button
-                size="lg"
-                className="col-span-2 h-14 text-base font-bold"
-                onClick={() => { stopAlertSound(); receiveWO.mutate(wo.id); }}
-                disabled={receiveWO.isPending}
-              >
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => handleAcceptClick(wo.id)} disabled={receiveWO.isPending}>
                 <Phone className="h-5 w-5 mr-2" /> ACCEPT
               </Button>
             )}
             {wo.status === "received" && wo.engineer_id === user?.id && (
-              <Button
-                size="lg"
-                className="col-span-2 h-14 text-base font-bold"
-                onClick={() => arriveWO.mutate(wo.id)}
-                disabled={arriveWO.isPending}
-              >
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => arriveWO.mutate(wo.id)} disabled={arriveWO.isPending}>
                 <MapPin className="h-5 w-5 mr-2" /> ARRIVED
               </Button>
             )}
             {wo.status === "arrived" && wo.engineer_id === user?.id && (
-              <Button
-                size="lg"
-                className="col-span-2 h-14 text-base font-bold"
-                onClick={() => startWO.mutate(wo.id)}
-                disabled={startWO.isPending}
-              >
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => startWO.mutate(wo.id)} disabled={startWO.isPending}>
                 <Play className="h-5 w-5 mr-2" /> START
               </Button>
             )}
             {wo.status === "in_progress" && wo.engineer_id === user?.id && (
               <>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="h-14 text-base"
-                  onClick={() => setPartsDialogWO(wo.id)}
-                >
+                <Button size="lg" variant="outline" className="h-14 text-base" onClick={() => setPartsDialogWO(wo.id)}>
                   <Package className="h-5 w-5 mr-2" /> Parts
                 </Button>
-
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }}
-                  onChange={(e) => handlePhotoUpload(e, wo.id, "before")}
-                />
-                <Button
-                  size="lg"
-                  variant={woPhotos.before ? "default" : "outline"}
-                  className="h-14 text-base"
-                  onClick={() => triggerFileInput(wo.id, "before")}
-                  disabled={uploadPhoto.isPending}
-                >
+                <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "before")} />
+                <Button size="lg" variant={woPhotos.before ? "default" : "outline"} className="h-14 text-base" onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending}>
                   <Camera className="h-5 w-5 mr-2" /> {woPhotos.before ? "✓ Before" : "Before"}
                 </Button>
-
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }}
-                  onChange={(e) => handlePhotoUpload(e, wo.id, "after")}
-                />
-                <Button
-                  size="lg"
-                  variant={woPhotos.after ? "default" : "outline"}
-                  className="h-14 text-base"
-                  onClick={() => triggerFileInput(wo.id, "after")}
-                  disabled={uploadPhoto.isPending}
-                >
+                <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
+                <Button size="lg" variant={woPhotos.after ? "default" : "outline"} className="h-14 text-base" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending}>
                   <Camera className="h-5 w-5 mr-2" /> {woPhotos.after ? "✓ After" : "After"}
                 </Button>
-
-                <Button
-                  size="lg"
-                  variant="secondary"
-                  className="h-14 text-base font-bold"
-                  onClick={() => handleFinishClick(wo.id)}
-                >
+                <Button size="lg" variant="secondary" className="h-14 text-base font-bold" onClick={() => handleFinishClick(wo.id)}>
                   <PenTool className="h-5 w-5 mr-2" /> FINISH
                 </Button>
               </>
@@ -302,12 +254,8 @@ export default function EngineerDashboard() {
         {activeWOs && activeWOs.filter(wo => wo.status === "open").length > 0 && (
           <Alert variant="destructive" className="border-destructive bg-destructive/10 animate-pulse">
             <AlertTriangle className="h-5 w-5" />
-            <AlertTitle className="text-lg font-bold">
-              ⚠️ {activeWOs.filter(wo => wo.status === "open").length} Open Work Order(s) Waiting!
-            </AlertTitle>
-            <AlertDescription>
-              There are unassigned work orders that need attention.
-            </AlertDescription>
+            <AlertTitle className="text-lg font-bold">⚠️ {activeWOs.filter(wo => wo.status === "open").length} Open Work Order(s) Waiting!</AlertTitle>
+            <AlertDescription>There are unassigned work orders that need attention.</AlertDescription>
           </Alert>
         )}
 
@@ -316,7 +264,6 @@ export default function EngineerDashboard() {
           <p className="text-muted-foreground text-sm">View and execute work orders</p>
         </div>
 
-        {/* KPI Cards - 2 cols on mobile, 4 on desktop */}
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
@@ -348,13 +295,9 @@ export default function EngineerDashboard() {
           </Card>
         </div>
 
-        {/* Work Orders - Cards on mobile, Table on desktop */}
         <Card>
           <CardHeader className="p-4 md:p-6">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <ClipboardList className="h-5 w-5" />
-              Work Orders
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2 text-lg"><ClipboardList className="h-5 w-5" /> Work Orders</CardTitle>
           </CardHeader>
           <CardContent className="p-3 md:p-6 pt-0">
             {isLoading ? (
@@ -362,14 +305,10 @@ export default function EngineerDashboard() {
             ) : !activeWOs?.length ? (
               <p className="text-muted-foreground text-center py-8">No open work orders right now.</p>
             ) : isMobile ? (
-              /* MOBILE: Large card layout */
               <div className="space-y-3">
-                {activeWOs.map((wo) => (
-                  <MobileWOCard key={wo.id} wo={wo} />
-                ))}
+                {activeWOs.map((wo) => <MobileWOCard key={wo.id} wo={wo} />)}
               </div>
             ) : (
-              /* DESKTOP: Table layout */
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -402,7 +341,7 @@ export default function EngineerDashboard() {
                           <td className="p-2">
                             <div className="flex gap-1 flex-wrap">
                               {wo.status === "open" && (
-                                <Button size="sm" onClick={() => { stopAlertSound(); receiveWO.mutate(wo.id); }} disabled={receiveWO.isPending}>
+                                <Button size="sm" onClick={() => handleAcceptClick(wo.id)} disabled={receiveWO.isPending}>
                                   <Phone className="h-3 w-3 mr-1" /> Receive
                                 </Button>
                               )}
@@ -421,19 +360,11 @@ export default function EngineerDashboard() {
                                   <Button size="sm" variant="outline" onClick={() => setPartsDialogWO(wo.id)}>
                                     <Package className="h-3 w-3 mr-1" /> Parts
                                   </Button>
-                                  <input
-                                    type="file" accept="image/*" capture="environment" className="hidden"
-                                    ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }}
-                                    onChange={(e) => handlePhotoUpload(e, wo.id, "before")}
-                                  />
+                                  <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "before")} />
                                   <Button size="sm" variant={woPhotos.before ? "default" : "outline"} onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending}>
                                     <Camera className="h-3 w-3 mr-1" /> {woPhotos.before ? "✓" : "Before"}
                                   </Button>
-                                  <input
-                                    type="file" accept="image/*" capture="environment" className="hidden"
-                                    ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }}
-                                    onChange={(e) => handlePhotoUpload(e, wo.id, "after")}
-                                  />
+                                  <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
                                   <Button size="sm" variant={woPhotos.after ? "default" : "outline"} onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending}>
                                     <Camera className="h-3 w-3 mr-1" /> {woPhotos.after ? "✓" : "After"}
                                   </Button>
@@ -441,6 +372,12 @@ export default function EngineerDashboard() {
                                     <PenTool className="h-3 w-3 mr-1" /> Finish
                                   </Button>
                                 </>
+                              )}
+                              {/* Print WO detail */}
+                              {wo.status !== "open" && (
+                                <Button size="sm" variant="ghost" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}>
+                                  <Printer className="h-3 w-3 mr-1" /> Print
+                                </Button>
                               )}
                             </div>
                           </td>
@@ -459,30 +396,61 @@ export default function EngineerDashboard() {
         <PartsUsedDialog open={!!partsDialogWO} onOpenChange={(o) => !o && setPartsDialogWO(null)} workOrderId={partsDialogWO} />
       )}
 
-      {/* Checklist Dialog */}
-      <Dialog open={!!checklistWO} onOpenChange={(open) => { if (!open) setChecklistWO(null); }}>
+      {/* PRE-SERVICE Safety Checklist (on Accept) */}
+      <Dialog open={!!preChecklistWO} onOpenChange={(open) => { if (!open) setPreChecklistWO(null); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5" /> Safety Checklist
+              <AlertTriangle className="h-5 w-5 text-warning" /> Pre-Service Safety Checklist
             </DialogTitle>
-            <DialogDescription>Complete all items before finishing the work order.</DialogDescription>
+            <DialogDescription>Verify safety conditions before starting work on the machine.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {CHECKLIST_ITEMS.map((item) => (
+            {PRE_SERVICE_CHECKLIST.map((item) => (
               <div key={item.id} className="flex items-center gap-3">
                 <Checkbox
-                  id={item.id}
-                  checked={!!checkedItems[item.id]}
-                  onCheckedChange={(checked) => setCheckedItems((prev) => ({ ...prev, [item.id]: !!checked }))}
+                  id={`pre-${item.id}`}
+                  checked={!!preCheckedItems[item.id]}
+                  onCheckedChange={(checked) => setPreCheckedItems((prev) => ({ ...prev, [item.id]: !!checked }))}
                 />
-                <Label htmlFor={item.id} className="cursor-pointer text-base">{item.label}</Label>
+                <Label htmlFor={`pre-${item.id}`} className="cursor-pointer text-base">{item.label}</Label>
               </div>
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setChecklistWO(null)}>Cancel</Button>
-            <Button onClick={handleChecklistComplete} disabled={!allChecked}>
+            <Button variant="outline" onClick={() => setPreChecklistWO(null)}>Cancel</Button>
+            <Button onClick={handlePreChecklistComplete} disabled={!allPreChecked || receiveWO.isPending}>
+              {receiveWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Accept Work Order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* POST-SERVICE Safety Checklist (on Finish) */}
+      <Dialog open={!!postChecklistWO} onOpenChange={(open) => { if (!open) setPostChecklistWO(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5" /> Post-Service Checklist
+            </DialogTitle>
+            <DialogDescription>Confirm all items are completed and approved before finishing.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {POST_SERVICE_CHECKLIST.map((item) => (
+              <div key={item.id} className="flex items-center gap-3">
+                <Checkbox
+                  id={`post-${item.id}`}
+                  checked={!!postCheckedItems[item.id]}
+                  onCheckedChange={(checked) => setPostCheckedItems((prev) => ({ ...prev, [item.id]: !!checked }))}
+                />
+                <Label htmlFor={`post-${item.id}`} className="cursor-pointer text-base">{item.label}</Label>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPostChecklistWO(null)}>Cancel</Button>
+            <Button onClick={handlePostChecklistComplete} disabled={!allPostChecked}>
               Continue to Signature
             </Button>
           </DialogFooter>
@@ -493,24 +461,14 @@ export default function EngineerDashboard() {
       <Dialog open={!!signDialogWO} onOpenChange={(open) => { if (!open) { setSignDialogWO(null); setSignName(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <PenTool className="h-5 w-5" /> Confirm & Finish Work Order
-            </DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><PenTool className="h-5 w-5" /> Confirm & Finish Work Order</DialogTitle>
             <DialogDescription>Sign and finish the work order</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">
-              Type your full name below to sign and finish this work order.
-            </p>
+            <p className="text-sm text-muted-foreground">Type your full name below to sign and finish this work order.</p>
             <div className="space-y-2">
               <Label htmlFor="sign-name">Full Name (Digital Signature)</Label>
-              <Input
-                id="sign-name"
-                placeholder="e.g. John Smith"
-                value={signName}
-                onChange={(e) => setSignName(e.target.value)}
-                autoFocus
-              />
+              <Input id="sign-name" placeholder="e.g. John Smith" value={signName} onChange={(e) => setSignName(e.target.value)} autoFocus />
             </div>
           </div>
           <DialogFooter>
