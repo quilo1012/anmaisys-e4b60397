@@ -28,19 +28,11 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
 };
 
-const priorityConfig: Record<string, { label: string; className: string }> = {
-  low: { label: "Low", className: "bg-slate-100 text-slate-700" },
-  medium: { label: "Medium", className: "bg-blue-100 text-blue-700" },
-  high: { label: "High", className: "bg-orange-100 text-orange-700" },
-  critical: { label: "Critical", className: "bg-red-100 text-red-700" },
-};
-
 export default function OperatorDashboard() {
   const [requesterName, setRequesterName] = useState("");
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
-  const [priority, setPriority] = useState("medium");
   const { data: workOrders, isLoading } = useWorkOrders({ operatorOnly: true });
   const woIds = workOrders?.map((wo) => wo.id) || [];
   const { data: partsCounts } = usePartsCountByWOs(woIds);
@@ -57,9 +49,9 @@ export default function OperatorDashboard() {
       return;
     }
     try {
-      await createWO.mutateAsync({ requester_name: requesterName.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority });
+      await createWO.mutateAsync({ requester_name: requesterName.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium" });
       toast({ title: "Work Order Created", description: "Your WO has been submitted." });
-      setRequesterName(""); setMachine(""); setDescription(""); setNotes(""); setPriority("medium");
+      setRequesterName(""); setMachine(""); setDescription(""); setNotes("");
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
     }
@@ -109,18 +101,6 @@ export default function OperatorDashboard() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="priority">Priority</Label>
-                <Select value={priority} onValueChange={setPriority}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">🟢 Low (2h SLA)</SelectItem>
-                    <SelectItem value="medium">🔵 Medium (1h SLA)</SelectItem>
-                    <SelectItem value="high">🟠 High (30min SLA)</SelectItem>
-                    <SelectItem value="critical">🔴 Critical (10min SLA)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="notes">Observations (optional)</Label>
                 <Textarea id="notes" placeholder="Additional notes or context..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
               </div>
@@ -151,9 +131,9 @@ export default function OperatorDashboard() {
                 <TableHeader>
                   <TableRow>
                      <TableHead>WO#</TableHead>
-                     <TableHead>Priority</TableHead>
                      <TableHead>Requester</TableHead>
                      <TableHead>Machine</TableHead>
+                     <TableHead>Problem</TableHead>
                      <TableHead>Status</TableHead>
                      <TableHead>Created</TableHead>
                      <TableHead>Engineer</TableHead>
@@ -163,13 +143,12 @@ export default function OperatorDashboard() {
                  <TableBody>
                    {workOrders.map((wo) => {
                      const cfg = statusConfig[wo.status] || statusConfig.open;
-                     const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
                      return (
                        <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
                          <TableCell className="font-mono font-medium">WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
-                         <TableCell><Badge variant="outline" className={pri.className}>{pri.label}</Badge></TableCell>
                          <TableCell className="font-medium">{wo.requester_name}</TableCell>
                          <TableCell>{wo.machine}</TableCell>
+                         <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>
                          <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
                          <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
                          <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>

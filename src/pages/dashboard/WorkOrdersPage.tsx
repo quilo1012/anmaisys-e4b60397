@@ -49,13 +49,14 @@ export default function WorkOrdersPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  
   const [problemFilter, setProblemFilter] = useState<string>("all");
   const [machineFilter, setMachineFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [currentPage, setCurrentPage] = useState(1);
-  const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
+const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
+  const [lineFilter, setLineFilter] = useState<string>("all");
 
   const filterStatuses = statusFilter === "all" ? undefined : [statusFilter as WOStatus];
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
@@ -76,7 +77,7 @@ export default function WorkOrdersPage() {
   const [newMachine, setNewMachine] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newNotes, setNewNotes] = useState("");
-  const [newPriority, setNewPriority] = useState("medium");
+  
 
   const [editWO, setEditWO] = useState<WorkOrder | null>(null);
   const [editRequester, setEditRequester] = useState("");
@@ -85,6 +86,19 @@ export default function WorkOrdersPage() {
   const [editNotes, setEditNotes] = useState("");
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Build machine line lookup
+  const machineLineMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    machines?.forEach((m) => { map[m.name] = m.line || ""; });
+    return map;
+  }, [machines]);
+
+  const distinctLines = useMemo(() => {
+    const lines = new Set<string>();
+    machines?.forEach((m) => { if (m.line) lines.add(m.line); });
+    return Array.from(lines).sort();
+  }, [machines]);
 
   const filteredWOs = useMemo(() => {
     if (!workOrders) return [];
@@ -106,7 +120,7 @@ export default function WorkOrdersPage() {
     }
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
-    if (priorityFilter !== "all") filtered = filtered.filter((w) => w.priority === priorityFilter);
+    if (lineFilter !== "all") filtered = filtered.filter((w) => machineLineMap[w.machine] === lineFilter);
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter((w) =>
@@ -118,8 +132,15 @@ export default function WorkOrdersPage() {
         (w.engineer?.name || "").toLowerCase().includes(term)
       );
     }
+    // Sort: by line name first, then newest first
+    filtered = [...filtered].sort((a, b) => {
+      const lineA = machineLineMap[a.machine] || "zzz";
+      const lineB = machineLineMap[b.machine] || "zzz";
+      if (lineA !== lineB) return lineA.localeCompare(lineB);
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
     return filtered;
-  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, priorityFilter, searchTerm]);
+  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, lineFilter, searchTerm, machineLineMap]);
 
   const totalPages = Math.ceil((filteredWOs?.length ?? 0) / ITEMS_PER_PAGE);
   const paginatedWOs = useMemo(() => {
@@ -127,7 +148,7 @@ export default function WorkOrdersPage() {
     return filteredWOs.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredWOs, currentPage]);
 
-  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, priorityFilter, searchTerm, dateQuickFilter, dateFrom, dateTo]);
+  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, lineFilter, searchTerm, dateQuickFilter, dateFrom, dateTo]);
 
   const kanbanColumns = useMemo(() => ({
     open: filteredWOs.filter((w) => w.status === "open"),
@@ -140,9 +161,9 @@ export default function WorkOrdersPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createWO.mutateAsync({ requester_name: newRequester.trim(), machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), priority: newPriority });
+      await createWO.mutateAsync({ requester_name: newRequester.trim(), machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), priority: "medium" });
       toast({ title: "Work Order Created" });
-      setShowCreate(false); setNewRequester(""); setNewMachine(""); setNewDesc(""); setNewNotes(""); setNewPriority("medium");
+      setShowCreate(false); setNewRequester(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
 
@@ -223,9 +244,12 @@ export default function WorkOrdersPage() {
                 <Button variant="outline" size="sm" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
                   <Download className="h-4 w-4 mr-1" /> CSV
                 </Button>
+                <Button variant="outline" size="sm" className="no-print" onClick={() => window.print()}>
+                  <Printer className="h-4 w-4 mr-1" /> Print
+                </Button>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-wrap mt-2">
+            <div className="flex items-center gap-2 flex-wrap mt-2 filters-section">
               <div className="relative flex-1 min-w-[200px] max-w-[300px]">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input placeholder="Search WO#, requester, machine..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8" />
@@ -243,14 +267,11 @@ export default function WorkOrdersPage() {
                   <SelectItem value="force_closed">Force Closed</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="w-[140px]"><SelectValue placeholder="Priority" /></SelectTrigger>
+              <Select value={lineFilter} onValueChange={setLineFilter}>
+                <SelectTrigger className="w-[150px]"><SelectValue placeholder="Line" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Priorities</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="all">All Lines</SelectItem>
+                  {distinctLines.map((line) => <SelectItem key={line} value={line}>{line}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={problemFilter} onValueChange={setProblemFilter}>
@@ -270,12 +291,23 @@ export default function WorkOrdersPage() {
             </div>
           </CardHeader>
           <CardContent>
+            {/* Print-only header */}
+            <div className="print-header hidden">
+              <h1 style={{ fontSize: "16pt", fontWeight: "bold" }}>AN Maintenance — Work Orders Report</h1>
+              <p style={{ fontSize: "10pt", color: "#666" }}>
+                {dateFrom && dateTo ? `Period: ${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? `Filter: ${dateQuickFilter}` : "All records"}
+                {lineFilter !== "all" ? ` | Line: ${lineFilter}` : ""}
+                {statusFilter !== "all" ? ` | Status: ${statusFilter}` : ""}
+                {machineFilter !== "all" ? ` | Machine: ${machineFilter}` : ""}
+              </p>
+              <p style={{ fontSize: "9pt", color: "#999" }}>Generated: {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
+            </div>
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : !filteredWOs?.length ? (
               <p className="text-muted-foreground text-center py-8">No work orders found.</p>
             ) : viewMode === "board" ? (
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 no-print">
                 <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-blue-500" borderColor="border-l-blue-500" />
                 <KanbanColumn title="Received/Arrived" items={kanbanColumns.received} color="bg-indigo-500" borderColor="border-l-indigo-500" />
                 <KanbanColumn title="In Progress" items={kanbanColumns.inProgress} color="bg-amber-500" borderColor="border-l-amber-500" />
@@ -283,33 +315,33 @@ export default function WorkOrdersPage() {
                 <KanbanColumn title="Done" items={kanbanColumns.done} color="bg-green-500" borderColor="border-l-green-500" />
               </div>
             ) : (
-              <>
+              <div className="print-content">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>WO#</TableHead><TableHead>Priority</TableHead><TableHead>Requester</TableHead><TableHead>Machine</TableHead>
-                      <TableHead>Status</TableHead><TableHead>Operator</TableHead><TableHead>Engineer</TableHead>
-                      <TableHead>Created</TableHead><TableHead>Parts</TableHead><TableHead>Actions</TableHead>
+                      <TableHead>WO#</TableHead><TableHead>Line</TableHead><TableHead>Machine</TableHead><TableHead>Problem</TableHead>
+                      <TableHead>Status</TableHead><TableHead>Requester</TableHead><TableHead>Engineer</TableHead>
+                      <TableHead>Created</TableHead><TableHead className="no-print">Parts</TableHead><TableHead className="no-print">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedWOs.map((wo) => {
                       const cfg = statusConfig[wo.status];
-                      const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
                       const canForceClose = ["open", "received", "arrived", "in_progress"].includes(wo.status);
                       const canClose = wo.status === "finished";
+                      const woLine = machineLineMap[wo.machine] || "—";
                       return (
                         <TableRow key={wo.id}>
                           <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
-                          <TableCell><Badge variant="outline" className={pri.className}>{pri.label}</Badge></TableCell>
-                          <TableCell>{wo.requester_name}</TableCell>
+                          <TableCell className="text-sm font-medium">{woLine}</TableCell>
                           <TableCell>{wo.machine}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>
                           <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
-                          <TableCell className="text-sm">{wo.operator?.name || "—"}</TableCell>
+                          <TableCell className="text-sm">{wo.requester_name}</TableCell>
                           <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
-                          <TableCell>{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>
-                          <TableCell>
+                          <TableCell className="no-print">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>
+                          <TableCell className="no-print">
                             <div className="flex gap-1">
                               <Button size="icon" variant="ghost" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
@@ -340,7 +372,7 @@ export default function WorkOrdersPage() {
                     </div>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -361,17 +393,6 @@ export default function WorkOrdersPage() {
                 <Select value={newDesc} onValueChange={setNewDesc}>
                   <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
                   <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2"><Label>Priority</Label>
-                <Select value={newPriority} onValueChange={setNewPriority}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">🟢 Low</SelectItem>
-                    <SelectItem value="medium">🔵 Medium</SelectItem>
-                    <SelectItem value="high">🟠 High</SelectItem>
-                    <SelectItem value="critical">🔴 Critical</SelectItem>
-                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2"><Label>Observations (optional)</Label>
