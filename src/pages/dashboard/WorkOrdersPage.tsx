@@ -291,12 +291,23 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
             </div>
           </CardHeader>
           <CardContent>
+            {/* Print-only header */}
+            <div className="print-header hidden">
+              <h1 style={{ fontSize: "16pt", fontWeight: "bold" }}>AN Maintenance — Work Orders Report</h1>
+              <p style={{ fontSize: "10pt", color: "#666" }}>
+                {dateFrom && dateTo ? `Period: ${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? `Filter: ${dateQuickFilter}` : "All records"}
+                {lineFilter !== "all" ? ` | Line: ${lineFilter}` : ""}
+                {statusFilter !== "all" ? ` | Status: ${statusFilter}` : ""}
+                {machineFilter !== "all" ? ` | Machine: ${machineFilter}` : ""}
+              </p>
+              <p style={{ fontSize: "9pt", color: "#999" }}>Generated: {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
+            </div>
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : !filteredWOs?.length ? (
               <p className="text-muted-foreground text-center py-8">No work orders found.</p>
             ) : viewMode === "board" ? (
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 no-print">
                 <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-blue-500" borderColor="border-l-blue-500" />
                 <KanbanColumn title="Received/Arrived" items={kanbanColumns.received} color="bg-indigo-500" borderColor="border-l-indigo-500" />
                 <KanbanColumn title="In Progress" items={kanbanColumns.inProgress} color="bg-amber-500" borderColor="border-l-amber-500" />
@@ -304,33 +315,33 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 <KanbanColumn title="Done" items={kanbanColumns.done} color="bg-green-500" borderColor="border-l-green-500" />
               </div>
             ) : (
-              <>
+              <div className="print-content">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>WO#</TableHead><TableHead>Priority</TableHead><TableHead>Requester</TableHead><TableHead>Machine</TableHead>
-                      <TableHead>Status</TableHead><TableHead>Operator</TableHead><TableHead>Engineer</TableHead>
-                      <TableHead>Created</TableHead><TableHead>Parts</TableHead><TableHead>Actions</TableHead>
+                      <TableHead>WO#</TableHead><TableHead>Line</TableHead><TableHead>Machine</TableHead><TableHead>Problem</TableHead>
+                      <TableHead>Status</TableHead><TableHead>Requester</TableHead><TableHead>Engineer</TableHead>
+                      <TableHead>Created</TableHead><TableHead className="no-print">Parts</TableHead><TableHead className="no-print">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedWOs.map((wo) => {
                       const cfg = statusConfig[wo.status];
-                      const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
                       const canForceClose = ["open", "received", "arrived", "in_progress"].includes(wo.status);
                       const canClose = wo.status === "finished";
+                      const woLine = machineLineMap[wo.machine] || "—";
                       return (
                         <TableRow key={wo.id}>
                           <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
-                          <TableCell><Badge variant="outline" className={pri.className}>{pri.label}</Badge></TableCell>
-                          <TableCell>{wo.requester_name}</TableCell>
+                          <TableCell className="text-sm font-medium">{woLine}</TableCell>
                           <TableCell>{wo.machine}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>
                           <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
-                          <TableCell className="text-sm">{wo.operator?.name || "—"}</TableCell>
+                          <TableCell className="text-sm">{wo.requester_name}</TableCell>
                           <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
-                          <TableCell>{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>
-                          <TableCell>
+                          <TableCell className="no-print">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>
+                          <TableCell className="no-print">
                             <div className="flex gap-1">
                               <Button size="icon" variant="ghost" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
