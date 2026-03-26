@@ -27,9 +27,10 @@ export function useWOAlerts() {
     };
   }, [role]);
 
-  // Engineers & Admins: continuous alert on new WO, stop on received
+  // Engineers, Admins & Managers: continuous alert on new WO, stop on received
   useEffect(() => {
-    if ((role !== "engineer" && role !== "admin") || !user) return;
+    if (!role || !user) return;
+    if (role !== "engineer" && role !== "admin") return;
 
     console.log("[WOAlerts] Subscribing to work_orders for engineer/admin", user.id);
 
