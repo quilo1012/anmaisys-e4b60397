@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Activity, Clock, Wrench, TrendingDown } from "lucide-react";
+import { ArrowLeft, Loader2, Activity, Clock, Wrench, TrendingDown, Heart } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMemo } from "react";
 import { format, differenceInMinutes } from "date-fns";
