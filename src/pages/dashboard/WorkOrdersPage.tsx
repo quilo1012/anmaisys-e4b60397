@@ -87,6 +87,19 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Build machine line lookup
+  const machineLineMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    machines?.forEach((m) => { map[m.name] = m.line || ""; });
+    return map;
+  }, [machines]);
+
+  const distinctLines = useMemo(() => {
+    const lines = new Set<string>();
+    machines?.forEach((m) => { if (m.line) lines.add(m.line); });
+    return Array.from(lines).sort();
+  }, [machines]);
+
   const filteredWOs = useMemo(() => {
     if (!workOrders) return [];
     let filtered = workOrders;
@@ -107,7 +120,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
     }
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
-    if (priorityFilter !== "all") filtered = filtered.filter((w) => w.priority === priorityFilter);
+    if (lineFilter !== "all") filtered = filtered.filter((w) => machineLineMap[w.machine] === lineFilter);
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter((w) =>
@@ -119,8 +132,15 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
         (w.engineer?.name || "").toLowerCase().includes(term)
       );
     }
+    // Sort: by line name first, then newest first
+    filtered = [...filtered].sort((a, b) => {
+      const lineA = machineLineMap[a.machine] || "zzz";
+      const lineB = machineLineMap[b.machine] || "zzz";
+      if (lineA !== lineB) return lineA.localeCompare(lineB);
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
     return filtered;
-  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, priorityFilter, searchTerm]);
+  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, lineFilter, searchTerm, machineLineMap]);
 
   const totalPages = Math.ceil((filteredWOs?.length ?? 0) / ITEMS_PER_PAGE);
   const paginatedWOs = useMemo(() => {
