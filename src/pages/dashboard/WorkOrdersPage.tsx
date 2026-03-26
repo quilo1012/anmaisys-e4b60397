@@ -161,9 +161,9 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createWO.mutateAsync({ requester_name: newRequester.trim(), machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), priority: newPriority });
+      await createWO.mutateAsync({ requester_name: newRequester.trim(), machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), priority: "medium" });
       toast({ title: "Work Order Created" });
-      setShowCreate(false); setNewRequester(""); setNewMachine(""); setNewDesc(""); setNewNotes(""); setNewPriority("medium");
+      setShowCreate(false); setNewRequester(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
 
