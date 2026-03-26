@@ -25,6 +25,8 @@ export default function ManagerDashboard() {
   const { toast } = useToast();
   const [showClear, setShowClear] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [pin, setPin] = useState("");
+  useWOAlerts();
 
   const { data: userCount } = useQuery({
     queryKey: ["user_count"],
