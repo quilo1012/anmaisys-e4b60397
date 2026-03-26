@@ -220,6 +220,9 @@ export default function EngineerDashboard() {
             <span className="font-mono font-bold text-lg cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
               AN-{String(wo.wo_number).padStart(4, "0")}
             </span>
+          </div>
+          {/* This will be replaced below */}
+            </span>
             <div className="flex gap-1.5 items-center">
               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
               {!isOpen && (
