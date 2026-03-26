@@ -218,7 +218,7 @@ export default function FinancialDashboard() {
                 <TableBody>
                   {woCosts.slice(0, 50).map((w) => (
                     <TableRow key={w.id}>
-                      <TableCell className="font-mono font-medium">WO-{String(w.wo_number).padStart(4, "0")}</TableCell>
+                      <TableCell className="font-mono font-medium">AN-{String(w.wo_number).padStart(4, "0")}</TableCell>
                       <TableCell>{w.line}</TableCell>
                       <TableCell>{w.machine}</TableCell>
                       <TableCell>{w.repairHours}h</TableCell>

@@ -190,7 +190,7 @@ export default function EngineerDashboard() {
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="font-mono font-bold text-lg cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-              WO-{String(wo.wo_number).padStart(4, "0")}
+              AN-{String(wo.wo_number).padStart(4, "0")}
             </span>
             <div className="flex gap-1.5 items-center">
               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
@@ -330,7 +330,7 @@ export default function EngineerDashboard() {
                       const woPhotos = photosUploaded[wo.id] || { before: false, after: false };
                       return (
                         <tr key={wo.id} className={`border-b ${wo.priority === "critical" ? "bg-red-50" : ""}`}>
-                          <td className="p-2 font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{String(wo.wo_number).padStart(4, "0")}</td>
+                          <td className="p-2 font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>AN-{String(wo.wo_number).padStart(4, "0")}</td>
                           <td className="p-2"><SLACountdown wo={wo} /></td>
                           <td className="p-2">{wo.requester_name}</td>
                           <td className="p-2">{wo.machine}</td>

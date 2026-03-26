@@ -137,7 +137,7 @@ export default function MachineHistoryPage() {
                 <TableBody>
                   {machineWOs.map((wo) => (
                     <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-                      <TableCell className="font-mono">WO-{String(wo.wo_number).padStart(4, "0")}</TableCell>
+                      <TableCell className="font-mono">AN-{String(wo.wo_number).padStart(4, "0")}</TableCell>
                       <TableCell><Badge variant="outline">{wo.status}</Badge></TableCell>
                       <TableCell><Badge variant="outline">{wo.priority}</Badge></TableCell>
                       <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>

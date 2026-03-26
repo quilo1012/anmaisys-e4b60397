@@ -20,7 +20,7 @@ export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_
     const responseTime = wo.started_at ? differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at)) : "";
     const totalTime = wo.completed_at ? differenceInMinutes(new Date(wo.completed_at), new Date(wo.created_at)) : "";
     return [
-      wo.wo_number ? `WO-${String(wo.wo_number).padStart(4, "0")}` : "",
+      wo.wo_number ? `AN-${String(wo.wo_number).padStart(4, "0")}` : "",
       wo.requester_name,
       wo.machine,
       `"${wo.description.replace(/"/g, '""')}"`,

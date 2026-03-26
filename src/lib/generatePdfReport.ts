@@ -51,7 +51,7 @@ export function generatePdfReport(data: ReportData) {
 
   // WO Table
   const tableData = data.workOrders.slice(0, 100).map((wo) => [
-    `WO-${String(wo.wo_number).padStart(4, "0")}`,
+    `AN-${String(wo.wo_number).padStart(4, "0")}`,
     data.machineLineMap[wo.machine] || "—",
     wo.machine,
     wo.description.substring(0, 30),
