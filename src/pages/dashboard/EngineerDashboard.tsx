@@ -218,10 +218,7 @@ export default function EngineerDashboard() {
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="font-mono font-bold text-lg cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-              AN-{String(wo.wo_number).padStart(4, "0")}
-            </span>
-          </div>
-          {/* This will be replaced below */}
+              WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
             </span>
             <div className="flex gap-1.5 items-center">
               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
