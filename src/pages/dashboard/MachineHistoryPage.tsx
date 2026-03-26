@@ -18,6 +18,11 @@ export default function MachineHistoryPage() {
   const navigate = useNavigate();
   const machineName = decodeURIComponent(name || "");
   const { data: allWOs, isLoading } = useWorkOrders();
+  const { data: machines } = useMachines();
+  
+  const machine = useMemo(() => machines?.find(m => m.name === machineName), [machines, machineName]);
+  const healthScore = machine?.health_score ?? 100;
+  const healthColor = healthScore >= 70 ? "text-green-600" : healthScore >= 40 ? "text-yellow-600" : "text-red-600";
 
   const machineWOs = useMemo(
     () => allWOs?.filter((w) => w.machine === machineName).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) ?? [],
