@@ -124,9 +124,32 @@ export default function EngineerDashboard() {
     };
   }, [allCompleted, user]);
 
-  const activeWOs = workOrders?.filter(
-    (wo) => wo.status === "open" || (["received", "arrived", "in_progress"].includes(wo.status) && wo.engineer_id === user?.id)
-  );
+  const activeWOs = useMemo(() => {
+    const all = workOrders?.filter(
+      (wo) => wo.status === "open" || (["received", "arrived", "in_progress"].includes(wo.status) && wo.engineer_id === user?.id)
+    ) || [];
+    if (focusMode && all.length > 0) {
+      // Focus mode: show only the oldest actionable WO
+      return [all[all.length - 1]];
+    }
+    return all;
+  }, [workOrders, user, focusMode]);
+
+  // Workload balancing: suggest engineer with fewest active WOs
+  const suggestedEngineer = useMemo(() => {
+    if (!onlineEngineers || !workOrders) return null;
+    const activeCountMap: Record<string, number> = {};
+    onlineEngineers.forEach((e) => { activeCountMap[e.id] = 0; });
+    workOrders.filter((w) => ["received", "arrived", "in_progress"].includes(w.status) && w.engineer_id).forEach((w) => {
+      if (activeCountMap[w.engineer_id!] !== undefined) activeCountMap[w.engineer_id!]++;
+    });
+    let minId: string | null = null;
+    let minCount = Infinity;
+    Object.entries(activeCountMap).forEach(([id, count]) => {
+      if (count < minCount) { minCount = count; minId = id; }
+    });
+    return minId ? onlineEngineers.find((e) => e.id === minId) || null : null;
+  }, [onlineEngineers, workOrders]);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, woId: string, type: "before" | "after") => {
     const file = e.target.files?.[0];
