@@ -372,7 +372,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                     </div>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </CardContent>
         </Card>
