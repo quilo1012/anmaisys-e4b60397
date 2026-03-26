@@ -384,7 +384,7 @@ export default function EngineerDashboard() {
                       const woPhotos = photosUploaded[wo.id] || { before: false, after: false };
                       return (
                         <tr key={wo.id} className={`border-b ${wo.priority === "critical" ? "bg-red-50" : ""}`}>
-                          <td className="p-2 font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>AN-{String(wo.wo_number).padStart(4, "0")}</td>
+                          <td className="p-2 font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</td>
                           <td className="p-2"><SLACountdown wo={wo} /></td>
                           <td className="p-2">{wo.requester_name}</td>
                           <td className="p-2">{wo.machine}</td>
