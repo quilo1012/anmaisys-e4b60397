@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Loader2, Activity, Clock, Wrench, TrendingDown, Heart } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
+import { useMachines } from "@/hooks/useMachines";
 import { useMemo } from "react";
 import { format, differenceInMinutes } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";

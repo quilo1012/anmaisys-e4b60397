@@ -97,7 +97,7 @@ export function useWOAlerts() {
           if (["finished", "closed"].includes(wo.status)) {
             console.log("[WOAlerts] Operator WO completed:", wo.id);
             playNotificationChime();
-            const woLabel = `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`;
+            const woLabel = `WO-${String(wo.wo_number).padStart(6, "0")}`;
             sendWebNotification(`✅ ${woLabel} Completed!`, `Machine: ${wo.machine} — Status: ${wo.status}`);
             toast({
               title: `✅ ${woLabel} Completed!`,
