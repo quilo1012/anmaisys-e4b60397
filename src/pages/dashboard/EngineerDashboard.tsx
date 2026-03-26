@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Phone, MapPin, Wrench, Camera, Printer } from "lucide-react";
+import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Phone, MapPin, Wrench, Camera, Printer, Focus, Users } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
@@ -20,6 +20,8 @@ import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
+import { useOnlineEngineers } from "@/hooks/useOnlineEngineers";
 
 const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
 
@@ -75,6 +77,9 @@ export default function EngineerDashboard() {
   const navigate = useNavigate();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
   useWOAlerts();
+  const { alerts: predictiveAlerts } = usePredictiveAlerts();
+  const { data: onlineEngineers } = useOnlineEngineers();
+  const [focusMode, setFocusMode] = useState(false);
 
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
@@ -119,9 +124,32 @@ export default function EngineerDashboard() {
     };
   }, [allCompleted, user]);
 
-  const activeWOs = workOrders?.filter(
-    (wo) => wo.status === "open" || (["received", "arrived", "in_progress"].includes(wo.status) && wo.engineer_id === user?.id)
-  );
+  const activeWOs = useMemo(() => {
+    const all = workOrders?.filter(
+      (wo) => wo.status === "open" || (["received", "arrived", "in_progress"].includes(wo.status) && wo.engineer_id === user?.id)
+    ) || [];
+    if (focusMode && all.length > 0) {
+      // Focus mode: show only the oldest actionable WO
+      return [all[all.length - 1]];
+    }
+    return all;
+  }, [workOrders, user, focusMode]);
+
+  // Workload balancing: suggest engineer with fewest active WOs
+  const suggestedEngineer = useMemo(() => {
+    if (!onlineEngineers || !workOrders) return null;
+    const activeCountMap: Record<string, number> = {};
+    onlineEngineers.forEach((e) => { activeCountMap[e.id] = 0; });
+    workOrders.filter((w) => ["received", "arrived", "in_progress"].includes(w.status) && w.engineer_id).forEach((w) => {
+      if (activeCountMap[w.engineer_id!] !== undefined) activeCountMap[w.engineer_id!]++;
+    });
+    let minId: string | null = null;
+    let minCount = Infinity;
+    Object.entries(activeCountMap).forEach(([id, count]) => {
+      if (count < minCount) { minCount = count; minId = id; }
+    });
+    return minId ? onlineEngineers.find((e) => e.id === minId) || null : null;
+  }, [onlineEngineers, workOrders]);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, woId: string, type: "before" | "after") => {
     const file = e.target.files?.[0];
@@ -190,7 +218,7 @@ export default function EngineerDashboard() {
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="font-mono font-bold text-lg cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-              AN-{String(wo.wo_number).padStart(4, "0")}
+              WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
             </span>
             <div className="flex gap-1.5 items-center">
               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
@@ -259,9 +287,35 @@ export default function EngineerDashboard() {
           </Alert>
         )}
 
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold">Engineer Panel</h2>
-          <p className="text-muted-foreground text-sm">View and execute work orders</p>
+        {/* Predictive Alerts */}
+        {predictiveAlerts.length > 0 && (
+          <Alert className="border-purple-500 bg-purple-500/10 text-purple-800">
+            <AlertTriangle className="h-5 w-5 text-purple-600" />
+            <AlertTitle className="text-sm font-bold">🟣 {predictiveAlerts.length} Predictive Alert(s)</AlertTitle>
+            <AlertDescription className="text-xs">
+              {predictiveAlerts.slice(0, 2).map((a, i) => (
+                <span key={i} className="block">{a.machine}: "{a.problem}" — {a.count}x in 30 days</span>
+              ))}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Suggested Engineer + Focus Mode */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h2 className="text-xl md:text-2xl font-bold">Engineer Panel</h2>
+            <p className="text-muted-foreground text-sm">View and execute work orders</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {suggestedEngineer && (
+              <Badge variant="outline" className="bg-blue-500/10 border-blue-500 text-blue-700 gap-1">
+                <Users className="h-3 w-3" /> Suggested: {suggestedEngineer.name}
+              </Badge>
+            )}
+            <Button variant={focusMode ? "default" : "outline"} size="sm" onClick={() => setFocusMode(!focusMode)} className="gap-1">
+              <Focus className="h-4 w-4" /> {focusMode ? "Focus ON" : "Focus"}
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
@@ -330,7 +384,7 @@ export default function EngineerDashboard() {
                       const woPhotos = photosUploaded[wo.id] || { before: false, after: false };
                       return (
                         <tr key={wo.id} className={`border-b ${wo.priority === "critical" ? "bg-red-50" : ""}`}>
-                          <td className="p-2 font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>AN-{String(wo.wo_number).padStart(4, "0")}</td>
+                          <td className="p-2 font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</td>
                           <td className="p-2"><SLACountdown wo={wo} /></td>
                           <td className="p-2">{wo.requester_name}</td>
                           <td className="p-2">{wo.machine}</td>

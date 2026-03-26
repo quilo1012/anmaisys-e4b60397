@@ -8,6 +8,7 @@ export interface Machine {
   sector: string;
   code: string;
   status: string;
+  health_score: number;
   created_at: string;
 }
 
@@ -20,7 +21,7 @@ export function useMachines() {
         .select("*")
         .order("name");
       if (error) throw error;
-      return data as Machine[];
+      return data as unknown as Machine[];
     },
   });
 }

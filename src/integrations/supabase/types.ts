@@ -75,6 +75,7 @@ export type Database = {
         Row: {
           code: string | null
           created_at: string
+          health_score: number
           id: string
           line: string | null
           name: string
@@ -84,6 +85,7 @@ export type Database = {
         Insert: {
           code?: string | null
           created_at?: string
+          health_score?: number
           id?: string
           line?: string | null
           name: string
@@ -93,6 +95,7 @@ export type Database = {
         Update: {
           code?: string | null
           created_at?: string
+          health_score?: number
           id?: string
           line?: string | null
           name?: string

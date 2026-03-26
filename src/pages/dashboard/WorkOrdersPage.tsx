@@ -131,7 +131,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter((w) =>
-        `AN-${String(w.wo_number).padStart(4, "0")}`.toLowerCase().includes(term) ||
+        `WO-${new Date(w.created_at).getFullYear()}-${String(w.wo_number).padStart(6, "0")}`.toLowerCase().includes(term) ||
         w.requester_name.toLowerCase().includes(term) ||
         w.machine.toLowerCase().includes(term) ||
         w.description.toLowerCase().includes(term) ||
@@ -198,7 +198,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
       <Card className={`cursor-pointer hover:shadow-md transition-shadow border-l-4 ${borderColor}`} onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
         <CardContent className="p-3 space-y-1">
           <div className="flex justify-between items-center">
-            <span className="font-mono text-xs font-medium">AN-{String(wo.wo_number).padStart(4, "0")}</span>
+            <span className="font-mono text-xs font-medium">WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</span>
             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${pri.className}`}>{pri.label}</Badge>
           </div>
           <p className="text-sm font-medium">{wo.machine}</p>
@@ -361,7 +361,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                       const woLine = machineLineMap[wo.machine] || "—";
                       return (
                         <TableRow key={wo.id}>
-                          <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>AN-{String(wo.wo_number).padStart(4, "0")}</TableCell>
+                          <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</TableCell>
                           <TableCell className="text-sm font-medium">{woLine}</TableCell>
                           <TableCell>{wo.machine}</TableCell>
                           <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>
