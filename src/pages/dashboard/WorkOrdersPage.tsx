@@ -49,7 +49,7 @@ export default function WorkOrdersPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  
   const [problemFilter, setProblemFilter] = useState<string>("all");
   const [machineFilter, setMachineFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -77,7 +77,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const [newMachine, setNewMachine] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newNotes, setNewNotes] = useState("");
-  const [newPriority, setNewPriority] = useState("medium");
+  
 
   const [editWO, setEditWO] = useState<WorkOrder | null>(null);
   const [editRequester, setEditRequester] = useState("");
@@ -393,17 +393,6 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 <Select value={newDesc} onValueChange={setNewDesc}>
                   <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
                   <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2"><Label>Priority</Label>
-                <Select value={newPriority} onValueChange={setNewPriority}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">🟢 Low</SelectItem>
-                    <SelectItem value="medium">🔵 Medium</SelectItem>
-                    <SelectItem value="high">🟠 High</SelectItem>
-                    <SelectItem value="critical">🔴 Critical</SelectItem>
-                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2"><Label>Observations (optional)</Label>
