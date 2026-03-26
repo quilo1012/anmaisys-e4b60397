@@ -109,8 +109,7 @@ export default function MachineHistoryPage() {
               <p className={`text-2xl font-bold ${healthColor}`}>{healthScore}</p>
               <p className="text-xs mt-1">{healthScore >= 70 ? "🟢 Healthy" : healthScore >= 40 ? "🟡 Warning" : "🔴 Critical"}</p>
             </CardContent>
-          </Card>
-          </Card>
+        </div>
         </div>
 
         {failureChart.length > 0 && (
