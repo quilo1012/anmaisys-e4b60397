@@ -16,12 +16,6 @@ import { useProblemDescriptions, useAddProblemDescription, useUpdateProblemDescr
 import { useToast } from "@/hooks/use-toast";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 
-const severityColors: Record<string, string> = {
-  low: "bg-green-100 text-green-800 border-green-200",
-  medium: "bg-amber-100 text-amber-800 border-amber-200",
-  high: "bg-red-100 text-red-800 border-red-200",
-};
-
 export default function ProblemsPage() {
   const { data: problems, isLoading } = useProblemDescriptions();
   const addProblem = useAddProblemDescription();
@@ -35,17 +29,15 @@ export default function ProblemsPage() {
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
-  const [severity, setSeverity] = useState("medium");
   const [description, setDescription] = useState("");
   const [active, setActive] = useState(true);
 
-  const resetForm = () => { setName(""); setCategory(""); setSeverity("medium"); setDescription(""); setActive(true); };
+  const resetForm = () => { setName(""); setCategory(""); setDescription(""); setActive(true); };
 
   const openEdit = (p: ProblemDescription) => {
     setEditProblem(p);
     setName(p.name);
     setCategory(p.category || "");
-    setSeverity(p.severity || "medium");
     setDescription(p.description || "");
     setActive(p.active !== false);
   };
@@ -53,7 +45,7 @@ export default function ProblemsPage() {
   const handleAdd = async () => {
     if (!name.trim()) return;
     try {
-      const result = await addProblem.mutateAsync({ name: name.trim(), category: category.trim(), severity, description: description.trim(), active });
+      const result = await addProblem.mutateAsync({ name: name.trim(), category: category.trim(), description: description.trim(), active });
       toast({ title: "Problem added" });
       logAuditEvent("create", "problem", (result as any)?.id, { name: name.trim() });
       setShowAdd(false);
@@ -66,7 +58,7 @@ export default function ProblemsPage() {
   const handleEdit = async () => {
     if (!editProblem || !name.trim()) return;
     try {
-      await updateProblem.mutateAsync({ id: editProblem.id, name: name.trim(), category: category.trim(), severity, description: description.trim(), active });
+      await updateProblem.mutateAsync({ id: editProblem.id, name: name.trim(), category: category.trim(), description: description.trim(), active });
       toast({ title: "Problem updated" });
       logAuditEvent("update", "problem", editProblem.id, { name: name.trim() });
       setEditProblem(null);
@@ -100,19 +92,7 @@ export default function ProblemsPage() {
   const formContent = (
     <div className="space-y-4">
       <div className="space-y-2"><Label>Problem Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Motor Overheating" required /></div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2"><Label>Category</Label><Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Electrical" /></div>
-        <div className="space-y-2"><Label>Severity</Label>
-          <Select value={severity} onValueChange={setSeverity}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="low">Low</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <div className="space-y-2"><Label>Category</Label><Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Electrical" /></div>
       <div className="space-y-2"><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Detailed description..." rows={3} /></div>
       <div className="flex items-center gap-2">
         <Switch checked={active} onCheckedChange={setActive} />
@@ -144,7 +124,6 @@ export default function ProblemsPage() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Category</TableHead>
-                    <TableHead>Severity</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Active</TableHead>
                     <TableHead>Actions</TableHead>
@@ -155,11 +134,6 @@ export default function ProblemsPage() {
                     <TableRow key={p.id} className={!p.active ? "opacity-50" : ""}>
                       <TableCell className="font-medium">{p.name}</TableCell>
                       <TableCell>{p.category || "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={severityColors[p.severity] || severityColors.medium}>
-                          {p.severity || "medium"}
-                        </Badge>
-                      </TableCell>
                       <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{p.description || "—"}</TableCell>
                       <TableCell>
                         <Switch checked={p.active !== false} onCheckedChange={() => toggleActive(p)} />
