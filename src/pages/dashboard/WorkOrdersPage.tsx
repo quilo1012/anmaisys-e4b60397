@@ -248,6 +248,21 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 <Button variant="outline" size="sm" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
                   <Download className="h-4 w-4 mr-1" /> CSV
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => {
+                  if (!filteredWOs) return;
+                  const allWOs = filteredWOs;
+                  const engPerf = engineerScores?.map((s) => ({ name: s.engineer_name || "Unknown", score: s.score, completed: 0 })) || [];
+                  const openWOs = allWOs.filter((w) => w.status === "open").length;
+                  generatePdfReport({
+                    workOrders: allWOs,
+                    machineLineMap,
+                    engineerRanking: engPerf,
+                    kpis: { avgResponse: 0, avgMTTR: 0, totalWOs: allWOs.length, openWOs, slaRate: 0 },
+                    dateRange: dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? dateQuickFilter : "All records",
+                  });
+                }}>
+                  <FileText className="h-4 w-4 mr-1" /> PDF
+                </Button>
                 <Button variant="outline" size="sm" className="no-print" onClick={() => window.print()}>
                   <Printer className="h-4 w-4 mr-1" /> Print
                 </Button>
