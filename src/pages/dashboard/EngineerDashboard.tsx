@@ -287,9 +287,35 @@ export default function EngineerDashboard() {
           </Alert>
         )}
 
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold">Engineer Panel</h2>
-          <p className="text-muted-foreground text-sm">View and execute work orders</p>
+        {/* Predictive Alerts */}
+        {predictiveAlerts.length > 0 && (
+          <Alert className="border-purple-500 bg-purple-500/10 text-purple-800">
+            <AlertTriangle className="h-5 w-5 text-purple-600" />
+            <AlertTitle className="text-sm font-bold">🟣 {predictiveAlerts.length} Predictive Alert(s)</AlertTitle>
+            <AlertDescription className="text-xs">
+              {predictiveAlerts.slice(0, 2).map((a, i) => (
+                <span key={i} className="block">{a.machine}: "{a.problem}" — {a.count}x in 30 days</span>
+              ))}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Suggested Engineer + Focus Mode */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h2 className="text-xl md:text-2xl font-bold">Engineer Panel</h2>
+            <p className="text-muted-foreground text-sm">View and execute work orders</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {suggestedEngineer && (
+              <Badge variant="outline" className="bg-blue-500/10 border-blue-500 text-blue-700 gap-1">
+                <Users className="h-3 w-3" /> Suggested: {suggestedEngineer.name}
+              </Badge>
+            )}
+            <Button variant={focusMode ? "default" : "outline"} size="sm" onClick={() => setFocusMode(!focusMode)} className="gap-1">
+              <Focus className="h-4 w-4" /> {focusMode ? "Focus ON" : "Focus"}
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
