@@ -6,14 +6,28 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Search, Shield } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Loader2, Search, Shield, Trash2 } from "lucide-react";
 import { useAuditLogs } from "@/hooks/useAuditLogs";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 
 export default function AuditLogsPage() {
   const [entityType, setEntityType] = useState("all");
   const [search, setSearch] = useState("");
+  const [pin, setPin] = useState("");
+  const [clearing, setClearing] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
+  const { role } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data: logs, isLoading } = useAuditLogs({ entityType, search });
 
   const entityTypes = useMemo(() => {
@@ -21,12 +35,56 @@ export default function AuditLogsPage() {
     return [...new Set(logs.map((l) => l.entity_type))].sort();
   }, [logs]);
 
+  const handleClearLogs = async () => {
+    setClearing(true);
+    try {
+      const { data: settings } = await supabase.from("system_settings").select("admin_pin").limit(1).single();
+      if (!settings || pin !== settings.admin_pin) {
+        toast({ title: "Invalid PIN", variant: "destructive" });
+        setClearing(false);
+        return;
+      }
+      const { error } = await supabase.from("audit_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["audit_logs"] });
+      toast({ title: "Audit logs cleared" });
+      setDialogOpen(false);
+      setPin("");
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setClearing(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2"><Shield className="h-6 w-6" /> Audit Logs</h2>
-          <p className="text-muted-foreground">Complete activity log for compliance and security</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold flex items-center gap-2"><Shield className="h-6 w-6" /> Audit Logs</h2>
+            <p className="text-muted-foreground">Complete activity log for compliance and security</p>
+          </div>
+          {role === "admin" && (
+            <AlertDialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setPin(""); }}>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4 mr-2" />Clear Logs</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Clear All Audit Logs?</AlertDialogTitle>
+                  <AlertDialogDescription>This action cannot be undone. Enter admin PIN to confirm.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <Input type="password" placeholder="Admin PIN" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={10} />
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleClearLogs} disabled={!pin || clearing}>
+                    {clearing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}Confirm
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
 
         <Card>
