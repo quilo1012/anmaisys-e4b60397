@@ -20,6 +20,9 @@ import { useNavigate } from "react-router-dom";
 import { format, subDays, startOfDay, endOfDay, startOfMonth } from "date-fns";
 import { exportWorkOrdersCsv } from "@/lib/exportCsv";
 import { useToast } from "@/hooks/use-toast";
+import { useEngineerScores } from "@/hooks/useEngineerScores";
+import { generatePdfReport } from "@/lib/generatePdfReport";
+import { FileText } from "lucide-react";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -68,6 +71,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
 
   const { data: machines } = useMachines();
   const { data: problemDescriptions } = useActiveProblemDescriptions();
+  const { data: engineerScores } = useEngineerScores();
 
   const woIds = useMemo(() => workOrders?.map((w) => w.id) ?? [], [workOrders]);
   const { data: partsCounts } = usePartsCountByWOs(woIds);
@@ -243,6 +247,21 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateQuickFilter(""); }} className="w-[140px]" />
                 <Button variant="outline" size="sm" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
                   <Download className="h-4 w-4 mr-1" /> CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => {
+                  if (!filteredWOs) return;
+                  const allWOs = filteredWOs;
+                  const engPerf = engineerScores?.map((s) => ({ name: s.engineer_name || "Unknown", score: s.score, completed: 0 })) || [];
+                  const openWOs = allWOs.filter((w) => w.status === "open").length;
+                  generatePdfReport({
+                    workOrders: allWOs,
+                    machineLineMap,
+                    engineerRanking: engPerf,
+                    kpis: { avgResponse: 0, avgMTTR: 0, totalWOs: allWOs.length, openWOs, slaRate: 0 },
+                    dateRange: dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? dateQuickFilter : "All records",
+                  });
+                }}>
+                  <FileText className="h-4 w-4 mr-1" /> PDF
                 </Button>
                 <Button variant="outline" size="sm" className="no-print" onClick={() => window.print()}>
                   <Printer className="h-4 w-4 mr-1" /> Print

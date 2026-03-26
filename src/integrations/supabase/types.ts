@@ -50,6 +50,27 @@ export type Database = {
         }
         Relationships: []
       }
+      engineer_scores: {
+        Row: {
+          engineer_id: string
+          id: string
+          score: number
+          updated_at: string
+        }
+        Insert: {
+          engineer_id: string
+          id?: string
+          score?: number
+          updated_at?: string
+        }
+        Update: {
+          engineer_id?: string
+          id?: string
+          score?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       machines: {
         Row: {
           code: string | null
@@ -261,6 +282,36 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      wo_messages: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string | null
+          message: string
+          user_id: string
+          user_name: string
+          work_order_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          message?: string
+          user_id: string
+          user_name: string
+          work_order_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          message?: string
+          user_id?: string
+          user_name?: string
+          work_order_id?: string
         }
         Relationships: []
       }

@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, AlertTriangle, BarChart3 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, BarChart3, Trophy, Award, TrendingUp, TrendingDown } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
+import { useMachines } from "@/hooks/useMachines";
+import { useEngineerScores } from "@/hooks/useEngineerScores";
 import { differenceInMinutes, format, subDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -17,6 +20,8 @@ export default function AnalyticsPage() {
   const { data: allWOs } = useWorkOrders();
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products } = useProducts();
+  const { data: machines } = useMachines();
+  const { data: engineerScores } = useEngineerScores();
 
   const { data: userCount } = useQuery({
     queryKey: ["user_count"],
@@ -56,7 +61,6 @@ export default function AnalyticsPage() {
     return days;
   }, [allWOs]);
 
-  // Orders by Status (pie)
   const ordersByStatus = useMemo(() => {
     if (!allWOs) return [];
     const sc: Record<string, number> = {};
@@ -64,7 +68,6 @@ export default function AnalyticsPage() {
     return Object.entries(sc).map(([status, count]) => ({ name: status, value: count }));
   }, [allWOs]);
 
-  // Lines with Most Problems
   const lineProblems = useMemo(() => {
     if (!allWOs) return [];
     const lc: Record<string, number> = {};
@@ -79,7 +82,6 @@ export default function AnalyticsPage() {
     return Object.entries(pc).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([problem, count]) => ({ problem, count }));
   }, [allWOs]);
 
-  // SLA Compliance
   const slaCompliance = useMemo(() => {
     if (!allWOs) return { rate: 0, total: 0, met: 0 };
     const relevant = allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.received_at);
@@ -92,7 +94,6 @@ export default function AnalyticsPage() {
     return { rate: relevant.length ? Math.round((met / relevant.length) * 100) : 0, total: relevant.length, met };
   }, [allWOs]);
 
-  // Orders by priority
   const ordersByPriority = useMemo(() => {
     if (!allWOs) return [];
     const pc: Record<string, number> = {};
@@ -100,7 +101,6 @@ export default function AnalyticsPage() {
     return Object.entries(pc).map(([priority, count]) => ({ priority, count }));
   }, [allWOs]);
 
-  // % orders without parts
   const { data: partsCountData } = useQuery({
     queryKey: ["parts_used_counts_all"],
     queryFn: async () => {
@@ -119,7 +119,6 @@ export default function AnalyticsPage() {
     return Math.round((noParts.length / done.length) * 100);
   }, [allWOs, partsCountData]);
 
-  // Downtime by machine
   const downtimeByMachine = useMemo(() => {
     if (!allWOs) return [];
     const map: Record<string, number> = {};
@@ -130,7 +129,6 @@ export default function AnalyticsPage() {
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([machine, minutes]) => ({ machine, minutes }));
   }, [allWOs]);
 
-  // Engineer performance
   const engineerPerformance = useMemo(() => {
     if (!allWOs) return [];
     const engineers: Record<string, { name: string; completed: number; totalResp: number; totalMTTR: number }> = {};
@@ -150,6 +148,37 @@ export default function AnalyticsPage() {
       avgMTTR: Math.round(e.totalMTTR / e.completed),
     })).sort((a, b) => b.completed - a.completed);
   }, [allWOs]);
+
+  // Failure Heatmap data
+  const heatmapData = useMemo(() => {
+    if (!allWOs || !machines) return { lines: [] as string[], machinesByLine: {} as Record<string, string[]>, counts: {} as Record<string, number> };
+    const lineMap: Record<string, Set<string>> = {};
+    machines.forEach((m) => {
+      const line = m.line || "Unassigned";
+      if (!lineMap[line]) lineMap[line] = new Set();
+      lineMap[line].add(m.name);
+    });
+    const counts: Record<string, number> = {};
+    allWOs.forEach((w) => { counts[w.machine] = (counts[w.machine] || 0) + 1; });
+    const lines = Object.keys(lineMap).sort();
+    const machinesByLine: Record<string, string[]> = {};
+    lines.forEach((l) => { machinesByLine[l] = Array.from(lineMap[l]).sort(); });
+    return { lines, machinesByLine, counts };
+  }, [allWOs, machines]);
+
+  const getHeatColor = (count: number) => {
+    if (count === 0) return "bg-green-500/20 text-green-700";
+    if (count <= 2) return "bg-green-500/40 text-green-800";
+    if (count <= 5) return "bg-yellow-500/40 text-yellow-800";
+    return "bg-red-500/50 text-red-900 font-bold";
+  };
+
+  // Merge ranking with scores
+  const rankedEngineers = useMemo(() => {
+    const scoreMap: Record<string, number> = {};
+    engineerScores?.forEach((s) => { scoreMap[s.engineer_name || ""] = s.score; });
+    return engineerPerformance.map((e) => ({ ...e, score: scoreMap[e.name] ?? 0 })).sort((a, b) => b.score - a.score);
+  }, [engineerPerformance, engineerScores]);
 
   return (
     <DashboardLayout>
@@ -234,36 +263,100 @@ export default function AnalyticsPage() {
           </Card>
         </div>
 
-        {/* Engineer Performance */}
+        {/* Failure Heatmap */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Engineer Performance</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2">🔥 Failure Heatmap</CardTitle></CardHeader>
           <CardContent>
-            {!engineerPerformance.length ? (
+            {!heatmapData.lines.length ? (
+              <p className="text-muted-foreground text-sm text-center py-8">No machine data available.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="space-y-3">
+                  {heatmapData.lines.map((line) => (
+                    <div key={line}>
+                      <p className="text-xs font-semibold text-muted-foreground mb-1">{line}</p>
+                      <div className="flex gap-1 flex-wrap">
+                        {heatmapData.machinesByLine[line]?.map((machine) => {
+                          const count = heatmapData.counts[machine] || 0;
+                          return (
+                            <div key={machine} className={`rounded px-2 py-1 text-[10px] border ${getHeatColor(count)}`} title={`${machine}: ${count} WOs`}>
+                              <span className="block truncate max-w-[80px]">{machine}</span>
+                              <span className="block text-center font-mono">{count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-4 text-[10px]">
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-500/30" /> 0-2</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-500/40" /> 3-5</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500/50" /> 6+</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Engineer Ranking */}
+        <Card>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Trophy className="h-5 w-5 text-yellow-500" /> Engineer Ranking</CardTitle></CardHeader>
+          <CardContent>
+            {!rankedEngineers.length ? (
               <p className="text-muted-foreground text-sm text-center py-8">No completed work orders with engineer data yet.</p>
             ) : (
               <div className="space-y-6">
-                <ResponsiveContainer width="100%" height={Math.max(200, engineerPerformance.length * 50)}>
-                  <BarChart data={engineerPerformance} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" allowDecimals={false} />
-                    <YAxis type="category" dataKey="name" width={120} />
-                    <Tooltip />
-                    <Bar dataKey="completed" fill="hsl(var(--primary))" name="Completed WOs" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {engineerPerformance.map((eng) => (
-                    <Card key={eng.name} className="border">
-                      <CardContent className="pt-4">
-                        <p className="font-medium">{eng.name}</p>
-                        <div className="grid grid-cols-3 gap-2 mt-2 text-sm">
-                          <div><p className="text-muted-foreground text-xs">Completed</p><p className="font-bold">{eng.completed}</p></div>
-                          <div><p className="text-muted-foreground text-xs">Avg Response</p><p className="font-bold">{eng.avgResponse} min</p></div>
-                          <div><p className="text-muted-foreground text-xs">Avg MTTR</p><p className="font-bold">{eng.avgMTTR} min</p></div>
+                {/* Top 3 podium */}
+                <div className="flex justify-center gap-4 items-end">
+                  {rankedEngineers.slice(0, 3).map((eng, i) => {
+                    const heights = ["h-28", "h-24", "h-20"];
+                    const medals = [<Award key="g" className="h-6 w-6 text-yellow-500" />, <Award key="s" className="h-5 w-5 text-gray-400" />, <Award key="b" className="h-5 w-5 text-orange-600" />];
+                    return (
+                      <div key={eng.name} className="flex flex-col items-center">
+                        {medals[i]}
+                        <p className="text-sm font-bold mt-1">{eng.name}</p>
+                        <p className="text-lg font-bold text-primary">{eng.score}</p>
+                        <div className={`w-20 ${heights[i]} bg-primary/20 rounded-t-lg flex items-end justify-center pb-1`}>
+                          <span className="text-xs text-muted-foreground">{eng.completed} WOs</span>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Full table */}
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">#</th>
+                        <th className="px-3 py-2 text-left font-medium">Engineer</th>
+                        <th className="px-3 py-2 text-center font-medium">Score</th>
+                        <th className="px-3 py-2 text-center font-medium">Completed</th>
+                        <th className="px-3 py-2 text-center font-medium">Avg Response</th>
+                        <th className="px-3 py-2 text-center font-medium">Avg MTTR</th>
+                        <th className="px-3 py-2 text-center font-medium">Trend</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rankedEngineers.map((eng, i) => (
+                        <tr key={eng.name} className="border-t">
+                          <td className="px-3 py-2 font-bold">{i + 1}</td>
+                          <td className="px-3 py-2 font-medium">{eng.name}</td>
+                          <td className="px-3 py-2 text-center">
+                            <Badge variant={eng.score >= 0 ? "default" : "destructive"}>{eng.score}</Badge>
+                          </td>
+                          <td className="px-3 py-2 text-center">{eng.completed}</td>
+                          <td className="px-3 py-2 text-center">{eng.avgResponse} min</td>
+                          <td className="px-3 py-2 text-center">{eng.avgMTTR} min</td>
+                          <td className="px-3 py-2 text-center">
+                            {eng.score > 0 ? <TrendingUp className="h-4 w-4 text-green-500 inline" /> : eng.score < 0 ? <TrendingDown className="h-4 w-4 text-red-500 inline" /> : <span className="text-muted-foreground">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

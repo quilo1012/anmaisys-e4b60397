@@ -1,0 +1,102 @@
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { format } from "date-fns";
+import type { WorkOrder } from "@/hooks/useWorkOrders";
+
+interface ReportData {
+  workOrders: WorkOrder[];
+  machineLineMap: Record<string, string>;
+  engineerRanking: { name: string; score: number; completed: number }[];
+  kpis: { avgResponse: number; avgMTTR: number; totalWOs: number; openWOs: number; slaRate: number };
+  dateRange: string;
+}
+
+export function generatePdfReport(data: ReportData) {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Header
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.text("AN Maintenance", 14, 20);
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "normal");
+  doc.text("Work Orders Report", 14, 28);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(data.dateRange, 14, 34);
+  doc.text(`Generated: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, pageWidth - 14, 34, { align: "right" });
+
+  doc.setDrawColor(0);
+  doc.line(14, 37, pageWidth - 14, 37);
+
+  // KPIs
+  doc.setTextColor(0);
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.text("Performance Summary", 14, 45);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  const kpiY = 52;
+  const kpis = [
+    [`Total WOs: ${data.kpis.totalWOs}`, `Open WOs: ${data.kpis.openWOs}`],
+    [`Avg Response: ${data.kpis.avgResponse} min`, `Avg MTTR: ${data.kpis.avgMTTR} min`],
+    [`SLA Compliance: ${data.kpis.slaRate}%`, ""],
+  ];
+  kpis.forEach((row, i) => {
+    doc.text(row[0], 14, kpiY + i * 6);
+    if (row[1]) doc.text(row[1], 100, kpiY + i * 6);
+  });
+
+  // WO Table
+  const tableData = data.workOrders.slice(0, 100).map((wo) => [
+    `WO-${String(wo.wo_number).padStart(4, "0")}`,
+    data.machineLineMap[wo.machine] || "—",
+    wo.machine,
+    wo.description.substring(0, 30),
+    wo.status.toUpperCase(),
+    format(new Date(wo.created_at), "dd/MM HH:mm"),
+  ]);
+
+  autoTable(doc, {
+    startY: kpiY + 22,
+    head: [["WO#", "Line", "Machine", "Problem", "Status", "Created"]],
+    body: tableData,
+    styles: { fontSize: 7, cellPadding: 2 },
+    headStyles: { fillColor: [30, 30, 30], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+  });
+
+  // Engineer ranking on new page if data exists
+  if (data.engineerRanking.length > 0) {
+    doc.addPage();
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text("Engineer Ranking", 14, 20);
+
+    autoTable(doc, {
+      startY: 26,
+      head: [["#", "Engineer", "Score", "Completed WOs"]],
+      body: data.engineerRanking.map((e, i) => [
+        `${i + 1}`,
+        e.name,
+        `${e.score}`,
+        `${e.completed}`,
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [30, 30, 30], textColor: 255, fontStyle: "bold" },
+    });
+  }
+
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(150);
+    doc.text(`Page ${i} of ${pageCount}`, pageWidth - 14, doc.internal.pageSize.getHeight() - 10, { align: "right" });
+    doc.text("AN Maintenance System", 14, doc.internal.pageSize.getHeight() - 10);
+  }
+
+  doc.save(`AN_Maintenance_Report_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`);
+}
