@@ -7,13 +7,16 @@ import { Button } from "@/components/ui/button";
 import { useMachines } from "@/hooks/useMachines";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
-import { Monitor, Loader2, Maximize, Minimize, Trophy, Clock } from "lucide-react";
+import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
+import { Monitor, Loader2, Maximize, Minimize, Trophy, Clock, AlertTriangle, Heart } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { differenceInMinutes } from "date-fns";
 
 export default function ControlCenterPage() {
   const { data: machines, isLoading: machinesLoading } = useMachines();
   const { data: workOrders, isLoading: wosLoading } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });
   const { data: engineerScores } = useEngineerScores();
+  const { alerts: predictiveAlerts, predictiveMachines } = usePredictiveAlerts();
   const navigate = useNavigate();
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -45,19 +48,20 @@ export default function ControlCenterPage() {
   }, [machines]);
 
   const machineStatus = useMemo(() => {
-    const map: Record<string, { status: "green" | "yellow" | "red"; woCount: number }> = {};
+    const map: Record<string, { status: "green" | "yellow" | "red" | "purple"; woCount: number }> = {};
     if (!machines || !workOrders) return map;
     machines.forEach((m) => {
       const wos = workOrders.filter((w) => w.machine === m.name);
+      const isPredictive = predictiveMachines.has(m.name);
       if (!wos.length) {
-        map[m.name] = { status: "green", woCount: 0 };
+        map[m.name] = { status: isPredictive ? "purple" : "green", woCount: 0 };
       } else {
         const hasOpen = wos.some((w) => w.status === "open");
         map[m.name] = { status: hasOpen ? "red" : "yellow", woCount: wos.length };
       }
     });
     return map;
-  }, [machines, workOrders]);
+  }, [machines, workOrders, predictiveMachines]);
 
   const lineDowntime = useMemo(() => {
     if (!workOrders || !machines) return {} as Record<string, number>;
@@ -77,9 +81,10 @@ export default function ControlCenterPage() {
     green: "bg-green-500/20 border-green-500 text-green-700",
     yellow: "bg-yellow-500/20 border-yellow-500 text-yellow-700",
     red: "bg-red-500/20 border-red-500 text-red-700 animate-pulse",
+    purple: "bg-purple-500/20 border-purple-500 text-purple-700",
   };
 
-  const statusLabels = { green: "🟢", yellow: "🟡", red: "🔴" };
+  const statusLabels = { green: "🟢", yellow: "🟡", red: "🔴", purple: "🟣" };
 
   const top5 = engineerScores?.slice(0, 5) || [];
 
@@ -89,7 +94,12 @@ export default function ControlCenterPage() {
     return `${h}h ${mins % 60}m`;
   };
 
-  // TV mode uses compact styling
+  const getHealthColor = (score: number) => {
+    if (score >= 70) return "text-green-600 bg-green-500/20";
+    if (score >= 40) return "text-yellow-600 bg-yellow-500/20";
+    return "text-red-600 bg-red-500/20";
+  };
+
   const tvMode = isFullscreen;
 
   return (
@@ -108,11 +118,25 @@ export default function ControlCenterPage() {
           </Button>
         </div>
 
-        {/* Legend - compact in TV mode */}
+        {/* Predictive Alerts Banner */}
+        {predictiveAlerts.length > 0 && (
+          <Alert className="border-purple-500 bg-purple-500/10 text-purple-800">
+            <AlertTriangle className="h-5 w-5 text-purple-600" />
+            <AlertTitle className={tvMode ? "text-xs" : "text-sm font-bold"}>🟣 {predictiveAlerts.length} Predictive Alert(s)</AlertTitle>
+            <AlertDescription className={tvMode ? "text-[10px]" : "text-xs"}>
+              {predictiveAlerts.slice(0, 3).map((a, i) => (
+                <span key={i} className="block">{a.machine}: "{a.problem}" — {a.count}x in 30 days</span>
+              ))}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Legend */}
         <div className={`flex gap-2 flex-wrap ${tvMode ? "text-xs" : ""}`}>
           <Badge variant="outline" className={`bg-green-500/20 border-green-500 text-green-700 ${tvMode ? "text-[10px] px-1.5 py-0" : ""}`}>🟢 Running</Badge>
           <Badge variant="outline" className={`bg-yellow-500/20 border-yellow-500 text-yellow-700 ${tvMode ? "text-[10px] px-1.5 py-0" : ""}`}>🟡 WO Active</Badge>
           <Badge variant="outline" className={`bg-red-500/20 border-red-500 text-red-700 ${tvMode ? "text-[10px] px-1.5 py-0" : ""}`}>🔴 Unattended</Badge>
+          <Badge variant="outline" className={`bg-purple-500/20 border-purple-500 text-purple-700 ${tvMode ? "text-[10px] px-1.5 py-0" : ""}`}>🟣 Predictive</Badge>
         </div>
 
         <div className={`grid gap-4 ${tvMode ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
@@ -141,6 +165,7 @@ export default function ControlCenterPage() {
                       : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"}`}>
                       {lineMachines.map((m) => {
                         const ms = machineStatus[m.name] || { status: "green" as const, woCount: 0 };
+                        const hs = m.health_score ?? 100;
                         return (
                           <div
                             key={m.id}
@@ -149,7 +174,12 @@ export default function ControlCenterPage() {
                           >
                             <p className={`font-medium truncate ${tvMode ? "text-[10px]" : "text-sm"}`}>{m.name}</p>
                             {m.code && !tvMode && <p className="text-xs font-mono opacity-70">{m.code}</p>}
-                            <p className={tvMode ? "text-[9px]" : "text-xs mt-1"}>{statusLabels[ms.status]} {!tvMode && (ms.status === "green" ? "Running" : ms.status === "yellow" ? "WO Active" : "Unattended")}</p>
+                            <div className="flex items-center justify-between">
+                              <p className={tvMode ? "text-[9px]" : "text-xs mt-1"}>{statusLabels[ms.status]} {!tvMode && (ms.status === "green" ? "Running" : ms.status === "yellow" ? "WO Active" : ms.status === "red" ? "Unattended" : "Predictive")}</p>
+                              <span className={`rounded px-1 font-mono font-bold ${getHealthColor(hs)} ${tvMode ? "text-[8px]" : "text-[10px]"}`}>
+                                <Heart className={`inline ${tvMode ? "h-2 w-2" : "h-3 w-3"}`} /> {hs}
+                              </span>
+                            </div>
                             {ms.woCount > 0 && !tvMode && (
                               <Badge variant="secondary" className="mt-1 text-xs">{ms.woCount} WO(s)</Badge>
                             )}
