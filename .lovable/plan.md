@@ -1,30 +1,35 @@
 
 
-# Phase 5: Polish and Adjustments
+# Phase 7: Audit Clear, AN- Numbering, Mobile Fix
 
-## 1. Configurable Admin PIN (not hardcoded)
+## 1. Clear Audit Logs Button
 
-**Database:** Create `system_settings` table with a single row containing `admin_pin` (text, default '1234').
+**Database migration:** Add DELETE RLS policy on `audit_logs` for admin role.
 
-**Manager Dashboard:** Add a small "Change PIN" section where admin can update the PIN. The `handleClearSystem` function validates against the DB value instead of hardcoded '1234'.
+**AuditLogsPage.tsx:** Add a "Clear Logs" button (admin only) with AlertDialog + PIN confirmation (reads PIN from `system_settings` table, same pattern as Clear WOs). Deletes all rows from `audit_logs`.
 
-## 2. Move "Clear" to Work Orders Page (not whole system)
+## 2. Work Order Numbering: AN-0001
 
-Remove the "Clear System" button from `ManagerDashboard.tsx`. Add a "Clear All Work Orders" button to `WorkOrdersPage.tsx` (admin only). The edge function already deletes only WO-related data (messages, photos, parts_used, work_orders, engineer_scores), so it stays as-is.
+**Database migration:** Reset the `wo_number_seq` sequence to start from 1 on next insert. Add a migration: `ALTER SEQUENCE wo_number_seq RESTART WITH 1;`
 
-## 3. Fix Print Layout
+**All files displaying WO numbers** — replace `WO-{padStart(4)}` with `AN-{padStart(4)}`:
+- `EngineerDashboard.tsx` (mobile card + table)
+- `WorkOrdersPage.tsx` (table + kanban)
+- `WorkOrderDetail.tsx`
+- `OperatorDashboard.tsx`
+- `ControlCenterPage.tsx` (if displayed)
+- `generatePdfReport.ts`
 
-**`src/index.css`:** Strengthen `@media print` rules — force-hide `[data-sidebar]`, `header`, `nav`, `.no-print`, and all buttons. Only `.print-content` is visible.
+## 3. Mobile Layout Fix (Top Cut Off)
 
-**`WorkOrderDetail.tsx`:** Add a "Requested By Signature" line at the bottom of the print layout — a blank signature line with the requester's name so they can sign the printed document.
+The `DashboardLayout` header is `h-14` fixed but the main content starts with `p-6`. On mobile (390px viewport), the sidebar trigger + header can overlap content.
 
-## 4. Stock Value on Financial Dashboard
+**Fix in `DashboardLayout.tsx`:**
+- Add `pt-0` on mobile for the content area, ensure header doesn't overlap
+- Change content padding from `p-6` to `p-4 md:p-6` for mobile breathing room
 
-**`FinancialDashboard.tsx`:** Add a card "Stock Inventory Value" that calculates `SUM(price × quantity)` from the already-fetched `products` data and displays the total.
-
-## 5. Verify Mobile Engineer Layout
-
-Test Engineer Dashboard at 375px viewport width to confirm cards and buttons render properly.
+**Fix in `EngineerDashboard.tsx`:**
+- Ensure the alert banner and KPI cards don't get cut off at the top on small viewports
 
 ---
 
@@ -32,17 +37,18 @@ Test Engineer Dashboard at 375px viewport width to confirm cards and buttons ren
 
 | File | Change |
 |------|--------|
-| Migration SQL | Create `system_settings` table |
-| `ManagerDashboard.tsx` | Remove Clear System button, add Change PIN UI |
-| `WorkOrdersPage.tsx` | Add Clear WOs button (admin), use DB PIN |
-| `WorkOrderDetail.tsx` | Add requester signature line for print |
-| `FinancialDashboard.tsx` | Add stock inventory value card |
-| `src/index.css` | Strengthen print CSS |
+| Migration SQL | Add DELETE policy on audit_logs for admin; reset wo_number_seq |
+| `AuditLogsPage.tsx` | Add Clear Logs button with PIN dialog |
+| `DashboardLayout.tsx` | Fix mobile content padding |
+| `EngineerDashboard.tsx` | AN- prefix, mobile spacing |
+| `WorkOrdersPage.tsx` | AN- prefix |
+| `WorkOrderDetail.tsx` | AN- prefix |
+| `OperatorDashboard.tsx` | AN- prefix |
+| `generatePdfReport.ts` | AN- prefix |
 
 ## Sequence
-1. Database migration (system_settings)
-2. Move Clear WOs + configurable PIN
-3. Print fix + signature line
-4. Stock value card
-5. Mobile verification
+1. Database migration (audit_logs DELETE policy + sequence reset)
+2. Clear Audit Logs button
+3. AN- numbering across all files
+4. Mobile layout fix
 
