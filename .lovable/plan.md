@@ -1,75 +1,101 @@
 
 
-# Professional Polish: Operator UX, Alert Sound, Print, WO Table Layout, LINE Filter
+# Phase 3: Enterprise CMMS Features
 
-## Summary
-
-Remove priority from operator form, upgrade alert sound to professional two-tone chime, add operator notification on WO completion, improve WO table layout (LINE column first), add LINE filter, enhance print to only show WO content, and add Print Report button.
+This plan adds the 5 genuinely new features that don't exist yet. Everything else in the prompt (WO pipeline, alerts, checklist, photos, signature, SLA, stock, sidebar, print, CSV, filters, LINE column) is already implemented and working.
 
 ---
 
-## Changes
+## 1. Engineer Ranking with Live Scoring
 
-### 1. Remove Priority from Operator Form
-**File:** `src/pages/dashboard/OperatorDashboard.tsx`
-- Remove priority state, Select field (lines 43, 111-122), and priority column from the table
-- Hardcode `priority: "medium"` in the create call
-- Remove `priorityConfig` import/usage from operator table
+**Database migration:**
+- Create `engineer_scores` table: `id`, `engineer_id` (uuid), `score` (integer, default 0), `updated_at`
+- Create a database function `update_engineer_score()` triggered on `work_orders` UPDATE that:
+  - `+10` when status changes to `received` within 5 min of creation
+  - `+20` when status changes to `finished` within SLA target time
+  - `-15` when response time exceeds SLA target
+  - `-30` when total repair time exceeds 2 hours
+- RLS: engineers see own score, admins see all
 
-### 2. Professional Two-Tone Alert Sound
-**File:** `src/lib/shifts.ts`
-- Replace `generateBeepWav()` with a professional two-tone industrial chime: 880Hz descending to 660Hz, 0.6s duration, smooth fade envelope
-- Higher sample rate (16000) for cleaner sound
-- Change loop interval from 1s to 2.5s for less aggressive but persistent alerting
-- Add new `playNotificationChime()` export -- single pleasant sound for operator feedback (not looping)
+**Analytics page** (`AnalyticsPage.tsx`):
+- Add "Engineer Ranking" card with a sorted list showing: position, name, score, trend indicator
+- Replace the existing engineer performance cards with a combined ranking + metrics view
 
-### 3. Operator Receives Notification When WO is Finished/Closed
-**File:** `src/hooks/useWOAlerts.ts`
-- Add a new effect for operators: subscribe to UPDATE events on `work_orders`
-- When a WO owned by the operator (`operator_id === user.id`) changes to `finished` or `closed`, play a single notification chime + toast + web notification
-- Operators do NOT get the continuous alarm loop -- only engineers and admins do
-
-### 4. WO Table: LINE Column + Sort by Line Priority
-**File:** `src/pages/dashboard/WorkOrdersPage.tsx`
-- Cross-reference each WO's `machine` with `machines` data to get the `line` field
-- Add LINE as the first column in the table: LINE | MACHINE | PROBLEM | STATUS | DATE
-- Sort filtered WOs by line name first (alphabetical), then by `created_at` descending
-- Add a LINE filter dropdown (from distinct machine lines)
-- Remove Priority column from the default table view (priority is auto-set, not user-facing)
-
-### 5. Print Only WO Content
-**File:** `src/index.css`
-- Enhance `@media print` rules: hide all filters, pagination, action buttons, sidebar, header
-- Show only `.print-content` elements
-- Add `@page { margin: 15mm; }` for proper print margins
-
-**File:** `src/pages/dashboard/WorkOrdersPage.tsx`
-- Add "Print Report" button next to CSV export
-- Wrap the WO table in a `print-content` div
-- Add a print-only header showing date range and filter summary
-- `window.print()` on click
-
-### 6. Operator WO Form: Only Machine + Problem
-**File:** `src/pages/dashboard/OperatorDashboard.tsx`
-- Keep only: Requested By, Machine (select), Problem (select), Notes (optional)
-- Remove priority entirely from the operator experience
+**Control Center** (`ControlCenterPage.tsx`):
+- Add a "Top 5 Engineers" sidebar/panel showing rank, name, score
 
 ---
 
-## Files Modified
+## 2. Failure Heatmap
 
-| File | Change |
+**Analytics page** (`AnalyticsPage.tsx`):
+- New chart section: "Failure Heatmap"
+- Grid layout: rows = Lines, columns = Machines
+- Each cell colored by WO count for that machine: green (0-2), yellow (3-5), red (6+)
+- Built with a simple HTML grid + Tailwind background colors (no external heatmap library needed)
+- Data computed from existing `allWOs` already fetched
+
+---
+
+## 3. Internal WO Chat
+
+**Database migration:**
+- Create `wo_messages` table: `id` (uuid), `work_order_id` (uuid), `user_id` (uuid), `user_name` (text), `message` (text), `image_url` (text nullable), `created_at`
+- RLS: authenticated users can insert (own user_id), select where they have access to the WO (operator owns it, engineer assigned, or admin)
+- Enable realtime: `ALTER PUBLICATION supabase_realtime ADD TABLE public.wo_messages;`
+
+**WorkOrderDetail page** (`WorkOrderDetail.tsx`):
+- Add a chat panel at the bottom of the WO detail
+- Messages displayed chronologically with sender name, timestamp
+- Input field for text + optional image upload (reuse `wo-photos` bucket)
+- Realtime subscription for new messages
+- New hook: `src/hooks/useWOMessages.ts`
+
+---
+
+## 4. Enhanced Control Center
+
+**Control Center** (`ControlCenterPage.tsx`):
+- Add per-line downtime counter: sum of active WO durations (time since `created_at` for open/in_progress WOs) displayed per line section
+- Add Top 5 Engineer ranking panel (from `engineer_scores` table or computed from WO data)
+- Add "Fullscreen" toggle button that uses the Fullscreen API (`document.documentElement.requestFullscreen()`) to hide browser chrome — ideal for TV display
+- Open WOs with status "open" should have `animate-pulse` on their machine card (already implemented)
+
+---
+
+## 5. Professional PDF Report
+
+**Implementation:** Edge function `generate-report` that uses Deno's built-in capabilities
+- Actually, since we can't run Python in edge functions, we'll build a client-side PDF generation using the existing `jspdf` approach or a simple print-to-PDF workflow
+- Add a "Download PDF Report" button to the Work Orders page
+- The PDF includes:
+  - Company logo header + report period
+  - WO summary table (LINE, MACHINE, PROBLEM, STATUS, timestamps)
+  - Performance KPIs: total WOs, avg response, avg MTTR, downtime
+  - Engineer ranking table
+  - Footer with generation timestamp
+- Use `jspdf` + `jspdf-autotable` libraries for clean table rendering
+
+---
+
+## Files Summary
+
+| File | Action |
 |------|--------|
-| `src/pages/dashboard/OperatorDashboard.tsx` | Remove priority, simplify form |
-| `src/lib/shifts.ts` | Professional two-tone alert + notification chime |
-| `src/hooks/useWOAlerts.ts` | Add operator finish notification |
-| `src/index.css` | Enhanced print styles |
-| `src/pages/dashboard/WorkOrdersPage.tsx` | LINE column, LINE filter, sort by line, Print Report button, print header |
+| Migration SQL | `engineer_scores` table + trigger, `wo_messages` table + realtime |
+| `src/pages/dashboard/AnalyticsPage.tsx` | Add ranking section + failure heatmap |
+| `src/pages/dashboard/ControlCenterPage.tsx` | Add downtime counters, top 5 ranking, fullscreen toggle |
+| `src/pages/dashboard/WorkOrderDetail.tsx` | Add chat panel |
+| `src/hooks/useWOMessages.ts` | NEW — CRUD + realtime for WO chat |
+| `src/pages/dashboard/WorkOrdersPage.tsx` | Add PDF download button |
+| `src/lib/generatePdfReport.ts` | NEW — client-side PDF generation |
+| `package.json` | Add `jspdf` + `jspdf-autotable` |
 
 ## Implementation Sequence
-1. Alert sound upgrade (`shifts.ts`)
-2. Operator dashboard cleanup (remove priority)
-3. Operator finish notification (`useWOAlerts.ts`)
-4. WO table: LINE column + filter + sort + print (`WorkOrdersPage.tsx`)
-5. Print styles (`index.css`)
+1. Database migration (engineer_scores + wo_messages tables)
+2. Engineer ranking in Analytics
+3. Failure heatmap in Analytics
+4. Enhanced Control Center (counters + ranking + fullscreen)
+5. WO chat system
+6. PDF report generation
 
