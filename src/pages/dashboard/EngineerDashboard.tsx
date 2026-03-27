@@ -183,21 +183,47 @@ export default function EngineerDashboard() {
     setPreChecklistWO(null);
   };
 
-  // FINISH → check photos first, then post-service checklist
-  const handleFinishClick = (woId: string) => {
-    const photos = photosUploaded[woId];
-    if (!photos?.before || !photos?.after) {
-      toast({ title: "Photos required", description: "Upload both Before and After photos before finishing.", variant: "destructive" });
-      return;
-    }
-    setPostCheckedItems({});
-    setPostChecklistWO(woId);
+  // START → show Before photo prompt
+  const handleStartClick = (woId: string) => {
+    setPhotoPromptType("before");
+    setPhotoPromptWO(woId);
+    setPhotoPromptCallback(() => () => {
+      startWO.mutate(woId);
+    });
   };
 
-  const handlePostChecklistComplete = () => {
-    if (!postChecklistWO) return;
-    setPostChecklistWO(null);
-    setSignDialogWO(postChecklistWO);
+  const handlePhotoPromptSkip = () => {
+    const type = photoPromptType;
+    toast({ title: `📸 Photo reminder`, description: `Don't forget to add a ${type === "before" ? "Before" : "After"} photo later!` });
+    photoPromptCallback?.();
+    setPhotoPromptWO(null);
+    setPhotoPromptCallback(null);
+  };
+
+  const handlePhotoPromptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !photoPromptWO) return;
+    try {
+      await uploadPhoto.mutateAsync({ workOrderId: photoPromptWO, photoType: photoPromptType, file });
+      setPhotosUploaded((prev) => ({ ...prev, [photoPromptWO!]: { ...prev[photoPromptWO!], [photoPromptType]: true } }));
+      toast({ title: `${photoPromptType === "before" ? "Before" : "After"} photo uploaded ✓` });
+    } catch (err: any) {
+      toast({ title: "Upload error", description: err.message, variant: "destructive" });
+    }
+    e.target.value = "";
+    photoPromptCallback?.();
+    setPhotoPromptWO(null);
+    setPhotoPromptCallback(null);
+  };
+
+  // FINISH → show After photo prompt, then post-service checklist
+  const handleFinishClick = (woId: string) => {
+    setPhotoPromptType("after");
+    setPhotoPromptWO(woId);
+    setPhotoPromptCallback(() => () => {
+      setPostCheckedItems({});
+      setPostChecklistWO(woId);
+    });
   };
 
   const handleFinishConfirm = async () => {
