@@ -92,8 +92,14 @@ export default function EngineerDashboard() {
   // Post-service checklist state (FINISH flow)
   const [postChecklistWO, setPostChecklistWO] = useState<string | null>(null);
   const [postCheckedItems, setPostCheckedItems] = useState<Record<string, boolean>>({});
+
+  // Photo prompt dialog state
+  const [photoPromptWO, setPhotoPromptWO] = useState<string | null>(null);
+  const [photoPromptType, setPhotoPromptType] = useState<"before" | "after">("before");
+  const [photoPromptCallback, setPhotoPromptCallback] = useState<(() => void) | null>(null);
   
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const photoPromptFileRef = useRef<HTMLInputElement | null>(null);
 
   const activeWOIds = useMemo(() => workOrders?.filter(
     (wo) => wo.status === "open" || (["received", "arrived", "in_progress"].includes(wo.status) && wo.engineer_id === user?.id)
