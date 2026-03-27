@@ -286,7 +286,7 @@ export default function EngineerDashboard() {
               </Button>
             )}
             {wo.status === "arrived" && wo.engineer_id === user?.id && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => startWO.mutate(wo.id)} disabled={startWO.isPending}>
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
                 <Play className="h-5 w-5 mr-2" /> START
               </Button>
             )}
@@ -443,7 +443,7 @@ export default function EngineerDashboard() {
                                 </Button>
                               )}
                               {wo.status === "arrived" && wo.engineer_id === user?.id && (
-                                <Button size="sm" onClick={() => startWO.mutate(wo.id)} disabled={startWO.isPending}>
+                                <Button size="sm" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
                                   <Play className="h-3 w-3 mr-1" /> Start
                                 </Button>
                               )}
@@ -570,6 +570,32 @@ export default function EngineerDashboard() {
               Confirm & Finish
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo Prompt Dialog */}
+      <Dialog open={!!photoPromptWO} onOpenChange={(open) => { if (!open) { handlePhotoPromptSkip(); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5" /> {photoPromptType === "before" ? "Before" : "After"} Photo
+            </DialogTitle>
+            <DialogDescription>
+              {photoPromptType === "before"
+                ? "Take a photo of the machine before starting the repair."
+                : "Take a photo of the machine after completing the repair."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <input type="file" accept="image/*" capture="environment" className="hidden" ref={photoPromptFileRef} onChange={handlePhotoPromptUpload} />
+            <Button size="lg" className="h-16 w-full text-lg gap-2" onClick={() => photoPromptFileRef.current?.click()} disabled={uploadPhoto.isPending}>
+              {uploadPhoto.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+              Take / Upload Photo
+            </Button>
+            <Button variant="ghost" className="text-muted-foreground" onClick={handlePhotoPromptSkip}>
+              Skip for now
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </DashboardLayout>
