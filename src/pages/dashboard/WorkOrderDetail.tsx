@@ -59,11 +59,13 @@ function formatDuration(minutes: number | null) {
 export default function WorkOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { role } = useAuth();
+  const isAdmin = role === "admin";
   const { data: wo, isLoading } = useWorkOrderById(id!);
   const { data: partsUsed, isLoading: partsLoading } = usePartsUsedByWO(id!);
   const { data: woPhotos } = useWOPhotos(id!);
 
-  // Fetch parts with prices for cost calculation
+  // Fetch parts with prices for cost calculation (admin only)
   const { data: partsWithPrice } = useQuery({
     queryKey: ["parts_used_price", id],
     queryFn: async () => {
@@ -74,10 +76,10 @@ export default function WorkOrderDetail() {
       if (error) throw error;
       return data as any[];
     },
-    enabled: !!id,
+    enabled: !!id && isAdmin,
   });
 
-  // Fetch engineer labor rate
+  // Fetch engineer labor rate (admin only)
   const { data: engineerProfile } = useQuery({
     queryKey: ["engineer_rate", wo?.engineer_id],
     queryFn: async () => {
@@ -89,11 +91,11 @@ export default function WorkOrderDetail() {
       if (error) throw error;
       return data as { labor_rate: number };
     },
-    enabled: !!wo?.engineer_id,
+    enabled: !!wo?.engineer_id && isAdmin,
   });
 
   const costBreakdown = useMemo(() => {
-    if (!wo) return null;
+    if (!wo || !isAdmin) return null;
     const partsCost = (partsWithPrice || []).reduce((sum, p) => sum + (p.product?.price || 0) * p.quantity, 0);
     const repairMinutes = wo.started_at && wo.finished_at ? differenceInMinutes(new Date(wo.finished_at), new Date(wo.started_at)) : 0;
     const repairHours = repairMinutes / 60;
@@ -103,7 +105,7 @@ export default function WorkOrderDetail() {
     const overtimeCost = overtimeHours * rate * 0.5;
     const totalCost = partsCost + laborCost + overtimeCost;
     return { partsCost, laborCost, overtimeCost, totalCost, repairHours: Math.round(repairHours * 10) / 10 };
-  }, [wo, partsWithPrice, engineerProfile]);
+  }, [wo, partsWithPrice, engineerProfile, isAdmin]);
 
   if (isLoading) {
     return (
