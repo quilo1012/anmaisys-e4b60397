@@ -226,6 +226,12 @@ export default function EngineerDashboard() {
     });
   };
 
+  const handlePostChecklistComplete = () => {
+    if (!postChecklistWO) return;
+    setPostChecklistWO(null);
+    setSignDialogWO(postChecklistWO);
+  };
+
   const handleFinishConfirm = async () => {
     if (!signDialogWO || !signName.trim()) return;
     await finishWO.mutateAsync({ woId: signDialogWO, signedByName: signName.trim() });
