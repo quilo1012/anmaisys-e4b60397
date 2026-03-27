@@ -183,47 +183,17 @@ export default function EngineerDashboard() {
     setPreChecklistWO(null);
   };
 
-  // START → show Before photo prompt
+  // START → proceed immediately, show photo reminder toast
   const handleStartClick = (woId: string) => {
-    setPhotoPromptType("before");
-    setPhotoPromptWO(woId);
-    setPhotoPromptCallback(() => () => {
-      startWO.mutate(woId);
-    });
+    startWO.mutate(woId);
+    toast({ title: "📸 Photo reminder", description: "Don't forget to add a Before photo!" });
   };
 
-  const handlePhotoPromptSkip = () => {
-    const type = photoPromptType;
-    toast({ title: `📸 Photo reminder`, description: `Don't forget to add a ${type === "before" ? "Before" : "After"} photo later!` });
-    photoPromptCallback?.();
-    setPhotoPromptWO(null);
-    setPhotoPromptCallback(null);
-  };
-
-  const handlePhotoPromptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !photoPromptWO) return;
-    try {
-      await uploadPhoto.mutateAsync({ workOrderId: photoPromptWO, photoType: photoPromptType, file });
-      setPhotosUploaded((prev) => ({ ...prev, [photoPromptWO!]: { ...prev[photoPromptWO!], [photoPromptType]: true } }));
-      toast({ title: `${photoPromptType === "before" ? "Before" : "After"} photo uploaded ✓` });
-    } catch (err: any) {
-      toast({ title: "Upload error", description: err.message, variant: "destructive" });
-    }
-    e.target.value = "";
-    photoPromptCallback?.();
-    setPhotoPromptWO(null);
-    setPhotoPromptCallback(null);
-  };
-
-  // FINISH → show After photo prompt, then post-service checklist
+  // FINISH → go straight to post-service checklist (no photo blocking)
   const handleFinishClick = (woId: string) => {
-    setPhotoPromptType("after");
-    setPhotoPromptWO(woId);
-    setPhotoPromptCallback(() => () => {
-      setPostCheckedItems({});
-      setPostChecklistWO(woId);
-    });
+    toast({ title: "📸 Photo reminder", description: "Don't forget to add an After photo!" });
+    setPostCheckedItems({});
+    setPostChecklistWO(woId);
   };
 
   const handlePostChecklistComplete = () => {
