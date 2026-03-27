@@ -171,7 +171,7 @@ export default function StockPage() {
                      <TableHead>Line</TableHead>
                      <TableHead>Code</TableHead>
                      <TableHead>Category</TableHead>
-                     <TableHead>Price</TableHead>
+                     {isManager && <TableHead>Price</TableHead>}
                      <TableHead>Quantity</TableHead>
                      <TableHead>Min Stock</TableHead>
                      <TableHead>Status</TableHead>
@@ -187,7 +187,7 @@ export default function StockPage() {
                          <TableCell>{p.line || "—"}</TableCell>
                         <TableCell>{p.code}</TableCell>
                         <TableCell><Badge variant="outline" className="capitalize">{p.category}</Badge></TableCell>
-                        <TableCell>£{(p.price || 0).toFixed(2)}</TableCell>
+                        {isManager && <TableCell>£{(p.price || 0).toFixed(2)}</TableCell>}
                         <TableCell className={isLow ? "text-destructive font-bold" : ""}>{p.quantity}</TableCell>
                         <TableCell>{p.min_stock}</TableCell>
                         <TableCell>

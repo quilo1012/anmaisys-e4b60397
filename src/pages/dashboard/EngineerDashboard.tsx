@@ -92,8 +92,14 @@ export default function EngineerDashboard() {
   // Post-service checklist state (FINISH flow)
   const [postChecklistWO, setPostChecklistWO] = useState<string | null>(null);
   const [postCheckedItems, setPostCheckedItems] = useState<Record<string, boolean>>({});
+
+  // Photo prompt dialog state
+  const [photoPromptWO, setPhotoPromptWO] = useState<string | null>(null);
+  const [photoPromptType, setPhotoPromptType] = useState<"before" | "after">("before");
+  const [photoPromptCallback, setPhotoPromptCallback] = useState<(() => void) | null>(null);
   
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const photoPromptFileRef = useRef<HTMLInputElement | null>(null);
 
   const activeWOIds = useMemo(() => workOrders?.filter(
     (wo) => wo.status === "open" || (["received", "arrived", "in_progress"].includes(wo.status) && wo.engineer_id === user?.id)
@@ -177,15 +183,47 @@ export default function EngineerDashboard() {
     setPreChecklistWO(null);
   };
 
-  // FINISH → check photos first, then post-service checklist
-  const handleFinishClick = (woId: string) => {
-    const photos = photosUploaded[woId];
-    if (!photos?.before || !photos?.after) {
-      toast({ title: "Photos required", description: "Upload both Before and After photos before finishing.", variant: "destructive" });
-      return;
+  // START → show Before photo prompt
+  const handleStartClick = (woId: string) => {
+    setPhotoPromptType("before");
+    setPhotoPromptWO(woId);
+    setPhotoPromptCallback(() => () => {
+      startWO.mutate(woId);
+    });
+  };
+
+  const handlePhotoPromptSkip = () => {
+    const type = photoPromptType;
+    toast({ title: `📸 Photo reminder`, description: `Don't forget to add a ${type === "before" ? "Before" : "After"} photo later!` });
+    photoPromptCallback?.();
+    setPhotoPromptWO(null);
+    setPhotoPromptCallback(null);
+  };
+
+  const handlePhotoPromptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !photoPromptWO) return;
+    try {
+      await uploadPhoto.mutateAsync({ workOrderId: photoPromptWO, photoType: photoPromptType, file });
+      setPhotosUploaded((prev) => ({ ...prev, [photoPromptWO!]: { ...prev[photoPromptWO!], [photoPromptType]: true } }));
+      toast({ title: `${photoPromptType === "before" ? "Before" : "After"} photo uploaded ✓` });
+    } catch (err: any) {
+      toast({ title: "Upload error", description: err.message, variant: "destructive" });
     }
-    setPostCheckedItems({});
-    setPostChecklistWO(woId);
+    e.target.value = "";
+    photoPromptCallback?.();
+    setPhotoPromptWO(null);
+    setPhotoPromptCallback(null);
+  };
+
+  // FINISH → show After photo prompt, then post-service checklist
+  const handleFinishClick = (woId: string) => {
+    setPhotoPromptType("after");
+    setPhotoPromptWO(woId);
+    setPhotoPromptCallback(() => () => {
+      setPostCheckedItems({});
+      setPostChecklistWO(woId);
+    });
   };
 
   const handlePostChecklistComplete = () => {
@@ -248,7 +286,7 @@ export default function EngineerDashboard() {
               </Button>
             )}
             {wo.status === "arrived" && wo.engineer_id === user?.id && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => startWO.mutate(wo.id)} disabled={startWO.isPending}>
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
                 <Play className="h-5 w-5 mr-2" /> START
               </Button>
             )}
@@ -405,7 +443,7 @@ export default function EngineerDashboard() {
                                 </Button>
                               )}
                               {wo.status === "arrived" && wo.engineer_id === user?.id && (
-                                <Button size="sm" onClick={() => startWO.mutate(wo.id)} disabled={startWO.isPending}>
+                                <Button size="sm" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
                                   <Play className="h-3 w-3 mr-1" /> Start
                                 </Button>
                               )}
@@ -532,6 +570,32 @@ export default function EngineerDashboard() {
               Confirm & Finish
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo Prompt Dialog */}
+      <Dialog open={!!photoPromptWO} onOpenChange={(open) => { if (!open) { handlePhotoPromptSkip(); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5" /> {photoPromptType === "before" ? "Before" : "After"} Photo
+            </DialogTitle>
+            <DialogDescription>
+              {photoPromptType === "before"
+                ? "Take a photo of the machine before starting the repair."
+                : "Take a photo of the machine after completing the repair."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <input type="file" accept="image/*" capture="environment" className="hidden" ref={photoPromptFileRef} onChange={handlePhotoPromptUpload} />
+            <Button size="lg" className="h-16 w-full text-lg gap-2" onClick={() => photoPromptFileRef.current?.click()} disabled={uploadPhoto.isPending}>
+              {uploadPhoto.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+              Take / Upload Photo
+            </Button>
+            <Button variant="ghost" className="text-muted-foreground" onClick={handlePhotoPromptSkip}>
+              Skip for now
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </DashboardLayout>
