@@ -1,46 +1,48 @@
 
+Objetivo: remover de vez a obrigatoriedade implícita de foto no fluxo do engineer, deixando foto apenas como lembrete opcional.
 
-# Phase 9: Cost Visibility Restrictions and Photo Flow
+O que encontrei:
+- Não existe bloqueio no backend para foto: o `useFinishWorkOrder()` só atualiza o status para `finished`.
+- O bloqueio restante está no fluxo de UI do `EngineerDashboard.tsx`, onde START/FINISH passam por um dialog intermediário de foto.
+- Hoje o fluxo depende do estado/callback do dialog para continuar; vou simplificar isso para evitar qualquer travamento ao pular a foto.
 
-## 1. Hide Costs from Engineers and Operators
+Plano de implementação:
+1. Reestruturar o fluxo de foto no `EngineerDashboard.tsx`
+   - Criar uma continuação explícita do fluxo:
+     - START: continuar para `startWO.mutate(...)`
+     - FINISH: continuar para checklist pós-serviço e depois assinatura
+   - O botão “Skip for now” sempre continuará o fluxo imediatamente.
+   - Fechar o dialog não pode mais impedir avanço da ordem.
 
-Only **admin/manager** sees cost information. Engineers and operators see no prices anywhere.
+2. Transformar foto em lembrete, não em requisito
+   - Manter o prompt de foto antes do START e antes do FINISH.
+   - Trocar o comportamento para:
+     - “Take / Upload Photo”
+     - “Continue without photo”
+   - Mostrar toast de lembrete ao continuar sem foto:
+     - Before: lembrar de adicionar foto depois
+     - After: lembrar de adicionar foto depois
 
-**WorkOrderDetail.tsx:**
-- Import `useAuth` and check `role === 'admin'`
-- Wrap the entire "Cost Breakdown" card in a role check — only render for admin
-- Remove `DollarSign` import usage for non-admin
-- Hide price column from parts_used table for non-admin (remove the cost-related queries entirely for non-admin)
+3. Garantir que FINISH funcione sem upload
+   - O engineer poderá:
+     - clicar FINISH
+     - ignorar a foto
+     - completar checklist
+     - assinar
+     - finalizar a WO normalmente
+   - Os botões manuais “Before” e “After” continuam disponíveis durante `in_progress`.
 
-**FinancialDashboard.tsx:** Already admin-only (route protected), no changes needed.
+4. Revisar o comportamento mobile e desktop
+   - Validar o fluxo no card mobile e na tabela desktop.
+   - Garantir que o prompt não reabra nem cancele o avanço por efeito colateral do `onOpenChange`.
 
-**StockPage.tsx:** Check if price column is visible to engineers — if so, hide it for non-admin roles.
+Detalhes técnicos:
+- Arquivo principal: `src/pages/dashboard/EngineerDashboard.tsx`
+- Sem mudança de banco.
+- Sem mudança em permissões.
+- O ajuste será somente no controle de estado do dialog e no encadeamento do fluxo START/FINISH.
 
-## 2. Photo Flow: Before on Start, After on Finish
-
-Currently photos are both available during `in_progress` status. Change to:
-
-**EngineerDashboard.tsx:**
-- When engineer clicks **START**: show a dialog/prompt asking for a "Before" photo. Allow skip with a reminder toast ("Don't forget to add a Before photo later!")
-- When engineer clicks **FINISH**: show a dialog/prompt asking for an "After" photo. Allow skip with a reminder toast ("Don't forget to add an After photo!")
-- Remove the hard block (`if (!photos?.before || !photos?.after)`) — photos are no longer mandatory
-- Keep the photo upload buttons during `in_progress` for manual uploads at any time
-
-**Flow:**
-1. Engineer clicks START → Before Photo dialog appears → Upload or Skip (toast reminder)
-2. WO moves to `in_progress` with photo buttons still available
-3. Engineer clicks FINISH → After Photo dialog appears → Upload or Skip (toast reminder)  
-4. Then pre/post checklist and signature flow continues as before
-
-## Files Modified
-
-| File | Change |
-|------|--------|
-| `WorkOrderDetail.tsx` | Hide Cost Breakdown for non-admin, hide price in parts table |
-| `EngineerDashboard.tsx` | Before photo prompt on START, After photo prompt on FINISH, remove mandatory block |
-| `WorkOrderDetail.tsx` | Add `useAuth` import for role check |
-
-## Sequence
-1. Cost visibility restriction (WorkOrderDetail)
-2. Photo flow restructure (EngineerDashboard)
-
+Resultado esperado:
+- A ordem pode ser finalizada mesmo sem foto.
+- Foto vira apenas recomendação com alerta/toast.
+- O engineer não fica mais travado no FINISH por causa da imagem.
