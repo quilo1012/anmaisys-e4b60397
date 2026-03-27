@@ -536,32 +536,6 @@ export default function EngineerDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Photo Prompt Dialog */}
-      <Dialog open={!!photoPromptWO} onOpenChange={(open) => { if (!open) { handlePhotoPromptSkip(); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Camera className="h-5 w-5" /> {photoPromptType === "before" ? "Before" : "After"} Photo
-            </DialogTitle>
-            <DialogDescription>
-              {photoPromptType === "before"
-                ? "Take a photo of the machine before starting the repair."
-                : "Take a photo of the machine after completing the repair."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-4">
-            <input type="file" accept="image/*" capture="environment" className="hidden" ref={photoPromptFileRef} onChange={handlePhotoPromptUpload} />
-            <Button size="lg" className="h-16 w-full text-lg gap-2" onClick={() => photoPromptFileRef.current?.click()} disabled={uploadPhoto.isPending}>
-              {uploadPhoto.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
-              Take / Upload Photo
-            </Button>
-            <Button variant="ghost" className="text-muted-foreground" onClick={handlePhotoPromptSkip}>
-              Skip for now
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   );
 }
