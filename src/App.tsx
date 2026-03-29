@@ -22,6 +22,7 @@ const ProblemsPage = lazy(() => import("./pages/dashboard/ProblemsPage"));
 const WorkOrderDetail = lazy(() => import("./pages/dashboard/WorkOrderDetail"));
 const StockPage = lazy(() => import("./pages/dashboard/StockPage"));
 const AuditLogsPage = lazy(() => import("./pages/dashboard/AuditLogsPage"));
+const ExecutiveDashboard = lazy(() => import("./pages/dashboard/ExecutiveDashboard"));
 const ManageUsers = lazy(() => import("./pages/users/ManageUsers"));
 
 const queryClient = new QueryClient({
@@ -68,6 +69,7 @@ const App = () => (
               <Route path="/dashboard/control-center" element={<ProtectedRoute allowedRoles={["admin"]}><ControlCenterPage /></ProtectedRoute>} />
               <Route path="/dashboard/machines/:name/history" element={<ProtectedRoute allowedRoles={["admin"]}><MachineHistoryPage /></ProtectedRoute>} />
               <Route path="/dashboard/audit-logs" element={<ProtectedRoute allowedRoles={["admin"]}><AuditLogsPage /></ProtectedRoute>} />
+              <Route path="/dashboard/executive" element={<ProtectedRoute allowedRoles={["admin"]}><ExecutiveDashboard /></ProtectedRoute>} />
               <Route path="/dashboard/wo/:id" element={<ProtectedRoute allowedRoles={["operator", "engineer", "admin"]}><WorkOrderDetail /></ProtectedRoute>} />
               <Route path="/dashboard/stock" element={<ProtectedRoute allowedRoles={["engineer", "admin"]}><StockPage /></ProtectedRoute>} />
               <Route path="/users/manage" element={<ProtectedRoute allowedRoles={["admin"]}><ManageUsers /></ProtectedRoute>} />
