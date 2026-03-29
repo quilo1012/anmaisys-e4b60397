@@ -139,20 +139,15 @@ export default function WorkOrderDetail() {
   return (
     <DashboardLayout>
       <div className="space-y-6 max-w-3xl print-content" id="wo-print-content">
-        {/* Print-only header */}
-        <div className="hidden print:block mb-6 border-b-2 border-foreground pb-4">
+        {/* Print-only compact header */}
+        <div className="hidden print:block mb-2 border-b border-foreground pb-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img src="/appliedlogo.jpeg" alt="AN" className="h-12 w-12 rounded object-contain" />
-              <div>
-                <h1 className="text-xl font-bold">AN Maintenance</h1>
-                <p className="text-sm text-muted-foreground">Work Order Report</p>
-              </div>
+            <div className="flex items-center gap-2">
+              <img src="/appliedlogo.jpeg" alt="AN" className="h-8 w-8 rounded object-contain" />
+              <span className="text-sm font-bold">AN Maintenance</span>
             </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold font-mono">{woLabel}</p>
-              <p className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM/yyyy HH:mm:ss")}</p>
-            </div>
+            <span className="text-lg font-bold font-mono">{woLabel}</span>
+            <span className="text-xs">{format(new Date(wo.created_at), "dd/MM/yyyy HH:mm")}</span>
           </div>
         </div>
 
@@ -167,53 +162,65 @@ export default function WorkOrderDetail() {
 
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">{wo.requester_name} — {wo.machine}</h2>
-            <p className="text-muted-foreground text-sm font-mono">{woLabel}</p>
+            <h2 className="text-2xl print:text-base font-bold">{wo.requester_name} — {wo.machine}</h2>
+            <p className="text-muted-foreground text-sm font-mono print:hidden">{woLabel}</p>
           </div>
           <div className="flex gap-2">
-            <Badge variant="outline" className={`text-sm px-3 py-1 ${pri.className}`}>{pri.label}</Badge>
-            <Badge variant="outline" className={`text-sm px-3 py-1 ${cfg.className}`}>{cfg.label}</Badge>
+            <Badge variant="outline" className={`text-sm px-3 py-1 print:text-xs print:px-1 print:py-0 ${pri.className}`}>{pri.label}</Badge>
+            <Badge variant="outline" className={`text-sm px-3 py-1 print:text-xs print:px-1 print:py-0 ${cfg.className}`}>{cfg.label}</Badge>
           </div>
         </div>
 
-        <Card>
-          <CardHeader><CardTitle className="text-base">Problem Description</CardTitle></CardHeader>
-          <CardContent><p>{wo.description}</p></CardContent>
+        {/* Problem + Notes combined for print density */}
+        <Card className="print:border-0 print:shadow-none">
+          <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm">Problem Description</CardTitle></CardHeader>
+          <CardContent className="print:pb-2">
+            <p className="print:text-xs">{wo.description}</p>
+            {wo.notes && (
+              <div className="mt-2 pt-2 border-t print:mt-1 print:pt-1">
+                <p className="text-sm font-medium print:text-xs">Observations:</p>
+                <p className="print:text-xs">{wo.notes}</p>
+              </div>
+            )}
+          </CardContent>
         </Card>
 
+        {/* Notes card - screen only (combined in print above) */}
         {wo.notes && (
-          <Card>
+          <Card className="print:hidden">
             <CardHeader><CardTitle className="text-base">Observations</CardTitle></CardHeader>
             <CardContent><p>{wo.notes}</p></CardContent>
           </Card>
         )}
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Requested By</p><p className="font-medium">{wo.requester_name}</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Operator</p><p className="font-medium">{wo.operator?.name || "—"}</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Engineer</p><p className="font-medium">{wo.engineer?.name || "—"}</p></CardContent></Card>
-          {wo.closer?.name && <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Closed By</p><p className="font-medium">{wo.closer.name}</p></CardContent></Card>}
-          {wo.signed_by_name && <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Signed By</p><p className="font-medium flex items-center gap-2"><PenTool className="h-4 w-4" />{wo.signed_by_name}</p></CardContent></Card>}
+        {/* Personnel - compact 2-col grid for print */}
+        <div className="grid gap-4 md:grid-cols-3 print:grid-cols-4 print:gap-1">
+          <Card className="print:border-0 print:shadow-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt]">Requested By</p><p className="font-medium print:text-xs">{wo.requester_name}</p></CardContent></Card>
+          <Card className="print:border-0 print:shadow-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt]">Operator</p><p className="font-medium print:text-xs">{wo.operator?.name || "—"}</p></CardContent></Card>
+          <Card className="print:border-0 print:shadow-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt]">Engineer</p><p className="font-medium print:text-xs">{wo.engineer?.name || "—"}</p></CardContent></Card>
+          {wo.closer?.name && <Card className="print:border-0 print:shadow-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt]">Closed By</p><p className="font-medium print:text-xs">{wo.closer.name}</p></CardContent></Card>}
+          {wo.signed_by_name && <Card className="print:border-0 print:shadow-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt]">Signed By</p><p className="font-medium print:text-xs flex items-center gap-1"><PenTool className="h-3 w-3" />{wo.signed_by_name}</p></CardContent></Card>}
         </div>
 
-        {/* Calculated Metrics */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Response Time</p><p className="text-xl font-bold">{formatDuration(responseTime)}</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Travel Time</p><p className="text-xl font-bold">{formatDuration(travelTime)}</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Repair Time</p><p className="text-xl font-bold">{formatDuration(repairTime)}</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Total Time</p><p className="text-xl font-bold">{formatDuration(totalTime)}</p></CardContent></Card>
+        {/* Calculated Metrics - compact inline for print */}
+        <div className="grid gap-4 md:grid-cols-4 print:grid-cols-4 print:gap-1">
+          <Card className="print:border-0 print:shadow-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt]">Response Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(responseTime)}</p></CardContent></Card>
+          <Card className="print:border-0 print:shadow-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt]">Travel Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(travelTime)}</p></CardContent></Card>
+          <Card className="print:border-0 print:shadow-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt]">Repair Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(repairTime)}</p></CardContent></Card>
+          <Card className="print:border-0 print:shadow-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt]">Total Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(totalTime)}</p></CardContent></Card>
         </div>
 
-        <Card>
-          <CardHeader><CardTitle className="text-base">Timeline</CardTitle></CardHeader>
+        <Card className="print:border-0 print:shadow-none">
+          <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm">Timeline</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-4 print:space-y-1 print:flex print:flex-wrap print:gap-x-4 print:gap-y-1">
               <TimelineItem icon={Clock} label="Created" time={wo.created_at} className="bg-blue-100 text-blue-700" />
               <TimelineItem icon={Phone} label="Received" time={wo.received_at} className="bg-indigo-100 text-indigo-700" />
               <TimelineItem icon={MapPin} label="Arrived" time={wo.arrived_at} className="bg-purple-100 text-purple-700" />
               <TimelineItem icon={Play} label="Started" time={wo.started_at} className="bg-amber-100 text-amber-700" />
               <TimelineItem icon={Wrench} label="Finished" time={wo.finished_at} className="bg-teal-100 text-teal-700" />
-              {["closed", "completed"].includes(wo.status) && <TimelineItem icon={CheckCircle} label="Closed" time={wo.closed_at || wo.completed_at} className="bg-green-100 text-green-700" />}
+              {wo.closed_at && <TimelineItem icon={CheckCircle} label="Closed" time={wo.closed_at} className="bg-green-100 text-green-700" />}
+              {wo.completed_at && !wo.closed_at && wo.status !== "force_closed" && <TimelineItem icon={CheckCircle} label="Completed" time={wo.completed_at} className="bg-green-100 text-green-700" />}
               {wo.status === "force_closed" && <TimelineItem icon={XCircle} label="Force Closed" time={wo.completed_at} className="bg-gray-100 text-gray-700" />}
             </div>
           </CardContent>
@@ -253,9 +260,9 @@ export default function WorkOrderDetail() {
           </CardContent>
         </Card>
 
-        {/* Photos */}
+        {/* Photos - hidden in print */}
         {woPhotos && woPhotos.length > 0 && (
-          <Card>
+          <Card className="print:hidden">
             <CardHeader><CardTitle className="text-base flex items-center gap-2"><Camera className="h-4 w-4" /> Photos</CardTitle></CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2">
@@ -286,9 +293,9 @@ export default function WorkOrderDetail() {
           </Card>
         )}
 
-        {/* Cost Breakdown */}
+        {/* Cost Breakdown - hidden in print, admin only */}
         {costBreakdown && costBreakdown.totalCost > 0 && (
-          <Card>
+          <Card className="print:hidden">
             <CardHeader><CardTitle className="text-base flex items-center gap-2"><DollarSign className="h-4 w-4" /> Cost Breakdown</CardTitle></CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-4">
@@ -302,24 +309,26 @@ export default function WorkOrderDetail() {
         )}
 
         {/* Requester Signature (print only) */}
-        <div className="hidden print:block mt-12 pt-8 border-t-2 border-foreground">
-          <div className="grid grid-cols-2 gap-16">
+        <div className="hidden print:block mt-4 pt-3 border-t border-foreground">
+          <div className="grid grid-cols-2 gap-8">
             <div>
-              <p className="text-sm font-medium mb-12">Requested By:</p>
+              <p className="text-xs font-medium mb-6">Requested By:</p>
               <div className="border-b border-foreground w-full" />
-              <p className="text-sm mt-1">{wo.requester_name}</p>
+              <p className="text-xs mt-1">{wo.requester_name}</p>
             </div>
             <div>
-              <p className="text-sm font-medium mb-12">Approved By:</p>
+              <p className="text-xs font-medium mb-6">Approved By:</p>
               <div className="border-b border-foreground w-full" />
-              <p className="text-sm mt-1">Signature / Name</p>
+              <p className="text-xs mt-1">Signature / Name</p>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-4 text-center">Date: {format(new Date(), "dd/MM/yyyy")}</p>
+          <p className="text-[7pt] text-muted-foreground mt-2 text-center">Date: {format(new Date(), "dd/MM/yyyy")}</p>
         </div>
 
-        {/* Internal Chat */}
-        <WOChat workOrderId={wo.id} />
+        {/* Internal Chat - hidden in print */}
+        <div className="print:hidden">
+          <WOChat workOrderId={wo.id} />
+        </div>
       </div>
     </DashboardLayout>
   );

@@ -105,12 +105,11 @@
 }
 
 @page {
-  margin: 15mm;
+  margin: 8mm;
   size: A4;
 }
 
 @media print {
-  /* Hide EVERYTHING that is not content */
   nav, aside, header, footer, button,
   .sidebar, [data-sidebar], [data-sidebar="sidebar"],
   [data-sidebar="trigger"], .peer[data-sidebar],
@@ -136,7 +135,7 @@
   html, body {
     background: white !important;
     color: black !important;
-    font-size: 11pt;
+    font-size: 8pt;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     margin: 0 !important;
@@ -168,15 +167,13 @@
     top: 0 !important;
   }
 
-  .print\\:block {
-    display: block !important;
+  .print-content .space-y-6 > * {
+    margin-top: 4px !important;
+    margin-bottom: 0 !important;
   }
 
-  .print-header {
+  .print\\:block {
     display: block !important;
-    margin-bottom: 16px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid #333;
   }
 
   main {
@@ -185,7 +182,6 @@
     width: 100% !important;
   }
 
-  /* Reset any flex/grid parents */
   [class*="flex"], [class*="grid"] {
     display: block !important;
   }
@@ -199,13 +195,25 @@
     display: grid !important;
   }
 
+  .rounded-lg {
+    border-radius: 0 !important;
+  }
+
+  .p-6, .pt-6 {
+    padding: 4px 6px !important;
+  }
+
+  .space-y-6 > * + * {
+    margin-top: 4px !important;
+  }
+
   table {
     width: 100% !important;
-    font-size: 10pt;
+    font-size: 8pt;
   }
 
   th, td {
-    padding: 4px 8px !important;
+    padding: 2px 4px !important;
     border-bottom: 1px solid #ddd !important;
   }
 
@@ -213,7 +221,6 @@
     border-color: #333 !important;
   }
 
-  /* Page breaks */
   .print-content > .space-y-6 > * {
     page-break-inside: avoid;
   }
