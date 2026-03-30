@@ -10,7 +10,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Trash2, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Trash2, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines } from "@/hooks/useMachines";
@@ -60,6 +62,23 @@ export default function WorkOrdersPage() {
   const [currentPage, setCurrentPage] = useState(1);
 const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const [lineFilter, setLineFilter] = useState<string>("all");
+
+  const ALL_COLUMNS = [
+    { key: "wo", label: "WO#" },
+    { key: "line", label: "Line" },
+    { key: "machine", label: "Machine" },
+    { key: "problem", label: "Problem" },
+    { key: "status", label: "Status" },
+    { key: "requester", label: "Requester" },
+    { key: "engineer", label: "Engineer" },
+    { key: "created", label: "Created" },
+    { key: "parts", label: "Parts" },
+    { key: "actions", label: "Actions" },
+  ] as const;
+  type ColKey = typeof ALL_COLUMNS[number]["key"];
+  const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(() => new Set(ALL_COLUMNS.map((c) => c.key)));
+  const toggleCol = (key: ColKey) => setVisibleCols((prev) => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
+  const isCol = (key: ColKey) => visibleCols.has(key);
 
   const filterStatuses = statusFilter === "all" ? undefined : [statusFilter as WOStatus];
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
