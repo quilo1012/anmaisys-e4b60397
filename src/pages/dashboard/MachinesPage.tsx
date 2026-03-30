@@ -82,7 +82,7 @@ export default function MachinesPage() {
   const handleEdit = async () => {
     if (!editMachine || !validate(true)) return;
     try {
-      await updateMachine.mutateAsync({ id: editMachine.id, name: name.trim(), line: line.trim(), sector: sector.trim(), code: code.trim(), status, machine_type: machineType.trim(), current_location: currentLocation.trim() });
+      await updateMachine.mutateAsync({ id: editMachine.id, name: name.trim(), line: line === "__none__" ? "" : line.trim(), sector: sector.trim(), code: code.trim(), status, machine_type: machineType.trim(), current_location: currentLocation.trim() });
       toast({ title: "Machine updated" });
       logAuditEvent("update", "machine", editMachine.id, { name: name.trim() });
       setEditMachine(null); resetForm();
