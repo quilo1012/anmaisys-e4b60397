@@ -309,21 +309,24 @@ export default function WorkOrderDetail() {
         )}
 
         {/* Requester Signature (print only) */}
-        <div className="hidden print:block mt-4 pt-3 border-t border-foreground">
-          <div className="grid grid-cols-2 gap-8">
+        <div className="hidden print:block mt-8 pt-4 border-t-2 border-foreground">
+          <div className="grid grid-cols-2 gap-12">
             <div>
-              <p className="text-xs font-medium mb-6">Requested By:</p>
-              <div className="border-b border-foreground w-full" />
-              <p className="text-xs mt-1">{wo.requester_name}</p>
+              <p className="text-xs font-semibold mb-10">Requested By:</p>
+              <div className="border-b-2 border-foreground w-full" />
+              <p className="text-xs mt-1.5">{wo.requester_name}</p>
             </div>
             <div>
-              <p className="text-xs font-medium mb-6">Approved By:</p>
-              <div className="border-b border-foreground w-full" />
-              <p className="text-xs mt-1">Signature / Name</p>
+              <p className="text-xs font-semibold mb-10">Approved By:</p>
+              <div className="border-b-2 border-foreground w-full" />
+              <p className="text-xs mt-1.5">Signature / Name</p>
             </div>
           </div>
-          <p className="text-[7pt] text-muted-foreground mt-2 text-center">Date: {format(new Date(), "dd/MM/yyyy")}</p>
+          <p className="text-[7pt] text-muted-foreground mt-3 text-center">Date: {format(new Date(), "dd/MM/yyyy")}</p>
         </div>
+
+        {/* Print footer */}
+        <div className="hidden print-footer">AN Maintenance — Confidential</div>
 
         {/* Internal Chat - hidden in print */}
         <div className="print:hidden">

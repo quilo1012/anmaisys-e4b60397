@@ -418,10 +418,10 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                             <div className="flex gap-1">
                               <Button size="icon" variant="ghost" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
-                              <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(wo.id)}><Trash2 className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(wo.id)} disabled={deleteWO.isPending}><Trash2 className="h-4 w-4" /></Button>
                               {canClose && (
                                 <Button size="sm" variant="default" onClick={() => closeWO.mutate(wo.id)} disabled={closeWO.isPending}>
-                                  <CheckCircle className="h-3 w-3 mr-1" /> Close
+                                  {closeWO.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle className="h-3 w-3 mr-1" />} Close
                                 </Button>
                               )}
                               {canForceClose && role === "admin" && (
