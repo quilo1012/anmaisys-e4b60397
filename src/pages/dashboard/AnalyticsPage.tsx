@@ -305,16 +305,30 @@ export default function AnalyticsPage() {
               )}
             </CardContent>
           </Card>
-        </div>
-
-        {/* Failure Heatmap */}
-        <Card>
-          <CardHeader><CardTitle className="text-base flex items-center gap-2">🔥 Failure Heatmap</CardTitle></CardHeader>
-          <CardContent>
-            {!heatmapData.lines.length ? (
-              <p className="text-muted-foreground text-sm text-center py-8">No machine data available.</p>
-            ) : (
-              <div className="overflow-x-auto">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Most Used Machines</CardTitle></CardHeader>
+            <CardContent>
+              {!mostUsedMachines.length ? (
+                <p className="text-muted-foreground text-sm text-center py-8">No data yet.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={mostUsedMachines} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="machine" width={120} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--primary))" name="Total WOs" radius={[0, 4, 4, 0]} /></BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-base">Maintenance Frequency (avg WOs/month)</CardTitle></CardHeader>
+            <CardContent>
+              {!maintenanceFrequency.length ? (
+                <p className="text-muted-foreground text-sm text-center py-8">No data yet.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={maintenanceFrequency} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" /><YAxis type="category" dataKey="machine" width={120} /><Tooltip /><Bar dataKey="avgPerMonth" fill="hsl(var(--accent))" name="Avg/Month" radius={[0, 4, 4, 0]} /></BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
                 <div className="space-y-3">
                   {heatmapData.lines.map((line) => (
                     <div key={line}>
