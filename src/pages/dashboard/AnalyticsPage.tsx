@@ -148,6 +148,31 @@ export default function AnalyticsPage() {
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([machine, minutes]) => ({ machine, minutes }));
   }, [allWOs]);
 
+  // Most used machines (highest WO count)
+  const mostUsedMachines = useMemo(() => {
+    if (!allWOs) return [];
+    const map: Record<string, number> = {};
+    allWOs.forEach((w) => { map[w.machine] = (map[w.machine] || 0) + 1; });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([machine, count]) => ({ machine, count }));
+  }, [allWOs]);
+
+  // Maintenance frequency: avg WOs per machine per month
+  const maintenanceFrequency = useMemo(() => {
+    if (!allWOs || !allWOs.length) return [];
+    const map: Record<string, { count: number; firstWO: Date; lastWO: Date }> = {};
+    allWOs.forEach((w) => {
+      const d = new Date(w.created_at);
+      if (!map[w.machine]) map[w.machine] = { count: 0, firstWO: d, lastWO: d };
+      map[w.machine].count++;
+      if (d < map[w.machine].firstWO) map[w.machine].firstWO = d;
+      if (d > map[w.machine].lastWO) map[w.machine].lastWO = d;
+    });
+    return Object.entries(map).map(([machine, v]) => {
+      const months = Math.max(1, differenceInMinutes(v.lastWO, v.firstWO) / (60 * 24 * 30));
+      return { machine, avgPerMonth: Math.round((v.count / months) * 10) / 10 };
+    }).sort((a, b) => b.avgPerMonth - a.avgPerMonth).slice(0, 8);
+  }, [allWOs]);
+
   const engineerPerformance = useMemo(() => {
     if (!allWOs) return [];
     const engineers: Record<string, { name: string; completed: number; totalResp: number; totalMTTR: number }> = {};
@@ -276,6 +301,30 @@ export default function AnalyticsPage() {
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={downtimeByMachine} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="machine" width={120} /><Tooltip formatter={(v: number) => `${v} min`} /><Bar dataKey="minutes" fill="#ef4444" name="Downtime (min)" radius={[0, 4, 4, 0]} /></BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-base">Most Used Machines</CardTitle></CardHeader>
+            <CardContent>
+              {!mostUsedMachines.length ? (
+                <p className="text-muted-foreground text-sm text-center py-8">No data yet.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={mostUsedMachines} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="machine" width={120} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--primary))" name="Total WOs" radius={[0, 4, 4, 0]} /></BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-base">Maintenance Frequency (avg WOs/month)</CardTitle></CardHeader>
+            <CardContent>
+              {!maintenanceFrequency.length ? (
+                <p className="text-muted-foreground text-sm text-center py-8">No data yet.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={maintenanceFrequency} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" /><YAxis type="category" dataKey="machine" width={120} /><Tooltip /><Bar dataKey="avgPerMonth" fill="hsl(var(--accent))" name="Avg/Month" radius={[0, 4, 4, 0]} /></BarChart>
                 </ResponsiveContainer>
               )}
             </CardContent>
