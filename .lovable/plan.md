@@ -1,85 +1,64 @@
 
 
-# Machine Tracking (Asset Tracking) Enhancement
+# Refactor Machine Form — Flexible Combobox Inputs
 
-## Current State
+## Summary
 
-The `machines` table already has: `name`, `line`, `sector`, `code`, `status`, `health_score`. The MachinesPage supports CRUD, and MachineHistoryPage shows WO history, reliability, and failure charts. The ControlCenterPage groups machines by line.
+Replace rigid dropdowns for Machine Type and Location with combobox components that support both selection from existing values and free-text entry. Add validation, logical field grouping, and improved status options.
 
-**What's missing:** `machine_type`, `current_location`, `last_maintenance_date` columns; location transfer logging; status auto-update from WOs; enhanced detail page; QR code support.
+## Approach
 
-## Plan
+### 1. Create Reusable Combobox Component
 
-### Phase 1: Database Migration
+Create `src/components/ComboboxInput.tsx` — a Popover + Command-based input that:
+- Shows a text input the user can type into freely
+- Displays filtered suggestions from a list as the user types
+- Allows selecting a suggestion OR keeping custom typed value
+- Uses existing Shadcn `Popover`, `Command` components
 
-Add 3 new columns to `machines` table:
-- `machine_type` (text, default `''`) — Sealer, Printer, Labeler, etc.
-- `current_location` (text, default `''`) — Line A, Storage, Maintenance Area, etc.
-- `last_maintenance_date` (timestamptz, nullable)
+### 2. Update `useMachines.ts`
 
-Create new `machine_location_log` table to track location changes:
-- `id` (uuid, PK)
-- `machine_id` (uuid, NOT NULL)
-- `from_location` (text)
-- `to_location` (text, NOT NULL)
-- `moved_by` (uuid) — user who moved it
-- `created_at` (timestamptz, default now())
-- RLS: admins full access, engineers SELECT
+- Change `MACHINE_TYPES` and `LOCATIONS` to be default suggestions (not restrictions)
+- Add a hook `useDistinctMachineValues()` that queries existing machines to extract unique `machine_type` and `current_location` values — these become dynamic suggestions merged with defaults
+- Update status options: `active`, `in_use`, `maintenance`, `idle`
 
-Create a trigger on `work_orders` to auto-update machine status:
-- When WO status becomes `open`/`in_progress` → set machine status to `maintenance`
-- When WO status becomes `closed`/`finished` → set machine status to `active` (if no other open WOs for that machine)
-- Update `last_maintenance_date` on WO close
+### 3. Refactor `MachinesPage.tsx` Form
 
-### Phase 2: Update MachinesPage
+Replace the form section with logically grouped fields:
 
-Add new form fields: Machine Type (select), Current Location (select), and display them in the table.
+**General Info group:**
+- Name (required text input)
+- Code (text input, placeholder "MCH-001")
 
-Add a "Move" action button per machine row that opens a dialog to change location — logs the move in `machine_location_log` and updates `current_location`.
+**Classification group:**
+- Machine Type → ComboboxInput (required, suggestions from defaults + existing DB values)
+- Status → Select dropdown (Active, In Use, Maintenance, Idle)
 
-Show `last_maintenance_date` in the table.
+**Location group:**
+- Current Location → ComboboxInput (required, suggestions from defaults + existing DB values)
+- Line → Select dropdown (Line 1, Line 2, Line 3)
+- Sector → Text input (free text, placeholder "e.g. Packaging")
 
-### Phase 3: Enhanced Machine Detail Page (MachineHistoryPage)
+**Validation on submit:**
+- Name required
+- Machine Type required
+- Location required
+- Code uniqueness check (client-side against loaded machines)
 
-Add tabs or sections:
-- **Overview**: Current status, location, type, line, health score, last maintenance
-- **Location History**: Table from `machine_location_log` showing all moves
-- **Work Orders**: Existing WO history (already built)
-- **Failure Chart**: Already built
+### 4. Move Dialog Location Field
 
-### Phase 4: WO Integration
-
-Update the WO creation form (OperatorDashboard, WorkOrdersPage) to show machine's current location when a machine is selected.
-
-### Phase 5: Analytics Enhancements
-
-Add to AnalyticsPage:
-- **Most Used Machines**: machines with highest WO count
-- **Maintenance Frequency**: avg WOs per machine per month
-- These partially exist (downtime by machine chart) — enhance with new metrics
-
-### Phase 6: QR Code (Optional, High Value)
-
-Add QR code generation per machine on MachinesPage (using a lightweight QR library). QR encodes a URL like `/dashboard/machines/:name/history` or a direct "Create WO" link.
-
----
+Update the Move dialog's location selector to also use the ComboboxInput instead of a fixed dropdown.
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| **DB Migration** | Add columns to `machines`, create `machine_location_log`, create auto-status trigger |
-| `src/hooks/useMachines.ts` | Update Machine interface, add location log hooks |
-| `src/pages/dashboard/MachinesPage.tsx` | New form fields (type, location), Move action, last maintenance display |
-| `src/pages/dashboard/MachineHistoryPage.tsx` | Location history tab, enhanced overview section |
-| `src/pages/dashboard/OperatorDashboard.tsx` | Show machine location on WO creation |
-| `src/pages/dashboard/AnalyticsPage.tsx` | Most used machines, maintenance frequency metrics |
+| `src/components/ComboboxInput.tsx` | NEW — reusable combobox with free-text + suggestions |
+| `src/hooks/useMachines.ts` | Add `useDistinctMachineValues` hook, update status options |
+| `src/pages/dashboard/MachinesPage.tsx` | Replace dropdowns with combobox, group fields, add validation |
 
 ## Sequence
-1. Database migration (columns + location log table + trigger)
-2. Update hooks and Machine interface
-3. MachinesPage enhancements (type, location, move action)
-4. MachineHistoryPage with location history
-5. WO integration and analytics
-6. QR code generation
+1. Create ComboboxInput component
+2. Update hooks with dynamic suggestions
+3. Refactor MachinesPage form layout and validation
 
