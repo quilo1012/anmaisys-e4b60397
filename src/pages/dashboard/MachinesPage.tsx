@@ -51,7 +51,7 @@ export default function MachinesPage() {
 
   const openEdit = (m: Machine) => {
     setEditMachine(m);
-    setName(m.name); setLine(m.line || ""); setSector(m.sector || ""); setCode(m.code || "");
+    setName(m.name); setLine(m.line || "__none__"); setSector(m.sector || ""); setCode(m.code || "");
     setStatus(m.status || "active"); setMachineType(m.machine_type || ""); setCurrentLocation(m.current_location || "");
     setErrors({});
   };
