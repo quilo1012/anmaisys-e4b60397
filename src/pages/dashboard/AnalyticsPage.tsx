@@ -328,6 +328,7 @@ export default function AnalyticsPage() {
                 </ResponsiveContainer>
               )}
             </CardContent>
+          </Card>
         </div>
 
         {/* Failure Heatmap */}
