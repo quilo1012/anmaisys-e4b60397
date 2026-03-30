@@ -4,21 +4,47 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useMachines } from "@/hooks/useMachines";
+import { useMachines, useMoveMachine } from "@/hooks/useMachines";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
-import { Monitor, Loader2, Maximize, Minimize, Trophy, Clock, AlertTriangle, Heart } from "lucide-react";
+import { Monitor, Loader2, Maximize, Minimize, Trophy, Clock, AlertTriangle, Heart, GripVertical } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { differenceInMinutes } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+
+const ZONE_ORDER = ["Line 1", "Line 2", "Line 3", "Line A", "Line B", "Line C", "Storage", "Maintenance Area"];
+
+function getZones(machines: any[]) {
+  const zones = new Set<string>();
+  machines.forEach((m) => {
+    const loc = m.current_location || m.line || "Unassigned";
+    zones.add(loc);
+  });
+  // Sort: known zones first, then alphabetical unknowns
+  return Array.from(zones).sort((a, b) => {
+    const ai = ZONE_ORDER.indexOf(a);
+    const bi = ZONE_ORDER.indexOf(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a.localeCompare(b);
+  });
+}
 
 export default function ControlCenterPage() {
   const { data: machines, isLoading: machinesLoading } = useMachines();
   const { data: workOrders, isLoading: wosLoading } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });
   const { data: engineerScores } = useEngineerScores();
   const { alerts: predictiveAlerts, predictiveMachines } = usePredictiveAlerts();
+  const moveMachine = useMoveMachine();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [draggedMachine, setDraggedMachine] = useState<string | null>(null);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -36,15 +62,20 @@ export default function ControlCenterPage() {
 
   const isLoading = machinesLoading || wosLoading;
 
-  const grouped = useMemo(() => {
+  const zones = useMemo(() => {
+    if (!machines) return [];
+    return getZones(machines);
+  }, [machines]);
+
+  const machinesByZone = useMemo(() => {
     if (!machines) return {};
-    const groups: Record<string, typeof machines> = {};
+    const map: Record<string, typeof machines> = {};
     machines.forEach((m) => {
-      const line = m.line || "Unassigned";
-      if (!groups[line]) groups[line] = [];
-      groups[line].push(m);
+      const zone = m.current_location || m.line || "Unassigned";
+      if (!map[zone]) map[zone] = [];
+      map[zone].push(m);
     });
-    return groups;
+    return map;
   }, [machines]);
 
   const machineStatus = useMemo(() => {
@@ -67,24 +98,25 @@ export default function ControlCenterPage() {
     if (!workOrders || !machines) return {} as Record<string, number>;
     const map: Record<string, number> = {};
     const now = new Date();
-    const machineLineMap: Record<string, string> = {};
-    machines.forEach((m) => { machineLineMap[m.name] = m.line || "Unassigned"; });
-    workOrders.forEach((wo) => {
-      const line = machineLineMap[wo.machine] || "Unassigned";
-      const mins = differenceInMinutes(now, new Date(wo.created_at));
-      map[line] = (map[line] || 0) + mins;
+    machines.forEach((m) => {
+      const zone = m.current_location || m.line || "Unassigned";
+      const wos = workOrders.filter((w) => w.machine === m.name);
+      wos.forEach((wo) => {
+        const mins = differenceInMinutes(now, new Date(wo.created_at));
+        map[zone] = (map[zone] || 0) + mins;
+      });
     });
     return map;
   }, [workOrders, machines]);
 
-  const statusColors = {
+  const statusColors: Record<string, string> = {
     green: "bg-green-500/20 border-green-500 text-green-700",
     yellow: "bg-yellow-500/20 border-yellow-500 text-yellow-700",
     red: "bg-red-500/20 border-red-500 text-red-700 animate-pulse",
     purple: "bg-purple-500/20 border-purple-500 text-purple-700",
   };
 
-  const statusLabels = { green: "🟢", yellow: "🟡", red: "🔴", purple: "🟣" };
+  const statusLabels: Record<string, string> = { green: "🟢", yellow: "🟡", red: "🔴", purple: "🟣" };
 
   const top5 = engineerScores?.slice(0, 5) || [];
 
@@ -100,7 +132,46 @@ export default function ControlCenterPage() {
     return "text-red-600 bg-red-500/20";
   };
 
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, machineId: string) => {
+    setDraggedMachine(machineId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", machineId);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetZone: string) => {
+    e.preventDefault();
+    const machineId = e.dataTransfer.getData("text/plain");
+    setDraggedMachine(null);
+    if (!machineId || !machines) return;
+    const machine = machines.find((m) => m.id === machineId);
+    if (!machine) return;
+    const currentZone = machine.current_location || machine.line || "Unassigned";
+    if (currentZone === targetZone) return;
+
+    try {
+      await moveMachine.mutateAsync({
+        machineId: machine.id,
+        fromLocation: currentZone,
+        toLocation: targetZone,
+      });
+      toast({ title: "Machine moved", description: `${machine.name} → ${targetZone}` });
+    } catch (err: any) {
+      toast({ title: "Move failed", description: err.message, variant: "destructive" });
+    }
+  };
+
   const tvMode = isFullscreen;
+
+  const zoneColors: Record<string, string> = {
+    "Storage": "border-blue-300 bg-blue-500/5",
+    "Maintenance Area": "border-orange-300 bg-orange-500/5",
+  };
 
   return (
     <DashboardLayout>
@@ -110,7 +181,7 @@ export default function ControlCenterPage() {
             <h2 className={`font-bold flex items-center gap-2 ${tvMode ? "text-lg" : "text-2xl"}`}>
               <Monitor className={tvMode ? "h-4 w-4" : "h-6 w-6"} /> Control Center
             </h2>
-            {!tvMode && <p className="text-muted-foreground">Real-time factory machine status</p>}
+            {!tvMode && <p className="text-muted-foreground">Real-time factory map — drag machines between zones</p>}
           </div>
           <Button variant="outline" size="sm" onClick={toggleFullscreen} className="gap-2">
             {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
@@ -133,63 +204,109 @@ export default function ControlCenterPage() {
 
         {/* Legend */}
         <div className={`flex gap-2 flex-wrap ${tvMode ? "text-xs" : ""}`}>
-          <Badge variant="outline" className={`bg-green-500/20 border-green-500 text-green-700 ${tvMode ? "text-[10px] px-1.5 py-0" : ""}`}>🟢 Running</Badge>
+          <Badge variant="outline" className={`bg-green-500/20 border-green-500 text-green-700 ${tvMode ? "text-[10px] px-1.5 py-0" : ""}`}>🟢 Active</Badge>
           <Badge variant="outline" className={`bg-yellow-500/20 border-yellow-500 text-yellow-700 ${tvMode ? "text-[10px] px-1.5 py-0" : ""}`}>🟡 WO Active</Badge>
           <Badge variant="outline" className={`bg-red-500/20 border-red-500 text-red-700 ${tvMode ? "text-[10px] px-1.5 py-0" : ""}`}>🔴 Unattended</Badge>
           <Badge variant="outline" className={`bg-purple-500/20 border-purple-500 text-purple-700 ${tvMode ? "text-[10px] px-1.5 py-0" : ""}`}>🟣 Predictive</Badge>
+          <Badge variant="outline" className="text-muted-foreground">
+            <GripVertical className="h-3 w-3 mr-1" /> Drag to relocate
+          </Badge>
         </div>
 
         <div className={`grid gap-4 ${tvMode ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
-          {/* Main machine grid */}
+          {/* Main factory map */}
           <div className={`space-y-3 ${tvMode ? "lg:col-span-4" : "lg:col-span-3"}`}>
             {isLoading ? (
               <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
             ) : !machines?.length ? (
               <p className="text-muted-foreground text-center py-16">No machines registered yet.</p>
             ) : (
-              Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([line, lineMachines]) => (
-                <Card key={line} className={tvMode ? "shadow-sm" : ""}>
-                  <CardHeader className={tvMode ? "pb-1 p-2" : "pb-3"}>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className={tvMode ? "text-xs font-bold" : "text-base"}>{line}</CardTitle>
-                      {lineDowntime[line] > 0 && (
-                        <Badge variant="destructive" className={`gap-1 ${tvMode ? "text-[9px] px-1 py-0" : ""}`}>
-                          <Clock className={tvMode ? "h-2 w-2" : "h-3 w-3"} /> {formatDowntime(lineDowntime[line])}
-                        </Badge>
+              zones.map((zone) => {
+                const zoneMachines = machinesByZone[zone] || [];
+                const extraClass = zoneColors[zone] || "";
+                return (
+                  <Card
+                    key={zone}
+                    className={`transition-all ${extraClass} ${draggedMachine ? "ring-2 ring-primary/30 ring-dashed" : ""} ${tvMode ? "shadow-sm" : ""}`}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, zone)}
+                  >
+                    <CardHeader className={tvMode ? "pb-1 p-2" : "pb-3"}>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className={tvMode ? "text-xs font-bold" : "text-base"}>{zone}</CardTitle>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className={tvMode ? "text-[9px] px-1 py-0" : "text-xs"}>
+                            {zoneMachines.length} machine{zoneMachines.length !== 1 ? "s" : ""}
+                          </Badge>
+                          {lineDowntime[zone] > 0 && (
+                            <Badge variant="destructive" className={`gap-1 ${tvMode ? "text-[9px] px-1 py-0" : ""}`}>
+                              <Clock className={tvMode ? "h-2 w-2" : "h-3 w-3"} /> {formatDowntime(lineDowntime[zone])}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className={tvMode ? "p-2 pt-0" : ""}>
+                      <div className={`grid gap-1.5 ${tvMode
+                        ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12"
+                        : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"}`}>
+                        {zoneMachines.map((m) => {
+                          const ms = machineStatus[m.name] || { status: "green" as const, woCount: 0 };
+                          const hs = m.health_score ?? 100;
+                          const latestWO = workOrders?.find((w) => w.machine === m.name);
+                          return (
+                            <HoverCard key={m.id} openDelay={200} closeDelay={100}>
+                              <HoverCardTrigger asChild>
+                                <div
+                                  draggable
+                                  onDragStart={(e) => handleDragStart(e, m.id)}
+                                  onDragEnd={() => setDraggedMachine(null)}
+                                  onClick={() => navigate(`/dashboard/machines/${encodeURIComponent(m.name)}/history`)}
+                                  className={`border rounded-md cursor-grab active:cursor-grabbing transition-all hover:scale-105 ${statusColors[ms.status]} ${tvMode ? "p-1.5 border" : "p-3 border-2"} ${draggedMachine === m.id ? "opacity-50 scale-95" : ""}`}
+                                >
+                                  <p className={`font-medium truncate ${tvMode ? "text-[10px]" : "text-sm"}`}>{m.name}</p>
+                                  {m.code && !tvMode && <p className="text-xs font-mono opacity-70">{m.code}</p>}
+                                  <div className="flex items-center justify-between">
+                                    <p className={tvMode ? "text-[9px]" : "text-xs mt-1"}>{statusLabels[ms.status]}{!tvMode && ` ${ms.status === "green" ? "Active" : ms.status === "yellow" ? "WO Active" : ms.status === "red" ? "Unattended" : "Predictive"}`}</p>
+                                    <span className={`rounded px-1 font-mono font-bold ${getHealthColor(hs)} ${tvMode ? "text-[8px]" : "text-[10px]"}`}>
+                                      <Heart className={`inline ${tvMode ? "h-2 w-2" : "h-3 w-3"}`} /> {hs}
+                                    </span>
+                                  </div>
+                                  {ms.woCount > 0 && !tvMode && (
+                                    <Badge variant="secondary" className="mt-1 text-xs">{ms.woCount} WO(s)</Badge>
+                                  )}
+                                </div>
+                              </HoverCardTrigger>
+                              {!tvMode && (
+                                <HoverCardContent className="w-64 text-sm" side="top">
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-bold">{m.name}</span>
+                                      <Badge variant="outline" className={statusColors[ms.status]}>{ms.status}</Badge>
+                                    </div>
+                                    {m.code && <p className="text-xs text-muted-foreground font-mono">Code: {m.code}</p>}
+                                    <p className="text-xs">Type: {m.machine_type || "—"}</p>
+                                    <p className="text-xs">Location: {m.current_location || "—"}</p>
+                                    <p className="text-xs">Health: <span className={`font-bold ${getHealthColor(hs)} px-1 rounded`}>{hs}/100</span></p>
+                                    {latestWO && (
+                                      <div className="border-t pt-1">
+                                        <p className="text-xs text-muted-foreground">Latest WO: {latestWO.description?.slice(0, 40)}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </HoverCardContent>
+                              )}
+                            </HoverCard>
+                          );
+                        })}
+                      </div>
+                      {zoneMachines.length === 0 && (
+                        <p className="text-muted-foreground text-xs text-center py-4">Drop machines here</p>
                       )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className={tvMode ? "p-2 pt-0" : ""}>
-                    <div className={`grid gap-1.5 ${tvMode 
-                      ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12" 
-                      : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"}`}>
-                      {lineMachines.map((m) => {
-                        const ms = machineStatus[m.name] || { status: "green" as const, woCount: 0 };
-                        const hs = m.health_score ?? 100;
-                        return (
-                          <div
-                            key={m.id}
-                            onClick={() => navigate(`/dashboard/machines/${encodeURIComponent(m.name)}/history`)}
-                            className={`border rounded-md cursor-pointer transition-all hover:scale-105 ${statusColors[ms.status]} ${tvMode ? "p-1.5 border" : "p-3 border-2"}`}
-                          >
-                            <p className={`font-medium truncate ${tvMode ? "text-[10px]" : "text-sm"}`}>{m.name}</p>
-                            {m.code && !tvMode && <p className="text-xs font-mono opacity-70">{m.code}</p>}
-                            <div className="flex items-center justify-between">
-                              <p className={tvMode ? "text-[9px]" : "text-xs mt-1"}>{statusLabels[ms.status]} {!tvMode && (ms.status === "green" ? "Running" : ms.status === "yellow" ? "WO Active" : ms.status === "red" ? "Unattended" : "Predictive")}</p>
-                              <span className={`rounded px-1 font-mono font-bold ${getHealthColor(hs)} ${tvMode ? "text-[8px]" : "text-[10px]"}`}>
-                                <Heart className={`inline ${tvMode ? "h-2 w-2" : "h-3 w-3"}`} /> {hs}
-                              </span>
-                            </div>
-                            {ms.woCount > 0 && !tvMode && (
-                              <Badge variant="secondary" className="mt-1 text-xs">{ms.woCount} WO(s)</Badge>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+                    </CardContent>
+                  </Card>
+                );
+              })
             )}
           </div>
 

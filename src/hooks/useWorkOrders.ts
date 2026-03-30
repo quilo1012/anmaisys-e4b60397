@@ -27,6 +27,8 @@ export interface WorkOrder {
   finished_at: string | null;
   closed_at: string | null;
   completed_at: string | null;
+  paused_at: string | null;
+  total_paused_minutes: number;
   operator?: { name: string };
   engineer?: { name: string };
   closer?: { name: string };
@@ -251,6 +253,47 @@ export function useUpdateWorkOrder() {
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
       logAuditEvent("update", "work_order", vars.id, { requester_name: vars.requester_name, machine: vars.machine });
+    },
+  });
+}
+
+export function usePauseWorkOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (woId: string) => {
+      const { error } = await supabase
+        .from("work_orders")
+        .update({ paused_at: new Date().toISOString() } as any)
+        .eq("id", woId);
+      if (error) throw error;
+    },
+    onSuccess: (_data, woId) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("pause", "work_order", woId);
+    },
+  });
+}
+
+export function useResumeWorkOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (woId: string) => {
+      // Calculate paused duration and add to total
+      const { data: wo } = await supabase.from("work_orders").select("paused_at, total_paused_minutes").eq("id", woId).single();
+      if (!wo || !wo.paused_at) throw new Error("WO is not paused");
+      const pausedMinutes = Math.round((Date.now() - new Date(wo.paused_at).getTime()) / 60000);
+      const newTotal = (wo.total_paused_minutes || 0) + pausedMinutes;
+      const { error } = await supabase
+        .from("work_orders")
+        .update({ paused_at: null, total_paused_minutes: newTotal } as any)
+        .eq("id", woId);
+      if (error) throw error;
+    },
+    onSuccess: (_data, woId) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("resume", "work_order", woId);
     },
   });
 }

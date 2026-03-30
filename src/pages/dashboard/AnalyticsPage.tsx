@@ -269,6 +269,61 @@ export default function AnalyticsPage() {
               </ResponsiveContainer>
             </CardContent>
           </Card>
+
+          {/* NEW: WOs per Machine Type */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">WOs per Machine Type</CardTitle></CardHeader>
+            <CardContent>
+              {(() => {
+                const wosByType: Record<string, number> = {};
+                if (allWOs && machines) {
+                  const machineTypeMap: Record<string, string> = {};
+                  machines.forEach((m) => { machineTypeMap[m.name] = m.machine_type || "Unknown"; });
+                  allWOs.forEach((w) => {
+                    const t = machineTypeMap[w.machine] || "Unknown";
+                    wosByType[t] = (wosByType[t] || 0) + 1;
+                  });
+                }
+                const data = Object.entries(wosByType).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([type, count]) => ({ type, count }));
+                return !data.length ? (
+                  <p className="text-muted-foreground text-sm text-center py-8">No data yet.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={data} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="type" width={120} /><Tooltip /><Bar dataKey="count" fill="#8b5cf6" name="WOs" radius={[0, 4, 4, 0]} /></BarChart>
+                  </ResponsiveContainer>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
+          {/* NEW: Machine Status Distribution */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">Machine Status Distribution</CardTitle></CardHeader>
+            <CardContent>
+              {(() => {
+                const statusCounts: Record<string, number> = {};
+                machines?.forEach((m) => {
+                  const s = m.status || "active";
+                  statusCounts[s] = (statusCounts[s] || 0) + 1;
+                });
+                const data = Object.entries(statusCounts).map(([name, value]) => ({ name, value }));
+                const STATUS_COLORS = ["#10b981", "#f59e0b", "#ef4444", "#6b7280", "#8b5cf6"];
+                return !data.length ? (
+                  <p className="text-muted-foreground text-sm text-center py-8">No machines yet.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                        {data.map((_, i) => <Cell key={i} fill={STATUS_COLORS[i % STATUS_COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip /><Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader><CardTitle className="text-base">Lines with Most Problems</CardTitle></CardHeader>
             <CardContent>

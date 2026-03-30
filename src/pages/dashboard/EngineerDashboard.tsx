@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Phone, MapPin, Wrench, Camera, Printer, Focus, Users } from "lucide-react";
+import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Phone, MapPin, Wrench, Camera, Printer, Focus, Users, Pause, PlayCircle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder } from "@/hooks/useWorkOrders";
+import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder, usePauseWorkOrder, useResumeWorkOrder } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { stopAlertSound } from "@/lib/shifts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
@@ -73,6 +73,8 @@ export default function EngineerDashboard() {
   const arriveWO = useArriveWorkOrder();
   const startWO = useStartWorkOrder();
   const finishWO = useFinishWorkOrder();
+  const pauseWO = usePauseWorkOrder();
+  const resumeWO = useResumeWorkOrder();
   const uploadPhoto = useUploadWOPhoto();
   const navigate = useNavigate();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
@@ -256,6 +258,16 @@ export default function EngineerDashboard() {
             )}
             {wo.status === "in_progress" && wo.engineer_id === user?.id && (
               <>
+                {/* Pause/Resume */}
+                {(wo as any).paused_at ? (
+                  <Button size="lg" variant="outline" className="h-14 text-base border-green-500 text-green-700" onClick={() => resumeWO.mutate(wo.id)} disabled={resumeWO.isPending}>
+                    <PlayCircle className="h-5 w-5 mr-2" /> RESUME
+                  </Button>
+                ) : (
+                  <Button size="lg" variant="outline" className="h-14 text-base border-yellow-500 text-yellow-700" onClick={() => pauseWO.mutate(wo.id)} disabled={pauseWO.isPending}>
+                    <Pause className="h-5 w-5 mr-2" /> PAUSE
+                  </Button>
+                )}
                 <Button size="lg" variant="outline" className="h-14 text-base" onClick={() => setPartsDialogWO(wo.id)}>
                   <Package className="h-5 w-5 mr-2" /> Parts
                 </Button>
@@ -267,7 +279,7 @@ export default function EngineerDashboard() {
                 <Button size="lg" variant={woPhotos.after ? "default" : "outline"} className="h-14 text-base" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending}>
                   <Camera className="h-5 w-5 mr-2" /> {woPhotos.after ? "✓ After" : "After"}
                 </Button>
-                <Button size="lg" variant="secondary" className="h-14 text-base font-bold" onClick={() => handleFinishClick(wo.id)}>
+                <Button size="lg" variant="secondary" className="h-14 text-base font-bold" onClick={() => handleFinishClick(wo.id)} disabled={!!(wo as any).paused_at}>
                   <PenTool className="h-5 w-5 mr-2" /> FINISH
                 </Button>
               </>
@@ -413,6 +425,15 @@ export default function EngineerDashboard() {
                               )}
                               {wo.status === "in_progress" && wo.engineer_id === user?.id && (
                                 <>
+                                  {(wo as any).paused_at ? (
+                                    <Button size="sm" variant="outline" className="border-green-500 text-green-700" onClick={() => resumeWO.mutate(wo.id)} disabled={resumeWO.isPending}>
+                                      <PlayCircle className="h-3 w-3 mr-1" /> Resume
+                                    </Button>
+                                  ) : (
+                                    <Button size="sm" variant="outline" className="border-yellow-500 text-yellow-700" onClick={() => pauseWO.mutate(wo.id)} disabled={pauseWO.isPending}>
+                                      <Pause className="h-3 w-3 mr-1" /> Pause
+                                    </Button>
+                                  )}
                                   <Button size="sm" variant="outline" onClick={() => setPartsDialogWO(wo.id)}>
                                     <Package className="h-3 w-3 mr-1" /> Parts
                                   </Button>
@@ -424,7 +445,7 @@ export default function EngineerDashboard() {
                                   <Button size="sm" variant={woPhotos.after ? "default" : "outline"} onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending}>
                                     <Camera className="h-3 w-3 mr-1" /> {woPhotos.after ? "✓" : "After"}
                                   </Button>
-                                  <Button size="sm" variant="secondary" onClick={() => handleFinishClick(wo.id)}>
+                                  <Button size="sm" variant="secondary" onClick={() => handleFinishClick(wo.id)} disabled={!!(wo as any).paused_at}>
                                     <PenTool className="h-3 w-3 mr-1" /> Finish
                                   </Button>
                                 </>

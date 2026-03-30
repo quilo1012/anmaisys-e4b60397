@@ -145,7 +145,9 @@ export default function WorkOrderDetail() {
 
   const responseTime = wo.received_at ? differenceInMinutes(new Date(wo.received_at), new Date(wo.created_at)) : null;
   const travelTime = wo.received_at && wo.arrived_at ? differenceInMinutes(new Date(wo.arrived_at), new Date(wo.received_at)) : null;
-  const repairTime = wo.started_at && (wo.finished_at || wo.completed_at) ? differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at)) : null;
+  const pausedMinutes = (wo as any).total_paused_minutes || 0;
+  const rawRepairTime = wo.started_at && (wo.finished_at || wo.completed_at) ? differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at)) : null;
+  const repairTime = rawRepairTime !== null ? rawRepairTime - pausedMinutes : null;
   const totalTime = (wo.closed_at || wo.completed_at) ? differenceInMinutes(new Date(wo.closed_at || wo.completed_at!), new Date(wo.created_at)) : null;
 
   const timelineRows = getTimelineRows(wo);
@@ -238,7 +240,7 @@ export default function WorkOrderDetail() {
         <div className="grid gap-4 md:grid-cols-4 print:grid-cols-4 print:gap-0">
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Response Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(responseTime)}</p></CardContent></Card>
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Travel Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(travelTime)}</p></CardContent></Card>
-          <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Repair Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(repairTime)}</p></CardContent></Card>
+          <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Repair Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(repairTime)}</p>{pausedMinutes > 0 && <p className="text-xs text-muted-foreground">({formatDuration(pausedMinutes)} paused)</p>}</CardContent></Card>
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Total Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(totalTime)}</p></CardContent></Card>
         </div>
 
