@@ -84,7 +84,9 @@ export default function OperatorDashboard() {
                   <SelectTrigger><SelectValue placeholder="Select machine..." /></SelectTrigger>
                   <SelectContent>
                     {machines?.map((m) => (
-                      <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                      <SelectItem key={m.id} value={m.name}>
+                        {m.name}{m.current_location ? ` (${m.current_location})` : ""}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
