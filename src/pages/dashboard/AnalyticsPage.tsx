@@ -328,7 +328,16 @@ export default function AnalyticsPage() {
                 </ResponsiveContainer>
               )}
             </CardContent>
-          </Card>
+        </div>
+
+        {/* Failure Heatmap */}
+        <Card>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2">🔥 Failure Heatmap</CardTitle></CardHeader>
+          <CardContent>
+            {!heatmapData.lines.length ? (
+              <p className="text-muted-foreground text-sm text-center py-8">No machine data available.</p>
+            ) : (
+              <div className="overflow-x-auto">
                 <div className="space-y-3">
                   {heatmapData.lines.map((line) => (
                     <div key={line}>
