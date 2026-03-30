@@ -27,6 +27,8 @@ export interface WorkOrder {
   finished_at: string | null;
   closed_at: string | null;
   completed_at: string | null;
+  paused_at: string | null;
+  total_paused_minutes: number;
   operator?: { name: string };
   engineer?: { name: string };
   closer?: { name: string };
