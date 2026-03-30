@@ -447,12 +447,14 @@ export type Database = {
           notes: string | null
           notified_engineers: string[] | null
           operator_id: string
+          paused_at: string | null
           priority: string
           received_at: string | null
           requester_name: string
           signed_by_name: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["wo_status"]
+          total_paused_minutes: number
           wo_number: number
         }
         Insert: {
@@ -470,12 +472,14 @@ export type Database = {
           notes?: string | null
           notified_engineers?: string[] | null
           operator_id: string
+          paused_at?: string | null
           priority?: string
           received_at?: string | null
           requester_name: string
           signed_by_name?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["wo_status"]
+          total_paused_minutes?: number
           wo_number?: number
         }
         Update: {
@@ -493,12 +497,14 @@ export type Database = {
           notes?: string | null
           notified_engineers?: string[] | null
           operator_id?: string
+          paused_at?: string | null
           priority?: string
           received_at?: string | null
           requester_name?: string
           signed_by_name?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["wo_status"]
+          total_paused_minutes?: number
           wo_number?: number
         }
         Relationships: [
