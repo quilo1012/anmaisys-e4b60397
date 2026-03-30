@@ -73,6 +73,8 @@ export default function EngineerDashboard() {
   const arriveWO = useArriveWorkOrder();
   const startWO = useStartWorkOrder();
   const finishWO = useFinishWorkOrder();
+  const pauseWO = usePauseWorkOrder();
+  const resumeWO = useResumeWorkOrder();
   const uploadPhoto = useUploadWOPhoto();
   const navigate = useNavigate();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
