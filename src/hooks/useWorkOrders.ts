@@ -59,8 +59,9 @@ export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOSt
   });
 
   useEffect(() => {
+    const channelName = `work_orders_changes_${Math.random().toString(36).slice(2, 8)}`;
     const channel = supabase
-      .channel("work_orders_changes")
+      .channel(channelName)
       .on("postgres_changes", { event: "*", schema: "public", table: "work_orders" }, () => {
         queryClient.invalidateQueries({ queryKey: ["work_orders"] });
       })
