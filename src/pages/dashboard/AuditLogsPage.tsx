@@ -107,7 +107,11 @@ export default function AuditLogsPage() {
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : !logs?.length ? (
-              <p className="text-muted-foreground text-center py-8">No audit logs found.</p>
+              <div className="text-center py-12">
+                <Shield className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />
+                <p className="text-muted-foreground font-medium">No audit logs found</p>
+                <p className="text-muted-foreground text-sm mt-1">Activity will appear here as actions are performed.</p>
+              </div>
             ) : (
               <Table>
                 <TableHeader>

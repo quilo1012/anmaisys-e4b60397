@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Trash2, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal } from "lucide-react";
@@ -354,7 +354,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
           </CardHeader>
           <CardContent>
             {/* Print-only header */}
-            <div className="print-header hidden">
+            <div className="print-header hidden print:block">
               <h1 style={{ fontSize: "16pt", fontWeight: "bold" }}>AN Maintenance — Work Orders Report</h1>
               <p style={{ fontSize: "10pt", color: "#666" }}>
                 {dateFrom && dateTo ? `Period: ${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? `Filter: ${dateQuickFilter}` : "All records"}
@@ -367,7 +367,11 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : !filteredWOs?.length ? (
-              <p className="text-muted-foreground text-center py-8">No work orders found.</p>
+              <div className="text-center py-12">
+                <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />
+                <p className="text-muted-foreground font-medium">No work orders found</p>
+                <p className="text-muted-foreground text-sm mt-1">Try adjusting your filters or create a new work order.</p>
+              </div>
             ) : viewMode === "board" ? (
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4 no-print">
                 <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-blue-500" borderColor="border-l-blue-500" />
@@ -414,16 +418,30 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                             <div className="flex gap-1">
                               <Button size="icon" variant="ghost" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
-                              <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(wo.id)}><Trash2 className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(wo.id)} disabled={deleteWO.isPending}><Trash2 className="h-4 w-4" /></Button>
                               {canClose && (
                                 <Button size="sm" variant="default" onClick={() => closeWO.mutate(wo.id)} disabled={closeWO.isPending}>
-                                  <CheckCircle className="h-3 w-3 mr-1" /> Close
+                                  {closeWO.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle className="h-3 w-3 mr-1" />} Close
                                 </Button>
                               )}
-                              {canForceClose && (
-                                <Button size="sm" variant="destructive" onClick={() => forceClose.mutate(wo.id)} disabled={forceClose.isPending}>
-                                  <XCircle className="h-3 w-3 mr-1" /> Force
-                                </Button>
+                              {canForceClose && role === "admin" && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button size="sm" variant="destructive" disabled={forceClose.isPending}>
+                                      {forceClose.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <XCircle className="h-3 w-3 mr-1" />} Force
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Force Close Work Order?</AlertDialogTitle>
+                                      <AlertDialogDescription>This will force-close the work order regardless of its current status. This action will be recorded in the audit log.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => forceClose.mutate(wo.id)}>Force Close</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                               )}
                             </div>
                           </TableCell>}

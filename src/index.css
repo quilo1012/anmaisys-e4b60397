@@ -105,7 +105,7 @@
 }
 
 @page {
-  margin: 8mm;
+  margin: 15mm;
   size: A4;
 }
 
@@ -132,6 +132,10 @@
     box-shadow: none !important;
   }
 
+  header {
+    display: none !important;
+  }
+
   html, body {
     background: white !important;
     color: black !important;
@@ -141,6 +145,23 @@
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
+  }
+
+  .print-header {
+    display: block !important;
+  }
+
+  .print-footer {
+    display: block !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 7pt;
+    color: #999;
+    border-top: 1px solid #ddd;
+    padding-top: 4px;
   }
 
   #root {
