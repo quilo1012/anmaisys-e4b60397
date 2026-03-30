@@ -1,54 +1,74 @@
 
 
-# Phase 10: Executive Dashboard, Print A4 Optimization, Timeline Closed
+# Assessment: Current System vs Request
 
-## 1. Executive Dashboard (Director Mode)
+Your system **already implements ~85%** of this specification. Here is a precise gap analysis and plan for the remaining features.
 
-New page `/dashboard/executive` — a high-level strategic view for decision-makers with only the most critical KPIs on a single clean screen.
+## Already Built (No Changes Needed)
 
-**New file: `src/pages/dashboard/ExecutiveDashboard.tsx`**
-- Large KPI cards in a 2x3 grid:
-  - Total Open WOs | Avg Response Time | Avg MTTR | SLA Compliance % | Total Downtime Today | Machines at Risk (health < 40)
-- Mini chart: WOs per day (last 7 days) bar chart
-- Top 3 most impacted lines (by downtime)
-- Top 3 most recurring problems
-- Top 3 engineers (by score)
-- Clean, no-clutter layout designed for projection/TV
-- Fullscreen toggle button (same pattern as Control Center)
-- Auto-refresh via existing realtime subscriptions
+- WO pipeline with full status workflow (open → received → arrived → in_progress → finished → closed + force_closed)
+- Role-based access (admin/engineer/operator) with RLS and route protection
+- WO auto-numbering, priority, SLA tracking with countdown timers
+- Checklists (pre/post service), parts used, photo attachments
+- Analytics dashboard (MTTR, response time, SLA compliance, charts)
+- Executive dashboard (strategic KPIs, TV mode)
+- Financial dashboard (cost tracking, admin-only)
+- Audit log system with PIN-protected clear
+- Realtime alerts with industrial sounds and browser notifications
+- Chat per work order (realtime)
+- Sidebar navigation (collapsible, role-filtered)
+- Print/PDF export optimized for A4
+- Stock management with low-stock alerts
+- Machine management with Health Score
+- Engineer ranking and scoring system
+- Mobile responsive layout
+- Loading skeletons, empty states, toast notifications
+- Control Center (TV mode)
+- Lazy loading, debounced search, query caching
 
-**Routing:** Add route `/dashboard/executive` in `App.tsx`, admin-only.
-**Navigation:** Add "Executive" nav item in `DashboardLayout.tsx` with a `Briefcase` icon.
+## What's Missing — Implementation Plan
 
-## 2. Print Optimization — Single A4 Page
+### Phase A: Dark Mode Toggle
 
-The current print layout has too much spacing and content to fit on one A4 page. Changes to `WorkOrderDetail.tsx` and `index.css`:
+**Files:** `src/index.css` (dark variables already exist), `src/components/DashboardLayout.tsx`
 
-**WorkOrderDetail.tsx — print-specific layout:**
-- Reduce the print header to a compact single line (logo + WO number + date)
-- Combine "Problem Description" and "Observations" into a single compact block for print
-- Use a compact 2-column grid for personnel info (Requested By, Operator, Engineer, Signed By) instead of separate cards
-- Reduce metrics (Response, Travel, Repair, Total) to a single-row inline layout
-- Condense the Timeline to a horizontal single-line format for print (Created → Received → ... → Closed with times)
-- Hide Photos and Chat sections in print
-- Reduce signature block spacing
-- Add `print:hidden` to Cost Breakdown, Photos, and Chat sections
+- Dark CSS variables are already defined but no toggle exists
+- Add a Sun/Moon toggle button in the header bar
+- Store preference in `localStorage`
+- Apply `.dark` class to `<html>` element
 
-**index.css — tighter print styles:**
-- Reduce `@page` margin from 15mm to 8mm
-- Add `font-size: 8pt` for print body
-- Reduce card padding in print
-- Remove card borders/shadows in print for density
-- Force `page-break-inside: avoid` on key sections
+### Phase B: Advanced Table Features (WorkOrdersPage)
 
-## 3. Timeline — Show Closed Timestamp
+**File:** `src/pages/dashboard/WorkOrdersPage.tsx`
 
-**WorkOrderDetail.tsx line 216:** The "Closed" timeline item currently only shows for `closed` or `completed` status. Fix:
-- Always show `closed_at` when it exists, regardless of status
-- Show `completed_at` as "Completed" separately if it exists
-- For `force_closed`, show `completed_at` with the Force Closed label (already done)
+- **Column visibility toggle:** Add a dropdown with checkboxes to show/hide columns
+- **Line filter:** Add a "Line" filter dropdown (extract unique lines from machines)
+- **Clickable links:** WO number already navigates to detail; add machine click → `/dashboard/machines/:name/history`, requester/engineer click → tooltip with profile info (no separate user profile page exists)
 
-This ensures the timeline always displays when the WO was closed/completed.
+### Phase C: Notification Panel
+
+**Files:** New `src/components/NotificationPanel.tsx`, `src/components/DashboardLayout.tsx`
+
+- Add a bell icon in the header with badge count
+- Dropdown panel showing recent notifications (new WO, assignment, overdue, completed)
+- Store notifications in-memory (from existing realtime subscriptions)
+- Mark as read functionality
+- Complements existing toast notifications
+
+### Phase D: MTBF Metric
+
+**File:** `src/pages/dashboard/AnalyticsPage.tsx`
+
+- Calculate Mean Time Between Failures per machine
+- Add MTBF KPI card alongside existing MTTR
+- Formula: total operational time / number of failures per machine
+
+### Phase E: Before/After Audit Values
+
+**File:** `src/hooks/useWorkOrders.ts`, audit log calls
+
+- Enhance `logAuditEvent` calls to include `before` and `after` values in the `details` JSON for status changes and edits
+- Display diff in `AuditLogsPage.tsx` details column
 
 ---
 
@@ -56,14 +76,19 @@ This ensures the timeline always displays when the WO was closed/completed.
 
 | File | Change |
 |------|--------|
-| `src/pages/dashboard/ExecutiveDashboard.tsx` | NEW — Executive/Director dashboard |
-| `src/App.tsx` | Add `/dashboard/executive` route |
-| `src/components/DashboardLayout.tsx` | Add "Executive" nav item |
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Print-optimized compact layout, timeline closed fix |
-| `src/index.css` | Tighter print CSS for A4 fit |
+| `src/components/DashboardLayout.tsx` | Dark mode toggle, notification bell |
+| `src/index.css` | Minor dark mode polish |
+| `src/components/NotificationPanel.tsx` | NEW — notification dropdown |
+| `src/pages/dashboard/WorkOrdersPage.tsx` | Column visibility, clickable links |
+| `src/pages/dashboard/AnalyticsPage.tsx` | MTBF metric |
+| `src/hooks/useWorkOrders.ts` | Before/after audit values |
+| `src/pages/dashboard/AuditLogsPage.tsx` | Display before/after diff |
 
 ## Sequence
-1. Executive Dashboard (new page + route + nav)
-2. Print A4 optimization (CSS + layout)
-3. Timeline closed timestamp fix
+
+1. Dark mode toggle (quick win, high visual impact)
+2. Notification panel
+3. Advanced table features
+4. MTBF metric
+5. Audit before/after values
 
