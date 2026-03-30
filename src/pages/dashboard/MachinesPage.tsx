@@ -163,7 +163,7 @@ export default function MachinesPage() {
             <Select value={line} onValueChange={setLine}>
               <SelectTrigger><SelectValue placeholder="Select line..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="__none__">None</SelectItem>
                 {LINES.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
               </SelectContent>
             </Select>
