@@ -1,69 +1,66 @@
 
 
-# Enterprise CMMS Polish — Print, Sidebar, RBAC, Buttons
+# Machine Tracking (Asset Tracking) Enhancement
 
 ## Current State
 
-The system already has ~93% of requested features. This plan addresses the remaining gaps identified in the prompt.
+The `machines` table already has: `name`, `line`, `sector`, `code`, `status`, `health_score`. The MachinesPage supports CRUD, and MachineHistoryPage shows WO history, reliability, and failure charts. The ControlCenterPage groups machines by line.
 
-## What's Already Done (No Changes Needed)
-- RBAC with admin/engineer/operator roles, RLS, route protection
-- Dark mode toggle
-- Sidebar collapsible with icons and text
-- Button component with variants (Primary, Secondary, Danger, Ghost, sizes, loading states)
-- Confirmation modals on destructive actions
-- Print CSS hiding sidebar/header/buttons
-- Audit logs with before/after values
+**What's missing:** `machine_type`, `current_location`, `last_maintenance_date` columns; location transfer logging; status auto-update from WOs; enhanced detail page; QR code support.
 
-## Gaps to Fix
+## Plan
 
-### 1. Print Layout — Industrial Document Quality
+### Phase 1: Database Migration
 
-**Problem:** Print header has date/logo overlap potential, "Manager Dashboard" header element leaks, print margins too tight (8mm/15mm vs requested 20mm), signature section needs more formal layout, no document number/revision styling.
+Add 3 new columns to `machines` table:
+- `machine_type` (text, default `''`) — Sealer, Printer, Labeler, etc.
+- `current_location` (text, default `''`) — Line A, Storage, Maintenance Area, etc.
+- `last_maintenance_date` (timestamptz, nullable)
 
-**Changes in `WorkOrderDetail.tsx`:**
-- Redesign print header: logo left (small), "WORK ORDER" title center-left bold, WO number right, date below — using a structured table-like grid to prevent overlap
-- Add document metadata row: Priority, Status, Machine, Line — as a compact bordered table
-- Restructure Timeline for print as a bordered audit-style table (Step | Timestamp) instead of icon-based
-- Restructure Parts Used for print with bordered table styling
-- Signature section: two signature blocks side-by-side with "Name:", "Signature:", "Date:" fields and clear lines
-- Add print-only footer: "AN Maintenance — Confidential — Page 1"
+Create new `machine_location_log` table to track location changes:
+- `id` (uuid, PK)
+- `machine_id` (uuid, NOT NULL)
+- `from_location` (text)
+- `to_location` (text, NOT NULL)
+- `moved_by` (uuid) — user who moved it
+- `created_at` (timestamptz, default now())
+- RLS: admins full access, engineers SELECT
 
-**Changes in `index.css`:**
-- Set `@page { margin: 20mm; size: A4; }` 
-- Ensure `header`, `nav`, `aside`, `button`, `[data-sidebar]` are all `display: none !important` in print
-- Add print-specific table styles: bordered cells, compact padding
-- Remove all card shadows and rounded corners in print
-- Force black text on white background
+Create a trigger on `work_orders` to auto-update machine status:
+- When WO status becomes `open`/`in_progress` → set machine status to `maintenance`
+- When WO status becomes `closed`/`finished` → set machine status to `active` (if no other open WOs for that machine)
+- Update `last_maintenance_date` on WO close
 
-### 2. Sidebar — Icon-Only Collapsed Mode
+### Phase 2: Update MachinesPage
 
-**Problem:** The sidebar uses Shadcn's `SidebarProvider` but doesn't specify `collapsible="icon"`, so collapsed state may not show icon-only mode properly. Text labels may still appear when collapsed.
+Add new form fields: Machine Type (select), Current Location (select), and display them in the table.
 
-**Changes in `DashboardLayout.tsx`:**
-- Add `collapsible="icon"` to `<Sidebar>` component
-- Wrap each nav item text in a conditional: hide when sidebar is collapsed using `useSidebar()` state
-- Add `<Tooltip>` wrapper on each menu item when collapsed, showing the page name
-- Ensure smooth CSS transition (already handled by Shadcn defaults)
-- Sidebar state already persists via cookie (Shadcn default behavior)
+Add a "Move" action button per machine row that opens a dialog to change location — logs the move in `machine_location_log` and updates `current_location`.
 
-### 3. RBAC — Current Coverage Assessment
+Show `last_maintenance_date` in the table.
 
-The system uses 3 roles: `admin`, `engineer`, `operator`. The prompt asks for `Admin`, `Manager`, `Engineer`, `Requester`. The current mapping is:
-- Admin = Admin + Manager (full access)
-- Engineer = Engineer
-- Operator = Requester
+### Phase 3: Enhanced Machine Detail Page (MachineHistoryPage)
 
-This is functionally equivalent. No database changes needed. The current RLS policies and route protection already enforce all the permissions listed. UI elements are already hidden based on role. **No changes required here** — the system already implements strict RBAC as described.
+Add tabs or sections:
+- **Overview**: Current status, location, type, line, health score, last maintenance
+- **Location History**: Table from `machine_location_log` showing all moves
+- **Work Orders**: Existing WO history (already built)
+- **Failure Chart**: Already built
 
-### 4. Button Standardization
+### Phase 4: WO Integration
 
-The existing `Button` component already has: Primary (default), Secondary, Destructive (Danger), Ghost variants, plus sm/lg/icon sizes, and disabled state. 
+Update the WO creation form (OperatorDashboard, WorkOrdersPage) to show machine's current location when a machine is selected.
 
-**Minor improvements in usage across pages:**
-- Ensure all mutation buttons pass `disabled={mutation.isPending}` (already done in recent polish)
-- Verify all Delete/Force actions use `AlertDialog` confirmation (already done)
-- **No component changes needed** — the design system is already standardized
+### Phase 5: Analytics Enhancements
+
+Add to AnalyticsPage:
+- **Most Used Machines**: machines with highest WO count
+- **Maintenance Frequency**: avg WOs per machine per month
+- These partially exist (downtime by machine chart) — enhance with new metrics
+
+### Phase 6: QR Code (Optional, High Value)
+
+Add QR code generation per machine on MachinesPage (using a lightweight QR library). QR encodes a URL like `/dashboard/machines/:name/history` or a direct "Create WO" link.
 
 ---
 
@@ -71,12 +68,18 @@ The existing `Button` component already has: Primary (default), Secondary, Destr
 
 | File | Change |
 |------|--------|
-| `src/index.css` | Print margins 20mm, print table styles, force clean document look |
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Redesigned print header, audit-style timeline table, formal signature block |
-| `src/components/DashboardLayout.tsx` | Sidebar `collapsible="icon"`, tooltip on collapsed items, hide text when collapsed |
+| **DB Migration** | Add columns to `machines`, create `machine_location_log`, create auto-status trigger |
+| `src/hooks/useMachines.ts` | Update Machine interface, add location log hooks |
+| `src/pages/dashboard/MachinesPage.tsx` | New form fields (type, location), Move action, last maintenance display |
+| `src/pages/dashboard/MachineHistoryPage.tsx` | Location history tab, enhanced overview section |
+| `src/pages/dashboard/OperatorDashboard.tsx` | Show machine location on WO creation |
+| `src/pages/dashboard/AnalyticsPage.tsx` | Most used machines, maintenance frequency metrics |
 
 ## Sequence
-1. Print CSS overhaul (`index.css`)
-2. WorkOrderDetail print layout redesign
-3. Sidebar icon-only collapsed mode
+1. Database migration (columns + location log table + trigger)
+2. Update hooks and Machine interface
+3. MachinesPage enhancements (type, location, move action)
+4. MachineHistoryPage with location history
+5. WO integration and analytics
+6. QR code generation
 
