@@ -71,13 +71,51 @@ export type Database = {
         }
         Relationships: []
       }
+      machine_location_log: {
+        Row: {
+          created_at: string
+          from_location: string
+          id: string
+          machine_id: string
+          moved_by: string | null
+          to_location: string
+        }
+        Insert: {
+          created_at?: string
+          from_location?: string
+          id?: string
+          machine_id: string
+          moved_by?: string | null
+          to_location: string
+        }
+        Update: {
+          created_at?: string
+          from_location?: string
+          id?: string
+          machine_id?: string
+          moved_by?: string | null
+          to_location?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "machine_location_log_machine_id_fkey"
+            columns: ["machine_id"]
+            isOneToOne: false
+            referencedRelation: "machines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       machines: {
         Row: {
           code: string | null
           created_at: string
+          current_location: string
           health_score: number
           id: string
+          last_maintenance_date: string | null
           line: string | null
+          machine_type: string
           name: string
           sector: string | null
           status: string | null
@@ -85,9 +123,12 @@ export type Database = {
         Insert: {
           code?: string | null
           created_at?: string
+          current_location?: string
           health_score?: number
           id?: string
+          last_maintenance_date?: string | null
           line?: string | null
+          machine_type?: string
           name: string
           sector?: string | null
           status?: string | null
@@ -95,9 +136,12 @@ export type Database = {
         Update: {
           code?: string | null
           created_at?: string
+          current_location?: string
           health_score?: number
           id?: string
+          last_maintenance_date?: string | null
           line?: string | null
+          machine_type?: string
           name?: string
           sector?: string | null
           status?: string | null
