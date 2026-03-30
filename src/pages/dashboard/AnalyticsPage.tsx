@@ -39,7 +39,7 @@ export default function AnalyticsPage() {
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
 
   const kpis = useMemo(() => {
-    if (!allWOs) return { avgResponse: 0, avgMTTR: 0 };
+    if (!allWOs) return { avgResponse: 0, avgMTTR: 0, avgMTBF: 0 };
     const done = allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.started_at);
     let totalResp = 0, totalMTTR = 0, count = 0;
     done.forEach((wo) => {
@@ -48,7 +48,26 @@ export default function AnalyticsPage() {
       if (end) { totalMTTR += differenceInMinutes(new Date(end), new Date(wo.started_at!)); }
       count++;
     });
-    return { avgResponse: count ? Math.round(totalResp / count) : 0, avgMTTR: count ? Math.round(totalMTTR / count) : 0 };
+    // MTBF: avg time between failures per machine
+    let mtbf = 0;
+    if (allWOs.length > 1) {
+      const byMachine: Record<string, Date[]> = {};
+      allWOs.forEach((w) => {
+        if (!byMachine[w.machine]) byMachine[w.machine] = [];
+        byMachine[w.machine].push(new Date(w.created_at));
+      });
+      let totalGaps = 0, gapCount = 0;
+      Object.values(byMachine).forEach((dates) => {
+        if (dates.length < 2) return;
+        const sorted = dates.sort((a, b) => a.getTime() - b.getTime());
+        for (let i = 1; i < sorted.length; i++) {
+          totalGaps += differenceInMinutes(sorted[i], sorted[i - 1]);
+          gapCount++;
+        }
+      });
+      mtbf = gapCount ? Math.round(totalGaps / gapCount) : 0;
+    }
+    return { avgResponse: count ? Math.round(totalResp / count) : 0, avgMTTR: count ? Math.round(totalMTTR / count) : 0, avgMTBF: mtbf };
   }, [allWOs]);
 
   const wosPerDay = useMemo(() => {
@@ -198,8 +217,8 @@ export default function AnalyticsPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg Response</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgResponse} min</div></CardContent></Card>
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg MTTR</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgMTTR} min</div></CardContent></Card>
+          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg MTBF</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgMTBF > 60 ? `${Math.round(kpis.avgMTBF / 60)}h` : `${kpis.avgMTBF} min`}</div><p className="text-xs text-muted-foreground">Mean Time Between Failures</p></CardContent></Card>
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">SLA Compliance</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-2xl font-bold ${slaCompliance.rate < 80 ? "text-destructive" : "text-green-600"}`}>{slaCompliance.rate}%</div></CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">No Parts Used</CardTitle><Package className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{noPartsPercent}%</div></CardContent></Card>
         </div>
 
         {/* Charts */}

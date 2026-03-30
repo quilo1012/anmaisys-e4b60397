@@ -381,9 +381,16 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>WO#</TableHead><TableHead>Line</TableHead><TableHead>Machine</TableHead><TableHead>Problem</TableHead>
-                      <TableHead>Status</TableHead><TableHead>Requester</TableHead><TableHead>Engineer</TableHead>
-                      <TableHead>Created</TableHead><TableHead className="no-print">Parts</TableHead><TableHead className="no-print">Actions</TableHead>
+                      {isCol("wo") && <TableHead>WO#</TableHead>}
+                      {isCol("line") && <TableHead>Line</TableHead>}
+                      {isCol("machine") && <TableHead>Machine</TableHead>}
+                      {isCol("problem") && <TableHead>Problem</TableHead>}
+                      {isCol("status") && <TableHead>Status</TableHead>}
+                      {isCol("requester") && <TableHead>Requester</TableHead>}
+                      {isCol("engineer") && <TableHead>Engineer</TableHead>}
+                      {isCol("created") && <TableHead>Created</TableHead>}
+                      {isCol("parts") && <TableHead className="no-print">Parts</TableHead>}
+                      {isCol("actions") && <TableHead className="no-print">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -394,16 +401,16 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                       const woLine = machineLineMap[wo.machine] || "—";
                       return (
                         <TableRow key={wo.id}>
-                          <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</TableCell>
-                          <TableCell className="text-sm font-medium">{woLine}</TableCell>
-                          <TableCell>{wo.machine}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>
-                          <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
-                          <TableCell className="text-sm">{wo.requester_name}</TableCell>
-                          <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
-                          <TableCell className="no-print">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>
-                          <TableCell className="no-print">
+                          {isCol("wo") && <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</TableCell>}
+                          {isCol("line") && <TableCell className="text-sm font-medium">{woLine}</TableCell>}
+                          {isCol("machine") && <TableCell className="cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/machines/${encodeURIComponent(wo.machine)}/history`)}>{wo.machine}</TableCell>}
+                          {isCol("problem") && <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>}
+                          {isCol("status") && <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>}
+                          {isCol("requester") && <TableCell className="text-sm">{wo.requester_name}</TableCell>}
+                          {isCol("engineer") && <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>}
+                          {isCol("created") && <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>}
+                          {isCol("parts") && <TableCell className="no-print">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>}
+                          {isCol("actions") && <TableCell className="no-print">
                             <div className="flex gap-1">
                               <Button size="icon" variant="ghost" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
@@ -419,7 +426,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                                 </Button>
                               )}
                             </div>
-                          </TableCell>
+                          </TableCell>}
                         </TableRow>
                       );
                     })}
