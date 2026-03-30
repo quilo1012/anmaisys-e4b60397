@@ -424,10 +424,24 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                                   <CheckCircle className="h-3 w-3 mr-1" /> Close
                                 </Button>
                               )}
-                              {canForceClose && (
-                                <Button size="sm" variant="destructive" onClick={() => forceClose.mutate(wo.id)} disabled={forceClose.isPending}>
-                                  <XCircle className="h-3 w-3 mr-1" /> Force
-                                </Button>
+                              {canForceClose && role === "admin" && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button size="sm" variant="destructive" disabled={forceClose.isPending}>
+                                      {forceClose.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <XCircle className="h-3 w-3 mr-1" />} Force
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Force Close Work Order?</AlertDialogTitle>
+                                      <AlertDialogDescription>This will force-close the work order regardless of its current status. This action will be recorded in the audit log.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => forceClose.mutate(wo.id)}>Force Close</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                               )}
                             </div>
                           </TableCell>}
