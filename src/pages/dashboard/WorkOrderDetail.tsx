@@ -330,7 +330,7 @@ export default function WorkOrderDetail() {
                       {photos.length ? (
                         <div className="grid gap-2">
                           {photos.map((p) => (
-                            <img key={p.id} src={getWOPhotoUrl(p.storage_path)} alt={`${type} photo`} className="rounded-lg border w-full max-h-64 object-cover" />
+                            <SignedPhoto key={p.id} storagePath={p.storage_path} alt={`${type} photo`} />
                           ))}
                         </div>
                       ) : (
