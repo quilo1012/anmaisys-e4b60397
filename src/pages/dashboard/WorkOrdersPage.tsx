@@ -295,6 +295,20 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 <Button variant="outline" size="sm" className="no-print" onClick={() => window.print()}>
                   <Printer className="h-4 w-4 mr-1" /> Print
                 </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm"><SlidersHorizontal className="h-4 w-4 mr-1" /> Columns</Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-3" align="end">
+                    <p className="text-xs font-semibold mb-2">Toggle Columns</p>
+                    {ALL_COLUMNS.map((col) => (
+                      <label key={col.key} className="flex items-center gap-2 py-1 text-sm cursor-pointer">
+                        <Checkbox checked={isCol(col.key)} onCheckedChange={() => toggleCol(col.key)} />
+                        {col.label}
+                      </label>
+                    ))}
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-2 filters-section">
