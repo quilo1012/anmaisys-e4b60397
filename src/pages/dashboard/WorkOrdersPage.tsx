@@ -354,7 +354,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
           </CardHeader>
           <CardContent>
             {/* Print-only header */}
-            <div className="print-header hidden">
+            <div className="print-header hidden print:block">
               <h1 style={{ fontSize: "16pt", fontWeight: "bold" }}>AN Maintenance — Work Orders Report</h1>
               <p style={{ fontSize: "10pt", color: "#666" }}>
                 {dateFrom && dateTo ? `Period: ${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? `Filter: ${dateQuickFilter}` : "All records"}
