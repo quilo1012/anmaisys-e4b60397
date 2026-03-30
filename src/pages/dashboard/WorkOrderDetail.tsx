@@ -71,6 +71,15 @@ function getTimelineRows(wo: any) {
   return rows;
 }
 
+function SignedPhoto({ storagePath, alt }: { storagePath: string; alt: string }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    getWOPhotoUrl(storagePath).then(setUrl);
+  }, [storagePath]);
+  if (!url) return <div className="h-32 bg-muted rounded-lg animate-pulse" />;
+  return <img src={url} alt={alt} className="rounded-lg border w-full max-h-64 object-cover" />;
+}
+
 export default function WorkOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
