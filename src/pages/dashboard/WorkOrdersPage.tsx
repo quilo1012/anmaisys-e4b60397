@@ -367,7 +367,11 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : !filteredWOs?.length ? (
-              <p className="text-muted-foreground text-center py-8">No work orders found.</p>
+              <div className="text-center py-12">
+                <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />
+                <p className="text-muted-foreground font-medium">No work orders found</p>
+                <p className="text-muted-foreground text-sm mt-1">Try adjusting your filters or create a new work order.</p>
+              </div>
             ) : viewMode === "board" ? (
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4 no-print">
                 <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-blue-500" borderColor="border-l-blue-500" />
