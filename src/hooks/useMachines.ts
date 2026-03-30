@@ -24,10 +24,39 @@ export interface MachineLocationLog {
   created_at: string;
 }
 
-const MACHINE_TYPES = ["Sealer", "Printer", "Labeler", "Conveyor", "Filler", "Wrapper", "Cutter", "Mixer", "Other"];
-const LOCATIONS = ["Line A", "Line B", "Line C", "Storage", "Maintenance Area"];
+const DEFAULT_MACHINE_TYPES = ["Sealer", "Printer", "Labeler", "Conveyor", "Filler", "Wrapper", "Cutter", "Mixer", "Other"];
+const DEFAULT_LOCATIONS = ["Line A", "Line B", "Line C", "Storage", "Maintenance Area"];
+const LINES = ["Line 1", "Line 2", "Line 3"];
+const STATUS_OPTIONS = [
+  { value: "active", label: "Active" },
+  { value: "in_use", label: "In Use" },
+  { value: "maintenance", label: "Maintenance" },
+  { value: "idle", label: "Idle" },
+];
 
-export { MACHINE_TYPES, LOCATIONS };
+export { DEFAULT_MACHINE_TYPES, DEFAULT_LOCATIONS, LINES, STATUS_OPTIONS };
+
+export function useDistinctMachineValues() {
+  return useQuery({
+    queryKey: ["machines_distinct_values"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("machines")
+        .select("machine_type, current_location");
+      if (error) throw error;
+      const types = new Set(DEFAULT_MACHINE_TYPES);
+      const locations = new Set(DEFAULT_LOCATIONS);
+      (data || []).forEach((m: any) => {
+        if (m.machine_type?.trim()) types.add(m.machine_type.trim());
+        if (m.current_location?.trim()) locations.add(m.current_location.trim());
+      });
+      return {
+        machineTypes: Array.from(types).sort(),
+        locations: Array.from(locations).sort(),
+      };
+    },
+  });
+}
 
 export function useMachines() {
   return useQuery({
