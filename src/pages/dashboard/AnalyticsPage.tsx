@@ -148,6 +148,31 @@ export default function AnalyticsPage() {
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([machine, minutes]) => ({ machine, minutes }));
   }, [allWOs]);
 
+  // Most used machines (highest WO count)
+  const mostUsedMachines = useMemo(() => {
+    if (!allWOs) return [];
+    const map: Record<string, number> = {};
+    allWOs.forEach((w) => { map[w.machine] = (map[w.machine] || 0) + 1; });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([machine, count]) => ({ machine, count }));
+  }, [allWOs]);
+
+  // Maintenance frequency: avg WOs per machine per month
+  const maintenanceFrequency = useMemo(() => {
+    if (!allWOs || !allWOs.length) return [];
+    const map: Record<string, { count: number; firstWO: Date; lastWO: Date }> = {};
+    allWOs.forEach((w) => {
+      const d = new Date(w.created_at);
+      if (!map[w.machine]) map[w.machine] = { count: 0, firstWO: d, lastWO: d };
+      map[w.machine].count++;
+      if (d < map[w.machine].firstWO) map[w.machine].firstWO = d;
+      if (d > map[w.machine].lastWO) map[w.machine].lastWO = d;
+    });
+    return Object.entries(map).map(([machine, v]) => {
+      const months = Math.max(1, differenceInMinutes(v.lastWO, v.firstWO) / (60 * 24 * 30));
+      return { machine, avgPerMonth: Math.round((v.count / months) * 10) / 10 };
+    }).sort((a, b) => b.avgPerMonth - a.avgPerMonth).slice(0, 8);
+  }, [allWOs]);
+
   const engineerPerformance = useMemo(() => {
     if (!allWOs) return [];
     const engineers: Record<string, { name: string; completed: number; totalResp: number; totalMTTR: number }> = {};
