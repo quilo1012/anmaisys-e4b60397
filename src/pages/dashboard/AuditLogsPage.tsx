@@ -128,7 +128,14 @@ export default function AuditLogsPage() {
                       <TableCell><Badge variant="outline">{log.action}</Badge></TableCell>
                       <TableCell><Badge variant="secondary">{log.entity_type}</Badge></TableCell>
                       <TableCell className="font-mono text-xs">{log.entity_id ? log.entity_id.slice(0, 8) + "..." : "—"}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{Object.keys(log.details || {}).length ? JSON.stringify(log.details) : "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[300px]">
+                        {log.details?.before || log.details?.after ? (
+                          <div className="space-y-0.5">
+                            {log.details.before && <div><span className="text-destructive font-medium">Before:</span> {typeof log.details.before === "object" ? JSON.stringify(log.details.before) : String(log.details.before)}</div>}
+                            {log.details.after && <div><span className="text-green-600 font-medium">After:</span> {typeof log.details.after === "object" ? JSON.stringify(log.details.after) : String(log.details.after)}</div>}
+                          </div>
+                        ) : Object.keys(log.details || {}).length ? JSON.stringify(log.details) : "—"}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

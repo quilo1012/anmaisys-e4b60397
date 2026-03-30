@@ -99,15 +99,18 @@ export function useReceiveWorkOrder() {
 
   return useMutation({
     mutationFn: async (woId: string) => {
+      // Fetch current state for audit
+      const { data: before } = await supabase.from("work_orders").select("status, engineer_id").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
         .update({ status: "received" as any, engineer_id: user!.id, received_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
+      return { before };
     },
-    onSuccess: (_data, woId) => {
+    onSuccess: (result, woId) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("receive", "work_order", woId, { status: "received" });
+      logAuditEvent("receive", "work_order", woId, { before: result.before, after: { status: "received" } });
     },
   });
 }
@@ -117,15 +120,17 @@ export function useArriveWorkOrder() {
 
   return useMutation({
     mutationFn: async (woId: string) => {
+      const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
         .update({ status: "arrived" as any, arrived_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
+      return { before };
     },
-    onSuccess: (_data, woId) => {
+    onSuccess: (result, woId) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("arrive", "work_order", woId, { status: "arrived" });
+      logAuditEvent("arrive", "work_order", woId, { before: result.before, after: { status: "arrived" } });
     },
   });
 }
@@ -135,15 +140,17 @@ export function useStartWorkOrder() {
 
   return useMutation({
     mutationFn: async (woId: string) => {
+      const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
         .update({ status: "in_progress" as any, started_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
+      return { before };
     },
-    onSuccess: (_data, woId) => {
+    onSuccess: (result, woId) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("start", "work_order", woId, { status: "in_progress" });
+      logAuditEvent("start", "work_order", woId, { before: result.before, after: { status: "in_progress" } });
     },
   });
 }
@@ -153,15 +160,17 @@ export function useFinishWorkOrder() {
 
   return useMutation({
     mutationFn: async ({ woId, signedByName }: { woId: string; signedByName: string }) => {
+      const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
         .update({ status: "finished" as any, finished_at: new Date().toISOString(), signed_by_name: signedByName } as any)
         .eq("id", woId);
       if (error) throw error;
+      return { before };
     },
-    onSuccess: (_data, vars) => {
+    onSuccess: (result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("finish", "work_order", vars.woId, { status: "finished", signed_by: vars.signedByName });
+      logAuditEvent("finish", "work_order", vars.woId, { before: result.before, after: { status: "finished", signed_by: vars.signedByName } });
     },
   });
 }
@@ -172,15 +181,17 @@ export function useCloseWorkOrder() {
 
   return useMutation({
     mutationFn: async (woId: string) => {
+      const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
         .update({ status: "closed" as any, closed_by: user!.id, closed_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
+      return { before };
     },
-    onSuccess: (_data, woId) => {
+    onSuccess: (result, woId) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("close", "work_order", woId, { status: "closed" });
+      logAuditEvent("close", "work_order", woId, { before: result.before, after: { status: "closed" } });
     },
   });
 }
@@ -209,15 +220,17 @@ export function useForceCloseWorkOrder() {
 
   return useMutation({
     mutationFn: async (woId: string) => {
+      const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
         .update({ status: "force_closed" as any, closed_by: user!.id, completed_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
+      return { before };
     },
-    onSuccess: (_data, woId) => {
+    onSuccess: (result, woId) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("force_close", "work_order", woId, { status: "force_closed" });
+      logAuditEvent("force_close", "work_order", woId, { before: result.before, after: { status: "force_closed" } });
     },
   });
 }
