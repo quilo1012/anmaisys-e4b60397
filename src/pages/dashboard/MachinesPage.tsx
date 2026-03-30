@@ -51,7 +51,7 @@ export default function MachinesPage() {
 
   const openEdit = (m: Machine) => {
     setEditMachine(m);
-    setName(m.name); setLine(m.line || ""); setSector(m.sector || ""); setCode(m.code || "");
+    setName(m.name); setLine(m.line || "__none__"); setSector(m.sector || ""); setCode(m.code || "");
     setStatus(m.status || "active"); setMachineType(m.machine_type || ""); setCurrentLocation(m.current_location || "");
     setErrors({});
   };
@@ -72,7 +72,7 @@ export default function MachinesPage() {
   const handleAdd = async () => {
     if (!validate()) return;
     try {
-      const result = await addMachine.mutateAsync({ name: name.trim(), line: line.trim(), sector: sector.trim(), code: code.trim(), status, machine_type: machineType.trim(), current_location: currentLocation.trim() });
+      const result = await addMachine.mutateAsync({ name: name.trim(), line: line === "__none__" ? "" : line.trim(), sector: sector.trim(), code: code.trim(), status, machine_type: machineType.trim(), current_location: currentLocation.trim() });
       toast({ title: "Machine added" });
       logAuditEvent("create", "machine", (result as any)?.id, { name: name.trim() });
       setShowAdd(false); resetForm();
@@ -82,7 +82,7 @@ export default function MachinesPage() {
   const handleEdit = async () => {
     if (!editMachine || !validate(true)) return;
     try {
-      await updateMachine.mutateAsync({ id: editMachine.id, name: name.trim(), line: line.trim(), sector: sector.trim(), code: code.trim(), status, machine_type: machineType.trim(), current_location: currentLocation.trim() });
+      await updateMachine.mutateAsync({ id: editMachine.id, name: name.trim(), line: line === "__none__" ? "" : line.trim(), sector: sector.trim(), code: code.trim(), status, machine_type: machineType.trim(), current_location: currentLocation.trim() });
       toast({ title: "Machine updated" });
       logAuditEvent("update", "machine", editMachine.id, { name: name.trim() });
       setEditMachine(null); resetForm();
@@ -163,7 +163,7 @@ export default function MachinesPage() {
             <Select value={line} onValueChange={setLine}>
               <SelectTrigger><SelectValue placeholder="Select line..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="__none__">None</SelectItem>
                 {LINES.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
               </SelectContent>
             </Select>
