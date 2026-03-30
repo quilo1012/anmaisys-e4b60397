@@ -145,7 +145,9 @@ export default function WorkOrderDetail() {
 
   const responseTime = wo.received_at ? differenceInMinutes(new Date(wo.received_at), new Date(wo.created_at)) : null;
   const travelTime = wo.received_at && wo.arrived_at ? differenceInMinutes(new Date(wo.arrived_at), new Date(wo.received_at)) : null;
-  const repairTime = wo.started_at && (wo.finished_at || wo.completed_at) ? differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at)) : null;
+  const pausedMinutes = (wo as any).total_paused_minutes || 0;
+  const rawRepairTime = wo.started_at && (wo.finished_at || wo.completed_at) ? differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at)) : null;
+  const repairTime = rawRepairTime !== null ? rawRepairTime - pausedMinutes : null;
   const totalTime = (wo.closed_at || wo.completed_at) ? differenceInMinutes(new Date(wo.closed_at || wo.completed_at!), new Date(wo.created_at)) : null;
 
   const timelineRows = getTimelineRows(wo);
