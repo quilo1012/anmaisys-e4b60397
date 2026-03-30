@@ -71,16 +71,15 @@ export default function ManagerDashboard() {
     }
     setSavingPin(true);
     try {
-      const { data: settings } = await supabase.from("system_settings").select("id").limit(1).single();
-      if (settings) {
-        const { error } = await supabase.from("system_settings").update({ admin_pin: newPin, updated_at: new Date().toISOString() }).eq("id", settings.id);
-        if (error) throw error;
-      }
+      const { data, error } = await supabase.functions.invoke("update-admin-pin", {
+        body: { newPin },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error("Failed to update PIN");
       toast({ title: "PIN updated", description: "The admin PIN has been changed successfully." });
       setShowChangePin(false);
       setNewPin("");
       setConfirmPin("");
-      queryClient.invalidateQueries({ queryKey: ["system_settings"] });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {

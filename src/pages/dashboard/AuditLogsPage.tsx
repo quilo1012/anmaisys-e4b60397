@@ -38,8 +38,11 @@ export default function AuditLogsPage() {
   const handleClearLogs = async () => {
     setClearing(true);
     try {
-      const { data: settings } = await supabase.from("system_settings").select("admin_pin").limit(1).single();
-      if (!settings || pin !== settings.admin_pin) {
+      // Verify PIN server-side via edge function
+      const { data: verifyData, error: verifyError } = await supabase.functions.invoke("verify-admin-pin", {
+        body: { pin },
+      });
+      if (verifyError || !verifyData?.valid) {
         toast({ title: "Invalid PIN", variant: "destructive" });
         setClearing(false);
         return;

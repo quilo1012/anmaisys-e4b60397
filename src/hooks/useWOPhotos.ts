@@ -65,7 +65,13 @@ export function useUploadWOPhoto() {
   });
 }
 
-export function getWOPhotoUrl(storagePath: string) {
-  const { data } = supabase.storage.from("wo-photos").getPublicUrl(storagePath);
-  return data.publicUrl;
+export async function getWOPhotoUrl(storagePath: string): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from("wo-photos")
+    .createSignedUrl(storagePath, 3600); // 1 hour expiry
+  if (error || !data?.signedUrl) {
+    console.error("Failed to get signed URL:", error?.message);
+    return "";
+  }
+  return data.signedUrl;
 }

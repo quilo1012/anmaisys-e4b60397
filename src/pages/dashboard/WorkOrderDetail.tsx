@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +69,15 @@ function getTimelineRows(wo: any) {
   else if (wo.completed_at && wo.status !== "force_closed") rows.push({ step: "Completed", timestamp: format(new Date(wo.completed_at), "dd/MM/yyyy HH:mm:ss") });
   if (wo.status === "force_closed" && wo.completed_at) rows.push({ step: "Force Closed", timestamp: format(new Date(wo.completed_at), "dd/MM/yyyy HH:mm:ss") });
   return rows;
+}
+
+function SignedPhoto({ storagePath, alt }: { storagePath: string; alt: string }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    getWOPhotoUrl(storagePath).then(setUrl);
+  }, [storagePath]);
+  if (!url) return <div className="h-32 bg-muted rounded-lg animate-pulse" />;
+  return <img src={url} alt={alt} className="rounded-lg border w-full max-h-64 object-cover" />;
 }
 
 export default function WorkOrderDetail() {
@@ -330,7 +339,7 @@ export default function WorkOrderDetail() {
                       {photos.length ? (
                         <div className="grid gap-2">
                           {photos.map((p) => (
-                            <img key={p.id} src={getWOPhotoUrl(p.storage_path)} alt={`${type} photo`} className="rounded-lg border w-full max-h-64 object-cover" />
+                            <SignedPhoto key={p.id} storagePath={p.storage_path} alt={`${type} photo`} />
                           ))}
                         </div>
                       ) : (
