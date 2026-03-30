@@ -72,7 +72,7 @@ export default function MachinesPage() {
   const handleAdd = async () => {
     if (!validate()) return;
     try {
-      const result = await addMachine.mutateAsync({ name: name.trim(), line: line.trim(), sector: sector.trim(), code: code.trim(), status, machine_type: machineType.trim(), current_location: currentLocation.trim() });
+      const result = await addMachine.mutateAsync({ name: name.trim(), line: line === "__none__" ? "" : line.trim(), sector: sector.trim(), code: code.trim(), status, machine_type: machineType.trim(), current_location: currentLocation.trim() });
       toast({ title: "Machine added" });
       logAuditEvent("create", "machine", (result as any)?.id, { name: name.trim() });
       setShowAdd(false); resetForm();
