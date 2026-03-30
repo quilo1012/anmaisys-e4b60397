@@ -13,10 +13,11 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon } from "lucide-react";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
+import { NotificationPanel } from "@/components/NotificationPanel";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -45,6 +46,19 @@ const navItems: NavItem[] = [
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"] },
 ];
 
+function useDarkMode() {
+  const [dark, setDark] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("theme") === "dark";
+  });
+  useEffect(() => {
+    const root = document.documentElement;
+    if (dark) { root.classList.add("dark"); } else { root.classList.remove("dark"); }
+    localStorage.setItem("theme", dark ? "dark" : "light");
+  }, [dark]);
+  return { dark, toggle: () => setDark((d) => !d) };
+}
+
 function LiveClock() {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
@@ -64,6 +78,7 @@ function LiveClock() {
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { role, profile, signOut } = useAuth();
+  const { dark, toggle: toggleDark } = useDarkMode();
 
   // Engineer heartbeat for online tracking
   useHeartbeat();
@@ -132,7 +147,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 <OnlineEngineersPanel />
               </div>
             )}
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <NotificationPanel />
+              <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"}>
+                {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </Button>
               <LiveClock />
             </div>
           </header>
