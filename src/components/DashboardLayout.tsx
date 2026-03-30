@@ -12,7 +12,9 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon } from "lucide-react";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
@@ -76,90 +78,118 @@ function LiveClock() {
   );
 }
 
+function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
+
+  return (
+    <SidebarMenu>
+      {filteredItems.map((item) => (
+        <SidebarMenuItem key={item.title + item.url}>
+          {collapsed ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to={item.url}
+                    end
+                    className="flex items-center justify-center px-3 py-2 rounded-md text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                    activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                  >
+                    <item.icon className="h-4 w-4" />
+                  </NavLink>
+                </SidebarMenuButton>
+              </TooltipTrigger>
+              <TooltipContent side="right">{item.title}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <SidebarMenuButton asChild>
+              <NavLink
+                to={item.url}
+                end
+                className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+              >
+                <item.icon className="h-4 w-4" />
+                <span>{item.title}</span>
+              </NavLink>
+            </SidebarMenuButton>
+          )}
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
+  );
+}
+
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { role, profile, signOut } = useAuth();
   const { dark, toggle: toggleDark } = useDarkMode();
 
-  // Engineer heartbeat for online tracking
   useHeartbeat();
 
   const filteredItems = navItems.filter((item) => role && item.roles.includes(role));
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full">
-        <Sidebar className="border-r-0">
-          <div className="flex items-center gap-2 px-4 py-4">
-            <img src={appliedLogo} alt="Applied Nutrition" className="h-8 w-8 rounded object-contain" />
-            <span className="text-lg font-bold text-sidebar-foreground">AN Maintenance</span>
-          </div>
-          <SidebarContent>
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-sidebar-foreground/60">Navigation</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {filteredItems.map((item) => (
-                    <SidebarMenuItem key={item.title + item.url}>
-                      <SidebarMenuButton asChild>
-                        <NavLink
-                          to={item.url}
-                          end
-                          className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-                          activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                        >
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </SidebarContent>
-          <div className="mt-auto p-4 border-t border-sidebar-border">
-            <div className="text-sm text-sidebar-foreground/70 mb-2 truncate">
-              {profile?.name}
+    <TooltipProvider delayDuration={0}>
+      <SidebarProvider>
+        <div className="flex min-h-screen w-full">
+          <Sidebar collapsible="icon" className="border-r-0">
+            <div className="flex items-center gap-2 px-4 py-4 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:justify-center">
+              <img src={appliedLogo} alt="Applied Nutrition" className="h-8 w-8 rounded object-contain" />
+              <span className="text-lg font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">AN Maintenance</span>
             </div>
-            <div className="text-xs text-sidebar-foreground/50 mb-3 capitalize">
-              {role === "admin" ? "Manager" : role}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-              onClick={signOut}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
-          </div>
-        </Sidebar>
-
-        <main className="flex-1 flex flex-col">
-          <header className="h-14 border-b bg-card flex items-center px-4 gap-3">
-            <SidebarTrigger />
-            <h1 className="text-lg font-semibold text-foreground">
-              {role === "admin" ? "Manager" : role === "engineer" ? "Engineer" : "Operator"} Dashboard
-            </h1>
-            {role === "admin" && (
-              <div className="ml-4">
-                <OnlineEngineersPanel />
+            <SidebarContent>
+              <SidebarGroup>
+                <SidebarGroupLabel className="text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">Navigation</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarNav filteredItems={filteredItems} />
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </SidebarContent>
+            <div className="mt-auto p-4 border-t border-sidebar-border group-data-[collapsible=icon]:p-2">
+              <div className="text-sm text-sidebar-foreground/70 mb-2 truncate group-data-[collapsible=icon]:hidden">
+                {profile?.name}
               </div>
-            )}
-            <div className="ml-auto flex items-center gap-2">
-              <NotificationPanel />
-              <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"}>
-                {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              <div className="text-xs text-sidebar-foreground/50 mb-3 capitalize group-data-[collapsible=icon]:hidden">
+                {role === "admin" ? "Manager" : role}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+                onClick={signOut}
+              >
+                <LogOut className="h-4 w-4 mr-2 group-data-[collapsible=icon]:mr-0" />
+                <span className="group-data-[collapsible=icon]:hidden">Sign Out</span>
               </Button>
-              <LiveClock />
             </div>
-          </header>
-          <div className="flex-1 p-4 md:p-6">
-            {children}
-          </div>
-        </main>
-      </div>
-    </SidebarProvider>
+          </Sidebar>
+
+          <main className="flex-1 flex flex-col">
+            <header className="h-14 border-b bg-card flex items-center px-4 gap-3">
+              <SidebarTrigger />
+              <h1 className="text-lg font-semibold text-foreground">
+                {role === "admin" ? "Manager" : role === "engineer" ? "Engineer" : "Operator"} Dashboard
+              </h1>
+              {role === "admin" && (
+                <div className="ml-4">
+                  <OnlineEngineersPanel />
+                </div>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                <NotificationPanel />
+                <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"}>
+                  {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                </Button>
+                <LiveClock />
+              </div>
+            </header>
+            <div className="flex-1 p-4 md:p-6">
+              {children}
+            </div>
+          </main>
+        </div>
+      </SidebarProvider>
+    </TooltipProvider>
   );
 }
