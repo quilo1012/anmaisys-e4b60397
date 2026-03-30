@@ -13,8 +13,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 224 76% 30%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 211 78% 50%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 214 20% 92%;
     --secondary-foreground: 222 47% 11%;
@@ -30,18 +30,18 @@
 
     --border: 214 24% 88%;
     --input: 214 24% 88%;
-    --ring: 224 76% 30%;
+    --ring: 211 78% 50%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 224 76% 15%;
+    --sidebar-background: 211 78% 12%;
     --sidebar-foreground: 210 40% 92%;
-    --sidebar-primary: 43 96% 56%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 224 60% 22%;
+    --sidebar-primary: 211 78% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 211 60% 20%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 224 50% 25%;
-    --sidebar-ring: 43 96% 56%;
+    --sidebar-border: 211 50% 22%;
+    --sidebar-ring: 211 78% 50%;
 
     --success: 142 71% 45%;
     --success-foreground: 210 40% 98%;
@@ -59,8 +59,8 @@
     --popover: 222 47% 9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 224 76% 48%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 211 78% 55%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 217 33% 17%;
     --secondary-foreground: 210 40% 98%;
@@ -76,16 +76,16 @@
 
     --border: 217 33% 17%;
     --input: 217 33% 17%;
-    --ring: 224 76% 48%;
+    --ring: 211 78% 55%;
 
-    --sidebar-background: 222 47% 6%;
+    --sidebar-background: 211 50% 8%;
     --sidebar-foreground: 210 40% 92%;
-    --sidebar-primary: 43 96% 56%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 224 60% 15%;
+    --sidebar-primary: 211 78% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 211 60% 15%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 224 50% 15%;
-    --sidebar-ring: 43 96% 56%;
+    --sidebar-border: 211 50% 15%;
+    --sidebar-ring: 211 78% 55%;
 
     --success: 142 71% 45%;
     --success-foreground: 210 40% 98%;
