@@ -110,11 +110,22 @@ export default function OperatorDashboard() {
                 <Input id="requester" placeholder="e.g. John Smith" value={requesterName} onChange={(e) => setRequesterName(e.target.value)} />
               </div>
               <div className="space-y-2">
+                <Label>Line</Label>
+                <Select value={line} onValueChange={(v) => { setLine(v); setMachine(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Select line..." /></SelectTrigger>
+                  <SelectContent>
+                    {lines.map((l) => (
+                      <SelectItem key={l} value={l}>{l}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="machine">Machine</Label>
                 <Select value={machine} onValueChange={setMachine}>
                   <SelectTrigger><SelectValue placeholder="Select machine..." /></SelectTrigger>
                   <SelectContent>
-                    {machines?.map((m) => (
+                    {filteredMachines.map((m) => (
                       <SelectItem key={m.id} value={m.name}>
                         {m.name}{m.current_location ? ` (${m.current_location})` : ""}
                       </SelectItem>
