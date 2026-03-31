@@ -172,11 +172,20 @@ export default function EngineerDashboard() {
     e.target.value = "";
   };
 
-  // ACCEPT → show pre-service checklist
+  // Helper to require PIN before an action
+  const requirePin = useCallback((title: string, action: () => void) => {
+    setPinDialogTitle(title);
+    setPendingPinAction(() => action);
+    setPinDialogOpen(true);
+  }, []);
+
+  // ACCEPT → PIN → pre-service checklist
   const handleAcceptClick = (woId: string) => {
     stopAlertSound();
-    setPreCheckedItems({});
-    setPreChecklistWO(woId);
+    requirePin("Confirm ACCEPT", () => {
+      setPreCheckedItems({});
+      setPreChecklistWO(woId);
+    });
   };
 
   const handlePreChecklistComplete = () => {
@@ -185,17 +194,28 @@ export default function EngineerDashboard() {
     setPreChecklistWO(null);
   };
 
-  // START → proceed immediately, show photo reminder toast
-  const handleStartClick = (woId: string) => {
-    startWO.mutate(woId);
-    toast({ title: "📸 Photo reminder", description: "Don't forget to add a Before photo!" });
+  // ARRIVED → PIN
+  const handleArrivedClick = (woId: string) => {
+    requirePin("Confirm ARRIVED", () => {
+      arriveWO.mutate(woId);
+    });
   };
 
-  // FINISH → go straight to post-service checklist (no photo blocking)
+  // START → PIN → photo reminder
+  const handleStartClick = (woId: string) => {
+    requirePin("Confirm START", () => {
+      startWO.mutate(woId);
+      toast({ title: "📸 Photo reminder", description: "Don't forget to add a Before photo!" });
+    });
+  };
+
+  // FINISH → PIN → post-service checklist
   const handleFinishClick = (woId: string) => {
-    toast({ title: "📸 Photo reminder", description: "Don't forget to add an After photo!" });
-    setPostCheckedItems({});
-    setPostChecklistWO(woId);
+    requirePin("Confirm FINISH", () => {
+      toast({ title: "📸 Photo reminder", description: "Don't forget to add an After photo!" });
+      setPostCheckedItems({});
+      setPostChecklistWO(woId);
+    });
   };
 
   const handlePostChecklistComplete = () => {
