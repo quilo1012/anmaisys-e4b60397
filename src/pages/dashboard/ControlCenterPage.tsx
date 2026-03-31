@@ -4,13 +4,14 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useMachines, useMoveMachine } from "@/hooks/useMachines";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
-import { Monitor, Loader2, Maximize, Minimize, Trophy, Clock, AlertTriangle, Heart, GripVertical } from "lucide-react";
+import { Monitor, Loader2, Maximize, Minimize, Trophy, Clock, AlertTriangle, Heart, GripVertical, List } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { differenceInMinutes } from "date-fns";
+import { differenceInMinutes, format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -45,6 +46,7 @@ export default function ControlCenterPage() {
   const navigate = useNavigate();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [draggedMachine, setDraggedMachine] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"visual" | "table">("visual");
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -183,10 +185,18 @@ export default function ControlCenterPage() {
             </h2>
             {!tvMode && <p className="text-muted-foreground">Real-time factory map — drag machines between zones</p>}
           </div>
-          <Button variant="outline" size="sm" onClick={toggleFullscreen} className="gap-2">
-            {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-            {isFullscreen ? "Exit" : "TV Mode"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant={viewMode === "visual" ? "default" : "outline"} size="sm" onClick={() => setViewMode("visual")} className="gap-1">
+              <Monitor className="h-4 w-4" /> Map
+            </Button>
+            <Button variant={viewMode === "table" ? "default" : "outline"} size="sm" onClick={() => setViewMode("table")} className="gap-1">
+              <List className="h-4 w-4" /> Table
+            </Button>
+            <Button variant="outline" size="sm" onClick={toggleFullscreen} className="gap-2">
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+              {isFullscreen ? "Exit" : "TV Mode"}
+            </Button>
+          </div>
         </div>
 
         {/* Predictive Alerts Banner */}
@@ -213,6 +223,56 @@ export default function ControlCenterPage() {
           </Badge>
         </div>
 
+        {viewMode === "table" ? (
+          /* TABLE MODE */
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Active Work Orders — Realtime</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!workOrders?.length ? (
+                <p className="text-muted-foreground text-center py-8">No active work orders.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Line</TableHead>
+                      <TableHead>Machine</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Problem</TableHead>
+                      <TableHead>Engineer</TableHead>
+                      <TableHead>Downtime</TableHead>
+                      <TableHead>Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {workOrders.map((wo) => {
+                      const machine = machines?.find((m) => m.name === wo.machine);
+                      const downMin = differenceInMinutes(new Date(), new Date(wo.created_at));
+                      return (
+                        <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                          <TableCell className="font-medium">{machine?.line || "—"}</TableCell>
+                          <TableCell>{wo.machine}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={
+                              wo.status === "open" ? "bg-red-500/20 border-red-500 text-red-400" :
+                              wo.status === "in_progress" ? "bg-amber-500/20 border-amber-500 text-amber-400" :
+                              "bg-blue-500/20 border-blue-500 text-blue-400"
+                            }>{wo.status}</Badge>
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
+                          <TableCell>{wo.engineer?.name || "—"}</TableCell>
+                          <TableCell className="font-mono">{formatDowntime(downMin)}</TableCell>
+                          <TableCell className="text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
         <div className={`grid gap-4 ${tvMode ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
           {/* Main factory map */}
           <div className={`space-y-3 ${tvMode ? "lg:col-span-4" : "lg:col-span-3"}`}>
@@ -354,6 +414,7 @@ export default function ControlCenterPage() {
             </Card>
           </div>
         </div>
+        )}
       </div>
     </DashboardLayout>
   );

@@ -33,6 +33,7 @@ export default function ManageUsers() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<AppRole>("operator");
+  const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
@@ -44,6 +45,7 @@ export default function ManageUsers() {
   const [editActive, setEditActive] = useState(true);
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
+  const [editPin, setEditPin] = useState("");
   const [editLoading, setEditLoading] = useState(false);
 
   // Delete state
@@ -68,9 +70,13 @@ export default function ManageUsers() {
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
+      // Set engineer PIN if provided
+      if (pin && (role === "engineer" || role === "admin") && res.data?.userId) {
+        await supabase.rpc("set_engineer_pin", { _user_id: res.data.userId, _new_pin: pin });
+      }
       toast({ title: "User created", description: `${name} has been added as ${roleLabels[role]}` });
       setOpen(false);
-      setEmail(""); setPassword(""); setName(""); setRole("operator");
+      setEmail(""); setPassword(""); setName(""); setRole("operator"); setPin("");
       fetchUsers();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -86,6 +92,7 @@ export default function ManageUsers() {
     setEditActive(u.active);
     setEditEmail(u.email);
     setEditPassword("");
+    setEditPin("");
   };
 
   const handleEditUser = async () => {
@@ -107,6 +114,10 @@ export default function ManageUsers() {
       const res = await supabase.functions.invoke("update-user", { body });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
+      // Update PIN if provided
+      if (editPin) {
+        await supabase.rpc("set_engineer_pin", { _user_id: editUser.id, _new_pin: editPin });
+      }
       toast({ title: "User updated" });
       setEditUser(null);
       fetchUsers();
@@ -161,6 +172,12 @@ export default function ManageUsers() {
                     </SelectContent>
                   </Select>
                 </div>
+                {(role === "engineer" || role === "admin") && (
+                  <div className="space-y-2">
+                    <Label>Engineer PIN (4-6 digits)</Label>
+                    <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="e.g. 1234" minLength={4} maxLength={6} />
+                  </div>
+                )}
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Creating..." : "Create User"}
                 </Button>
@@ -274,6 +291,12 @@ export default function ManageUsers() {
                 <Label>Active</Label>
                 <Switch checked={editActive} onCheckedChange={setEditActive} />
               </div>
+              {(editRole === "engineer" || editRole === "admin") && (
+                <div className="space-y-2">
+                  <Label>Engineer PIN (4-6 digits)</Label>
+                  <Input type="password" value={editPin} onChange={(e) => setEditPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Leave blank to keep current" minLength={4} maxLength={6} />
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditUser(null)}>Cancel</Button>

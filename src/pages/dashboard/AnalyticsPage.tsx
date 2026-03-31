@@ -193,29 +193,6 @@ export default function AnalyticsPage() {
     })).sort((a, b) => b.completed - a.completed);
   }, [allWOs]);
 
-  // Failure Heatmap data
-  const heatmapData = useMemo(() => {
-    if (!allWOs || !machines) return { lines: [] as string[], machinesByLine: {} as Record<string, string[]>, counts: {} as Record<string, number> };
-    const lineMap: Record<string, Set<string>> = {};
-    machines.forEach((m) => {
-      const line = m.line || "Unassigned";
-      if (!lineMap[line]) lineMap[line] = new Set();
-      lineMap[line].add(m.name);
-    });
-    const counts: Record<string, number> = {};
-    allWOs.forEach((w) => { counts[w.machine] = (counts[w.machine] || 0) + 1; });
-    const lines = Object.keys(lineMap).sort();
-    const machinesByLine: Record<string, string[]> = {};
-    lines.forEach((l) => { machinesByLine[l] = Array.from(lineMap[l]).sort(); });
-    return { lines, machinesByLine, counts };
-  }, [allWOs, machines]);
-
-  const getHeatColor = (count: number) => {
-    if (count === 0) return "bg-green-500/20 text-green-700";
-    if (count <= 2) return "bg-green-500/40 text-green-800";
-    if (count <= 5) return "bg-yellow-500/40 text-yellow-800";
-    return "bg-red-500/50 text-red-900 font-bold";
-  };
 
   // Merge ranking with scores
   const rankedEngineers = useMemo(() => {
@@ -386,41 +363,6 @@ export default function AnalyticsPage() {
           </Card>
         </div>
 
-        {/* Failure Heatmap */}
-        <Card>
-          <CardHeader><CardTitle className="text-base flex items-center gap-2">🔥 Failure Heatmap</CardTitle></CardHeader>
-          <CardContent>
-            {!heatmapData.lines.length ? (
-              <p className="text-muted-foreground text-sm text-center py-8">No machine data available.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <div className="space-y-3">
-                  {heatmapData.lines.map((line) => (
-                    <div key={line}>
-                      <p className="text-xs font-semibold text-muted-foreground mb-1">{line}</p>
-                      <div className="flex gap-1 flex-wrap">
-                        {heatmapData.machinesByLine[line]?.map((machine) => {
-                          const count = heatmapData.counts[machine] || 0;
-                          return (
-                            <div key={machine} className={`rounded px-2 py-1 text-[10px] border ${getHeatColor(count)}`} title={`${machine}: ${count} WOs`}>
-                              <span className="block truncate max-w-[80px]">{machine}</span>
-                              <span className="block text-center font-mono">{count}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-2 mt-4 text-[10px]">
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-500/30" /> 0-2</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-500/40" /> 3-5</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500/50" /> 6+</span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         {/* Engineer Ranking */}
         <Card>

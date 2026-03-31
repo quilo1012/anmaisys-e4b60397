@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
+import { PinDialog } from "@/components/PinDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
@@ -86,6 +87,11 @@ export default function EngineerDashboard() {
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
+  
+  // PIN dialog state
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [pendingPinAction, setPendingPinAction] = useState<(() => void) | null>(null);
+  const [pinDialogTitle, setPinDialogTitle] = useState("Enter PIN");
   
   // Pre-service checklist state
   const [preChecklistWO, setPreChecklistWO] = useState<string | null>(null);
@@ -166,11 +172,20 @@ export default function EngineerDashboard() {
     e.target.value = "";
   };
 
-  // ACCEPT → show pre-service checklist
+  // Helper to require PIN before an action
+  const requirePin = useCallback((title: string, action: () => void) => {
+    setPinDialogTitle(title);
+    setPendingPinAction(() => action);
+    setPinDialogOpen(true);
+  }, []);
+
+  // ACCEPT → PIN → pre-service checklist
   const handleAcceptClick = (woId: string) => {
     stopAlertSound();
-    setPreCheckedItems({});
-    setPreChecklistWO(woId);
+    requirePin("Confirm ACCEPT", () => {
+      setPreCheckedItems({});
+      setPreChecklistWO(woId);
+    });
   };
 
   const handlePreChecklistComplete = () => {
@@ -179,17 +194,28 @@ export default function EngineerDashboard() {
     setPreChecklistWO(null);
   };
 
-  // START → proceed immediately, show photo reminder toast
-  const handleStartClick = (woId: string) => {
-    startWO.mutate(woId);
-    toast({ title: "📸 Photo reminder", description: "Don't forget to add a Before photo!" });
+  // ARRIVED → PIN
+  const handleArrivedClick = (woId: string) => {
+    requirePin("Confirm ARRIVED", () => {
+      arriveWO.mutate(woId);
+    });
   };
 
-  // FINISH → go straight to post-service checklist (no photo blocking)
+  // START → PIN → photo reminder
+  const handleStartClick = (woId: string) => {
+    requirePin("Confirm START", () => {
+      startWO.mutate(woId);
+      toast({ title: "📸 Photo reminder", description: "Don't forget to add a Before photo!" });
+    });
+  };
+
+  // FINISH → PIN → post-service checklist
   const handleFinishClick = (woId: string) => {
-    toast({ title: "📸 Photo reminder", description: "Don't forget to add an After photo!" });
-    setPostCheckedItems({});
-    setPostChecklistWO(woId);
+    requirePin("Confirm FINISH", () => {
+      toast({ title: "📸 Photo reminder", description: "Don't forget to add an After photo!" });
+      setPostCheckedItems({});
+      setPostChecklistWO(woId);
+    });
   };
 
   const handlePostChecklistComplete = () => {
@@ -247,7 +273,7 @@ export default function EngineerDashboard() {
               </Button>
             )}
             {wo.status === "received" && wo.engineer_id === user?.id && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => arriveWO.mutate(wo.id)} disabled={arriveWO.isPending}>
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
                 <MapPin className="h-5 w-5 mr-2" /> ARRIVED
               </Button>
             )}
@@ -414,7 +440,7 @@ export default function EngineerDashboard() {
                                 </Button>
                               )}
                               {wo.status === "received" && wo.engineer_id === user?.id && (
-                                <Button size="sm" onClick={() => arriveWO.mutate(wo.id)} disabled={arriveWO.isPending}>
+                                <Button size="sm" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
                                   <MapPin className="h-3 w-3 mr-1" /> Arrived
                                 </Button>
                               )}
@@ -557,6 +583,21 @@ export default function EngineerDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* PIN Verification Dialog */}
+      <PinDialog
+        open={pinDialogOpen}
+        onOpenChange={(open) => {
+          setPinDialogOpen(open);
+          if (!open) setPendingPinAction(null);
+        }}
+        onSuccess={() => {
+          pendingPinAction?.();
+          setPendingPinAction(null);
+        }}
+        title={pinDialogTitle}
+        description="Enter your engineer PIN to confirm this action."
+      />
     </DashboardLayout>
   );
 }
