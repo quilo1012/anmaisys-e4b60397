@@ -45,6 +45,7 @@ export default function ManageUsers() {
   const [editActive, setEditActive] = useState(true);
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
+  const [editPin, setEditPin] = useState("");
   const [editLoading, setEditLoading] = useState(false);
 
   // Delete state

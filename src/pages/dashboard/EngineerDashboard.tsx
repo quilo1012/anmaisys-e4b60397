@@ -583,6 +583,21 @@ export default function EngineerDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* PIN Verification Dialog */}
+      <PinDialog
+        open={pinDialogOpen}
+        onOpenChange={(open) => {
+          setPinDialogOpen(open);
+          if (!open) setPendingPinAction(null);
+        }}
+        onSuccess={() => {
+          pendingPinAction?.();
+          setPendingPinAction(null);
+        }}
+        title={pinDialogTitle}
+        description="Enter your engineer PIN to confirm this action."
+      />
     </DashboardLayout>
   );
 }
