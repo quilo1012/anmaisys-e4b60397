@@ -82,7 +82,7 @@ export default function OperatorDashboard() {
     try {
       await createWO.mutateAsync({ requester_name: requesterName.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium" });
       toast({ title: "Work Order Created", description: "Your WO has been submitted." });
-      setRequesterName(""); setMachine(""); setDescription(""); setNotes("");
+      setRequesterName(""); setLine(""); setMachine(""); setDescription(""); setNotes("");
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
     }
