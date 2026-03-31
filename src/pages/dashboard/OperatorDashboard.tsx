@@ -30,10 +30,12 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 
 export default function OperatorDashboard() {
   const [requesterName, setRequesterName] = useState("");
+  const [line, setLine] = useState("");
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const { data: workOrders, isLoading } = useWorkOrders({ operatorOnly: true });
+  const { data: allWOs } = useWorkOrders();
   const woIds = workOrders?.map((wo) => wo.id) || [];
   const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { data: machines } = useMachines();
