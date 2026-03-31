@@ -114,6 +114,10 @@ export default function ManageUsers() {
       const res = await supabase.functions.invoke("update-user", { body });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
+      // Update PIN if provided
+      if (editPin) {
+        await supabase.rpc("set_engineer_pin", { _user_id: editUser.id, _new_pin: editPin });
+      }
       toast({ title: "User updated" });
       setEditUser(null);
       fetchUsers();
