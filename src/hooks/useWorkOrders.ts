@@ -16,6 +16,7 @@ export interface WorkOrder {
   priority: string;
   operator_id: string;
   engineer_id: string | null;
+  engineer_name: string | null;
   closed_by: string | null;
   signed_by_name: string | null;
   notified_engineers: string[];
@@ -32,6 +33,16 @@ export interface WorkOrder {
   operator?: { name: string };
   engineer?: { name: string };
   closer?: { name: string };
+}
+
+// Helper to insert a work_order_log entry
+async function logWOAction(workOrderId: string, engineerId: string, engineerName: string, action: string) {
+  await supabase.from("work_order_logs" as any).insert({
+    work_order_id: workOrderId,
+    engineer_id: engineerId,
+    engineer_name: engineerName,
+    action,
+  } as any);
 }
 
 export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOStatus[] }) {
@@ -98,22 +109,21 @@ export function useCreateWorkOrder() {
 
 export function useReceiveWorkOrder() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (woId: string) => {
-      // Fetch current state for audit
+    mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
       const { data: before } = await supabase.from("work_orders").select("status, engineer_id").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
-        .update({ status: "received" as any, engineer_id: user!.id, received_at: new Date().toISOString() } as any)
+        .update({ status: "received" as any, engineer_id: engineerId, engineer_name: engineerName, received_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
+      await logWOAction(woId, engineerId, engineerName, "received");
       return { before };
     },
-    onSuccess: (result, woId) => {
+    onSuccess: (result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("receive", "work_order", woId, { before: result.before, after: { status: "received" } });
+      logAuditEvent("receive", "work_order", vars.woId, { before: result.before, after: { status: "received" }, engineer_id: vars.engineerId, engineer_name: vars.engineerName });
     },
   });
 }
@@ -122,18 +132,19 @@ export function useArriveWorkOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (woId: string) => {
+    mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
       const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
         .update({ status: "arrived" as any, arrived_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
+      await logWOAction(woId, engineerId, engineerName, "arrived");
       return { before };
     },
-    onSuccess: (result, woId) => {
+    onSuccess: (result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("arrive", "work_order", woId, { before: result.before, after: { status: "arrived" } });
+      logAuditEvent("arrive", "work_order", vars.woId, { before: result.before, after: { status: "arrived" }, engineer_id: vars.engineerId, engineer_name: vars.engineerName });
     },
   });
 }
@@ -142,18 +153,19 @@ export function useStartWorkOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (woId: string) => {
+    mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
       const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
         .update({ status: "in_progress" as any, started_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
+      await logWOAction(woId, engineerId, engineerName, "started");
       return { before };
     },
-    onSuccess: (result, woId) => {
+    onSuccess: (result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("start", "work_order", woId, { before: result.before, after: { status: "in_progress" } });
+      logAuditEvent("start", "work_order", vars.woId, { before: result.before, after: { status: "in_progress" }, engineer_id: vars.engineerId, engineer_name: vars.engineerName });
     },
   });
 }
@@ -162,18 +174,19 @@ export function useFinishWorkOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ woId, signedByName }: { woId: string; signedByName: string }) => {
+    mutationFn: async ({ woId, signedByName, engineerId, engineerName }: { woId: string; signedByName: string; engineerId: string; engineerName: string }) => {
       const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
         .update({ status: "finished" as any, finished_at: new Date().toISOString(), signed_by_name: signedByName } as any)
         .eq("id", woId);
       if (error) throw error;
+      await logWOAction(woId, engineerId, engineerName, "finished");
       return { before };
     },
     onSuccess: (result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("finish", "work_order", vars.woId, { before: result.before, after: { status: "finished", signed_by: vars.signedByName } });
+      logAuditEvent("finish", "work_order", vars.woId, { before: result.before, after: { status: "finished", signed_by: vars.signedByName }, engineer_id: vars.engineerId, engineer_name: vars.engineerName });
     },
   });
 }
@@ -280,7 +293,6 @@ export function useResumeWorkOrder() {
 
   return useMutation({
     mutationFn: async (woId: string) => {
-      // Calculate paused duration and add to total
       const { data: wo } = await supabase.from("work_orders").select("paused_at, total_paused_minutes").eq("id", woId).single();
       if (!wo || !wo.paused_at) throw new Error("WO is not paused");
       const pausedMinutes = Math.round((Date.now() - new Date(wo.paused_at).getTime()) / 60000);

@@ -13,11 +13,18 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2 } from "lucide-react";
+import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"] & { role?: AppRole };
+
+interface Engineer {
+  id: string;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+}
 
 const roleLabels: Record<AppRole, string> = { admin: "Manager", engineer: "Engineer", operator: "Operator" };
 const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = {
@@ -33,7 +40,6 @@ export default function ManageUsers() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<AppRole>("operator");
-  const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
@@ -45,11 +51,23 @@ export default function ManageUsers() {
   const [editActive, setEditActive] = useState(true);
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
-  const [editPin, setEditPin] = useState("");
   const [editLoading, setEditLoading] = useState(false);
 
   // Delete state
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+
+  // Engineers state
+  const [engineers, setEngineers] = useState<Engineer[]>([]);
+  const [engOpen, setEngOpen] = useState(false);
+  const [engName, setEngName] = useState("");
+  const [engPin, setEngPin] = useState("");
+  const [engLoading, setEngLoading] = useState(false);
+  const [editEng, setEditEng] = useState<Engineer | null>(null);
+  const [editEngName, setEditEngName] = useState("");
+  const [editEngPin, setEditEngPin] = useState("");
+  const [editEngActive, setEditEngActive] = useState(true);
+  const [editEngLoading, setEditEngLoading] = useState(false);
+  const [deleteEngLoading, setDeleteEngLoading] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     const { data: profiles } = await supabase.from("profiles").select("*");
@@ -59,7 +77,12 @@ export default function ManageUsers() {
     setUsers(profiles.map((p) => ({ ...p, role: roleMap.get(p.id) })));
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  const fetchEngineers = async () => {
+    const { data } = await supabase.from("engineers" as any).select("id, name, is_active, created_at").order("created_at", { ascending: false });
+    if (data) setEngineers(data as any);
+  };
+
+  useEffect(() => { fetchUsers(); fetchEngineers(); }, []);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,13 +93,9 @@ export default function ManageUsers() {
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
-      // Set engineer PIN if provided
-      if (pin && (role === "engineer" || role === "admin") && res.data?.userId) {
-        await supabase.rpc("set_engineer_pin", { _user_id: res.data.userId, _new_pin: pin });
-      }
       toast({ title: "User created", description: `${name} has been added as ${roleLabels[role]}` });
       setOpen(false);
-      setEmail(""); setPassword(""); setName(""); setRole("operator"); setPin("");
+      setEmail(""); setPassword(""); setName(""); setRole("operator");
       fetchUsers();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -92,7 +111,6 @@ export default function ManageUsers() {
     setEditActive(u.active);
     setEditEmail(u.email);
     setEditPassword("");
-    setEditPin("");
   };
 
   const handleEditUser = async () => {
@@ -114,10 +132,6 @@ export default function ManageUsers() {
       const res = await supabase.functions.invoke("update-user", { body });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
-      // Update PIN if provided
-      if (editPin) {
-        await supabase.rpc("set_engineer_pin", { _user_id: editUser.id, _new_pin: editPin });
-      }
       toast({ title: "User updated" });
       setEditUser(null);
       fetchUsers();
@@ -143,13 +157,75 @@ export default function ManageUsers() {
     }
   };
 
+  // Engineer CRUD
+  const handleCreateEngineer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!engName.trim() || engPin.length < 4) return;
+    setEngLoading(true);
+    try {
+      // Insert engineer with a temporary pin_hash, then set via function
+      const { data: eng, error } = await supabase.from("engineers" as any).insert({ name: engName.trim(), pin_hash: "temp" } as any).select("id").single();
+      if (error) throw error;
+      await supabase.rpc("set_engineer_pin_standalone" as any, { _engineer_id: (eng as any).id, _new_pin: engPin });
+      toast({ title: "Engineer created", description: `${engName} has been added` });
+      setEngOpen(false);
+      setEngName(""); setEngPin("");
+      fetchEngineers();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setEngLoading(false);
+    }
+  };
+
+  const openEditEngineer = (eng: Engineer) => {
+    setEditEng(eng);
+    setEditEngName(eng.name);
+    setEditEngPin("");
+    setEditEngActive(eng.is_active);
+  };
+
+  const handleEditEngineer = async () => {
+    if (!editEng) return;
+    setEditEngLoading(true);
+    try {
+      const { error } = await supabase.from("engineers" as any).update({ name: editEngName.trim(), is_active: editEngActive } as any).eq("id", editEng.id);
+      if (error) throw error;
+      if (editEngPin.length >= 4) {
+        await supabase.rpc("set_engineer_pin_standalone" as any, { _engineer_id: editEng.id, _new_pin: editEngPin });
+      }
+      toast({ title: "Engineer updated" });
+      setEditEng(null);
+      fetchEngineers();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setEditEngLoading(false);
+    }
+  };
+
+  const handleDeleteEngineer = async (engId: string) => {
+    setDeleteEngLoading(engId);
+    try {
+      const { error } = await supabase.from("engineers" as any).delete().eq("id", engId);
+      if (error) throw error;
+      toast({ title: "Engineer deleted" });
+      fetchEngineers();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setDeleteEngLoading(null);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* ===== AUTH USERS SECTION ===== */}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">User Management</h2>
-            <p className="text-muted-foreground">Create and manage system users</p>
+            <p className="text-muted-foreground">Create and manage login accounts</p>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -172,12 +248,6 @@ export default function ManageUsers() {
                     </SelectContent>
                   </Select>
                 </div>
-                {(role === "engineer" || role === "admin") && (
-                  <div className="space-y-2">
-                    <Label>Engineer PIN (4-6 digits)</Label>
-                    <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="e.g. 1234" minLength={4} maxLength={6} />
-                  </div>
-                )}
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Creating..." : "Create User"}
                 </Button>
@@ -187,7 +257,7 @@ export default function ManageUsers() {
         </div>
 
         <Card>
-          <CardHeader><CardTitle>All Users</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Login Accounts</CardTitle></CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
@@ -265,6 +335,98 @@ export default function ManageUsers() {
           </CardContent>
         </Card>
 
+        {/* ===== ENGINEERS (PIN IDENTITIES) SECTION ===== */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Engineers (PIN Identity)</h2>
+            <p className="text-muted-foreground">Manage engineer identities for PIN-based actions</p>
+          </div>
+          <Dialog open={engOpen} onOpenChange={setEngOpen}>
+            <DialogTrigger asChild>
+              <Button><KeyRound className="h-4 w-4 mr-2" />New Engineer</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Create Engineer Identity</DialogTitle></DialogHeader>
+              <form onSubmit={handleCreateEngineer} className="space-y-4">
+                <div className="space-y-2"><Label>Engineer Name</Label><Input value={engName} onChange={(e) => setEngName(e.target.value)} required /></div>
+                <div className="space-y-2">
+                  <Label>PIN (4-6 digits)</Label>
+                  <Input type="password" value={engPin} onChange={(e) => setEngPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="e.g. 1234" minLength={4} maxLength={6} required />
+                </div>
+                <Button type="submit" className="w-full" disabled={engLoading || engPin.length < 4}>
+                  {engLoading ? "Creating..." : "Create Engineer"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <Card>
+          <CardHeader><CardTitle>All Engineers</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {engineers.map((eng) => (
+                  <TableRow key={eng.id}>
+                    <TableCell className="font-medium">{eng.name}</TableCell>
+                    <TableCell>
+                      <Badge variant={eng.is_active ? "default" : "secondary"}>
+                        {eng.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{new Date(eng.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => openEditEngineer(eng)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete engineer?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete <strong>{eng.name}</strong>. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteEngineer(eng.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                {deleteEngLoading === eng.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {engineers.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">No engineers configured. Add engineers to enable PIN-based actions.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
         {/* Edit User Dialog */}
         <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
           <DialogContent>
@@ -291,17 +453,35 @@ export default function ManageUsers() {
                 <Label>Active</Label>
                 <Switch checked={editActive} onCheckedChange={setEditActive} />
               </div>
-              {(editRole === "engineer" || editRole === "admin") && (
-                <div className="space-y-2">
-                  <Label>Engineer PIN (4-6 digits)</Label>
-                  <Input type="password" value={editPin} onChange={(e) => setEditPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Leave blank to keep current" minLength={4} maxLength={6} />
-                </div>
-              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditUser(null)}>Cancel</Button>
               <Button onClick={handleEditUser} disabled={editLoading}>
                 {editLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Engineer Dialog */}
+        <Dialog open={!!editEng} onOpenChange={(open) => !open && setEditEng(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit Engineer</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Engineer Name</Label><Input value={editEngName} onChange={(e) => setEditEngName(e.target.value)} /></div>
+              <div className="space-y-2">
+                <Label>New PIN (4-6 digits)</Label>
+                <Input type="password" value={editEngPin} onChange={(e) => setEditEngPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Leave blank to keep current" minLength={4} maxLength={6} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label>Active</Label>
+                <Switch checked={editEngActive} onCheckedChange={setEditEngActive} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditEng(null)}>Cancel</Button>
+              <Button onClick={handleEditEngineer} disabled={editEngLoading}>
+                {editEngLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save
               </Button>
             </DialogFooter>
           </DialogContent>
