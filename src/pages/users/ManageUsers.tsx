@@ -70,9 +70,13 @@ export default function ManageUsers() {
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
+      // Set engineer PIN if provided
+      if (pin && (role === "engineer" || role === "admin") && res.data?.userId) {
+        await supabase.rpc("set_engineer_pin", { _user_id: res.data.userId, _new_pin: pin });
+      }
       toast({ title: "User created", description: `${name} has been added as ${roleLabels[role]}` });
       setOpen(false);
-      setEmail(""); setPassword(""); setName(""); setRole("operator");
+      setEmail(""); setPassword(""); setName(""); setRole("operator"); setPin("");
       fetchUsers();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
