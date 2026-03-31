@@ -193,29 +193,6 @@ export default function AnalyticsPage() {
     })).sort((a, b) => b.completed - a.completed);
   }, [allWOs]);
 
-  // Failure Heatmap data
-  const heatmapData = useMemo(() => {
-    if (!allWOs || !machines) return { lines: [] as string[], machinesByLine: {} as Record<string, string[]>, counts: {} as Record<string, number> };
-    const lineMap: Record<string, Set<string>> = {};
-    machines.forEach((m) => {
-      const line = m.line || "Unassigned";
-      if (!lineMap[line]) lineMap[line] = new Set();
-      lineMap[line].add(m.name);
-    });
-    const counts: Record<string, number> = {};
-    allWOs.forEach((w) => { counts[w.machine] = (counts[w.machine] || 0) + 1; });
-    const lines = Object.keys(lineMap).sort();
-    const machinesByLine: Record<string, string[]> = {};
-    lines.forEach((l) => { machinesByLine[l] = Array.from(lineMap[l]).sort(); });
-    return { lines, machinesByLine, counts };
-  }, [allWOs, machines]);
-
-  const getHeatColor = (count: number) => {
-    if (count === 0) return "bg-green-500/20 text-green-700";
-    if (count <= 2) return "bg-green-500/40 text-green-800";
-    if (count <= 5) return "bg-yellow-500/40 text-yellow-800";
-    return "bg-red-500/50 text-red-900 font-bold";
-  };
 
   // Merge ranking with scores
   const rankedEngineers = useMemo(() => {
