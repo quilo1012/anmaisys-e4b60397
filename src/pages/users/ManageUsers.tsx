@@ -92,6 +92,7 @@ export default function ManageUsers() {
     setEditActive(u.active);
     setEditEmail(u.email);
     setEditPassword("");
+    setEditPin("");
   };
 
   const handleEditUser = async () => {
