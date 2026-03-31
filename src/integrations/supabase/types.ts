@@ -293,6 +293,7 @@ export type Database = {
           labor_rate: number
           last_seen_at: string | null
           name: string
+          pin: string | null
           shift: string | null
           updated_at: string
         }
@@ -304,6 +305,7 @@ export type Database = {
           labor_rate?: number
           last_seen_at?: string | null
           name: string
+          pin?: string | null
           shift?: string | null
           updated_at?: string
         }
@@ -315,6 +317,7 @@ export type Database = {
           labor_rate?: number
           last_seen_at?: string | null
           name?: string
+          pin?: string | null
           shift?: string | null
           updated_at?: string
         }
