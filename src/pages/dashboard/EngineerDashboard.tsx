@@ -273,7 +273,7 @@ export default function EngineerDashboard() {
               </Button>
             )}
             {wo.status === "received" && wo.engineer_id === user?.id && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => arriveWO.mutate(wo.id)} disabled={arriveWO.isPending}>
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
                 <MapPin className="h-5 w-5 mr-2" /> ARRIVED
               </Button>
             )}
