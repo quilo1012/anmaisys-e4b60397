@@ -440,7 +440,7 @@ export default function EngineerDashboard() {
                                 </Button>
                               )}
                               {wo.status === "received" && wo.engineer_id === user?.id && (
-                                <Button size="sm" onClick={() => arriveWO.mutate(wo.id)} disabled={arriveWO.isPending}>
+                                <Button size="sm" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
                                   <MapPin className="h-3 w-3 mr-1" /> Arrived
                                 </Button>
                               )}
