@@ -560,7 +560,15 @@ export type Database = {
         Returns: undefined
       }
       set_admin_pin: { Args: { _new_pin: string }; Returns: undefined }
+      set_engineer_pin: {
+        Args: { _new_pin: string; _user_id: string }
+        Returns: undefined
+      }
       verify_admin_pin: { Args: { _pin: string }; Returns: boolean }
+      verify_engineer_pin: {
+        Args: { _pin: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "engineer" | "operator"
