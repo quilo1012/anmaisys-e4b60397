@@ -44,6 +44,35 @@ export default function OperatorDashboard() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Distinct lines for filter
+  const lines = useMemo(() => {
+    if (!machines) return [];
+    const lineSet = new Set<string>();
+    machines.forEach((m) => { if (m.line) lineSet.add(m.line); });
+    return Array.from(lineSet).sort();
+  }, [machines]);
+
+  // Filter machines by selected line
+  const filteredMachines = useMemo(() => {
+    if (!machines) return [];
+    if (!line) return machines;
+    return machines.filter((m) => m.line === line);
+  }, [machines, line]);
+
+  // Smart suggestions: recent WOs for selected machine
+  const machineSuggestions = useMemo(() => {
+    if (!machine || !allWOs) return null;
+    const machineWOs = allWOs.filter((w) => w.machine === machine);
+    if (!machineWOs.length) return null;
+    const lastWO = machineWOs[0];
+    const daysSinceLast = differenceInDays(new Date(), new Date(lastWO.created_at));
+    // Common problems
+    const problemCount: Record<string, number> = {};
+    machineWOs.forEach((w) => { problemCount[w.description] = (problemCount[w.description] || 0) + 1; });
+    const topProblems = Object.entries(problemCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    return { totalWOs: machineWOs.length, daysSinceLast, topProblems };
+  }, [machine, allWOs]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!requesterName.trim() || !machine.trim() || !description.trim()) {
