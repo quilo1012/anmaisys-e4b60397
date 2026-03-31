@@ -1,101 +1,88 @@
 
 
-# CMMS Industrial Hardening — Gap Analysis & Implementation Plan
+# Shared Login + Individual PIN Identity System
 
-## What's Already Built (No Changes Needed)
-- RBAC (admin/engineer/operator), RLS, route protection
-- WO lifecycle: open → received → arrived → in_progress → finished → closed
-- Pre/post-service checklists blocking FINISH
-- Realtime alerts with industrial siren, stops on RECEIVED
-- Mobile engineer UI (h-14 buttons, camera, signature)
-- Control Center visual map with drag-and-drop
-- Analytics with KPIs, MTTR, MTBF, ranking, downtime charts
-- Audit logs with before/after, PIN-protected clear
-- Machine tracking: type, location, code, health score, movement log
-- Stock management with auto-deduction and zero-block
-- Pause/Resume on WOs
-- Print layout (A4, 20mm margins, audit-ready)
-- Operator form already hardcodes priority="medium" (no field shown)
-- WO table already shows LINE → MACHINE column order
-- Demo mode (clear WOs with admin PIN)
+## Current vs Desired Architecture
 
-## Actual Gaps to Implement
+**Current**: Each engineer has their own auth account. PIN verifies the logged-in user. `engineer_id` = `auth.uid()`.
 
-### 1. Dark Industrial Theme (Default)
-Currently the app defaults to light theme. The user explicitly wants dark industrial as default.
+**Desired**: One shared login account. PIN identifies the real engineer from a standalone `engineers` table. Actions belong to the PIN owner, not the session user.
 
-**Changes:**
-- `src/index.css`: Add `dark` class to `:root` or `<html>` element
-- `index.html`: Add `class="dark"` to `<html>` tag
-- Fine-tune dark theme accent color (keep #1978E5 primary, use amber accent for industrial feel)
+## Database Changes
 
-### 2. Engineer PIN for Actions (ACCEPT/ARRIVED/START/FINISH)
-Currently engineers perform actions without PIN verification. Each engineer needs a unique 4-6 digit PIN stored in their profile.
+### 1. New `engineers` table
+- `id` (uuid, PK)
+- `name` (text, NOT NULL)
+- `pin_hash` (text, NOT NULL) — bcrypt hash
+- `is_active` (boolean, default true)
+- `created_at` (timestamptz)
 
-**Database:**
-- Add `pin` column (text, nullable) to `profiles` table
-- PIN stored as bcrypt hash via a new `verify_engineer_pin` edge function
+RLS: authenticated can SELECT active engineers; admin can ALL.
 
-**New Edge Function:** `supabase/functions/verify-engineer-pin/index.ts`
-- Accepts `{ user_id, pin }`, verifies hash, returns `{ valid: boolean }`
+### 2. New `work_order_logs` table
+- `id`, `work_order_id`, `engineer_id`, `engineer_name`, `action`, `created_at`
 
-**UI Changes:**
-- Create `src/components/PinDialog.tsx` — reusable modal with OTP input (4-6 digits), calls verify edge function, resolves promise on success
-- `EngineerDashboard.tsx`: Wrap ACCEPT, ARRIVED, START, FINISH handlers with PinDialog confirmation
-- `ManageUsers.tsx`: Add PIN field when creating/editing engineers
+RLS: authenticated can SELECT and INSERT.
 
-### 3. Remove Failure Heatmap from Analytics
-**Changes:**
-- `AnalyticsPage.tsx`: Remove the entire "Failure Heatmap" card section (~lines 389-423) and related `heatmapData`/`getHeatColor` computation
+### 3. New DB functions
+- `verify_pin_by_code(_pin text)` → returns `TABLE(engineer_id uuid, engineer_name text)` — searches all active engineers, compares bcrypt hash, returns match
+- `set_engineer_pin_standalone(_engineer_id uuid, _new_pin text)` → hashes and stores PIN
 
-### 4. Control Center — Table Mode
-Add a toggle to switch between Visual Map and Table Mode showing realtime WO data.
+### 4. Work orders
+- `engineer_id` already exists (uuid) — will now reference `engineers.id` instead of `auth.users.id`
+- Add `engineer_name` column (text, nullable) for denormalized display
 
-**Changes in `ControlCenterPage.tsx`:**
-- Add `viewMode` state ("visual" | "table")
-- Add toggle button (List/Monitor icons)
-- Table Mode renders a `<Table>` with columns: Line, Machine, Status, Problem, Engineer, Downtime, Created
-- Uses same `workOrders` data already fetched
+## Edge Function Changes
 
-### 5. Operator Form — Add LINE Field
-Operator currently selects Machine but not Line. Adding Line as a filter that narrows machine selection.
+### `verify-engineer-pin` — Rewrite
+**Input**: `{ pin: "1234" }` (no user_id needed)
+**Process**: Call `verify_pin_by_code(pin)` which scans all active engineers
+**Output**: `{ valid: true, engineer_id: "...", engineer_name: "John" }` or `{ valid: false }`
 
-**Changes in `OperatorDashboard.tsx`:**
-- Add `line` state
-- Add Line dropdown (populated from `machines` distinct lines)
-- Filter machine dropdown based on selected line
-- Show Line column in "My Work Orders" table
+## Component Changes
 
-### 6. WO Smart Suggestions
-When creating a WO, show machine history (common problems, recent WOs).
+### `PinDialog.tsx` — Return engineer identity
+- Change `onSuccess` callback signature: `onSuccess(engineer: { id: string; name: string })` 
+- After valid PIN, show confirmation: "Confirm as: **JOHN DOE**?" with Confirm/Cancel
+- Two-step flow: enter PIN → see name → confirm
 
-**Changes in `OperatorDashboard.tsx`:**
-- When machine is selected, query recent WOs for that machine
-- Show small info card: "Common problems for this machine", "Last WO: X days ago"
+### `useWorkOrders.ts` — Accept engineer identity
+- All status mutation hooks (`useReceiveWorkOrder`, `useArriveWorkOrder`, `useStartWorkOrder`, `useFinishWorkOrder`) accept `{ woId, engineerId, engineerName }` instead of using `auth.uid()`
+- `useReceiveWorkOrder`: sets `engineer_id` and `engineer_name` from PIN result
+- Each mutation also inserts into `work_order_logs`
 
----
+### `EngineerDashboard.tsx` — Wire engineer identity through flow
+- `requirePin` callback now receives engineer identity
+- `handleAcceptClick`, `handleArrivedClick`, `handleStartClick`, `handleFinishClick` all pass `engineerId`/`engineerName` to mutations
+- Active WO filtering: show all open WOs (since shared login means all engineers see everything)
+- KPIs: query by engineer_id from engineers table, not auth.uid()
+
+### `ManageUsers.tsx` — Engineer CRUD
+- Add section to manage engineers (name + PIN) separately from auth users
+- Create/edit/delete engineers in the `engineers` table
+- PIN set via `set_engineer_pin_standalone` function
+
+## Audit Logging
+- `logAuditEvent` updated to accept optional `engineer_id` and `engineer_name` parameters
+- All WO actions log both the session user and the PIN-identified engineer
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| **DB Migration** | Add `pin` (text, nullable) to `profiles` |
-| `supabase/functions/verify-engineer-pin/index.ts` | NEW — verify engineer PIN hash |
-| `src/components/PinDialog.tsx` | NEW — reusable PIN confirmation modal |
-| `index.html` | Add `class="dark"` to `<html>` |
-| `src/index.css` | Adjust dark theme colors for industrial aesthetic |
-| `src/pages/dashboard/EngineerDashboard.tsx` | PIN verification on all status actions |
-| `src/pages/dashboard/AnalyticsPage.tsx` | Remove Failure Heatmap section |
-| `src/pages/dashboard/ControlCenterPage.tsx` | Add Table Mode toggle and table view |
-| `src/pages/dashboard/OperatorDashboard.tsx` | Add LINE filter, smart machine suggestions |
-| `src/pages/users/ManageUsers.tsx` | Add PIN field for engineer creation/editing |
+| DB Migration | Create `engineers` table, `work_order_logs` table, `verify_pin_by_code` function, add `engineer_name` to `work_orders` |
+| `supabase/functions/verify-engineer-pin/index.ts` | Rewrite to search by PIN across engineers table, return identity |
+| `src/components/PinDialog.tsx` | Two-step flow: PIN entry → engineer name confirmation → callback with identity |
+| `src/hooks/useWorkOrders.ts` | All status mutations accept engineerId/engineerName, insert into work_order_logs |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Wire engineer identity from PinDialog through all action handlers |
+| `src/pages/users/ManageUsers.tsx` | Add engineer management section (CRUD for engineers table) |
+| `src/hooks/useAuditLogs.ts` | Accept optional engineer identity in logAuditEvent |
 
 ## Sequence
-1. Database migration (engineer PIN column)
-2. Engineer PIN edge function + PinDialog component
-3. Dark industrial theme
-4. Engineer Dashboard PIN integration
-5. Remove Failure Heatmap
-6. Control Center Table Mode
-7. Operator form enhancements (LINE + suggestions)
+1. Database migration (engineers table, work_order_logs, functions, engineer_name column)
+2. Rewrite verify-engineer-pin edge function
+3. Update PinDialog with two-step confirmation
+4. Update useWorkOrders hooks to accept engineer identity
+5. Update EngineerDashboard to wire identity through flows
+6. Add engineer management to ManageUsers
 
