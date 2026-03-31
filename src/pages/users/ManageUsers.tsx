@@ -291,6 +291,12 @@ export default function ManageUsers() {
                 <Label>Active</Label>
                 <Switch checked={editActive} onCheckedChange={setEditActive} />
               </div>
+              {(editRole === "engineer" || editRole === "admin") && (
+                <div className="space-y-2">
+                  <Label>Engineer PIN (4-6 digits)</Label>
+                  <Input type="password" value={editPin} onChange={(e) => setEditPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Leave blank to keep current" minLength={4} maxLength={6} />
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditUser(null)}>Cancel</Button>
