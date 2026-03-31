@@ -88,6 +88,11 @@ export default function EngineerDashboard() {
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
   
+  // PIN dialog state
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [pendingPinAction, setPendingPinAction] = useState<(() => void) | null>(null);
+  const [pinDialogTitle, setPinDialogTitle] = useState("Enter PIN");
+  
   // Pre-service checklist state
   const [preChecklistWO, setPreChecklistWO] = useState<string | null>(null);
   const [preCheckedItems, setPreCheckedItems] = useState<Record<string, boolean>>({});
