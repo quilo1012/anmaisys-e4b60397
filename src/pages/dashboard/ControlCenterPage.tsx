@@ -51,6 +51,7 @@ export default function ControlCenterPage() {
   const navigate = useNavigate();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [draggedMachine, setDraggedMachine] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"visual" | "table">("visual");
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
