@@ -71,6 +71,30 @@ export type Database = {
         }
         Relationships: []
       }
+      engineers: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          pin_hash: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          pin_hash: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          pin_hash?: string
+        }
+        Relationships: []
+      }
       machine_location_log: {
         Row: {
           created_at: string
@@ -434,6 +458,48 @@ export type Database = {
           },
         ]
       }
+      work_order_logs: {
+        Row: {
+          action: string
+          created_at: string
+          engineer_id: string
+          engineer_name: string
+          id: string
+          work_order_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          engineer_id: string
+          engineer_name: string
+          id?: string
+          work_order_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          engineer_id?: string
+          engineer_name?: string
+          id?: string
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_order_logs_engineer_id_fkey"
+            columns: ["engineer_id"]
+            isOneToOne: false
+            referencedRelation: "engineers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_logs_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_orders: {
         Row: {
           arrived_at: string | null
@@ -444,6 +510,7 @@ export type Database = {
           created_at: string
           description: string
           engineer_id: string | null
+          engineer_name: string | null
           finished_at: string | null
           id: string
           machine: string
@@ -469,6 +536,7 @@ export type Database = {
           created_at?: string
           description: string
           engineer_id?: string | null
+          engineer_name?: string | null
           finished_at?: string | null
           id?: string
           machine: string
@@ -494,6 +562,7 @@ export type Database = {
           created_at?: string
           description?: string
           engineer_id?: string | null
+          engineer_name?: string | null
           finished_at?: string | null
           id?: string
           machine?: string
@@ -564,10 +633,21 @@ export type Database = {
         Args: { _new_pin: string; _user_id: string }
         Returns: undefined
       }
+      set_engineer_pin_standalone: {
+        Args: { _engineer_id: string; _new_pin: string }
+        Returns: undefined
+      }
       verify_admin_pin: { Args: { _pin: string }; Returns: boolean }
       verify_engineer_pin: {
         Args: { _pin: string; _user_id: string }
         Returns: boolean
+      }
+      verify_pin_by_code: {
+        Args: { _pin: string }
+        Returns: {
+          engineer_id: string
+          engineer_name: string
+        }[]
       }
     }
     Enums: {
