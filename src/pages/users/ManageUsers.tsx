@@ -172,6 +172,12 @@ export default function ManageUsers() {
                     </SelectContent>
                   </Select>
                 </div>
+                {(role === "engineer" || role === "admin") && (
+                  <div className="space-y-2">
+                    <Label>Engineer PIN (4-6 digits)</Label>
+                    <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="e.g. 1234" minLength={4} maxLength={6} />
+                  </div>
+                )}
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Creating..." : "Create User"}
                 </Button>
