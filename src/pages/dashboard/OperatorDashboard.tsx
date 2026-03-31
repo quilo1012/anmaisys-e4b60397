@@ -148,6 +148,31 @@ export default function OperatorDashboard() {
                 <Label htmlFor="notes">Observations (optional)</Label>
                 <Textarea id="notes" placeholder="Additional notes or context..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
               </div>
+              {/* Smart Suggestions */}
+              {machineSuggestions && (
+                <div className="md:col-span-2">
+                  <Card className="border-amber-500/30 bg-amber-500/5">
+                    <CardContent className="p-3 flex flex-wrap gap-4 items-center text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <AlertTriangle className="h-4 w-4 text-amber-500" />
+                        <span className="font-medium">{machineSuggestions.totalWOs} previous WO(s)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span>Last WO: {machineSuggestions.daysSinceLast} day(s) ago</span>
+                      </div>
+                      {machineSuggestions.topProblems.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-muted-foreground">Common:</span>
+                          {machineSuggestions.topProblems.map(([problem, count]) => (
+                            <Badge key={problem} variant="secondary" className="text-xs">{problem} ({count}x)</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
               <div className="md:col-span-2">
                 <Button type="submit" disabled={createWO.isPending}>
                   {createWO.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
