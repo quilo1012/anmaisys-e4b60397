@@ -36,7 +36,6 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const pin = body?.pin;
-    const userId = body?.user_id || user.id;
 
     if (!pin || typeof pin !== "string" || pin.length < 4 || pin.length > 6) {
       return new Response(JSON.stringify({ error: "PIN must be 4-6 digits" }), {
@@ -57,30 +56,8 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Fetch engineer's stored PIN hash
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("pin")
-      .eq("id", userId)
-      .single();
-
-    if (profileError || !profile) {
-      return new Response(JSON.stringify({ error: "User not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (!profile.pin) {
-      return new Response(JSON.stringify({ error: "No PIN configured for this user" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Verify PIN using pgcrypto crypt() comparison via raw SQL
-    const { data: match, error: matchError } = await supabaseAdmin.rpc("verify_engineer_pin", {
-      _user_id: userId,
+    // Search all active engineers by PIN using verify_pin_by_code
+    const { data: match, error: matchError } = await supabaseAdmin.rpc("verify_pin_by_code", {
       _pin: pin,
     });
 
@@ -92,14 +69,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!match) {
+    if (!match || match.length === 0) {
       return new Response(JSON.stringify({ valid: false }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({ valid: true }), {
+    // Return the matched engineer's identity
+    return new Response(JSON.stringify({
+      valid: true,
+      engineer_id: match[0].engineer_id,
+      engineer_name: match[0].engineer_name,
+    }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

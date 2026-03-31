@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
-import { PinDialog } from "@/components/PinDialog";
+import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
@@ -88,10 +88,13 @@ export default function EngineerDashboard() {
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
   
-  // PIN dialog state
+  // PIN dialog state — now tracks engineer identity
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
-  const [pendingPinAction, setPendingPinAction] = useState<(() => void) | null>(null);
+  const [pendingPinAction, setPendingPinAction] = useState<((engineer: EngineerIdentity) => void) | null>(null);
   const [pinDialogTitle, setPinDialogTitle] = useState("Enter PIN");
+
+  // Track current engineer for the finish flow
+  const [currentEngineer, setCurrentEngineer] = useState<EngineerIdentity | null>(null);
   
   // Pre-service checklist state
   const [preChecklistWO, setPreChecklistWO] = useState<string | null>(null);
@@ -103,19 +106,19 @@ export default function EngineerDashboard() {
 
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
+  // Show all WOs since shared login — filter by engineer_id for assigned ones
   const activeWOIds = useMemo(() => workOrders?.filter(
-    (wo) => wo.status === "open" || (["received", "arrived", "in_progress"].includes(wo.status) && wo.engineer_id === user?.id)
-  ).map((w) => w.id) ?? [], [workOrders, user]);
+    (wo) => wo.status === "open" || ["received", "arrived", "in_progress"].includes(wo.status)
+  ).map((w) => w.id) ?? [], [workOrders]);
   const { data: partsCounts } = usePartsCountByWOs(activeWOIds);
 
   const [photosUploaded, setPhotosUploaded] = useState<Record<string, { before: boolean; after: boolean }>>({});
 
   const kpis = useMemo(() => {
-    if (!allCompleted || !user) return { totalCompleted: 0, avgResponse: 0, avgMTTR: 0 };
-    const myCompleted = allCompleted.filter((w) => w.engineer_id === user.id);
-    const totalCompleted = myCompleted.length;
+    if (!allCompleted) return { totalCompleted: 0, avgResponse: 0, avgMTTR: 0 };
+    const totalCompleted = allCompleted.length;
     let totalResponse = 0, responseCount = 0, totalMTTR = 0, mttrCount = 0;
-    myCompleted.forEach((wo) => {
+    allCompleted.forEach((wo) => {
       if (wo.started_at) {
         totalResponse += differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at));
         responseCount++;
@@ -130,18 +133,17 @@ export default function EngineerDashboard() {
       avgResponse: responseCount ? Math.round(totalResponse / responseCount) : 0,
       avgMTTR: mttrCount ? Math.round(totalMTTR / mttrCount) : 0,
     };
-  }, [allCompleted, user]);
+  }, [allCompleted]);
 
   const activeWOs = useMemo(() => {
     const all = workOrders?.filter(
-      (wo) => wo.status === "open" || (["received", "arrived", "in_progress"].includes(wo.status) && wo.engineer_id === user?.id)
+      (wo) => wo.status === "open" || ["received", "arrived", "in_progress"].includes(wo.status)
     ) || [];
     if (focusMode && all.length > 0) {
-      // Focus mode: show only the oldest actionable WO
       return [all[all.length - 1]];
     }
     return all;
-  }, [workOrders, user, focusMode]);
+  }, [workOrders, focusMode]);
 
   // Workload balancing: suggest engineer with fewest active WOs
   const suggestedEngineer = useMemo(() => {
@@ -172,8 +174,8 @@ export default function EngineerDashboard() {
     e.target.value = "";
   };
 
-  // Helper to require PIN before an action
-  const requirePin = useCallback((title: string, action: () => void) => {
+  // Helper to require PIN before an action — now passes engineer identity
+  const requirePin = useCallback((title: string, action: (engineer: EngineerIdentity) => void) => {
     setPinDialogTitle(title);
     setPendingPinAction(() => action);
     setPinDialogOpen(true);
@@ -182,36 +184,39 @@ export default function EngineerDashboard() {
   // ACCEPT → PIN → pre-service checklist
   const handleAcceptClick = (woId: string) => {
     stopAlertSound();
-    requirePin("Confirm ACCEPT", () => {
+    requirePin("Confirm ACCEPT", (engineer) => {
+      setCurrentEngineer(engineer);
       setPreCheckedItems({});
       setPreChecklistWO(woId);
     });
   };
 
   const handlePreChecklistComplete = () => {
-    if (!preChecklistWO) return;
-    receiveWO.mutate(preChecklistWO);
+    if (!preChecklistWO || !currentEngineer) return;
+    receiveWO.mutate({ woId: preChecklistWO, engineerId: currentEngineer.id, engineerName: currentEngineer.name });
     setPreChecklistWO(null);
+    setCurrentEngineer(null);
   };
 
   // ARRIVED → PIN
   const handleArrivedClick = (woId: string) => {
-    requirePin("Confirm ARRIVED", () => {
-      arriveWO.mutate(woId);
+    requirePin("Confirm ARRIVED", (engineer) => {
+      arriveWO.mutate({ woId, engineerId: engineer.id, engineerName: engineer.name });
     });
   };
 
   // START → PIN → photo reminder
   const handleStartClick = (woId: string) => {
-    requirePin("Confirm START", () => {
-      startWO.mutate(woId);
+    requirePin("Confirm START", (engineer) => {
+      startWO.mutate({ woId, engineerId: engineer.id, engineerName: engineer.name });
       toast({ title: "📸 Photo reminder", description: "Don't forget to add a Before photo!" });
     });
   };
 
   // FINISH → PIN → post-service checklist
   const handleFinishClick = (woId: string) => {
-    requirePin("Confirm FINISH", () => {
+    requirePin("Confirm FINISH", (engineer) => {
+      setCurrentEngineer(engineer);
       toast({ title: "📸 Photo reminder", description: "Don't forget to add an After photo!" });
       setPostCheckedItems({});
       setPostChecklistWO(woId);
@@ -225,10 +230,11 @@ export default function EngineerDashboard() {
   };
 
   const handleFinishConfirm = async () => {
-    if (!signDialogWO || !signName.trim()) return;
-    await finishWO.mutateAsync({ woId: signDialogWO, signedByName: signName.trim() });
+    if (!signDialogWO || !signName.trim() || !currentEngineer) return;
+    await finishWO.mutateAsync({ woId: signDialogWO, signedByName: signName.trim(), engineerId: currentEngineer.id, engineerName: currentEngineer.name });
     setSignDialogWO(null);
     setSignName("");
+    setCurrentEngineer(null);
   };
 
   const allPreChecked = PRE_SERVICE_CHECKLIST.every((item) => preCheckedItems[item.id]);
@@ -264,6 +270,9 @@ export default function EngineerDashboard() {
             <div><span className="text-muted-foreground">SLA:</span><p><SLACountdown wo={wo} /></p></div>
             <div><span className="text-muted-foreground">Requester:</span><p className="font-medium">{wo.requester_name}</p></div>
             <div><span className="text-muted-foreground">Created:</span><p className="font-medium">{format(new Date(wo.created_at), "dd/MM HH:mm")}</p></div>
+            {wo.engineer_name && (
+              <div className="col-span-2"><span className="text-muted-foreground">Engineer:</span><p className="font-medium">{wo.engineer_name}</p></div>
+            )}
           </div>
           <p className="text-sm text-muted-foreground truncate">{wo.description}</p>
           <div className="grid grid-cols-2 gap-2 pt-1">
@@ -272,19 +281,18 @@ export default function EngineerDashboard() {
                 <Phone className="h-5 w-5 mr-2" /> ACCEPT
               </Button>
             )}
-            {wo.status === "received" && wo.engineer_id === user?.id && (
+            {wo.status === "received" && (
               <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
                 <MapPin className="h-5 w-5 mr-2" /> ARRIVED
               </Button>
             )}
-            {wo.status === "arrived" && wo.engineer_id === user?.id && (
+            {wo.status === "arrived" && (
               <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
                 <Play className="h-5 w-5 mr-2" /> START
               </Button>
             )}
-            {wo.status === "in_progress" && wo.engineer_id === user?.id && (
+            {wo.status === "in_progress" && (
               <>
-                {/* Pause/Resume */}
                 {(wo as any).paused_at ? (
                   <Button size="lg" variant="outline" className="h-14 text-base border-green-500 text-green-700" onClick={() => resumeWO.mutate(wo.id)} disabled={resumeWO.isPending}>
                     <PlayCircle className="h-5 w-5 mr-2" /> RESUME
@@ -412,6 +420,7 @@ export default function EngineerDashboard() {
                       <th className="text-left p-2 font-medium">Requester</th>
                       <th className="text-left p-2 font-medium">Machine</th>
                       <th className="text-left p-2 font-medium">Description</th>
+                      <th className="text-left p-2 font-medium">Engineer</th>
                       <th className="text-left p-2 font-medium">Status</th>
                       <th className="text-left p-2 font-medium">Created</th>
                       <th className="text-left p-2 font-medium">Parts</th>
@@ -429,6 +438,7 @@ export default function EngineerDashboard() {
                           <td className="p-2">{wo.requester_name}</td>
                           <td className="p-2">{wo.machine}</td>
                           <td className="p-2 max-w-[200px] truncate">{wo.description}</td>
+                          <td className="p-2 text-muted-foreground">{wo.engineer_name || "—"}</td>
                           <td className="p-2"><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></td>
                           <td className="p-2 text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</td>
                           <td className="p-2">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</td>
@@ -439,17 +449,17 @@ export default function EngineerDashboard() {
                                   <Phone className="h-3 w-3 mr-1" /> Receive
                                 </Button>
                               )}
-                              {wo.status === "received" && wo.engineer_id === user?.id && (
+                              {wo.status === "received" && (
                                 <Button size="sm" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
                                   <MapPin className="h-3 w-3 mr-1" /> Arrived
                                 </Button>
                               )}
-                              {wo.status === "arrived" && wo.engineer_id === user?.id && (
+                              {wo.status === "arrived" && (
                                 <Button size="sm" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
                                   <Play className="h-3 w-3 mr-1" /> Start
                                 </Button>
                               )}
-                              {wo.status === "in_progress" && wo.engineer_id === user?.id && (
+                              {wo.status === "in_progress" && (
                                 <>
                                   {(wo as any).paused_at ? (
                                     <Button size="sm" variant="outline" className="border-green-500 text-green-700" onClick={() => resumeWO.mutate(wo.id)} disabled={resumeWO.isPending}>
@@ -476,7 +486,6 @@ export default function EngineerDashboard() {
                                   </Button>
                                 </>
                               )}
-                              {/* Print WO detail */}
                               {wo.status !== "open" && (
                                 <Button size="sm" variant="ghost" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}>
                                   <Printer className="h-3 w-3 mr-1" /> Print
@@ -500,7 +509,7 @@ export default function EngineerDashboard() {
       )}
 
       {/* PRE-SERVICE Safety Checklist (on Accept) */}
-      <Dialog open={!!preChecklistWO} onOpenChange={(open) => { if (!open) setPreChecklistWO(null); }}>
+      <Dialog open={!!preChecklistWO} onOpenChange={(open) => { if (!open) { setPreChecklistWO(null); setCurrentEngineer(null); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -521,7 +530,7 @@ export default function EngineerDashboard() {
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPreChecklistWO(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setPreChecklistWO(null); setCurrentEngineer(null); }}>Cancel</Button>
             <Button onClick={handlePreChecklistComplete} disabled={!allPreChecked || receiveWO.isPending}>
               {receiveWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Accept Work Order
@@ -561,21 +570,24 @@ export default function EngineerDashboard() {
       </Dialog>
 
       {/* Sign Dialog */}
-      <Dialog open={!!signDialogWO} onOpenChange={(open) => { if (!open) { setSignDialogWO(null); setSignName(""); } }}>
+      <Dialog open={!!signDialogWO} onOpenChange={(open) => { if (!open) { setSignDialogWO(null); setSignName(""); setCurrentEngineer(null); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><PenTool className="h-5 w-5" /> Confirm & Finish Work Order</DialogTitle>
             <DialogDescription>Sign and finish the work order</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">Type your full name below to sign and finish this work order.</p>
+            {currentEngineer && (
+              <p className="text-sm text-muted-foreground">Finishing as: <strong className="text-primary">{currentEngineer.name}</strong></p>
+            )}
+            <p className="text-sm text-muted-foreground">Type the operator/line leader's name below to sign and finish this work order.</p>
             <div className="space-y-2">
               <Label htmlFor="sign-name">Full Name (Digital Signature)</Label>
               <Input id="sign-name" placeholder="e.g. John Smith" value={signName} onChange={(e) => setSignName(e.target.value)} autoFocus />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); setCurrentEngineer(null); }}>Cancel</Button>
             <Button onClick={handleFinishConfirm} disabled={!signName.trim() || finishWO.isPending}>
               {finishWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm & Finish
@@ -591,8 +603,8 @@ export default function EngineerDashboard() {
           setPinDialogOpen(open);
           if (!open) setPendingPinAction(null);
         }}
-        onSuccess={() => {
-          pendingPinAction?.();
+        onSuccess={(engineer) => {
+          pendingPinAction?.(engineer);
           setPendingPinAction(null);
         }}
         title={pinDialogTitle}

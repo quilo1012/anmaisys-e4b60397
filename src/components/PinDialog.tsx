@@ -2,23 +2,28 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock, UserCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
+export interface EngineerIdentity {
+  id: string;
+  name: string;
+}
 
 interface PinDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSuccess: (engineer: EngineerIdentity) => void;
   title?: string;
   description?: string;
-  userId?: string;
 }
 
-export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", description = "Enter your engineer PIN to confirm this action.", userId }: PinDialogProps) {
+export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", description = "Enter your engineer PIN to confirm this action." }: PinDialogProps) {
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [confirming, setConfirming] = useState<EngineerIdentity | null>(null);
   const { toast } = useToast();
 
   const handleVerify = async () => {
@@ -29,18 +34,15 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
     setLoading(true);
     setError("");
     try {
-      const body: Record<string, string> = { pin };
-      if (userId) body.user_id = userId;
-      const res = await supabase.functions.invoke("verify-engineer-pin", { body });
+      const res = await supabase.functions.invoke("verify-engineer-pin", { body: { pin } });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) {
         setError(res.data.error);
         return;
       }
-      if (res.data?.valid) {
-        setPin("");
-        onSuccess();
-        onOpenChange(false);
+      if (res.data?.valid && res.data?.engineer_id) {
+        // Show confirmation step
+        setConfirming({ id: res.data.engineer_id, name: res.data.engineer_name });
       } else {
         setError("Incorrect PIN");
       }
@@ -51,11 +53,22 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
     }
   };
 
+  const handleConfirm = () => {
+    if (!confirming) return;
+    const engineer = confirming;
+    resetState();
+    onSuccess(engineer);
+    onOpenChange(false);
+  };
+
+  const resetState = () => {
+    setPin("");
+    setError("");
+    setConfirming(null);
+  };
+
   const handleClose = (isOpen: boolean) => {
-    if (!isOpen) {
-      setPin("");
-      setError("");
-    }
+    if (!isOpen) resetState();
     onOpenChange(isOpen);
   };
 
@@ -64,29 +77,49 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Lock className="h-5 w-5" /> {title}
+            {confirming ? <UserCheck className="h-5 w-5 text-green-500" /> : <Lock className="h-5 w-5" />}
+            {confirming ? "Confirm Identity" : title}
           </DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogDescription>
+            {confirming ? "Verify this is the correct engineer." : description}
+          </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col items-center gap-4 py-4">
-          <InputOTP maxLength={6} value={pin} onChange={setPin}>
-            <InputOTPGroup>
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-              <InputOTPSlot index={3} />
-              <InputOTPSlot index={4} />
-              <InputOTPSlot index={5} />
-            </InputOTPGroup>
-          </InputOTP>
-          {error && <p className="text-sm text-destructive font-medium">{error}</p>}
-        </div>
+
+        {confirming ? (
+          <div className="flex flex-col items-center gap-4 py-6">
+            <div className="text-center space-y-2">
+              <p className="text-sm text-muted-foreground">Confirming as:</p>
+              <p className="text-2xl font-bold text-primary">{confirming.name}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-4 py-4">
+            <InputOTP maxLength={6} value={pin} onChange={setPin}>
+              <InputOTPGroup>
+                <InputOTPSlot index={0} />
+                <InputOTPSlot index={1} />
+                <InputOTPSlot index={2} />
+                <InputOTPSlot index={3} />
+                <InputOTPSlot index={4} />
+                <InputOTPSlot index={5} />
+              </InputOTPGroup>
+            </InputOTP>
+            {error && <p className="text-sm text-destructive font-medium">{error}</p>}
+          </div>
+        )}
+
         <DialogFooter>
           <Button variant="outline" onClick={() => handleClose(false)}>Cancel</Button>
-          <Button onClick={handleVerify} disabled={loading || pin.length < 4}>
-            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Confirm
-          </Button>
+          {confirming ? (
+            <Button onClick={handleConfirm} className="bg-green-600 hover:bg-green-700">
+              <UserCheck className="h-4 w-4 mr-2" /> Confirm
+            </Button>
+          ) : (
+            <Button onClick={handleVerify} disabled={loading || pin.length < 4}>
+              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Verify
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
