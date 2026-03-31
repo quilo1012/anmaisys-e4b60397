@@ -414,6 +414,7 @@ export default function ControlCenterPage() {
             </Card>
           </div>
         </div>
+        )}
       </div>
     </DashboardLayout>
   );
