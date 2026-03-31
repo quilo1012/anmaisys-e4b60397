@@ -223,6 +223,56 @@ export default function ControlCenterPage() {
           </Badge>
         </div>
 
+        {viewMode === "table" ? (
+          /* TABLE MODE */
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Active Work Orders — Realtime</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!workOrders?.length ? (
+                <p className="text-muted-foreground text-center py-8">No active work orders.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Line</TableHead>
+                      <TableHead>Machine</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Problem</TableHead>
+                      <TableHead>Engineer</TableHead>
+                      <TableHead>Downtime</TableHead>
+                      <TableHead>Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {workOrders.map((wo) => {
+                      const machine = machines?.find((m) => m.name === wo.machine);
+                      const downMin = differenceInMinutes(new Date(), new Date(wo.created_at));
+                      return (
+                        <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                          <TableCell className="font-medium">{machine?.line || "—"}</TableCell>
+                          <TableCell>{wo.machine}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={
+                              wo.status === "open" ? "bg-red-500/20 border-red-500 text-red-400" :
+                              wo.status === "in_progress" ? "bg-amber-500/20 border-amber-500 text-amber-400" :
+                              "bg-blue-500/20 border-blue-500 text-blue-400"
+                            }>{wo.status}</Badge>
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
+                          <TableCell>{wo.engineer?.name || "—"}</TableCell>
+                          <TableCell className="font-mono">{formatDowntime(downMin)}</TableCell>
+                          <TableCell className="text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
         <div className={`grid gap-4 ${tvMode ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
           {/* Main factory map */}
           <div className={`space-y-3 ${tvMode ? "lg:col-span-4" : "lg:col-span-3"}`}>
