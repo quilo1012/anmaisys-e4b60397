@@ -15,11 +15,6 @@ import { differenceInMinutes, format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { differenceInMinutes } from "date-fns";
-import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
 const ZONE_ORDER = ["Line 1", "Line 2", "Line 3", "Line A", "Line B", "Line C", "Storage", "Maintenance Area"];
 
