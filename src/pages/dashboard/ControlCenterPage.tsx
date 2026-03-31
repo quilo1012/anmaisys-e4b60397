@@ -190,10 +190,18 @@ export default function ControlCenterPage() {
             </h2>
             {!tvMode && <p className="text-muted-foreground">Real-time factory map — drag machines between zones</p>}
           </div>
-          <Button variant="outline" size="sm" onClick={toggleFullscreen} className="gap-2">
-            {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-            {isFullscreen ? "Exit" : "TV Mode"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant={viewMode === "visual" ? "default" : "outline"} size="sm" onClick={() => setViewMode("visual")} className="gap-1">
+              <Monitor className="h-4 w-4" /> Map
+            </Button>
+            <Button variant={viewMode === "table" ? "default" : "outline"} size="sm" onClick={() => setViewMode("table")} className="gap-1">
+              <List className="h-4 w-4" /> Table
+            </Button>
+            <Button variant="outline" size="sm" onClick={toggleFullscreen} className="gap-2">
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+              {isFullscreen ? "Exit" : "TV Mode"}
+            </Button>
+          </div>
         </div>
 
         {/* Predictive Alerts Banner */}
