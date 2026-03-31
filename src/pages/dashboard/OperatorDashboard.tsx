@@ -200,7 +200,7 @@ export default function OperatorDashboard() {
                 <TableHeader>
                   <TableRow>
                      <TableHead>WO#</TableHead>
-                     <TableHead>Requester</TableHead>
+                     <TableHead>Line</TableHead>
                      <TableHead>Machine</TableHead>
                      <TableHead>Problem</TableHead>
                      <TableHead>Status</TableHead>
