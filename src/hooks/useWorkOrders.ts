@@ -107,6 +107,43 @@ export function useCreateWorkOrder() {
   });
 }
 
+export function useAcceptAndStartWorkOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
+      const now = new Date().toISOString();
+      const { data: before } = await supabase.from("work_orders").select("status, engineer_id").eq("id", woId).single();
+      const { error } = await supabase
+        .from("work_orders")
+        .update({
+          status: "in_progress" as any,
+          engineer_id: engineerId,
+          engineer_name: engineerName,
+          received_at: now,
+          arrived_at: now,
+          started_at: now,
+        } as any)
+        .eq("id", woId);
+      if (error) throw error;
+      // Log all three actions for traceability
+      await logWOAction(woId, engineerId, engineerName, "received");
+      await logWOAction(woId, engineerId, engineerName, "arrived");
+      await logWOAction(woId, engineerId, engineerName, "started");
+      return { before };
+    },
+    onSuccess: (result, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("accept_and_start", "work_order", vars.woId, {
+        before: result.before,
+        after: { status: "in_progress" },
+        engineer_id: vars.engineerId,
+        engineer_name: vars.engineerName,
+      });
+    },
+  });
+}
+
 export function useReceiveWorkOrder() {
   const queryClient = useQueryClient();
 
