@@ -55,7 +55,7 @@ export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOSt
     queryFn: async () => {
       let q = supabase
         .from("work_orders")
-        .select("*, operator:profiles!work_orders_operator_id_fkey(name), engineer:profiles!work_orders_engineer_id_fkey(name), closer:profiles!work_orders_closed_by_fkey(name)")
+        .select("*, operator:profiles!work_orders_operator_id_fkey(name), engineer:engineers!work_orders_engineer_id_fkey(name), closer:profiles!work_orders_closed_by_fkey(name)")
         .order("created_at", { ascending: false });
 
       if (filter?.operatorOnly && user) {
