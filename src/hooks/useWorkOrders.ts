@@ -37,12 +37,13 @@ export interface WorkOrder {
 
 // Helper to insert a work_order_log entry
 async function logWOAction(workOrderId: string, engineerId: string, engineerName: string, action: string) {
-  await supabase.from("work_order_logs" as any).insert({
+  const { error } = await supabase.from("work_order_logs" as any).insert({
     work_order_id: workOrderId,
     engineer_id: engineerId,
     engineer_name: engineerName,
     action,
   } as any);
+  if (error) console.error("logWOAction failed:", error);
 }
 
 export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOStatus[] }) {
