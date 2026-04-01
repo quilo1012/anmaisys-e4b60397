@@ -262,7 +262,7 @@ export default function MachinesPage() {
             <div className="space-y-4">
               <div><Label className="text-sm text-muted-foreground">Current Location</Label><p className="font-medium">{moveTarget?.current_location || "Not assigned"}</p></div>
               <div className="space-y-2"><Label>New Location</Label>
-                <ComboboxInput value={moveLocation} onChange={setMoveLocation} suggestions={locationSuggestions} placeholder="Enter or select location" />
+                <Input value={moveLocation} onChange={(e) => setMoveLocation(e.target.value)} placeholder="Enter new location" />
               </div>
             </div>
             <DialogFooter><Button variant="outline" onClick={() => setMoveTarget(null)}>Cancel</Button><Button onClick={handleMove} disabled={moveMachine.isPending || !moveLocation.trim()}>{moveMachine.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Move</Button></DialogFooter>
