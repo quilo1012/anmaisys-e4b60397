@@ -1,88 +1,74 @@
 
 
-# Shared Login + Individual PIN Identity System
+# CMMS Engineer Flow Optimization
 
-## Current vs Desired Architecture
+## Summary
+Three major changes: (1) merge ACCEPT+ARRIVED+START into a single "Accept + Start" action, (2) create dynamic checklists per problem, (3) Machine Type already uses ComboboxInput (no change needed there).
 
-**Current**: Each engineer has their own auth account. PIN verifies the logged-in user. `engineer_id` = `auth.uid()`.
+## What Already Exists
+- Machine Type field already uses `ComboboxInput` with free-text + autocomplete — **no change needed**
+- PIN verification for all engineer actions
+- Pre/post-service static checklists
+- Mobile-first engineer cards with h-14 buttons
+- Full audit trail via `work_order_logs` and `audit_logs`
 
-**Desired**: One shared login account. PIN identifies the real engineer from a standalone `engineers` table. Actions belong to the PIN owner, not the session user.
+## Changes
 
-## Database Changes
+### 1. Merge ACCEPT + START into Single Action
+**Goal**: Reduce 3 PIN prompts (ACCEPT→ARRIVED→START) to 1.
 
-### 1. New `engineers` table
-- `id` (uuid, PK)
-- `name` (text, NOT NULL)
-- `pin_hash` (text, NOT NULL) — bcrypt hash
-- `is_active` (boolean, default true)
-- `created_at` (timestamptz)
+**EngineerDashboard.tsx changes**:
+- Replace the three separate buttons (ACCEPT, ARRIVED, START) for `open` WOs with a single **"Accept + Start"** button
+- On click: require PIN → show pre-service checklist → on complete, call a new combined mutation that sets status directly to `in_progress` with `received_at`, `arrived_at`, `started_at` all set to now()
+- For WOs already in `received` or `arrived` status (edge case), show a single **"Start"** button that also does PIN → sets to `in_progress`
+- Keep FINISH flow unchanged (PIN → post-checklist → signature)
 
-RLS: authenticated can SELECT active engineers; admin can ALL.
+**useWorkOrders.ts changes**:
+- Add `useAcceptAndStartWorkOrder()` mutation that updates the WO to `in_progress` in one step, setting `engineer_id`, `engineer_name`, `received_at`, `arrived_at`, `started_at`
+- Logs 3 entries to `work_order_logs`: "received", "arrived", "started"
 
-### 2. New `work_order_logs` table
-- `id`, `work_order_id`, `engineer_id`, `engineer_name`, `action`, `created_at`
+### 2. Dynamic Checklists per Problem
+**Database migration**:
+- New table `checklists`: `id`, `problem_description_id` (FK → problem_descriptions), `type` (text: Health/Safety/Machine), `description` (text), `is_required` (boolean, default true), `created_at`
+- New table `checklist_responses`: `id`, `work_order_id`, `checklist_id`, `completed` (boolean), `completed_by` (uuid, references engineers), `completed_at` (timestamptz)
+- RLS: authenticated can SELECT checklists; admins can ALL. Authenticated can SELECT/INSERT/UPDATE checklist_responses.
 
-RLS: authenticated can SELECT and INSERT.
+**New hook** `src/hooks/useChecklists.ts`:
+- `useChecklistsByProblem(problemName)` — fetch checklist items matching the WO's problem description
+- `useChecklistResponses(woId)` — fetch responses for a WO
+- `useSaveChecklistResponse()` — upsert a response
+- CRUD hooks for admin management
 
-### 3. New DB functions
-- `verify_pin_by_code(_pin text)` → returns `TABLE(engineer_id uuid, engineer_name text)` — searches all active engineers, compares bcrypt hash, returns match
-- `set_engineer_pin_standalone(_engineer_id uuid, _new_pin text)` → hashes and stores PIN
+**EngineerDashboard.tsx changes**:
+- Replace static `PRE_SERVICE_CHECKLIST` / `POST_SERVICE_CHECKLIST` with dynamic items loaded from DB based on the WO's `description` (problem name)
+- If no custom checklist exists for a problem, fall back to the existing static items
+- Group items by `type` (Health, Safety, Machine) with visual headers
+- Required items block FINISH
+- Inline checklist within the WO card for mobile
 
-### 4. Work orders
-- `engineer_id` already exists (uuid) — will now reference `engineers.id` instead of `auth.users.id`
-- Add `engineer_name` column (text, nullable) for denormalized display
+**ProblemsPage.tsx changes**:
+- Add a "Checklists" section when editing a problem
+- Allow admins to add/remove checklist items with type and required flag
 
-## Edge Function Changes
-
-### `verify-engineer-pin` — Rewrite
-**Input**: `{ pin: "1234" }` (no user_id needed)
-**Process**: Call `verify_pin_by_code(pin)` which scans all active engineers
-**Output**: `{ valid: true, engineer_id: "...", engineer_name: "John" }` or `{ valid: false }`
-
-## Component Changes
-
-### `PinDialog.tsx` — Return engineer identity
-- Change `onSuccess` callback signature: `onSuccess(engineer: { id: string; name: string })` 
-- After valid PIN, show confirmation: "Confirm as: **JOHN DOE**?" with Confirm/Cancel
-- Two-step flow: enter PIN → see name → confirm
-
-### `useWorkOrders.ts` — Accept engineer identity
-- All status mutation hooks (`useReceiveWorkOrder`, `useArriveWorkOrder`, `useStartWorkOrder`, `useFinishWorkOrder`) accept `{ woId, engineerId, engineerName }` instead of using `auth.uid()`
-- `useReceiveWorkOrder`: sets `engineer_id` and `engineer_name` from PIN result
-- Each mutation also inserts into `work_order_logs`
-
-### `EngineerDashboard.tsx` — Wire engineer identity through flow
-- `requirePin` callback now receives engineer identity
-- `handleAcceptClick`, `handleArrivedClick`, `handleStartClick`, `handleFinishClick` all pass `engineerId`/`engineerName` to mutations
-- Active WO filtering: show all open WOs (since shared login means all engineers see everything)
-- KPIs: query by engineer_id from engineers table, not auth.uid()
-
-### `ManageUsers.tsx` — Engineer CRUD
-- Add section to manage engineers (name + PIN) separately from auth users
-- Create/edit/delete engineers in the `engineers` table
-- PIN set via `set_engineer_pin_standalone` function
-
-## Audit Logging
-- `logAuditEvent` updated to accept optional `engineer_id` and `engineer_name` parameters
-- All WO actions log both the session user and the PIN-identified engineer
+### 3. UX Improvements
+- Mobile: "Accept + Start" button uses full width, green accent, bold text
+- Desktop table: single "Accept + Start" button replaces three separate buttons
+- Show checklist completion progress badge on WO cards (e.g., "3/5 ✓")
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| DB Migration | Create `engineers` table, `work_order_logs` table, `verify_pin_by_code` function, add `engineer_name` to `work_orders` |
-| `supabase/functions/verify-engineer-pin/index.ts` | Rewrite to search by PIN across engineers table, return identity |
-| `src/components/PinDialog.tsx` | Two-step flow: PIN entry → engineer name confirmation → callback with identity |
-| `src/hooks/useWorkOrders.ts` | All status mutations accept engineerId/engineerName, insert into work_order_logs |
-| `src/pages/dashboard/EngineerDashboard.tsx` | Wire engineer identity from PinDialog through all action handlers |
-| `src/pages/users/ManageUsers.tsx` | Add engineer management section (CRUD for engineers table) |
-| `src/hooks/useAuditLogs.ts` | Accept optional engineer identity in logAuditEvent |
+| DB Migration | Create `checklists` and `checklist_responses` tables with RLS |
+| `src/hooks/useChecklists.ts` | NEW — hooks for dynamic checklists |
+| `src/hooks/useWorkOrders.ts` | Add `useAcceptAndStartWorkOrder()` combined mutation |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Merge buttons, dynamic checklists, UX improvements |
+| `src/pages/dashboard/ProblemsPage.tsx` | Add checklist management UI for admins |
 
 ## Sequence
-1. Database migration (engineers table, work_order_logs, functions, engineer_name column)
-2. Rewrite verify-engineer-pin edge function
-3. Update PinDialog with two-step confirmation
-4. Update useWorkOrders hooks to accept engineer identity
-5. Update EngineerDashboard to wire identity through flows
-6. Add engineer management to ManageUsers
+1. Database migration (checklists + checklist_responses tables)
+2. useChecklists hook
+3. useAcceptAndStartWorkOrder mutation
+4. EngineerDashboard UI update (merged flow + dynamic checklists)
+5. ProblemsPage admin checklist management
 
