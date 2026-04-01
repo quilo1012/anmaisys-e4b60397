@@ -40,7 +40,7 @@ function ChecklistManager({ problemId }: { problemId: string }) {
   const { toast } = useToast();
 
   const [newDesc, setNewDesc] = useState("");
-  const [newType, setNewType] = useState("Safety");
+  const [newType, setNewType] = useState("");
   const [newRequired, setNewRequired] = useState(true);
 
   const handleAdd = async () => {
@@ -103,8 +103,8 @@ function ChecklistManager({ problemId }: { problemId: string }) {
           />
         </div>
         <Select value={newType} onValueChange={setNewType}>
-          <SelectTrigger className="w-[100px] h-8 text-sm">
-            <SelectValue />
+          <SelectTrigger className="w-[120px] h-8 text-sm">
+            <SelectValue placeholder="Select type..." />
           </SelectTrigger>
           <SelectContent>
             {CHECKLIST_TYPES.map((t) => (
@@ -116,7 +116,7 @@ function ChecklistManager({ problemId }: { problemId: string }) {
           <Checkbox checked={newRequired} onCheckedChange={(c) => setNewRequired(!!c)} id="cl-req" />
           <Label htmlFor="cl-req" className="text-xs cursor-pointer">Required</Label>
         </div>
-        <Button size="sm" className="h-8" onClick={handleAdd} disabled={!newDesc.trim() || addChecklist.isPending}>
+        <Button size="sm" className="h-8" onClick={handleAdd} disabled={!newDesc.trim() || !newType || addChecklist.isPending}>
           <Plus className="h-3 w-3 mr-1" /> Add
         </Button>
       </div>

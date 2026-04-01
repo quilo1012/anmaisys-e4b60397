@@ -239,19 +239,27 @@ export default function EngineerDashboard() {
   // ACCEPT + START → PIN → immediately in_progress (no checklist dialog)
   const handleAcceptAndStartClick = (woId: string) => {
     stopAlertSound();
-    requirePin("Confirm Accept + Start", (engineer) => {
+    requirePin("Confirm Accept + Start", async (engineer) => {
       setCurrentEngineer(engineer);
-      acceptAndStartWO.mutate({ woId, engineerId: engineer.id, engineerName: engineer.name });
-      toast({ title: "📸 Photo reminder", description: "Don't forget to add a Before photo!" });
+      try {
+        await acceptAndStartWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
+        toast({ title: "✅ Work Order started!", description: "Don't forget to add a Before photo!" });
+      } catch (err: any) {
+        toast({ title: "Error starting WO", description: err.message, variant: "destructive" });
+      }
     });
   };
 
   // For WOs in received/arrived — just start
   const handleStartClick = (woId: string) => {
-    requirePin("Confirm START", (engineer) => {
+    requirePin("Confirm START", async (engineer) => {
       setCurrentEngineer(engineer);
-      startWO.mutate({ woId, engineerId: engineer.id, engineerName: engineer.name });
-      toast({ title: "📸 Photo reminder", description: "Don't forget to add a Before photo!" });
+      try {
+        await startWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
+        toast({ title: "✅ Work Order started!", description: "Don't forget to add a Before photo!" });
+      } catch (err: any) {
+        toast({ title: "Error starting WO", description: err.message, variant: "destructive" });
+      }
     });
   };
 
