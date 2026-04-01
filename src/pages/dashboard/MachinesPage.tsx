@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, Loader2, Cog, History, MapPin, QrCode } from "lucide-react";
 import { useMachines, useAddMachine, useUpdateMachine, useDeleteMachine, useMoveMachine, STATUS_OPTIONS, type Machine } from "@/hooks/useMachines";
-import { ComboboxInput } from "@/components/ComboboxInput";
+
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
