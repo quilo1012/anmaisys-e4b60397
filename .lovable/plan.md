@@ -1,35 +1,35 @@
 
 
-# Bug Fixes: Engineer WO Flow + Checklist Editor
+# Fix: `work_orders.engineer_id` FK Constraint Violation
 
-## Bug 1: Accept + Start WO not updating status
+## Root Cause
 
-**Root cause**: The mutation `acceptAndStartWO.mutate()` is called without error handling. If the Supabase update fails (RLS silent rejection, trigger error, or any exception), the error is swallowed — no toast, no feedback, and the UI just re-renders showing the same "Open" state. Additionally, `logWOAction` never checks for errors, so a failure there could silently break the flow.
+The foreign key `work_orders_engineer_id_fkey` references `profiles(id)` (auth users), but the PIN verification returns an `id` from the `engineers` table. These are completely different UUIDs — an engineer's PIN-verified ID will never exist in `profiles`.
 
-**Fix in `EngineerDashboard.tsx`**:
-- Switch from `acceptAndStartWO.mutate()` to `acceptAndStartWO.mutateAsync()` inside a try/catch
-- Show a success toast on completion, error toast on failure
-- Same treatment for `startWO`
+## Fix
 
-**Fix in `useWorkOrders.ts`**:
-- After the `.update()`, add `.select()` to verify rows were actually affected — if no data returned, throw an explicit error
-- Add error checking to `logWOAction` so failures are caught and reported
-- The `useAcceptAndStartWorkOrder` mutation already sets all correct fields (`status`, `engineer_id`, `engineer_name`, timestamps) — the logic is correct, it just needs robust error handling
+**Database migration**: Change the FK on `work_orders.engineer_id` from `profiles(id)` to `engineers(id)`.
 
-## Bug 2: Checklist editor auto-fills default values
+```sql
+ALTER TABLE work_orders DROP CONSTRAINT work_orders_engineer_id_fkey;
+ALTER TABLE work_orders ADD CONSTRAINT work_orders_engineer_id_fkey 
+  FOREIGN KEY (engineer_id) REFERENCES engineers(id);
+```
 
-**Root cause**: In `ProblemsPage.tsx`, the `ChecklistManager` component initializes `newType` state to `"Safety"` (line 43). This means every new row starts with "Safety" pre-selected.
-
-**Fix in `ProblemsPage.tsx`**:
-- Change `useState("Safety")` to `useState("")`
-- Add a placeholder option to the Select ("Select type...")
-- Disable the Add button when `newType` is empty (in addition to the existing `newDesc` check)
+**No code changes needed** — the frontend already passes the correct `engineer_id` from PIN verification. The only problem is the FK pointing to the wrong table.
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/pages/dashboard/EngineerDashboard.tsx` | Use `mutateAsync` with try/catch + toast for Accept+Start and Start actions |
-| `src/hooks/useWorkOrders.ts` | Add `.select()` verification after update; add error handling in `logWOAction` |
-| `src/pages/dashboard/ProblemsPage.tsx` | Remove default "Safety" type; add placeholder; require type selection |
+| DB Migration | Re-point `work_orders.engineer_id` FK from `profiles` to `engineers` |
+
+## Risk Check
+- The `work_orders` select query joins `profiles` via `work_orders_engineer_id_fkey` for the `engineer` relation. After re-pointing, this join will fail since `engineer_id` now references `engineers`, not `profiles`.
+- **Additional code fix** in `useWorkOrders.ts`: Change the select join from `engineer:profiles!work_orders_engineer_id_fkey(name)` to `engineer:engineers!work_orders_engineer_id_fkey(name)` in all queries that use it (main list query and `useWorkOrderById`).
+- The `engineer_name` column on `work_orders` already stores the name directly, so the join is supplementary.
+
+## Sequence
+1. Database migration (drop old FK, add new FK to `engineers`)
+2. Update select queries in `useWorkOrders.ts` to join `engineers` instead of `profiles`
 
