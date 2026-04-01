@@ -1,53 +1,35 @@
 
 
-# Targeted CMMS Updates — Plan
+# Bug Fixes: Engineer WO Flow + Checklist Editor
 
-## 1. Machine Form: Plain Text Inputs for Type, Location, Line
+## Bug 1: Accept + Start WO not updating status
 
-**Current**: `Machine Type` and `Location` use `ComboboxInput` (autocomplete combobox). `Line` uses a fixed `Select` dropdown with hardcoded values ("Line 1", "Line 2", "Line 3").
+**Root cause**: The mutation `acceptAndStartWO.mutate()` is called without error handling. If the Supabase update fails (RLS silent rejection, trigger error, or any exception), the error is swallowed — no toast, no feedback, and the UI just re-renders showing the same "Open" state. Additionally, `logWOAction` never checks for errors, so a failure there could silently break the flow.
 
-**Change**: Replace all three with plain `<Input>` fields. No dropdowns, no forced selection. Users type freely.
+**Fix in `EngineerDashboard.tsx`**:
+- Switch from `acceptAndStartWO.mutate()` to `acceptAndStartWO.mutateAsync()` inside a try/catch
+- Show a success toast on completion, error toast on failure
+- Same treatment for `startWO`
 
-**Files**:
-- `src/pages/dashboard/MachinesPage.tsx` — Replace `ComboboxInput` for Machine Type and Location with `<Input>`. Replace `<Select>` for Line with `<Input>`.
+**Fix in `useWorkOrders.ts`**:
+- After the `.update()`, add `.select()` to verify rows were actually affected — if no data returned, throw an explicit error
+- Add error checking to `logWOAction` so failures are caught and reported
+- The `useAcceptAndStartWorkOrder` mutation already sets all correct fields (`status`, `engineer_id`, `engineer_name`, timestamps) — the logic is correct, it just needs robust error handling
 
-## 2. Engineer WO Flow: Simplify to Accept+Start → Inline Checklist → Finish
+## Bug 2: Checklist editor auto-fills default values
 
-**Current**: The flow already has "Accept + Start" but it opens a **separate checklist dialog** before executing. FINISH also opens a separate post-checklist dialog. Static fallback checklists exist when no dynamic ones are defined.
+**Root cause**: In `ProblemsPage.tsx`, the `ChecklistManager` component initializes `newType` state to `"Safety"` (line 43). This means every new row starts with "Safety" pre-selected.
 
-**Changes**:
-- **Remove static fallback checklists** (`STATIC_PRE_CHECKLIST`, `STATIC_POST_CHECKLIST`) — if a problem has no checklist items, no checklist is shown
-- **Remove the pre-service checklist dialog gate** on Accept+Start — clicking "Accept + Start" opens PIN, validates, then immediately sets WO to `IN_PROGRESS`. No separate dialog step.
-- **Render checklist inline** inside the WO card (both mobile and desktop) when WO is `in_progress` — load dynamic items for the WO's problem, show checkboxes grouped by type, with visual alerts for incomplete required items
-- **Block FINISH** button if any required checklist items are incomplete (disable button + show warning)
-- **FINISH flow**: PIN → signature dialog → done (no separate post-checklist dialog)
-
-**Files**:
-- `src/pages/dashboard/EngineerDashboard.tsx` — Major refactor of checklist flow: remove dialog-based checklists, add inline checklist rendering in WO cards, simplify Accept+Start to PIN-only, block Finish on incomplete required items
-
-## 3. Dynamic Checklist: Remove Static Defaults
-
-**Current**: `useChecklistsByProblemName` fetches dynamic items; if none exist, code falls back to static arrays.
-
-**Change**: Remove fallback. If no checklist items exist for a problem, show nothing. The existing admin UI in `ProblemsPage.tsx` already supports add/delete of checklist items per problem — no changes needed there.
-
-**Files**:
-- `src/pages/dashboard/EngineerDashboard.tsx` — Remove `STATIC_PRE_CHECKLIST` and `STATIC_POST_CHECKLIST` constants and all fallback logic
-
-## 4. Audit: Already Implemented
-
-The current system already logs `engineer_id`, `engineer_name`, `timestamp`, `work_order_id` via `work_order_logs` and `audit_logs`. No changes needed.
-
-## 5. UX/Mobile: Preserved
-
-The existing mobile card layout with h-14 buttons, camera inputs, and responsive design is preserved. The inline checklist will use the same large-touch styling.
-
----
+**Fix in `ProblemsPage.tsx`**:
+- Change `useState("Safety")` to `useState("")`
+- Add a placeholder option to the Select ("Select type...")
+- Disable the Add button when `newType` is empty (in addition to the existing `newDesc` check)
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/pages/dashboard/MachinesPage.tsx` | Replace ComboboxInput and Select for Type/Location/Line with plain `<Input>` |
-| `src/pages/dashboard/EngineerDashboard.tsx` | Remove static checklists, remove checklist dialogs, add inline checklist in WO cards, simplify Accept+Start to PIN-only, block Finish on incomplete items |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Use `mutateAsync` with try/catch + toast for Accept+Start and Start actions |
+| `src/hooks/useWorkOrders.ts` | Add `.select()` verification after update; add error handling in `logWOAction` |
+| `src/pages/dashboard/ProblemsPage.tsx` | Remove default "Safety" type; add placeholder; require type selection |
 
