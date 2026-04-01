@@ -155,18 +155,12 @@ export default function MachinesPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label>Current Location *</Label>
-            <ComboboxInput value={currentLocation} onChange={setCurrentLocation} suggestions={locationSuggestions} placeholder="Enter or select location" />
+            <Input value={currentLocation} onChange={(e) => setCurrentLocation(e.target.value)} placeholder="e.g. Building A, Floor 2" />
             {errors.currentLocation && <p className="text-xs text-destructive">{errors.currentLocation}</p>}
           </div>
           <div className="space-y-1.5">
             <Label>Line</Label>
-            <Select value={line} onValueChange={setLine}>
-              <SelectTrigger><SelectValue placeholder="Select line..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">None</SelectItem>
-                {LINES.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Input value={line} onChange={(e) => setLine(e.target.value)} placeholder="e.g. Line 1, Line A" />
           </div>
         </div>
         <div className="mt-4">
