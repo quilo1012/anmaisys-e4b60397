@@ -134,7 +134,7 @@ export default function MachinesPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label>Machine Type *</Label>
-            <ComboboxInput value={machineType} onChange={setMachineType} suggestions={typeSuggestions} placeholder="Enter or select type" />
+            <Input value={machineType} onChange={(e) => setMachineType(e.target.value)} placeholder="e.g. CNC, Press, Conveyor" />
             {errors.machineType && <p className="text-xs text-destructive">{errors.machineType}</p>}
           </div>
           <div className="space-y-1.5">
