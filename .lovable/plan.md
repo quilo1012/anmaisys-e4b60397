@@ -1,74 +1,53 @@
 
 
-# CMMS Engineer Flow Optimization
+# Targeted CMMS Updates — Plan
 
-## Summary
-Three major changes: (1) merge ACCEPT+ARRIVED+START into a single "Accept + Start" action, (2) create dynamic checklists per problem, (3) Machine Type already uses ComboboxInput (no change needed there).
+## 1. Machine Form: Plain Text Inputs for Type, Location, Line
 
-## What Already Exists
-- Machine Type field already uses `ComboboxInput` with free-text + autocomplete — **no change needed**
-- PIN verification for all engineer actions
-- Pre/post-service static checklists
-- Mobile-first engineer cards with h-14 buttons
-- Full audit trail via `work_order_logs` and `audit_logs`
+**Current**: `Machine Type` and `Location` use `ComboboxInput` (autocomplete combobox). `Line` uses a fixed `Select` dropdown with hardcoded values ("Line 1", "Line 2", "Line 3").
 
-## Changes
+**Change**: Replace all three with plain `<Input>` fields. No dropdowns, no forced selection. Users type freely.
 
-### 1. Merge ACCEPT + START into Single Action
-**Goal**: Reduce 3 PIN prompts (ACCEPT→ARRIVED→START) to 1.
+**Files**:
+- `src/pages/dashboard/MachinesPage.tsx` — Replace `ComboboxInput` for Machine Type and Location with `<Input>`. Replace `<Select>` for Line with `<Input>`.
 
-**EngineerDashboard.tsx changes**:
-- Replace the three separate buttons (ACCEPT, ARRIVED, START) for `open` WOs with a single **"Accept + Start"** button
-- On click: require PIN → show pre-service checklist → on complete, call a new combined mutation that sets status directly to `in_progress` with `received_at`, `arrived_at`, `started_at` all set to now()
-- For WOs already in `received` or `arrived` status (edge case), show a single **"Start"** button that also does PIN → sets to `in_progress`
-- Keep FINISH flow unchanged (PIN → post-checklist → signature)
+## 2. Engineer WO Flow: Simplify to Accept+Start → Inline Checklist → Finish
 
-**useWorkOrders.ts changes**:
-- Add `useAcceptAndStartWorkOrder()` mutation that updates the WO to `in_progress` in one step, setting `engineer_id`, `engineer_name`, `received_at`, `arrived_at`, `started_at`
-- Logs 3 entries to `work_order_logs`: "received", "arrived", "started"
+**Current**: The flow already has "Accept + Start" but it opens a **separate checklist dialog** before executing. FINISH also opens a separate post-checklist dialog. Static fallback checklists exist when no dynamic ones are defined.
 
-### 2. Dynamic Checklists per Problem
-**Database migration**:
-- New table `checklists`: `id`, `problem_description_id` (FK → problem_descriptions), `type` (text: Health/Safety/Machine), `description` (text), `is_required` (boolean, default true), `created_at`
-- New table `checklist_responses`: `id`, `work_order_id`, `checklist_id`, `completed` (boolean), `completed_by` (uuid, references engineers), `completed_at` (timestamptz)
-- RLS: authenticated can SELECT checklists; admins can ALL. Authenticated can SELECT/INSERT/UPDATE checklist_responses.
+**Changes**:
+- **Remove static fallback checklists** (`STATIC_PRE_CHECKLIST`, `STATIC_POST_CHECKLIST`) — if a problem has no checklist items, no checklist is shown
+- **Remove the pre-service checklist dialog gate** on Accept+Start — clicking "Accept + Start" opens PIN, validates, then immediately sets WO to `IN_PROGRESS`. No separate dialog step.
+- **Render checklist inline** inside the WO card (both mobile and desktop) when WO is `in_progress` — load dynamic items for the WO's problem, show checkboxes grouped by type, with visual alerts for incomplete required items
+- **Block FINISH** button if any required checklist items are incomplete (disable button + show warning)
+- **FINISH flow**: PIN → signature dialog → done (no separate post-checklist dialog)
 
-**New hook** `src/hooks/useChecklists.ts`:
-- `useChecklistsByProblem(problemName)` — fetch checklist items matching the WO's problem description
-- `useChecklistResponses(woId)` — fetch responses for a WO
-- `useSaveChecklistResponse()` — upsert a response
-- CRUD hooks for admin management
+**Files**:
+- `src/pages/dashboard/EngineerDashboard.tsx` — Major refactor of checklist flow: remove dialog-based checklists, add inline checklist rendering in WO cards, simplify Accept+Start to PIN-only, block Finish on incomplete required items
 
-**EngineerDashboard.tsx changes**:
-- Replace static `PRE_SERVICE_CHECKLIST` / `POST_SERVICE_CHECKLIST` with dynamic items loaded from DB based on the WO's `description` (problem name)
-- If no custom checklist exists for a problem, fall back to the existing static items
-- Group items by `type` (Health, Safety, Machine) with visual headers
-- Required items block FINISH
-- Inline checklist within the WO card for mobile
+## 3. Dynamic Checklist: Remove Static Defaults
 
-**ProblemsPage.tsx changes**:
-- Add a "Checklists" section when editing a problem
-- Allow admins to add/remove checklist items with type and required flag
+**Current**: `useChecklistsByProblemName` fetches dynamic items; if none exist, code falls back to static arrays.
 
-### 3. UX Improvements
-- Mobile: "Accept + Start" button uses full width, green accent, bold text
-- Desktop table: single "Accept + Start" button replaces three separate buttons
-- Show checklist completion progress badge on WO cards (e.g., "3/5 ✓")
+**Change**: Remove fallback. If no checklist items exist for a problem, show nothing. The existing admin UI in `ProblemsPage.tsx` already supports add/delete of checklist items per problem — no changes needed there.
+
+**Files**:
+- `src/pages/dashboard/EngineerDashboard.tsx` — Remove `STATIC_PRE_CHECKLIST` and `STATIC_POST_CHECKLIST` constants and all fallback logic
+
+## 4. Audit: Already Implemented
+
+The current system already logs `engineer_id`, `engineer_name`, `timestamp`, `work_order_id` via `work_order_logs` and `audit_logs`. No changes needed.
+
+## 5. UX/Mobile: Preserved
+
+The existing mobile card layout with h-14 buttons, camera inputs, and responsive design is preserved. The inline checklist will use the same large-touch styling.
+
+---
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| DB Migration | Create `checklists` and `checklist_responses` tables with RLS |
-| `src/hooks/useChecklists.ts` | NEW — hooks for dynamic checklists |
-| `src/hooks/useWorkOrders.ts` | Add `useAcceptAndStartWorkOrder()` combined mutation |
-| `src/pages/dashboard/EngineerDashboard.tsx` | Merge buttons, dynamic checklists, UX improvements |
-| `src/pages/dashboard/ProblemsPage.tsx` | Add checklist management UI for admins |
-
-## Sequence
-1. Database migration (checklists + checklist_responses tables)
-2. useChecklists hook
-3. useAcceptAndStartWorkOrder mutation
-4. EngineerDashboard UI update (merged flow + dynamic checklists)
-5. ProblemsPage admin checklist management
+| `src/pages/dashboard/MachinesPage.tsx` | Replace ComboboxInput and Select for Type/Location/Line with plain `<Input>` |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Remove static checklists, remove checklist dialogs, add inline checklist in WO cards, simplify Accept+Start to PIN-only, block Finish on incomplete items |
 
