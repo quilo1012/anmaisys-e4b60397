@@ -7,13 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Phone, MapPin, Wrench, Camera, Printer, Focus, Users, Pause, PlayCircle } from "lucide-react";
+import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder, usePauseWorkOrder, useResumeWorkOrder } from "@/hooks/useWorkOrders";
+import { useWorkOrders, useAcceptAndStartWorkOrder, useStartWorkOrder, useFinishWorkOrder, usePauseWorkOrder, useResumeWorkOrder } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { stopAlertSound } from "@/lib/shifts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
-import { useWOPhotos, useUploadWOPhoto } from "@/hooks/useWOPhotos";
+import { useUploadWOPhoto } from "@/hooks/useWOPhotos";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { useOnlineEngineers } from "@/hooks/useOnlineEngineers";
+import { useChecklistsByProblemName, useChecklistResponses, useSaveChecklistResponse } from "@/hooks/useChecklists";
 
 const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
 
@@ -50,18 +51,19 @@ function SLACountdown({ wo }: { wo: any }) {
   );
 }
 
-const PRE_SERVICE_CHECKLIST = [
-  { id: "machine_off", label: "Machine switched off" },
-  { id: "energy_lockout", label: "Energy lockout applied" },
-  { id: "area_clear", label: "Work area clear and safe" },
-  { id: "tools_ready", label: "Tools and PPE ready" },
+// Static fallback checklists
+const STATIC_PRE_CHECKLIST = [
+  { id: "machine_off", label: "Machine switched off", required: true },
+  { id: "energy_lockout", label: "Energy lockout applied", required: true },
+  { id: "area_clear", label: "Work area clear and safe", required: true },
+  { id: "tools_ready", label: "Tools and PPE ready", required: true },
 ];
 
-const POST_SERVICE_CHECKLIST = [
-  { id: "inspection_done", label: "Inspection completed" },
-  { id: "final_test", label: "Final test passed" },
-  { id: "machine_clean", label: "Machine cleaned" },
-  { id: "operator_approved", label: "Operator/Line leader approved" },
+const STATIC_POST_CHECKLIST = [
+  { id: "inspection_done", label: "Inspection completed", required: true },
+  { id: "final_test", label: "Final test passed", required: true },
+  { id: "machine_clean", label: "Machine cleaned", required: false },
+  { id: "operator_approved", label: "Operator/Line leader approved", required: true },
 ];
 
 export default function EngineerDashboard() {
@@ -70,13 +72,13 @@ export default function EngineerDashboard() {
   const isMobile = useIsMobile();
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });
   const { data: allCompleted } = useWorkOrders({ statusIn: ["completed", "closed", "finished"] as any });
-  const receiveWO = useReceiveWorkOrder();
-  const arriveWO = useArriveWorkOrder();
+  const acceptAndStartWO = useAcceptAndStartWorkOrder();
   const startWO = useStartWorkOrder();
   const finishWO = useFinishWorkOrder();
   const pauseWO = usePauseWorkOrder();
   const resumeWO = useResumeWorkOrder();
   const uploadPhoto = useUploadWOPhoto();
+  const saveChecklistResponse = useSaveChecklistResponse();
   const navigate = useNavigate();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
   useWOAlerts();
@@ -88,25 +90,58 @@ export default function EngineerDashboard() {
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
   
-  // PIN dialog state — now tracks engineer identity
+  // PIN dialog state
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const [pendingPinAction, setPendingPinAction] = useState<((engineer: EngineerIdentity) => void) | null>(null);
   const [pinDialogTitle, setPinDialogTitle] = useState("Enter PIN");
 
-  // Track current engineer for the finish flow
   const [currentEngineer, setCurrentEngineer] = useState<EngineerIdentity | null>(null);
   
-  // Pre-service checklist state
-  const [preChecklistWO, setPreChecklistWO] = useState<string | null>(null);
-  const [preCheckedItems, setPreCheckedItems] = useState<Record<string, boolean>>({});
-  
-  // Post-service checklist state (FINISH flow)
-  const [postChecklistWO, setPostChecklistWO] = useState<string | null>(null);
-  const [postCheckedItems, setPostCheckedItems] = useState<Record<string, boolean>>({});
+  // Checklist dialog state
+  const [checklistDialogWO, setChecklistDialogWO] = useState<string | null>(null);
+  const [checklistDialogType, setChecklistDialogType] = useState<"pre" | "post">("pre");
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+
+  // Track which WO's problem we need checklists for
+  const checklistWO = useMemo(() => {
+    if (!checklistDialogWO || !workOrders) return null;
+    return workOrders.find(w => w.id === checklistDialogWO) || null;
+  }, [checklistDialogWO, workOrders]);
+
+  const { data: dynamicChecklists } = useChecklistsByProblemName(checklistWO?.description);
+
+  // Determine checklist items to show
+  const currentChecklistItems = useMemo(() => {
+    if (dynamicChecklists && dynamicChecklists.length > 0) {
+      // Group by type for display
+      return dynamicChecklists.map(c => ({
+        id: c.id,
+        label: c.description,
+        required: c.is_required,
+        type: c.type,
+      }));
+    }
+    // Fallback to static
+    return checklistDialogType === "pre" ? STATIC_PRE_CHECKLIST : STATIC_POST_CHECKLIST;
+  }, [dynamicChecklists, checklistDialogType]);
+
+  // Group checklist items by type
+  const groupedChecklist = useMemo(() => {
+    const groups: Record<string, typeof currentChecklistItems> = {};
+    currentChecklistItems.forEach(item => {
+      const type = (item as any).type || (checklistDialogType === "pre" ? "Safety" : "Quality");
+      if (!groups[type]) groups[type] = [];
+      groups[type].push(item);
+    });
+    return groups;
+  }, [currentChecklistItems, checklistDialogType]);
+
+  const allRequiredChecked = useMemo(() => {
+    return currentChecklistItems.filter(i => i.required).every(i => checkedItems[i.id]);
+  }, [currentChecklistItems, checkedItems]);
 
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  // Show all WOs since shared login — filter by engineer_id for assigned ones
   const activeWOIds = useMemo(() => workOrders?.filter(
     (wo) => wo.status === "open" || ["received", "arrived", "in_progress"].includes(wo.status)
   ).map((w) => w.id) ?? [], [workOrders]);
@@ -145,7 +180,6 @@ export default function EngineerDashboard() {
     return all;
   }, [workOrders, focusMode]);
 
-  // Workload balancing: suggest engineer with fewest active WOs
   const suggestedEngineer = useMemo(() => {
     if (!onlineEngineers || !workOrders) return null;
     const activeCountMap: Record<string, number> = {};
@@ -174,38 +208,45 @@ export default function EngineerDashboard() {
     e.target.value = "";
   };
 
-  // Helper to require PIN before an action — now passes engineer identity
   const requirePin = useCallback((title: string, action: (engineer: EngineerIdentity) => void) => {
     setPinDialogTitle(title);
     setPendingPinAction(() => action);
     setPinDialogOpen(true);
   }, []);
 
-  // ACCEPT → PIN → pre-service checklist
-  const handleAcceptClick = (woId: string) => {
+  // ACCEPT + START → PIN → pre-service checklist → in_progress
+  const handleAcceptAndStartClick = (woId: string) => {
     stopAlertSound();
-    requirePin("Confirm ACCEPT", (engineer) => {
+    requirePin("Confirm Accept + Start", (engineer) => {
       setCurrentEngineer(engineer);
-      setPreCheckedItems({});
-      setPreChecklistWO(woId);
+      setCheckedItems({});
+      setChecklistDialogType("pre");
+      setChecklistDialogWO(woId);
     });
   };
 
   const handlePreChecklistComplete = () => {
-    if (!preChecklistWO || !currentEngineer) return;
-    receiveWO.mutate({ woId: preChecklistWO, engineerId: currentEngineer.id, engineerName: currentEngineer.name });
-    setPreChecklistWO(null);
+    if (!checklistDialogWO || !currentEngineer) return;
+    // Save dynamic checklist responses if using dynamic
+    if (dynamicChecklists && dynamicChecklists.length > 0) {
+      dynamicChecklists.forEach(c => {
+        if (checkedItems[c.id]) {
+          saveChecklistResponse.mutate({
+            workOrderId: checklistDialogWO,
+            checklistId: c.id,
+            completed: true,
+            completedBy: currentEngineer.id,
+          });
+        }
+      });
+    }
+    acceptAndStartWO.mutate({ woId: checklistDialogWO, engineerId: currentEngineer.id, engineerName: currentEngineer.name });
+    toast({ title: "📸 Photo reminder", description: "Don't forget to add a Before photo!" });
+    setChecklistDialogWO(null);
     setCurrentEngineer(null);
   };
 
-  // ARRIVED → PIN
-  const handleArrivedClick = (woId: string) => {
-    requirePin("Confirm ARRIVED", (engineer) => {
-      arriveWO.mutate({ woId, engineerId: engineer.id, engineerName: engineer.name });
-    });
-  };
-
-  // START → PIN → photo reminder
+  // For WOs in received/arrived — just start
   const handleStartClick = (woId: string) => {
     requirePin("Confirm START", (engineer) => {
       startWO.mutate({ woId, engineerId: engineer.id, engineerName: engineer.name });
@@ -213,20 +254,35 @@ export default function EngineerDashboard() {
     });
   };
 
-  // FINISH → PIN → post-service checklist
+  // FINISH → PIN → post-service checklist → signature
   const handleFinishClick = (woId: string) => {
     requirePin("Confirm FINISH", (engineer) => {
       setCurrentEngineer(engineer);
       toast({ title: "📸 Photo reminder", description: "Don't forget to add an After photo!" });
-      setPostCheckedItems({});
-      setPostChecklistWO(woId);
+      setCheckedItems({});
+      setChecklistDialogType("post");
+      setChecklistDialogWO(woId);
     });
   };
 
   const handlePostChecklistComplete = () => {
-    if (!postChecklistWO) return;
-    setPostChecklistWO(null);
-    setSignDialogWO(postChecklistWO);
+    if (!checklistDialogWO || !currentEngineer) return;
+    // Save dynamic checklist responses if using dynamic
+    if (dynamicChecklists && dynamicChecklists.length > 0) {
+      dynamicChecklists.forEach(c => {
+        if (checkedItems[c.id]) {
+          saveChecklistResponse.mutate({
+            workOrderId: checklistDialogWO,
+            checklistId: c.id,
+            completed: true,
+            completedBy: currentEngineer.id,
+          });
+        }
+      });
+    }
+    const woId = checklistDialogWO;
+    setChecklistDialogWO(null);
+    setSignDialogWO(woId);
   };
 
   const handleFinishConfirm = async () => {
@@ -236,9 +292,6 @@ export default function EngineerDashboard() {
     setSignName("");
     setCurrentEngineer(null);
   };
-
-  const allPreChecked = PRE_SERVICE_CHECKLIST.every((item) => preCheckedItems[item.id]);
-  const allPostChecked = POST_SERVICE_CHECKLIST.every((item) => postCheckedItems[item.id]);
 
   const triggerFileInput = (woId: string, type: "before" | "after") => {
     fileInputRefs.current[`${woId}-${type}`]?.click();
@@ -277,17 +330,12 @@ export default function EngineerDashboard() {
           <p className="text-sm text-muted-foreground truncate">{wo.description}</p>
           <div className="grid grid-cols-2 gap-2 pt-1">
             {wo.status === "open" && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => handleAcceptClick(wo.id)} disabled={receiveWO.isPending}>
-                <Phone className="h-5 w-5 mr-2" /> ACCEPT
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-green-600 hover:bg-green-700 text-white" onClick={() => handleAcceptAndStartClick(wo.id)} disabled={acceptAndStartWO.isPending}>
+                <Play className="h-5 w-5 mr-2" /> Accept + Start
               </Button>
             )}
-            {wo.status === "received" && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
-                <MapPin className="h-5 w-5 mr-2" /> ARRIVED
-              </Button>
-            )}
-            {wo.status === "arrived" && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
+            {(wo.status === "received" || wo.status === "arrived") && (
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
                 <Play className="h-5 w-5 mr-2" /> START
               </Button>
             )}
@@ -335,7 +383,6 @@ export default function EngineerDashboard() {
           </Alert>
         )}
 
-        {/* Predictive Alerts */}
         {predictiveAlerts.length > 0 && (
           <Alert className="border-purple-500 bg-purple-500/10 text-purple-800">
             <AlertTriangle className="h-5 w-5 text-purple-600" />
@@ -348,7 +395,6 @@ export default function EngineerDashboard() {
           </Alert>
         )}
 
-        {/* Suggested Engineer + Focus Mode */}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="text-xl md:text-2xl font-bold">Engineer Panel</h2>
@@ -445,17 +491,12 @@ export default function EngineerDashboard() {
                           <td className="p-2">
                             <div className="flex gap-1 flex-wrap">
                               {wo.status === "open" && (
-                                <Button size="sm" onClick={() => handleAcceptClick(wo.id)} disabled={receiveWO.isPending}>
-                                  <Phone className="h-3 w-3 mr-1" /> Receive
+                                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleAcceptAndStartClick(wo.id)} disabled={acceptAndStartWO.isPending}>
+                                  <Play className="h-3 w-3 mr-1" /> Accept + Start
                                 </Button>
                               )}
-                              {wo.status === "received" && (
-                                <Button size="sm" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
-                                  <MapPin className="h-3 w-3 mr-1" /> Arrived
-                                </Button>
-                              )}
-                              {wo.status === "arrived" && (
-                                <Button size="sm" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
+                              {(wo.status === "received" || wo.status === "arrived") && (
+                                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
                                   <Play className="h-3 w-3 mr-1" /> Start
                                 </Button>
                               )}
@@ -508,62 +549,54 @@ export default function EngineerDashboard() {
         <PartsUsedDialog open={!!partsDialogWO} onOpenChange={(o) => !o && setPartsDialogWO(null)} workOrderId={partsDialogWO} />
       )}
 
-      {/* PRE-SERVICE Safety Checklist (on Accept) */}
-      <Dialog open={!!preChecklistWO} onOpenChange={(open) => { if (!open) { setPreChecklistWO(null); setCurrentEngineer(null); } }}>
-        <DialogContent>
+      {/* Dynamic Checklist Dialog (Pre or Post) */}
+      <Dialog open={!!checklistDialogWO} onOpenChange={(open) => { if (!open) { setChecklistDialogWO(null); if (checklistDialogType === "pre") setCurrentEngineer(null); } }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" /> Pre-Service Safety Checklist
+              {checklistDialogType === "pre" ? (
+                <><AlertTriangle className="h-5 w-5 text-orange-500" /> Pre-Service Safety Checklist</>
+              ) : (
+                <><CheckCircle className="h-5 w-5 text-green-500" /> Post-Service Checklist</>
+              )}
             </DialogTitle>
-            <DialogDescription>Verify safety conditions before starting work on the machine.</DialogDescription>
+            <DialogDescription>
+              {checklistDialogType === "pre"
+                ? "Verify safety conditions before starting work."
+                : "Confirm all items are completed before finishing."}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            {PRE_SERVICE_CHECKLIST.map((item) => (
-              <div key={item.id} className="flex items-center gap-3">
-                <Checkbox
-                  id={`pre-${item.id}`}
-                  checked={!!preCheckedItems[item.id]}
-                  onCheckedChange={(checked) => setPreCheckedItems((prev) => ({ ...prev, [item.id]: !!checked }))}
-                />
-                <Label htmlFor={`pre-${item.id}`} className="cursor-pointer text-base">{item.label}</Label>
+          <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto">
+            {Object.entries(groupedChecklist).map(([type, items]) => (
+              <div key={type} className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider border-b pb-1">{type}</h4>
+                {items.map((item) => (
+                  <div key={item.id} className="flex items-center gap-3">
+                    <Checkbox
+                      id={`cl-${item.id}`}
+                      checked={!!checkedItems[item.id]}
+                      onCheckedChange={(checked) => setCheckedItems((prev) => ({ ...prev, [item.id]: !!checked }))}
+                    />
+                    <Label htmlFor={`cl-${item.id}`} className="cursor-pointer text-base flex-1">
+                      {item.label}
+                      {item.required && <span className="text-destructive ml-1">*</span>}
+                    </Label>
+                  </div>
+                ))}
               </div>
             ))}
+            {!allRequiredChecked && (
+              <p className="text-xs text-destructive font-medium">* Required items must be completed</p>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setPreChecklistWO(null); setCurrentEngineer(null); }}>Cancel</Button>
-            <Button onClick={handlePreChecklistComplete} disabled={!allPreChecked || receiveWO.isPending}>
-              {receiveWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Accept Work Order
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* POST-SERVICE Safety Checklist (on Finish) */}
-      <Dialog open={!!postChecklistWO} onOpenChange={(open) => { if (!open) setPostChecklistWO(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5" /> Post-Service Checklist
-            </DialogTitle>
-            <DialogDescription>Confirm all items are completed and approved before finishing.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {POST_SERVICE_CHECKLIST.map((item) => (
-              <div key={item.id} className="flex items-center gap-3">
-                <Checkbox
-                  id={`post-${item.id}`}
-                  checked={!!postCheckedItems[item.id]}
-                  onCheckedChange={(checked) => setPostCheckedItems((prev) => ({ ...prev, [item.id]: !!checked }))}
-                />
-                <Label htmlFor={`post-${item.id}`} className="cursor-pointer text-base">{item.label}</Label>
-              </div>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPostChecklistWO(null)}>Cancel</Button>
-            <Button onClick={handlePostChecklistComplete} disabled={!allPostChecked}>
-              Continue to Signature
+            <Button variant="outline" onClick={() => { setChecklistDialogWO(null); if (checklistDialogType === "pre") setCurrentEngineer(null); }}>Cancel</Button>
+            <Button
+              onClick={checklistDialogType === "pre" ? handlePreChecklistComplete : handlePostChecklistComplete}
+              disabled={!allRequiredChecked || (checklistDialogType === "pre" && acceptAndStartWO.isPending)}
+            >
+              {(checklistDialogType === "pre" && acceptAndStartWO.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {checklistDialogType === "pre" ? "Accept + Start" : "Continue to Signature"}
             </Button>
           </DialogFooter>
         </DialogContent>
