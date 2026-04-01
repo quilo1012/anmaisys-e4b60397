@@ -50,6 +50,86 @@ export type Database = {
         }
         Relationships: []
       }
+      checklist_responses: {
+        Row: {
+          checklist_id: string
+          completed: boolean
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          id: string
+          work_order_id: string
+        }
+        Insert: {
+          checklist_id: string
+          completed?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          work_order_id: string
+        }
+        Update: {
+          checklist_id?: string
+          completed?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_responses_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "checklists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_responses_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "engineers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklists: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          is_required: boolean
+          problem_description_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          is_required?: boolean
+          problem_description_id: string
+          type?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          is_required?: boolean
+          problem_description_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklists_problem_description_id_fkey"
+            columns: ["problem_description_id"]
+            isOneToOne: false
+            referencedRelation: "problem_descriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       engineer_scores: {
         Row: {
           engineer_id: string

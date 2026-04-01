@@ -7,12 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, ClipboardList } from "lucide-react";
 import { useProblemDescriptions, useAddProblemDescription, useUpdateProblemDescription, useDeleteProblemDescription, type ProblemDescription } from "@/hooks/useProblemDescriptions";
+import { useChecklistsByProblem, useAddChecklist, useDeleteChecklist, type ChecklistItem } from "@/hooks/useChecklists";
 import { useToast } from "@/hooks/use-toast";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 
@@ -23,10 +25,104 @@ const RISK_LEVELS = [
   { value: "critical", label: "Critical", className: "bg-red-100 text-red-700 border-red-200" },
 ];
 
+const CHECKLIST_TYPES = ["Health", "Safety", "Machine"];
+
 const riskBadgeClass = (severity: string) => {
   const found = RISK_LEVELS.find((r) => r.value === severity);
   return found?.className || "bg-blue-100 text-blue-700 border-blue-200";
 };
+
+// Checklist management sub-component
+function ChecklistManager({ problemId }: { problemId: string }) {
+  const { data: checklists, isLoading } = useChecklistsByProblem(problemId);
+  const addChecklist = useAddChecklist();
+  const deleteChecklist = useDeleteChecklist();
+  const { toast } = useToast();
+
+  const [newDesc, setNewDesc] = useState("");
+  const [newType, setNewType] = useState("Safety");
+  const [newRequired, setNewRequired] = useState(true);
+
+  const handleAdd = async () => {
+    if (!newDesc.trim()) return;
+    try {
+      await addChecklist.mutateAsync({
+        problem_description_id: problemId,
+        type: newType,
+        description: newDesc.trim(),
+        is_required: newRequired,
+      });
+      setNewDesc("");
+      toast({ title: "Checklist item added" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteChecklist.mutateAsync(id);
+      toast({ title: "Item removed" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-3 border-t pt-4 mt-4">
+      <h4 className="text-sm font-semibold flex items-center gap-2">
+        <ClipboardList className="h-4 w-4" /> Checklist Items
+      </h4>
+
+      {isLoading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : checklists && checklists.length > 0 ? (
+        <div className="space-y-1.5">
+          {checklists.map((c) => (
+            <div key={c.id} className="flex items-center gap-2 text-sm bg-muted/50 rounded px-2 py-1.5">
+              <Badge variant="outline" className="text-xs shrink-0">{c.type}</Badge>
+              <span className="flex-1">{c.description}</span>
+              {c.is_required && <span className="text-destructive text-xs font-medium">Required</span>}
+              <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => handleDelete(c.id)}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">No checklist items. Static defaults will be used.</p>
+      )}
+
+      <div className="flex gap-2 items-end flex-wrap">
+        <div className="flex-1 min-w-[150px]">
+          <Input
+            placeholder="Checklist item description..."
+            value={newDesc}
+            onChange={(e) => setNewDesc(e.target.value)}
+            className="h-8 text-sm"
+          />
+        </div>
+        <Select value={newType} onValueChange={setNewType}>
+          <SelectTrigger className="w-[100px] h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CHECKLIST_TYPES.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1">
+          <Checkbox checked={newRequired} onCheckedChange={(c) => setNewRequired(!!c)} id="cl-req" />
+          <Label htmlFor="cl-req" className="text-xs cursor-pointer">Required</Label>
+        </div>
+        <Button size="sm" className="h-8" onClick={handleAdd} disabled={!newDesc.trim() || addChecklist.isPending}>
+          <Plus className="h-3 w-3 mr-1" /> Add
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function ProblemsPage() {
   const { data: problems, isLoading } = useProblemDescriptions();
@@ -130,7 +226,7 @@ export default function ProblemsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2"><AlertTriangle className="h-6 w-6" /> Problem Descriptions</h2>
-            <p className="text-muted-foreground">Manage standardized problem descriptions for work orders</p>
+            <p className="text-muted-foreground">Manage standardized problem descriptions and checklists for work orders</p>
           </div>
           <Button onClick={() => { resetForm(); setShowAdd(true); }}><Plus className="h-4 w-4 mr-2" /> Add Problem</Button>
         </div>
@@ -181,6 +277,7 @@ export default function ProblemsPage() {
           </CardContent>
         </Card>
 
+        {/* Add Dialog */}
         <Dialog open={showAdd} onOpenChange={setShowAdd}>
           <DialogContent>
             <DialogHeader><DialogTitle>Add Problem</DialogTitle><DialogDescription className="sr-only">Add a new problem description</DialogDescription></DialogHeader>
@@ -194,10 +291,12 @@ export default function ProblemsPage() {
           </DialogContent>
         </Dialog>
 
+        {/* Edit Dialog with Checklist Management */}
         <Dialog open={!!editProblem} onOpenChange={(open) => { if (!open) { setEditProblem(null); resetForm(); } }}>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Edit Problem</DialogTitle><DialogDescription className="sr-only">Edit problem details</DialogDescription></DialogHeader>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Edit Problem</DialogTitle><DialogDescription className="sr-only">Edit problem details and checklists</DialogDescription></DialogHeader>
             {formContent}
+            {editProblem && <ChecklistManager problemId={editProblem.id} />}
             <DialogFooter>
               <Button variant="outline" onClick={() => { setEditProblem(null); resetForm(); }}>Cancel</Button>
               <Button onClick={handleEdit} disabled={updateProblem.isPending}>
@@ -211,7 +310,7 @@ export default function ProblemsPage() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete problem?</AlertDialogTitle>
-              <AlertDialogDescription>This will permanently remove this problem description.</AlertDialogDescription>
+              <AlertDialogDescription>This will permanently remove this problem description and its checklists.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
