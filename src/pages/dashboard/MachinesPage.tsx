@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, Loader2, Cog, History, MapPin, QrCode } from "lucide-react";
-import { useMachines, useAddMachine, useUpdateMachine, useDeleteMachine, useMoveMachine, useDistinctMachineValues, LINES, STATUS_OPTIONS, type Machine } from "@/hooks/useMachines";
-import { ComboboxInput } from "@/components/ComboboxInput";
+import { useMachines, useAddMachine, useUpdateMachine, useDeleteMachine, useMoveMachine, STATUS_OPTIONS, type Machine } from "@/hooks/useMachines";
+
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
@@ -20,7 +20,6 @@ import { QRCodeSVG } from "qrcode.react";
 
 export default function MachinesPage() {
   const { data: machines, isLoading } = useMachines();
-  const { data: distinctValues } = useDistinctMachineValues();
   const addMachine = useAddMachine();
   const updateMachine = useUpdateMachine();
   const deleteMachine = useDeleteMachine();
@@ -44,14 +43,12 @@ export default function MachinesPage() {
   const [machineType, setMachineType] = useState("");
   const [currentLocation, setCurrentLocation] = useState("");
 
-  const typeSuggestions = distinctValues?.machineTypes || [];
-  const locationSuggestions = distinctValues?.locations || [];
 
   const resetForm = () => { setName(""); setLine(""); setSector(""); setCode(""); setStatus("active"); setMachineType(""); setCurrentLocation(""); setErrors({}); };
 
   const openEdit = (m: Machine) => {
     setEditMachine(m);
-    setName(m.name); setLine(m.line || "__none__"); setSector(m.sector || ""); setCode(m.code || "");
+    setName(m.name); setLine(m.line || ""); setSector(m.sector || ""); setCode(m.code || "");
     setStatus(m.status || "active"); setMachineType(m.machine_type || ""); setCurrentLocation(m.current_location || "");
     setErrors({});
   };
@@ -72,7 +69,7 @@ export default function MachinesPage() {
   const handleAdd = async () => {
     if (!validate()) return;
     try {
-      const result = await addMachine.mutateAsync({ name: name.trim(), line: line === "__none__" ? "" : line.trim(), sector: sector.trim(), code: code.trim(), status, machine_type: machineType.trim(), current_location: currentLocation.trim() });
+      const result = await addMachine.mutateAsync({ name: name.trim(), line: line.trim(), sector: sector.trim(), code: code.trim(), status, machine_type: machineType.trim(), current_location: currentLocation.trim() });
       toast({ title: "Machine added" });
       logAuditEvent("create", "machine", (result as any)?.id, { name: name.trim() });
       setShowAdd(false); resetForm();
@@ -82,7 +79,7 @@ export default function MachinesPage() {
   const handleEdit = async () => {
     if (!editMachine || !validate(true)) return;
     try {
-      await updateMachine.mutateAsync({ id: editMachine.id, name: name.trim(), line: line === "__none__" ? "" : line.trim(), sector: sector.trim(), code: code.trim(), status, machine_type: machineType.trim(), current_location: currentLocation.trim() });
+      await updateMachine.mutateAsync({ id: editMachine.id, name: name.trim(), line: line.trim(), sector: sector.trim(), code: code.trim(), status, machine_type: machineType.trim(), current_location: currentLocation.trim() });
       toast({ title: "Machine updated" });
       logAuditEvent("update", "machine", editMachine.id, { name: name.trim() });
       setEditMachine(null); resetForm();
@@ -134,7 +131,7 @@ export default function MachinesPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label>Machine Type *</Label>
-            <ComboboxInput value={machineType} onChange={setMachineType} suggestions={typeSuggestions} placeholder="Enter or select type" />
+            <Input value={machineType} onChange={(e) => setMachineType(e.target.value)} placeholder="e.g. CNC, Press, Conveyor" />
             {errors.machineType && <p className="text-xs text-destructive">{errors.machineType}</p>}
           </div>
           <div className="space-y-1.5">
@@ -155,18 +152,12 @@ export default function MachinesPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label>Current Location *</Label>
-            <ComboboxInput value={currentLocation} onChange={setCurrentLocation} suggestions={locationSuggestions} placeholder="Enter or select location" />
+            <Input value={currentLocation} onChange={(e) => setCurrentLocation(e.target.value)} placeholder="e.g. Building A, Floor 2" />
             {errors.currentLocation && <p className="text-xs text-destructive">{errors.currentLocation}</p>}
           </div>
           <div className="space-y-1.5">
             <Label>Line</Label>
-            <Select value={line} onValueChange={setLine}>
-              <SelectTrigger><SelectValue placeholder="Select line..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">None</SelectItem>
-                {LINES.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Input value={line} onChange={(e) => setLine(e.target.value)} placeholder="e.g. Line 1, Line A" />
           </div>
         </div>
         <div className="mt-4">
@@ -271,7 +262,7 @@ export default function MachinesPage() {
             <div className="space-y-4">
               <div><Label className="text-sm text-muted-foreground">Current Location</Label><p className="font-medium">{moveTarget?.current_location || "Not assigned"}</p></div>
               <div className="space-y-2"><Label>New Location</Label>
-                <ComboboxInput value={moveLocation} onChange={setMoveLocation} suggestions={locationSuggestions} placeholder="Enter or select location" />
+                <Input value={moveLocation} onChange={(e) => setMoveLocation(e.target.value)} placeholder="Enter new location" />
               </div>
             </div>
             <DialogFooter><Button variant="outline" onClick={() => setMoveTarget(null)}>Cancel</Button><Button onClick={handleMove} disabled={moveMachine.isPending || !moveLocation.trim()}>{moveMachine.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Move</Button></DialogFooter>
