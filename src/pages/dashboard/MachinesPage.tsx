@@ -20,7 +20,6 @@ import { QRCodeSVG } from "qrcode.react";
 
 export default function MachinesPage() {
   const { data: machines, isLoading } = useMachines();
-  const { data: distinctValues } = useDistinctMachineValues();
   const addMachine = useAddMachine();
   const updateMachine = useUpdateMachine();
   const deleteMachine = useDeleteMachine();
