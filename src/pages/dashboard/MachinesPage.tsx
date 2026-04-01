@@ -43,8 +43,6 @@ export default function MachinesPage() {
   const [machineType, setMachineType] = useState("");
   const [currentLocation, setCurrentLocation] = useState("");
 
-  const typeSuggestions = distinctValues?.machineTypes || [];
-  const locationSuggestions = distinctValues?.locations || [];
 
   const resetForm = () => { setName(""); setLine(""); setSector(""); setCode(""); setStatus("active"); setMachineType(""); setCurrentLocation(""); setErrors({}); };
 
