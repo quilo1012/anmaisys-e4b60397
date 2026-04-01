@@ -115,7 +115,7 @@ export function useAcceptAndStartWorkOrder() {
     mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
       const now = new Date().toISOString();
       const { data: before } = await supabase.from("work_orders").select("status, engineer_id").eq("id", woId).single();
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from("work_orders")
         .update({
           status: "in_progress" as any,
@@ -125,8 +125,11 @@ export function useAcceptAndStartWorkOrder() {
           arrived_at: now,
           started_at: now,
         } as any)
-        .eq("id", woId);
+        .eq("id", woId)
+        .select()
+        .single();
       if (error) throw error;
+      if (!updated) throw new Error("Work order update failed — no rows affected");
       // Log all three actions for traceability
       await logWOAction(woId, engineerId, engineerName, "received");
       await logWOAction(woId, engineerId, engineerName, "arrived");

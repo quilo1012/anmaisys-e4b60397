@@ -252,10 +252,14 @@ export default function EngineerDashboard() {
 
   // For WOs in received/arrived — just start
   const handleStartClick = (woId: string) => {
-    requirePin("Confirm START", (engineer) => {
+    requirePin("Confirm START", async (engineer) => {
       setCurrentEngineer(engineer);
-      startWO.mutate({ woId, engineerId: engineer.id, engineerName: engineer.name });
-      toast({ title: "📸 Photo reminder", description: "Don't forget to add a Before photo!" });
+      try {
+        await startWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
+        toast({ title: "✅ Work Order started!", description: "Don't forget to add a Before photo!" });
+      } catch (err: any) {
+        toast({ title: "Error starting WO", description: err.message, variant: "destructive" });
+      }
     });
   };
 

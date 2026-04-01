@@ -116,7 +116,7 @@ function ChecklistManager({ problemId }: { problemId: string }) {
           <Checkbox checked={newRequired} onCheckedChange={(c) => setNewRequired(!!c)} id="cl-req" />
           <Label htmlFor="cl-req" className="text-xs cursor-pointer">Required</Label>
         </div>
-        <Button size="sm" className="h-8" onClick={handleAdd} disabled={!newDesc.trim() || addChecklist.isPending}>
+        <Button size="sm" className="h-8" onClick={handleAdd} disabled={!newDesc.trim() || !newType || addChecklist.isPending}>
           <Plus className="h-3 w-3 mr-1" /> Add
         </Button>
       </div>
