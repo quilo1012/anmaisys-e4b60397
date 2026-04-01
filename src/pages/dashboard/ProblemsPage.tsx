@@ -103,8 +103,8 @@ function ChecklistManager({ problemId }: { problemId: string }) {
           />
         </div>
         <Select value={newType} onValueChange={setNewType}>
-          <SelectTrigger className="w-[100px] h-8 text-sm">
-            <SelectValue />
+          <SelectTrigger className="w-[120px] h-8 text-sm">
+            <SelectValue placeholder="Select type..." />
           </SelectTrigger>
           <SelectContent>
             {CHECKLIST_TYPES.map((t) => (
