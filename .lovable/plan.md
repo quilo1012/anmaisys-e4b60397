@@ -1,35 +1,54 @@
 
 
-# Fix: `work_orders.engineer_id` FK Constraint Violation
+# Fix: Accept + Start WO Not Persisting
 
-## Root Cause
+## Analysis
 
-The foreign key `work_orders_engineer_id_fkey` references `profiles(id)` (auth users), but the PIN verification returns an `id` from the `engineers` table. These are completely different UUIDs — an engineer's PIN-verified ID will never exist in `profiles`.
+The DB schema is correct (FK now points to `engineers`). The mutation code sets all required fields. The likely issue is a **race condition in the PinDialog callback chain**: 
+
+1. PinDialog's `handleConfirm` calls `onSuccess(engineer)` then `onOpenChange(false)` synchronously
+2. `onSuccess` fires the async mutation but doesn't await it
+3. `onOpenChange(false)` triggers `setPendingPinAction(null)` and `setPinDialogOpen(false)`, causing immediate re-renders
+4. The re-render cascade may interrupt or lose the mutation context
+
+Additionally, `logWOAction` uses `as any` casts unnecessarily since `work_order_logs` exists in the types.
 
 ## Fix
 
-**Database migration**: Change the FK on `work_orders.engineer_id` from `profiles(id)` to `engineers(id)`.
+**File: `src/pages/dashboard/EngineerDashboard.tsx`**
 
-```sql
-ALTER TABLE work_orders DROP CONSTRAINT work_orders_engineer_id_fkey;
-ALTER TABLE work_orders ADD CONSTRAINT work_orders_engineer_id_fkey 
-  FOREIGN KEY (engineer_id) REFERENCES engineers(id);
+Make the `onSuccess` handler async-safe by capturing the action before clearing state, and ensure the mutation completes before cleanup:
+
+```typescript
+onSuccess={async (engineer) => {
+  const action = pendingPinAction;
+  setPinDialogOpen(false);
+  setPendingPinAction(null);
+  if (action) await action(engineer);
+}}
 ```
 
-**No code changes needed** — the frontend already passes the correct `engineer_id` from PIN verification. The only problem is the FK pointing to the wrong table.
+Remove the `onOpenChange` cleanup that duplicates state clearing — let `onSuccess` handle everything:
+
+```typescript
+onOpenChange={(open) => {
+  if (!open && !pendingPinAction) {
+    // Only clean up if user cancelled (not after success)
+    setPinDialogOpen(false);
+    setPendingPinAction(null);
+  } else {
+    setPinDialogOpen(open);
+  }
+}}
+```
+
+**File: `src/hooks/useWorkOrders.ts`**
+
+Remove unnecessary `as any` casts from `logWOAction` since `work_order_logs` is in the generated types. This is cleanup only — doesn't affect the bug.
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| DB Migration | Re-point `work_orders.engineer_id` FK from `profiles` to `engineers` |
-
-## Risk Check
-- The `work_orders` select query joins `profiles` via `work_orders_engineer_id_fkey` for the `engineer` relation. After re-pointing, this join will fail since `engineer_id` now references `engineers`, not `profiles`.
-- **Additional code fix** in `useWorkOrders.ts`: Change the select join from `engineer:profiles!work_orders_engineer_id_fkey(name)` to `engineer:engineers!work_orders_engineer_id_fkey(name)` in all queries that use it (main list query and `useWorkOrderById`).
-- The `engineer_name` column on `work_orders` already stores the name directly, so the join is supplementary.
-
-## Sequence
-1. Database migration (drop old FK, add new FK to `engineers`)
-2. Update select queries in `useWorkOrders.ts` to join `engineers` instead of `profiles`
+| `src/pages/dashboard/EngineerDashboard.tsx` | Fix async race condition in PinDialog callbacks |
 
