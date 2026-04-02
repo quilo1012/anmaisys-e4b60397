@@ -14,7 +14,7 @@ export interface EngineerIdentity {
 interface PinDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: (engineer: EngineerIdentity) => void;
+  onSuccess: (engineer: EngineerIdentity) => void | Promise<void>;
   title?: string;
   description?: string;
 }
@@ -53,12 +53,17 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!confirming) return;
     const engineer = confirming;
-    resetState();
-    onSuccess(engineer);
-    onOpenChange(false);
+    setLoading(true);
+    try {
+      await onSuccess(engineer);
+    } finally {
+      setLoading(false);
+      resetState();
+      onOpenChange(false);
+    }
   };
 
   const resetState = () => {
