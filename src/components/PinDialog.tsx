@@ -14,7 +14,7 @@ export interface EngineerIdentity {
 interface PinDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: (engineer: EngineerIdentity) => void;
+  onSuccess: (engineer: EngineerIdentity) => void | Promise<void>;
   title?: string;
   description?: string;
 }
