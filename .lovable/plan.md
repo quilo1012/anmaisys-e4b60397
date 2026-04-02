@@ -1,58 +1,36 @@
 
 
-# Fix: PinDialog Async-Safe Success Flow
+# Fix: Work Order Print/PDF Output
 
-## Problem
+## Current Issues
 
-In `PinDialog.tsx` line 56-62, `handleConfirm` is synchronous:
-1. Calls `resetState()` (clears internal state)
-2. Calls `onSuccess(engineer)` — parent's async handler starts but is NOT awaited
-3. Immediately calls `onOpenChange(false)` — triggers parent cleanup
+1. **Engineer name**: Uses `wo.engineer?.name` (joined from `engineers` table) — but if the join fails or returns null, falls back to "—" instead of using the always-saved `wo.engineer_name` column
+2. **Signature section**: Has "Requested By" and "Approved By" — should be "Engineer Signature" and "Operator Signature"
+3. **No operator signature section** exists in print
 
-The parent's `onSuccess` (EngineerDashboard line 612-617) clears `pendingPinAction` before awaiting the mutation, but PinDialog also fires `onOpenChange(false)` in parallel, causing redundant state changes during the async mutation.
+## Changes — Single File: `src/pages/dashboard/WorkOrderDetail.tsx`
 
-## Fix
-
-**File: `src/components/PinDialog.tsx`**
-
-1. Change `onSuccess` prop type to allow async: `(engineer: EngineerIdentity) => void | Promise<void>`
-2. Make `handleConfirm` async — await `onSuccess(engineer)` before calling `onOpenChange(false)`
-3. Show loading state during the async action so the user sees feedback
-
-```typescript
-const handleConfirm = async () => {
-  if (!confirming) return;
-  const engineer = confirming;
-  setLoading(true);
-  try {
-    await onSuccess(engineer);
-  } finally {
-    setLoading(false);
-    resetState();
-    onOpenChange(false);
-  }
-};
+### 1. Use `engineer_name` column as primary, join as fallback
+In the Personnel section (line 243) and anywhere engineer name appears, use:
 ```
-
-**File: `src/pages/dashboard/EngineerDashboard.tsx`**
-
-Simplify the `onSuccess` handler — no longer needs to capture/clear state since PinDialog now handles sequencing:
-
-```typescript
-onSuccess={async (engineer) => {
-  if (pendingPinAction) await pendingPinAction(engineer);
-  setPendingPinAction(null);
-}}
-onOpenChange={(open) => {
-  setPinDialogOpen(open);
-  if (!open) setPendingPinAction(null);
-}}
+wo.engineer_name || wo.engineer?.name || "—"
 ```
+This ensures the real PIN-verified engineer name always shows.
+
+### 2. Replace signature section (lines 371-389)
+Replace "Requested By" + "Approved By" with:
+
+**Engineer Signature** — pre-filled with `wo.engineer_name || wo.engineer?.name`
+**Operator Signature** — pre-filled with `wo.operator?.name || wo.requester_name`
+
+Both with date fields and signature lines.
+
+### 3. No other files changed
+The Engineer Dashboard already opens `WorkOrderDetail` via `window.open(/dashboard/wo/${wo.id})` for printing. Print CSS already hides sidebar/nav/buttons. No changes needed elsewhere.
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/components/PinDialog.tsx` | Make `handleConfirm` async, await `onSuccess`, show loading |
-| `src/pages/dashboard/EngineerDashboard.tsx` | Simplify callbacks, remove premature state clearing |
+| `src/pages/dashboard/WorkOrderDetail.tsx` | Use `engineer_name` column; replace signature section with Engineer + Operator signatures |
 
