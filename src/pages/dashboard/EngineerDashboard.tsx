@@ -603,17 +603,12 @@ export default function EngineerDashboard() {
       <PinDialog
         open={pinDialogOpen}
         onOpenChange={(open) => {
-          if (!open) {
-            setPinDialogOpen(false);
-          } else {
-            setPinDialogOpen(open);
-          }
+          setPinDialogOpen(open);
+          if (!open) setPendingPinAction(null);
         }}
         onSuccess={async (engineer) => {
-          const action = pendingPinAction;
-          setPinDialogOpen(false);
+          if (pendingPinAction) await pendingPinAction(engineer);
           setPendingPinAction(null);
-          if (action) await action(engineer);
         }}
         title={pinDialogTitle}
         description="Enter your engineer PIN to confirm this action."

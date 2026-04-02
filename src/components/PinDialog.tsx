@@ -53,12 +53,17 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!confirming) return;
     const engineer = confirming;
-    resetState();
-    onSuccess(engineer);
-    onOpenChange(false);
+    setLoading(true);
+    try {
+      await onSuccess(engineer);
+    } finally {
+      setLoading(false);
+      resetState();
+      onOpenChange(false);
+    }
   };
 
   const resetState = () => {
