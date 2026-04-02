@@ -1,54 +1,58 @@
 
 
-# Fix: Accept + Start WO Not Persisting
+# Fix: PinDialog Async-Safe Success Flow
 
-## Analysis
+## Problem
 
-The DB schema is correct (FK now points to `engineers`). The mutation code sets all required fields. The likely issue is a **race condition in the PinDialog callback chain**: 
+In `PinDialog.tsx` line 56-62, `handleConfirm` is synchronous:
+1. Calls `resetState()` (clears internal state)
+2. Calls `onSuccess(engineer)` — parent's async handler starts but is NOT awaited
+3. Immediately calls `onOpenChange(false)` — triggers parent cleanup
 
-1. PinDialog's `handleConfirm` calls `onSuccess(engineer)` then `onOpenChange(false)` synchronously
-2. `onSuccess` fires the async mutation but doesn't await it
-3. `onOpenChange(false)` triggers `setPendingPinAction(null)` and `setPinDialogOpen(false)`, causing immediate re-renders
-4. The re-render cascade may interrupt or lose the mutation context
-
-Additionally, `logWOAction` uses `as any` casts unnecessarily since `work_order_logs` exists in the types.
+The parent's `onSuccess` (EngineerDashboard line 612-617) clears `pendingPinAction` before awaiting the mutation, but PinDialog also fires `onOpenChange(false)` in parallel, causing redundant state changes during the async mutation.
 
 ## Fix
 
+**File: `src/components/PinDialog.tsx`**
+
+1. Change `onSuccess` prop type to allow async: `(engineer: EngineerIdentity) => void | Promise<void>`
+2. Make `handleConfirm` async — await `onSuccess(engineer)` before calling `onOpenChange(false)`
+3. Show loading state during the async action so the user sees feedback
+
+```typescript
+const handleConfirm = async () => {
+  if (!confirming) return;
+  const engineer = confirming;
+  setLoading(true);
+  try {
+    await onSuccess(engineer);
+  } finally {
+    setLoading(false);
+    resetState();
+    onOpenChange(false);
+  }
+};
+```
+
 **File: `src/pages/dashboard/EngineerDashboard.tsx`**
 
-Make the `onSuccess` handler async-safe by capturing the action before clearing state, and ensure the mutation completes before cleanup:
+Simplify the `onSuccess` handler — no longer needs to capture/clear state since PinDialog now handles sequencing:
 
 ```typescript
 onSuccess={async (engineer) => {
-  const action = pendingPinAction;
-  setPinDialogOpen(false);
+  if (pendingPinAction) await pendingPinAction(engineer);
   setPendingPinAction(null);
-  if (action) await action(engineer);
 }}
-```
-
-Remove the `onOpenChange` cleanup that duplicates state clearing — let `onSuccess` handle everything:
-
-```typescript
 onOpenChange={(open) => {
-  if (!open && !pendingPinAction) {
-    // Only clean up if user cancelled (not after success)
-    setPinDialogOpen(false);
-    setPendingPinAction(null);
-  } else {
-    setPinDialogOpen(open);
-  }
+  setPinDialogOpen(open);
+  if (!open) setPendingPinAction(null);
 }}
 ```
-
-**File: `src/hooks/useWorkOrders.ts`**
-
-Remove unnecessary `as any` casts from `logWOAction` since `work_order_logs` is in the generated types. This is cleanup only — doesn't affect the bug.
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/pages/dashboard/EngineerDashboard.tsx` | Fix async race condition in PinDialog callbacks |
+| `src/components/PinDialog.tsx` | Make `handleConfirm` async, await `onSuccess`, show loading |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Simplify callbacks, remove premature state clearing |
 
