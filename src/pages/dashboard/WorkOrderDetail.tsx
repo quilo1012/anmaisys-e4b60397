@@ -391,10 +391,6 @@ export default function WorkOrderDetail() {
         {/* Print footer */}
         <div className="print-footer hidden">AN Maintenance — Confidential — {woLabel}</div>
 
-        {/* Internal Chat - hidden in print */}
-        <div className="print:hidden">
-          <WOChat workOrderId={wo.id} />
-        </div>
       </div>
     </DashboardLayout>
   );
