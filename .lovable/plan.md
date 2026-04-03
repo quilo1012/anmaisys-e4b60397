@@ -1,36 +1,30 @@
 
 
-# Fix: Work Order Print/PDF Output
+# Fix: WO Print Output + Hide Internal Chat
 
-## Current Issues
+## Changes
 
-1. **Engineer name**: Uses `wo.engineer?.name` (joined from `engineers` table) — but if the join fails or returns null, falls back to "—" instead of using the always-saved `wo.engineer_name` column
-2. **Signature section**: Has "Requested By" and "Approved By" — should be "Engineer Signature" and "Operator Signature"
-3. **No operator signature section** exists in print
+### 1. Remove Internal Chat from WO Detail (`src/pages/dashboard/WorkOrderDetail.tsx`)
+- Remove the `WOChat` import and the chat section (lines 394-397)
+- Remove the `useWOMessages`/`useSendWOMessage` related import
 
-## Changes — Single File: `src/pages/dashboard/WorkOrderDetail.tsx`
+### 2. Ensure real engineer name in Parts Used table
+- The current join `profiles!parts_used_engineer_id_fkey(name)` should return real names since `parts_used.engineer_id` stores auth user ID → profiles
+- If the join fails (no profile match), fall back to the WO's `engineer_name` field: change `{pu.engineer?.name || "—"}` to `{pu.engineer?.name || wo.engineer_name || ""}`
+- If all missing, leave blank (empty string, not "—")
 
-### 1. Use `engineer_name` column as primary, join as fallback
-In the Personnel section (line 243) and anywhere engineer name appears, use:
-```
-wo.engineer_name || wo.engineer?.name || "—"
-```
-This ensures the real PIN-verified engineer name always shows.
+### 3. Use real engineer name consistently
+- Already using `wo.engineer_name || wo.engineer?.name` in Personnel and Signatures — no change needed there
+- Leave blank instead of "—" when data is missing (per requirement)
 
-### 2. Replace signature section (lines 371-389)
-Replace "Requested By" + "Approved By" with:
-
-**Engineer Signature** — pre-filled with `wo.engineer_name || wo.engineer?.name`
-**Operator Signature** — pre-filled with `wo.operator?.name || wo.requester_name`
-
-Both with date fields and signature lines.
-
-### 3. No other files changed
-The Engineer Dashboard already opens `WorkOrderDetail` via `window.open(/dashboard/wo/${wo.id})` for printing. Print CSS already hides sidebar/nav/buttons. No changes needed elsewhere.
+### 4. No other areas changed
+- Print CSS already hides sidebar, nav, buttons
+- Signature sections already correct (Engineer + Operator)
+- Both Engineer and Manager views use same `WorkOrderDetail` component
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Use `engineer_name` column; replace signature section with Engineer + Operator signatures |
+| `src/pages/dashboard/WorkOrderDetail.tsx` | Remove WOChat; fix parts engineer name fallback; use blank for missing data |
 
