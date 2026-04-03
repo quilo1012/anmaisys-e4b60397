@@ -240,7 +240,7 @@ export default function WorkOrderDetail() {
         <div className="grid gap-4 md:grid-cols-3 print:grid-cols-4 print:gap-0">
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Requested By</p><p className="font-medium print:text-[9pt]">{wo.requester_name}</p></CardContent></Card>
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Operator</p><p className="font-medium print:text-[9pt]">{wo.operator?.name || "—"}</p></CardContent></Card>
-          <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Engineer</p><p className="font-medium print:text-[9pt]">{wo.engineer?.name || "—"}</p></CardContent></Card>
+          <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Engineer</p><p className="font-medium print:text-[9pt]">{wo.engineer_name || wo.engineer?.name || "—"}</p></CardContent></Card>
           {wo.closer?.name && <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Closed By</p><p className="font-medium print:text-[9pt]">{wo.closer.name}</p></CardContent></Card>}
           {wo.signed_by_name && <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Signed By</p><p className="font-medium print:text-[9pt] flex items-center gap-1"><PenTool className="h-3 w-3" />{wo.signed_by_name}</p></CardContent></Card>}
         </div>
@@ -372,16 +372,16 @@ export default function WorkOrderDetail() {
         <div className="hidden print:block mt-10 pt-4 border-t-2 border-black">
           <div className="grid grid-cols-2 gap-16">
             <div>
-              <p className="text-[8pt] font-bold mb-1">Requested By:</p>
-              <p className="text-[8pt] mb-1">Name: <span className="font-medium">{wo.requester_name}</span></p>
-              <p className="text-[8pt] mb-8">Date: {format(new Date(wo.created_at), "dd/MM/yyyy")}</p>
+              <p className="text-[8pt] font-bold mb-1">Engineer Signature:</p>
+              <p className="text-[8pt] mb-1">Name: <span className="font-medium">{wo.engineer_name || wo.engineer?.name || "___________________________"}</span></p>
+              <p className="text-[8pt] mb-8">Date: {wo.started_at ? format(new Date(wo.started_at), "dd/MM/yyyy") : "___/___/________"}</p>
               <div className="border-b-2 border-black w-full" />
               <p className="text-[7pt] mt-1 text-gray-500">Signature</p>
             </div>
             <div>
-              <p className="text-[8pt] font-bold mb-1">Approved By:</p>
-              <p className="text-[8pt] mb-1">Name: ___________________________</p>
-              <p className="text-[8pt] mb-8">Date: ___/___/________</p>
+              <p className="text-[8pt] font-bold mb-1">Operator Signature:</p>
+              <p className="text-[8pt] mb-1">Name: <span className="font-medium">{wo.operator?.name || wo.requester_name}</span></p>
+              <p className="text-[8pt] mb-8">Date: {format(new Date(wo.created_at), "dd/MM/yyyy")}</p>
               <div className="border-b-2 border-black w-full" />
               <p className="text-[7pt] mt-1 text-gray-500">Signature</p>
             </div>
