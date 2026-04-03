@@ -50,7 +50,7 @@ function TimelineItem({ icon: Icon, label, time, className }: { icon: React.Comp
 }
 
 function formatDuration(minutes: number | null) {
-  if (minutes === null) return "—";
+  if (minutes === null) return "";
   if (minutes < 60) return `${minutes} min`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
