@@ -1,30 +1,55 @@
 
+Goal: fix only the remaining Work Order print/PDF bug by making the shared Work Order detail page produce one clean saved-data-only printable document for both Engineer and Manager.
 
-# Fix: WO Print Output + Hide Internal Chat
+What I’ll change
 
-## Changes
+1. Keep one single printable WO source
+- Use `src/pages/dashboard/WorkOrderDetail.tsx` as the only printable template for both roles.
+- Do not create a second print view or separate manager/engineer template.
+- Keep the existing shared `/dashboard/wo/:id` route as the print source.
 
-### 1. Remove Internal Chat from WO Detail (`src/pages/dashboard/WorkOrderDetail.tsx`)
-- Remove the `WOChat` import and the chat section (lines 394-397)
-- Remove the `useWOMessages`/`useSendWOMessage` related import
+2. Normalize printable values to saved data only
+- In `WorkOrderDetail.tsx`, derive print-safe values from the loaded database record:
+  - engineer name: `wo.engineer_name || wo.engineer?.name || ""`
+  - operator name: `wo.operator?.name || ""`
+  - requester/notes/signature dates/etc.: real saved value or `""`
+- Remove printable fallbacks like:
+  - `"Engineer"`
+  - `"—"`
+  - underscore placeholders
+  - invented date placeholders
 
-### 2. Ensure real engineer name in Parts Used table
-- The current join `profiles!parts_used_engineer_id_fkey(name)` should return real names since `parts_used.engineer_id` stores auth user ID → profiles
-- If the join fails (no profile match), fall back to the WO's `engineer_name` field: change `{pu.engineer?.name || "—"}` to `{pu.engineer?.name || wo.engineer_name || ""}`
-- If all missing, leave blank (empty string, not "—")
+3. Fix printable Parts Used output
+- In the printed WO, render engineer name for each part row as:
+  - `pu.engineer?.name`
+  - else `wo.engineer_name`
+  - else `""`
+- Also leave product/code blank if missing instead of showing placeholder text.
 
-### 3. Use real engineer name consistently
-- Already using `wo.engineer_name || wo.engineer?.name` in Personnel and Signatures — no change needed there
-- Leave blank instead of "—" when data is missing (per requirement)
+4. Keep both printable signature sections
+- Preserve:
+  - `Engineer Signature`
+  - `Operator Signature`
+- Pre-fill only with real saved values.
+- If name/date is missing, leave that field blank.
 
-### 4. No other areas changed
-- Print CSS already hides sidebar, nav, buttons
-- Signature sections already correct (Engineer + Operator)
-- Both Engineer and Manager views use same `WorkOrderDetail` component
+5. Print only the WO document
+- Keep screen controls hidden in print.
+- Ensure print-visible content is only the Work Order document block.
+- If needed, tighten `src/index.css` print selectors so no layout chrome leaks into print from dashboard wrappers.
 
-## Files Modified
+6. Do not touch unrelated areas
+- No refactor of work order flows, auth, dashboard logic, or non-print pages.
+- No database changes.
+- No changes to non-WO reports.
 
-| File | Change |
-|------|--------|
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Remove WOChat; fix parts engineer name fallback; use blank for missing data |
+Files expected
+- `src/pages/dashboard/WorkOrderDetail.tsx`
+- `src/index.css` only if current print CSS still allows non-document UI to appear
 
+Technical details
+- Main issue still visible in the current file:
+  - printable fields still contain placeholders like `"—"` and signature placeholder text
+  - Parts Used currently mixes real data with fallback placeholders
+  - print correctness depends on a mix of shared screen/print elements
+- The fix is to make every print-visible field read from normalized saved values and render blank when absent, while preserving the existing screen behavior as much as possible.
