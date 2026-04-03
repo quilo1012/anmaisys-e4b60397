@@ -9,7 +9,7 @@ import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool
 import { useWorkOrderById } from "@/hooks/useWorkOrders";
 import { usePartsUsedByWO } from "@/hooks/useStock";
 import { useWOPhotos, getWOPhotoUrl } from "@/hooks/useWOPhotos";
-import { WOChat } from "@/components/WOChat";
+
 import { format, differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -315,7 +315,7 @@ export default function WorkOrderDetail() {
                       <TableCell className="font-medium">{pu.product?.name || "—"}</TableCell>
                       <TableCell>{pu.product?.code || "—"}</TableCell>
                       <TableCell>{pu.quantity}</TableCell>
-                      <TableCell>{pu.engineer?.name || "—"}</TableCell>
+                      <TableCell>{pu.engineer?.name || wo.engineer_name || ""}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{format(new Date(pu.created_at), "dd/MM HH:mm")}</TableCell>
                     </TableRow>
                   ))}
@@ -391,10 +391,6 @@ export default function WorkOrderDetail() {
         {/* Print footer */}
         <div className="print-footer hidden">AN Maintenance — Confidential — {woLabel}</div>
 
-        {/* Internal Chat - hidden in print */}
-        <div className="print:hidden">
-          <WOChat workOrderId={wo.id} />
-        </div>
       </div>
     </DashboardLayout>
   );
