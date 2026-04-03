@@ -9,7 +9,7 @@ import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool
 import { useWorkOrderById } from "@/hooks/useWorkOrders";
 import { usePartsUsedByWO } from "@/hooks/useStock";
 import { useWOPhotos, getWOPhotoUrl } from "@/hooks/useWOPhotos";
-import { WOChat } from "@/components/WOChat";
+
 import { format, differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
