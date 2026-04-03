@@ -315,7 +315,7 @@ export default function WorkOrderDetail() {
                       <TableCell className="font-medium">{pu.product?.name || "—"}</TableCell>
                       <TableCell>{pu.product?.code || "—"}</TableCell>
                       <TableCell>{pu.quantity}</TableCell>
-                      <TableCell>{pu.engineer?.name || "—"}</TableCell>
+                      <TableCell>{pu.engineer?.name || wo.engineer_name || ""}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{format(new Date(pu.created_at), "dd/MM HH:mm")}</TableCell>
                     </TableRow>
                   ))}
