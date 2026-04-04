@@ -92,7 +92,7 @@ function ChecklistManager({ problemId }: { problemId: string }) {
           ))}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">No checklist items. Static defaults will be used.</p>
+        <p className="text-xs text-muted-foreground">No checklist items yet.</p>
       )}
 
       <div className="flex gap-2 items-end flex-wrap">
