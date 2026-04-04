@@ -1,55 +1,63 @@
 
-Goal: fix only the remaining Work Order print/PDF bug by making the shared Work Order detail page produce one clean saved-data-only printable document for both Engineer and Manager.
 
-What I’ll change
+# Improve Work Order Print/PDF with Logo Watermark
 
-1. Keep one single printable WO source
-- Use `src/pages/dashboard/WorkOrderDetail.tsx` as the only printable template for both roles.
-- Do not create a second print view or separate manager/engineer template.
-- Keep the existing shared `/dashboard/wo/:id` route as the print source.
+## What's changing
 
-2. Normalize printable values to saved data only
-- In `WorkOrderDetail.tsx`, derive print-safe values from the loaded database record:
-  - engineer name: `wo.engineer_name || wo.engineer?.name || ""`
-  - operator name: `wo.operator?.name || ""`
-  - requester/notes/signature dates/etc.: real saved value or `""`
-- Remove printable fallbacks like:
-  - `"Engineer"`
-  - `"—"`
-  - underscore placeholders
-  - invented date placeholders
+### 1. Add Applied Nutrition symbol as print-only background watermark
+- Extract/create a simplified AN symbol (the "AN" monogram from `appliedlogo.jpeg`) as an SVG or use the existing logo image
+- Add a print-only watermark element: centered on page, large size (~300px), very low opacity (8-12%), behind all content
+- Use CSS `print:block` + `position: fixed` + `z-index: -1` + `opacity: 0.08` so it appears softly in print but is `hidden` on screen
 
-3. Fix printable Parts Used output
-- In the printed WO, render engineer name for each part row as:
-  - `pu.engineer?.name`
-  - else `wo.engineer_name`
-  - else `""`
-- Also leave product/code blank if missing instead of showing placeholder text.
+### 2. Ensure all print fields use real saved data only
+- Already mostly correct from prior fixes
+- Double-check no remaining `"—"` in any print-visible field (line 364 cost breakdown has one but is `print:hidden` so OK)
 
-4. Keep both printable signature sections
-- Preserve:
-  - `Engineer Signature`
-  - `Operator Signature`
-- Pre-fill only with real saved values.
-- If name/date is missing, leave that field blank.
+### 3. Keep existing correct behavior
+- Single template in `WorkOrderDetail.tsx` for both roles
+- Engineer/Operator signature sections preserved
+- Parts Used uses `pu.engineer?.name || wo.engineer_name || ""`
+- Print CSS hides sidebar, nav, buttons, chat, photos, costs
 
-5. Print only the WO document
-- Keep screen controls hidden in print.
-- Ensure print-visible content is only the Work Order document block.
-- If needed, tighten `src/index.css` print selectors so no layout chrome leaks into print from dashboard wrappers.
+## Technical approach
 
-6. Do not touch unrelated areas
-- No refactor of work order flows, auth, dashboard logic, or non-print pages.
-- No database changes.
-- No changes to non-WO reports.
+**File: `src/pages/dashboard/WorkOrderDetail.tsx`**
 
-Files expected
-- `src/pages/dashboard/WorkOrderDetail.tsx`
-- `src/index.css` only if current print CSS still allows non-document UI to appear
+Add a print-only watermark div inside `#wo-print-content`, positioned as a fixed background element:
 
-Technical details
-- Main issue still visible in the current file:
-  - printable fields still contain placeholders like `"—"` and signature placeholder text
-  - Parts Used currently mixes real data with fallback placeholders
-  - print correctness depends on a mix of shared screen/print elements
-- The fix is to make every print-visible field read from normalized saved values and render blank when absent, while preserving the existing screen behavior as much as possible.
+```tsx
+{/* Print-only watermark */}
+<div className="hidden print:block fixed inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: -1 }}>
+  <img src={appliedLogo} alt="" className="w-72 h-72 object-contain opacity-[0.08]" />
+</div>
+```
+
+**File: `src/index.css`**
+
+Add print rule to ensure the watermark container renders correctly:
+```css
+.print-watermark {
+  display: none !important;
+}
+@media print {
+  .print-watermark {
+    display: flex !important;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: -1;
+    pointer-events: none;
+  }
+}
+```
+
+Since we only have the full `appliedlogo.jpeg` (which likely includes text), and the user wants **only the symbol/icon part**, we'll use CSS techniques (clip or sizing) to show just the icon portion, or use the full logo at very low opacity where the symbol dominates visually. Given we can't edit the image file, we'll use the logo at ~8% opacity which makes any text nearly invisible while the symbol shape remains visible as a watermark.
+
+## Files modified
+
+| File | Change |
+|------|--------|
+| `src/pages/dashboard/WorkOrderDetail.tsx` | Add print-only watermark element using the logo |
+| `src/index.css` | Add `.print-watermark` CSS class for print positioning |
+
