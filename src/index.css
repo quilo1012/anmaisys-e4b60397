@@ -104,6 +104,11 @@
   }
 }
 
+/* Hide print-only watermark on screen */
+.print-watermark {
+  display: none !important;
+}
+
 /* ─── Print Styles ─── */
 
 @page {
