@@ -93,6 +93,13 @@ export type Database = {
             referencedRelation: "engineers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "checklist_responses_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "engineers_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       checklists: {
@@ -572,6 +579,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "work_order_logs_engineer_id_fkey"
+            columns: ["engineer_id"]
+            isOneToOne: false
+            referencedRelation: "engineers_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "work_order_logs_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
@@ -675,6 +689,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "work_orders_engineer_id_fkey"
+            columns: ["engineer_id"]
+            isOneToOne: false
+            referencedRelation: "engineers_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "work_orders_operator_id_fkey"
             columns: ["operator_id"]
             isOneToOne: false
@@ -685,7 +706,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      engineers_safe: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          is_active: boolean | null
+          name: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          name?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          name?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_user_role: {
