@@ -104,6 +104,11 @@
   }
 }
 
+/* Hide print-only watermark on screen */
+.print-watermark {
+  display: none !important;
+}
+
 /* ─── Print Styles ─── */
 
 @page {
@@ -251,6 +256,17 @@
   .print-content > .space-y-6 > *,
   .print-content > * {
     page-break-inside: avoid;
+  }
+
+  /* Print-only watermark */
+  .print-watermark {
+    display: flex !important;
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: -1 !important;
+    pointer-events: none !important;
   }
 
   /* Show print:block elements */
