@@ -53,6 +53,8 @@ function ChecklistManager({ problemId }: { problemId: string }) {
         is_required: newRequired,
       });
       setNewDesc("");
+      setNewType("");
+      setNewRequired(true);
       toast({ title: "Checklist item added" });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
