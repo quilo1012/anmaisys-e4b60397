@@ -184,13 +184,13 @@
     top: 0 !important;
   }
 
-  /* Preserve flex/grid inside print content */
-  [class*="flex"], [class*="grid"] {
+  /* Force app-level wrappers to block — but preserve print-content layouts */
+  #root > .flex,
+  #root > * > .flex {
     display: block !important;
   }
 
-  .print-content [class*="flex"],
-  .print-content [class*="grid"] {
+  .print-content [class*="flex"] {
     display: flex !important;
   }
 

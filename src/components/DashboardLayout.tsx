@@ -166,7 +166,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </Sidebar>
 
           <main className="flex-1 flex flex-col">
-            <header className="h-14 border-b bg-card flex items-center px-4 gap-3">
+            <header className="h-14 border-b bg-card flex items-center px-4 gap-3 print:hidden">
               <SidebarTrigger />
               <h1 className="text-lg font-semibold text-foreground">
                 {role === "admin" ? "Manager" : role === "engineer" ? "Engineer" : "Operator"} Dashboard
