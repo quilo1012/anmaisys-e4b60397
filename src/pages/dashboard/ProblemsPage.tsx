@@ -53,6 +53,8 @@ function ChecklistManager({ problemId }: { problemId: string }) {
         is_required: newRequired,
       });
       setNewDesc("");
+      setNewType("");
+      setNewRequired(true);
       toast({ title: "Checklist item added" });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -90,7 +92,7 @@ function ChecklistManager({ problemId }: { problemId: string }) {
           ))}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">No checklist items. Static defaults will be used.</p>
+        <p className="text-xs text-muted-foreground">No checklist items yet.</p>
       )}
 
       <div className="flex gap-2 items-end flex-wrap">
