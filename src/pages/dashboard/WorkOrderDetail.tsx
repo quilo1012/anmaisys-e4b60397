@@ -165,6 +165,11 @@ export default function WorkOrderDetail() {
     <DashboardLayout>
       <div className="space-y-6 max-w-3xl print-content" id="wo-print-content">
 
+        {/* ═══ PRINT-ONLY: Background Watermark ═══ */}
+        <div className="print-watermark" aria-hidden="true">
+          <img src={appliedLogo} alt="" className="w-72 h-72 object-contain opacity-[0.08]" />
+        </div>
+
         {/* ═══ PRINT-ONLY: Industrial Document Header ═══ */}
         <div className="hidden print:block mb-4">
           <div className="flex items-center justify-between border-b-2 border-black pb-3">
