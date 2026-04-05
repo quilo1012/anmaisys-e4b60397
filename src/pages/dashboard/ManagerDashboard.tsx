@@ -28,7 +28,33 @@ export default function ManagerDashboard() {
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [savingPin, setSavingPin] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   useWOAlerts();
+
+  const isPreview = typeof window !== "undefined" && (
+    window.location.hostname.includes("lovable.app") ||
+    window.location.hostname.includes("lovableproject.com") ||
+    window.location.hostname === "localhost"
+  );
+
+  const handleSeedDemo = async () => {
+    setSeeding(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("seed-demo");
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Seed failed");
+      const creds = data.credentials;
+      toast({
+        title: "Demo data seeded!",
+        description: `Manager: ${creds.manager.email} / ${creds.manager.password}\nEngineer: ${creds.engineer.email} / ${creds.engineer.password}\nEngineer PIN: ${creds.engineerPin}`,
+      });
+      queryClient.invalidateQueries();
+    } catch (err: any) {
+      toast({ title: "Seed error", description: err.message, variant: "destructive" });
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   const { data: userCount } = useQuery({
     queryKey: ["user_count"],
