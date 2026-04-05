@@ -1,46 +1,37 @@
 
 
-# Create Demo Review Setup via Seed Edge Function
+# Fix: Protected Route / Session Redirect Bug
 
-## Approach
+## Root cause
 
-Create a `seed-demo` edge function that an admin can invoke once to populate the system with demo-safe data. This keeps production auth untouched and uses existing infrastructure (create-user pattern, engineers table, etc.).
+Two issues in `AuthContext.tsx` and `ProtectedRoute.tsx`:
 
-## What gets created
+1. **Race condition on role loading**: `setLoading(false)` fires immediately in both `onAuthStateChange` (line 58) and `getSession` (line 68), but `fetchUserData` is async and hasn't resolved yet. The `role` is still `null` when `ProtectedRoute` evaluates. While `ProtectedRoute` currently lets `null` role through (line 27), any transient re-render during role fetch can cause flicker or unexpected state.
 
-| Entity | Details |
-|--------|---------|
-| Demo Manager user | `demo.manager@appliednutrition.uk` / `DemoPass123!` / role: admin |
-| Demo Engineer user | `demo.engineer@appliednutrition.uk` / `DemoPass123!` / role: engineer |
-| Demo Engineer identity | "Demo Engineer" in `engineers` table with PIN `1234` (bcrypt hashed) |
-| Problem descriptions | 2 sample problems with checklists attached |
-| Checklist items | 3 items per problem (mix of required/optional, safety/quality types) |
-| Work Orders | 3 sample WOs in different statuses (open, in_progress, completed) with real timestamps, engineer assignment, and signed_by_name |
-| Parts Used | 2 records linked to completed WO, referencing existing products |
+2. **Session can briefly be null during token refresh**: `onAuthStateChange` can fire with a `null` session during token refresh events, causing `ProtectedRoute` to see `!session` and redirect to `/login`. The code sets `loading(false)` on every auth state change, so there's no "still refreshing" guard.
 
-## Files
+3. **Missing "unauthorized" state**: When a user has a valid session but wrong role, `ProtectedRoute` redirects them. If the redirect target also doesn't match (or during the role-null window), it can cascade to `/login`.
 
-### 1. `supabase/functions/seed-demo/index.ts` (new)
+## Changes
 
-- Admin-only edge function (checks `has_role`)
-- Idempotent: checks if demo data already exists before creating
-- Creates demo users via `supabase.auth.admin.createUser`
-- Inserts engineer identity with hashed PIN
-- Creates problem descriptions, checklists, work orders, parts_used
-- Returns summary of what was created
+### `src/contexts/AuthContext.tsx`
 
-### 2. `src/pages/dashboard/ManagerDashboard.tsx` (minor addition)
+- Track role loading separately with a `roleLoading` state
+- Only set `loading` to `false` after both session AND role data are resolved
+- In `fetchUserData`, set `roleLoading = false` on completion (including errors)
+- In `onAuthStateChange`, don't clear session/role if the event is `TOKEN_REFRESHED` with a valid session — only clear on explicit `SIGNED_OUT`
+- Export a combined `loading` that accounts for role fetch
 
-- Add a "Seed Demo Data" button (visible only in preview/dev environment)
-- Calls `supabase.functions.invoke("seed-demo")`
-- Shows toast with results
-- Button checks `window.location.hostname` to only show on lovable preview domains
+### `src/components/ProtectedRoute.tsx`
 
-## Key details
+- When `session` exists but `role` is still `null` (role loading), show spinner — don't redirect
+- When `session` exists and `role` is loaded but doesn't match `allowedRoles`, show an "Access Denied" message with a link to the user's correct dashboard — don't redirect to `/login`
+- Only redirect to `/login` when `session` is truly `null` and loading is complete
 
-- Demo engineer PIN: `1234` — allows testing the full PIN verification flow
-- Demo credentials shown in a toast after seeding so the reviewer knows them
-- The completed WO will have full timeline data (created_at, received_at, arrived_at, started_at, finished_at, signed_by_name) making it printable
-- Uses existing machines and products from the DB (fetched dynamically in the edge function)
-- No changes to auth flow, RLS policies, or existing user data
+## Files modified
+
+| File | Change |
+|------|--------|
+| `src/contexts/AuthContext.tsx` | Track role loading state; don't set loading=false until role resolves; guard against transient null sessions |
+| `src/components/ProtectedRoute.tsx` | Show spinner while role loads; show access-denied instead of login redirect for wrong role |
 
