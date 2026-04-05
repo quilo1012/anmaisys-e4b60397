@@ -1,40 +1,46 @@
 
 
-# Fix: Work Order Print/PDF — Remove Remaining App UI Leaks
+# Create Demo Review Setup via Seed Edge Function
 
-## Problem
+## Approach
 
-The DashboardLayout's `<header>` element (line 168) contains the dashboard title ("Manager Dashboard" / "Engineer Dashboard"), icons, clock, and notification panel. The CSS print rules hide `header` by tag but the selector may conflict with the print-only document header inside `#wo-print-content`. Additionally, the `<main>` wrapper and flex container may still show layout artifacts.
+Create a `seed-demo` edge function that an admin can invoke once to populate the system with demo-safe data. This keeps production auth untouched and uses existing infrastructure (create-user pattern, engineers table, etc.).
 
-Key issues:
-1. The app `<header>` with "Manager Dashboard" title, clock, dark mode button may still appear in print if CSS specificity fails
-2. The `[class*="flex"]` rule on line 188-189 forces `display: block` on ALL flex elements globally, then re-enables only inside `.print-content` — this could break the print document header's flex layout
-3. The `PenTool` icon in the "Signed By" personnel card (line 250) renders in print
-4. No explicit hiding of the page URL that browsers add by default
+## What gets created
 
-## Changes
+| Entity | Details |
+|--------|---------|
+| Demo Manager user | `demo.manager@appliednutrition.uk` / `DemoPass123!` / role: admin |
+| Demo Engineer user | `demo.engineer@appliednutrition.uk` / `DemoPass123!` / role: engineer |
+| Demo Engineer identity | "Demo Engineer" in `engineers` table with PIN `1234` (bcrypt hashed) |
+| Problem descriptions | 2 sample problems with checklists attached |
+| Checklist items | 3 items per problem (mix of required/optional, safety/quality types) |
+| Work Orders | 3 sample WOs in different statuses (open, in_progress, completed) with real timestamps, engineer assignment, and signed_by_name |
+| Parts Used | 2 records linked to completed WO, referencing existing products |
 
-### `src/index.css` — Tighten print CSS
+## Files
 
-- Add explicit selectors to hide the DashboardLayout app header: `.h-14.border-b` (the header bar)
-- Remove the overly broad `[class*="flex"]` → `display: block` rule that breaks print layouts; instead, only force `display: block` on specific app-level wrappers
-- Add `@page` margin note — URL hiding is browser-controlled, but we can suppress via header/footer
+### 1. `supabase/functions/seed-demo/index.ts` (new)
 
-### `src/pages/dashboard/WorkOrderDetail.tsx` — Minor cleanup
+- Admin-only edge function (checks `has_role`)
+- Idempotent: checks if demo data already exists before creating
+- Creates demo users via `supabase.auth.admin.createUser`
+- Inserts engineer identity with hashed PIN
+- Creates problem descriptions, checklists, work orders, parts_used
+- Returns summary of what was created
 
-- Remove the `PenTool` icon from the print-visible "Signed By" card (line 250) — icons shouldn't appear in print document
-- Add `print:hidden` to the Signed By icon specifically
-- Ensure the print document header flex layout works by using explicit print classes
+### 2. `src/pages/dashboard/ManagerDashboard.tsx` (minor addition)
 
-### `src/components/DashboardLayout.tsx` — Add print:hidden to app header
+- Add a "Seed Demo Data" button (visible only in preview/dev environment)
+- Calls `supabase.functions.invoke("seed-demo")`
+- Shows toast with results
+- Button checks `window.location.hostname` to only show on lovable preview domains
 
-- Add `print:hidden` class to the `<header className="h-14 ...">` element so it's explicitly hidden in print regardless of CSS specificity
+## Key details
 
-## Files modified
-
-| File | Change |
-|------|--------|
-| `src/components/DashboardLayout.tsx` | Add `print:hidden` to app header bar |
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Hide PenTool icon in print; ensure clean print output |
-| `src/index.css` | Fix overly broad flex→block rule; add robust app UI hiding for print |
+- Demo engineer PIN: `1234` — allows testing the full PIN verification flow
+- Demo credentials shown in a toast after seeding so the reviewer knows them
+- The completed WO will have full timeline data (created_at, received_at, arrived_at, started_at, finished_at, signed_by_name) making it printable
+- Uses existing machines and products from the DB (fetched dynamically in the edge function)
+- No changes to auth flow, RLS policies, or existing user data
 
