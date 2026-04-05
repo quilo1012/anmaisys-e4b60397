@@ -128,9 +128,17 @@ export default function ManagerDashboard() {
             <h2 className="text-2xl font-bold">Manager Dashboard</h2>
             <p className="text-muted-foreground">System overview and quick access</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
-            <Lock className="h-4 w-4 mr-2" /> Change PIN
-          </Button>
+          <div className="flex gap-2">
+            {isPreview && (
+              <Button variant="outline" size="sm" onClick={handleSeedDemo} disabled={seeding}>
+                {seeding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
+                Seed Demo Data
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
+              <Lock className="h-4 w-4 mr-2" /> Change PIN
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
