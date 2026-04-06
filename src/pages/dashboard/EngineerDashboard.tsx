@@ -565,13 +565,9 @@ export default function EngineerDashboard() {
                                       <Package className="h-3 w-3 mr-1" /> Parts
                                     </Button>
                                     <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "before")} />
-                                    <Button size="sm" variant={woPhotos.before ? "default" : "outline"} onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending}>
-                                      <Camera className="h-3 w-3 mr-1" /> {woPhotos.before ? "✓" : "Before"}
-                                    </Button>
+                                    <PhotoStatusButton woId={wo.id} photoType="before" onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending} size="sm" />
                                     <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
-                                    <Button size="sm" variant={woPhotos.after ? "default" : "outline"} onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending}>
-                                      <Camera className="h-3 w-3 mr-1" /> {woPhotos.after ? "✓" : "After"}
-                                    </Button>
+                                    <PhotoStatusButton woId={wo.id} photoType="after" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending} size="sm" />
                                     <DesktopFinishButton wo={wo} />
                                   </>
                                 )}
