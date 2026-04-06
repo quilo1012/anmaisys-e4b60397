@@ -525,7 +525,7 @@ export default function EngineerDashboard() {
                   <tbody>
                     {activeWOs.map((wo) => {
                       const cfg = statusConfig[wo.status] || statusConfig.open;
-                      const woPhotos = photosUploaded[wo.id] || { before: false, after: false };
+                      
                       return (
                         <>
                           <tr key={wo.id} className={`border-b ${wo.priority === "critical" ? "bg-red-50" : ""}`}>
