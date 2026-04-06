@@ -132,6 +132,18 @@ function useChecklistComplete(woDescription: string | undefined, woId: string | 
   }, [checklistItems, responses]);
 }
 
+// DB-backed photo status button — replaces volatile local state
+function PhotoStatusButton({ woId, photoType, onClick, disabled, size = "lg" }: { woId: string; photoType: "before" | "after"; onClick: () => void; disabled: boolean; size?: "sm" | "lg" }) {
+  const { data: photos } = useWOPhotos(woId);
+  const hasPhoto = photos?.some(p => p.photo_type === photoType) ?? false;
+  const label = photoType === "before" ? "Before" : "After";
+  return (
+    <Button size={size} variant={hasPhoto ? "default" : "outline"} className={size === "lg" ? "h-14 text-base" : ""} onClick={onClick} disabled={disabled}>
+      <Camera className={`${size === "lg" ? "h-5 w-5" : "h-3 w-3"} mr-${size === "lg" ? "2" : "1"}`} /> {hasPhoto ? `✓ ${size === "sm" ? "" : label}` : label}
+    </Button>
+  );
+}
+
 export default function EngineerDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
