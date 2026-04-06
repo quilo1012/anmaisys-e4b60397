@@ -181,6 +181,29 @@ export default function EngineerDashboard() {
 
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
+  const activeWOIds = useMemo(() => workOrders?.filter(
+    (wo) => wo.status === "open" || ["received", "arrived", "in_progress"].includes(wo.status)
+  ).map((w) => w.id) ?? [], [workOrders]);
+  const { data: partsCounts } = usePartsCountByWOs(activeWOIds);
+
+  // Persist currentEngineer to sessionStorage & restore from in_progress WO data
+  useEffect(() => {
+    if (currentEngineer) {
+      sessionStorage.setItem("currentEngineer", JSON.stringify(currentEngineer));
+    }
+  }, [currentEngineer]);
+
+  useEffect(() => {
+    if (!currentEngineer && workOrders) {
+      const inProgressWO = workOrders.find(wo => wo.status === "in_progress" && wo.engineer_id && wo.engineer_name);
+      if (inProgressWO) {
+        const restored = { id: inProgressWO.engineer_id!, name: inProgressWO.engineer_name! };
+        setCurrentEngineer(restored);
+        sessionStorage.setItem("currentEngineer", JSON.stringify(restored));
+      }
+    }
+  }, [workOrders, currentEngineer]);
+
   const kpis = useMemo(() => {
     if (!allCompleted) return { totalCompleted: 0, avgResponse: 0, avgMTTR: 0 };
     const totalCompleted = allCompleted.length;
