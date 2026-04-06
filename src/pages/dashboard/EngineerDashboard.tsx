@@ -255,7 +255,6 @@ export default function EngineerDashboard() {
     if (!file) return;
     try {
       await uploadPhoto.mutateAsync({ workOrderId: woId, photoType: type, file });
-      setPhotosUploaded((prev) => ({ ...prev, [woId]: { ...prev[woId], [type]: true } }));
       toast({ title: `${type === "before" ? "Before" : "After"} photo uploaded` });
     } catch (err: any) {
       toast({ title: "Upload error", description: err.message, variant: "destructive" });
