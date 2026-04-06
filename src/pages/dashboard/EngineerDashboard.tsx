@@ -379,13 +379,9 @@ export default function EngineerDashboard() {
                   <Package className="h-5 w-5 mr-2" /> Parts
                 </Button>
                 <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "before")} />
-                <Button size="lg" variant={woPhotos.before ? "default" : "outline"} className="h-14 text-base" onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending}>
-                  <Camera className="h-5 w-5 mr-2" /> {woPhotos.before ? "✓ Before" : "Before"}
-                </Button>
+                <PhotoStatusButton woId={wo.id} photoType="before" onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending} />
                 <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
-                <Button size="lg" variant={woPhotos.after ? "default" : "outline"} className="h-14 text-base" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending}>
-                  <Camera className="h-5 w-5 mr-2" /> {woPhotos.after ? "✓ After" : "After"}
-                </Button>
+                <PhotoStatusButton woId={wo.id} photoType="after" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending} />
                 <Button
                   size="lg"
                   variant="secondary"
