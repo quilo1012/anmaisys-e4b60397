@@ -319,7 +319,6 @@ export default function EngineerDashboard() {
   // Mobile card with inline checklist
   const MobileWOCard = ({ wo }: { wo: any }) => {
     const cfg = statusConfig[wo.status] || statusConfig.open;
-    const woPhotos = photosUploaded[wo.id] || { before: false, after: false };
     const isOpen = wo.status === "open";
     const checklistComplete = useChecklistComplete(wo.description, wo.id);
     const isInProgress = wo.status === "in_progress";
