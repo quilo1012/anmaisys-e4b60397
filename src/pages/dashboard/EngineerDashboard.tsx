@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { useWorkOrders, useAcceptAndStartWorkOrder, useStartWorkOrder, useFinish
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { stopAlertSound } from "@/lib/shifts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
-import { useUploadWOPhoto } from "@/hooks/useWOPhotos";
+import { useUploadWOPhoto, useWOPhotos } from "@/hooks/useWOPhotos";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
@@ -132,6 +132,18 @@ function useChecklistComplete(woDescription: string | undefined, woId: string | 
   }, [checklistItems, responses]);
 }
 
+// DB-backed photo status button — replaces volatile local state
+function PhotoStatusButton({ woId, photoType, onClick, disabled, size = "lg" }: { woId: string; photoType: "before" | "after"; onClick: () => void; disabled: boolean; size?: "sm" | "lg" }) {
+  const { data: photos } = useWOPhotos(woId);
+  const hasPhoto = photos?.some(p => p.photo_type === photoType) ?? false;
+  const label = photoType === "before" ? "Before" : "After";
+  return (
+    <Button size={size} variant={hasPhoto ? "default" : "outline"} className={size === "lg" ? "h-14 text-base" : ""} onClick={onClick} disabled={disabled}>
+      <Camera className={`${size === "lg" ? "h-5 w-5" : "h-3 w-3"} mr-${size === "lg" ? "2" : "1"}`} /> {hasPhoto ? `✓ ${size === "sm" ? "" : label}` : label}
+    </Button>
+  );
+}
+
 export default function EngineerDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -160,7 +172,12 @@ export default function EngineerDashboard() {
   const [pendingPinAction, setPendingPinAction] = useState<((engineer: EngineerIdentity) => void) | null>(null);
   const [pinDialogTitle, setPinDialogTitle] = useState("Enter PIN");
 
-  const [currentEngineer, setCurrentEngineer] = useState<EngineerIdentity | null>(null);
+  const [currentEngineer, setCurrentEngineer] = useState<EngineerIdentity | null>(() => {
+    try {
+      const saved = sessionStorage.getItem("currentEngineer");
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
 
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -169,7 +186,23 @@ export default function EngineerDashboard() {
   ).map((w) => w.id) ?? [], [workOrders]);
   const { data: partsCounts } = usePartsCountByWOs(activeWOIds);
 
-  const [photosUploaded, setPhotosUploaded] = useState<Record<string, { before: boolean; after: boolean }>>({});
+  // Persist currentEngineer to sessionStorage & restore from in_progress WO data
+  useEffect(() => {
+    if (currentEngineer) {
+      sessionStorage.setItem("currentEngineer", JSON.stringify(currentEngineer));
+    }
+  }, [currentEngineer]);
+
+  useEffect(() => {
+    if (!currentEngineer && workOrders) {
+      const inProgressWO = workOrders.find(wo => wo.status === "in_progress" && wo.engineer_id && wo.engineer_name);
+      if (inProgressWO) {
+        const restored = { id: inProgressWO.engineer_id!, name: inProgressWO.engineer_name! };
+        setCurrentEngineer(restored);
+        sessionStorage.setItem("currentEngineer", JSON.stringify(restored));
+      }
+    }
+  }, [workOrders, currentEngineer]);
 
   const kpis = useMemo(() => {
     if (!allCompleted) return { totalCompleted: 0, avgResponse: 0, avgMTTR: 0 };
@@ -222,7 +255,6 @@ export default function EngineerDashboard() {
     if (!file) return;
     try {
       await uploadPhoto.mutateAsync({ workOrderId: woId, photoType: type, file });
-      setPhotosUploaded((prev) => ({ ...prev, [woId]: { ...prev[woId], [type]: true } }));
       toast({ title: `${type === "before" ? "Before" : "After"} photo uploaded` });
     } catch (err: any) {
       toast({ title: "Upload error", description: err.message, variant: "destructive" });
@@ -278,6 +310,7 @@ export default function EngineerDashboard() {
     setSignDialogWO(null);
     setSignName("");
     setCurrentEngineer(null);
+    sessionStorage.removeItem("currentEngineer");
   };
 
   const triggerFileInput = (woId: string, type: "before" | "after") => {
@@ -287,7 +320,6 @@ export default function EngineerDashboard() {
   // Mobile card with inline checklist
   const MobileWOCard = ({ wo }: { wo: any }) => {
     const cfg = statusConfig[wo.status] || statusConfig.open;
-    const woPhotos = photosUploaded[wo.id] || { before: false, after: false };
     const isOpen = wo.status === "open";
     const checklistComplete = useChecklistComplete(wo.description, wo.id);
     const isInProgress = wo.status === "in_progress";
@@ -348,13 +380,9 @@ export default function EngineerDashboard() {
                   <Package className="h-5 w-5 mr-2" /> Parts
                 </Button>
                 <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "before")} />
-                <Button size="lg" variant={woPhotos.before ? "default" : "outline"} className="h-14 text-base" onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending}>
-                  <Camera className="h-5 w-5 mr-2" /> {woPhotos.before ? "✓ Before" : "Before"}
-                </Button>
+                <PhotoStatusButton woId={wo.id} photoType="before" onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending} />
                 <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
-                <Button size="lg" variant={woPhotos.after ? "default" : "outline"} className="h-14 text-base" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending}>
-                  <Camera className="h-5 w-5 mr-2" /> {woPhotos.after ? "✓ After" : "After"}
-                </Button>
+                <PhotoStatusButton woId={wo.id} photoType="after" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending} />
                 <Button
                   size="lg"
                   variant="secondary"
@@ -498,7 +526,7 @@ export default function EngineerDashboard() {
                   <tbody>
                     {activeWOs.map((wo) => {
                       const cfg = statusConfig[wo.status] || statusConfig.open;
-                      const woPhotos = photosUploaded[wo.id] || { before: false, after: false };
+                      
                       return (
                         <>
                           <tr key={wo.id} className={`border-b ${wo.priority === "critical" ? "bg-red-50" : ""}`}>
@@ -538,13 +566,9 @@ export default function EngineerDashboard() {
                                       <Package className="h-3 w-3 mr-1" /> Parts
                                     </Button>
                                     <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "before")} />
-                                    <Button size="sm" variant={woPhotos.before ? "default" : "outline"} onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending}>
-                                      <Camera className="h-3 w-3 mr-1" /> {woPhotos.before ? "✓" : "Before"}
-                                    </Button>
+                                    <PhotoStatusButton woId={wo.id} photoType="before" onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending} size="sm" />
                                     <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
-                                    <Button size="sm" variant={woPhotos.after ? "default" : "outline"} onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending}>
-                                      <Camera className="h-3 w-3 mr-1" /> {woPhotos.after ? "✓" : "After"}
-                                    </Button>
+                                    <PhotoStatusButton woId={wo.id} photoType="after" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending} size="sm" />
                                     <DesktopFinishButton wo={wo} />
                                   </>
                                 )}
