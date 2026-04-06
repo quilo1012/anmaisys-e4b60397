@@ -13,7 +13,7 @@ import { useWorkOrders, useAcceptAndStartWorkOrder, useStartWorkOrder, useFinish
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { stopAlertSound } from "@/lib/shifts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
-import { useUploadWOPhoto } from "@/hooks/useWOPhotos";
+import { useUploadWOPhoto, useWOPhotos } from "@/hooks/useWOPhotos";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
