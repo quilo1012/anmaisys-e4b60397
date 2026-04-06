@@ -1,37 +1,68 @@
 
 
-# Fix: Protected Route / Session Redirect Bug
+# Fix: Engineer Work Order Flow End-to-End
 
-## Root cause
+## Problems Identified
 
-Two issues in `AuthContext.tsx` and `ProtectedRoute.tsx`:
+### 1. Photo upload indicators lost on refresh
+`photosUploaded` is a `useState<Record<...>>` (line 172) that tracks which WOs have before/after photos uploaded. On page refresh, this state resets to `{}`, so buttons show "Before"/"After" even if photos were already uploaded. The app already has `useWOPhotos` hook but never uses it in the Engineer Dashboard.
 
-1. **Race condition on role loading**: `setLoading(false)` fires immediately in both `onAuthStateChange` (line 58) and `getSession` (line 68), but `fetchUserData` is async and hasn't resolved yet. The `role` is still `null` when `ProtectedRoute` evaluates. While `ProtectedRoute` currently lets `null` role through (line 27), any transient re-render during role fetch can cause flicker or unexpected state.
+### 2. `currentEngineer` is null after refresh
+`currentEngineer` is local state (line 163), set only when a PIN dialog completes. After refresh, it's `null`. This means:
+- Checklist toggles send `completedBy: null` (line 74-75)
+- The InlineChecklist can't attribute who checked items
+- For in-progress WOs, the engineer identity should be recoverable from the WO's `engineer_id` + `engineer_name`
 
-2. **Session can briefly be null during token refresh**: `onAuthStateChange` can fire with a `null` session during token refresh events, causing `ProtectedRoute` to see `!session` and redirect to `/login`. The code sets `loading(false)` on every auth state change, so there's no "still refreshing" guard.
+### 3. Parts Used — RLS blocks admin/manager users
+The `parts_used` INSERT policy requires `engineer_id = auth.uid() AND has_role(auth.uid(), 'engineer')`. Managers (admin role) who are explicitly allowed to perform all engineer actions cannot insert parts. The `engineer_id` FK also references `profiles(id)`, so it must be the logged-in user's ID, not the `engineers` table engineer — this is consistent with RLS but incompatible with the PIN-identity model for non-engineer logins.
 
-3. **Missing "unauthorized" state**: When a user has a valid session but wrong role, `ProtectedRoute` redirects them. If the redirect target also doesn't match (or during the role-null window), it can cascade to `/login`.
+### 4. Parts Used — `engineer_id` should allow admin role
+The INSERT policy needs to also allow admins, matching the memory that "managers have all engineer permissions."
 
 ## Changes
 
-### `src/contexts/AuthContext.tsx`
+### `src/pages/dashboard/EngineerDashboard.tsx`
 
-- Track role loading separately with a `roleLoading` state
-- Only set `loading` to `false` after both session AND role data are resolved
-- In `fetchUserData`, set `roleLoading = false` on completion (including errors)
-- In `onAuthStateChange`, don't clear session/role if the event is `TOKEN_REFRESHED` with a valid session — only clear on explicit `SIGNED_OUT`
-- Export a combined `loading` that accounts for role fetch
+**A. Replace photo state with DB-backed status**
+- For each in-progress WO, fetch photos via `useWOPhotos` to determine if before/after photos exist
+- Create a small wrapper component `PhotoStatusButton` that calls `useWOPhotos(woId)` and checks if a photo of the given type exists
+- Remove the `photosUploaded` local state and `setPhotosUploaded` calls from `handlePhotoUpload`
+- After upload, invalidate the `wo_photos` query (already done by the hook)
 
-### `src/components/ProtectedRoute.tsx`
+**B. Restore `currentEngineer` from WO data on mount**
+- When the dashboard loads and finds an `in_progress` WO with `engineer_id` and `engineer_name`, auto-set `currentEngineer` from that data so checklist interactions have a valid identity
+- Store `currentEngineer` in `sessionStorage` as well, so it survives refresh within the same session
+- On mount, try to restore from sessionStorage first; if not available, derive from the first in-progress WO's engineer fields
 
-- When `session` exists but `role` is still `null` (role loading), show spinner — don't redirect
-- When `session` exists and `role` is loaded but doesn't match `allowedRoles`, show an "Access Denied" message with a link to the user's correct dashboard — don't redirect to `/login`
-- Only redirect to `/login` when `session` is truly `null` and loading is complete
+**C. Invalidate `wo_photos` on upload success**
+- Already handled by `useUploadWOPhoto` — no change needed
+
+### `src/hooks/useStock.ts` — No change needed in code
+The `engineer_id` is set to `user!.id` which is correct for RLS (`engineer_id = auth.uid()`).
+
+### Database migration — Fix parts_used INSERT RLS
+- Update the INSERT policy to also allow admin role:
+```sql
+DROP POLICY "Engineers can insert parts used" ON public.parts_used;
+CREATE POLICY "Engineers and admins can insert parts used"
+  ON public.parts_used FOR INSERT
+  WITH CHECK (
+    engineer_id = auth.uid() AND (
+      has_role(auth.uid(), 'engineer') OR has_role(auth.uid(), 'admin')
+    )
+  );
+```
 
 ## Files modified
 
 | File | Change |
 |------|--------|
-| `src/contexts/AuthContext.tsx` | Track role loading state; don't set loading=false until role resolves; guard against transient null sessions |
-| `src/components/ProtectedRoute.tsx` | Show spinner while role loads; show access-denied instead of login redirect for wrong role |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Replace local photo state with DB query; restore currentEngineer from sessionStorage / WO data |
+| Database migration | Update parts_used INSERT RLS to include admin role |
+
+## What this preserves
+- PIN-based identity for Accept+Start and Finish actions (unchanged)
+- All screen UI and layout (unchanged)
+- Checklist behavior and blocking logic (unchanged)
+- Print/PDF output (unchanged)
 
