@@ -310,6 +310,7 @@ export default function EngineerDashboard() {
     setSignDialogWO(null);
     setSignName("");
     setCurrentEngineer(null);
+    sessionStorage.removeItem("currentEngineer");
   };
 
   const triggerFileInput = (woId: string, type: "before" | "after") => {
