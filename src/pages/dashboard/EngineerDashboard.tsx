@@ -172,16 +172,14 @@ export default function EngineerDashboard() {
   const [pendingPinAction, setPendingPinAction] = useState<((engineer: EngineerIdentity) => void) | null>(null);
   const [pinDialogTitle, setPinDialogTitle] = useState("Enter PIN");
 
-  const [currentEngineer, setCurrentEngineer] = useState<EngineerIdentity | null>(null);
+  const [currentEngineer, setCurrentEngineer] = useState<EngineerIdentity | null>(() => {
+    try {
+      const saved = sessionStorage.getItem("currentEngineer");
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
 
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-
-  const activeWOIds = useMemo(() => workOrders?.filter(
-    (wo) => wo.status === "open" || ["received", "arrived", "in_progress"].includes(wo.status)
-  ).map((w) => w.id) ?? [], [workOrders]);
-  const { data: partsCounts } = usePartsCountByWOs(activeWOIds);
-
-  const [photosUploaded, setPhotosUploaded] = useState<Record<string, { before: boolean; after: boolean }>>({});
 
   const kpis = useMemo(() => {
     if (!allCompleted) return { totalCompleted: 0, avgResponse: 0, avgMTTR: 0 };
