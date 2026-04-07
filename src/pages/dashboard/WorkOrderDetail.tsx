@@ -304,6 +304,39 @@ export default function WorkOrderDetail() {
           </CardContent>
         </Card>
 
+        {/* Checklist */}
+        {checklistItems && checklistItems.length > 0 && (
+          <Card className="print:border print:border-black print:shadow-none print:rounded-none">
+            <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold flex items-center gap-2"><ClipboardCheck className="h-4 w-4 print:hidden" /> Checklist</CardTitle></CardHeader>
+            <CardContent>
+              <table className="w-full text-sm print:text-[8pt] border-collapse">
+                <thead>
+                  <tr>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black print:bg-gray-100">Item</th>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black print:bg-gray-100">Type</th>
+                    <th className="text-center px-2 py-1 font-bold print:border print:border-black print:bg-gray-100 w-20">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {checklistItems.map((item) => {
+                    const response = checklistResponses?.find((r) => r.checklist_id === item.id);
+                    const completed = response?.completed || false;
+                    return (
+                      <tr key={item.id}>
+                        <td className="px-2 py-1 print:border print:border-black">{item.description}{item.is_required && <span className="text-destructive ml-1">*</span>}</td>
+                        <td className="px-2 py-1 print:border print:border-black text-muted-foreground">{item.type}</td>
+                        <td className="px-2 py-1 print:border print:border-black text-center">
+                          {completed ? <CheckCircle className="h-4 w-4 text-green-600 inline-block" /> : <XCircle className="h-4 w-4 text-muted-foreground inline-block" />}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Parts Used */}
         <Card className="print:border print:border-black print:shadow-none print:rounded-none">
           <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Parts Used</CardTitle></CardHeader>
@@ -315,22 +348,22 @@ export default function WorkOrderDetail() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead>Engineer</TableHead>
-                    <TableHead>Date</TableHead>
+                  <TableRow className="print:border print:border-black">
+                    <TableHead className="print:border print:border-black print:bg-gray-100">Product</TableHead>
+                    <TableHead className="print:border print:border-black print:bg-gray-100">Code</TableHead>
+                    <TableHead className="print:border print:border-black print:bg-gray-100">Qty</TableHead>
+                    <TableHead className="print:border print:border-black print:bg-gray-100">Engineer</TableHead>
+                    <TableHead className="print:border print:border-black print:bg-gray-100">Date</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {partsUsed.map((pu) => (
-                    <TableRow key={pu.id}>
-                      <TableCell className="font-medium">{pu.product?.name || ""}</TableCell>
-                      <TableCell>{pu.product?.code || ""}</TableCell>
-                      <TableCell>{pu.quantity}</TableCell>
-                      <TableCell>{pu.engineer?.name || wo.engineer_name || ""}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{format(new Date(pu.created_at), "dd/MM HH:mm")}</TableCell>
+                    <TableRow key={pu.id} className="print:border print:border-black">
+                      <TableCell className="font-medium print:border print:border-black">{pu.product?.name || ""}</TableCell>
+                      <TableCell className="print:border print:border-black">{pu.product?.code || ""}</TableCell>
+                      <TableCell className="print:border print:border-black">{pu.quantity}</TableCell>
+                      <TableCell className="print:border print:border-black">{pu.engineer?.name || wo.engineer_name || ""}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground print:border print:border-black">{format(new Date(pu.created_at), "dd/MM HH:mm")}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -339,17 +372,17 @@ export default function WorkOrderDetail() {
           </CardContent>
         </Card>
 
-        {/* Photos - hidden in print */}
+        {/* Photos */}
         {woPhotos && woPhotos.length > 0 && (
-          <Card className="print:hidden">
-            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Camera className="h-4 w-4" /> Photos</CardTitle></CardHeader>
+          <Card className="print:border print:border-black print:shadow-none print:rounded-none">
+            <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold flex items-center gap-2"><Camera className="h-4 w-4 print:hidden" /> Photos</CardTitle></CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2 print:grid-cols-2 print:gap-2">
                 {["before", "after"].map((type) => {
                   const photos = woPhotos.filter((p) => p.photo_type === type);
                   return (
                     <div key={type}>
-                      <p className="text-sm font-medium mb-2 capitalize">{type}</p>
+                      <p className="text-sm font-medium mb-2 capitalize print:text-[8pt] print:font-bold">{type}</p>
                       {photos.length ? (
                         <div className="grid gap-2">
                           {photos.map((p) => (
@@ -357,7 +390,7 @@ export default function WorkOrderDetail() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-xs text-muted-foreground">No {type} photo</p>
+                        <p className="text-xs text-muted-foreground print:text-[7pt]">No {type} photo</p>
                       )}
                     </div>
                   );
