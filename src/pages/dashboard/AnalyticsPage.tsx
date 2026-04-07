@@ -290,7 +290,7 @@ export default function AnalyticsPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
-                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
                         {data.map((_, i) => <Cell key={i} fill={STATUS_COLORS[i % STATUS_COLORS.length]} />)}
                       </Pie>
                       <Tooltip /><Legend />
