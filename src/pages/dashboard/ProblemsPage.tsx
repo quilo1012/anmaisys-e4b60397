@@ -156,6 +156,9 @@ export default function ProblemsPage() {
 
   const handleAdd = async () => {
     if (!name.trim()) return;
+    if (!category.trim() || !description.trim()) {
+      toast({ title: "Recommendation", description: "Consider adding category and description for better data quality.", variant: "default" });
+    }
     try {
       const result = await addProblem.mutateAsync({ name: name.trim(), category: category.trim(), description: description.trim(), severity, active });
       toast({ title: "Problem added" });
@@ -254,14 +257,19 @@ export default function ProblemsPage() {
                 <TableBody>
                   {problems.map((p) => (
                     <TableRow key={p.id} className={!p.active ? "opacity-50" : ""}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell>{p.category || "—"}</TableCell>
+                      <TableCell className="font-medium">
+                        {p.name}
+                        {(!p.category || !p.description) && (
+                          <Badge variant="outline" className="ml-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">Incomplete</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>{p.category || <span className="text-muted-foreground italic">Missing</span>}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={riskBadgeClass(p.severity)}>
                           {RISK_LEVELS.find((r) => r.value === p.severity)?.label || "Medium"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{p.description || "—"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{p.description || <span className="italic">Missing</span>}</TableCell>
                       <TableCell>
                         <Switch checked={p.active !== false} onCheckedChange={() => toggleActive(p)} />
                       </TableCell>

@@ -152,8 +152,14 @@ export default function WorkOrderDetail() {
   const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
   const woLabel = `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`;
 
-  const responseTime = wo.received_at ? differenceInMinutes(new Date(wo.received_at), new Date(wo.created_at)) : null;
-  const travelTime = wo.received_at && wo.arrived_at ? differenceInMinutes(new Date(wo.arrived_at), new Date(wo.received_at)) : null;
+  const responseTime = wo.received_at
+    ? differenceInMinutes(new Date(wo.received_at), new Date(wo.created_at))
+    : wo.started_at
+      ? differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at))
+      : null;
+  const travelTime = wo.arrived_at
+    ? differenceInMinutes(new Date(wo.arrived_at), new Date(wo.received_at || wo.created_at))
+    : wo.started_at && !wo.received_at ? 0 : null;
   const pausedMinutes = (wo as any).total_paused_minutes || 0;
   const rawRepairTime = wo.started_at && (wo.finished_at || wo.completed_at) ? differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at)) : null;
   const repairTime = rawRepairTime !== null ? rawRepairTime - pausedMinutes : null;
