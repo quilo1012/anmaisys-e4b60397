@@ -257,8 +257,13 @@ export default function ProblemsPage() {
                 <TableBody>
                   {problems.map((p) => (
                     <TableRow key={p.id} className={!p.active ? "opacity-50" : ""}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell>{p.category || "—"}</TableCell>
+                      <TableCell className="font-medium">
+                        {p.name}
+                        {(!p.category || !p.description) && (
+                          <Badge variant="outline" className="ml-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">Incomplete</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>{p.category || <span className="text-muted-foreground italic">Missing</span>}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={riskBadgeClass(p.severity)}>
                           {RISK_LEVELS.find((r) => r.value === p.severity)?.label || "Medium"}
