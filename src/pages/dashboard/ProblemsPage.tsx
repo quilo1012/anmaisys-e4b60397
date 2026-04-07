@@ -156,6 +156,9 @@ export default function ProblemsPage() {
 
   const handleAdd = async () => {
     if (!name.trim()) return;
+    if (!category.trim() || !description.trim()) {
+      toast({ title: "Recommendation", description: "Consider adding category and description for better data quality.", variant: "default" });
+    }
     try {
       const result = await addProblem.mutateAsync({ name: name.trim(), category: category.trim(), description: description.trim(), severity, active });
       toast({ title: "Problem added" });
