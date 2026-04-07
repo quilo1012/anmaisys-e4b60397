@@ -614,7 +614,7 @@ export default function EngineerDashboard() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); setCurrentEngineer(null); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); }}>Cancel</Button>
             <Button onClick={handleFinishConfirm} disabled={!signName.trim() || finishWO.isPending}>
               {finishWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm & Finish

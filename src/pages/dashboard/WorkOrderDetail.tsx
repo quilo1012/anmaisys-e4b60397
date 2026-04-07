@@ -89,6 +89,8 @@ export default function WorkOrderDetail() {
   const { data: wo, isLoading } = useWorkOrderById(id!);
   const { data: partsUsed, isLoading: partsLoading } = usePartsUsedByWO(id!);
   const { data: woPhotos } = useWOPhotos(id!);
+  const { data: checklistResponses } = useChecklistResponses(id);
+  const { data: checklistItems } = useChecklistsByProblemName(wo?.description);
 
   const { data: partsWithPrice } = useQuery({
     queryKey: ["parts_used_price", id],
