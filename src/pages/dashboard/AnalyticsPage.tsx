@@ -178,7 +178,7 @@ export default function AnalyticsPage() {
     const engineers: Record<string, { name: string; completed: number; totalResp: number; totalMTTR: number }> = {};
     allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.engineer_id && w.started_at).forEach((wo) => {
       const eid = wo.engineer_id!;
-      const name = wo.engineer?.name || "Unknown";
+      const name = wo.engineer_name || wo.engineer?.name || "Unknown";
       if (!engineers[eid]) engineers[eid] = { name, completed: 0, totalResp: 0, totalMTTR: 0 };
       engineers[eid].completed++;
       engineers[eid].totalResp += differenceInMinutes(new Date(wo.started_at!), new Date(wo.created_at));
