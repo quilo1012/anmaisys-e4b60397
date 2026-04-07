@@ -597,7 +597,7 @@ export default function EngineerDashboard() {
       )}
 
       {/* Sign Dialog */}
-      <Dialog open={!!signDialogWO} onOpenChange={(open) => { if (!open) { setSignDialogWO(null); setSignName(""); setCurrentEngineer(null); } }}>
+      <Dialog open={!!signDialogWO} onOpenChange={(open) => { if (!open) { setSignDialogWO(null); setSignName(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><PenTool className="h-5 w-5" /> Confirm & Finish Work Order</DialogTitle>
@@ -614,7 +614,7 @@ export default function EngineerDashboard() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); setCurrentEngineer(null); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); }}>Cancel</Button>
             <Button onClick={handleFinishConfirm} disabled={!signName.trim() || finishWO.isPending}>
               {finishWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm & Finish
