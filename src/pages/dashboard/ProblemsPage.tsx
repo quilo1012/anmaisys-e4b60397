@@ -269,7 +269,7 @@ export default function ProblemsPage() {
                           {RISK_LEVELS.find((r) => r.value === p.severity)?.label || "Medium"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{p.description || "—"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{p.description || <span className="italic">Missing</span>}</TableCell>
                       <TableCell>
                         <Switch checked={p.active !== false} onCheckedChange={() => toggleActive(p)} />
                       </TableCell>
