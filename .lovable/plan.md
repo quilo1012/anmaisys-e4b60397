@@ -1,63 +1,118 @@
 
 
-# Phase 1: Operational Reliability — Fixes
+# Upgrade CMMS/MES — Professional Industrial Maintenance Platform
 
-## Issues Found
+This is a large-scope upgrade organized into three phases. Each phase builds on the previous one without breaking existing flows.
 
-1. **Sign dialog cancel clears `currentEngineer`** — Lines 600 and 617 in `EngineerDashboard.tsx` clear the engineer identity when the Finish dialog is cancelled. This breaks state for any subsequent checklist or photo action on that WO.
+---
 
-2. **`formatDuration(0)` shows blank** — When travel time is 0 (Accept+Start shortcut), it displays nothing instead of "0 min".
+## Phase 1 — Operational Reliability
 
-3. **No checklist section in WO detail/print** — `WorkOrderDetail.tsx` has no checklist display at all. Completed checklist items should appear in the detail view and print document.
+Most Phase 1 items have already been fixed in prior iterations. Remaining gaps:
 
-4. **Photos hidden in print** — Line 341 in `WorkOrderDetail.tsx` has `print:hidden` on the Photos card. Before/after photos should be visible in the printed document.
+### 1A. Parts Used — engineer name from `engineers` table
+**Current**: `usePartsUsedByWO` joins `profiles!parts_used_engineer_id_fkey(name)` but `parts_used.engineer_id` is set to `user!.id` (the shared login), not the real engineer. The join resolves the shared login's profile name, not the actual engineer.
 
-5. **Parts Used table missing print borders** — The table in the Parts Used card doesn't apply print-specific styling classes for the bordered professional look.
+**Fix**: Store the real engineer identity in parts_used. Add `engineer_name` text column to `parts_used` table. Populate it at insert time from the current engineer context. Update `PartsUsedDialog` to accept `engineerName` prop and store it. In `WorkOrderDetail`, display `pu.engineer_name` directly.
 
-6. **Print CSS hides all buttons including nothing else needed** — Already handled correctly.
+**Migration**: `ALTER TABLE parts_used ADD COLUMN engineer_name text DEFAULT '';`
 
-## Changes
+### 1B. PartsUsedDialog needs engineer context
+**Current**: `PartsUsedDialog` doesn't know which engineer is working. It inserts `engineer_id: user!.id`.
 
-### `src/pages/dashboard/EngineerDashboard.tsx`
+**Fix**: Pass `currentEngineer` (from sessionStorage/PIN) into `PartsUsedDialog`. Store `engineer_name` alongside the insert. This requires a small prop addition.
 
-**A. Don't clear `currentEngineer` on sign dialog cancel**
-- Line 600: Remove `setCurrentEngineer(null)` from the `onOpenChange` handler
-- Line 617: Remove `setCurrentEngineer(null)` from the Cancel button
-- Keep the clear only in `handleFinishConfirm` (line 312-313) on successful finish
+### 1C. WO Detail page — consistent loading
+**Current**: Works correctly. No change needed beyond 1A.
 
-### `src/pages/dashboard/WorkOrderDetail.tsx`
+---
 
-**B. Fix `formatDuration(0)` to show "0 min"**
-- Change `if (minutes === null) return ""` to also handle the display of 0 correctly (currently works: `0 < 60` returns `"0 min"` — actually this is correct, `0 min` would show). Let me re-verify... `if (minutes < 60) return \`${minutes} min\`` — yes, 0 would show "0 min". This is fine.
+## Phase 2 — Industrial Traceability
 
-**C. Add checklist responses section**
-- After the Timeline card and before Parts Used, add a new card that fetches and displays checklist responses for the WO
-- Use `useChecklistResponses(id)` and `useChecklistsByProblemName(wo.description)`
-- Show each item with completed/incomplete status, grouped by type
-- In print: render as a bordered table with checkmark indicators
+### 2A. Pause reason
+**Current**: Pause sets `paused_at` with no reason.
 
-**D. Show photos in print**
-- Remove `print:hidden` from the Photos card (line 341)
-- Add print-specific styling: smaller images, grid layout with borders
-- Photos will render via signed URLs which work in the print context
+**Fix**:
+- Migration: `ALTER TABLE work_orders ADD COLUMN pause_reason text DEFAULT '';`
+- `EngineerDashboard`: Add a small dialog/input when clicking Pause to capture reason.
+- `usePauseWorkOrder`: Accept and store `pause_reason`.
+- `WorkOrderDetail`: Show pause reason in timeline if present.
 
-**E. Add print styling to Parts Used table**
-- Add `print:border print:border-black` classes to the Parts card and table elements
+### 2B. Work Order timeline — show `work_order_logs`
+**Current**: Timeline only shows timestamp fields. The `work_order_logs` table has detailed action logs with engineer names.
 
-### `src/index.css`
+**Fix**: In `WorkOrderDetail`, fetch `work_order_logs` for the WO and display them as a detailed action log table (who did what and when). Show in both screen and print.
 
-No changes needed — existing print CSS covers the new elements.
+### 2C. Parts traceability — engineer name in audit
+Already addressed by 1A. The `engineer_name` column will be available for audit queries.
+
+### 2D. Master data quality — Problems
+**Current**: Already has "Incomplete" badges from prior fix.
+
+**Fix**: Make category selection required (not just a warning). Add a default category list. Block save if category is empty.
+
+### 2E. Master data quality — Machines
+**Current**: Already validates name, type, location. Code is optional.
+
+**Fix**: Add code as required field. Show "Incomplete" badge for machines missing code or sector.
+
+---
+
+## Phase 3 — Management & Intelligence
+
+### 3A. Manager Dashboard polish
+**Fix**:
+- Remove "Total Users" KPI (low value for operations).
+- Add "Finished Today" and "Avg MTTR" as more useful KPIs.
+- Add quick links for Stock and Audit Logs.
+- Clean up spacing and card density.
+
+### 3B. Analytics readability
+**Fix**:
+- Truncate long machine names in chart labels (max 20 chars).
+- Add `%` symbol to SLA compliance display.
+- Show "No parts used" percentage more clearly.
+- Add tooltips with full names to truncated labels.
+
+### 3C. Machine history — link from Analytics
+**Fix**: Make machine names in Analytics charts clickable, linking to `/dashboard/machines/history/{name}`.
+
+### 3D. QR code preparation
+**Current**: `MachinesPage` already imports `QRCodeSVG` and has a `qrMachine` state. QR dialog exists.
+
+**Fix**: Ensure QR code encodes a URL like `{origin}/dashboard/machines/history/{machineName}` and the print/download flow works. This is already partially implemented — verify and polish.
+
+---
+
+## Database Migrations
+
+```sql
+-- 1. Add engineer_name to parts_used for traceability
+ALTER TABLE parts_used ADD COLUMN engineer_name text DEFAULT '';
+
+-- 2. Add pause_reason to work_orders
+ALTER TABLE work_orders ADD COLUMN pause_reason text DEFAULT '';
+```
 
 ## Files Modified
 
 | File | Changes |
 |------|---------|
-| `src/pages/dashboard/EngineerDashboard.tsx` | Stop clearing `currentEngineer` on sign dialog cancel |
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Add checklist section; show photos in print; add print styling to parts table |
+| `src/hooks/useStock.ts` | Add `engineer_name` to insert in `useRegisterPartsUsed` |
+| `src/components/PartsUsedDialog.tsx` | Accept `engineerName` prop, pass to mutation |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Pass `currentEngineer` to `PartsUsedDialog`; add pause reason dialog |
+| `src/pages/dashboard/WorkOrderDetail.tsx` | Show `pu.engineer_name`; fetch and display `work_order_logs`; show pause reason |
+| `src/hooks/useWorkOrders.ts` | Add `pause_reason` param to `usePauseWorkOrder` |
+| `src/pages/dashboard/ManagerDashboard.tsx` | Replace low-value KPIs; add Stock/Audit quick links |
+| `src/pages/dashboard/AnalyticsPage.tsx` | Truncate chart labels; improve readability |
+| `src/pages/dashboard/ProblemsPage.tsx` | Make category required |
+| `src/pages/dashboard/MachinesPage.tsx` | Add code as required; incomplete badge |
+| DB migration | Add `engineer_name` to `parts_used`, `pause_reason` to `work_orders` |
 
 ## What is preserved
-- PIN requirements for Accept+Start and Finish (unchanged)
-- Manager and engineer permissions/RLS (unchanged)
+- PIN-based identity for Accept+Start and Finish (unchanged)
+- All RLS policies (unchanged, only additive column)
 - Session/route stability (unchanged)
-- All existing timing calculations (unchanged)
+- Existing checklist, photo, and timing logic (unchanged)
+- Print/PDF document format (enhanced, not broken)
 
