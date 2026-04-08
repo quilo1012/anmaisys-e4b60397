@@ -156,8 +156,9 @@ export default function ProblemsPage() {
 
   const handleAdd = async () => {
     if (!name.trim()) return;
-    if (!category.trim() || !description.trim()) {
-      toast({ title: "Recommendation", description: "Consider adding category and description for better data quality.", variant: "default" });
+    if (!category.trim()) {
+      toast({ title: "Category required", description: "Please select or enter a category before saving.", variant: "destructive" });
+      return;
     }
     try {
       const result = await addProblem.mutateAsync({ name: name.trim(), category: category.trim(), description: description.trim(), severity, active });
