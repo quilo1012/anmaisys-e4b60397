@@ -56,15 +56,6 @@ export default function ManagerDashboard() {
     }
   };
 
-  const { data: userCount } = useQuery({
-    queryKey: ["user_count"],
-    queryFn: async () => {
-      const { count, error } = await supabase.from("profiles").select("*", { count: "exact", head: true });
-      if (error) throw error;
-      return count ?? 0;
-    },
-  });
-
   const today = new Date().toDateString();
   const openCount = allWOs?.filter((w) => w.status === "open").length ?? 0;
   const inProgressCount = allWOs?.filter((w) => w.status === "in_progress").length ?? 0;
