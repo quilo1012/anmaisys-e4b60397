@@ -315,16 +315,18 @@ export function usePauseWorkOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (woId: string) => {
+    mutationFn: async ({ woId, pauseReason }: { woId: string; pauseReason?: string }) => {
+      const update: any = { paused_at: new Date().toISOString() };
+      if (pauseReason) update.pause_reason = pauseReason;
       const { error } = await supabase
         .from("work_orders")
-        .update({ paused_at: new Date().toISOString() } as any)
+        .update(update)
         .eq("id", woId);
       if (error) throw error;
     },
-    onSuccess: (_data, woId) => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("pause", "work_order", woId);
+      logAuditEvent("pause", "work_order", vars.woId, { reason: vars.pauseReason });
     },
   });
 }
