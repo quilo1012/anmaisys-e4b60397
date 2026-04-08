@@ -12,6 +12,7 @@ interface PartsUsedDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workOrderId: string;
+  engineerName?: string;
 }
 
 export function PartsUsedDialog({ open, onOpenChange, workOrderId }: PartsUsedDialogProps) {
