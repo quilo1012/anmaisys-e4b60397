@@ -166,6 +166,8 @@ export default function EngineerDashboard() {
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
+  const [pauseDialogWO, setPauseDialogWO] = useState<string | null>(null);
+  const [pauseReason, setPauseReason] = useState("");
   
   // PIN dialog state
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
@@ -372,7 +374,7 @@ export default function EngineerDashboard() {
                     <PlayCircle className="h-5 w-5 mr-2" /> RESUME
                   </Button>
                 ) : (
-                  <Button size="lg" variant="outline" className="h-14 text-base border-yellow-500 text-yellow-700" onClick={() => pauseWO.mutate(wo.id)} disabled={pauseWO.isPending}>
+                  <Button size="lg" variant="outline" className="h-14 text-base border-yellow-500 text-yellow-700" onClick={() => { setPauseDialogWO(wo.id); setPauseReason(""); }} disabled={pauseWO.isPending}>
                     <Pause className="h-5 w-5 mr-2" /> PAUSE
                   </Button>
                 )}
@@ -558,7 +560,7 @@ export default function EngineerDashboard() {
                                         <PlayCircle className="h-3 w-3 mr-1" /> Resume
                                       </Button>
                                     ) : (
-                                      <Button size="sm" variant="outline" className="border-yellow-500 text-yellow-700" onClick={() => pauseWO.mutate(wo.id)} disabled={pauseWO.isPending}>
+                                      <Button size="sm" variant="outline" className="border-yellow-500 text-yellow-700" onClick={() => { setPauseDialogWO(wo.id); setPauseReason(""); }} disabled={pauseWO.isPending}>
                                         <Pause className="h-3 w-3 mr-1" /> Pause
                                       </Button>
                                     )}
@@ -593,7 +595,7 @@ export default function EngineerDashboard() {
       </div>
 
       {partsDialogWO && (
-        <PartsUsedDialog open={!!partsDialogWO} onOpenChange={(o) => !o && setPartsDialogWO(null)} workOrderId={partsDialogWO} />
+        <PartsUsedDialog open={!!partsDialogWO} onOpenChange={(o) => !o && setPartsDialogWO(null)} workOrderId={partsDialogWO} engineerName={currentEngineer?.name} />
       )}
 
       {/* Sign Dialog */}
@@ -618,6 +620,35 @@ export default function EngineerDashboard() {
             <Button onClick={handleFinishConfirm} disabled={!signName.trim() || finishWO.isPending}>
               {finishWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm & Finish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pause Reason Dialog */}
+      <Dialog open={!!pauseDialogWO} onOpenChange={(open) => { if (!open) { setPauseDialogWO(null); setPauseReason(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Pause className="h-5 w-5" /> Pause Work Order</DialogTitle>
+            <DialogDescription>Enter a reason for pausing this work order.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="pause-reason">Reason *</Label>
+            <Input id="pause-reason" placeholder="e.g. Waiting for parts, Break, Other priority..." value={pauseReason} onChange={(e) => setPauseReason(e.target.value)} autoFocus />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPauseDialogWO(null); setPauseReason(""); }}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                if (!pauseDialogWO || !pauseReason.trim()) return;
+                await pauseWO.mutateAsync({ woId: pauseDialogWO, pauseReason: pauseReason.trim() });
+                setPauseDialogWO(null);
+                setPauseReason("");
+              }}
+              disabled={pauseWO.isPending || !pauseReason.trim()}
+            >
+              {pauseWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Pause
             </Button>
           </DialogFooter>
         </DialogContent>

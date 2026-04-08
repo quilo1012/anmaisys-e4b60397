@@ -58,6 +58,7 @@ export default function MachinesPage() {
     if (!name.trim()) e.name = "Name is required";
     if (!machineType.trim()) e.machineType = "Type is required";
     if (!currentLocation.trim()) e.currentLocation = "Location is required";
+    if (!code.trim()) e.code = "Code is required";
     if (code.trim() && machines) {
       const dup = machines.find(m => m.code === code.trim() && (!isEdit || m.id !== editMachine?.id));
       if (dup) e.code = "Code already in use";
@@ -118,7 +119,7 @@ export default function MachinesPage() {
             {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
           </div>
           <div className="space-y-1.5">
-            <Label>Code</Label>
+            <Label>Code *</Label>
             <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="MCH-001" className="font-mono" />
             {errors.code && <p className="text-xs text-destructive">{errors.code}</p>}
           </div>
@@ -210,7 +211,10 @@ export default function MachinesPage() {
                   <TableBody>
                     {machines.map((m) => (
                       <TableRow key={m.id}>
-                        <TableCell className="font-medium">{m.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {m.name}
+                          {(!m.code || !m.sector) && <Badge variant="outline" className="ml-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">Incomplete</Badge>}
+                        </TableCell>
                         <TableCell>{m.machine_type || "—"}</TableCell>
                         <TableCell>
                           {m.current_location ? (

@@ -263,6 +263,7 @@ export type Database = {
         Row: {
           created_at: string
           engineer_id: string
+          engineer_name: string
           id: string
           product_id: string
           quantity: number
@@ -271,6 +272,7 @@ export type Database = {
         Insert: {
           created_at?: string
           engineer_id: string
+          engineer_name?: string
           id?: string
           product_id: string
           quantity: number
@@ -279,6 +281,7 @@ export type Database = {
         Update: {
           created_at?: string
           engineer_id?: string
+          engineer_name?: string
           id?: string
           product_id?: string
           quantity?: number
@@ -611,6 +614,7 @@ export type Database = {
           notes: string | null
           notified_engineers: string[] | null
           operator_id: string
+          pause_reason: string
           paused_at: string | null
           priority: string
           received_at: string | null
@@ -637,6 +641,7 @@ export type Database = {
           notes?: string | null
           notified_engineers?: string[] | null
           operator_id: string
+          pause_reason?: string
           paused_at?: string | null
           priority?: string
           received_at?: string | null
@@ -663,6 +668,7 @@ export type Database = {
           notes?: string | null
           notified_engineers?: string[] | null
           operator_id?: string
+          pause_reason?: string
           paused_at?: string | null
           priority?: string
           received_at?: string | null

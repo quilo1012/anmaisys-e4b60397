@@ -92,6 +92,20 @@ export default function WorkOrderDetail() {
   const { data: checklistResponses } = useChecklistResponses(id);
   const { data: checklistItems } = useChecklistsByProblemName(wo?.description);
 
+  const { data: woLogs } = useQuery({
+    queryKey: ["work_order_logs", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("work_order_logs" as any)
+        .select("*")
+        .eq("work_order_id", id!)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!id,
+  });
+
   const { data: partsWithPrice } = useQuery({
     queryKey: ["parts_used_price", id],
     queryFn: async () => {
@@ -277,6 +291,15 @@ export default function WorkOrderDetail() {
               <TimelineItem icon={Phone} label="Received" time={wo.received_at} className="bg-indigo-100 text-indigo-700" />
               <TimelineItem icon={MapPin} label="Arrived" time={wo.arrived_at} className="bg-purple-100 text-purple-700" />
               <TimelineItem icon={Play} label="Started" time={wo.started_at} className="bg-amber-100 text-amber-700" />
+              {(wo as any).pause_reason && (
+                <div className="flex items-start gap-3">
+                  <div className="rounded-full p-1.5 bg-yellow-100 text-yellow-700"><Wrench className="h-4 w-4" /></div>
+                  <div>
+                    <p className="font-medium text-sm">Paused</p>
+                    <p className="text-xs text-muted-foreground">Reason: {(wo as any).pause_reason}</p>
+                  </div>
+                </div>
+              )}
               <TimelineItem icon={Wrench} label="Finished" time={wo.finished_at} className="bg-teal-100 text-teal-700" />
               {wo.closed_at && <TimelineItem icon={CheckCircle} label="Closed" time={wo.closed_at} className="bg-green-100 text-green-700" />}
               {wo.completed_at && !wo.closed_at && wo.status !== "force_closed" && <TimelineItem icon={CheckCircle} label="Completed" time={wo.completed_at} className="bg-green-100 text-green-700" />}
@@ -298,11 +321,44 @@ export default function WorkOrderDetail() {
                       <td className="border border-black px-2 py-1 font-mono">{row.timestamp}</td>
                     </tr>
                   ))}
+                  {(wo as any).pause_reason && (
+                    <tr>
+                      <td className="border border-black px-2 py-1">Pause Reason</td>
+                      <td className="border border-black px-2 py-1">{(wo as any).pause_reason}</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
           </CardContent>
         </Card>
+
+        {/* Action Log (work_order_logs) */}
+        {woLogs && woLogs.length > 0 && (
+          <Card className="print:border print:border-black print:shadow-none print:rounded-none">
+            <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Action Log</CardTitle></CardHeader>
+            <CardContent>
+              <table className="w-full text-sm print:text-[8pt] border-collapse">
+                <thead>
+                  <tr>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black print:bg-gray-100">Action</th>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black print:bg-gray-100">Engineer</th>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black print:bg-gray-100">Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {woLogs.map((log: any) => (
+                    <tr key={log.id}>
+                      <td className="px-2 py-1 print:border print:border-black capitalize">{log.action}</td>
+                      <td className="px-2 py-1 print:border print:border-black">{log.engineer_name}</td>
+                      <td className="px-2 py-1 print:border print:border-black text-muted-foreground font-mono">{format(new Date(log.created_at), "dd/MM/yyyy HH:mm:ss")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Checklist */}
         {checklistItems && checklistItems.length > 0 && (
@@ -362,7 +418,7 @@ export default function WorkOrderDetail() {
                       <TableCell className="font-medium print:border print:border-black">{pu.product?.name || ""}</TableCell>
                       <TableCell className="print:border print:border-black">{pu.product?.code || ""}</TableCell>
                       <TableCell className="print:border print:border-black">{pu.quantity}</TableCell>
-                      <TableCell className="print:border print:border-black">{pu.engineer?.name || wo.engineer_name || ""}</TableCell>
+                      <TableCell className="print:border print:border-black">{(pu as any).engineer_name || pu.engineer?.name || wo.engineer_name || ""}</TableCell>
                       <TableCell className="text-sm text-muted-foreground print:border print:border-black">{format(new Date(pu.created_at), "dd/MM HH:mm")}</TableCell>
                     </TableRow>
                   ))}

@@ -156,8 +156,9 @@ export default function ProblemsPage() {
 
   const handleAdd = async () => {
     if (!name.trim()) return;
-    if (!category.trim() || !description.trim()) {
-      toast({ title: "Recommendation", description: "Consider adding category and description for better data quality.", variant: "default" });
+    if (!category.trim()) {
+      toast({ title: "Category required", description: "Please select or enter a category before saving.", variant: "destructive" });
+      return;
     }
     try {
       const result = await addProblem.mutateAsync({ name: name.trim(), category: category.trim(), description: description.trim(), severity, active });
@@ -207,7 +208,7 @@ export default function ProblemsPage() {
   const formContent = (
     <div className="space-y-4">
       <div className="space-y-2"><Label>Problem Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Motor Overheating" required /></div>
-      <div className="space-y-2"><Label>Category</Label><Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Electrical" /></div>
+      <div className="space-y-2"><Label>Category *</Label><Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Electrical, Mechanical, Pneumatic" /></div>
       <div className="space-y-2">
         <Label>Risk Level</Label>
         <Select value={severity} onValueChange={setSeverity}>
