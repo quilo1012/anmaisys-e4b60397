@@ -33,7 +33,7 @@ export function PartsUsedDialog({ open, onOpenChange, workOrderId, engineerName 
     }
 
     try {
-      await registerParts.mutateAsync({ work_order_id: workOrderId, product_id: productId, quantity: parseInt(quantity) });
+      await registerParts.mutateAsync({ work_order_id: workOrderId, product_id: productId, quantity: parseInt(quantity), engineer_name: engineerName });
       toast({ title: "Parts registered", description: "Stock updated automatically." });
       setProductId("");
       setQuantity("");

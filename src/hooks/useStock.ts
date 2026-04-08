@@ -104,10 +104,11 @@ export function useRegisterPartsUsed() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (parts: { work_order_id: string; product_id: string; quantity: number }) => {
+    mutationFn: async (parts: { work_order_id: string; product_id: string; quantity: number; engineer_name?: string }) => {
+      const { engineer_name, ...rest } = parts;
       const { data, error } = await supabase
         .from("parts_used")
-        .insert({ ...parts, engineer_id: user!.id })
+        .insert({ ...rest, engineer_id: user!.id, engineer_name: engineer_name || "" } as any)
         .select()
         .single();
       if (error) throw error;

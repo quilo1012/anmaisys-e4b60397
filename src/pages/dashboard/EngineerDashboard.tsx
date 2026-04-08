@@ -593,7 +593,7 @@ export default function EngineerDashboard() {
       </div>
 
       {partsDialogWO && (
-        <PartsUsedDialog open={!!partsDialogWO} onOpenChange={(o) => !o && setPartsDialogWO(null)} workOrderId={partsDialogWO} />
+        <PartsUsedDialog open={!!partsDialogWO} onOpenChange={(o) => !o && setPartsDialogWO(null)} workOrderId={partsDialogWO} engineerName={currentEngineer?.name} />
       )}
 
       {/* Sign Dialog */}
