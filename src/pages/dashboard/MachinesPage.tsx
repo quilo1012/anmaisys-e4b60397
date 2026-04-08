@@ -211,7 +211,10 @@ export default function MachinesPage() {
                   <TableBody>
                     {machines.map((m) => (
                       <TableRow key={m.id}>
-                        <TableCell className="font-medium">{m.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {m.name}
+                          {(!m.code || !m.sector) && <Badge variant="outline" className="ml-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">Incomplete</Badge>}
+                        </TableCell>
                         <TableCell>{m.machine_type || "—"}</TableCell>
                         <TableCell>
                           {m.current_location ? (
