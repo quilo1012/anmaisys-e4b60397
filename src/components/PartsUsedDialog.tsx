@@ -15,7 +15,7 @@ interface PartsUsedDialogProps {
   engineerName?: string;
 }
 
-export function PartsUsedDialog({ open, onOpenChange, workOrderId }: PartsUsedDialogProps) {
+export function PartsUsedDialog({ open, onOpenChange, workOrderId, engineerName }: PartsUsedDialogProps) {
   const { data: products, isLoading } = useProducts();
   const registerParts = useRegisterPartsUsed();
   const { toast } = useToast();
