@@ -560,7 +560,7 @@ export default function EngineerDashboard() {
                                         <PlayCircle className="h-3 w-3 mr-1" /> Resume
                                       </Button>
                                     ) : (
-                                      <Button size="sm" variant="outline" className="border-yellow-500 text-yellow-700" onClick={() => pauseWO.mutate(wo.id)} disabled={pauseWO.isPending}>
+                                      <Button size="sm" variant="outline" className="border-yellow-500 text-yellow-700" onClick={() => { setPauseDialogWO(wo.id); setPauseReason(""); }} disabled={pauseWO.isPending}>
                                         <Pause className="h-3 w-3 mr-1" /> Pause
                                       </Button>
                                     )}
