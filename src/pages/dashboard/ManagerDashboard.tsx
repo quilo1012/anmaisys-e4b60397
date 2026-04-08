@@ -118,6 +118,8 @@ export default function ManagerDashboard() {
     { title: "Work Orders", desc: "Table & Kanban", icon: ClipboardList, url: "/dashboard/work-orders" },
     { title: "Machines", desc: "Manage machines", icon: Cog, url: "/dashboard/machines" },
     { title: "Problems", desc: "Problem descriptions", icon: AlertCircle, url: "/dashboard/problems" },
+    { title: "Stock", desc: "Parts & inventory", icon: Package, url: "/dashboard/stock" },
+    { title: "Audit Logs", desc: "Activity history", icon: Activity, url: "/dashboard/audit-logs" },
   ];
 
   return (
