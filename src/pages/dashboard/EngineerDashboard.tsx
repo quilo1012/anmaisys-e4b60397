@@ -166,6 +166,8 @@ export default function EngineerDashboard() {
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
+  const [pauseDialogWO, setPauseDialogWO] = useState<string | null>(null);
+  const [pauseReason, setPauseReason] = useState("");
   
   // PIN dialog state
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
