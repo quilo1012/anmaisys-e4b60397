@@ -625,6 +625,35 @@ export default function EngineerDashboard() {
         </DialogContent>
       </Dialog>
 
+      {/* Pause Reason Dialog */}
+      <Dialog open={!!pauseDialogWO} onOpenChange={(open) => { if (!open) { setPauseDialogWO(null); setPauseReason(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Pause className="h-5 w-5" /> Pause Work Order</DialogTitle>
+            <DialogDescription>Enter a reason for pausing this work order.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="pause-reason">Reason *</Label>
+            <Input id="pause-reason" placeholder="e.g. Waiting for parts, Break, Other priority..." value={pauseReason} onChange={(e) => setPauseReason(e.target.value)} autoFocus />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPauseDialogWO(null); setPauseReason(""); }}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                if (!pauseDialogWO || !pauseReason.trim()) return;
+                await pauseWO.mutateAsync({ woId: pauseDialogWO, pauseReason: pauseReason.trim() });
+                setPauseDialogWO(null);
+                setPauseReason("");
+              }}
+              disabled={pauseWO.isPending || !pauseReason.trim()}
+            >
+              {pauseWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Pause
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* PIN Verification Dialog */}
       <PinDialog
         open={pinDialogOpen}
