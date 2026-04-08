@@ -58,6 +58,7 @@ export default function MachinesPage() {
     if (!name.trim()) e.name = "Name is required";
     if (!machineType.trim()) e.machineType = "Type is required";
     if (!currentLocation.trim()) e.currentLocation = "Location is required";
+    if (!code.trim()) e.code = "Code is required";
     if (code.trim() && machines) {
       const dup = machines.find(m => m.code === code.trim() && (!isEdit || m.id !== editMachine?.id));
       if (dup) e.code = "Code already in use";
