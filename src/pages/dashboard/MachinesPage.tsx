@@ -119,7 +119,7 @@ export default function MachinesPage() {
             {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
           </div>
           <div className="space-y-1.5">
-            <Label>Code</Label>
+            <Label>Code *</Label>
             <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="MCH-001" className="font-mono" />
             {errors.code && <p className="text-xs text-destructive">{errors.code}</p>}
           </div>
