@@ -92,6 +92,20 @@ export default function WorkOrderDetail() {
   const { data: checklistResponses } = useChecklistResponses(id);
   const { data: checklistItems } = useChecklistsByProblemName(wo?.description);
 
+  const { data: woLogs } = useQuery({
+    queryKey: ["work_order_logs", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("work_order_logs" as any)
+        .select("*")
+        .eq("work_order_id", id!)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!id,
+  });
+
   const { data: partsWithPrice } = useQuery({
     queryKey: ["parts_used_price", id],
     queryFn: async () => {
