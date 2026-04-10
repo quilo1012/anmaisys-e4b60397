@@ -27,7 +27,7 @@ export default function StockPage() {
   const addCategory = useAddCategory();
   const deleteCategory = useDeleteCategory();
   const { toast } = useToast();
-  const isManager = role === "admin";
+  const isManager = role === "admin" || role === "manager";
 
   // Edit/Delete state
   const [editProduct, setEditProduct] = useState<Product | null>(null);

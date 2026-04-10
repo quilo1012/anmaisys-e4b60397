@@ -112,6 +112,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const [showClearWOs, setShowClearWOs] = useState(false);
   const [clearPin, setClearPin] = useState("");
   const [clearing, setClearing] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState("");
 
   // Build machine line lookup
   const machineLineMap = useMemo(() => {
@@ -424,7 +425,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                                   {closeWO.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle className="h-3 w-3 mr-1" />} Close
                                 </Button>
                               )}
-                              {canForceClose && role === "admin" && (
+                              {canForceClose && (role === "admin" || role === "manager") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
                                     <Button size="sm" variant="destructive" disabled={forceClose.isPending}>
@@ -536,21 +537,27 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
         </AlertDialog>
 
         {/* Clear All WOs */}
-        <AlertDialog open={showClearWOs} onOpenChange={(o) => { setShowClearWOs(o); if (!o) setClearPin(""); }}>
+        <AlertDialog open={showClearWOs} onOpenChange={(o) => { setShowClearWOs(o); if (!o) { setClearPin(""); setClearConfirmText(""); } }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Clear all work orders?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete ALL work orders, messages, photos, parts used records, and engineer scores. This action cannot be undone. Enter the admin PIN to confirm.
+                This will permanently delete ALL work orders, messages, photos, parts used records, and engineer scores. This action cannot be undone. Enter admin PIN and type CONFIRM to proceed.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <div className="px-6 pb-2">
-              <Label htmlFor="clear-pin">Security PIN</Label>
-              <Input id="clear-pin" type="password" placeholder="Enter PIN..." value={clearPin} onChange={(e) => setClearPin(e.target.value)} maxLength={8} className="mt-1" />
+            <div className="px-6 pb-2 space-y-3">
+              <div>
+                <Label htmlFor="clear-pin">Security PIN</Label>
+                <Input id="clear-pin" type="password" placeholder="Enter PIN..." value={clearPin} onChange={(e) => setClearPin(e.target.value)} maxLength={8} className="mt-1" />
+              </div>
+              <div>
+                <Label htmlFor="clear-confirm">Type CONFIRM</Label>
+                <Input id="clear-confirm" placeholder='Type "CONFIRM" to proceed' value={clearConfirmText} onChange={(e) => setClearConfirmText(e.target.value)} className="mt-1" />
+              </div>
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={clearing}>Cancel</AlertDialogCancel>
-              <Button variant="destructive" disabled={clearing || clearPin.length < 4} onClick={async () => {
+              <Button variant="destructive" disabled={clearing || clearPin.length < 4 || clearConfirmText !== "CONFIRM"} onClick={async () => {
                 setClearing(true);
                 try {
                   const { data: settings } = await (await import("@/integrations/supabase/client")).supabase.from("system_settings").select("admin_pin").limit(1).single();
@@ -569,6 +576,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                   toast({ title: "Work orders cleared", description: "All work order data has been removed." });
                   setShowClearWOs(false);
                   setClearPin("");
+                  setClearConfirmText("");
                 } catch (err: any) {
                   toast({ title: "Error", description: err.message, variant: "destructive" });
                 } finally {

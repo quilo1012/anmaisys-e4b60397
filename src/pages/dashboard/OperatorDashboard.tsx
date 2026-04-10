@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ClipboardList, Plus, Loader2, AlertTriangle, Clock } from "lucide-react";
 import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
+import { useAuth } from "@/contexts/AuthContext";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
@@ -29,6 +30,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 };
 
 export default function OperatorDashboard() {
+  const { profile } = useAuth();
   const [requesterName, setRequesterName] = useState("");
   const [line, setLine] = useState("");
   const [machine, setMachine] = useState("");
@@ -75,12 +77,12 @@ export default function OperatorDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requesterName.trim() || !machine.trim() || !description.trim()) {
+    if ((!requesterName.trim() && !profile?.name) || !machine.trim() || !description.trim()) {
       toast({ title: "Error", description: "All fields are required", variant: "destructive" });
       return;
     }
     try {
-      await createWO.mutateAsync({ requester_name: requesterName.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium" });
+      await createWO.mutateAsync({ requester_name: (requesterName.trim() || profile?.name || "").trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium" });
       toast({ title: "Work Order Created", description: "Your WO has been submitted." });
       setRequesterName(""); setLine(""); setMachine(""); setDescription(""); setNotes("");
     } catch {
@@ -107,7 +109,7 @@ export default function OperatorDashboard() {
             <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="requester">Requested By</Label>
-                <Input id="requester" placeholder="e.g. John Smith" value={requesterName} onChange={(e) => setRequesterName(e.target.value)} />
+                <Input id="requester" value={requesterName || profile?.name || ""} readOnly className="bg-muted" />
               </div>
               <div className="space-y-2">
                 <Label>Line</Label>

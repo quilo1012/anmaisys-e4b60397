@@ -9,11 +9,12 @@ const corsHeaders = {
 const updateUserSchema = z.object({
   userId: z.string().uuid("Invalid user ID"),
   name: z.string().trim().min(1).max(100).optional(),
-  role: z.enum(["admin", "engineer", "operator"]).optional(),
+  role: z.enum(["admin", "manager", "engineer", "operator"]).optional(),
   shift: z.string().max(50).optional(),
   active: z.boolean().optional(),
   email: z.string().email("Invalid email format").max(255).optional(),
   password: z.string().min(6, "Password must be at least 6 characters").max(128).optional(),
+  labor_rate: z.number().min(0).optional(),
 });
 
 Deno.serve(async (req) => {
@@ -39,15 +40,16 @@ Deno.serve(async (req) => {
     const { data: { user: caller } } = await supabaseUser.auth.getUser();
     if (!caller) throw new Error("Not authenticated");
 
-    const { data: isAdmin } = await supabaseAdmin.rpc("has_role", {
-      _user_id: caller.id,
-      _role: "admin",
-    });
+    const { data: isAdmin } = await supabaseAdmin.rpc("has_role", { _user_id: caller.id, _role: "admin" });
+    const { data: isManager } = await supabaseAdmin.rpc("has_role", { _user_id: caller.id, _role: "manager" });
 
-    if (!isAdmin) throw new Error("Only managers can update users");
+    if (!isAdmin && !isManager) throw new Error("Only managers and admins can update users");
 
     const body = updateUserSchema.parse(await req.json());
-    const { userId, name, role, shift, active, email, password } = body;
+    const { userId, name, role, shift, active, email, password, labor_rate } = body;
+
+    // Only admins can assign admin role
+    if (role === "admin" && !isAdmin) throw new Error("Only admins can assign the Admin role");
 
     if (email) {
       const { error: emailError } = await supabaseAdmin.auth.admin.updateUserById(userId, { email });
@@ -64,6 +66,7 @@ Deno.serve(async (req) => {
     if (name !== undefined) profileUpdate.name = name;
     if (shift !== undefined) profileUpdate.shift = shift;
     if (active !== undefined) profileUpdate.active = active;
+    if (labor_rate !== undefined) profileUpdate.labor_rate = labor_rate;
 
     if (Object.keys(profileUpdate).length > 0) {
       const { error: profileError } = await supabaseAdmin

@@ -33,17 +33,21 @@ Deno.serve(async (req) => {
     const { data: { user: caller } } = await supabaseUser.auth.getUser();
     if (!caller) throw new Error("Not authenticated");
 
-    const { data: isAdmin } = await supabaseAdmin.rpc("has_role", {
-      _user_id: caller.id,
-      _role: "admin",
-    });
+    const { data: isAdmin } = await supabaseAdmin.rpc("has_role", { _user_id: caller.id, _role: "admin" });
+    const { data: isManager } = await supabaseAdmin.rpc("has_role", { _user_id: caller.id, _role: "manager" });
 
-    if (!isAdmin) throw new Error("Only managers can delete users");
+    if (!isAdmin && !isManager) throw new Error("Only managers and admins can delete users");
 
     const body = deleteUserSchema.parse(await req.json());
     const { userId } = body;
 
     if (userId === caller.id) throw new Error("You cannot delete your own account");
+
+    // Check target user's role — managers can only delete operators and engineers
+    const { data: targetRole } = await supabaseAdmin.rpc("get_user_role", { _user_id: userId });
+    if (isManager && !isAdmin && (targetRole === "manager" || targetRole === "admin")) {
+      throw new Error("Managers cannot delete Manager or Admin users");
+    }
 
     // Nullify FK references in work_orders and parts_used before deleting
     await supabaseAdmin.from("work_orders").update({ operator_id: caller.id }).eq("operator_id", userId);

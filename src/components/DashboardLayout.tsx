@@ -30,22 +30,27 @@ interface NavItem {
   url: string;
   icon: React.ComponentType<{ className?: string }>;
   roles: AppRole[];
+  group: string;
 }
 
 const navItems: NavItem[] = [
-  { title: "Dashboard", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"] },
-  { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"] },
-  { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin"] },
-  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin"] },
-  { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin"] },
-  { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin"] },
-  { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin"] },
-  { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin"] },
-  { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin"] },
-  { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "engineer"] },
-  { title: "Users", url: "/users/manage", icon: Users, roles: ["admin"] },
-  { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin"] },
-  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"] },
+  // Operations
+  { title: "Dashboard", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Operations" },
+  { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"], group: "Operations" },
+  { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager"], group: "Operations" },
+  { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager"], group: "Operations" },
+  { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager"], group: "Operations" },
+  // Assets
+  { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager"], group: "Assets" },
+  { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager"], group: "Assets" },
+  { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "engineer"], group: "Assets" },
+  // Reports
+  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager"], group: "Reports" },
+  { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin", "manager"], group: "Reports" },
+  { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin", "manager"], group: "Reports" },
+  // Admin
+  { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Admin" },
+  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin", "manager"], group: "Admin" },
 ];
 
 function useDarkMode() {
@@ -82,44 +87,67 @@ function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
 
+  // Group items
+  const groups = ["Operations", "Assets", "Reports", "Admin"];
+  const grouped = groups.map((g) => ({
+    label: g,
+    items: filteredItems.filter((i) => i.group === g),
+  })).filter((g) => g.items.length > 0);
+
   return (
-    <SidebarMenu>
-      {filteredItems.map((item) => (
-        <SidebarMenuItem key={item.title + item.url}>
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <SidebarMenuButton asChild>
-                  <NavLink
-                    to={item.url}
-                    end
-                    className="flex items-center justify-center px-3 py-2 rounded-md text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-                    activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  >
-                    <item.icon className="h-4 w-4" />
-                  </NavLink>
-                </SidebarMenuButton>
-              </TooltipTrigger>
-              <TooltipContent side="right">{item.title}</TooltipContent>
-            </Tooltip>
-          ) : (
-            <SidebarMenuButton asChild>
-              <NavLink
-                to={item.url}
-                end
-                className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-                activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-              >
-                <item.icon className="h-4 w-4" />
-                <span>{item.title}</span>
-              </NavLink>
-            </SidebarMenuButton>
-          )}
-        </SidebarMenuItem>
+    <>
+      {grouped.map((group) => (
+        <SidebarGroup key={group.label}>
+          <SidebarGroupLabel className="text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">{group.label}</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {group.items.map((item) => (
+                <SidebarMenuItem key={item.title + item.url}>
+                  {collapsed ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <SidebarMenuButton asChild>
+                          <NavLink
+                            to={item.url}
+                            end
+                            className="flex items-center justify-center px-3 py-2 rounded-md text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                            activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          >
+                            <item.icon className="h-4 w-4" />
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">{item.title}</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        end
+                        className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                        activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  )}
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       ))}
-    </SidebarMenu>
+    </>
   );
 }
+
+const roleTitle: Record<string, string> = {
+  admin: "Admin",
+  manager: "Manager",
+  engineer: "Engineer",
+  operator: "Operator",
+};
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { role, profile, signOut } = useAuth();
@@ -139,19 +167,14 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               <span className="text-lg font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">AN Maintenance</span>
             </div>
             <SidebarContent>
-              <SidebarGroup>
-                <SidebarGroupLabel className="text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">Navigation</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarNav filteredItems={filteredItems} />
-                </SidebarGroupContent>
-              </SidebarGroup>
+              <SidebarNav filteredItems={filteredItems} />
             </SidebarContent>
             <div className="mt-auto p-4 border-t border-sidebar-border group-data-[collapsible=icon]:p-2">
               <div className="text-sm text-sidebar-foreground/70 mb-2 truncate group-data-[collapsible=icon]:hidden">
                 {profile?.name}
               </div>
               <div className="text-xs text-sidebar-foreground/50 mb-3 capitalize group-data-[collapsible=icon]:hidden">
-                {role === "admin" ? "Manager" : role}
+                {role ? roleTitle[role] : ""}
               </div>
               <Button
                 variant="ghost"
@@ -169,9 +192,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             <header className="h-14 border-b bg-card flex items-center px-4 gap-3 print:hidden">
               <SidebarTrigger />
               <h1 className="text-lg font-semibold text-foreground">
-                {role === "admin" ? "Manager" : role === "engineer" ? "Engineer" : "Operator"} Dashboard
+                {role ? roleTitle[role] : ""} Dashboard
               </h1>
-              {role === "admin" && (
+              {(role === "admin" || role === "manager") && (
                 <div className="ml-4">
                   <OnlineEngineersPanel />
                 </div>

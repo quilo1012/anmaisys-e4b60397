@@ -24,6 +24,7 @@ export default function AuditLogsPage() {
   const [pin, setPin] = useState("");
   const [clearing, setClearing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
 
   const { role } = useAuth();
   const { toast } = useToast();
@@ -69,19 +70,20 @@ export default function AuditLogsPage() {
             <p className="text-muted-foreground">Complete activity log for compliance and security</p>
           </div>
           {role === "admin" && (
-            <AlertDialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setPin(""); }}>
+            <AlertDialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setPin(""); setConfirmText(""); } }}>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4 mr-2" />Clear Logs</Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Clear All Audit Logs?</AlertDialogTitle>
-                  <AlertDialogDescription>This action cannot be undone. Enter admin PIN to confirm.</AlertDialogDescription>
+                  <AlertDialogDescription>This action cannot be undone. Enter admin PIN and type CONFIRM to proceed.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <Input type="password" placeholder="Admin PIN" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={10} />
+                <Input placeholder='Type "CONFIRM" to proceed' value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClearLogs} disabled={!pin || clearing}>
+                  <AlertDialogAction onClick={handleClearLogs} disabled={!pin || clearing || confirmText !== "CONFIRM"}>
                     {clearing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}Confirm
                   </AlertDialogAction>
                 </AlertDialogFooter>

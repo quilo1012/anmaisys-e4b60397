@@ -26,9 +26,10 @@ interface Engineer {
   created_at: string;
 }
 
-const roleLabels: Record<AppRole, string> = { admin: "Manager", engineer: "Engineer", operator: "Operator" };
+const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", engineer: "Engineer", operator: "Operator" };
 const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = {
   admin: Shield,
+  manager: Shield,
   engineer: WrenchIcon,
   operator: HardHat,
 };
@@ -42,7 +43,7 @@ export default function ManageUsers() {
   const [role, setRole] = useState<AppRole>("operator");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, role: currentRole } = useAuth();
 
   // Edit user state
   const [editUser, setEditUser] = useState<Profile | null>(null);
@@ -239,12 +240,13 @@ export default function ManageUsers() {
                 <div className="space-y-2"><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required /></div>
                 <div className="space-y-2">
                   <Label>Role</Label>
-                  <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
+                   <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="operator">Operator</SelectItem>
                       <SelectItem value="engineer">Engineer</SelectItem>
-                      <SelectItem value="admin">Manager</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      {currentRole === "admin" && <SelectItem value="admin">Admin</SelectItem>}
                     </SelectContent>
                   </Select>
                 </div>
@@ -280,7 +282,14 @@ export default function ManageUsers() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <RoleIcon className="h-4 w-4" />
-                          {user.role ? roleLabels[user.role] : "No role"}
+                          <Badge variant="outline" className={
+                            user.role === "admin" ? "bg-red-100 text-red-800 border-red-200" :
+                            user.role === "manager" ? "bg-purple-100 text-purple-800 border-purple-200" :
+                            user.role === "engineer" ? "bg-blue-100 text-blue-800 border-blue-200" :
+                            "bg-gray-100 text-gray-800 border-gray-200"
+                          }>
+                            {user.role ? roleLabels[user.role] : "No role"}
+                          </Badge>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -293,7 +302,7 @@ export default function ManageUsers() {
                           <Button size="icon" variant="ghost" onClick={() => openEditUser(user)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          {!isCurrentUser && (
+                          {!isCurrentUser && !(currentRole === "manager" && (user.role === "manager" || user.role === "admin")) && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">
@@ -445,7 +454,8 @@ export default function ManageUsers() {
                   <SelectContent>
                     <SelectItem value="operator">Operator</SelectItem>
                     <SelectItem value="engineer">Engineer</SelectItem>
-                    <SelectItem value="admin">Manager</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    {currentRole === "admin" && <SelectItem value="admin">Admin</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
