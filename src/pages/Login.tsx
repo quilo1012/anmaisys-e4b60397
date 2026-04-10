@@ -32,8 +32,9 @@ export default function Login() {
       if (user) {
         const { data: role } = await supabase.rpc("get_user_role", { _user_id: user.id });
         logAuditEvent("login", "user", user.id, { email: user.email, role: role || "unknown" });
-        const dashMap: Record<string, string> = {
+      const dashMap: Record<string, string> = {
           admin: "/dashboard/manager",
+          manager: "/dashboard/manager",
           engineer: "/dashboard/engineer",
           operator: "/dashboard/operator"
         };
