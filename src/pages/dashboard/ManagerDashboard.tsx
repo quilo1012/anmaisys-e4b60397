@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, ShieldCheck } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, ShieldCheck, Plus, ExternalLink, Monitor } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { differenceInMinutes } from "date-fns";
@@ -50,7 +50,6 @@ export default function ManagerDashboard() {
       }
       count++;
     });
-    // SLA compliance
     const closedWOs = allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.received_at);
     const withinSLA = closedWOs.filter((w) => {
       const target = SLA_TARGETS[w.priority || "medium"] || 60;
@@ -87,13 +86,15 @@ export default function ManagerDashboard() {
     }
   };
 
+  const dashTitle = role === "admin" ? "Admin Dashboard" : "Manager Dashboard";
+
   const quickLinks = [
     { title: "Analytics", desc: "Charts & performance", icon: BarChart3, url: "/dashboard/analytics" },
     { title: "Work Orders", desc: "Table & Kanban", icon: ClipboardList, url: "/dashboard/work-orders" },
     { title: "Machines", desc: "Manage machines", icon: Cog, url: "/dashboard/machines" },
     { title: "Problems", desc: "Problem descriptions", icon: AlertCircle, url: "/dashboard/problems" },
     { title: "Stock", desc: "Parts & inventory", icon: Package, url: "/dashboard/stock" },
-    { title: "Audit Logs", desc: "Activity history", icon: Activity, url: "/dashboard/audit-logs" },
+    ...(role === "admin" ? [{ title: "Audit Logs", desc: "Activity history", icon: Activity, url: "/dashboard/audit-logs" }] : []),
   ];
 
   return (
@@ -101,7 +102,7 @@ export default function ManagerDashboard() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">Manager Dashboard</h2>
+            <h2 className="text-2xl font-bold">{dashTitle}</h2>
             <p className="text-muted-foreground">System overview and quick access</p>
           </div>
           <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
@@ -121,6 +122,19 @@ export default function ManagerDashboard() {
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">SLA Compliance</CardTitle><ShieldCheck className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-2xl font-bold ${kpis.slaPercent < 80 ? "text-destructive" : "text-green-600"}`}>{kpis.slaPercent}%</div></CardContent></Card>
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Parts Today</CardTitle><Package className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{partsToday ?? 0}</div></CardContent></Card>
           <Card className={lowStockCount > 0 ? "border-destructive" : ""}><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Low Stock</CardTitle><AlertTriangle className={`h-4 w-4 ${lowStockCount > 0 ? "text-destructive" : "text-muted-foreground"}`} /></CardHeader><CardContent><div className={`text-2xl font-bold ${lowStockCount > 0 ? "text-destructive" : ""}`}>{lowStockCount}</div></CardContent></Card>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="flex gap-3 flex-wrap">
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => navigate("/dashboard/work-orders", { state: { openCreate: true } })}>
+            <Plus className="h-4 w-4 mr-2" /> New Work Order
+          </Button>
+          <Button variant="outline" onClick={() => navigate("/dashboard/work-orders?status=open")}>
+            <ExternalLink className="h-4 w-4 mr-2" /> View Open WOs
+          </Button>
+          <Button variant="outline" onClick={() => navigate("/dashboard/control-center")}>
+            <Monitor className="h-4 w-4 mr-2" /> Control Center
+          </Button>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
