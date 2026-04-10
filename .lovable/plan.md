@@ -1,46 +1,49 @@
 
 
-# Bug Fixes Plan
+# Fix 7 Production Bugs
 
-## Status Assessment
+## Root Cause
 
-| Bug | Status | Action Needed |
-|-----|--------|--------------|
-| 1. Duplicate MTTR | ✅ Already fixed | None |
-| 2. Seed Demo Data | ⚠️ Partially fixed | Remove completely (currently shows for admin in preview) |
-| 3. Clear WOs confirmation | ⚠️ Has CONFIRM modal but PIN check is broken | Fix PIN verification to use edge function |
-| 4. Clear Logs confirmation | ✅ Already fixed | None |
-| 5. Top Engineers "Unknown" | ✅ Already fixed | None (verified: engineers table returns real names) |
-| 6. Audit Logs not recording | ⚠️ WO events are logged but login is not | Add login audit event |
-| 7. Requested By auto-fill | ✅ Already fixed | None |
-| 8. Stale WO badge | ❌ Not implemented | Add stale badge + filter |
-| 9. Daniel as admin | ✅ Already done | None |
+After thorough investigation, I found that **most fixes already exist in the codebase but have not been published to production**. The published site at `anmaisys.lovable.app` is running an older version. Frontend changes require clicking "Publish" > "Update" to go live.
 
-## Changes to implement (4 items)
+Here is the status of each bug and what still needs code changes:
 
-### Fix 1: Remove Seed Demo Data button entirely
-**File:** `src/pages/dashboard/ManagerDashboard.tsx`
-- Remove the `isPreview` variable, `seeding` state, and `handleSeedDemo` function
-- Remove the Seed Demo Data button from the JSX (lines 135-140)
+| Bug | Status in Codebase | Needs Code Fix? |
+|-----|-------------------|-----------------|
+| 1. Duplicate MTTR | Fixed — line 121 shows "SLA Compliance" with ShieldCheck icon | No — just publish |
+| 2. Seed Demo Data | Fixed — button fully removed from ManagerDashboard | No — just publish |
+| 5. Top Engineers "Unknown" | Fixed — `useEngineerScores.ts` joins both `profiles` and `engineers` tables | No — just publish |
+| 6. Audit Logs empty | Code calls `logAuditEvent` in all required places, but **0 records in DB** | Yes — see below |
+| 7. Requested By auto-fill | Fixed — Input is read-only with `bg-muted` styling, uses `profile?.name` | No — just publish |
+| 8. Stale WO badge | Fixed — orange "Stale WO" badge in EngineerDashboard for >72h WOs | No — just publish |
+| 9. Daniel as Admin | Fixed — DB shows `role: admin` for `daniel.quilo@appliednutrition.uk` | No |
 
-### Fix 2: Fix Clear WOs broken PIN verification
-**File:** `src/pages/dashboard/WorkOrdersPage.tsx` (lines 560-585)
-- The current code fetches `admin_pin` (bcrypt hash) and compares it with plain text — always fails
-- Replace with `supabase.functions.invoke("verify-admin-pin", { body: { pin: clearPin } })` (same pattern used in AuditLogsPage)
+## Remaining Code Fix: Login `dashMap` missing `manager` role
 
-### Fix 3: Add login audit event
-**File:** `src/pages/Login.tsx`
-- After successful login, call `logAuditEvent("login", "user")` to record the event
-- Since `auth.uid()` may not be available immediately in the RPC after login, we may need to add a small delay or call it after the session is established
+**File:** `src/pages/Login.tsx` line 35-39
 
-### Fix 4: Add "Stale WO" badge for WOs overdue >72h
-**Files:** `src/pages/dashboard/EngineerDashboard.tsx`, `src/pages/dashboard/WorkOrdersPage.tsx`
-- For WOs with status `in_progress` where `started_at` is more than 72 hours ago, show an orange "Stale WO" badge with a tooltip: "This work order has been in progress for more than 3 days. Consider reviewing or closing it."
-- In WorkOrdersPage, add a "Stale (>72h)" option to the status filter dropdown
+The `dashMap` after login doesn't include the `manager` role, so managers fall to the default path. This needs adding:
 
-## Technical details
+```typescript
+const dashMap: Record<string, string> = {
+  admin: "/dashboard/manager",
+  manager: "/dashboard/manager",  // ← ADD THIS
+  engineer: "/dashboard/engineer",
+  operator: "/dashboard/operator"
+};
+```
 
-- No database migrations needed
-- No RLS changes needed
-- All changes are UI-level fixes
+## BUG 6 Investigation: Audit Logs Still Empty
+
+The `log_audit_event` database function is `SECURITY DEFINER` (bypasses RLS), and the code calls it correctly via `supabase.rpc()`. The `audit_logs` table has **no INSERT RLS policy**, but since the function is SECURITY DEFINER, that shouldn't matter.
+
+The most likely cause: the code with `logAuditEvent` calls was never published, so production never executes them. After publishing, new logins and WO actions should start generating audit records.
+
+However, as a safety measure, I will also add an INSERT policy for authenticated users so that if any direct inserts are attempted, they won't be silently blocked.
+
+## Implementation
+
+1. Add `manager` to Login dashMap
+2. Add INSERT RLS policy on `audit_logs` for authenticated users (belt-and-suspenders)
+3. After implementation, user must click **Publish > Update** to deploy all fixes to production
 
