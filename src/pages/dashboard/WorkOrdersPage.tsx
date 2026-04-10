@@ -19,7 +19,7 @@ import { useMachines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { format, subDays, startOfDay, endOfDay, startOfMonth } from "date-fns";
+import { format, subDays, startOfDay, endOfDay, startOfMonth, differenceInMinutes } from "date-fns";
 import { exportWorkOrdersCsv } from "@/lib/exportCsv";
 import { useToast } from "@/hooks/use-toast";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
@@ -80,7 +80,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const toggleCol = (key: ColKey) => setVisibleCols((prev) => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
   const isCol = (key: ColKey) => visibleCols.has(key);
 
-  const filterStatuses = statusFilter === "all" ? undefined : [statusFilter as WOStatus];
+  const filterStatuses = statusFilter === "all" || statusFilter === "stale" ? undefined : [statusFilter as WOStatus];
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
   const forceClose = useForceCloseWorkOrder();
   const closeWO = useCloseWorkOrder();
@@ -148,6 +148,9 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
     if (lineFilter !== "all") filtered = filtered.filter((w) => machineLineMap[w.machine] === lineFilter);
+    if (statusFilter === "stale") {
+      filtered = filtered.filter((w) => w.status === "in_progress" && w.started_at && differenceInMinutes(now, new Date(w.started_at)) > 4320);
+    }
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter((w) =>
@@ -328,6 +331,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                   <SelectItem value="finished">Finished</SelectItem>
                   <SelectItem value="closed">Closed</SelectItem>
                   <SelectItem value="force_closed">Force Closed</SelectItem>
+                  <SelectItem value="stale">Stale (&gt;72h)</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={lineFilter} onValueChange={setLineFilter}>
@@ -410,7 +414,14 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                           {isCol("line") && <TableCell className="text-sm font-medium">{woLine}</TableCell>}
                           {isCol("machine") && <TableCell className="cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/machines/${encodeURIComponent(wo.machine)}/history`)}>{wo.machine}</TableCell>}
                           {isCol("problem") && <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>}
-                          {isCol("status") && <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>}
+                          {isCol("status") && <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
+                              {wo.status === "in_progress" && wo.started_at && differenceInMinutes(new Date(), new Date(wo.started_at)) > 4320 && (
+                                <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-[10px]" variant="outline" title="This work order has been in progress for more than 3 days. Consider reviewing or closing it.">Stale</Badge>
+                              )}
+                            </div>
+                          </TableCell>}
                           {isCol("requester") && <TableCell className="text-sm">{wo.requester_name}</TableCell>}
                           {isCol("engineer") && <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>}
                           {isCol("created") && <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>}
@@ -560,13 +571,14 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
               <Button variant="destructive" disabled={clearing || clearPin.length < 4 || clearConfirmText !== "CONFIRM"} onClick={async () => {
                 setClearing(true);
                 try {
-                  const { data: settings } = await (await import("@/integrations/supabase/client")).supabase.from("system_settings").select("admin_pin").limit(1).single();
-                  if (!settings || clearPin !== settings.admin_pin) {
+                  const { supabase } = await import("@/integrations/supabase/client");
+                  const { data: pinResult, error: pinError } = await supabase.functions.invoke("verify-admin-pin", { body: { pin: clearPin } });
+                  if (pinError || !pinResult?.valid) {
                     toast({ title: "Invalid PIN", description: "The PIN entered is incorrect.", variant: "destructive" });
                     setClearing(false);
                     return;
                   }
-                  const { data: { session } } = await (await import("@/integrations/supabase/client")).supabase.auth.getSession();
+                  const { data: { session } } = await supabase.auth.getSession();
                   const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clear-system`, {
                     method: "POST",
                     headers: { "Authorization": `Bearer ${session?.access_token}`, "Content-Type": "application/json" },

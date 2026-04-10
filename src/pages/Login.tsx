@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock } from "lucide-react";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
+import { logAuditEvent } from "@/hooks/useAuditLogs";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -30,6 +31,7 @@ export default function Login() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: role } = await supabase.rpc("get_user_role", { _user_id: user.id });
+        logAuditEvent("login", "user", user.id, { email: user.email, role: role || "unknown" });
         const dashMap: Record<string, string> = {
           admin: "/dashboard/manager",
           engineer: "/dashboard/engineer",

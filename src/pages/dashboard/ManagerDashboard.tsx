@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, Database, ShieldCheck } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, ShieldCheck } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -26,38 +25,12 @@ export default function ManagerDashboard() {
   const { role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  
   const [showChangePin, setShowChangePin] = useState(false);
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [savingPin, setSavingPin] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   useWOAlerts();
-
-  const isPreview = typeof window !== "undefined" && (
-    window.location.hostname.includes("lovable.app") ||
-    window.location.hostname.includes("lovableproject.com") ||
-    window.location.hostname === "localhost"
-  );
-
-  const handleSeedDemo = async () => {
-    setSeeding(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("seed-demo");
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "Seed failed");
-      const creds = data.credentials;
-      toast({
-        title: "Demo data seeded!",
-        description: `Manager: ${creds.manager.email} / ${creds.manager.password}\nEngineer: ${creds.engineer.email} / ${creds.engineer.password}\nEngineer PIN: ${creds.engineerPin}`,
-      });
-      queryClient.invalidateQueries();
-    } catch (err: any) {
-      toast({ title: "Seed error", description: err.message, variant: "destructive" });
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   const today = new Date().toDateString();
   const openCount = allWOs?.filter((w) => w.status === "open").length ?? 0;
@@ -131,17 +104,9 @@ export default function ManagerDashboard() {
             <h2 className="text-2xl font-bold">Manager Dashboard</h2>
             <p className="text-muted-foreground">System overview and quick access</p>
           </div>
-          <div className="flex gap-2">
-            {isPreview && role === "admin" && (
-              <Button variant="outline" size="sm" onClick={handleSeedDemo} disabled={seeding}>
-                {seeding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
-                Seed Demo Data
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
-              <Lock className="h-4 w-4 mr-2" /> Change PIN
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
+            <Lock className="h-4 w-4 mr-2" /> Change PIN
+          </Button>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
