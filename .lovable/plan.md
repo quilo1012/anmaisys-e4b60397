@@ -1,49 +1,111 @@
 
 
-# Fix 7 Production Bugs
+# AN Maintenance — 5-Section Upgrade Plan
 
-## Root Cause
+## Section 1: Role Permissions — Admin vs Manager Separation
 
-After thorough investigation, I found that **most fixes already exist in the codebase but have not been published to production**. The published site at `anmaisys.lovable.app` is running an older version. Frontend changes require clicking "Publish" > "Update" to go live.
+### Sidebar
+**`src/components/DashboardLayout.tsx`** line 52-53: Change `roles` for Users and Audit Logs from `["admin", "manager"]` to `["admin"]` only. This hides the Admin section from managers.
 
-Here is the status of each bug and what still needs code changes:
+### Route protection
+**`src/App.tsx`**: Change `allowedRoles` for:
+- `/users/manage` → `["admin"]` (was `["admin", "manager"]`)
+- `/dashboard/audit-logs` → `["admin"]` (was `["admin", "manager"]`)
 
-| Bug | Status in Codebase | Needs Code Fix? |
-|-----|-------------------|-----------------|
-| 1. Duplicate MTTR | Fixed — line 121 shows "SLA Compliance" with ShieldCheck icon | No — just publish |
-| 2. Seed Demo Data | Fixed — button fully removed from ManagerDashboard | No — just publish |
-| 5. Top Engineers "Unknown" | Fixed — `useEngineerScores.ts` joins both `profiles` and `engineers` tables | No — just publish |
-| 6. Audit Logs empty | Code calls `logAuditEvent` in all required places, but **0 records in DB** | Yes — see below |
-| 7. Requested By auto-fill | Fixed — Input is read-only with `bg-muted` styling, uses `profile?.name` | No — just publish |
-| 8. Stale WO badge | Fixed — orange "Stale WO" badge in EngineerDashboard for >72h WOs | No — just publish |
-| 9. Daniel as Admin | Fixed — DB shows `role: admin` for `daniel.quilo@appliednutrition.uk` | No |
+This ensures direct URL access redirects managers to their dashboard.
 
-## Remaining Code Fix: Login `dashMap` missing `manager` role
+### Clear buttons
+Already correct — `WorkOrdersPage.tsx` line 255 and `AuditLogsPage.tsx` line 72 both check `role === "admin"`.
 
-**File:** `src/pages/Login.tsx` line 35-39
+---
 
-The `dashMap` after login doesn't include the `manager` role, so managers fall to the default path. This needs adding:
+## Section 2: Audit Logging — Extend Coverage
 
-```typescript
-const dashMap: Record<string, string> = {
-  admin: "/dashboard/manager",
-  manager: "/dashboard/manager",  // ← ADD THIS
-  engineer: "/dashboard/engineer",
-  operator: "/dashboard/operator"
-};
-```
+Most WO mutations in `useWorkOrders.ts` already call `logAuditEvent`. Missing events to add:
 
-## BUG 6 Investigation: Audit Logs Still Empty
+| Event | File | Details |
+|-------|------|---------|
+| User created | `ManageUsers.tsx` `handleCreateUser` | `{ name, email, role }` |
+| User role changed | `ManageUsers.tsx` `handleEditUser` | `{ name, email, old_role, new_role }` |
+| User deleted | `ManageUsers.tsx` `handleDeleteUser` | `{ name, email }` |
+| Clear WOs | `WorkOrdersPage.tsx` clear handler | `{ cleared_by }` |
+| Clear Logs | `AuditLogsPage.tsx` `handleClearLogs` | `{ cleared_by }` |
+| PIN changed | `ManageUsers.tsx` engineer PIN | `{ engineer_name }` |
 
-The `log_audit_event` database function is `SECURITY DEFINER` (bypasses RLS), and the code calls it correctly via `supabase.rpc()`. The `audit_logs` table has **no INSERT RLS policy**, but since the function is SECURITY DEFINER, that shouldn't matter.
+WO create, accept, status change already log via `useWorkOrders.ts`. Login already logs via `Login.tsx`. Will verify and add missing calls.
 
-The most likely cause: the code with `logAuditEvent` calls was never published, so production never executes them. After publishing, new logins and WO actions should start generating audit records.
+---
 
-However, as a safety measure, I will also add an INSERT policy for authenticated users so that if any direct inserts are attempted, they won't be silently blocked.
+## Section 3: Collapsible Sidebar
 
-## Implementation
+The sidebar already uses `collapsible="icon"` with `SidebarProvider` which handles cookie-based persistence and the trigger button. The current implementation already:
+- Collapses to icon-only mode
+- Shows tooltips when collapsed
+- Persists state
 
-1. Add `manager` to Login dashMap
-2. Add INSERT RLS policy on `audit_logs` for authenticated users (belt-and-suspenders)
-3. After implementation, user must click **Publish > Update** to deploy all fixes to production
+Minor improvements needed:
+- **`src/components/DashboardLayout.tsx`**: Add `transition-all duration-200` to main content area for smooth resize
+- Verify user name/role area collapses properly (already has `group-data-[collapsible=icon]:hidden` classes)
+
+---
+
+## Section 4: Downtime Module — New Page
+
+### Database
+Create `downtime` table with columns: id, line, machine, reason, category, started_at, ended_at, reported_by, work_order_id, notes, created_at. Use a validation trigger instead of CHECK constraint for category. Enable RLS with admin/manager full access, engineer/operator read.
+
+### New files
+- **`src/hooks/useDowntime.ts`** — CRUD hooks using react-query + supabase
+- **`src/pages/dashboard/DowntimePage.tsx`** — Full page with:
+  - 4 KPI cards (Total Downtime Today, Active Stoppages, Avg Duration, Most Affected Line)
+  - Register Downtime button → modal form
+  - Table with filters (Line, Category, Date, Status)
+  - Edit, Mark Resolved, Delete actions
+
+### Integration
+- **`src/App.tsx`**: Add route `/dashboard/downtime` with `allowedRoles: ["admin", "manager"]`
+- **`src/components/DashboardLayout.tsx`**: Add "Downtime" nav item in Operations group with `Clock` icon
+- **`src/pages/dashboard/ExecutiveDashboard.tsx`**: Update "Downtime Today" KPI to query real downtime table
+
+---
+
+## Section 5: UX Improvements
+
+### 5a. Dashboard title for Admin
+**`src/pages/dashboard/ManagerDashboard.tsx`** line 104: Change from hardcoded "Manager Dashboard" to `{role === "admin" ? "Admin" : "Manager"} Dashboard`.
+
+### 5b. Live timer on Engineer active WOs
+**`src/pages/dashboard/EngineerDashboard.tsx`**: Add a `LiveTimer` component that shows elapsed time since `started_at` for `in_progress` WOs, updating every 60 seconds via `setInterval`.
+
+### 5c. Color-coded WO status badges
+Already implemented — `statusConfig` in both `WorkOrdersPage.tsx` and `EngineerDashboard.tsx` maps statuses to colors (blue=open, amber=in_progress, green=completed, grey=force_closed).
+
+### 5d. Browser tab titles
+**`src/components/DashboardLayout.tsx`**: Add a `useEffect` that sets `document.title` based on the current route using `useLocation()`. Format: `"AN Maintenance | {Page Name}"`.
+
+### 5e. Quick Actions row on Manager/Admin Dashboard
+**`src/pages/dashboard/ManagerDashboard.tsx`**: Add a row of 3 buttons between KPI cards and Quick Links:
+- "+ New Work Order" (blue, opens create WO dialog)
+- "View Open WOs" (links to `/dashboard/work-orders?status=open`)
+- "Control Center" (links to `/dashboard/control-center`)
+
+---
+
+## Files Modified Summary
+
+| File | Changes |
+|------|---------|
+| DB migration | Create `downtime` table + RLS policies |
+| `src/App.tsx` | Restrict audit/users routes to admin, add downtime route |
+| `src/components/DashboardLayout.tsx` | Admin-only sidebar items, downtime nav, browser tab titles, transition |
+| `src/pages/dashboard/ManagerDashboard.tsx` | Dynamic title, quick actions row |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Live timer component |
+| `src/pages/users/ManageUsers.tsx` | Add audit log calls for user CRUD |
+| `src/pages/dashboard/AuditLogsPage.tsx` | Add audit log on clear |
+| `src/pages/dashboard/WorkOrdersPage.tsx` | Add audit log on clear WOs |
+| `src/pages/dashboard/ExecutiveDashboard.tsx` | Real downtime data |
+| `src/hooks/useDowntime.ts` | New — downtime CRUD hooks |
+| `src/pages/dashboard/DowntimePage.tsx` | New — full downtime page |
+
+Implementation will proceed in order: permissions → audit → sidebar → downtime → UX.
 
