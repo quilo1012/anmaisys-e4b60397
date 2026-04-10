@@ -38,6 +38,18 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
 };
 
+function LiveTimer({ startedAt }: { startedAt: string }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(timer);
+  }, []);
+  const mins = differenceInMinutes(new Date(), new Date(startedAt));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return <span className="text-xs font-mono text-amber-700">⏱ {h}h {m}m</span>;
+}
+
 function SLACountdown({ wo }: { wo: any }) {
   const priority = wo.priority || "medium";
   const target = SLA_TARGETS[priority] || 60;
