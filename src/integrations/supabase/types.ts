@@ -137,6 +137,63 @@ export type Database = {
           },
         ]
       }
+      downtime: {
+        Row: {
+          category: string
+          created_at: string
+          ended_at: string | null
+          id: string
+          line: string
+          machine: string | null
+          notes: string | null
+          reason: string
+          reported_by: string | null
+          started_at: string
+          work_order_id: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          line: string
+          machine?: string | null
+          notes?: string | null
+          reason: string
+          reported_by?: string | null
+          started_at?: string
+          work_order_id?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          line?: string
+          machine?: string | null
+          notes?: string | null
+          reason?: string
+          reported_by?: string | null
+          started_at?: string
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "downtime_reported_by_fkey"
+            columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "downtime_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       engineer_scores: {
         Row: {
           engineer_id: string
