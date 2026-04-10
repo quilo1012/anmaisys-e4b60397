@@ -44,6 +44,14 @@ function SLACountdown({ wo }: { wo: any }) {
   const elapsed = differenceInMinutes(new Date(), new Date(wo.created_at));
   const remaining = target - elapsed;
   const breached = remaining <= 0;
+  const isStale = wo.status === "in_progress" && wo.started_at && differenceInMinutes(new Date(), new Date(wo.started_at)) > 4320;
+  if (isStale) {
+    return (
+      <span className="text-xs font-mono font-bold text-orange-600" title="This work order has been in progress for more than 3 days. Consider reviewing or closing it.">
+        🕐 Stale WO
+      </span>
+    );
+  }
   return (
     <span className={`text-xs font-mono font-bold ${breached ? "text-red-600" : remaining <= 10 ? "text-orange-600" : "text-green-600"}`}>
       {breached ? `⚠️ +${Math.abs(remaining)}min` : `${remaining}min`}

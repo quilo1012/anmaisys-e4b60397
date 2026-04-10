@@ -414,7 +414,14 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                           {isCol("line") && <TableCell className="text-sm font-medium">{woLine}</TableCell>}
                           {isCol("machine") && <TableCell className="cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/machines/${encodeURIComponent(wo.machine)}/history`)}>{wo.machine}</TableCell>}
                           {isCol("problem") && <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>}
-                          {isCol("status") && <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>}
+                          {isCol("status") && <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
+                              {wo.status === "in_progress" && wo.started_at && differenceInMinutes(new Date(), new Date(wo.started_at)) > 4320 && (
+                                <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-[10px]" variant="outline" title="This work order has been in progress for more than 3 days. Consider reviewing or closing it.">Stale</Badge>
+                              )}
+                            </div>
+                          </TableCell>}
                           {isCol("requester") && <TableCell className="text-sm">{wo.requester_name}</TableCell>}
                           {isCol("engineer") && <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>}
                           {isCol("created") && <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>}
