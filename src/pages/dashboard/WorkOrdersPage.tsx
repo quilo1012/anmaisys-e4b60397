@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
 import { generatePdfReport } from "@/lib/generatePdfReport";
 import { FileText } from "lucide-react";
+import { logAuditEvent } from "@/hooks/useAuditLogs";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -586,6 +587,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                   const result = await res.json();
                   if (!res.ok) throw new Error(result.error || "Failed");
                   toast({ title: "Work orders cleared", description: "All work order data has been removed." });
+                  logAuditEvent("work_orders_cleared", "system", undefined, { cleared_by: user?.email });
                   setShowClearWOs(false);
                   setClearPin("");
                   setClearConfirmText("");
