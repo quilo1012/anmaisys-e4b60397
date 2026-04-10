@@ -26,7 +26,7 @@ export default function AuditLogsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
 
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: logs, isLoading } = useAuditLogs({ entityType, search });
