@@ -14,7 +14,7 @@ interface Notification {
   message: string;
   timestamp: Date;
   read: boolean;
-  type: "new_wo" | "assigned" | "status_change" | "overdue";
+  type: "new_wo" | "assigned" | "status_change" | "overdue" | "low_stock";
 }
 
 export function NotificationPanel() {
@@ -36,7 +36,7 @@ export function NotificationPanel() {
       .channel("notifications_panel")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "work_orders" }, (payload) => {
         const wo = payload.new as any;
-        if (role === "admin" || role === "engineer") {
+        if (role === "admin" || role === "manager" || role === "engineer") {
           addNotification({
             type: "new_wo",
             title: "New Work Order",
@@ -50,7 +50,7 @@ export function NotificationPanel() {
         if (old.status !== wo.status) {
           if (wo.engineer_id === user.id && old.status === "open" && wo.status === "received") {
             // skip self-assignment
-          } else if (role === "admin" || wo.engineer_id === user.id || wo.operator_id === user.id) {
+          } else if (role === "admin" || role === "manager" || wo.engineer_id === user.id || wo.operator_id === user.id) {
             addNotification({
               type: "status_change",
               title: "Status Changed",
@@ -63,6 +63,16 @@ export function NotificationPanel() {
             type: "assigned",
             title: "Assigned to You",
             message: `WO #${wo.wo_number} — ${wo.machine}`,
+          });
+        }
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "products" }, (payload) => {
+        const product = payload.new as any;
+        if ((role === "admin" || role === "manager") && product.quantity <= product.min_stock) {
+          addNotification({
+            type: "low_stock",
+            title: "Low Stock Alert",
+            message: `${product.name} (${product.code}) is at ${product.quantity} units (min: ${product.min_stock})`,
           });
         }
       })
@@ -82,6 +92,7 @@ export function NotificationPanel() {
     assigned: "bg-primary",
     status_change: "bg-amber-500",
     overdue: "bg-destructive",
+    low_stock: "bg-orange-500",
   };
 
   return (

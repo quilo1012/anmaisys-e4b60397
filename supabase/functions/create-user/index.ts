@@ -10,7 +10,7 @@ const createUserSchema = z.object({
   email: z.string().email("Invalid email format").max(255),
   password: z.string().min(8, "Password must be at least 8 characters").max(128),
   name: z.string().trim().min(1, "Name is required").max(100),
-  role: z.enum(["admin", "engineer", "operator"], { errorMap: () => ({ message: "Invalid role" }) }),
+  role: z.enum(["admin", "manager", "engineer", "operator"], { errorMap: () => ({ message: "Invalid role" }) }),
   shift: z.string().max(50).optional(),
 });
 
@@ -37,15 +37,17 @@ Deno.serve(async (req) => {
     const { data: { user: caller } } = await supabaseUser.auth.getUser();
     if (!caller) throw new Error("Not authenticated");
 
-    const { data: isAdmin } = await supabaseAdmin.rpc("has_role", {
-      _user_id: caller.id,
-      _role: "admin",
-    });
+    // Check if caller is admin or manager
+    const { data: isAdmin } = await supabaseAdmin.rpc("has_role", { _user_id: caller.id, _role: "admin" });
+    const { data: isManager } = await supabaseAdmin.rpc("has_role", { _user_id: caller.id, _role: "manager" });
 
-    if (!isAdmin) throw new Error("Only managers can create users");
+    if (!isAdmin && !isManager) throw new Error("Only managers and admins can create users");
 
     const body = createUserSchema.parse(await req.json());
     const { email, password, name, role, shift } = body;
+
+    // Only admins can create admin users
+    if (role === "admin" && !isAdmin) throw new Error("Only admins can assign the Admin role");
 
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, Database } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, Database, ShieldCheck } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { differenceInMinutes } from "date-fns";
@@ -13,14 +13,17 @@ import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
+import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
+const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
 
 export default function ManagerDashboard() {
   const { data: allWOs } = useWorkOrders();
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products } = useProducts();
+  const { role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -63,7 +66,7 @@ export default function ManagerDashboard() {
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
 
   const kpis = useMemo(() => {
-    if (!allWOs) return { avgResponse: 0, avgMTTR: 0 };
+    if (!allWOs) return { avgResponse: 0, avgMTTR: 0, slaPercent: 0 };
     const done = allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.started_at);
     let totalResp = 0, totalMTTR = 0, count = 0;
     done.forEach((wo) => {
@@ -74,7 +77,14 @@ export default function ManagerDashboard() {
       }
       count++;
     });
-    return { avgResponse: count ? Math.round(totalResp / count) : 0, avgMTTR: count ? Math.round(totalMTTR / count) : 0 };
+    // SLA compliance
+    const closedWOs = allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.received_at);
+    const withinSLA = closedWOs.filter((w) => {
+      const target = SLA_TARGETS[w.priority || "medium"] || 60;
+      return differenceInMinutes(new Date(w.received_at!), new Date(w.created_at)) <= target;
+    }).length;
+    const slaPercent = closedWOs.length ? Math.round((withinSLA / closedWOs.length) * 100) : 100;
+    return { avgResponse: count ? Math.round(totalResp / count) : 0, avgMTTR: count ? Math.round(totalMTTR / count) : 0, slaPercent };
   }, [allWOs]);
 
   const handleChangePin = async () => {
@@ -122,7 +132,7 @@ export default function ManagerDashboard() {
             <p className="text-muted-foreground">System overview and quick access</p>
           </div>
           <div className="flex gap-2">
-            {isPreview && (
+            {isPreview && role === "admin" && (
               <Button variant="outline" size="sm" onClick={handleSeedDemo} disabled={seeding}>
                 {seeding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
                 Seed Demo Data
@@ -143,7 +153,7 @@ export default function ManagerDashboard() {
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg Response</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgResponse} min</div></CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg MTTR</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgMTTR} min</div></CardContent></Card>
+          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">SLA Compliance</CardTitle><ShieldCheck className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-2xl font-bold ${kpis.slaPercent < 80 ? "text-destructive" : "text-green-600"}`}>{kpis.slaPercent}%</div></CardContent></Card>
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Parts Today</CardTitle><Package className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{partsToday ?? 0}</div></CardContent></Card>
           <Card className={lowStockCount > 0 ? "border-destructive" : ""}><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Low Stock</CardTitle><AlertTriangle className={`h-4 w-4 ${lowStockCount > 0 ? "text-destructive" : "text-muted-foreground"}`} /></CardHeader><CardContent><div className={`text-2xl font-bold ${lowStockCount > 0 ? "text-destructive" : ""}`}>{lowStockCount}</div></CardContent></Card>
         </div>

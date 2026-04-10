@@ -8,6 +8,7 @@ type AppRole = Database["public"]["Enums"]["app_role"];
 
 const dashMap: Record<AppRole, string> = {
   admin: "/dashboard/manager",
+  manager: "/dashboard/manager",
   engineer: "/dashboard/engineer",
   operator: "/dashboard/operator",
 };
