@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound } from "lucide-react";
+import { logAuditEvent } from "@/hooks/useAuditLogs";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -95,6 +96,7 @@ export default function ManageUsers() {
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       toast({ title: "User created", description: `${name} has been added as ${roleLabels[role]}` });
+      logAuditEvent("user_created", "user", undefined, { name: name.trim(), email: email.trim().toLowerCase(), role });
       setOpen(false);
       setEmail(""); setPassword(""); setName(""); setRole("operator");
       fetchUsers();
@@ -133,6 +135,9 @@ export default function ManageUsers() {
       const res = await supabase.functions.invoke("update-user", { body });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
+      if (editUser.role !== editRole) {
+        logAuditEvent("user_role_changed", "user", editUser.id, { name: editName.trim(), email: editEmail.trim(), old_role: editUser.role, new_role: editRole });
+      }
       toast({ title: "User updated" });
       setEditUser(null);
       fetchUsers();
@@ -145,10 +150,12 @@ export default function ManageUsers() {
 
   const handleDeleteUser = async (userId: string) => {
     setDeleteLoading(userId);
+    const targetUser = users.find(u => u.id === userId);
     try {
       const res = await supabase.functions.invoke("delete-user", { body: { userId } });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
+      logAuditEvent("user_deleted", "user", userId, { name: targetUser?.name, email: targetUser?.email });
       toast({ title: "User deleted" });
       fetchUsers();
     } catch (error: any) {
@@ -194,6 +201,7 @@ export default function ManageUsers() {
       if (error) throw error;
       if (editEngPin.length >= 4) {
         await supabase.rpc("set_engineer_pin_standalone" as any, { _engineer_id: editEng.id, _new_pin: editEngPin });
+        logAuditEvent("pin_changed", "engineer", editEng.id, { engineer_name: editEngName.trim() });
       }
       toast({ title: "Engineer updated" });
       setEditEng(null);

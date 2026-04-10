@@ -11,7 +11,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Loader2, Search, Shield, Trash2 } from "lucide-react";
-import { useAuditLogs } from "@/hooks/useAuditLogs";
+import { useAuditLogs, logAuditEvent } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -26,7 +26,7 @@ export default function AuditLogsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
 
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: logs, isLoading } = useAuditLogs({ entityType, search });
@@ -51,6 +51,7 @@ export default function AuditLogsPage() {
       const { error } = await supabase.from("audit_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000");
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["audit_logs"] });
+      logAuditEvent("audit_logs_cleared", "system", undefined, { cleared_by: profile?.email });
       toast({ title: "Audit logs cleared" });
       setDialogOpen(false);
       setPin("");

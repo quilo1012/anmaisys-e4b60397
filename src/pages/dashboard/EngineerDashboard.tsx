@@ -38,6 +38,18 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
 };
 
+function LiveTimer({ startedAt }: { startedAt: string }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(timer);
+  }, []);
+  const mins = differenceInMinutes(new Date(), new Date(startedAt));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return <span className="text-xs font-mono text-amber-700">⏱ {h}h {m}m</span>;
+}
+
 function SLACountdown({ wo }: { wo: any }) {
   const priority = wo.priority || "medium";
   const target = SLA_TARGETS[priority] || 60;
@@ -343,6 +355,7 @@ export default function EngineerDashboard() {
             </span>
             <div className="flex gap-1.5 items-center">
               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
+              {wo.status === "in_progress" && wo.started_at && <LiveTimer startedAt={wo.started_at} />}
               {!isOpen && (
                 <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}>
                   <Printer className="h-4 w-4" />
@@ -546,7 +559,7 @@ export default function EngineerDashboard() {
                             <td className="p-2">{wo.machine}</td>
                             <td className="p-2 max-w-[200px] truncate">{wo.description}</td>
                             <td className="p-2 text-muted-foreground">{wo.engineer_name || "—"}</td>
-                            <td className="p-2"><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></td>
+                            <td className="p-2"><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>{wo.status === "in_progress" && wo.started_at && <span className="ml-1"><LiveTimer startedAt={wo.started_at} /></span>}</td>
                             <td className="p-2 text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</td>
                             <td className="p-2">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</td>
                             <td className="p-2">
