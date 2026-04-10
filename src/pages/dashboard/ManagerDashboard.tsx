@@ -25,7 +25,7 @@ export default function ManagerDashboard() {
   const { role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  
   const [showChangePin, setShowChangePin] = useState(false);
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
