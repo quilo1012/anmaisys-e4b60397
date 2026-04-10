@@ -80,7 +80,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const toggleCol = (key: ColKey) => setVisibleCols((prev) => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
   const isCol = (key: ColKey) => visibleCols.has(key);
 
-  const filterStatuses = statusFilter === "all" ? undefined : [statusFilter as WOStatus];
+  const filterStatuses = statusFilter === "all" || statusFilter === "stale" ? undefined : [statusFilter as WOStatus];
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
   const forceClose = useForceCloseWorkOrder();
   const closeWO = useCloseWorkOrder();
@@ -328,6 +328,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                   <SelectItem value="finished">Finished</SelectItem>
                   <SelectItem value="closed">Closed</SelectItem>
                   <SelectItem value="force_closed">Force Closed</SelectItem>
+                  <SelectItem value="stale">Stale (&gt;72h)</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={lineFilter} onValueChange={setLineFilter}>
