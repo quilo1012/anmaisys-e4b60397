@@ -15,7 +15,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
@@ -39,6 +40,7 @@ const navItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"], group: "Operations" },
   { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager"], group: "Operations" },
   { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager"], group: "Operations" },
+  { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager"], group: "Operations" },
   { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager"], group: "Operations" },
   // Assets
   { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager"], group: "Assets" },
@@ -49,8 +51,8 @@ const navItems: NavItem[] = [
   { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin", "manager"], group: "Reports" },
   { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin", "manager"], group: "Reports" },
   // Admin
-  { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Admin" },
-  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin", "manager"], group: "Admin" },
+  { title: "Users", url: "/users/manage", icon: Users, roles: ["admin"], group: "Admin" },
+  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Admin" },
 ];
 
 function useDarkMode() {
@@ -149,11 +151,35 @@ const roleTitle: Record<string, string> = {
   operator: "Operator",
 };
 
+const routeTitles: Record<string, string> = {
+  "/dashboard/operator": "Dashboard",
+  "/dashboard/engineer": "Dashboard",
+  "/dashboard/manager": "Dashboard",
+  "/dashboard/work-orders": "Work Orders",
+  "/dashboard/downtime": "Downtime",
+  "/dashboard/control-center": "Control Center",
+  "/dashboard/machines": "Machines",
+  "/dashboard/problems": "Problems",
+  "/dashboard/stock": "Stock",
+  "/dashboard/analytics": "Analytics",
+  "/dashboard/financial": "Financial",
+  "/dashboard/executive": "Executive",
+  "/users/manage": "Users",
+  "/dashboard/audit-logs": "Audit Logs",
+};
+
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { role, profile, signOut } = useAuth();
   const { dark, toggle: toggleDark } = useDarkMode();
+  const location = useLocation();
 
   useHeartbeat();
+
+  // Browser tab title
+  useEffect(() => {
+    const pageName = routeTitles[location.pathname] || "Dashboard";
+    document.title = `AN Maintenance | ${pageName}`;
+  }, [location.pathname]);
 
   const filteredItems = navItems.filter((item) => role && item.roles.includes(role));
 
@@ -188,7 +214,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             </div>
           </Sidebar>
 
-          <main className="flex-1 flex flex-col">
+          <main className="flex-1 flex flex-col transition-all duration-200">
             <header className="h-14 border-b bg-card flex items-center px-4 gap-3 print:hidden">
               <SidebarTrigger />
               <h1 className="text-lg font-semibold text-foreground">

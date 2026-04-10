@@ -24,6 +24,7 @@ const StockPage = lazy(() => import("./pages/dashboard/StockPage"));
 const AuditLogsPage = lazy(() => import("./pages/dashboard/AuditLogsPage"));
 const ExecutiveDashboard = lazy(() => import("./pages/dashboard/ExecutiveDashboard"));
 const ManageUsers = lazy(() => import("./pages/users/ManageUsers"));
+const DowntimePage = lazy(() => import("./pages/dashboard/DowntimePage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,11 +69,12 @@ const App = () => (
               <Route path="/dashboard/problems" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ProblemsPage /></ProtectedRoute>} />
               <Route path="/dashboard/control-center" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ControlCenterPage /></ProtectedRoute>} />
               <Route path="/dashboard/machines/:name/history" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><MachineHistoryPage /></ProtectedRoute>} />
-              <Route path="/dashboard/audit-logs" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><AuditLogsPage /></ProtectedRoute>} />
+              <Route path="/dashboard/audit-logs" element={<ProtectedRoute allowedRoles={["admin"]}><AuditLogsPage /></ProtectedRoute>} />
               <Route path="/dashboard/executive" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ExecutiveDashboard /></ProtectedRoute>} />
+              <Route path="/dashboard/downtime" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><DowntimePage /></ProtectedRoute>} />
               <Route path="/dashboard/wo/:id" element={<ProtectedRoute allowedRoles={["operator", "engineer", "admin", "manager"]}><WorkOrderDetail /></ProtectedRoute>} />
               <Route path="/dashboard/stock" element={<ProtectedRoute allowedRoles={["engineer", "admin", "manager"]}><StockPage /></ProtectedRoute>} />
-              <Route path="/users/manage" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ManageUsers /></ProtectedRoute>} />
+              <Route path="/users/manage" element={<ProtectedRoute allowedRoles={["admin"]}><ManageUsers /></ProtectedRoute>} />
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
