@@ -560,13 +560,14 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
               <Button variant="destructive" disabled={clearing || clearPin.length < 4 || clearConfirmText !== "CONFIRM"} onClick={async () => {
                 setClearing(true);
                 try {
-                  const { data: settings } = await (await import("@/integrations/supabase/client")).supabase.from("system_settings").select("admin_pin").limit(1).single();
-                  if (!settings || clearPin !== settings.admin_pin) {
+                  const { supabase } = await import("@/integrations/supabase/client");
+                  const { data: pinResult, error: pinError } = await supabase.functions.invoke("verify-admin-pin", { body: { pin: clearPin } });
+                  if (pinError || !pinResult?.valid) {
                     toast({ title: "Invalid PIN", description: "The PIN entered is incorrect.", variant: "destructive" });
                     setClearing(false);
                     return;
                   }
-                  const { data: { session } } = await (await import("@/integrations/supabase/client")).supabase.auth.getSession();
+                  const { data: { session } } = await supabase.auth.getSession();
                   const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clear-system`, {
                     method: "POST",
                     headers: { "Authorization": `Bearer ${session?.access_token}`, "Content-Type": "application/json" },
