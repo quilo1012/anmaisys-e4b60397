@@ -89,9 +89,19 @@ export default function OperatorDashboard() {
       return;
     }
     try {
-      await createWO.mutateAsync({ requester_name: (requesterName.trim() || profile?.name || "").trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium" });
+      let created_at: string | undefined;
+      if (isRetroactive && retroDate) {
+        const d = new Date(retroDate);
+        if (retroTime) {
+          const [h, m] = retroTime.split(":").map(Number);
+          d.setHours(h, m, 0, 0);
+        }
+        created_at = d.toISOString();
+      }
+      await createWO.mutateAsync({ requester_name: (requesterName.trim() || profile?.name || "").trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium", created_at });
       toast({ title: "Work Order Created", description: "Your WO has been submitted." });
       setRequesterName(""); setLine(""); setMachine(""); setDescription(""); setNotes("");
+      setIsRetroactive(false); setRetroDate(undefined); setRetroTime("");
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
     }
