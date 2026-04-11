@@ -193,6 +193,22 @@ select:-webkit-autofill {
     padding: 0 !important;
   }
 
+  /* Reset fixed-height layout for print */
+  .flex.h-screen {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  main, .flex-1 {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .overflow-y-auto {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
   #root {
     display: block !important;
     width: 100% !important;
