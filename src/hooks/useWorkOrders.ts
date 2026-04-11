@@ -240,18 +240,18 @@ export function useCloseWorkOrder() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (woId: string) => {
+    mutationFn: async ({ woId, signatureName }: { woId: string; signatureName: string }) => {
       const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
-        .update({ status: "closed" as any, closed_by: user!.id, closed_at: new Date().toISOString() } as any)
+        .update({ status: "closed" as any, closed_by: user!.id, closed_at: new Date().toISOString(), operator_signature_name: signatureName } as any)
         .eq("id", woId);
       if (error) throw error;
       return { before };
     },
-    onSuccess: (result, woId) => {
+    onSuccess: (result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("close", "work_order", woId, { before: result.before, after: { status: "closed" } });
+      logAuditEvent("close", "work_order", vars.woId, { before: result.before, after: { status: "closed", operator_signature: vars.signatureName } });
     },
   });
 }

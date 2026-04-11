@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon } from "lucide-react";
-import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
+import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon, CheckCircle } from "lucide-react";
+import { useWorkOrders, useCreateWorkOrder, useCloseWorkOrder } from "@/hooks/useWorkOrders";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines } from "@/hooks/useMachines";
@@ -51,8 +52,13 @@ export default function OperatorDashboard() {
   const { data: machines } = useMachines();
   const { data: problemDescriptions } = useActiveProblemDescriptions();
   const createWO = useCreateWorkOrder();
+  const closeWO = useCloseWorkOrder();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Close dialog state
+  const [closeDialogWO, setCloseDialogWO] = useState<string | null>(null);
+  const [closeSigName, setCloseSigName] = useState("");
 
   // Distinct lines for filter
   const lines = useMemo(() => {
@@ -85,14 +91,7 @@ export default function OperatorDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requestedBy.trim() || !machine.trim() || !description.trim()) {
-      toast({ title: "Error", description: "All fields are required", variant: "destructive" });
-      return;
-    }
-    if (isRetroactive && (!retroDate || !retroTime)) {
-      toast({ title: "Error", description: "Please select a retroactive date and time.", variant: "destructive" });
-      return;
-    }
+    // No required field validation — all fields are optional
     try {
       let created_at: string | undefined;
       if (isRetroactive && retroDate) {
@@ -271,8 +270,9 @@ export default function OperatorDashboard() {
                      <TableHead>Status</TableHead>
                      <TableHead>Created</TableHead>
                      <TableHead>Engineer</TableHead>
-                     <TableHead>Parts</TableHead>
-                   </TableRow>
+                      <TableHead>Parts</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
                  </TableHeader>
                  <TableBody>
                    {workOrders.map((wo) => {
@@ -292,8 +292,15 @@ export default function OperatorDashboard() {
                            ) : (
                              <span className="text-muted-foreground">—</span>
                            )}
-                         </TableCell>
-                       </TableRow>
+                          </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {wo.status === "finished" && (
+                              <Button size="sm" variant="default" onClick={() => { setCloseDialogWO(wo.id); setCloseSigName(""); }}>
+                                <CheckCircle className="h-3 w-3 mr-1" /> Close
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
                     );
                   })}
                 </TableBody>
@@ -302,6 +309,40 @@ export default function OperatorDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Close WO Dialog — Operator Signature */}
+      <Dialog open={!!closeDialogWO} onOpenChange={(o) => { if (!o) setCloseDialogWO(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Close Work Order</DialogTitle>
+            <DialogDescription>Sign your name to confirm and close this work order.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Operator Signature (Name)</Label>
+            <Input value={closeSigName} onChange={(e) => setCloseSigName(e.target.value)} placeholder="Enter your name" autoComplete="off" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloseDialogWO(null)}>Cancel</Button>
+            <Button
+              disabled={!closeSigName.trim() || closeWO.isPending}
+              onClick={async () => {
+                if (!closeDialogWO) return;
+                try {
+                  await closeWO.mutateAsync({ woId: closeDialogWO, signatureName: closeSigName.trim() });
+                  toast({ title: "Work Order Closed", description: "The work order has been closed successfully." });
+                  setCloseDialogWO(null);
+                  setCloseSigName("");
+                } catch {
+                  toast({ title: "Error", description: "Failed to close work order", variant: "destructive" });
+                }
+              }}
+            >
+              {closeWO.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Confirm & Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

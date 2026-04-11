@@ -145,11 +145,8 @@ function useChecklistComplete(woDescription: string | undefined, woId: string | 
   const { data: checklistItems } = useChecklistsByProblemName(woDescription);
   const { data: responses } = useChecklistResponses(woId);
 
-  return useMemo(() => {
-    if (!checklistItems || checklistItems.length === 0) return true; // no checklist = no block
-    const responseMap = new Map(responses?.map(r => [r.checklist_id, r]) || []);
-    return checklistItems.filter(i => i.is_required).every(i => responseMap.get(i.id)?.completed);
-  }, [checklistItems, responses]);
+  // Checklist temporarily disabled — always allow finishing
+  return true;
 }
 
 // DB-backed photo status button — replaces volatile local state
@@ -374,8 +371,7 @@ export default function EngineerDashboard() {
           </div>
           <p className="text-sm text-muted-foreground truncate">{wo.description}</p>
 
-          {/* Inline checklist for in_progress WOs */}
-          {isInProgress && <InlineChecklist wo={wo} currentEngineer={currentEngineer} />}
+          {/* Checklist temporarily hidden */}
 
           <div className="grid grid-cols-2 gap-2 pt-1">
             {wo.status === "open" && (
@@ -603,7 +599,7 @@ export default function EngineerDashboard() {
                               </div>
                             </td>
                           </tr>
-                          <DesktopInlineChecklist key={`cl-${wo.id}`} wo={wo} />
+                          {/* Checklist temporarily hidden */}
                         </>
                       );
                     })}

@@ -671,6 +671,7 @@ export type Database = {
           notes: string | null
           notified_engineers: string[] | null
           operator_id: string
+          operator_signature_name: string | null
           pause_reason: string
           paused_at: string | null
           priority: string
@@ -698,6 +699,7 @@ export type Database = {
           notes?: string | null
           notified_engineers?: string[] | null
           operator_id: string
+          operator_signature_name?: string | null
           pause_reason?: string
           paused_at?: string | null
           priority?: string
@@ -725,6 +727,7 @@ export type Database = {
           notes?: string | null
           notified_engineers?: string[] | null
           operator_id?: string
+          operator_signature_name?: string | null
           pause_reason?: string
           paused_at?: string | null
           priority?: string
