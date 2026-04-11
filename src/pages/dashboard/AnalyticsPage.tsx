@@ -1,17 +1,21 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, BarChart3, Trophy, Award, TrendingUp, TrendingDown, Printer, FileText } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, BarChart3, Trophy, Award, TrendingUp, TrendingDown, Printer, FileText, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { useMachines } from "@/hooks/useMachines";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
-import { differenceInMinutes, format, subDays } from "date-fns";
+import { differenceInMinutes, format, subDays, startOfDay, endOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { cn } from "@/lib/utils";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
@@ -19,12 +23,36 @@ const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444
 
 const truncLabel = (s: string, max = 20) => s.length > max ? s.slice(0, max - 1) + "…" : s;
 
+type PeriodPreset = "7d" | "30d" | "90d" | "custom";
+
 export default function AnalyticsPage() {
-  const { data: allWOs } = useWorkOrders();
+  const [period, setPeriod] = useState<PeriodPreset>("30d");
+  const [startDate, setStartDate] = useState<Date>(startOfDay(subDays(new Date(), 30)));
+  const [endDate, setEndDate] = useState<Date>(endOfDay(new Date()));
+
+  const handlePeriodChange = (val: PeriodPreset) => {
+    setPeriod(val);
+    if (val !== "custom") {
+      const days = val === "7d" ? 7 : val === "30d" ? 30 : 90;
+      setStartDate(startOfDay(subDays(new Date(), days)));
+      setEndDate(endOfDay(new Date()));
+    }
+  };
+
+  const { data: rawWOs } = useWorkOrders();
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products } = useProducts();
   const { data: machines } = useMachines();
   const { data: engineerScores } = useEngineerScores();
+
+  // Filter WOs by date range
+  const allWOs = useMemo(() => {
+    if (!rawWOs) return undefined;
+    return rawWOs.filter((w) => {
+      const d = new Date(w.created_at);
+      return d >= startDate && d <= endDate;
+    });
+  }, [rawWOs, startDate, endDate]);
 
   const { data: userCount } = useQuery({
     queryKey: ["user_count"],
@@ -51,7 +79,6 @@ export default function AnalyticsPage() {
       if (end) { totalMTTR += differenceInMinutes(new Date(end), new Date(wo.started_at!)); }
       count++;
     });
-    // MTBF: avg time between failures per machine
     let mtbf = 0;
     if (allWOs.length > 1) {
       const byMachine: Record<string, Date[]> = {};
@@ -73,15 +100,22 @@ export default function AnalyticsPage() {
     return { avgResponse: count ? Math.round(totalResp / count) : 0, avgMTTR: count ? Math.round(totalMTTR / count) : 0, avgMTBF: mtbf };
   }, [allWOs]);
 
+  // Compute days for the "WOs per Day" chart based on the selected range
+  const rangeDays = useMemo(() => {
+    const diffMs = endDate.getTime() - startDate.getTime();
+    return Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  }, [startDate, endDate]);
+
   const wosPerDay = useMemo(() => {
     if (!allWOs) return [];
+    const displayDays = Math.min(rangeDays, 30); // show at most 30 bars
     const days: { date: string; count: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = subDays(new Date(), i);
+    for (let i = displayDays - 1; i >= 0; i--) {
+      const d = subDays(endDate, i);
       days.push({ date: format(d, "dd/MM"), count: allWOs.filter((w) => new Date(w.created_at).toDateString() === d.toDateString()).length });
     }
     return days;
-  }, [allWOs]);
+  }, [allWOs, endDate, rangeDays]);
 
   const ordersByStatus = useMemo(() => {
     if (!allWOs) return [];
