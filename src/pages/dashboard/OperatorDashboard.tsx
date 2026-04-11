@@ -147,7 +147,7 @@ export default function OperatorDashboard() {
         }
         created_at = d.toISOString();
       }
-      await createWO.mutateAsync({ requester_name: requestedBy.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium", created_at });
+      await createWO.mutateAsync({ requester_name: requestedBy.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: autoPriority.priority, created_at });
       toast({ title: "Work Order Created", description: "Your WO has been submitted." });
       setRequestedBy(""); setLine(""); setMachine(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime("");
@@ -278,6 +278,25 @@ export default function OperatorDashboard() {
                           ))}
                         </div>
                       )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+              {/* AI Insights + Auto Priority */}
+              {aiInsights && (
+                <div className="md:col-span-2">
+                  <Card className={cn("border-l-4", autoPriority.priority === "high" ? "border-l-red-500 bg-red-500/5" : autoPriority.priority === "medium" ? "border-l-amber-500 bg-amber-500/5" : "border-l-green-500 bg-green-500/5")}>
+                    <CardContent className="p-3 space-y-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Zap className="h-4 w-4" />
+                        <span className="font-medium">AI Insight</span>
+                        <Badge variant="outline" className={cn("text-xs", autoPriority.priority === "high" ? "bg-red-100 text-red-800" : autoPriority.priority === "medium" ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800")}>
+                          Priority: {autoPriority.priority.toUpperCase()}
+                        </Badge>
+                        {aiInsights.isRecurring && <Badge variant="destructive" className="text-xs">Recurring</Badge>}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{autoPriority.reason}</p>
+                      <p className="text-xs text-muted-foreground">{aiInsights.occurrences} occurrence(s) in 30 days{aiInsights.weekCount > 0 ? `, ${aiInsights.weekCount} this week` : ""}</p>
                     </CardContent>
                   </Card>
                 </div>
