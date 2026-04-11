@@ -1,40 +1,67 @@
 
 
-# Fix Work Order Print/PDF Layout
+# Fix 6 Production Bugs
+
+## Analysis Summary
+
+| Fix | Root Cause | Effort |
+|-----|-----------|--------|
+| 1. Engineer PIN Save | Button calls `handleEditEngineer` which works — but user may expect a dedicated "Change PIN" modal. Currently it's inline in the Edit Engineer dialog. The `Save` button works if PIN ≥ 4 digits. **Needs investigation in production vs code.** |
+| 2. Clear WOs/Logs PIN | Edge function `verify-admin-pin` actually works correctly (tested: "1234" → valid, "9999" → invalid). Default PIN is "1234". User may be testing with "1234" thinking it should fail. **No code bug — PIN validation works.** |
+| 3. Downtime crash | Line 209: `<SelectItem value="">None</SelectItem>` — empty string value crashes Radix Select. |
+| 4. Checklist Add | Button is disabled when `!newType` (line 121). User must select a type first. Not obvious UX. Need to make type default to first option or make it optional. |
+| 5. Print layout | Print CSS already hides `button`, `header`, `nav`, sidebar elements. The `print:hidden` classes are on Back/Print buttons. May need stronger selectors for the DashboardLayout header element. |
+| 6. Analytics Print/PDF | No Print/PDF buttons exist on Analytics page. Need to add them. |
 
 ## Changes
 
-### 1. Fix Total Time calculation (`WorkOrderDetail.tsx` line 183)
-Current code only calculates `totalTime` when WO is closed/completed. For in-progress WOs, it returns `null` → shows "—".
+### FIX 3 — Downtime Select crash (critical)
+**File: `src/pages/dashboard/DowntimePage.tsx` line 209**
+- Remove `<SelectItem value="">None</SelectItem>` 
+- Add a `value="none"` instead and handle "none" as null in the submit handler
 
-**Fix:** Calculate total time as sum of components, and for in-progress WOs, calculate up to now:
-```typescript
-const totalTime = (wo.closed_at || wo.completed_at)
-  ? differenceInMinutes(new Date(wo.closed_at || wo.completed_at!), new Date(wo.created_at))
-  : (responseTime || 0) + (travelTime || 0) + (repairTime !== null ? repairTime : (wo.started_at ? differenceInMinutes(new Date(), new Date(wo.started_at)) : 0));
-```
+### FIX 4 — Checklist Add button appears broken
+**File: `src/pages/dashboard/ProblemsPage.tsx` line 107-121**
+- Default `newType` to `"Safety"` instead of empty string so button isn't disabled
+- This makes the Add button immediately clickable after typing a description
 
-### 2. Improve print logo (line 199-201)
-Change logo from `h-10 w-10` to `h-12` (height ~50px), and make "AN MAINTENANCE" text larger/bolder.
+### FIX 1 — Engineer PIN Save button
+**File: `src/pages/users/ManageUsers.tsx` lines 196-213**
+- The Save button calls `handleEditEngineer` which does work (updates name, active status, and PIN if ≥ 4 digits)
+- Add a toast confirmation specifically for PIN change: "PIN updated for {name}"
+- Ensure the dialog closes after save (it does via `setEditEng(null)` on line 207)
+- Add `type="button"` to the Save button to prevent form submission issues
 
-### 3. Add stronger print CSS (`src/index.css`)
-Add these rules to the existing `@media print` block to ensure DashboardLayout chrome is fully hidden:
-- Hide all `button` elements
-- Hide `.breadcrumb`, `[data-sidebar]` elements (already partially there but needs reinforcement)
-- Target the specific DashboardLayout header bar containing the sidebar trigger and breadcrumb
+### FIX 2 — Clear WOs/Logs PIN validation
+The edge function works correctly. The default admin PIN is "1234". 
+- Add a clear error message when PIN is invalid: "Invalid security PIN. Action cancelled."
+- In `WorkOrdersPage.tsx` and `AuditLogsPage.tsx`, ensure the clear action is blocked when `valid === false`
+- Currently both files check `!verifyData?.valid` — this is correct but the toast says "Invalid PIN" which is fine
+- **No real bug here** — will add better error feedback
 
-### 4. Priority in print header — already plain text (line 216)
-The print metadata row at line 216 already shows `{pri.label}` as plain text, not a badge. No change needed here — the issue is that the screen-only badges (line 240) might bleed through. They already have `print:hidden` on line 234. Will verify CSS specificity.
+### FIX 5 — Print layout cleanup
+**File: `src/index.css`**
+- The existing CSS already hides buttons, nav, sidebar, header, breadcrumb
+- The DashboardLayout wraps content in a `<main>` inside a flex layout with sidebar — need to ensure the flex parent doesn't constrain print width
+- Add selector for the DashboardLayout's header bar: target the specific `<header>` element containing SidebarTrigger
+- Ensure `main` takes `100% !important` width and sidebar wrapper is hidden
+
+### FIX 6 — Analytics Print/PDF buttons
+**File: `src/pages/dashboard/AnalyticsPage.tsx`**
+- Add Print and Export PDF buttons in the page header
+- Print: `window.print()`
+- PDF: Use `generatePdfReport` or simplified jsPDF export with KPI data
+- Add `print:hidden` to the button bar
 
 ## Files to modify
 
 | File | Change |
 |------|--------|
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Fix totalTime calc for in-progress WOs; enlarge logo; ensure all screen elements have `print:hidden` |
-| `src/index.css` | Add print rules to hide breadcrumb bar and all buttons more aggressively |
+| `src/pages/dashboard/DowntimePage.tsx` | Fix empty SelectItem value (line 209) |
+| `src/pages/dashboard/ProblemsPage.tsx` | Default checklist type to "Safety" |
+| `src/pages/users/ManageUsers.tsx` | Better PIN save feedback, type="button" |
+| `src/pages/dashboard/AnalyticsPage.tsx` | Add Print/PDF buttons |
+| `src/index.css` | Strengthen print CSS for DashboardLayout header |
 
-## Technical details
-- No database changes needed
-- The `print:hidden` class on line 224 already hides Back/Print buttons, but the DashboardLayout's own header (with sidebar trigger + breadcrumb) wraps outside this component — needs CSS-level hiding
-- The `formatDuration` function (line 53-59) already handles the display format correctly, just needs a non-null value
+No database migrations needed.
 
