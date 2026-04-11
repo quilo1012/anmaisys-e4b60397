@@ -84,7 +84,7 @@ export default function OperatorDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!requesterName.trim() && !profile?.name) || !machine.trim() || !description.trim()) {
+    if (!profile?.name || !machine.trim() || !description.trim()) {
       toast({ title: "Error", description: "All fields are required", variant: "destructive" });
       return;
     }
@@ -102,9 +102,9 @@ export default function OperatorDashboard() {
         }
         created_at = d.toISOString();
       }
-      await createWO.mutateAsync({ requester_name: (requesterName.trim() || profile?.name || "").trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium", created_at });
+      await createWO.mutateAsync({ requester_name: (profile?.name || "").trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium", created_at });
       toast({ title: "Work Order Created", description: "Your WO has been submitted." });
-      setRequesterName(""); setLine(""); setMachine(""); setDescription(""); setNotes("");
+      setLine(""); setMachine(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime("");
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
@@ -129,8 +129,10 @@ export default function OperatorDashboard() {
           <CardContent>
             <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2" autoComplete="off">
               <div className="space-y-2">
-                <Label htmlFor="requester">Requested By</Label>
-                <Input id="requester" value={requesterName || profile?.name || ""} readOnly className="bg-muted" />
+                <Label>Requested By</Label>
+                <div className="flex items-center h-10 px-3 rounded-md border border-input bg-muted text-sm">
+                  {profile?.name ?? '—'}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Line</Label>
