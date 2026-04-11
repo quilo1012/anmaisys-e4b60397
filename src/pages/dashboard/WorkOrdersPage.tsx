@@ -589,7 +589,6 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                     setClearing(false);
                     return;
                   }
-                  const { data: { session } } = await supabase.auth.getSession();
                   const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clear-system`, {
                     method: "POST",
                     headers: { "Authorization": `Bearer ${session?.access_token}`, "Content-Type": "application/json" },
