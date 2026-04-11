@@ -1,100 +1,58 @@
 
 
-# Implementation Plan: Multi-Fix Changes
+# Performance & Reliability Enhancements
 
-## Overview
-This plan covers 4 areas: remove required field validation, persistent login, operator signature + sidebar + hide checklist + notifications, and company logo placement.
+## What's Already Implemented (No Changes Needed)
+- **Realtime subscriptions** — `useWorkOrders` already subscribes to `postgres_changes` on `work_orders` (line 75-84)
+- **Alert system** — `useWOAlerts` handles new WO alerts for engineers; `usePredictiveAlerts` flags recurring failures (≥3 in 30 days)
+- **Lazy loading + Skeletons** — All dashboard routes use `lazy()` with `Skeleton` loader
+- **Audit/traceability** — `logAuditEvent` + `work_order_logs` track engineer_id, timestamps, actions
+- **Persistent sessions** — Supabase client already has `persistSession: true`, `autoRefreshToken: true`
+- **Error handling** — Mutations use try/catch patterns with toast notifications
+- **Analytics (MTTR, downtime)** — AnalyticsPage already calculates MTTR, MTBF, downtime, SLA compliance
 
----
+## Changes to Implement
 
-## 1. Remove Required Field Validation (Make Fields Optional)
+### 1. Auto-Refresh Fallback (`src/hooks/useWorkOrders.ts`)
+Add `refetchInterval: 30_000` to the `useWorkOrders` query as a fallback when realtime fails.
 
-### `src/pages/dashboard/OperatorDashboard.tsx`
-- **Line 88**: Remove the validation check `if (!requestedBy.trim() || !machine.trim() || !description.trim())` — allow submission with empty fields
-- **Line 92-94**: Remove the retroactive date/time validation block (allow partial retroactive data)
+### 2. Optimistic UI for Accept+Start (`src/hooks/useWorkOrders.ts`)
+Add `onMutate` to `useAcceptAndStartWorkOrder` that immediately updates the cached WO status to `in_progress` using `queryClient.setQueryData`, and add `onError` rollback with `queryClient.setQueryData` restoring the previous data.
 
-### `src/pages/Login.tsx`
-- Keep `required` on login fields (email/password) — these are authentication fields, not data entry. Removing would break login.
+### 3. Image Compression Before Upload (`src/hooks/useWOPhotos.ts`)
+Add a `compressImage` utility function that uses canvas to resize images to max 1920px and compress to JPEG quality 0.7 (targeting ~1MB). Call it in `useUploadWOPhoto` before the storage upload.
 
-### `src/pages/dashboard/WorkOrdersPage.tsx`
-- The create WO handler (line 195) uses `.trim()` but has no explicit validation block — no change needed.
+### 4. Work Orders Pagination (`src/hooks/useWorkOrders.ts`)
+Add `.limit(200)` to the main `useWorkOrders` query to prevent loading thousands of records. The `useWorkOrderById` query is unaffected.
 
----
+### 5. Offline Detection Hook (`src/hooks/useOfflineQueue.ts`) — NEW FILE
+Create a simple hook that:
+- Tracks `navigator.onLine` state via event listeners
+- Shows a toast when going offline/online
+- Exposes `isOnline` boolean for UI indicators
 
-## 2. Persistent Login (No Auto Logout)
+### 6. Loading States & Button Disabling (`src/pages/dashboard/EngineerDashboard.tsx`)
+Add `disabled={acceptAndStartWO.isPending}` to the Accept+Start button (and similar for Finish). Show `<Loader2>` spinner while pending.
 
-### `src/integrations/supabase/client.ts`
-- **Cannot edit** (auto-generated). Already has `persistSession: true` and `autoRefreshToken: true`.
-- No inactivity logout logic exists in the codebase (confirmed by search). Session is already persistent.
-- **No changes needed** — the app already keeps users logged in until they click Sign Out.
-
----
-
-## 3A. Operator Signature on Finished WOs
-
-### Database Migration
-- Add `operator_signature_name` column (text, nullable) to `work_orders` table.
-
-### `src/pages/dashboard/OperatorDashboard.tsx`
-- In the "My Work Orders" table, add a "Close" action button for WOs with status `finished`.
-- Clicking opens a dialog with a text input for operator name (digital signature).
-- On confirm: calls `useCloseWorkOrder` (modified) to set `status = "closed"`, `closed_at = now()`, `operator_signature_name`, and `closed_by`.
-- Button disabled if signature field is empty.
-
-### `src/hooks/useWorkOrders.ts`
-- Modify `useCloseWorkOrder` to accept `{ woId, signatureName }` instead of just `woId`.
-- Update mutation to set `operator_signature_name` in the update payload.
+### 7. Database Indexes (Migration)
+Add indexes on `work_orders` for common query patterns:
+```sql
+CREATE INDEX IF NOT EXISTS idx_work_orders_status ON work_orders(status);
+CREATE INDEX IF NOT EXISTS idx_work_orders_engineer_id ON work_orders(engineer_id);
+CREATE INDEX IF NOT EXISTS idx_work_orders_operator_id ON work_orders(operator_id);
+CREATE INDEX IF NOT EXISTS idx_work_orders_created_at ON work_orders(created_at DESC);
+```
 
 ---
 
-## 3B. Sidebar Tablet Fix
+## Summary of File Changes
 
-### `src/components/DashboardLayout.tsx`
-- Change the outer flex container (line 189) from `min-h-screen` to `h-screen overflow-hidden`.
-- Change the main area (line 217) to `flex-1 flex flex-col overflow-hidden`.
-- Change the content div (line 236) to include `overflow-y-auto flex-1`.
-
----
-
-## 3C. Remove Checklist (Temporary — Hide UI Only)
-
-### `src/pages/dashboard/EngineerDashboard.tsx`
-- Remove/comment out `InlineChecklist` rendering in `MobileWOCard` (line 378).
-- Remove/comment out `DesktopInlineChecklist` rendering (line 606).
-- Make `useChecklistComplete` always return `true` (line 149) so Finish button is never blocked by checklist.
-
-### `src/pages/dashboard/WorkOrderDetail.tsx`
-- Wrap the Checklist card section (lines 365-396) in a condition that always evaluates to `false`, e.g., `{false && checklistItems && ...}`.
-
----
-
-## 3D. Engineer Notification (Already Implemented)
-
-- The `useWOAlerts` hook already subscribes to `INSERT` events on `work_orders` and plays an alert sound + sends web notification + shows toast for all engineers when a new WO is created.
-- The `NotificationPanel` component already shows in-app notifications for new WOs.
-- **No changes needed** — this feature already exists.
-
----
-
-## 4. Company Logo (App Icon + Header)
-
-### Already Implemented
-- **Favicon**: `index.html` already references the Applied Nutrition logo as favicon.
-- **Header logo**: `DashboardLayout.tsx` line 192 already shows `appliedLogo` in the sidebar header.
-- **Login page**: `Login.tsx` line 60-63 already shows the logo above the form at 120px height, centered.
-- **No changes needed** — logos are already in place everywhere requested.
-
----
-
-## Summary of Actual Changes
-
-| Area | Files Changed |
-|------|--------------|
-| Remove required validation | `OperatorDashboard.tsx` |
-| Operator signature to close WO | Migration + `OperatorDashboard.tsx` + `useWorkOrders.ts` |
-| Sidebar tablet fix | `DashboardLayout.tsx` |
-| Hide checklist UI | `EngineerDashboard.tsx` + `WorkOrderDetail.tsx` |
-| Persistent login | None (already implemented) |
-| Engineer notifications | None (already implemented) |
-| Company logo | None (already implemented) |
+| File | Change |
+|------|--------|
+| `src/hooks/useWorkOrders.ts` | Add refetchInterval, optimistic update for accept+start, .limit(200) |
+| `src/hooks/useWOPhotos.ts` | Add image compression before upload |
+| `src/hooks/useOfflineQueue.ts` | New file — offline detection hook |
+| `src/pages/dashboard/EngineerDashboard.tsx` | Button disable states during mutations |
+| `src/components/DashboardLayout.tsx` | Show offline indicator banner |
+| Migration SQL | Add indexes on work_orders |
 
