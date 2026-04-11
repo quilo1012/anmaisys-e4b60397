@@ -1,67 +1,72 @@
 
 
-# Fix 6 Production Bugs
+# Fix 4 Targeted Issues
 
-## Analysis Summary
+## 1. Print Page — Remove browser header/footer
 
-| Fix | Root Cause | Effort |
-|-----|-----------|--------|
-| 1. Engineer PIN Save | Button calls `handleEditEngineer` which works — but user may expect a dedicated "Change PIN" modal. Currently it's inline in the Edit Engineer dialog. The `Save` button works if PIN ≥ 4 digits. **Needs investigation in production vs code.** |
-| 2. Clear WOs/Logs PIN | Edge function `verify-admin-pin` actually works correctly (tested: "1234" → valid, "9999" → invalid). Default PIN is "1234". User may be testing with "1234" thinking it should fail. **No code bug — PIN validation works.** |
-| 3. Downtime crash | Line 209: `<SelectItem value="">None</SelectItem>` — empty string value crashes Radix Select. |
-| 4. Checklist Add | Button is disabled when `!newType` (line 121). User must select a type first. Not obvious UX. Need to make type default to first option or make it optional. |
-| 5. Print layout | Print CSS already hides `button`, `header`, `nav`, sidebar elements. The `print:hidden` classes are on Back/Print buttons. May need stronger selectors for the DashboardLayout header element. |
-| 6. Analytics Print/PDF | No Print/PDF buttons exist on Analytics page. Need to add them. |
+**File: `src/index.css`** (lines 114-116)
 
-## Changes
+Change `@page` margin from `20mm` to `10mm` and add `margin-top: 0; margin-bottom: 0` to suppress browser header/footer area. Browsers use the margin area for URL/date — reducing it minimizes or eliminates them.
 
-### FIX 3 — Downtime Select crash (critical)
-**File: `src/pages/dashboard/DowntimePage.tsx` line 209**
-- Remove `<SelectItem value="">None</SelectItem>` 
-- Add a `value="none"` instead and handle "none" as null in the submit handler
+```css
+@page {
+  margin: 10mm 10mm 10mm 10mm;
+  size: A4;
+}
+```
 
-### FIX 4 — Checklist Add button appears broken
-**File: `src/pages/dashboard/ProblemsPage.tsx` line 107-121**
-- Default `newType` to `"Safety"` instead of empty string so button isn't disabled
-- This makes the Add button immediately clickable after typing a description
+Also add to the `@media print` block:
+```css
+.app-footer, .print-url {
+  display: none !important;
+}
+```
 
-### FIX 1 — Engineer PIN Save button
-**File: `src/pages/users/ManageUsers.tsx` lines 196-213**
-- The Save button calls `handleEditEngineer` which does work (updates name, active status, and PIN if ≥ 4 digits)
-- Add a toast confirmation specifically for PIN change: "PIN updated for {name}"
-- Ensure the dialog closes after save (it does via `setEditEng(null)` on line 207)
-- Add `type="button"` to the Save button to prevent form submission issues
+No component changes needed — the URL is a browser-level feature controlled by `@page` margins.
 
-### FIX 2 — Clear WOs/Logs PIN validation
-The edge function works correctly. The default admin PIN is "1234". 
-- Add a clear error message when PIN is invalid: "Invalid security PIN. Action cancelled."
-- In `WorkOrdersPage.tsx` and `AuditLogsPage.tsx`, ensure the clear action is blocked when `valid === false`
-- Currently both files check `!verifyData?.valid` — this is correct but the toast says "Invalid PIN" which is fine
-- **No real bug here** — will add better error feedback
+## 2. Analytics — Date Range Filters
 
-### FIX 5 — Print layout cleanup
-**File: `src/index.css`**
-- The existing CSS already hides buttons, nav, sidebar, header, breadcrumb
-- The DashboardLayout wraps content in a `<main>` inside a flex layout with sidebar — need to ensure the flex parent doesn't constrain print width
-- Add selector for the DashboardLayout's header bar: target the specific `<header>` element containing SidebarTrigger
-- Ensure `main` takes `100% !important` width and sidebar wrapper is hidden
-
-### FIX 6 — Analytics Print/PDF buttons
 **File: `src/pages/dashboard/AnalyticsPage.tsx`**
-- Add Print and Export PDF buttons in the page header
-- Print: `window.print()`
-- PDF: Use `generatePdfReport` or simplified jsPDF export with KPI data
-- Add `print:hidden` to the button bar
+
+- Add state for `startDate` and `endDate` (default: last 30 days)
+- Add a filter bar below the header with two date pickers (using Popover + Calendar) and a period preset dropdown (7d / 30d / 90d / Custom)
+- Filter `allWOs` by `created_at` within the selected range before passing to all `useMemo` calculations
+- All existing KPI, chart, and ranking computations already derive from `allWOs` — filtering at the source propagates everywhere
+
+## 3. Clear Audit / Clear WOs — Fix response handling
+
+The edge functions and DB functions work correctly. The issue is that `verify-admin-pin` returns `status: 401` when PIN is invalid, and `supabase.functions.invoke` treats non-2xx as an error.
+
+**File: `src/pages/dashboard/AuditLogsPage.tsx`** (line 43-49)
+- The `supabase.functions.invoke` call sets `verifyError` when status is 401
+- Current code: `if (verifyError || !verifyData?.valid)` — this works but `verifyData` may be null when there's an error
+- Fix: parse the response body from the error to check if it contains `valid: false` vs actual error
+- Better approach: change to use raw `fetch` like WorkOrdersPage does, so we can read the JSON body regardless of status code
+
+**File: `src/pages/dashboard/WorkOrdersPage.tsx`** (line 576-580)
+- Same issue — `supabase.functions.invoke` with 401 status sets `pinError` and `pinResult` may be null
+- Fix: also switch to raw `fetch` for consistency
+
+Both clear operations will also call `queryClient.invalidateQueries` after success to force data refresh.
+
+## 4. Checklist Items — Empty defaults (no auto-fill)
+
+**File: `src/pages/dashboard/ProblemsPage.tsx`** (line 43)
+- Change `const [newType, setNewType] = useState("Safety")` → `useState("")`
+- The `+ Add` button is disabled when `!newType` (line 121) — this is correct behavior; user must explicitly select a type
+- The placeholder "Select type..." already shows when value is empty
+
+No other changes needed — the user requested empty fields, and requiring type selection before adding is the intended UX.
 
 ## Files to modify
 
 | File | Change |
 |------|--------|
-| `src/pages/dashboard/DowntimePage.tsx` | Fix empty SelectItem value (line 209) |
-| `src/pages/dashboard/ProblemsPage.tsx` | Default checklist type to "Safety" |
-| `src/pages/users/ManageUsers.tsx` | Better PIN save feedback, type="button" |
-| `src/pages/dashboard/AnalyticsPage.tsx` | Add Print/PDF buttons |
-| `src/index.css` | Strengthen print CSS for DashboardLayout header |
+| `src/index.css` | Reduce `@page` margin, hide `.app-footer`/`.print-url` |
+| `src/pages/dashboard/AnalyticsPage.tsx` | Add date range filter bar with presets |
+| `src/pages/dashboard/AuditLogsPage.tsx` | Fix PIN verify to use raw `fetch` |
+| `src/pages/dashboard/WorkOrdersPage.tsx` | Fix PIN verify response handling (already uses fetch — verify flow) |
+| `src/pages/dashboard/ProblemsPage.tsx` | Reset `newType` default to `""` |
 
 No database migrations needed.
 
