@@ -180,7 +180,9 @@ export default function WorkOrderDetail() {
   const pausedMinutes = (wo as any).total_paused_minutes || 0;
   const rawRepairTime = wo.started_at && (wo.finished_at || wo.completed_at) ? differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at)) : null;
   const repairTime = rawRepairTime !== null ? rawRepairTime - pausedMinutes : null;
-  const totalTime = (wo.closed_at || wo.completed_at) ? differenceInMinutes(new Date(wo.closed_at || wo.completed_at!), new Date(wo.created_at)) : null;
+  const totalTime = (wo.closed_at || wo.completed_at)
+    ? differenceInMinutes(new Date(wo.closed_at || wo.completed_at!), new Date(wo.created_at))
+    : (responseTime || 0) + (travelTime || 0) + (repairTime !== null ? repairTime : (wo.started_at ? differenceInMinutes(new Date(), new Date(wo.started_at)) : 0));
 
   const timelineRows = getTimelineRows(wo);
 
@@ -197,10 +199,10 @@ export default function WorkOrderDetail() {
         <div className="hidden print:block mb-4">
           <div className="flex items-center justify-between border-b-2 border-black pb-3">
             <div className="flex items-center gap-3">
-              <img src={appliedLogo} alt="AN" className="h-10 w-10 object-contain" />
+              <img src={appliedLogo} alt="AN" className="h-12 object-contain" />
               <div>
-                <p className="text-base font-bold tracking-wide">AN MAINTENANCE</p>
-                <p className="text-[7pt] text-gray-600">Applied Nutrition Ltd.</p>
+                <p className="text-lg font-bold tracking-wide">AN MAINTENANCE</p>
+                <p className="text-[8pt] text-gray-500">Applied Nutrition Ltd.</p>
               </div>
             </div>
             <div className="text-center">

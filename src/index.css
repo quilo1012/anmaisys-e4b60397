@@ -126,7 +126,8 @@
   .pagination, .filters-section,
   [data-radix-dialog-overlay], [role="dialog"],
   .sonner-toast, [data-sonner-toaster],
-  .SidebarProvider, [data-slot="sidebar"] {
+  .SidebarProvider, [data-slot="sidebar"],
+  .breadcrumb, [aria-label="breadcrumb"] {
     display: none !important;
     width: 0 !important;
     height: 0 !important;
