@@ -41,7 +41,7 @@ const navItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"], group: "Operations" },
   { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager"], group: "Operations" },
   { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager"], group: "Operations" },
-  { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager"], group: "Operations" },
+  { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "engineer"], group: "Operations" },
   { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager"], group: "Operations" },
   // Assets
   { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager"], group: "Assets" },
