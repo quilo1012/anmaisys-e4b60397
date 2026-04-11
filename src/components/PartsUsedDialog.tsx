@@ -52,7 +52,7 @@ export function PartsUsedDialog({ open, onOpenChange, workOrderId, engineerName 
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             <div className="space-y-2">
               <Label htmlFor="product">Product</Label>
               <Select value={productId} onValueChange={setProductId}>

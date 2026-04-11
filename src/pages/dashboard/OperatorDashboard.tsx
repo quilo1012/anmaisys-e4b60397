@@ -127,7 +127,7 @@ export default function OperatorDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
+            <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2" autoComplete="off">
               <div className="space-y-2">
                 <Label htmlFor="requester">Requested By</Label>
                 <Input id="requester" value={requesterName || profile?.name || ""} readOnly className="bg-muted" />

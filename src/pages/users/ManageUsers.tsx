@@ -244,7 +244,7 @@ export default function ManageUsers() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Create New User</DialogTitle></DialogHeader>
-              <form onSubmit={handleCreateUser} className="space-y-4">
+              <form onSubmit={handleCreateUser} className="space-y-4" autoComplete="off">
                 <div className="space-y-2"><Label>Full Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
                 <div className="space-y-2"><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
                 <div className="space-y-2"><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required /></div>
@@ -366,7 +366,7 @@ export default function ManageUsers() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Create Engineer Identity</DialogTitle></DialogHeader>
-              <form onSubmit={handleCreateEngineer} className="space-y-4">
+              <form onSubmit={handleCreateEngineer} className="space-y-4" autoComplete="off">
                 <div className="space-y-2"><Label>Engineer Name</Label><Input value={engName} onChange={(e) => setEngName(e.target.value)} required /></div>
                 <div className="space-y-2">
                   <Label>PIN (4-6 digits)</Label>

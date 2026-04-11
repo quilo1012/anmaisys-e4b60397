@@ -220,7 +220,7 @@ export default function StockPage() {
               <Card>
                 <CardHeader><CardTitle className="text-base flex items-center gap-2"><Plus className="h-4 w-4" /> Add Product</CardTitle></CardHeader>
                 <CardContent>
-                  <form onSubmit={handleAdd} className="space-y-3">
+                  <form onSubmit={handleAdd} className="space-y-3" autoComplete="off">
                      <div className="space-y-1"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
                      <div className="space-y-1"><Label>Line</Label><Input value={productLine} onChange={(e) => setProductLine(e.target.value)} placeholder="e.g. Line A1" /></div>
                      <div className="space-y-1"><Label>Code</Label><Input value={code} onChange={(e) => setCode(e.target.value)} required /></div>
@@ -250,7 +250,7 @@ export default function StockPage() {
               <Card>
                 <CardHeader><CardTitle className="text-base">Manual Stock Adjustment</CardTitle></CardHeader>
                 <CardContent>
-                  <form onSubmit={handleAdjust} className="space-y-3">
+                  <form onSubmit={handleAdjust} className="space-y-3" autoComplete="off">
                     <div className="space-y-1">
                       <Label>Product</Label>
                       <Select value={adjustId} onValueChange={setAdjustId}>
@@ -279,7 +279,7 @@ export default function StockPage() {
               <CardHeader><CardTitle className="text-base flex items-center gap-2"><Tags className="h-4 w-4" /> Manage Categories</CardTitle></CardHeader>
               <CardContent>
                 <div className="flex gap-2 mb-4">
-                  <form onSubmit={handleAddCategory} className="flex gap-2 flex-1">
+                  <form onSubmit={handleAddCategory} className="flex gap-2 flex-1" autoComplete="off">
                     <Input value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder="New category name" className="flex-1" />
                     <Button type="submit" size="sm" disabled={addCategory.isPending}>
                       {addCategory.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
