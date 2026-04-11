@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon, CheckCircle } from "lucide-react";
+import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon, CheckCircle, Zap } from "lucide-react";
 import { useWorkOrders, useCreateWorkOrder, useCloseWorkOrder } from "@/hooks/useWorkOrders";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,7 +20,7 @@ import { useMachines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { format, differenceInDays } from "date-fns";
+import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
