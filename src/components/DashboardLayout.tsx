@@ -15,7 +15,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, Activity } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
@@ -41,14 +41,15 @@ const navItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"], group: "Operations" },
   { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager"], group: "Operations" },
   { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager"], group: "Operations" },
-  { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager"], group: "Operations" },
+  { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "engineer"], group: "Operations" },
   { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager"], group: "Operations" },
   // Assets
   { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager"], group: "Assets" },
   { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager"], group: "Assets" },
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "engineer"], group: "Assets" },
   // Reports
-  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager"], group: "Reports" },
+  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "engineer"], group: "Reports" },
+  { title: "Reliability", url: "/dashboard/reliability", icon: Activity, roles: ["admin", "engineer"], group: "Reports" },
   { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin", "manager"], group: "Reports" },
   { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin", "manager"], group: "Reports" },
   // Admin

@@ -239,6 +239,53 @@ export type Database = {
         }
         Relationships: []
       }
+      machine_events: {
+        Row: {
+          action_taken: string | null
+          created_at: string
+          engineer_id: string | null
+          engineer_name: string | null
+          event_type: string
+          id: string
+          machine_id: string | null
+          part_used: string | null
+          problem_description: string | null
+          work_order_id: string | null
+        }
+        Insert: {
+          action_taken?: string | null
+          created_at?: string
+          engineer_id?: string | null
+          engineer_name?: string | null
+          event_type?: string
+          id?: string
+          machine_id?: string | null
+          part_used?: string | null
+          problem_description?: string | null
+          work_order_id?: string | null
+        }
+        Update: {
+          action_taken?: string | null
+          created_at?: string
+          engineer_id?: string | null
+          engineer_name?: string | null
+          event_type?: string
+          id?: string
+          machine_id?: string | null
+          part_used?: string | null
+          problem_description?: string | null
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "machine_events_machine_id_fkey"
+            columns: ["machine_id"]
+            isOneToOne: false
+            referencedRelation: "machines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       machine_location_log: {
         Row: {
           created_at: string

@@ -236,17 +236,36 @@ export function useFinishWorkOrder() {
 
   return useMutation({
     mutationFn: async ({ woId, signedByName, engineerId, engineerName }: { woId: string; signedByName: string; engineerId: string; engineerName: string }) => {
-      const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
+      const { data: before } = await supabase.from("work_orders").select("status, machine, description").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
         .update({ status: "finished" as any, finished_at: new Date().toISOString(), signed_by_name: signedByName } as any)
         .eq("id", woId);
       if (error) throw error;
       await logWOAction(woId, engineerId, engineerName, "finished");
+
+      // Auto-create machine_event
+      if (before) {
+        const machineName = (before as any).machine;
+        const problemDesc = (before as any).description;
+        // Find machine_id by name
+        const { data: machineRow } = await supabase.from("machines").select("id").eq("name", machineName).single();
+        await supabase.from("machine_events" as any).insert({
+          machine_id: machineRow?.id || null,
+          work_order_id: woId,
+          problem_description: problemDesc,
+          action_taken: "Repair completed",
+          event_type: "repair",
+          engineer_id: engineerId,
+          engineer_name: engineerName,
+        } as any);
+      }
+
       return { before };
     },
     onSuccess: (result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      queryClient.invalidateQueries({ queryKey: ["machine_events"] });
       logAuditEvent("finish", "work_order", vars.woId, { before: result.before, after: { status: "finished", signed_by: vars.signedByName }, engineer_id: vars.engineerId, engineer_name: vars.engineerName });
     },
   });

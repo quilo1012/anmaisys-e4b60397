@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon, CheckCircle } from "lucide-react";
+import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon, CheckCircle, Zap } from "lucide-react";
 import { useWorkOrders, useCreateWorkOrder, useCloseWorkOrder } from "@/hooks/useWorkOrders";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,7 +20,7 @@ import { useMachines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { format, differenceInDays } from "date-fns";
+import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -89,6 +89,51 @@ export default function OperatorDashboard() {
     return { totalWOs: machineWOs.length, daysSinceLast, topProblems };
   }, [machine, allWOs]);
 
+  // Auto-priority: determine priority based on history
+  const autoPriority = useMemo(() => {
+    if (!machine || !description || !allWOs) return { priority: "medium" as string, reason: "" };
+    const cutoff7 = subDays(new Date(), 7).toISOString();
+    const cutoff5 = subDays(new Date(), 5).toISOString();
+
+    // Check recurring: same machine+problem ≥3 in 7 days
+    const recent7d = allWOs.filter((w) => w.machine === machine && w.description === description && w.created_at >= cutoff7);
+    if (recent7d.length >= 3) {
+      return { priority: "high", reason: `Recurring issue: ${recent7d.length}x in the last 7 days` };
+    }
+
+    // Check recent repair: any WO on this machine finished in last 5 days
+    const recentRepair = allWOs.find((w) => w.machine === machine && w.finished_at && w.finished_at >= cutoff5);
+    if (recentRepair) {
+      return { priority: "high", reason: "Recent repair detected on this machine (< 5 days)" };
+    }
+
+    // Check repeated: same problem ≥2 in 30 days
+    const cutoff30 = subDays(new Date(), 30).toISOString();
+    const repeated30d = allWOs.filter((w) => w.machine === machine && w.description === description && w.created_at >= cutoff30);
+    if (repeated30d.length >= 2) {
+      return { priority: "medium", reason: `Repeated issue: ${repeated30d.length}x in 30 days` };
+    }
+
+    return { priority: "low", reason: "First occurrence — low priority" };
+  }, [machine, description, allWOs]);
+
+  // AI insights for the selected machine+problem
+  const aiInsights = useMemo(() => {
+    if (!machine || !description || !allWOs) return null;
+    const cutoff30 = subDays(new Date(), 30).toISOString();
+    const similar = allWOs.filter((w) => w.machine === machine && w.description === description && w.created_at >= cutoff30);
+    if (!similar.length) return null;
+
+    const cutoff7 = subDays(new Date(), 7).toISOString();
+    const weekCount = similar.filter((w) => w.created_at >= cutoff7).length;
+
+    return {
+      occurrences: similar.length,
+      weekCount,
+      isRecurring: weekCount >= 3,
+    };
+  }, [machine, description, allWOs]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // No required field validation — all fields are optional
@@ -102,7 +147,7 @@ export default function OperatorDashboard() {
         }
         created_at = d.toISOString();
       }
-      await createWO.mutateAsync({ requester_name: requestedBy.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium", created_at });
+      await createWO.mutateAsync({ requester_name: requestedBy.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: autoPriority.priority, created_at });
       toast({ title: "Work Order Created", description: "Your WO has been submitted." });
       setRequestedBy(""); setLine(""); setMachine(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime("");
@@ -233,6 +278,25 @@ export default function OperatorDashboard() {
                           ))}
                         </div>
                       )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+              {/* AI Insights + Auto Priority */}
+              {aiInsights && (
+                <div className="md:col-span-2">
+                  <Card className={cn("border-l-4", autoPriority.priority === "high" ? "border-l-red-500 bg-red-500/5" : autoPriority.priority === "medium" ? "border-l-amber-500 bg-amber-500/5" : "border-l-green-500 bg-green-500/5")}>
+                    <CardContent className="p-3 space-y-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Zap className="h-4 w-4" />
+                        <span className="font-medium">AI Insight</span>
+                        <Badge variant="outline" className={cn("text-xs", autoPriority.priority === "high" ? "bg-red-100 text-red-800" : autoPriority.priority === "medium" ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800")}>
+                          Priority: {autoPriority.priority.toUpperCase()}
+                        </Badge>
+                        {aiInsights.isRecurring && <Badge variant="destructive" className="text-xs">Recurring</Badge>}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{autoPriority.reason}</p>
+                      <p className="text-xs text-muted-foreground">{aiInsights.occurrences} occurrence(s) in 30 days{aiInsights.weekCount > 0 ? `, ${aiInsights.weekCount} this week` : ""}</p>
                     </CardContent>
                   </Card>
                 </div>
