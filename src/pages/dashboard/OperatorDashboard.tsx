@@ -40,6 +40,7 @@ export default function OperatorDashboard() {
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
+  const [requestedBy, setRequestedBy] = useState("");
   const [isRetroactive, setIsRetroactive] = useState(false);
   const [retroDate, setRetroDate] = useState<Date>();
   const [retroTime, setRetroTime] = useState("");
@@ -84,7 +85,7 @@ export default function OperatorDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile?.name || !machine.trim() || !description.trim()) {
+    if (!requestedBy.trim() || !machine.trim() || !description.trim()) {
       toast({ title: "Error", description: "All fields are required", variant: "destructive" });
       return;
     }
@@ -102,9 +103,9 @@ export default function OperatorDashboard() {
         }
         created_at = d.toISOString();
       }
-      await createWO.mutateAsync({ requester_name: (profile?.name || "").trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium", created_at });
+      await createWO.mutateAsync({ requester_name: requestedBy.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium", created_at });
       toast({ title: "Work Order Created", description: "Your WO has been submitted." });
-      setLine(""); setMachine(""); setDescription(""); setNotes("");
+      setRequestedBy(""); setLine(""); setMachine(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime("");
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
@@ -130,9 +131,12 @@ export default function OperatorDashboard() {
             <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2" autoComplete="off">
               <div className="space-y-2">
                 <Label>Requested By</Label>
-                <div className="flex items-center h-10 px-3 rounded-md border border-input bg-muted text-sm">
-                  {profile?.name ?? '—'}
-                </div>
+                <Input
+                  value={requestedBy}
+                  onChange={(e) => setRequestedBy(e.target.value)}
+                  placeholder="Enter requester name"
+                  autoComplete="off"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Line</Label>
