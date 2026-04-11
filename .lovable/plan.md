@@ -1,37 +1,38 @@
 
 
-# Fix Operator Dashboard: Replace "Requested By" Input with Static Display
+# Fix: Make "Requested By" a Manual Editable Input
 
 ## Problem
-The "Requested By" field is an `<Input>` element, causing browser auto-fill interference and making it appear editable.
+The "Requested By" field auto-populates from `profile?.name` and is read-only. User wants it to start empty and be manually editable.
 
-## Changes
+## Changes — `src/pages/dashboard/OperatorDashboard.tsx`
 
-### File: `src/pages/dashboard/OperatorDashboard.tsx`
+### 1. Add state variable (after line 42)
+```tsx
+const [requestedBy, setRequestedBy] = useState("");
+```
 
-1. **Remove `requesterName` state** (line 38) — no longer needed since the value comes directly from `profile?.name`.
-
-2. **Replace Input with styled div** (lines 131-134):
+### 2. Replace the read-only div (lines 131-136) with an editable Input
 ```tsx
 <div className="space-y-2">
   <Label>Requested By</Label>
-  <div className="flex items-center h-10 px-3 rounded-md border border-input bg-muted text-sm">
-    {profile?.name ?? '—'}
-  </div>
+  <Input
+    value={requestedBy}
+    onChange={(e) => setRequestedBy(e.target.value)}
+    placeholder="Enter requester name"
+    autoComplete="off"
+  />
 </div>
 ```
 
-3. **Fix submit payload** (line 105) — use `profile?.name` directly instead of `requesterName`:
-```tsx
-await createWO.mutateAsync({
-  requester_name: (profile?.name || "").trim(),
-  machine: machine.trim(),
-  description: description.trim(),
-  notes: notes.trim(),
-  priority: "medium",
-  created_at
-});
-```
+### 3. Fix validation (line 87)
+Change `!profile?.name` to `!requestedBy.trim()`.
 
-4. **Remove `setRequesterName("")`** from the reset line (107).
+### 4. Fix mutation payload (line 105)
+Change `requester_name: (profile?.name || "").trim()` to `requester_name: requestedBy.trim()`.
+
+### 5. Fix form reset (line 107)
+Add `setRequestedBy("");` to the reset line.
+
+No database or backend changes needed — the `requester_name` column has no default value to worry about.
 
