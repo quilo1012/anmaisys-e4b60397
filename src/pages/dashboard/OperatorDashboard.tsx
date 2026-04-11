@@ -167,6 +167,42 @@ export default function OperatorDashboard() {
                 <Label htmlFor="notes">Observations (optional)</Label>
                 <Textarea id="notes" placeholder="Additional notes or context..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
               </div>
+              {/* Retroactive Order Toggle */}
+              <div className="md:col-span-2 flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <Switch id="retroactive" checked={isRetroactive} onCheckedChange={setIsRetroactive} />
+                  <Label htmlFor="retroactive">Retroactive Order (past date/time)</Label>
+                </div>
+                {isRetroactive && (
+                  <div className="flex flex-wrap gap-4 items-end">
+                    <div className="space-y-1">
+                      <Label>Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-[200px] justify-start text-left font-normal", !retroDate && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {retroDate ? format(retroDate, "dd/MM/yyyy") : "Pick a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={retroDate}
+                            onSelect={setRetroDate}
+                            disabled={(date) => date > new Date()}
+                            initialFocus
+                            className={cn("p-3 pointer-events-auto")}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Time</Label>
+                      <Input type="time" value={retroTime} onChange={(e) => setRetroTime(e.target.value)} className="w-[140px]" />
+                    </div>
+                  </div>
+                )}
+              </div>
               {/* Smart Suggestions */}
               {machineSuggestions && (
                 <div className="md:col-span-2">
