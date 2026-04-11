@@ -270,8 +270,9 @@ export default function OperatorDashboard() {
                      <TableHead>Status</TableHead>
                      <TableHead>Created</TableHead>
                      <TableHead>Engineer</TableHead>
-                     <TableHead>Parts</TableHead>
-                   </TableRow>
+                      <TableHead>Parts</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
                  </TableHeader>
                  <TableBody>
                    {workOrders.map((wo) => {
@@ -291,8 +292,15 @@ export default function OperatorDashboard() {
                            ) : (
                              <span className="text-muted-foreground">—</span>
                            )}
-                         </TableCell>
-                       </TableRow>
+                          </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {wo.status === "finished" && (
+                              <Button size="sm" variant="default" onClick={() => { setCloseDialogWO(wo.id); setCloseSigName(""); }}>
+                                <CheckCircle className="h-3 w-3 mr-1" /> Close
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
                     );
                   })}
                 </TableBody>
