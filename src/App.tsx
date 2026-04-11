@@ -23,6 +23,7 @@ const WorkOrderDetail = lazy(() => import("./pages/dashboard/WorkOrderDetail"));
 const StockPage = lazy(() => import("./pages/dashboard/StockPage"));
 const AuditLogsPage = lazy(() => import("./pages/dashboard/AuditLogsPage"));
 const ExecutiveDashboard = lazy(() => import("./pages/dashboard/ExecutiveDashboard"));
+const ReliabilityDashboard = lazy(() => import("./pages/dashboard/ReliabilityDashboard"));
 const ManageUsers = lazy(() => import("./pages/users/ManageUsers"));
 const DowntimePage = lazy(() => import("./pages/dashboard/DowntimePage"));
 
@@ -62,7 +63,7 @@ const App = () => (
               <Route path="/dashboard/operator" element={<ProtectedRoute allowedRoles={["operator"]}><OperatorDashboard /></ProtectedRoute>} />
               <Route path="/dashboard/engineer" element={<ProtectedRoute allowedRoles={["engineer"]}><EngineerDashboard /></ProtectedRoute>} />
               <Route path="/dashboard/manager" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ManagerDashboard /></ProtectedRoute>} />
-              <Route path="/dashboard/analytics" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><AnalyticsPage /></ProtectedRoute>} />
+              <Route path="/dashboard/analytics" element={<ProtectedRoute allowedRoles={["admin", "manager", "engineer"]}><AnalyticsPage /></ProtectedRoute>} />
               <Route path="/dashboard/financial" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><FinancialDashboard /></ProtectedRoute>} />
               <Route path="/dashboard/work-orders" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><WorkOrdersPage /></ProtectedRoute>} />
               <Route path="/dashboard/machines" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><MachinesPage /></ProtectedRoute>} />
@@ -71,7 +72,8 @@ const App = () => (
               <Route path="/dashboard/machines/:name/history" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><MachineHistoryPage /></ProtectedRoute>} />
               <Route path="/dashboard/audit-logs" element={<ProtectedRoute allowedRoles={["admin"]}><AuditLogsPage /></ProtectedRoute>} />
               <Route path="/dashboard/executive" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ExecutiveDashboard /></ProtectedRoute>} />
-              <Route path="/dashboard/downtime" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><DowntimePage /></ProtectedRoute>} />
+              <Route path="/dashboard/downtime" element={<ProtectedRoute allowedRoles={["admin", "manager", "engineer"]}><DowntimePage /></ProtectedRoute>} />
+              <Route path="/dashboard/reliability" element={<ProtectedRoute allowedRoles={["admin", "engineer"]}><ReliabilityDashboard /></ProtectedRoute>} />
               <Route path="/dashboard/wo/:id" element={<ProtectedRoute allowedRoles={["operator", "engineer", "admin", "manager"]}><WorkOrderDetail /></ProtectedRoute>} />
               <Route path="/dashboard/stock" element={<ProtectedRoute allowedRoles={["engineer", "admin", "manager"]}><StockPage /></ProtectedRoute>} />
               <Route path="/users/manage" element={<ProtectedRoute allowedRoles={["admin"]}><ManageUsers /></ProtectedRoute>} />
