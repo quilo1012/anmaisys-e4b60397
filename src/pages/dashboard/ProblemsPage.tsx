@@ -40,7 +40,7 @@ function ChecklistManager({ problemId }: { problemId: string }) {
   const { toast } = useToast();
 
   const [newDesc, setNewDesc] = useState("");
-  const [newType, setNewType] = useState("Safety");
+  const [newType, setNewType] = useState("");
   const [newRequired, setNewRequired] = useState(true);
 
   const handleAdd = async () => {

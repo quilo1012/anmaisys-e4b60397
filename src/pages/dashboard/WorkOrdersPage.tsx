@@ -573,13 +573,22 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 setClearing(true);
                 try {
                   const { supabase } = await import("@/integrations/supabase/client");
-                  const { data: pinResult, error: pinError } = await supabase.functions.invoke("verify-admin-pin", { body: { pin: clearPin } });
-                  if (pinError || !pinResult?.valid) {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  const pinRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-admin-pin`, {
+                    method: "POST",
+                    headers: {
+                      "Authorization": `Bearer ${session?.access_token}`,
+                      "Content-Type": "application/json",
+                      "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                    },
+                    body: JSON.stringify({ pin: clearPin }),
+                  });
+                  const pinData = await pinRes.json();
+                  if (!pinRes.ok || !pinData?.valid) {
                     toast({ title: "Invalid PIN", description: "The PIN entered is incorrect.", variant: "destructive" });
                     setClearing(false);
                     return;
                   }
-                  const { data: { session } } = await supabase.auth.getSession();
                   const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clear-system`, {
                     method: "POST",
                     headers: { "Authorization": `Bearer ${session?.access_token}`, "Content-Type": "application/json" },

@@ -39,12 +39,20 @@ export default function AuditLogsPage() {
   const handleClearLogs = async () => {
     setClearing(true);
     try {
-      // Verify PIN server-side via edge function
-      const { data: verifyData, error: verifyError } = await supabase.functions.invoke("verify-admin-pin", {
-        body: { pin },
+      // Verify PIN server-side via raw fetch (handles non-2xx bodies)
+      const { data: { session } } = await supabase.auth.getSession();
+      const pinRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-admin-pin`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session?.access_token}`,
+          "Content-Type": "application/json",
+          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ pin }),
       });
-      if (verifyError || !verifyData?.valid) {
-        toast({ title: "Invalid PIN", variant: "destructive" });
+      const pinData = await pinRes.json();
+      if (!pinRes.ok || !pinData?.valid) {
+        toast({ title: "Invalid PIN", description: "The PIN entered is incorrect.", variant: "destructive" });
         setClearing(false);
         return;
       }
