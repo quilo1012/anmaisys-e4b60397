@@ -8,7 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardList, Plus, Loader2, AlertTriangle, Clock } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon } from "lucide-react";
 import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePartsCountByWOs } from "@/hooks/useStock";
@@ -17,6 +20,7 @@ import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInDays } from "date-fns";
+import { cn } from "@/lib/utils";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
