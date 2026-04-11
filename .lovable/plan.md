@@ -1,53 +1,37 @@
 
 
-# Disable Browser Auto-Fill Globally
+# Fix Operator Dashboard: Replace "Requested By" Input with Static Display
 
-## Approach
+## Problem
+The "Requested By" field is an `<Input>` element, causing browser auto-fill interference and making it appear editable.
 
-Rather than editing every form individually, apply anti-autofill at two central points plus CSS:
+## Changes
 
-### 1. Global Input component — `src/components/ui/input.tsx`
-Add `autoComplete="off"` as a default prop on the base `<input>` element. Individual components can still override it.
+### File: `src/pages/dashboard/OperatorDashboard.tsx`
 
-### 2. All `<form>` elements — add `autoComplete="off"`
-Files with `<form>` tags to update:
-- `src/pages/Login.tsx`
-- `src/pages/users/ManageUsers.tsx` (2 forms)
-- `src/pages/dashboard/WorkOrdersPage.tsx`
-- `src/pages/dashboard/OperatorDashboard.tsx`
-- `src/pages/dashboard/StockPage.tsx` (2 forms)
-- `src/components/PartsUsedDialog.tsx`
+1. **Remove `requesterName` state** (line 38) — no longer needed since the value comes directly from `profile?.name`.
 
-### 3. CSS anti-autofill styling — `src/index.css`
-Add webkit autofill override to prevent yellow/blue background:
-```css
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus,
-input:-webkit-autofill:active,
-textarea:-webkit-autofill,
-select:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0 1000px white inset !important;
-  -webkit-text-fill-color: inherit !important;
-  transition: background-color 9999s ease-in-out 0s;
-}
+2. **Replace Input with styled div** (lines 131-134):
+```tsx
+<div className="space-y-2">
+  <Label>Requested By</Label>
+  <div className="flex items-center h-10 px-3 rounded-md border border-input bg-muted text-sm">
+    {profile?.name ?? '—'}
+  </div>
+</div>
 ```
 
-### 4. Login page special handling
-The Login page email/password fields should use `autoComplete="new-password"` to aggressively block Chrome's autofill on credential fields.
+3. **Fix submit payload** (line 105) — use `profile?.name` directly instead of `requesterName`:
+```tsx
+await createWO.mutateAsync({
+  requester_name: (profile?.name || "").trim(),
+  machine: machine.trim(),
+  description: description.trim(),
+  notes: notes.trim(),
+  priority: "medium",
+  created_at
+});
+```
 
-## Files to modify
-
-| File | Change |
-|------|--------|
-| `src/components/ui/input.tsx` | Add `autoComplete="off"` default on `<input>` |
-| `src/index.css` | Add webkit autofill CSS reset |
-| `src/pages/Login.tsx` | `autoComplete="off"` on form, `autoComplete="new-password"` on inputs |
-| `src/pages/users/ManageUsers.tsx` | `autoComplete="off"` on both forms |
-| `src/pages/dashboard/WorkOrdersPage.tsx` | `autoComplete="off"` on form |
-| `src/pages/dashboard/OperatorDashboard.tsx` | `autoComplete="off"` on form |
-| `src/pages/dashboard/StockPage.tsx` | `autoComplete="off"` on both forms |
-| `src/components/PartsUsedDialog.tsx` | `autoComplete="off"` on form |
-
-No database changes needed.
+4. **Remove `setRequesterName("")`** from the reset line (107).
 
