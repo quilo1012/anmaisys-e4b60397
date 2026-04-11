@@ -206,7 +206,7 @@ export default function DowntimePage() {
         <Select value={formWOId} onValueChange={setFormWOId}>
           <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">None</SelectItem>
+            <SelectItem value="none">None</SelectItem>
             {workOrders?.map(wo => (
               <SelectItem key={wo.id} value={wo.id}>WO-{wo.wo_number} — {wo.machine}</SelectItem>
             ))}
