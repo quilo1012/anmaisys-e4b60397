@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon } from "lucide-react";
-import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
+import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon, CheckCircle } from "lucide-react";
+import { useWorkOrders, useCreateWorkOrder, useCloseWorkOrder } from "@/hooks/useWorkOrders";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines } from "@/hooks/useMachines";
@@ -51,8 +52,13 @@ export default function OperatorDashboard() {
   const { data: machines } = useMachines();
   const { data: problemDescriptions } = useActiveProblemDescriptions();
   const createWO = useCreateWorkOrder();
+  const closeWO = useCloseWorkOrder();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Close dialog state
+  const [closeDialogWO, setCloseDialogWO] = useState<string | null>(null);
+  const [closeSigName, setCloseSigName] = useState("");
 
   // Distinct lines for filter
   const lines = useMemo(() => {
