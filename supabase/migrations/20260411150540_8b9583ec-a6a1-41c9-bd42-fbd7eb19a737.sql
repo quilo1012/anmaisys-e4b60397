@@ -1,0 +1,1 @@
+ALTER TABLE public.work_orders ADD COLUMN operator_signature_name text;
