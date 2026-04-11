@@ -8,7 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardList, Plus, Loader2, AlertTriangle, Clock } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon } from "lucide-react";
 import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePartsCountByWOs } from "@/hooks/useStock";
@@ -17,6 +20,7 @@ import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInDays } from "date-fns";
+import { cn } from "@/lib/utils";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -36,6 +40,9 @@ export default function OperatorDashboard() {
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
+  const [isRetroactive, setIsRetroactive] = useState(false);
+  const [retroDate, setRetroDate] = useState<Date>();
+  const [retroTime, setRetroTime] = useState("");
   const { data: workOrders, isLoading } = useWorkOrders({ operatorOnly: true });
   const { data: allWOs } = useWorkOrders();
   const woIds = workOrders?.map((wo) => wo.id) || [];
@@ -82,9 +89,19 @@ export default function OperatorDashboard() {
       return;
     }
     try {
-      await createWO.mutateAsync({ requester_name: (requesterName.trim() || profile?.name || "").trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium" });
+      let created_at: string | undefined;
+      if (isRetroactive && retroDate) {
+        const d = new Date(retroDate);
+        if (retroTime) {
+          const [h, m] = retroTime.split(":").map(Number);
+          d.setHours(h, m, 0, 0);
+        }
+        created_at = d.toISOString();
+      }
+      await createWO.mutateAsync({ requester_name: (requesterName.trim() || profile?.name || "").trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: "medium", created_at });
       toast({ title: "Work Order Created", description: "Your WO has been submitted." });
       setRequesterName(""); setLine(""); setMachine(""); setDescription(""); setNotes("");
+      setIsRetroactive(false); setRetroDate(undefined); setRetroTime("");
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
     }
@@ -149,6 +166,42 @@ export default function OperatorDashboard() {
               <div className="space-y-2">
                 <Label htmlFor="notes">Observations (optional)</Label>
                 <Textarea id="notes" placeholder="Additional notes or context..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+              </div>
+              {/* Retroactive Order Toggle */}
+              <div className="md:col-span-2 flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <Switch id="retroactive" checked={isRetroactive} onCheckedChange={setIsRetroactive} />
+                  <Label htmlFor="retroactive">Retroactive Order (past date/time)</Label>
+                </div>
+                {isRetroactive && (
+                  <div className="flex flex-wrap gap-4 items-end">
+                    <div className="space-y-1">
+                      <Label>Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-[200px] justify-start text-left font-normal", !retroDate && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {retroDate ? format(retroDate, "dd/MM/yyyy") : "Pick a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={retroDate}
+                            onSelect={setRetroDate}
+                            disabled={(date) => date > new Date()}
+                            initialFocus
+                            className={cn("p-3 pointer-events-auto")}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Time</Label>
+                      <Input type="time" value={retroTime} onChange={(e) => setRetroTime(e.target.value)} className="w-[140px]" />
+                    </div>
+                  </div>
+                )}
               </div>
               {/* Smart Suggestions */}
               {machineSuggestions && (

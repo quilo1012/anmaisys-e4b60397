@@ -92,10 +92,13 @@ export function useCreateWorkOrder() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (wo: { requester_name: string; machine: string; description: string; notes?: string; priority?: string }) => {
+    mutationFn: async (wo: { requester_name: string; machine: string; description: string; notes?: string; priority?: string; created_at?: string }) => {
+      const insertPayload: any = { ...wo, operator_id: user!.id, priority: wo.priority || "medium" };
+      if (wo.created_at) insertPayload.created_at = wo.created_at;
+      else delete insertPayload.created_at;
       const { data, error } = await supabase
         .from("work_orders")
-        .insert({ ...wo, operator_id: user!.id, priority: wo.priority || "medium" } as any)
+        .insert(insertPayload)
         .select()
         .single();
       if (error) throw error;
