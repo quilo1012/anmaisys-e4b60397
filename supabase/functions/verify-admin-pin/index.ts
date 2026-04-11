@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
     if (!match) {
       return new Response(JSON.stringify({ valid: false }), {
-        status: 401,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

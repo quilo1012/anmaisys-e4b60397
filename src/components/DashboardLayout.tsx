@@ -187,7 +187,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     <TooltipProvider delayDuration={0}>
       <SidebarProvider>
         <div className="flex min-h-screen w-full">
-          <Sidebar collapsible="icon" className="border-r-0">
+          <Sidebar collapsible="icon" className="border-r-0 print:hidden">
             <div className="flex items-center gap-2 px-4 py-4 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:justify-center">
               <img src={appliedLogo} alt="Applied Nutrition" className="h-8 w-8 rounded object-contain" />
               <span className="text-lg font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">AN Maintenance</span>

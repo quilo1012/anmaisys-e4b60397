@@ -112,21 +112,31 @@
 /* ─── Print Styles ─── */
 
 @page {
-  margin: 10mm;
-  size: A4;
+  margin: 0 !important;
+  size: A4 portrait;
 }
 
 @media print {
+  /* Compensate zero page margin with body padding */
+  body {
+    padding: 12mm !important;
+    background: white !important;
+    color: black !important;
+    font-size: 9pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
   /* Hide all non-document UI */
-  nav, aside, header, footer, button,
-  .sidebar, [data-sidebar], [data-sidebar="sidebar"],
-  [data-sidebar="trigger"], .peer[data-sidebar],
-  .print\\:hidden, .no-print,
+  nav, aside, header, footer,
+  .print\:hidden,
+  .no-print,
   [data-radix-popper-content-wrapper],
   .pagination, .filters-section,
   [data-radix-dialog-overlay], [role="dialog"],
   .sonner-toast, [data-sonner-toaster],
-  .SidebarProvider, [data-slot="sidebar"],
   .breadcrumb, [aria-label="breadcrumb"] {
     display: none !important;
     width: 0 !important;
@@ -137,21 +147,38 @@
     left: -9999px !important;
   }
 
+  /* Hide sidebar (Shadcn/Radix specific) */
+  [data-sidebar],
+  [data-sidebar="sidebar"],
+  [data-sidebar="rail"],
+  .peer[data-sidebar],
+  [class*="group/sidebar-wrapper"] > [data-sidebar],
+  .SidebarProvider [data-sidebar],
+  [data-slot="sidebar"] {
+    display: none !important;
+    width: 0 !important;
+    max-width: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    position: absolute !important;
+    left: -9999px !important;
+  }
+
+  /* Hide buttons except those explicitly kept */
+  button:not(.print-keep) {
+    display: none !important;
+  }
+
   /* Force clean document appearance */
   * {
     box-shadow: none !important;
     text-shadow: none !important;
   }
 
-  html, body {
+  html {
     background: white !important;
-    color: black !important;
-    font-size: 9pt;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
     margin: 0 !important;
     padding: 0 !important;
-    width: 100% !important;
   }
 
   #root {
@@ -172,6 +199,18 @@
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
+  }
+
+  /* Expand content to full width */
+  .flex-1.flex.flex-col {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .min-h-screen,
+  .min-h-svh {
+    padding: 0 !important;
   }
 
   /* Print content area */
@@ -276,15 +315,29 @@
   }
 
   /* Show print:block elements */
-  .print\\:block {
+  .print\:block {
     display: block !important;
   }
 
-  .print\\:flex {
+  .print\:flex {
     display: flex !important;
   }
 
-  .print\\:grid {
+  .print\:grid {
     display: grid !important;
+  }
+
+  /* Charts and SVGs remain visible */
+  [class*="recharts"],
+  canvas,
+  svg:not([class*="lucide"]) {
+    display: block !important;
+    break-inside: avoid !important;
+  }
+
+  /* Cards and tables avoid page breaks */
+  [class*="card"],
+  table {
+    break-inside: avoid !important;
   }
 }

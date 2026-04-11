@@ -92,9 +92,9 @@ export default function AuditLogsPage() {
                 <Input placeholder='Type "CONFIRM" to proceed' value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClearLogs} disabled={!pin || clearing || confirmText !== "CONFIRM"}>
+                  <Button variant="destructive" onClick={handleClearLogs} disabled={!pin || clearing || confirmText !== "CONFIRM"}>
                     {clearing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}Confirm
-                  </AlertDialogAction>
+                  </Button>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>

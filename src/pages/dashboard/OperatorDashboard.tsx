@@ -88,6 +88,10 @@ export default function OperatorDashboard() {
       toast({ title: "Error", description: "All fields are required", variant: "destructive" });
       return;
     }
+    if (isRetroactive && (!retroDate || !retroTime)) {
+      toast({ title: "Error", description: "Please select a retroactive date and time.", variant: "destructive" });
+      return;
+    }
     try {
       let created_at: string | undefined;
       if (isRetroactive && retroDate) {
