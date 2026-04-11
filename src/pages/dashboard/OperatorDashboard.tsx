@@ -89,6 +89,51 @@ export default function OperatorDashboard() {
     return { totalWOs: machineWOs.length, daysSinceLast, topProblems };
   }, [machine, allWOs]);
 
+  // Auto-priority: determine priority based on history
+  const autoPriority = useMemo(() => {
+    if (!machine || !description || !allWOs) return { priority: "medium" as string, reason: "" };
+    const cutoff7 = subDays(new Date(), 7).toISOString();
+    const cutoff5 = subDays(new Date(), 5).toISOString();
+
+    // Check recurring: same machine+problem ≥3 in 7 days
+    const recent7d = allWOs.filter((w) => w.machine === machine && w.description === description && w.created_at >= cutoff7);
+    if (recent7d.length >= 3) {
+      return { priority: "high", reason: `Recurring issue: ${recent7d.length}x in the last 7 days` };
+    }
+
+    // Check recent repair: any WO on this machine finished in last 5 days
+    const recentRepair = allWOs.find((w) => w.machine === machine && w.finished_at && w.finished_at >= cutoff5);
+    if (recentRepair) {
+      return { priority: "high", reason: "Recent repair detected on this machine (< 5 days)" };
+    }
+
+    // Check repeated: same problem ≥2 in 30 days
+    const cutoff30 = subDays(new Date(), 30).toISOString();
+    const repeated30d = allWOs.filter((w) => w.machine === machine && w.description === description && w.created_at >= cutoff30);
+    if (repeated30d.length >= 2) {
+      return { priority: "medium", reason: `Repeated issue: ${repeated30d.length}x in 30 days` };
+    }
+
+    return { priority: "low", reason: "First occurrence — low priority" };
+  }, [machine, description, allWOs]);
+
+  // AI insights for the selected machine+problem
+  const aiInsights = useMemo(() => {
+    if (!machine || !description || !allWOs) return null;
+    const cutoff30 = subDays(new Date(), 30).toISOString();
+    const similar = allWOs.filter((w) => w.machine === machine && w.description === description && w.created_at >= cutoff30);
+    if (!similar.length) return null;
+
+    const cutoff7 = subDays(new Date(), 7).toISOString();
+    const weekCount = similar.filter((w) => w.created_at >= cutoff7).length;
+
+    return {
+      occurrences: similar.length,
+      weekCount,
+      isRecurring: weekCount >= 3,
+    };
+  }, [machine, description, allWOs]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // No required field validation — all fields are optional
