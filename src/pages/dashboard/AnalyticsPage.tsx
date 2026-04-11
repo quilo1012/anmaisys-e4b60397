@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, BarChart3, Trophy, Award, TrendingUp, TrendingDown, Printer, FileText, CalendarIcon } from "lucide-react";
@@ -241,12 +242,30 @@ export default function AnalyticsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        {/* Print Header — visible only when printing */}
+        <div className="hidden print:block mb-6">
+          <div className="flex items-center justify-between border-b-2 border-black pb-3">
+            <div className="flex items-center gap-3">
+              <img src={appliedLogo} alt="Applied Nutrition" className="h-12 w-12 object-contain" />
+              <div>
+                <h1 className="text-xl font-bold">AN MAINTENANCE</h1>
+                <p className="text-sm text-muted-foreground">Applied Nutrition Ltd.</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <h2 className="text-lg font-bold">ANALYTICS REPORT</h2>
+              <p className="text-sm">Period: {format(startDate, "dd/MM/yyyy")} — {format(endDate, "dd/MM/yyyy")}</p>
+              <p className="text-xs text-muted-foreground">Printed: {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between print:hidden">
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="h-6 w-6" /> Analytics</h2>
             <p className="text-muted-foreground">KPIs, charts, and performance metrics</p>
           </div>
-          <div className="flex gap-2 print:hidden">
+          <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-1" /> Print
             </Button>

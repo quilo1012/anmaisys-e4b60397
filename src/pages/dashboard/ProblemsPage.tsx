@@ -41,7 +41,7 @@ function ChecklistManager({ problemId }: { problemId: string }) {
 
   const [newDesc, setNewDesc] = useState("");
   const [newType, setNewType] = useState("");
-  const [newRequired, setNewRequired] = useState(true);
+  const [newRequired, setNewRequired] = useState(false);
 
   const handleAdd = async () => {
     if (!newDesc.trim()) return;
@@ -53,8 +53,8 @@ function ChecklistManager({ problemId }: { problemId: string }) {
         is_required: newRequired,
       });
       setNewDesc("");
-      setNewType("Safety");
-      setNewRequired(true);
+      setNewType("");
+      setNewRequired(false);
       toast({ title: "Checklist item added" });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
