@@ -68,7 +68,7 @@ export default function Login() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
             <input
@@ -77,6 +77,7 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
               required
+              autoComplete="new-password"
               className="w-full h-11 rounded-lg bg-white/10 border border-white/15 pl-10 pr-4 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-colors" />
 
           </div>
@@ -90,6 +91,7 @@ export default function Login() {
               placeholder="Password"
               minLength={6}
               required
+              autoComplete="new-password"
               className="w-full h-11 rounded-lg bg-white/10 border border-white/15 pl-10 pr-4 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-colors" />
 
           </div>

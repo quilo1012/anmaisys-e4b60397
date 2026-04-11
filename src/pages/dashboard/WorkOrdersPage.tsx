@@ -481,7 +481,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
         <Dialog open={showCreate} onOpenChange={setShowCreate}>
           <DialogContent>
             <DialogHeader><DialogTitle>Create Work Order</DialogTitle><DialogDescription className="sr-only">Fill in work order details</DialogDescription></DialogHeader>
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form onSubmit={handleCreate} className="space-y-4" autoComplete="off">
               <div className="space-y-2"><Label>Requested By</Label><Input value={newRequester} onChange={(e) => setNewRequester(e.target.value)} placeholder="e.g. John Smith" required /></div>
               <div className="space-y-2"><Label>Machine</Label>
                 <Select value={newMachine} onValueChange={setNewMachine}>
