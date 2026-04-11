@@ -202,8 +202,10 @@ export default function ManageUsers() {
       if (editEngPin.length >= 4) {
         await supabase.rpc("set_engineer_pin_standalone" as any, { _engineer_id: editEng.id, _new_pin: editEngPin });
         logAuditEvent("pin_changed", "engineer", editEng.id, { engineer_name: editEngName.trim() });
+        toast({ title: "PIN updated", description: `PIN updated for ${editEngName.trim()}` });
+      } else {
+        toast({ title: "Engineer updated" });
       }
-      toast({ title: "Engineer updated" });
       setEditEng(null);
       fetchEngineers();
     } catch (error: any) {

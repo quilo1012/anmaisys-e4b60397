@@ -40,7 +40,7 @@ function ChecklistManager({ problemId }: { problemId: string }) {
   const { toast } = useToast();
 
   const [newDesc, setNewDesc] = useState("");
-  const [newType, setNewType] = useState("");
+  const [newType, setNewType] = useState("Safety");
   const [newRequired, setNewRequired] = useState(true);
 
   const handleAdd = async () => {
@@ -53,7 +53,7 @@ function ChecklistManager({ problemId }: { problemId: string }) {
         is_required: newRequired,
       });
       setNewDesc("");
-      setNewType("");
+      setNewType("Safety");
       setNewRequired(true);
       toast({ title: "Checklist item added" });
     } catch (err: any) {
