@@ -40,6 +40,9 @@ export default function OperatorDashboard() {
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
+  const [isRetroactive, setIsRetroactive] = useState(false);
+  const [retroDate, setRetroDate] = useState<Date>();
+  const [retroTime, setRetroTime] = useState("");
   const { data: workOrders, isLoading } = useWorkOrders({ operatorOnly: true });
   const { data: allWOs } = useWorkOrders();
   const woIds = workOrders?.map((wo) => wo.id) || [];
