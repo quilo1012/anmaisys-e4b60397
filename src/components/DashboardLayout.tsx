@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
+import { useOfflineDetection } from "@/hooks/useOfflineQueue";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
