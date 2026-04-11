@@ -1,72 +1,43 @@
 
 
-# Fix 4 Targeted Issues
+# Fix Operator Dashboard: Blank Fields + Retroactive Date/Time
 
-## 1. Print Page — Remove browser header/footer
+## Issues
 
-**File: `src/index.css`** (lines 114-116)
+1. **Form fields not blank**: The "Requested By" field shows `profile?.name` even before user interaction. Line/Machine/Description selects work correctly with placeholders, but the requester field is pre-filled and read-only.
 
-Change `@page` margin from `20mm` to `10mm` and add `margin-top: 0; margin-bottom: 0` to suppress browser header/footer area. Browsers use the margin area for URL/date — reducing it minimizes or eliminates them.
+2. **No retroactive date option**: Operators cannot create work orders with a past date/time. The `created_at` always defaults to `now()` in the database.
 
-```css
-@page {
-  margin: 10mm 10mm 10mm 10mm;
-  size: A4;
-}
-```
+## Changes
 
-Also add to the `@media print` block:
-```css
-.app-footer, .print-url {
-  display: none !important;
-}
-```
+### File: `src/pages/dashboard/OperatorDashboard.tsx`
 
-No component changes needed — the URL is a browser-level feature controlled by `@page` margins.
+1. **Requester field** — Keep it read-only showing `profile?.name` (this is correct behavior per memory — ensures integrity). No change needed here since the user identity should be auto-filled.
 
-## 2. Analytics — Date Range Filters
+2. **Add retroactive date/time fields**:
+   - Add a `Switch` or `Checkbox` labeled "Retroactive Order" that reveals date and time inputs
+   - When enabled, show a date picker (using `Popover` + `Calendar`) and a time input (`<Input type="time">`)
+   - Default: unchecked (uses current date/time as normal)
+   - When checked: user selects past date and time
 
-**File: `src/pages/dashboard/AnalyticsPage.tsx`**
+3. **Pass `created_at` to mutation** when retroactive is enabled
 
-- Add state for `startDate` and `endDate` (default: last 30 days)
-- Add a filter bar below the header with two date pickers (using Popover + Calendar) and a period preset dropdown (7d / 30d / 90d / Custom)
-- Filter `allWOs` by `created_at` within the selected range before passing to all `useMemo` calculations
-- All existing KPI, chart, and ranking computations already derive from `allWOs` — filtering at the source propagates everywhere
+### File: `src/hooks/useWorkOrders.ts`
 
-## 3. Clear Audit / Clear WOs — Fix response handling
+- Extend `useCreateWorkOrder` mutation to accept optional `created_at` field
+- Pass it through to the Supabase insert: `created_at: wo.created_at || undefined`
 
-The edge functions and DB functions work correctly. The issue is that `verify-admin-pin` returns `status: 401` when PIN is invalid, and `supabase.functions.invoke` treats non-2xx as an error.
+### File: `src/pages/dashboard/OperatorDashboard.tsx` — Field defaults
 
-**File: `src/pages/dashboard/AuditLogsPage.tsx`** (line 43-49)
-- The `supabase.functions.invoke` call sets `verifyError` when status is 401
-- Current code: `if (verifyError || !verifyData?.valid)` — this works but `verifyData` may be null when there's an error
-- Fix: parse the response body from the error to check if it contains `valid: false` vs actual error
-- Better approach: change to use raw `fetch` like WorkOrdersPage does, so we can read the JSON body regardless of status code
+- All Select fields already start empty with placeholders — confirmed working
+- `notes` starts as `""` — correct
+- The "Requested By" field is intentionally read-only with the logged-in user's name (per design requirement for data integrity)
 
-**File: `src/pages/dashboard/WorkOrdersPage.tsx`** (line 576-580)
-- Same issue — `supabase.functions.invoke` with 401 status sets `pinError` and `pinResult` may be null
-- Fix: also switch to raw `fetch` for consistency
+## Summary of UI additions
 
-Both clear operations will also call `queryClient.invalidateQueries` after success to force data refresh.
+- New toggle: "Retroactive Order" (Switch component)
+- When on: date picker + time input appear in the form grid
+- Submit sends the custom `created_at` timestamp to the database
 
-## 4. Checklist Items — Empty defaults (no auto-fill)
-
-**File: `src/pages/dashboard/ProblemsPage.tsx`** (line 43)
-- Change `const [newType, setNewType] = useState("Safety")` → `useState("")`
-- The `+ Add` button is disabled when `!newType` (line 121) — this is correct behavior; user must explicitly select a type
-- The placeholder "Select type..." already shows when value is empty
-
-No other changes needed — the user requested empty fields, and requiring type selection before adding is the intended UX.
-
-## Files to modify
-
-| File | Change |
-|------|--------|
-| `src/index.css` | Reduce `@page` margin, hide `.app-footer`/`.print-url` |
-| `src/pages/dashboard/AnalyticsPage.tsx` | Add date range filter bar with presets |
-| `src/pages/dashboard/AuditLogsPage.tsx` | Fix PIN verify to use raw `fetch` |
-| `src/pages/dashboard/WorkOrdersPage.tsx` | Fix PIN verify response handling (already uses fetch — verify flow) |
-| `src/pages/dashboard/ProblemsPage.tsx` | Reset `newType` default to `""` |
-
-No database migrations needed.
+No database migration needed — `created_at` column already accepts explicit values on insert.
 
