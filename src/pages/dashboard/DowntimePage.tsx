@@ -45,12 +45,12 @@ export default function DowntimePage() {
   const [formReason, setFormReason] = useState("");
   const [formStartedAt, setFormStartedAt] = useState("");
   const [formEndedAt, setFormEndedAt] = useState("");
-  const [formWOId, setFormWOId] = useState("");
+  const [formWOId, setFormWOId] = useState("none");
   const [formNotes, setFormNotes] = useState("");
 
   const resetForm = () => {
     setFormLine(""); setFormMachine(""); setFormCategory(""); setFormReason("");
-    setFormStartedAt(""); setFormEndedAt(""); setFormWOId(""); setFormNotes("");
+    setFormStartedAt(""); setFormEndedAt(""); setFormWOId("none"); setFormNotes("");
   };
 
   const openCreate = () => {
@@ -63,7 +63,7 @@ export default function DowntimePage() {
     setEditRecord(r);
     setFormLine(r.line); setFormMachine(r.machine || ""); setFormCategory(r.category);
     setFormReason(r.reason); setFormStartedAt(r.started_at.slice(0, 16));
-    setFormEndedAt(r.ended_at?.slice(0, 16) || ""); setFormWOId(r.work_order_id || "");
+    setFormEndedAt(r.ended_at?.slice(0, 16) || ""); setFormWOId(r.work_order_id || "none");
     setFormNotes(r.notes || "");
   };
 
@@ -72,7 +72,7 @@ export default function DowntimePage() {
       line: formLine, machine: formMachine || null, category: formCategory,
       reason: formReason, started_at: new Date(formStartedAt).toISOString(),
       ended_at: formEndedAt ? new Date(formEndedAt).toISOString() : null,
-      work_order_id: formWOId || null, notes: formNotes || null,
+      work_order_id: (formWOId && formWOId !== "none") ? formWOId : null, notes: formNotes || null,
       reported_by: user?.id || null,
     };
     try {
