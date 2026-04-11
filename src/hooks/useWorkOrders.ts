@@ -56,7 +56,8 @@ export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOSt
       let q = supabase
         .from("work_orders")
         .select("*, operator:profiles!work_orders_operator_id_fkey(name), engineer:engineers!work_orders_engineer_id_fkey(name), closer:profiles!work_orders_closed_by_fkey(name)")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(200);
 
       if (filter?.operatorOnly && user) {
         q = q.eq("operator_id", user.id);
@@ -70,6 +71,7 @@ export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOSt
       return data as unknown as WorkOrder[];
     },
     enabled: !!user,
+    refetchInterval: 30_000,
   });
 
   useEffect(() => {
@@ -133,11 +135,26 @@ export function useAcceptAndStartWorkOrder() {
         .single();
       if (error) throw error;
       if (!updated) throw new Error("Work order update failed — no rows affected");
-      // Log all three actions for traceability
       await logWOAction(woId, engineerId, engineerName, "received");
       await logWOAction(woId, engineerId, engineerName, "arrived");
       await logWOAction(woId, engineerId, engineerName, "started");
       return { before };
+    },
+    onMutate: async ({ woId }) => {
+      await queryClient.cancelQueries({ queryKey: ["work_orders"] });
+      const previousData = queryClient.getQueriesData({ queryKey: ["work_orders"] });
+      queryClient.setQueriesData({ queryKey: ["work_orders"] }, (old: WorkOrder[] | undefined) => {
+        if (!old) return old;
+        return old.map((wo) => wo.id === woId ? { ...wo, status: "in_progress" as WOStatus } : wo);
+      });
+      return { previousData };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousData) {
+        context.previousData.forEach(([key, data]: [any, any]) => {
+          queryClient.setQueryData(key, data);
+        });
+      }
     },
     onSuccess: (result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
