@@ -85,14 +85,7 @@ export default function OperatorDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requestedBy.trim() || !machine.trim() || !description.trim()) {
-      toast({ title: "Error", description: "All fields are required", variant: "destructive" });
-      return;
-    }
-    if (isRetroactive && (!retroDate || !retroTime)) {
-      toast({ title: "Error", description: "Please select a retroactive date and time.", variant: "destructive" });
-      return;
-    }
+    // No required field validation — all fields are optional
     try {
       let created_at: string | undefined;
       if (isRetroactive && retroDate) {

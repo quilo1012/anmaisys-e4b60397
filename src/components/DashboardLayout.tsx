@@ -186,7 +186,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <TooltipProvider delayDuration={0}>
       <SidebarProvider>
-        <div className="flex min-h-screen w-full">
+        <div className="flex h-screen w-full overflow-hidden">
           <Sidebar collapsible="icon" className="border-r-0 print:hidden">
             <div className="flex items-center gap-2 px-4 py-4 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:justify-center">
               <img src={appliedLogo} alt="Applied Nutrition" className="h-8 w-8 rounded object-contain" />
@@ -214,7 +214,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             </div>
           </Sidebar>
 
-          <main className="flex-1 flex flex-col transition-all duration-200">
+          <main className="flex-1 flex flex-col overflow-hidden transition-all duration-200">
             <header className="h-14 border-b bg-card flex items-center px-4 gap-3 print:hidden">
               <SidebarTrigger />
               <h1 className="text-lg font-semibold text-foreground">
@@ -233,7 +233,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 <LiveClock />
               </div>
             </header>
-            <div className="flex-1 p-4 md:p-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6">
               {children}
             </div>
           </main>
