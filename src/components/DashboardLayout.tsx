@@ -173,6 +173,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { role, profile, signOut } = useAuth();
   const { dark, toggle: toggleDark } = useDarkMode();
   const location = useLocation();
+  const { isOnline } = useOfflineDetection();
 
   useHeartbeat();
 
@@ -234,6 +235,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 <LiveClock />
               </div>
             </header>
+            {!isOnline && (
+              <div className="bg-destructive text-destructive-foreground text-center text-sm py-1 px-4 font-medium">
+                ⚠️ You are offline — changes will sync when connection is restored
+              </div>
+            )}
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
               {children}
             </div>
