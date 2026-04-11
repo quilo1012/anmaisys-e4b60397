@@ -48,7 +48,8 @@ const navItems: NavItem[] = [
   { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager"], group: "Assets" },
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "engineer"], group: "Assets" },
   // Reports
-  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager"], group: "Reports" },
+  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "engineer"], group: "Reports" },
+  { title: "Reliability", url: "/dashboard/reliability", icon: Activity, roles: ["admin", "engineer"], group: "Reports" },
   { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin", "manager"], group: "Reports" },
   { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin", "manager"], group: "Reports" },
   // Admin
