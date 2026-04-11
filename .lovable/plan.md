@@ -1,43 +1,23 @@
 
 
-# Fix Operator Dashboard: Blank Fields + Retroactive Date/Time
+# Fix Operator Dashboard Form Layout
 
-## Issues
+## Problem identified in screenshot
 
-1. **Form fields not blank**: The "Requested By" field shows `profile?.name` even before user interaction. Line/Machine/Description selects work correctly with placeholders, but the requester field is pre-filled and read-only.
+The **Observations (optional)** textarea (line 166) sits in the left column only, creating an empty gap on the right side of the 2-column grid. This looks broken and wastes space.
 
-2. **No retroactive date option**: Operators cannot create work orders with a past date/time. The `created_at` always defaults to `now()` in the database.
+## Fix
 
-## Changes
+**File: `src/pages/dashboard/OperatorDashboard.tsx`** (line 166)
 
-### File: `src/pages/dashboard/OperatorDashboard.tsx`
+Add `md:col-span-2` to the Observations wrapper so it spans the full width, matching the retroactive toggle and submit button below it:
 
-1. **Requester field** — Keep it read-only showing `profile?.name` (this is correct behavior per memory — ensures integrity). No change needed here since the user identity should be auto-filled.
+```tsx
+// Line 166: change from
+<div className="space-y-2">
+// to
+<div className="space-y-2 md:col-span-2">
+```
 
-2. **Add retroactive date/time fields**:
-   - Add a `Switch` or `Checkbox` labeled "Retroactive Order" that reveals date and time inputs
-   - When enabled, show a date picker (using `Popover` + `Calendar`) and a time input (`<Input type="time">`)
-   - Default: unchecked (uses current date/time as normal)
-   - When checked: user selects past date and time
-
-3. **Pass `created_at` to mutation** when retroactive is enabled
-
-### File: `src/hooks/useWorkOrders.ts`
-
-- Extend `useCreateWorkOrder` mutation to accept optional `created_at` field
-- Pass it through to the Supabase insert: `created_at: wo.created_at || undefined`
-
-### File: `src/pages/dashboard/OperatorDashboard.tsx` — Field defaults
-
-- All Select fields already start empty with placeholders — confirmed working
-- `notes` starts as `""` — correct
-- The "Requested By" field is intentionally read-only with the logged-in user's name (per design requirement for data integrity)
-
-## Summary of UI additions
-
-- New toggle: "Retroactive Order" (Switch component)
-- When on: date picker + time input appear in the form grid
-- Submit sends the custom `created_at` timestamp to the database
-
-No database migration needed — `created_at` column already accepts explicit values on insert.
+This is the only change needed — one CSS class addition to one `<div>`.
 
