@@ -35,7 +35,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 
 export default function OperatorDashboard() {
   const { profile } = useAuth();
-  const [requesterName, setRequesterName] = useState("");
+  
   const [line, setLine] = useState("");
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
