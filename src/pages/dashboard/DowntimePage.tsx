@@ -379,8 +379,11 @@ export default function DowntimePage() {
         {/* Edit Dialog */}
         <Dialog open={!!editRecord} onOpenChange={o => { if (!o) { setEditRecord(null); resetForm(); } }}>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>Edit Downtime</DialogTitle></DialogHeader>
-            <FormFields />
+            <DialogHeader>
+              <DialogTitle>Edit Downtime</DialogTitle>
+              <DialogDescription className="sr-only">Edit the details of this downtime record</DialogDescription>
+            </DialogHeader>
+            {formFieldsJsx}
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditRecord(null)}>Cancel</Button>
               <Button onClick={() => handleSubmit(true)} disabled={!formLine || !formCategory || !formReason || !formStartedAt || updateDowntime.isPending}>
