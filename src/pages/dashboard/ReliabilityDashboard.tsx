@@ -13,7 +13,7 @@ import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines } from "@/hooks/useMachines";
 import { type RiskLevel } from "@/hooks/usePredictiveAlerts";
 import { useRecentMachineEvents } from "@/hooks/useMachineEvents";
-import { format, subDays, differenceInMinutes } from "date-fns";
+import { format, subDays, differenceInMinutes, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 
@@ -38,7 +38,7 @@ export default function ReliabilityDashboard() {
     if (!allWOs) return [];
     return allWOs.filter((wo) => {
       const d = new Date(wo.created_at);
-      if (d < startDate || d > endDate) return false;
+      if (d < startDate || d > endOfDay(endDate)) return false;
       if (filterMachine && wo.machine !== filterMachine) return false;
       if (filterLine && machines) {
         const m = machines.find((mac) => mac.name === wo.machine);

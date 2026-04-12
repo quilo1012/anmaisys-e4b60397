@@ -396,6 +396,13 @@ export function useDeleteWorkOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Delete related records from tables without ON DELETE CASCADE
+      await supabase.from("wo_messages").delete().eq("work_order_id", id);
+      await supabase.from("checklist_responses").delete().eq("work_order_id", id);
+      await supabase.from("machine_events" as any).delete().eq("work_order_id", id);
+      await supabase.from("work_order_logs" as any).delete().eq("work_order_id", id);
+      await supabase.from("wo_photos").delete().eq("work_order_id", id);
+      // Now delete the WO (parts_used + downtime cascade automatically)
       const { error } = await supabase.from("work_orders").delete().eq("id", id);
       if (error) throw error;
     },
