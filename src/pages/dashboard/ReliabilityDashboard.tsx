@@ -7,13 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Activity, AlertTriangle, Clock, Cog, CalendarIcon, ChevronDown, TrendingUp } from "lucide-react";
+import { Activity, AlertTriangle, Clock, Cog, CalendarIcon, ChevronDown, TrendingUp, History } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines } from "@/hooks/useMachines";
 import { type RiskLevel } from "@/hooks/usePredictiveAlerts";
 import { useRecentMachineEvents } from "@/hooks/useMachineEvents";
-import { format, subDays, differenceInMinutes, endOfDay } from "date-fns";
+import { format, subDays, differenceInMinutes, endOfDay, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 
@@ -28,6 +29,7 @@ export default function ReliabilityDashboard() {
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [filterMachine, setFilterMachine] = useState("");
   const [filterLine, setFilterLine] = useState("");
+  const [historyPeriod, setHistoryPeriod] = useState<"today" | "week" | "month">("today");
 
   const { data: allWOs } = useWorkOrders();
   const { data: machines } = useMachines();
@@ -48,6 +50,47 @@ export default function ReliabilityDashboard() {
     });
   }, [allWOs, startDate, endDate, filterMachine, filterLine, machines]);
 
+  // Machine Problem History
+  const machineHistory = useMemo(() => {
+    if (!allWOs) return [];
+    const now = new Date();
+    const todayStart = startOfDay(now);
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const monthStart = startOfMonth(now);
+
+    const machineMap: Record<string, { today: number; week: number; month: number; problems: Record<string, number> }> = {};
+
+    allWOs.forEach((wo) => {
+      const d = new Date(wo.created_at);
+      if (!machineMap[wo.machine]) machineMap[wo.machine] = { today: 0, week: 0, month: 0, problems: {} };
+      const entry = machineMap[wo.machine];
+      if (d >= monthStart) {
+        entry.month++;
+        entry.problems[wo.description] = (entry.problems[wo.description] || 0) + 1;
+      }
+      if (d >= weekStart) entry.week++;
+      if (d >= todayStart) entry.today++;
+    });
+
+    return Object.entries(machineMap)
+      .map(([machine, data]) => {
+        const topProblem = Object.entries(data.problems).sort((a, b) => b[1] - a[1])[0];
+        return {
+          machine,
+          today: data.today,
+          week: data.week,
+          month: data.month,
+          topProblem: topProblem ? topProblem[0] : "—",
+          topProblemCount: topProblem ? topProblem[1] : 0,
+        };
+      })
+      .sort((a, b) => {
+        const key = historyPeriod;
+        return b[key] - a[key];
+      })
+      .filter((m) => m[historyPeriod] > 0);
+  }, [allWOs, historyPeriod]);
+
   // Compute risks locally from filteredWOs so date range applies
   const filteredRisks = useMemo(() => {
     if (!filteredWOs.length) return [];
@@ -62,7 +105,6 @@ export default function ReliabilityDashboard() {
       const failures = wos.length;
       const sorted = [...wos].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       
-      // MTBF
       let mtbfHours: number | null = null;
       if (sorted.length >= 2) {
         const gaps: number[] = [];
@@ -72,34 +114,24 @@ export default function ReliabilityDashboard() {
         mtbfHours = Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
       }
 
-      // MTBF warning
       const lastFailureDate = sorted[sorted.length - 1]?.created_at;
       const hoursSinceLast = lastFailureDate ? (now.getTime() - new Date(lastFailureDate).getTime()) / 3600000 : null;
       const mtbfWarning = mtbfHours !== null && hoursSinceLast !== null && hoursSinceLast >= mtbfHours * 0.8;
 
-      // Recent repair alert
       const recentRepairAlert = lastFailureDate ? (now.getTime() - new Date(lastFailureDate).getTime()) / 86400000 < 5 : false;
 
-      // Recurring problems (≥3 in 7 days)
       const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
       const recentWOs = wos.filter((w) => new Date(w.created_at) >= sevenDaysAgo);
       const problemCounts: Record<string, number> = {};
       recentWOs.forEach((w) => { problemCounts[w.description] = (problemCounts[w.description] || 0) + 1; });
       const recurringProblems = Object.entries(problemCounts).filter(([, c]) => c >= 3).map(([p]) => p);
 
-      // Risk level
       let risk: RiskLevel = "LOW";
       if (recurringProblems.length > 0 || (recentRepairAlert && failures >= 3) || mtbfWarning) risk = "HIGH";
       else if (failures >= 2 || recentRepairAlert) risk = "MEDIUM";
 
       return {
-        machine,
-        risk,
-        failures30d: failures,
-        mtbfHours,
-        mtbfWarning,
-        recentRepairAlert,
-        recurringProblems,
+        machine, risk, failures30d: failures, mtbfHours, mtbfWarning, recentRepairAlert, recurringProblems,
         lastFailure: lastFailureDate || null,
       };
     }).sort((a, b) => {
@@ -217,6 +249,60 @@ export default function ReliabilityDashboard() {
           <Card><CardContent className="p-4"><div className="text-2xl font-bold">{avgMTBF} hrs</div><p className="text-xs text-muted-foreground">Avg MTBF</p></CardContent></Card>
         </div>
 
+        {/* Machine Problem History */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Machine Problem History</CardTitle>
+              <Tabs value={historyPeriod} onValueChange={(v) => setHistoryPeriod(v as "today" | "week" | "month")}>
+                <TabsList>
+                  <TabsTrigger value="today">Today</TabsTrigger>
+                  <TabsTrigger value="week">This Week</TabsTrigger>
+                  <TabsTrigger value="month">This Month</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {machineHistory.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">No problems recorded for this period</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Machine</TableHead>
+                    <TableHead className="text-center">Today</TableHead>
+                    <TableHead className="text-center">Week</TableHead>
+                    <TableHead className="text-center">Month</TableHead>
+                    <TableHead>Top Problem</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {machineHistory.map((m, i) => (
+                    <TableRow key={m.machine}>
+                      <TableCell className="font-medium text-muted-foreground">{i + 1}</TableCell>
+                      <TableCell className="font-medium">{m.machine}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={m.today > 0 ? "destructive" : "secondary"}>{m.today}</Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={m.week >= 3 ? "destructive" : "secondary"}>{m.week}</Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={m.month >= 5 ? "destructive" : "secondary"}>{m.month}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]" title={m.topProblem}>
+                        {m.topProblem} {m.topProblemCount > 1 && <span className="text-xs">(×{m.topProblemCount})</span>}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Machine Risk Table */}
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Cog className="h-5 w-5" />Machine Risk Assessment</CardTitle></CardHeader>
@@ -299,7 +385,6 @@ export default function ReliabilityDashboard() {
 
         {/* Charts */}
         <div className="grid gap-4 md:grid-cols-3">
-          {/* Top 5 Problem Machines */}
           <Card>
             <CardHeader><CardTitle className="text-sm">Top Problem Machines</CardTitle></CardHeader>
             <CardContent className="h-[250px]">
@@ -315,7 +400,6 @@ export default function ReliabilityDashboard() {
             </CardContent>
           </Card>
 
-          {/* Most Common Problems */}
           <Card>
             <CardHeader><CardTitle className="text-sm">Most Common Problems</CardTitle></CardHeader>
             <CardContent className="h-[250px]">
@@ -331,7 +415,6 @@ export default function ReliabilityDashboard() {
             </CardContent>
           </Card>
 
-          {/* Failure Trend */}
           <Card>
             <CardHeader><CardTitle className="text-sm flex items-center gap-1"><TrendingUp className="h-4 w-4" />Failure Trend</CardTitle></CardHeader>
             <CardContent className="h-[250px]">
