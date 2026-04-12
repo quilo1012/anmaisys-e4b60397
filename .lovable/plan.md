@@ -1,28 +1,32 @@
 
 
-# Plan: Reliability Machine History, Print Logo, Downtime Blank Fields
+# Plan: Fix Console Errors and RLS Issues
 
-## Changes
+## Issues Found
 
-### 1. Reliability Dashboard — Add Machine Problem History (`src/pages/dashboard/ReliabilityDashboard.tsx`)
-- Add period selector tabs: **Today / This Week / This Month / Custom** (similar to analytics)
-- Add a new section "Machine Problem History" showing a table of machines ranked by problem count for the selected period
-- Each row shows: machine name, problem count (today), problem count (week), problem count (month), top problem description
-- This gives visibility into which machine had most problems daily/weekly/monthly
+### 1. Downtime `FormFields` ref warning
+**Root cause**: `FormFields` is defined as a nested function component inside the render. React tries to pass a ref to it from the Dialog, causing "Function components cannot be given refs" warning. Additionally, defining a component inside render causes it to remount on every state change, losing focus in form inputs.
 
-### 2. Print Logo — Restore in WO Print Header (`src/pages/dashboard/WorkOrderDetail.tsx`)
-- Add the `appliedLogo` image back to the print-only header (line 196 area)
-- Import `appliedLogo` if not already imported
-- Place it before "AN MAINTENANCE" text in the print header
+**Fix** (`src/pages/dashboard/DowntimePage.tsx`):
+- Convert `FormFields` from a nested component to inline JSX (just extract the JSX directly into both Dialog bodies), OR move it outside the component as a proper component with props
+- Best approach: replace `<FormFields />` in both dialogs with the inline JSX content directly to avoid the ref issue and re-mount problem
 
-### 3. Downtime — All Fields Blank on Create (`src/pages/dashboard/DowntimePage.tsx`)
-- In `openCreate()` (line 56-59), remove `setFormStartedAt(new Date().toISOString().slice(0, 16))` so start time is blank
-- All fields will already be blank from `resetForm()` — just remove the auto-fill of start time
+### 2. Missing `DialogDescription` accessibility warning
+**Root cause**: Both Create and Edit Downtime dialogs have `DialogContent` without a `DialogDescription`, which Radix UI warns about for accessibility.
+
+**Fix** (`src/pages/dashboard/DowntimePage.tsx`):
+- Add `import { DialogDescription }` 
+- Add `<DialogDescription>` inside each `DialogHeader` with appropriate text (can use `className="sr-only"` to keep it visually hidden)
+
+### 3. Downtime RLS — Engineers can only view, not create/update/delete
+**Root cause**: Looking at the RLS policies, engineers only have SELECT access to the downtime table. If engineers need to register/edit/resolve downtime, they need INSERT/UPDATE/DELETE policies.
+
+**Fix** (DB migration):
+- Add RLS policies for engineers to INSERT, UPDATE, and DELETE downtime records
 
 ## Files Changed
 | File | Change |
 |------|--------|
-| `src/pages/dashboard/ReliabilityDashboard.tsx` | Add machine problem history table with daily/weekly/monthly counts |
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Restore logo in print header |
-| `src/pages/dashboard/DowntimePage.tsx` | Remove auto-fill of start time on create |
+| `src/pages/dashboard/DowntimePage.tsx` | Inline FormFields JSX, add DialogDescription |
+| Migration SQL | Add engineer INSERT/UPDATE/DELETE policies for downtime |
 
