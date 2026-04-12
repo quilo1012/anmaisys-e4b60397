@@ -56,9 +56,6 @@ export default function MachinesPage() {
   const validate = (isEdit = false): boolean => {
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = "Name is required";
-    if (!machineType.trim()) e.machineType = "Type is required";
-    if (!currentLocation.trim()) e.currentLocation = "Location is required";
-    if (!code.trim()) e.code = "Code is required";
     if (code.trim() && machines) {
       const dup = machines.find(m => m.code === code.trim() && (!isEdit || m.id !== editMachine?.id));
       if (dup) e.code = "Code already in use";
@@ -119,7 +116,7 @@ export default function MachinesPage() {
             {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
           </div>
           <div className="space-y-1.5">
-            <Label>Code *</Label>
+            <Label>Code</Label>
             <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="MCH-001" className="font-mono" />
             {errors.code && <p className="text-xs text-destructive">{errors.code}</p>}
           </div>
@@ -131,7 +128,7 @@ export default function MachinesPage() {
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Classification</p>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Machine Type *</Label>
+            <Label>Machine Type</Label>
             <Input value={machineType} onChange={(e) => setMachineType(e.target.value)} placeholder="e.g. CNC, Press, Conveyor" />
             {errors.machineType && <p className="text-xs text-destructive">{errors.machineType}</p>}
           </div>
@@ -152,7 +149,7 @@ export default function MachinesPage() {
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Location</p>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Current Location *</Label>
+            <Label>Current Location</Label>
             <Input value={currentLocation} onChange={(e) => setCurrentLocation(e.target.value)} placeholder="e.g. Building A, Floor 2" />
             {errors.currentLocation && <p className="text-xs text-destructive">{errors.currentLocation}</p>}
           </div>
