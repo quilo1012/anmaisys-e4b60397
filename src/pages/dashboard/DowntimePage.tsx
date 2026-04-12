@@ -362,8 +362,11 @@ export default function DowntimePage() {
         {/* Create Dialog */}
         <Dialog open={showCreate} onOpenChange={o => { setShowCreate(o); if (!o) resetForm(); }}>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>Register Downtime</DialogTitle></DialogHeader>
-            <FormFields />
+            <DialogHeader>
+              <DialogTitle>Register Downtime</DialogTitle>
+              <DialogDescription className="sr-only">Fill in the details to register a new downtime event</DialogDescription>
+            </DialogHeader>
+            {formFieldsJsx}
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
               <Button onClick={() => handleSubmit(false)} disabled={!formLine || !formCategory || !formReason || !formStartedAt || createDowntime.isPending}>
