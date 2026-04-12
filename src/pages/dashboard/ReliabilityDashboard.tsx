@@ -31,7 +31,6 @@ export default function ReliabilityDashboard() {
 
   const { data: allWOs } = useWorkOrders();
   const { data: machines } = useMachines();
-  const { machineRisks } = usePredictiveAlerts();
   const { data: machineEvents } = useRecentMachineEvents();
 
   // Filter WOs by date range
@@ -49,16 +48,65 @@ export default function ReliabilityDashboard() {
     });
   }, [allWOs, startDate, endDate, filterMachine, filterLine, machines]);
 
-  // Filter risks
+  // Compute risks locally from filteredWOs so date range applies
   const filteredRisks = useMemo(() => {
-    let r = machineRisks;
-    if (filterMachine) r = r.filter((x) => x.machine === filterMachine);
-    if (filterLine && machines) {
-      const lineSet = new Set(machines.filter((m) => m.line === filterLine).map((m) => m.name));
-      r = r.filter((x) => lineSet.has(x.machine));
-    }
-    return r;
-  }, [machineRisks, filterMachine, filterLine, machines]);
+    if (!filteredWOs.length) return [];
+    const now = new Date();
+    const machineMap: Record<string, typeof filteredWOs> = {};
+    filteredWOs.forEach((wo) => {
+      if (!machineMap[wo.machine]) machineMap[wo.machine] = [];
+      machineMap[wo.machine].push(wo);
+    });
+
+    return Object.entries(machineMap).map(([machine, wos]) => {
+      const failures = wos.length;
+      const sorted = [...wos].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      
+      // MTBF
+      let mtbfHours: number | null = null;
+      if (sorted.length >= 2) {
+        const gaps: number[] = [];
+        for (let i = 1; i < sorted.length; i++) {
+          gaps.push((new Date(sorted[i].created_at).getTime() - new Date(sorted[i - 1].created_at).getTime()) / 3600000);
+        }
+        mtbfHours = Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
+      }
+
+      // MTBF warning
+      const lastFailureDate = sorted[sorted.length - 1]?.created_at;
+      const hoursSinceLast = lastFailureDate ? (now.getTime() - new Date(lastFailureDate).getTime()) / 3600000 : null;
+      const mtbfWarning = mtbfHours !== null && hoursSinceLast !== null && hoursSinceLast >= mtbfHours * 0.8;
+
+      // Recent repair alert
+      const recentRepairAlert = lastFailureDate ? (now.getTime() - new Date(lastFailureDate).getTime()) / 86400000 < 5 : false;
+
+      // Recurring problems (≥3 in 7 days)
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
+      const recentWOs = wos.filter((w) => new Date(w.created_at) >= sevenDaysAgo);
+      const problemCounts: Record<string, number> = {};
+      recentWOs.forEach((w) => { problemCounts[w.description] = (problemCounts[w.description] || 0) + 1; });
+      const recurringProblems = Object.entries(problemCounts).filter(([, c]) => c >= 3).map(([p]) => p);
+
+      // Risk level
+      let risk: RiskLevel = "LOW";
+      if (recurringProblems.length > 0 || (recentRepairAlert && failures >= 3) || mtbfWarning) risk = "HIGH";
+      else if (failures >= 2 || recentRepairAlert) risk = "MEDIUM";
+
+      return {
+        machine,
+        risk,
+        failures30d: failures,
+        mtbfHours,
+        mtbfWarning,
+        recentRepairAlert,
+        recurringProblems,
+        lastFailure: lastFailureDate || null,
+      };
+    }).sort((a, b) => {
+      const order: Record<RiskLevel, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+      return (order[a.risk] - order[b.risk]) || (b.failures30d - a.failures30d);
+    });
+  }, [filteredWOs]);
 
   // KPIs
   const totalMachines = machines?.length || 0;

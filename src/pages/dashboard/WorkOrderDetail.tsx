@@ -15,7 +15,7 @@ import { format, differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import appliedLogo from "@/assets/appliedlogo.jpeg";
+
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -190,20 +190,12 @@ export default function WorkOrderDetail() {
     <DashboardLayout>
       <div className="space-y-6 max-w-3xl print-content" id="wo-print-content">
 
-        {/* ═══ PRINT-ONLY: Background Watermark ═══ */}
-        <div className="print-watermark" aria-hidden="true">
-          <img src={appliedLogo} alt="" className="w-72 h-72 object-contain opacity-[0.08]" />
-        </div>
-
         {/* ═══ PRINT-ONLY: Industrial Document Header ═══ */}
         <div className="hidden print:block mb-4">
           <div className="flex items-center justify-between border-b-2 border-black pb-3">
-            <div className="flex items-center gap-3">
-              <img src={appliedLogo} alt="AN" className="h-12 object-contain" />
-              <div>
-                <p className="text-lg font-bold tracking-wide">AN MAINTENANCE</p>
-                <p className="text-[8pt] text-gray-500">Applied Nutrition Ltd.</p>
-              </div>
+            <div>
+              <p className="text-lg font-bold tracking-wide">AN MAINTENANCE</p>
+              <p className="text-[8pt] text-gray-500">Applied Nutrition Ltd.</p>
             </div>
             <div className="text-center">
               <p className="text-lg font-bold tracking-widest">WORK ORDER</p>
