@@ -11,7 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Activity, AlertTriangle, Clock, Cog, CalendarIcon, ChevronDown, TrendingUp } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines } from "@/hooks/useMachines";
-import { usePredictiveAlerts, type RiskLevel } from "@/hooks/usePredictiveAlerts";
+import { type RiskLevel } from "@/hooks/usePredictiveAlerts";
 import { useRecentMachineEvents } from "@/hooks/useMachineEvents";
 import { format, subDays, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
