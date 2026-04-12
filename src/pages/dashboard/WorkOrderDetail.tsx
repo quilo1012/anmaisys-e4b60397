@@ -196,8 +196,9 @@ export default function WorkOrderDetail() {
             <div className="flex items-center gap-3">
               <img src="/applied-logo.png" alt="Logo" className="h-10 w-auto" onError={(e) => (e.currentTarget.style.display = 'none')} />
               <div>
-              <p className="text-lg font-bold tracking-wide">AN MAINTENANCE</p>
-              <p className="text-[8pt] text-gray-500">Applied Nutrition Ltd.</p>
+                <p className="text-lg font-bold tracking-wide">AN MAINTENANCE</p>
+                <p className="text-[8pt] text-gray-500">Applied Nutrition Ltd.</p>
+              </div>
             </div>
             <div className="text-center">
               <p className="text-lg font-bold tracking-widest">WORK ORDER</p>
