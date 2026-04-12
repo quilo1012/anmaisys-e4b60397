@@ -477,7 +477,7 @@ export default function WorkOrderDetail() {
             </div>
             <div>
               <p className="text-[8pt] font-bold mb-1">Operator Signature:</p>
-              <p className="text-[8pt] mb-1">Name: <span className="font-medium">{wo.operator?.name || wo.requester_name || ""}</span></p>
+              <p className="text-[8pt] mb-1">Name: <span className="font-medium">{wo.requester_name || wo.operator?.name || ""}</span></p>
               <p className="text-[8pt] mb-8">Date: {format(new Date(wo.created_at), "dd/MM/yyyy")}</p>
               <div className="border-b-2 border-black w-full" />
               <p className="text-[7pt] mt-1 text-gray-500">Signature</p>
