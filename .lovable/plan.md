@@ -1,42 +1,28 @@
 
-# Fix Plan: Machine Validation, WO Delete, Reliability Filters
 
-## Issue 1: Machine Form — All Fields Required
-**Root cause**: `validate()` in `MachinesPage.tsx` (line 56-68) requires name, machineType, currentLocation, AND code. Should only require name.
+# Plan: Reliability Machine History, Print Logo, Downtime Blank Fields
 
-**Fix** (`src/pages/dashboard/MachinesPage.tsx`):
-- Remove required validation for `machineType`, `currentLocation`, and `code`
-- Keep only `name` as required
-- Remove the duplicate code check (keep it optional)
-- Update form labels to remove `*` from non-required fields
+## Changes
 
-## Issue 2: Admin Cannot Delete Work Orders
-**Root cause**: DB error: `parts_used_work_order_id_fkey` and `downtime_work_order_id_fkey` block deletion because they lack `ON DELETE CASCADE`. When a WO has parts_used or downtime records, the FK constraint prevents deletion.
+### 1. Reliability Dashboard — Add Machine Problem History (`src/pages/dashboard/ReliabilityDashboard.tsx`)
+- Add period selector tabs: **Today / This Week / This Month / Custom** (similar to analytics)
+- Add a new section "Machine Problem History" showing a table of machines ranked by problem count for the selected period
+- Each row shows: machine name, problem count (today), problem count (week), problem count (month), top problem description
+- This gives visibility into which machine had most problems daily/weekly/monthly
 
-**Fix** (DB migration):
-```sql
-ALTER TABLE parts_used DROP CONSTRAINT parts_used_work_order_id_fkey;
-ALTER TABLE parts_used ADD CONSTRAINT parts_used_work_order_id_fkey 
-  FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE;
+### 2. Print Logo — Restore in WO Print Header (`src/pages/dashboard/WorkOrderDetail.tsx`)
+- Add the `appliedLogo` image back to the print-only header (line 196 area)
+- Import `appliedLogo` if not already imported
+- Place it before "AN MAINTENANCE" text in the print header
 
-ALTER TABLE downtime DROP CONSTRAINT downtime_work_order_id_fkey;
-ALTER TABLE downtime ADD CONSTRAINT downtime_work_order_id_fkey 
-  FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE;
-```
-
-Also delete related records from tables without FK (wo_messages, checklist_responses, machine_events) before deleting the WO itself in `useDeleteWorkOrder`.
-
-## Issue 3: Reliability Dashboard Not Showing Today's Orders
-**Root cause**: `endDate` is initialized as `new Date()` at component mount time. Orders created after that instant are excluded by `d > endDate`. The comparison doesn't include the full day.
-
-**Fix** (`src/pages/dashboard/ReliabilityDashboard.tsx`):
-- Set endDate to end-of-day: use `endOfDay(new Date())` from date-fns
-- In the filter, use `endOfDay(endDate)` for the comparison so the entire selected end date is included
+### 3. Downtime — All Fields Blank on Create (`src/pages/dashboard/DowntimePage.tsx`)
+- In `openCreate()` (line 56-59), remove `setFormStartedAt(new Date().toISOString().slice(0, 16))` so start time is blank
+- All fields will already be blank from `resetForm()` — just remove the auto-fill of start time
 
 ## Files Changed
 | File | Change |
 |------|--------|
-| `src/pages/dashboard/MachinesPage.tsx` | Remove required validation for type/location/code |
-| `src/hooks/useWorkOrders.ts` | Delete related records before WO deletion |
-| `src/pages/dashboard/ReliabilityDashboard.tsx` | Fix endDate to include full day |
-| Migration SQL | Add ON DELETE CASCADE to parts_used and downtime FKs |
+| `src/pages/dashboard/ReliabilityDashboard.tsx` | Add machine problem history table with daily/weekly/monthly counts |
+| `src/pages/dashboard/WorkOrderDetail.tsx` | Restore logo in print header |
+| `src/pages/dashboard/DowntimePage.tsx` | Remove auto-fill of start time on create |
+
