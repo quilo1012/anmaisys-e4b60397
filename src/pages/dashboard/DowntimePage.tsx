@@ -55,7 +55,6 @@ export default function DowntimePage() {
 
   const openCreate = () => {
     resetForm();
-    setFormStartedAt(new Date().toISOString().slice(0, 16));
     setShowCreate(true);
   };
 
