@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Clock, Loader2, Plus, Pencil, Trash2, CheckCircle, AlertTriangle, Activity, TrendingUp } from "lucide-react";
 import { useDowntime, useCreateDowntime, useUpdateDowntime, useDeleteDowntime, type DowntimeRecord } from "@/hooks/useDowntime";
@@ -158,7 +158,7 @@ export default function DowntimePage() {
     return `${Math.floor(mins / 60)}h ${mins % 60}m`;
   };
 
-  const FormFields = () => (
+  const formFieldsJsx = (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -362,8 +362,11 @@ export default function DowntimePage() {
         {/* Create Dialog */}
         <Dialog open={showCreate} onOpenChange={o => { setShowCreate(o); if (!o) resetForm(); }}>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>Register Downtime</DialogTitle></DialogHeader>
-            <FormFields />
+            <DialogHeader>
+              <DialogTitle>Register Downtime</DialogTitle>
+              <DialogDescription className="sr-only">Fill in the details to register a new downtime event</DialogDescription>
+            </DialogHeader>
+            {formFieldsJsx}
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
               <Button onClick={() => handleSubmit(false)} disabled={!formLine || !formCategory || !formReason || !formStartedAt || createDowntime.isPending}>
@@ -376,8 +379,11 @@ export default function DowntimePage() {
         {/* Edit Dialog */}
         <Dialog open={!!editRecord} onOpenChange={o => { if (!o) { setEditRecord(null); resetForm(); } }}>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>Edit Downtime</DialogTitle></DialogHeader>
-            <FormFields />
+            <DialogHeader>
+              <DialogTitle>Edit Downtime</DialogTitle>
+              <DialogDescription className="sr-only">Edit the details of this downtime record</DialogDescription>
+            </DialogHeader>
+            {formFieldsJsx}
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditRecord(null)}>Cancel</Button>
               <Button onClick={() => handleSubmit(true)} disabled={!formLine || !formCategory || !formReason || !formStartedAt || updateDowntime.isPending}>
