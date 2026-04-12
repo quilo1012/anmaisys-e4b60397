@@ -1,37 +1,42 @@
 
+# Fix Plan: Machine Validation, WO Delete, Reliability Filters
 
-# Plan: Remove Risk, Checklist, Fix Reliability Filters, Remove Print Logo
+## Issue 1: Machine Form — All Fields Required
+**Root cause**: `validate()` in `MachinesPage.tsx` (line 56-68) requires name, machineType, currentLocation, AND code. Should only require name.
 
-## Changes
+**Fix** (`src/pages/dashboard/MachinesPage.tsx`):
+- Remove required validation for `machineType`, `currentLocation`, and `code`
+- Keep only `name` as required
+- Remove the duplicate code check (keep it optional)
+- Update form labels to remove `*` from non-required fields
 
-### 1. Remove Risk Level from Problems Page (`src/pages/dashboard/ProblemsPage.tsx`)
-- Remove `RISK_LEVELS` constant, `riskBadgeClass` function
-- Remove Risk Level `<Select>` from `formContent` (lines 213-219)
-- Remove `severity` state and `setSeverity` from `resetForm`
-- Remove Risk Level column from table header and body (lines 252, 268-271)
-- Keep `severity` in data model (DB unchanged), just hide from UI
+## Issue 2: Admin Cannot Delete Work Orders
+**Root cause**: DB error: `parts_used_work_order_id_fkey` and `downtime_work_order_id_fkey` block deletion because they lack `ON DELETE CASCADE`. When a WO has parts_used or downtime records, the FK constraint prevents deletion.
 
-### 2. Remove Checklist from Problems Page (`src/pages/dashboard/ProblemsPage.tsx`)
-- Remove `ChecklistManager` component entirely (lines 36-127)
-- Remove checklist imports (`useChecklistsByProblem`, `useAddChecklist`, `useDeleteChecklist`, `ChecklistItem`, `ClipboardList`)
-- Remove `{editProblem && <ChecklistManager problemId={editProblem.id} />}` from edit dialog (line 310)
-- Remove "and checklists" from description text (line 235)
+**Fix** (DB migration):
+```sql
+ALTER TABLE parts_used DROP CONSTRAINT parts_used_work_order_id_fkey;
+ALTER TABLE parts_used ADD CONSTRAINT parts_used_work_order_id_fkey 
+  FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE;
 
-### 3. Fix Reliability Dashboard Filters (`src/pages/dashboard/ReliabilityDashboard.tsx`)
-- The `filteredRisks` only filters by machine/line but NOT by date range — `machineRisks` from `usePredictiveAlerts` always uses last 30 days hardcoded
-- Fix: filter `filteredWOs` is correct (uses date range), but the risk table ignores the date picker since `usePredictiveAlerts` is hardcoded to 30 days
-- Solution: compute risks locally from `filteredWOs` instead of using the hook's `machineRisks`, so the date range filter actually applies to the risk table
+ALTER TABLE downtime DROP CONSTRAINT downtime_work_order_id_fkey;
+ALTER TABLE downtime ADD CONSTRAINT downtime_work_order_id_fkey 
+  FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE;
+```
 
-### 4. Remove Logo from Print (`src/pages/dashboard/WorkOrderDetail.tsx`)
-- Remove the logo `<img>` from the print header (line 202)
-- Remove the watermark block (lines 193-196)
-- Keep the text header "AN MAINTENANCE" and "WORK ORDER"
-- Also remove `import appliedLogo` if no longer used in the file
+Also delete related records from tables without FK (wo_messages, checklist_responses, machine_events) before deleting the WO itself in `useDeleteWorkOrder`.
 
-### Files affected:
+## Issue 3: Reliability Dashboard Not Showing Today's Orders
+**Root cause**: `endDate` is initialized as `new Date()` at component mount time. Orders created after that instant are excluded by `d > endDate`. The comparison doesn't include the full day.
+
+**Fix** (`src/pages/dashboard/ReliabilityDashboard.tsx`):
+- Set endDate to end-of-day: use `endOfDay(new Date())` from date-fns
+- In the filter, use `endOfDay(endDate)` for the comparison so the entire selected end date is included
+
+## Files Changed
 | File | Change |
 |------|--------|
-| `src/pages/dashboard/ProblemsPage.tsx` | Remove Risk Level UI + Checklist UI |
-| `src/pages/dashboard/ReliabilityDashboard.tsx` | Compute risks from filtered WOs (respects date picker) |
-| `src/pages/dashboard/WorkOrderDetail.tsx` | Remove logo from print header + watermark |
-
+| `src/pages/dashboard/MachinesPage.tsx` | Remove required validation for type/location/code |
+| `src/hooks/useWorkOrders.ts` | Delete related records before WO deletion |
+| `src/pages/dashboard/ReliabilityDashboard.tsx` | Fix endDate to include full day |
+| Migration SQL | Add ON DELETE CASCADE to parts_used and downtime FKs |
