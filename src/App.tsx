@@ -4,7 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Skeleton } from "@/components/ui/skeleton";
 import Login from "./pages/Login";
@@ -50,6 +50,31 @@ const PageLoader = () => (
   </div>
 );
 
+const roleDashMap = {
+  admin: "/dashboard/manager",
+  manager: "/dashboard/manager",
+  engineer: "/dashboard/engineer",
+  operator: "/dashboard/operator",
+} as const;
+
+const SessionRedirect = () => {
+  const { session, role, loading } = useAuth();
+
+  if (loading) {
+    return <PageLoader />;
+  }
+
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!role) {
+    return <PageLoader />;
+  }
+
+  return <Navigate to={roleDashMap[role]} replace />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -77,8 +102,8 @@ const App = () => (
               <Route path="/dashboard/wo/:id" element={<ProtectedRoute allowedRoles={["operator", "engineer", "admin", "manager"]}><WorkOrderDetail /></ProtectedRoute>} />
               <Route path="/dashboard/stock" element={<ProtectedRoute allowedRoles={["engineer", "admin", "manager"]}><StockPage /></ProtectedRoute>} />
               <Route path="/users/manage" element={<ProtectedRoute allowedRoles={["admin"]}><ManageUsers /></ProtectedRoute>} />
-              <Route path="/" element={<Navigate to="/login" replace />} />
-              <Route path="*" element={<Navigate to="/login" replace />} />
+              <Route path="/" element={<SessionRedirect />} />
+              <Route path="*" element={<SessionRedirect />} />
             </Routes>
           </Suspense>
         </AuthProvider>
