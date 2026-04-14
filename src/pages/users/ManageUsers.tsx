@@ -369,8 +369,8 @@ export default function ManageUsers() {
               <form onSubmit={handleCreateEngineer} className="space-y-4" autoComplete="off">
                 <div className="space-y-2"><Label>Engineer Name</Label><Input value={engName} onChange={(e) => setEngName(e.target.value)} required /></div>
                 <div className="space-y-2">
-                  <Label>PIN (4-6 digits)</Label>
-                  <Input type="password" value={engPin} onChange={(e) => setEngPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="e.g. 1234" minLength={4} maxLength={6} required />
+                  <Label>PIN (4 digits)</Label>
+                  <Input type="password" value={engPin} onChange={(e) => setEngPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 1234" minLength={4} maxLength={4} required />
                 </div>
                 <Button type="submit" className="w-full" disabled={engLoading || engPin.length < 4}>
                   {engLoading ? "Creating..." : "Create Engineer"}
@@ -490,8 +490,8 @@ export default function ManageUsers() {
             <div className="space-y-4">
               <div className="space-y-2"><Label>Engineer Name</Label><Input value={editEngName} onChange={(e) => setEditEngName(e.target.value)} /></div>
               <div className="space-y-2">
-                <Label>New PIN (4-6 digits)</Label>
-                <Input type="password" value={editEngPin} onChange={(e) => setEditEngPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Leave blank to keep current" minLength={4} maxLength={6} />
+                <Label>New PIN (4 digits)</Label>
+                <Input type="password" value={editEngPin} onChange={(e) => setEditEngPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="Leave blank to keep current" minLength={4} maxLength={4} />
               </div>
               <div className="flex items-center justify-between">
                 <Label>Active</Label>
