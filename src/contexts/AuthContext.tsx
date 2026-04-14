@@ -50,45 +50,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // 1. Restore session from storage first
-    supabase.auth.getSession().then(({ data: { session: restored } }) => {
-      setSession(restored);
-      setUser(restored?.user ?? null);
-      if (restored?.user) {
-        fetchUserData(restored.user.id).finally(() => setIsReady(true));
-      } else {
-        setIsReady(true);
-      }
-    });
+    let mounted = true;
 
-    // 2. Listen for subsequent changes (token refresh, sign-in, sign-out)
+    // 1. Set up listener FIRST — INITIAL_SESSION is the authoritative event
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
-        if (event === "INITIAL_SESSION") {
-          // Already handled by getSession above — skip
-          return;
-        }
+      async (event, newSession) => {
+        if (!mounted) return;
 
         if (event === "SIGNED_OUT") {
           setSession(null);
           setUser(null);
           setRole(null);
           setProfile(null);
+          setIsReady(true);
           return;
         }
 
         if (newSession?.user) {
           setSession(newSession);
           setUser(newSession.user);
-          // Refresh role data on new sign-in or token refresh
-          if (event === "SIGNED_IN") {
-            setTimeout(() => fetchUserData(newSession.user.id), 0);
+
+          if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
+            // Use setTimeout to avoid Supabase auth deadlock
+            setTimeout(() => {
+              if (mounted) {
+                fetchUserData(newSession.user.id).finally(() => {
+                  if (mounted) setIsReady(true);
+                });
+              }
+            }, 0);
+          } else if (event === "TOKEN_REFRESHED") {
+            // Just update session, keep existing role/profile
+            setIsReady(true);
           }
+        } else if (event === "INITIAL_SESSION" && !newSession) {
+          // No stored session — user is not logged in
+          setIsReady(true);
         }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
