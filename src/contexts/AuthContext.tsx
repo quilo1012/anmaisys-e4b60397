@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -30,13 +30,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [profile, setProfile] = useState<Database["public"]["Tables"]["profiles"]["Row"] | null>(null);
-  const [sessionLoading, setSessionLoading] = useState(true);
+  const [isReady, setIsReady] = useState(false);
   const [roleLoading, setRoleLoading] = useState(false);
-  const fetchingRef = useRef(false);
 
   const fetchUserData = async (userId: string) => {
-    if (fetchingRef.current) return;
-    fetchingRef.current = true;
     setRoleLoading(true);
     try {
       const [profileRes, roleRes] = await Promise.all([
@@ -49,44 +46,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // keep existing role/profile on error
     } finally {
       setRoleLoading(false);
-      fetchingRef.current = false;
     }
   };
 
   useEffect(() => {
+    // 1. Restore session from storage first
+    supabase.auth.getSession().then(({ data: { session: restored } }) => {
+      setSession(restored);
+      setUser(restored?.user ?? null);
+      if (restored?.user) {
+        fetchUserData(restored.user.id).finally(() => setIsReady(true));
+      } else {
+        setIsReady(true);
+      }
+    });
+
+    // 2. Listen for subsequent changes (token refresh, sign-in, sign-out)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
+        if (event === "INITIAL_SESSION") {
+          // Already handled by getSession above — skip
+          return;
+        }
+
         if (event === "SIGNED_OUT") {
           setSession(null);
           setUser(null);
           setRole(null);
           setProfile(null);
-          setSessionLoading(false);
           return;
         }
 
         if (newSession?.user) {
           setSession(newSession);
           setUser(newSession.user);
-          setSessionLoading(false);
-          // Fetch role data without blocking via setTimeout to avoid auth deadlock
-          setTimeout(() => fetchUserData(newSession.user.id), 0);
-        } else if (event === "INITIAL_SESSION" && !newSession) {
-          // No session at all
-          setSessionLoading(false);
+          // Refresh role data on new sign-in or token refresh
+          if (event === "SIGNED_IN") {
+            setTimeout(() => fetchUserData(newSession.user.id), 0);
+          }
         }
-        // For TOKEN_REFRESHED with null session (transient), do nothing — keep existing state
       }
     );
-
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      setSession(initialSession);
-      setUser(initialSession?.user ?? null);
-      if (initialSession?.user) {
-        fetchUserData(initialSession.user.id);
-      }
-      setSessionLoading(false);
-    });
 
     return () => subscription.unsubscribe();
   }, []);
@@ -99,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   };
 
-  const loading = sessionLoading || roleLoading;
+  const loading = !isReady || roleLoading;
 
   return (
     <AuthContext.Provider value={{ session, user, role, profile, loading, signOut }}>
