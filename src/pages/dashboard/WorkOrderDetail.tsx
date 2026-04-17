@@ -194,7 +194,7 @@ export default function WorkOrderDetail() {
         <div className="hidden print:block mb-4">
           <div className="flex items-center justify-between border-b-2 border-black pb-3">
             <div className="flex items-center gap-3">
-              <img src="/applied-logo.png" alt="Logo" className="h-10 w-auto" onError={(e) => (e.currentTarget.style.display = 'none')} />
+              <img src="/appliedlogo.jpeg" alt="Logo" crossOrigin="anonymous" className="h-12 w-auto object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
               <div>
                 <p className="text-lg font-bold tracking-wide">AN MAINTENANCE</p>
                 <p className="text-[8pt] text-gray-500">Applied Nutrition Ltd.</p>
