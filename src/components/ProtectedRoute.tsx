@@ -11,6 +11,7 @@ const dashMap: Record<AppRole, string> = {
   manager: "/dashboard/manager",
   engineer: "/dashboard/engineer",
   operator: "/dashboard/operator",
+  viewer: "/dashboard/manager",
 };
 
 interface ProtectedRouteProps {
