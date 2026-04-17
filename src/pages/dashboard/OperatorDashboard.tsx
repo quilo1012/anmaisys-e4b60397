@@ -195,6 +195,8 @@ export default function OperatorDashboard() {
             <CardTitle className="flex items-center gap-2">
               <Plus className="h-5 w-5" />
               Create Work Order
+              {lineStopped && <Badge variant="destructive" className="ml-2">🛑 Line Stopped</Badge>}
+              {!lineStopped && (requestedBy || machine || description) && <Badge className="ml-2 bg-amber-500 text-white border-amber-500">⚠️ Line Running</Badge>}
             </CardTitle>
           </CardHeader>
           <CardContent>
