@@ -15,6 +15,7 @@ import { format, differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { LineStatusBanner } from "@/components/LineStatusBanner";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -271,6 +272,16 @@ export default function WorkOrderDetail() {
             <Badge variant="outline" className={`text-sm px-3 py-1 ${pri.className}`}>{pri.label}</Badge>
             <Badge variant="outline" className={`text-sm px-3 py-1 ${cfg.className}`}>{cfg.label}</Badge>
           </div>
+        </div>
+
+        {/* Production Line Status — visible at the top, screen-only */}
+        <div className="print:hidden">
+          <LineStatusBanner
+            variant="detail"
+            lineStopped={(wo as any).line_stopped === true}
+            lineStoppedAt={(wo as any).line_stopped_at}
+            lineResumedAt={(wo as any).line_resumed_at}
+          />
         </div>
 
         {/* Problem Description */}
