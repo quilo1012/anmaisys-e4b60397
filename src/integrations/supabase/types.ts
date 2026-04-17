@@ -513,6 +513,7 @@ export type Database = {
           name: string
           pin: string | null
           shift: string | null
+          ui_preferences: Json
           updated_at: string
         }
         Insert: {
@@ -525,6 +526,7 @@ export type Database = {
           name: string
           pin?: string | null
           shift?: string | null
+          ui_preferences?: Json
           updated_at?: string
         }
         Update: {
@@ -537,6 +539,7 @@ export type Database = {
           name?: string
           pin?: string | null
           shift?: string | null
+          ui_preferences?: Json
           updated_at?: string
         }
         Relationships: []
@@ -885,7 +888,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "engineer" | "operator" | "manager"
+      app_role: "admin" | "engineer" | "operator" | "manager" | "viewer"
       wo_status:
         | "open"
         | "in_progress"
@@ -1022,7 +1025,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "engineer", "operator", "manager"],
+      app_role: ["admin", "engineer", "operator", "manager", "viewer"],
       wo_status: [
         "open",
         "in_progress",
