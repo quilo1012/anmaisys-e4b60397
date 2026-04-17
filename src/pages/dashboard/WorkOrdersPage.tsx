@@ -63,6 +63,7 @@ export default function WorkOrdersPage() {
   const [currentPage, setCurrentPage] = useState(1);
 const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const [lineFilter, setLineFilter] = useState<string>("all");
+  const [lineStoppedFilter, setLineStoppedFilter] = useState<"all" | "stopped" | "running">("all");
 
   const ALL_COLUMNS = [
     { key: "wo", label: "WO#" },
@@ -149,6 +150,11 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
     if (lineFilter !== "all") filtered = filtered.filter((w) => machineLineMap[w.machine] === lineFilter);
+    if (lineStoppedFilter === "stopped") {
+      filtered = filtered.filter((w: any) => w.line_stopped === true && !w.line_resumed_at);
+    } else if (lineStoppedFilter === "running") {
+      filtered = filtered.filter((w: any) => !w.line_stopped || !!w.line_resumed_at);
+    }
     if (statusFilter === "stale") {
       filtered = filtered.filter((w) => w.status === "in_progress" && w.started_at && differenceInMinutes(now, new Date(w.started_at)) > 4320);
     }
@@ -163,15 +169,33 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
         (w.engineer?.name || "").toLowerCase().includes(term)
       );
     }
-    // Sort: by line name first, then newest first
-    filtered = [...filtered].sort((a, b) => {
+    // Sort: stopped lines first (oldest stoppage first = most urgent), then by line, then newest
+    filtered = [...filtered].sort((a: any, b: any) => {
+      const aStopped = a.line_stopped === true && !a.line_resumed_at;
+      const bStopped = b.line_stopped === true && !b.line_resumed_at;
+      if (aStopped && !bStopped) return -1;
+      if (!aStopped && bStopped) return 1;
+      if (aStopped && bStopped) {
+        const ta = a.line_stopped_at ? new Date(a.line_stopped_at).getTime() : 0;
+        const tb = b.line_stopped_at ? new Date(b.line_stopped_at).getTime() : 0;
+        return ta - tb; // oldest stoppage first
+      }
       const lineA = machineLineMap[a.machine] || "zzz";
       const lineB = machineLineMap[b.machine] || "zzz";
       if (lineA !== lineB) return lineA.localeCompare(lineB);
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return filtered;
-  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, lineFilter, searchTerm, machineLineMap]);
+  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, lineFilter, lineStoppedFilter, searchTerm, machineLineMap]);
+
+  const stoppedCount = useMemo(
+    () => (workOrders ?? []).filter((w: any) => w.line_stopped === true && !w.line_resumed_at).length,
+    [workOrders],
+  );
+  const runningCount = useMemo(
+    () => (workOrders ?? []).filter((w: any) => !w.line_stopped || !!w.line_resumed_at).length,
+    [workOrders],
+  );
 
   const totalPages = Math.ceil((filteredWOs?.length ?? 0) / ITEMS_PER_PAGE);
   const paginatedWOs = useMemo(() => {
