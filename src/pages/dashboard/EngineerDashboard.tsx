@@ -19,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
+import { LineStatusBanner } from "@/components/LineStatusBanner";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
@@ -336,6 +337,13 @@ export default function EngineerDashboard() {
     return (
       <Card className={`${isOpen ? "border-destructive bg-destructive/5 animate-pulse" : ""}`}>
         <CardContent className="p-4 space-y-3">
+          {/* Line status banner — top of every card */}
+          <LineStatusBanner
+            lineStopped={(wo as any).line_stopped === true}
+            lineStoppedAt={(wo as any).line_stopped_at}
+            lineResumedAt={(wo as any).line_resumed_at}
+            machine={wo.machine}
+          />
           <div className="flex items-center justify-between">
             <span className="font-mono font-bold text-lg cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
               WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
