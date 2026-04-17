@@ -717,6 +717,11 @@ export type Database = {
           engineer_name: string | null
           finished_at: string | null
           id: string
+          line_resumed_at: string | null
+          line_resumed_by: string | null
+          line_stopped: boolean
+          line_stopped_at: string | null
+          line_stopped_by: string | null
           machine: string
           notes: string | null
           notified_engineers: string[] | null
@@ -745,6 +750,11 @@ export type Database = {
           engineer_name?: string | null
           finished_at?: string | null
           id?: string
+          line_resumed_at?: string | null
+          line_resumed_by?: string | null
+          line_stopped?: boolean
+          line_stopped_at?: string | null
+          line_stopped_by?: string | null
           machine: string
           notes?: string | null
           notified_engineers?: string[] | null
@@ -773,6 +783,11 @@ export type Database = {
           engineer_name?: string | null
           finished_at?: string | null
           id?: string
+          line_resumed_at?: string | null
+          line_resumed_by?: string | null
+          line_stopped?: boolean
+          line_stopped_at?: string | null
+          line_stopped_by?: string | null
           machine?: string
           notes?: string | null
           notified_engineers?: string[] | null
