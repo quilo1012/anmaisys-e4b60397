@@ -42,6 +42,7 @@ export default function OperatorDashboard() {
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
+  const [lineStopped, setLineStopped] = useState(false);
   const [isRetroactive, setIsRetroactive] = useState(false);
   const [retroDate, setRetroDate] = useState<Date>();
   const [retroTime, setRetroTime] = useState("");
@@ -147,10 +148,11 @@ export default function OperatorDashboard() {
         }
         created_at = d.toISOString();
       }
-      await createWO.mutateAsync({ requester_name: requestedBy.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: autoPriority.priority, created_at });
-      toast({ title: "Work Order Created", description: "Your WO has been submitted." });
+      const effectivePriority = lineStopped ? "high" : autoPriority.priority;
+      await createWO.mutateAsync({ requester_name: requestedBy.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: effectivePriority, created_at, line_stopped: lineStopped });
+      toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
       setRequestedBy(""); setLine(""); setMachine(""); setDescription(""); setNotes("");
-      setIsRetroactive(false); setRetroDate(undefined); setRetroTime("");
+      setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
     }
