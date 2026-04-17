@@ -35,6 +35,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = async (userId: string) => {
     setRoleLoading(true);
+    setRole(null);
+    setProfile(null);
+
     try {
       const [profileRes, roleRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", userId).single(),
@@ -52,43 +55,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // 1. Set up listener FIRST — INITIAL_SESSION is the authoritative event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        if (!mounted) return;
+    const clearAuthState = () => {
+      setSession(null);
+      setUser(null);
+      setRole(null);
+      setProfile(null);
+    };
 
-        if (event === "SIGNED_OUT") {
-          setSession(null);
-          setUser(null);
-          setRole(null);
-          setProfile(null);
-          setIsReady(true);
-          return;
-        }
+    const initializeAuth = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
 
-        if (newSession?.user) {
-          setSession(newSession);
-          setUser(newSession.user);
+      if (!mounted) return;
 
-          if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
-            // Use setTimeout to avoid Supabase auth deadlock
-            setTimeout(() => {
-              if (mounted) {
-                fetchUserData(newSession.user.id).finally(() => {
-                  if (mounted) setIsReady(true);
-                });
-              }
-            }, 0);
-          } else if (event === "TOKEN_REFRESHED") {
-            // Just update session, keep existing role/profile
-            setIsReady(true);
-          }
-        } else if (event === "INITIAL_SESSION" && !newSession) {
-          // No stored session — user is not logged in
-          setIsReady(true);
-        }
+      if (currentSession?.user) {
+        setSession(currentSession);
+        setUser(currentSession.user);
+        void fetchUserData(currentSession.user.id);
+      } else {
+        clearAuthState();
       }
-    );
+
+      setIsReady(true);
+    };
+
+    void initializeAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (!mounted) return;
+
+      if (event === "SIGNED_OUT") {
+        clearAuthState();
+        setIsReady(true);
+        return;
+      }
+
+      if (!newSession?.user) {
+        clearAuthState();
+        setIsReady(true);
+        return;
+      }
+
+      setSession(newSession);
+      setUser(newSession.user);
+
+      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+        void fetchUserData(newSession.user.id);
+      }
+
+      setIsReady(true);
+    });
 
     return () => {
       mounted = false;
