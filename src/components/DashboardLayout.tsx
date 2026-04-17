@@ -15,14 +15,15 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, Activity } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, Activity, PowerOff } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useOfflineDetection } from "@/hooks/useOfflineQueue";
+import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -174,7 +175,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { role, profile, signOut } = useAuth();
   const { dark, toggle: toggleDark } = useDarkMode();
   const location = useLocation();
+  const navigate = useNavigate();
   const { isOnline } = useOfflineDetection();
+  const { data: stoppedLinesCount = 0 } = useStoppedLinesCount();
 
   useHeartbeat();
 
@@ -185,6 +188,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   }, [location.pathname]);
 
   const filteredItems = navItems.filter((item) => role && item.roles.includes(role));
+  const showStoppedBadge = stoppedLinesCount > 0 && (role === "engineer" || role === "manager" || role === "admin");
+  const stoppedTarget = role === "engineer" ? "/dashboard/engineer" : "/dashboard/work-orders";
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -230,6 +235,19 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 </div>
               )}
               <div className="ml-auto flex items-center gap-2">
+                {showStoppedBadge && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate(stoppedTarget)}
+                    className="bg-red-600 hover:bg-red-700 text-white animate-pulse gap-1.5 h-9"
+                    aria-label={`${stoppedLinesCount} production lines currently stopped`}
+                  >
+                    <PowerOff className="h-4 w-4" />
+                    <span className="font-bold">{stoppedLinesCount}</span>
+                    <span className="hidden sm:inline text-xs">line{stoppedLinesCount > 1 ? "s" : ""} stopped</span>
+                  </Button>
+                )}
                 <NotificationPanel />
                 <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"}>
                   {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}

@@ -19,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
+import { LineStatusBanner } from "@/components/LineStatusBanner";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
@@ -336,6 +337,13 @@ export default function EngineerDashboard() {
     return (
       <Card className={`${isOpen ? "border-destructive bg-destructive/5 animate-pulse" : ""}`}>
         <CardContent className="p-4 space-y-3">
+          {/* Line status banner — top of every card */}
+          <LineStatusBanner
+            lineStopped={(wo as any).line_stopped === true}
+            lineStoppedAt={(wo as any).line_stopped_at}
+            lineResumedAt={(wo as any).line_resumed_at}
+            machine={wo.machine}
+          />
           <div className="flex items-center justify-between">
             <span className="font-mono font-bold text-lg cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
               WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
@@ -579,7 +587,7 @@ export default function EngineerDashboard() {
                             <td className="p-2">{wo.machine}</td>
                             <td className="p-2 max-w-[200px] truncate">{wo.description}</td>
                             <td className="p-2 text-muted-foreground">{wo.engineer_name || "—"}</td>
-                            <td className="p-2"><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>{wo.status === "in_progress" && wo.started_at && <span className="ml-1"><LiveTimer startedAt={wo.started_at} /></span>}</td>
+                            <td className="p-2 space-y-1"><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>{wo.status === "in_progress" && wo.started_at && <span className="ml-1"><LiveTimer startedAt={wo.started_at} /></span>}{((wo as any).line_stopped || (wo as any).line_resumed_at) && (<div className="mt-1"><LineStatusBanner lineStopped={(wo as any).line_stopped === true} lineStoppedAt={(wo as any).line_stopped_at} lineResumedAt={(wo as any).line_resumed_at} /></div>)}</td>
                             <td className="p-2 text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</td>
                             <td className="p-2">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</td>
                             <td className="p-2">
