@@ -25,7 +25,7 @@ import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { useOnlineEngineers } from "@/hooks/useOnlineEngineers";
 import { useChecklistsByProblemName, useChecklistResponses, useSaveChecklistResponse } from "@/hooks/useChecklists";
 
-const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
+
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -50,23 +50,12 @@ function LiveTimer({ startedAt }: { startedAt: string }) {
   return <span className="text-xs font-mono text-amber-700">⏱ {h}h {m}m</span>;
 }
 
-function SLACountdown({ wo }: { wo: any }) {
-  const priority = wo.priority || "medium";
-  const target = SLA_TARGETS[priority] || 60;
-  const elapsed = differenceInMinutes(new Date(), new Date(wo.created_at));
-  const remaining = target - elapsed;
-  const breached = remaining <= 0;
+function StaleBadge({ wo }: { wo: any }) {
   const isStale = wo.status === "in_progress" && wo.started_at && differenceInMinutes(new Date(), new Date(wo.started_at)) > 4320;
-  if (isStale) {
-    return (
-      <span className="text-xs font-mono font-bold text-orange-600" title="This work order has been in progress for more than 3 days. Consider reviewing or closing it.">
-        🕐 Stale WO
-      </span>
-    );
-  }
+  if (!isStale) return null;
   return (
-    <span className={`text-xs font-mono font-bold ${breached ? "text-red-600" : remaining <= 10 ? "text-orange-600" : "text-green-600"}`}>
-      {breached ? `⚠️ +${Math.abs(remaining)}min` : `${remaining}min`}
+    <span className="text-xs font-mono font-bold text-orange-600" title="In progress for more than 3 days.">
+      🕐 Stale
     </span>
   );
 }
@@ -362,9 +351,9 @@ export default function EngineerDashboard() {
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div><span className="text-muted-foreground">Machine:</span><p className="font-medium">{wo.machine}</p></div>
-            <div><span className="text-muted-foreground">SLA:</span><p><SLACountdown wo={wo} /></p></div>
             <div><span className="text-muted-foreground">Requester:</span><p className="font-medium">{wo.requester_name}</p></div>
             <div><span className="text-muted-foreground">Created:</span><p className="font-medium">{format(new Date(wo.created_at), "dd/MM HH:mm")}</p></div>
+            <div><StaleBadge wo={wo} /></div>
             {wo.engineer_name && (
               <div className="col-span-2"><span className="text-muted-foreground">Engineer:</span><p className="font-medium">{wo.engineer_name}</p></div>
             )}
@@ -531,7 +520,7 @@ export default function EngineerDashboard() {
                   <thead>
                     <tr className="border-b">
                       <th className="text-left p-2 font-medium">WO#</th>
-                      <th className="text-left p-2 font-medium">SLA</th>
+                      
                       <th className="text-left p-2 font-medium">Requester</th>
                       <th className="text-left p-2 font-medium">Machine</th>
                       <th className="text-left p-2 font-medium">Description</th>
@@ -550,7 +539,7 @@ export default function EngineerDashboard() {
                         <>
                           <tr key={wo.id} className={`border-b ${wo.priority === "critical" ? "bg-red-50" : ""}`}>
                             <td className="p-2 font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</td>
-                            <td className="p-2"><SLACountdown wo={wo} /></td>
+                            
                             <td className="p-2">{wo.requester_name}</td>
                             <td className="p-2">{wo.machine}</td>
                             <td className="p-2 max-w-[200px] truncate">{wo.description}</td>
