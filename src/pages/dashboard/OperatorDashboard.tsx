@@ -166,6 +166,30 @@ export default function OperatorDashboard() {
           <p className="text-muted-foreground">Create and track your work orders</p>
         </div>
 
+        {/* Quick CTA buttons — Line Stopped vs Line Running */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => { setLineStopped(true); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+            className="rounded-xl border-2 border-red-600 bg-red-600 text-white p-6 text-left shadow-lg hover:bg-red-700 hover:scale-[1.01] transition-all"
+          >
+            <div className="text-4xl mb-2">🛑</div>
+            <div className="text-2xl font-bold mb-1">MACHINE STOPPED</div>
+            <div className="text-sm opacity-90">Open WO Request — Line Stopped (downtime starts now)</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setLineStopped(false); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+            className="rounded-xl border-2 border-amber-500 bg-amber-500 text-white p-6 text-left shadow-lg hover:bg-amber-600 hover:scale-[1.01] transition-all"
+          >
+            <div className="text-4xl mb-2">⚠️</div>
+            <div className="text-2xl font-bold mb-1">PROBLEM, LINE STILL RUNNING</div>
+            <div className="text-sm opacity-90">Open WO Request — Line in Operation (no downtime)</div>
+          </button>
+        </div>
+
+        <div id="wo-form-anchor" />
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
