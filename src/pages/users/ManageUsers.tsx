@@ -27,12 +27,13 @@ interface Engineer {
   created_at: string;
 }
 
-const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", engineer: "Engineer", operator: "Operator" };
+const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", engineer: "Engineer", operator: "Operator", viewer: "Viewer" };
 const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = {
   admin: Shield,
   manager: Shield,
   engineer: WrenchIcon,
   operator: HardHat,
+  viewer: Shield,
 };
 
 export default function ManageUsers() {
