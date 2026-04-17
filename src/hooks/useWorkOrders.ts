@@ -94,10 +94,17 @@ export function useCreateWorkOrder() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (wo: { requester_name: string; machine: string; description: string; notes?: string; priority?: string; created_at?: string }) => {
+    mutationFn: async (wo: { requester_name: string; machine: string; description: string; notes?: string; priority?: string; created_at?: string; line_stopped?: boolean }) => {
       const insertPayload: any = { ...wo, operator_id: user!.id, priority: wo.priority || "medium" };
       if (wo.created_at) insertPayload.created_at = wo.created_at;
       else delete insertPayload.created_at;
+      if (wo.line_stopped) {
+        insertPayload.line_stopped = true;
+        insertPayload.line_stopped_at = new Date().toISOString();
+        insertPayload.line_stopped_by = user!.id;
+      } else {
+        insertPayload.line_stopped = false;
+      }
       const { data, error } = await supabase
         .from("work_orders")
         .insert(insertPayload)
@@ -109,6 +116,31 @@ export function useCreateWorkOrder() {
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
       logAuditEvent("create", "work_order", undefined, { requester_name: vars.requester_name, machine: vars.machine, description: vars.description, priority: vars.priority });
+    },
+  });
+}
+
+export function useMachineBackToWork() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (woId: string) => {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("work_orders")
+        .update({
+          line_stopped: false,
+          line_resumed_at: now,
+          line_resumed_by: user!.id,
+        } as any)
+        .eq("id", woId);
+      if (error) throw error;
+      return { woId, resumedAt: now };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("machine_back_to_work", "work_order", result.woId, { resumed_at: result.resumedAt });
     },
   });
 }
