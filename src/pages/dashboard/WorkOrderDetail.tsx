@@ -222,9 +222,43 @@ export default function WorkOrderDetail() {
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-2">
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
-            <Printer className="h-4 w-4" /> Print
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
+              <Printer className="h-4 w-4" /> Print
+            </Button>
+            <Button variant="outline" size="sm" onClick={async () => {
+              const el = document.getElementById("wo-print-content");
+              if (!el) return;
+              const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+                import("html2canvas"),
+                import("jspdf"),
+              ]);
+              document.body.classList.add("pdf-export");
+              try {
+                const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+                const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+                const pageW = 210, pageH = 297, margin = 10;
+                const imgW = pageW - margin * 2;
+                const imgH = (canvas.height * imgW) / canvas.width;
+                const imgData = canvas.toDataURL("image/png");
+                let heightLeft = imgH;
+                let position = margin;
+                pdf.addImage(imgData, "PNG", margin, position, imgW, imgH);
+                heightLeft -= pageH - margin * 2;
+                while (heightLeft > 0) {
+                  pdf.addPage();
+                  position = margin - (imgH - heightLeft);
+                  pdf.addImage(imgData, "PNG", margin, position, imgW, imgH);
+                  heightLeft -= pageH - margin * 2;
+                }
+                pdf.save(`${woLabel}_${format(new Date(), "yyyyMMdd")}.pdf`);
+              } finally {
+                document.body.classList.remove("pdf-export");
+              }
+            }} className="gap-2">
+              <Printer className="h-4 w-4" /> PDF
+            </Button>
+          </div>
         </div>
 
         {/* Screen-only title with badges */}
