@@ -299,6 +299,31 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                     <Button key={key} variant={dateQuickFilter === key ? "default" : "outline"} size="sm" onClick={() => { setDateQuickFilter(key); setDateFrom(""); setDateTo(""); }}>{label}</Button>
                   ))}
                 </div>
+                <div className="flex gap-1 ml-2 border-l pl-2">
+                  <Button
+                    variant={lineStoppedFilter === "all" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setLineStoppedFilter("all")}
+                  >
+                    All ({(workOrders ?? []).length})
+                  </Button>
+                  <Button
+                    variant={lineStoppedFilter === "stopped" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setLineStoppedFilter("stopped")}
+                    className={lineStoppedFilter === "stopped" ? "bg-red-600 hover:bg-red-700 text-white" : "text-red-600 border-red-600/40 hover:bg-red-600/10"}
+                  >
+                    🛑 Line Stopped ({stoppedCount})
+                  </Button>
+                  <Button
+                    variant={lineStoppedFilter === "running" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setLineStoppedFilter("running")}
+                    className={lineStoppedFilter === "running" ? "bg-green-600 hover:bg-green-700 text-white" : "text-green-700 border-green-600/40 hover:bg-green-600/10"}
+                  >
+                    ✓ Running ({runningCount})
+                  </Button>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateQuickFilter(""); }} className="w-[140px]" />
