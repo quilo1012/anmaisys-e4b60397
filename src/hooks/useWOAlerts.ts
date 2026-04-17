@@ -42,7 +42,7 @@ export function useWOAlerts() {
         (payload) => {
           console.log("[WOAlerts] Received INSERT payload", payload);
 
-          playAlertSound();
+          // Sound alerts disabled — visual notifications only
           const wo = payload.new as { id: string; requester_name: string; machine: string; description: string; notified_engineers: string[] | null };
           
           const notifBody = `Requester: ${wo.requester_name} — Machine: ${wo.machine}\n${wo.description}`;
@@ -70,7 +70,6 @@ export function useWOAlerts() {
         (payload) => {
           const updated = payload.new as { status: string };
           if (["received", "in_progress"].includes(updated.status)) {
-            console.log("[WOAlerts] WO accepted — stopping sound");
             stopAlertSound();
           }
         }
@@ -96,7 +95,7 @@ export function useWOAlerts() {
           if (wo.operator_id !== user.id) return;
           if (["finished", "closed"].includes(wo.status)) {
             console.log("[WOAlerts] Operator WO completed:", wo.id);
-            playNotificationChime();
+            // Sound disabled — visual notification only
             const woLabel = `WO-${String(wo.wo_number).padStart(6, "0")}`;
             sendWebNotification(`✅ ${woLabel} Completed!`, `Machine: ${wo.machine} — Status: ${wo.status}`);
             toast({
