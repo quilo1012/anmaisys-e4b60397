@@ -14,13 +14,13 @@ export function useStoppedLinesCount() {
   const query = useQuery({
     queryKey: ["stopped_lines_count"],
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { count, error } = await (supabase
         .from("work_orders")
-        .select("id", { count: "exact", head: true })
-        .eq("line_stopped" as any, true)
-        .is("line_resumed_at" as any, null);
+        .select("id", { count: "exact", head: true }) as any)
+        .eq("line_stopped", true)
+        .is("line_resumed_at", null);
       if (error) throw error;
-      return count ?? 0;
+      return (count as number) ?? 0;
     },
     enabled,
     refetchInterval: 30_000,
