@@ -36,7 +36,7 @@ export interface MachineLocationLog {
 }
 
 const DEFAULT_MACHINE_TYPES = [
-  "Blender", "Mixer", "Conveyor", "Filler", "Capper", "Labeler",
+  "Blender", "Conveyor", "Filler", "Capper", "Labeler",
   "Palletizer", "Packer", "Sealer", "Printer", "Cutter", "Compressor",
   "Pump", "Oven", "Cooler", "Wrapper", "Other",
 ];

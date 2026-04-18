@@ -306,19 +306,19 @@ export default function WorkOrderDetail() {
           {wo.closer?.name && <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Closed By</p><p className="font-medium print:text-[9pt]">{wo.closer.name}</p></CardContent></Card>}
         </div>
 
-        {/* TEMPOS DE ATENDIMENTO */}
+        {/* ATTENDANCE TIMES */}
         <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
-          <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Tempos de Atendimento</CardTitle></CardHeader>
+          <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Attendance Times</CardTitle></CardHeader>
           <CardContent className="print:pt-0">
             <div className="grid grid-cols-3 gap-4 print:gap-0">
-              <div className="text-center print:border print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Resposta</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">abertura → aceitação</p><p className="text-3xl font-bold print:text-base">{formatDuration(responseMin)}</p></div>
-              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Execução</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">início → término</p><p className="text-3xl font-bold print:text-base">{formatDuration(executionMin)}</p></div>
-              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Tempo Total</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">abertura → término</p><p className="text-3xl font-bold print:text-base">{formatDuration(totalMin)}</p></div>
+              <div className="text-center print:border print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Response</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">opened → accepted</p><p className="text-3xl font-bold print:text-base">{formatDuration(responseMin)}</p></div>
+              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Execution</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">start → finish</p><p className="text-3xl font-bold print:text-base">{formatDuration(executionMin)}</p></div>
+              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Time</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">opened → finished</p><p className="text-3xl font-bold print:text-base">{formatDuration(totalMin)}</p></div>
             </div>
           </CardContent>
         </Card>
 
-        {/* IMPACTO NA PRODUÇÃO */}
+        {/* PRODUCTION IMPACT */}
         {(() => {
           const stopCount = downtimeEvents.length;
           const totalDowntimeSec = downtimeEvents.reduce((acc, e) => {
@@ -329,50 +329,50 @@ export default function WorkOrderDetail() {
           const lineOperating = !(wo as any).line_stopped;
           return (
             <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
-              <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Impacto na Produção</CardTitle></CardHeader>
+              <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Production Impact</CardTitle></CardHeader>
               <CardContent className="print:pt-0">
                 <div className="grid grid-cols-3 gap-4 print:gap-0">
                   <div className="text-center print:border print:border-black print:py-2">
-                    <p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Status da Linha</p>
-                    <p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">no fechamento</p>
+                    <p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Line Status</p>
+                    <p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">at closure</p>
                     <p className={`text-2xl font-bold flex items-center justify-center gap-1 print:text-base ${lineOperating ? "text-emerald-600" : "text-destructive"}`}>
-                      {lineOperating ? <><CheckCircle className="h-5 w-5 print:hidden" /> Operando</> : <><AlertOctagon className="h-5 w-5 print:hidden" /> Parada</>}
+                      {lineOperating ? <><CheckCircle className="h-5 w-5 print:hidden" /> Running</> : <><AlertOctagon className="h-5 w-5 print:hidden" /> Stopped</>}
                     </p>
                   </div>
-                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Paradas</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">registradas</p><p className="text-3xl font-bold print:text-base">{stopCount}</p></div>
-                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Downtime Total</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">tempo parada</p><p className="text-3xl font-bold print:text-base">{stopCount === 0 ? "—" : formatShortDuration(totalDowntimeSec)}</p></div>
+                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Stoppages</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">recorded</p><p className="text-3xl font-bold print:text-base">{stopCount}</p></div>
+                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Downtime</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">stoppage time</p><p className="text-3xl font-bold print:text-base">{stopCount === 0 ? "—" : formatShortDuration(totalDowntimeSec)}</p></div>
                 </div>
               </CardContent>
             </Card>
           );
         })()}
 
-        {/* LINHA DO TEMPO — vertical, deduped (one row per real event) */}
+        {/* TIMELINE — vertical, deduped (one row per real event) */}
         <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
-          <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Linha do Tempo</CardTitle></CardHeader>
+          <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Timeline</CardTitle></CardHeader>
           <CardContent>
             {(() => {
               type Ev = { ts: string; icon: "open" | "stop" | "resume" | "done" | "force"; title: string; sub?: string; delta?: string };
               const evs: Ev[] = [];
               const created = new Date(wo.created_at);
-              evs.push({ ts: wo.created_at, icon: "open", title: "Ordem criada", sub: `por ${wo.requester_name} (operador)` });
+              evs.push({ ts: wo.created_at, icon: "open", title: "Order created", sub: `by ${wo.requester_name} (operator)` });
               if (acceptedAt) {
                 const dMin = differenceInMinutes(new Date(acceptedAt), created);
-                evs.push({ ts: acceptedAt, icon: "open", title: "Ordem aceita (PIN ✓)", sub: `por ${wo.engineer_name || "—"}`, delta: dMin > 0 ? `${dMin}min após abertura` : undefined });
+                evs.push({ ts: acceptedAt, icon: "open", title: "Order accepted (PIN ✓)", sub: `by ${wo.engineer_name || "—"}`, delta: dMin > 0 ? `${dMin}min after opening` : undefined });
               }
               if (wo.started_at && wo.started_at !== acceptedAt) {
-                evs.push({ ts: wo.started_at, icon: "open", title: "Trabalho iniciado", sub: `por ${wo.engineer_name || "—"}` });
+                evs.push({ ts: wo.started_at, icon: "open", title: "Work started", sub: `by ${wo.engineer_name || "—"}` });
               }
               downtimeEvents.forEach((d) => {
-                evs.push({ ts: d.stopped_at, icon: "stop", title: "Linha marcada como parada", sub: `por ${d.stopped_by_name || "—"}${d.stopped_reason ? ` — motivo: "${d.stopped_reason}"` : ""}` });
+                evs.push({ ts: d.stopped_at, icon: "stop", title: "Line marked as stopped", sub: `by ${d.stopped_by_name || "—"}${d.stopped_reason ? ` — reason: "${d.stopped_reason}"` : ""}` });
                 if (d.resumed_at) {
                   const dur = formatShortDuration(differenceInSeconds(new Date(d.resumed_at), new Date(d.stopped_at)));
-                  evs.push({ ts: d.resumed_at, icon: "resume", title: "Linha voltou a operar", sub: `por ${d.resumed_by_name || "—"} — parada: ${dur}` });
+                  evs.push({ ts: d.resumed_at, icon: "resume", title: "Line back to running", sub: `by ${d.resumed_by_name || "—"} — stoppage: ${dur}` });
                 }
               });
-              if (wo.finished_at) evs.push({ ts: wo.finished_at, icon: "done", title: "Finalizada (PIN ✓)", sub: `por ${wo.engineer_name || "—"}` });
-              if (wo.closed_at) evs.push({ ts: wo.closed_at, icon: "done", title: "Fechada", sub: wo.closer?.name ? `por ${wo.closer.name}` : undefined });
-              if (wo.status === "force_closed" && wo.completed_at) evs.push({ ts: wo.completed_at, icon: "force", title: "Fechamento forçado", sub: wo.closer?.name ? `por ${wo.closer.name}` : undefined });
+              if (wo.finished_at) evs.push({ ts: wo.finished_at, icon: "done", title: "Finished (PIN ✓)", sub: `by ${wo.engineer_name || "—"}` });
+              if (wo.closed_at) evs.push({ ts: wo.closed_at, icon: "done", title: "Closed", sub: wo.closer?.name ? `by ${wo.closer.name}` : undefined });
+              if (wo.status === "force_closed" && wo.completed_at) evs.push({ ts: wo.completed_at, icon: "force", title: "Force closed", sub: wo.closer?.name ? `by ${wo.closer.name}` : undefined });
               evs.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
               const iconFor = (i: Ev["icon"]) => {
                 if (i === "stop") return <span className="text-destructive">🛑</span>;
@@ -399,26 +399,26 @@ export default function WorkOrderDetail() {
           </CardContent>
         </Card>
 
-        {/* HISTÓRICO DE PARADAS DA LINHA — only renders if there are events */}
+        {/* LINE STOPPAGE HISTORY — only renders if there are events */}
         {downtimeEvents.length > 0 && (
           <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
-            <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Histórico de Paradas da Linha</CardTitle></CardHeader>
+            <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Line Stoppage History</CardTitle></CardHeader>
             <CardContent>
               <table className="w-full text-sm print:text-[8pt] border-collapse">
                 <thead>
                   <tr className="bg-muted print:bg-gray-100">
                     <th className="text-left px-2 py-1 font-bold print:border print:border-black w-10">#</th>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Parou</th>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Voltou</th>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Duração</th>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Motivo</th>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Stopped</th>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Resumed</th>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Duration</th>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Reason</th>
                   </tr>
                 </thead>
                 <tbody>
                   {downtimeEvents.map((d, i) => {
                     const dur = d.resumed_at
                       ? formatShortDuration(differenceInSeconds(new Date(d.resumed_at), new Date(d.stopped_at)))
-                      : <span className="text-destructive font-medium">em andamento</span>;
+                      : <span className="text-destructive font-medium">ongoing</span>;
                     return (
                       <tr key={d.id} className={i % 2 === 1 ? "bg-muted/30 print:bg-gray-50" : ""}>
                         <td className="px-2 py-1 print:border print:border-black font-mono">{i + 1}</td>
@@ -433,7 +433,7 @@ export default function WorkOrderDetail() {
                 <tfoot>
                   <tr className="font-bold border-t-2 border-border">
                     <td colSpan={5} className="px-2 py-1 print:border print:border-black">
-                      TOTAL: {downtimeEvents.length} parada{downtimeEvents.length !== 1 ? "s" : ""} · {formatShortDuration(downtimeEvents.reduce((acc, e) => acc + (e.resumed_at ? differenceInSeconds(new Date(e.resumed_at), new Date(e.stopped_at)) : differenceInSeconds(new Date(), new Date(e.stopped_at))), 0))}
+                      TOTAL: {downtimeEvents.length} stoppage{downtimeEvents.length !== 1 ? "s" : ""} · {formatShortDuration(downtimeEvents.reduce((acc, e) => acc + (e.resumed_at ? differenceInSeconds(new Date(e.resumed_at), new Date(e.stopped_at)) : differenceInSeconds(new Date(), new Date(e.stopped_at))), 0))}
                     </td>
                   </tr>
                 </tfoot>
