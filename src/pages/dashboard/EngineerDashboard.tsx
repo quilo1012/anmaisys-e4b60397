@@ -153,7 +153,7 @@ function PhotoStatusButton({ woId, photoType, onClick, disabled, size = "lg" }: 
 }
 
 export default function EngineerDashboard() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });
