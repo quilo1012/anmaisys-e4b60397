@@ -186,6 +186,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "downtime_reported_by_fkey"
+            columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "downtime_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
@@ -397,6 +404,13 @@ export type Database = {
             columns: ["engineer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parts_used_engineer_id_fkey"
+            columns: ["engineer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
           {
@@ -647,6 +661,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wo_photos_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "wo_photos_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
@@ -813,6 +834,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "work_orders_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "work_orders_engineer_id_fkey"
             columns: ["engineer_id"]
             isOneToOne: false
@@ -831,6 +859,13 @@ export type Database = {
             columns: ["operator_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -855,6 +890,30 @@ export type Database = {
           id?: string | null
           is_active?: boolean | null
           name?: string | null
+        }
+        Relationships: []
+      }
+      profiles_safe: {
+        Row: {
+          active: boolean | null
+          id: string | null
+          last_seen_at: string | null
+          name: string | null
+          shift: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          id?: string | null
+          last_seen_at?: string | null
+          name?: string | null
+          shift?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          id?: string | null
+          last_seen_at?: string | null
+          name?: string | null
+          shift?: string | null
         }
         Relationships: []
       }
