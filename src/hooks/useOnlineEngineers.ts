@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface OnlineEngineer {
   id: string;
@@ -7,31 +8,65 @@ export interface OnlineEngineer {
   last_seen_at: string;
 }
 
+interface PresencePayload {
+  user_id: string;
+  name: string;
+  role: string;
+  online_at: string;
+}
+
+/**
+ * Tracks online engineers via Supabase Realtime Presence.
+ * - Engineers broadcast their presence on this channel.
+ * - Admins/managers (and anyone subscribed) read the presence state.
+ */
 export function useOnlineEngineers() {
-  return useQuery({
-    queryKey: ["online_engineers"],
-    queryFn: async () => {
-      const cutoff = new Date(Date.now() - 60_000).toISOString();
-      const { data, error } = await (supabase as any)
-        .from("profiles_safe")
-        .select("id, name, last_seen_at")
-        .gt("last_seen_at", cutoff);
-      if (error) throw error;
+  const { user, role, profile } = useAuth();
+  const [engineers, setEngineers] = useState<OnlineEngineer[]>([]);
 
-      // Filter to only engineers by checking user_roles
-      const ids = (data as any[]).map((p: any) => p.id);
-      if (!ids.length) return [] as OnlineEngineer[];
+  useEffect(() => {
+    if (!user) return;
 
-      const { data: roles, error: rolesErr } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "engineer")
-        .in("user_id", ids);
-      if (rolesErr) throw rolesErr;
+    const channel = supabase.channel("engineers-online", {
+      config: { presence: { key: user.id } },
+    });
 
-      const engineerIds = new Set(roles.map((r) => r.user_id));
-      return (data as any[]).filter((p: any) => engineerIds.has(p.id)) as OnlineEngineer[];
-    },
-    refetchInterval: 15_000,
-  });
+    const syncState = () => {
+      const state = channel.presenceState<PresencePayload>();
+      const flat = Object.values(state).flat() as PresencePayload[];
+      const onlyEngineers = flat.filter((p) => p.role === "engineer");
+      // Dedup by user_id (a user could have multiple tabs)
+      const map = new Map<string, OnlineEngineer>();
+      for (const p of onlyEngineers) {
+        map.set(p.user_id, {
+          id: p.user_id,
+          name: p.name,
+          last_seen_at: p.online_at,
+        });
+      }
+      setEngineers(Array.from(map.values()));
+    };
+
+    channel
+      .on("presence", { event: "sync" }, syncState)
+      .on("presence", { event: "join" }, syncState)
+      .on("presence", { event: "leave" }, syncState)
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED" && role === "engineer") {
+          await channel.track({
+            user_id: user.id,
+            name: profile?.name ?? user.email ?? "Engineer",
+            role,
+            online_at: new Date().toISOString(),
+          } satisfies PresencePayload);
+        }
+      });
+
+    return () => {
+      channel.untrack();
+      supabase.removeChannel(channel);
+    };
+  }, [user, role, profile?.name]);
+
+  return { data: engineers };
 }
