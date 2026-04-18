@@ -488,29 +488,6 @@ export default function WorkOrderDetail() {
         <div className="print:hidden">
           <DowntimeTimelineCard workOrderId={wo.id} />
         </div>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black print:bg-gray-100">Type</th>
-                    <th className="text-center px-2 py-1 font-bold print:border print:border-black print:bg-gray-100 w-20">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {checklistItems.map((item) => {
-                    const response = checklistResponses?.find((r) => r.checklist_id === item.id);
-                    const completed = response?.completed || false;
-                    return (
-                      <tr key={item.id}>
-                        <td className="px-2 py-1 print:border print:border-black">{item.description}{item.is_required && <span className="text-destructive ml-1">*</span>}</td>
-                        <td className="px-2 py-1 print:border print:border-black text-muted-foreground">{item.type}</td>
-                        <td className="px-2 py-1 print:border print:border-black text-center">
-                          {completed ? <CheckCircle className="h-4 w-4 text-green-600 inline-block" /> : <XCircle className="h-4 w-4 text-muted-foreground inline-block" />}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Parts Used */}
         <Card className="print:border print:border-black print:shadow-none print:rounded-none">
