@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
+import { Lock } from "lucide-react";
 import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder, usePauseWorkOrder, useResumeWorkOrder, useMachineBackToWork } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { stopAlertSound } from "@/lib/shifts";
@@ -280,13 +282,18 @@ export default function EngineerDashboard() {
     setPinDialogOpen(true);
   }, []);
 
-  // STEP 1 — ACCEPT (open → received)
+  // STEP 1 — ACCEPT (open → received) — PIN + lock to engineer
   const handleAcceptClick = (woId: string) => {
     stopAlertSound();
     requirePin("Confirm ACCEPT", async (engineer) => {
       setCurrentEngineer(engineer);
       try {
         await acceptWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
+        // Lock the WO to this engineer so other engineers see a lock card.
+        await supabase
+          .from("work_orders")
+          .update({ locked_engineer_id: engineer.id, locked_at: new Date().toISOString() } as any)
+          .eq("id", woId);
         toast({ title: "✅ Order accepted", description: "Head to the machine, then tap 'I Have Arrived'." });
       } catch (err: any) {
         toast({ title: "Error accepting WO", description: err.message, variant: "destructive" });
