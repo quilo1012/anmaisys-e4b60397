@@ -101,15 +101,20 @@ export function useCreateWorkOrder() {
 
   return useMutation({
     mutationFn: async (wo: { requester_name: string; machine: string; description: string; notes?: string; priority?: string; created_at?: string; line_stopped?: boolean }) => {
-      const insertPayload: any = { ...wo, operator_id: user!.id, priority: wo.priority || "medium" };
-      if (wo.created_at) insertPayload.created_at = wo.created_at;
-      else delete insertPayload.created_at;
+      const effectiveCreatedAt = wo.created_at || new Date().toISOString();
+      const insertPayload: any = { ...wo, operator_id: user!.id, priority: wo.priority || "medium", created_at: effectiveCreatedAt };
       if (wo.line_stopped) {
         insertPayload.line_stopped = true;
-        insertPayload.line_stopped_at = new Date().toISOString();
+        insertPayload.line_stopped_at = effectiveCreatedAt;
         insertPayload.line_stopped_by = user!.id;
+        insertPayload.line_resumed_at = null;
+        insertPayload.line_resumed_by = null;
       } else {
         insertPayload.line_stopped = false;
+        insertPayload.line_stopped_at = null;
+        insertPayload.line_stopped_by = null;
+        insertPayload.line_resumed_at = null;
+        insertPayload.line_resumed_by = null;
       }
       const { data, error } = await supabase
         .from("work_orders")
@@ -121,7 +126,7 @@ export function useCreateWorkOrder() {
     },
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("create", "work_order", undefined, { requester_name: vars.requester_name, machine: vars.machine, description: vars.description, priority: vars.priority });
+      logAuditEvent("create", "work_order", undefined, { requester_name: vars.requester_name, machine: vars.machine, description: vars.description, priority: vars.priority, line_stopped: !!vars.line_stopped });
     },
   });
 }
@@ -312,13 +317,25 @@ export function useCloseWorkOrder() {
 
   return useMutation({
     mutationFn: async ({ woId, signatureName }: { woId: string; signatureName: string }) => {
-      const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
+      const now = new Date().toISOString();
+      const { data: before } = await supabase.from("work_orders").select("status, line_stopped, line_resumed_at").eq("id", woId).single();
+      const updatePayload: any = {
+        status: "closed",
+        closed_by: user!.id,
+        closed_at: now,
+        operator_signature_name: signatureName,
+      };
+      if (before?.line_stopped && !before?.line_resumed_at) {
+        updatePayload.line_stopped = false;
+        updatePayload.line_resumed_at = now;
+        updatePayload.line_resumed_by = user!.id;
+      }
       const { error } = await supabase
         .from("work_orders")
-        .update({ status: "closed" as any, closed_by: user!.id, closed_at: new Date().toISOString(), operator_signature_name: signatureName } as any)
+        .update(updatePayload)
         .eq("id", woId);
       if (error) throw error;
-      return { before };
+      return { before, closedAt: now };
     },
     onSuccess: (result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
