@@ -98,7 +98,7 @@ const App = () => (
               <Route path="/dashboard/audit-logs" element={<ProtectedRoute allowedRoles={["admin"]}><AuditLogsPage /></ProtectedRoute>} />
               <Route path="/dashboard/executive" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ExecutiveDashboard /></ProtectedRoute>} />
               <Route path="/dashboard/downtime" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><DowntimePage /></ProtectedRoute>} />
-              <Route path="/dashboard/reliability" element={<ProtectedRoute allowedRoles={["admin"]}><ReliabilityDashboard /></ProtectedRoute>} />
+              <Route path="/dashboard/reliability" element={<Navigate to="/dashboard/downtime" replace />} />
               <Route path="/dashboard/wo/:id" element={<ProtectedRoute allowedRoles={["operator", "engineer", "admin", "manager"]}><WorkOrderDetail /></ProtectedRoute>} />
               <Route path="/dashboard/stock" element={<ProtectedRoute allowedRoles={["engineer", "admin", "manager"]}><StockPage /></ProtectedRoute>} />
               <Route path="/users/manage" element={<ProtectedRoute allowedRoles={["admin"]}><ManageUsers /></ProtectedRoute>} />
