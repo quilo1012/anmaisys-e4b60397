@@ -16,7 +16,8 @@ import { useWorkOrders, useCreateWorkOrder, useCloseWorkOrder } from "@/hooks/us
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePartsCountByWOs } from "@/hooks/useStock";
-import { useMachines } from "@/hooks/useMachines";
+import { useMachines, useLines, type MachineSide } from "@/hooks/useMachines";
+import { MachineSelector } from "@/components/MachineSelector";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -37,7 +38,8 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 export default function OperatorDashboard() {
   const { profile } = useAuth();
   
-  const [line, setLine] = useState("");
+  const [lineId, setLineId] = useState<string>("");
+  const [side, setSide] = useState<MachineSide | "">("");
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
@@ -51,6 +53,7 @@ export default function OperatorDashboard() {
   const woIds = workOrders?.map((wo) => wo.id) || [];
   const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { data: machines } = useMachines();
+  const { data: lines } = useLines();
   const { data: problemDescriptions } = useActiveProblemDescriptions();
   const createWO = useCreateWorkOrder();
   const closeWO = useCloseWorkOrder();
@@ -61,20 +64,11 @@ export default function OperatorDashboard() {
   const [closeDialogWO, setCloseDialogWO] = useState<string | null>(null);
   const [closeSigName, setCloseSigName] = useState("");
 
-  // Distinct lines for filter
-  const lines = useMemo(() => {
-    if (!machines) return [];
-    const lineSet = new Set<string>();
-    machines.forEach((m) => { if (m.line) lineSet.add(m.line); });
-    return Array.from(lineSet).sort();
-  }, [machines]);
-
-  // Filter machines by selected line
-  const filteredMachines = useMemo(() => {
-    if (!machines) return [];
-    if (!line) return machines;
-    return machines.filter((m) => m.line === line);
-  }, [machines, line]);
+  // Selected line name (for submit payload + suggestion lookups)
+  const selectedLineName = useMemo(
+    () => lines?.find((l) => l.id === lineId)?.name || "",
+    [lines, lineId]
+  );
 
   // Smart suggestions: recent WOs for selected machine
   const machineSuggestions = useMemo(() => {
