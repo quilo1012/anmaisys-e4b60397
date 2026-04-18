@@ -34,7 +34,7 @@ export function useEngineerScores() {
         .in("id", ids);
 
       const nameMap: Record<string, string> = {};
-      profiles?.forEach((p) => { nameMap[p.id] = p.name; });
+      (profiles as any[])?.forEach((p: any) => { nameMap[p.id] = p.name; });
       // Engineers table takes priority (PIN identity = real engineer name)
       engineers?.forEach((e: any) => { if (e.name) nameMap[e.id] = e.name; });
 
