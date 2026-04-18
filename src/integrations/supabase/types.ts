@@ -931,6 +931,8 @@ export type Database = {
           line_stopped: boolean
           line_stopped_at: string | null
           line_stopped_by: string | null
+          locked_at: string | null
+          locked_engineer_id: string | null
           machine: string
           notes: string | null
           notified_engineers: string[] | null
@@ -965,6 +967,8 @@ export type Database = {
           line_stopped?: boolean
           line_stopped_at?: string | null
           line_stopped_by?: string | null
+          locked_at?: string | null
+          locked_engineer_id?: string | null
           machine: string
           notes?: string | null
           notified_engineers?: string[] | null
@@ -999,6 +1003,8 @@ export type Database = {
           line_stopped?: boolean
           line_stopped_at?: string | null
           line_stopped_by?: string | null
+          locked_at?: string | null
+          locked_engineer_id?: string | null
           machine?: string
           notes?: string | null
           notified_engineers?: string[] | null
@@ -1043,6 +1049,20 @@ export type Database = {
             columns: ["engineer_id"]
             isOneToOne: false
             referencedRelation: "engineers_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_locked_engineer_id_fkey"
+            columns: ["locked_engineer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_locked_engineer_id_fkey"
+            columns: ["locked_engineer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
           {
@@ -1134,6 +1154,14 @@ export type Database = {
       }
     }
     Functions: {
+      accept_wo_with_pin: {
+        Args: { _pin: string; _wo_id: string }
+        Returns: Json
+      }
+      finish_wo_with_pin: {
+        Args: { _pin: string; _signed_by_name?: string; _wo_id: string }
+        Returns: Json
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
