@@ -4,11 +4,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
 const Index = () => {
-  const { user, role, isReady } = useAuth();
+  const { user, role, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!isReady) return;
+    if (loading) return;
     if (!user) {
       navigate("/login", { replace: true });
       return;
