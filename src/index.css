@@ -124,14 +124,13 @@ select:-webkit-autofill {
 /* ─── Print Styles ─── */
 
 @page {
-  margin: 0 !important;
+  margin: 10mm !important;
   size: A4 portrait;
 }
 
 @media print {
-  /* Compensate zero page margin with body padding */
   body {
-    padding: 12mm !important;
+    padding: 0 !important;
     background: white !important;
     color: black !important;
     font-size: 9pt;
@@ -275,11 +274,11 @@ select:-webkit-autofill {
 
   /* Compact spacing */
   .p-6, .pt-6 {
-    padding: 4px 6px !important;
+    padding: 2px 4px !important;
   }
 
   .space-y-6 > * + * {
-    margin-top: 6px !important;
+    margin-top: 4px !important;
   }
 
   /* Print-specific table styling: bordered audit tables */
@@ -306,23 +305,17 @@ select:-webkit-autofill {
     display: block !important;
   }
 
-  /* Print footer: fixed at bottom */
+  /* Print footer hidden — was causing extra blank pages */
   .print-footer {
-    display: block !important;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-size: 7pt;
-    color: #666;
-    border-top: 1px solid #ccc;
-    padding-top: 4px;
+    display: none !important;
   }
 
-  /* Prevent page breaks inside sections */
-  .print-content > .space-y-6 > *,
+  /* Allow natural page flow — do NOT force page-break-inside: avoid on every block */
   .print-content > * {
+    page-break-inside: auto;
+  }
+  .print-content table,
+  .print-content tr {
     page-break-inside: avoid;
   }
 

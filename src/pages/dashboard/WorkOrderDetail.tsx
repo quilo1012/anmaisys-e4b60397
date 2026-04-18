@@ -583,27 +583,24 @@ export default function WorkOrderDetail() {
         )}
 
         {/* ═══ PRINT-ONLY: Formal Signature Section ═══ */}
-        <div className="hidden print:block mt-10 pt-4 border-t-2 border-black">
-          <div className="grid grid-cols-2 gap-16">
+        <div className="hidden print:block mt-4 pt-2 border-t-2 border-black">
+          <div className="grid grid-cols-2 gap-12">
             <div>
               <p className="text-[8pt] font-bold mb-1">Engineer Signature:</p>
               <p className="text-[8pt] mb-1">Name: <span className="font-medium">{wo.engineer_name || wo.engineer?.name || ""}</span></p>
-              <p className="text-[8pt] mb-8">Date: {wo.started_at ? format(new Date(wo.started_at), "dd/MM/yyyy") : ""}</p>
+              <p className="text-[8pt] mb-4">Date: {wo.started_at ? format(new Date(wo.started_at), "dd/MM/yyyy") : ""}</p>
               <div className="border-b-2 border-black w-full" />
               <p className="text-[7pt] mt-1 text-gray-500">Signature</p>
             </div>
             <div>
               <p className="text-[8pt] font-bold mb-1">Operator Signature:</p>
               <p className="text-[8pt] mb-1">Name: <span className="font-medium">{wo.requester_name || wo.operator?.name || ""}</span></p>
-              <p className="text-[8pt] mb-8">Date: {format(new Date(wo.created_at), "dd/MM/yyyy")}</p>
+              <p className="text-[8pt] mb-4">Date: {format(new Date(wo.created_at), "dd/MM/yyyy")}</p>
               <div className="border-b-2 border-black w-full" />
               <p className="text-[7pt] mt-1 text-gray-500">Signature</p>
             </div>
           </div>
         </div>
-
-        {/* Print footer */}
-        <div className="print-footer hidden">AN Maintenance — Confidential — {woLabel}</div>
 
       </div>
     </DashboardLayout>
