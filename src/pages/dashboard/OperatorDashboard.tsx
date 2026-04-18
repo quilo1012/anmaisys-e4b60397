@@ -16,7 +16,8 @@ import { useWorkOrders, useCreateWorkOrder, useCloseWorkOrder } from "@/hooks/us
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePartsCountByWOs } from "@/hooks/useStock";
-import { useMachines } from "@/hooks/useMachines";
+import { useMachines, useLines, type MachineSide } from "@/hooks/useMachines";
+import { MachineSelector } from "@/components/MachineSelector";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -37,7 +38,8 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 export default function OperatorDashboard() {
   const { profile } = useAuth();
   
-  const [line, setLine] = useState("");
+  const [lineId, setLineId] = useState<string>("");
+  const [side, setSide] = useState<MachineSide | "">("");
   const [machine, setMachine] = useState("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
@@ -51,6 +53,7 @@ export default function OperatorDashboard() {
   const woIds = workOrders?.map((wo) => wo.id) || [];
   const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { data: machines } = useMachines();
+  const { data: lines } = useLines();
   const { data: problemDescriptions } = useActiveProblemDescriptions();
   const createWO = useCreateWorkOrder();
   const closeWO = useCloseWorkOrder();
@@ -61,20 +64,11 @@ export default function OperatorDashboard() {
   const [closeDialogWO, setCloseDialogWO] = useState<string | null>(null);
   const [closeSigName, setCloseSigName] = useState("");
 
-  // Distinct lines for filter
-  const lines = useMemo(() => {
-    if (!machines) return [];
-    const lineSet = new Set<string>();
-    machines.forEach((m) => { if (m.line) lineSet.add(m.line); });
-    return Array.from(lineSet).sort();
-  }, [machines]);
-
-  // Filter machines by selected line
-  const filteredMachines = useMemo(() => {
-    if (!machines) return [];
-    if (!line) return machines;
-    return machines.filter((m) => m.line === line);
-  }, [machines, line]);
+  // Selected line name (for submit payload + suggestion lookups)
+  const selectedLineName = useMemo(
+    () => lines?.find((l) => l.id === lineId)?.name || "",
+    [lines, lineId]
+  );
 
   // Smart suggestions: recent WOs for selected machine
   const machineSuggestions = useMemo(() => {
@@ -151,7 +145,7 @@ export default function OperatorDashboard() {
       const effectivePriority = lineStopped ? "high" : autoPriority.priority;
       await createWO.mutateAsync({ requester_name: requestedBy.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: effectivePriority, created_at, line_stopped: lineStopped });
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
-      setRequestedBy(""); setLine(""); setMachine(""); setDescription(""); setNotes("");
+      setRequestedBy(""); setLineId(""); setSide(""); setMachine(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
@@ -210,29 +204,17 @@ export default function OperatorDashboard() {
                   autoComplete="off"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Line</Label>
-                <Select value={line} onValueChange={(v) => { setLine(v); setMachine(""); }}>
-                  <SelectTrigger><SelectValue placeholder="Select line..." /></SelectTrigger>
-                  <SelectContent>
-                    {lines.map((l) => (
-                      <SelectItem key={l} value={l}>{l}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="machine">Machine</Label>
-                <Select value={machine} onValueChange={setMachine}>
-                  <SelectTrigger><SelectValue placeholder="Select machine..." /></SelectTrigger>
-                  <SelectContent>
-                    {filteredMachines.map((m) => (
-                      <SelectItem key={m.id} value={m.name}>
-                        {m.name}{m.current_location ? ` (${m.current_location})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-2 md:col-span-2">
+                <MachineSelector
+                  lineId={lineId}
+                  side={side}
+                  machineName={machine}
+                  onChange={({ lineId: lid, side: s, machineName }) => {
+                    setLineId(lid);
+                    setSide(s);
+                    setMachine(machineName);
+                  }}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="desc">Problem Description</Label>

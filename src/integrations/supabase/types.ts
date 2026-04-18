@@ -327,6 +327,30 @@ export type Database = {
         }
         Relationships: []
       }
+      lines: {
+        Row: {
+          created_at: string
+          display_order: number
+          has_sides: boolean
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          has_sides?: boolean
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          has_sides?: boolean
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       machine_events: {
         Row: {
           action_taken: string | null
@@ -418,9 +442,11 @@ export type Database = {
           id: string
           last_maintenance_date: string | null
           line: string | null
+          line_id: string | null
           machine_type: string
           name: string
           sector: string | null
+          side: string
           status: string | null
         }
         Insert: {
@@ -431,9 +457,11 @@ export type Database = {
           id?: string
           last_maintenance_date?: string | null
           line?: string | null
+          line_id?: string | null
           machine_type?: string
           name: string
           sector?: string | null
+          side?: string
           status?: string | null
         }
         Update: {
@@ -444,12 +472,22 @@ export type Database = {
           id?: string
           last_maintenance_date?: string | null
           line?: string | null
+          line_id?: string | null
           machine_type?: string
           name?: string
           sector?: string | null
+          side?: string
           status?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "machines_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       parts_used: {
         Row: {
