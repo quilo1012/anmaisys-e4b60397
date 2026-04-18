@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, Search, Shield, Trash2 } from "lucide-react";
 import { useAuditLogs, logAuditEvent } from "@/hooks/useAuditLogs";
+import { invokeFunction } from "@/lib/invokeFunction";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -47,7 +48,7 @@ export default function AuditLogsPage() {
         setClearing(false);
         return;
       }
-      const pinRes = await supabase.functions.invoke("verify-admin-pin", { body: { pin } });
+      const pinRes = await invokeFunction("verify-admin-pin", { pin });
       if (pinRes.error || !pinRes.data?.valid) {
         toast({ title: "Invalid PIN", description: "The PIN entered is incorrect.", variant: "destructive" });
         setClearing(false);
