@@ -111,7 +111,7 @@ export function useStopLine() {
   const { user, profile } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ workOrderId, reason }: { workOrderId: string; reason?: string }) => {
+    mutationFn: async ({ workOrderId, reason, isRecurrence }: { workOrderId: string; reason?: string; isRecurrence?: boolean }) => {
       const { data, error } = await (supabase as any)
         .from("downtime_events")
         .insert({
@@ -120,6 +120,7 @@ export function useStopLine() {
           stopped_by: user!.id,
           stopped_by_name: profile?.name || user!.email || "",
           stopped_reason: reason?.trim() || null,
+          is_recurrence: !!isRecurrence,
         })
         .select()
         .single();
