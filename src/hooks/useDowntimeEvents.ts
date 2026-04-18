@@ -17,6 +17,7 @@ export interface DowntimeEvent {
   resumed_note: string | null;
   duration_minutes: number | null;
   created_at: string;
+  is_recurrence?: boolean;
 }
 
 export interface DowntimeTotal {
