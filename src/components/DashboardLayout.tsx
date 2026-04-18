@@ -50,7 +50,6 @@ const navItems: NavItem[] = [
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "engineer"], group: "Assets" },
   // Reports
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager"], group: "Reports" },
-  { title: "Reliability", url: "/dashboard/reliability", icon: Activity, roles: ["admin"], group: "Reports" },
   { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin", "manager"], group: "Reports" },
   { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin", "manager"], group: "Reports" },
   // Admin
