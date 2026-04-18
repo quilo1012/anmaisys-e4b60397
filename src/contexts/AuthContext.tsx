@@ -83,23 +83,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!mounted) return;
 
+      // Explicit sign out only
       if (event === "SIGNED_OUT") {
         clearAuthState();
         setIsReady(true);
         return;
       }
 
-      if (!newSession?.user) {
-        clearAuthState();
+      // Token refresh / initial session — just sync, never clear or refetch role
+      if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+        if (newSession?.user) {
+          setSession(newSession);
+          setUser(newSession.user);
+        }
         setIsReady(true);
         return;
       }
 
-      setSession(newSession);
-      setUser(newSession.user);
-
-      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
-        void fetchUserData(newSession.user.id);
+      // Real sign-in or user updated — sync session and refetch profile/role
+      if (newSession?.user) {
+        const userChanged = newSession.user.id !== user?.id;
+        setSession(newSession);
+        setUser(newSession.user);
+        if (event === "SIGNED_IN" && userChanged) {
+          void fetchUserData(newSession.user.id);
+        } else if (event === "USER_UPDATED") {
+          void fetchUserData(newSession.user.id);
+        }
       }
 
       setIsReady(true);
