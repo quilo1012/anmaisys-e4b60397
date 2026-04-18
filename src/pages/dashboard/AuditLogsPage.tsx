@@ -39,19 +39,16 @@ export default function AuditLogsPage() {
   const handleClearLogs = async () => {
     setClearing(true);
     try {
-      // Verify PIN server-side via raw fetch (handles non-2xx bodies)
-      const { data: { session } } = await supabase.auth.getSession();
-      const pinRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-admin-pin`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${session?.access_token}`,
-          "Content-Type": "application/json",
-          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
-        body: JSON.stringify({ pin }),
-      });
-      const pinData = await pinRes.json();
-      if (!pinRes.ok || !pinData?.valid) {
+      // Force refresh to get a valid token (session may be stale)
+      const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+      const token = refreshed?.session?.access_token;
+      if (refreshErr || !token) {
+        toast({ title: "Session expired", description: "Please log in again.", variant: "destructive" });
+        setClearing(false);
+        return;
+      }
+      const pinRes = await supabase.functions.invoke("verify-admin-pin", { body: { pin } });
+      if (pinRes.error || !pinRes.data?.valid) {
         toast({ title: "Invalid PIN", description: "The PIN entered is incorrect.", variant: "destructive" });
         setClearing(false);
         return;
