@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeFunction } from "@/lib/invokeFunction";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,9 +92,7 @@ export default function ManageUsers() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await supabase.functions.invoke("create-user", {
-        body: { email: email.trim().toLowerCase(), password, name: name.trim(), role },
-      });
+      const res = await invokeFunction("create-user", { email: email.trim().toLowerCase(), password, name: name.trim(), role });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       toast({ title: "User created", description: `${name} has been added as ${roleLabels[role]}` });
@@ -133,7 +132,7 @@ export default function ManageUsers() {
       if (editPassword) {
         body.password = editPassword;
       }
-      const res = await supabase.functions.invoke("update-user", { body });
+      const res = await invokeFunction("update-user", body);
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       if (editUser.role !== editRole) {
@@ -153,7 +152,7 @@ export default function ManageUsers() {
     setDeleteLoading(userId);
     const targetUser = users.find(u => u.id === userId);
     try {
-      const res = await supabase.functions.invoke("delete-user", { body: { userId } });
+      const res = await invokeFunction("delete-user", { userId });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       logAuditEvent("user_deleted", "user", userId, { name: targetUser?.name, email: targetUser?.email });

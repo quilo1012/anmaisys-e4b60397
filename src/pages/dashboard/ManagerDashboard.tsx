@@ -6,6 +6,7 @@ import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeFunction } from "@/lib/invokeFunction";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -70,9 +71,7 @@ export default function ManagerDashboard() {
     }
     setSavingPin(true);
     try {
-      const { data, error } = await supabase.functions.invoke("update-admin-pin", {
-        body: { newPin },
-      });
+      const { data, error } = await invokeFunction("update-admin-pin", { newPin });
       if (error) throw error;
       if (!data?.success) throw new Error("Failed to update PIN");
       toast({ title: "PIN updated", description: "The admin PIN has been changed successfully." });

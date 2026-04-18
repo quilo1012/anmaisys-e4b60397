@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Loader2, Lock, UserCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeFunction } from "@/lib/invokeFunction";
 import { useToast } from "@/hooks/use-toast";
 
 export interface EngineerIdentity {
@@ -34,7 +35,7 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
     setLoading(true);
     setError("");
     try {
-      const res = await supabase.functions.invoke("verify-engineer-pin", { body: { pin } });
+      const res = await invokeFunction("verify-engineer-pin", { pin });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) {
         setError(res.data.error);
