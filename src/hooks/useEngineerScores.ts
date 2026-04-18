@@ -24,7 +24,7 @@ export function useEngineerScores() {
       if (!ids.length) return [] as EngineerScore[];
 
       const { data: profiles } = await supabase
-        .from("profiles")
+        .from("profiles_safe" as any)
         .select("id, name")
         .in("id", ids);
 

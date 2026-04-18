@@ -13,7 +13,7 @@ export function useOnlineEngineers() {
     queryFn: async () => {
       const cutoff = new Date(Date.now() - 60_000).toISOString();
       const { data, error } = await (supabase as any)
-        .from("profiles")
+        .from("profiles_safe")
         .select("id, name, last_seen_at")
         .gt("last_seen_at", cutoff);
       if (error) throw error;
