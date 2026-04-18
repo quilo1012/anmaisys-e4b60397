@@ -15,7 +15,8 @@ import { format, differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { LineStatusBanner } from "@/components/LineStatusBanner";
+import { LineDowntimeControl } from "@/components/LineDowntimeControl";
+import { DowntimeTimelineCard } from "@/components/DowntimeTimelineCard";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -274,13 +275,13 @@ export default function WorkOrderDetail() {
           </div>
         </div>
 
-        {/* Production Line Status — visible at the top, screen-only */}
+        {/* Production Line Status — multi-cycle stop/resume control */}
         <div className="print:hidden">
-          <LineStatusBanner
-            variant="detail"
-            lineStopped={(wo as any).line_stopped === true}
-            lineStoppedAt={(wo as any).line_stopped_at}
-            lineResumedAt={(wo as any).line_resumed_at}
+          <LineDowntimeControl
+            workOrderId={wo.id}
+            workOrderStatus={wo.status}
+            operatorId={(wo as any).operator_id}
+            engineerId={(wo as any).engineer_id}
           />
         </div>
 
