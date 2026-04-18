@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { LineDowntimeControl } from "@/components/LineDowntimeControl";
 import { DowntimeTimelineCard } from "@/components/DowntimeTimelineCard";
 import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
+import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -260,7 +261,10 @@ export default function WorkOrderDetail() {
         <div className="flex items-center justify-between print:hidden">
           <div>
             <h2 className="text-2xl font-bold">{wo.requester_name} — {wo.machine}</h2>
-            <p className="text-muted-foreground text-sm font-mono">{woLabel}</p>
+            <div className="flex items-center gap-2 flex-wrap mt-1">
+              <p className="text-muted-foreground text-sm font-mono">{woLabel}</p>
+              <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} />
+            </div>
           </div>
           <div className="flex gap-2">
             <Badge variant="outline" className={`text-sm px-3 py-1 ${pri.className}`}>{pri.label}</Badge>
