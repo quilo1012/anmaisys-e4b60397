@@ -26,6 +26,7 @@ import { useEngineerScores } from "@/hooks/useEngineerScores";
 import { generatePdfReport } from "@/lib/generatePdfReport";
 import { FileText } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
+import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -251,7 +252,10 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
       <Card className={`cursor-pointer hover:shadow-md transition-shadow border-l-4 ${borderColor}`} onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
         <CardContent className="p-3 space-y-1">
           <div className="flex justify-between items-center">
-            <span className="font-mono text-xs font-medium">WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</span>
+            <span className="font-mono text-xs font-medium flex items-center gap-1">
+              WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+              <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
+            </span>
             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${pri.className}`}>{pri.label}</Badge>
           </div>
           <p className="text-sm font-medium">{wo.machine}</p>
@@ -465,7 +469,16 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                       const woLine = machineLineMap[wo.machine] || "—";
                       return (
                         <TableRow key={wo.id}>
-                          {isCol("wo") && <TableCell className="font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</TableCell>}
+                          {isCol("wo") && (
+                            <TableCell className="font-mono font-medium">
+                              <div className="flex items-center gap-2">
+                                <span className="cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                                  WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                                </span>
+                                <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
+                              </div>
+                            </TableCell>
+                          )}
                           {isCol("line") && <TableCell className="text-sm font-medium">{woLine}</TableCell>}
                           {isCol("machine") && <TableCell className="cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/machines/${encodeURIComponent(wo.machine)}/history`)}>{wo.machine}</TableCell>}
                           {isCol("problem") && <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>}

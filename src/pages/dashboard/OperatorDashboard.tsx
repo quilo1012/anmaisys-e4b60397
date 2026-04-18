@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -353,7 +354,12 @@ export default function OperatorDashboard() {
                      const cfg = statusConfig[wo.status] || statusConfig.open;
                      return (
                        <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-                         <TableCell className="font-mono font-medium">WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</TableCell>
+                         <TableCell className="font-mono font-medium">
+                           <div className="flex items-center gap-2">
+                             <span>WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</span>
+                             <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
+                           </div>
+                         </TableCell>
                          <TableCell className="font-medium">{machines?.find((m) => m.name === wo.machine)?.line || "—"}</TableCell>
                          <TableCell>{wo.machine}</TableCell>
                          <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>
