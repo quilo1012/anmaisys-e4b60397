@@ -34,6 +34,19 @@ Deno.serve(async (req) => {
     });
     if (!isAdmin) throw new Error("Only managers can seed demo data");
 
+    // Demo password must be supplied via secret — never hardcoded
+    const demoPassword = Deno.env.get("SEED_DEMO_PASSWORD");
+    if (!demoPassword || demoPassword.length < 12) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "SEED_DEMO_PASSWORD secret is not configured. Set a strong password (≥12 chars) in Edge Function secrets before seeding demo data.",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const demoPin = Deno.env.get("SEED_DEMO_PIN") ?? crypto.randomUUID().replace(/\D/g, "").slice(0, 4).padStart(4, "0");
+
     const summary: string[] = [];
 
     // --- 1. Demo Manager user ---
