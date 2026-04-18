@@ -492,6 +492,42 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          action_url: string | null
+          body: string
+          created_at: string
+          id: string
+          priority: string
+          read_at: string | null
+          title: string
+          user_id: string
+          wo_id: string | null
+        }
+        Insert: {
+          action_url?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          priority?: string
+          read_at?: string | null
+          title: string
+          user_id: string
+          wo_id?: string | null
+        }
+        Update: {
+          action_url?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          priority?: string
+          read_at?: string | null
+          title?: string
+          user_id?: string
+          wo_id?: string | null
+        }
+        Relationships: []
+      }
       parts_used: {
         Row: {
           created_at: string
@@ -677,6 +713,36 @@ export type Database = {
           shift?: string | null
           ui_preferences?: Json
           updated_at?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: string
         }
         Relationships: []
       }
