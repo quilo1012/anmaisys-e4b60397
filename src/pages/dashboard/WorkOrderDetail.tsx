@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineDowntimeControl } from "@/components/LineDowntimeControl";
 import { DowntimeTimelineCard } from "@/components/DowntimeTimelineCard";
+import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
