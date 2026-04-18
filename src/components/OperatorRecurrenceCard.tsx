@@ -60,69 +60,33 @@ export function OperatorRecurrenceCard({ wo }: Props) {
 
   const createRecurrence = useMutation({
     mutationFn: async () => {
-      const finishedTs = wo.finished_at || wo.closed_at;
-      const finishedLabel = finishedTs ? new Date(finishedTs).toLocaleString() : "recently";
-      const description =
-        `RECURRENCE of WO-${String(wo.wo_number).padStart(6, "0")}. ` +
-        `Previous fix by ${wo.engineer_name || "engineer"} on ${finishedLabel}. ` +
-        `Original problem: ${wo.description}` +
-        (reason.trim() ? `\n\nOperator note: ${reason.trim()}` : "");
-
-      // Look up previous engineer to inherit assignment + lock
-      const { data: prev } = await (supabase as any)
-        .from("work_orders")
-        .select("engineer_id, engineer_name, locked_engineer_id")
-        .eq("id", wo.id)
-        .single();
-
-      const inheritedEngineerId: string | null = prev?.engineer_id ?? null;
-      const inheritedEngineerName: string | null = prev?.engineer_name ?? wo.engineer_name ?? null;
-      const inheritedLockedId: string | null = prev?.locked_engineer_id ?? inheritedEngineerId;
-
-      const insertPayload: any = {
-        machine: wo.machine,
-        description,
-        requester_name: profile?.name || user!.email || "Operator",
-        operator_id: user!.id,
-        priority: "high",
-        recurrence_of_wo_id: wo.id,
-      };
-
-      // If we know the engineer, pre-assign + pre-receive + lock so it shows up
-      // immediately on their dashboard with no extra acceptance step.
-      if (inheritedEngineerId) {
-        insertPayload.engineer_id = inheritedEngineerId;
-        insertPayload.engineer_name = inheritedEngineerName;
-        insertPayload.locked_engineer_id = inheritedLockedId;
-        insertPayload.locked_at = new Date().toISOString();
-        insertPayload.status = "received";
-        insertPayload.received_at = new Date().toISOString();
-      } else {
-        insertPayload.status = "open";
-      }
-
-      const { data, error } = await (supabase as any)
-        .from("work_orders")
-        .insert(insertPayload)
-        .select("id, wo_number, engineer_id")
-        .single();
+      // New unified-WO model: reopen the same WO as a new episode.
+      const { data, error } = await (supabase as any).rpc("reopen_wo_recurrence", {
+        _wo_id: wo.id,
+        _reason: reason.trim() || "Same problem reported again",
+      });
       if (error) throw error;
-      return data as { id: string; wo_number: number; engineer_id: string | null };
+      if (!data?.success) {
+        throw new Error(data?.error || "Failed to reopen work order");
+      }
+      return data as { success: true; episode_number: number; engineer_id: string | null };
     },
-    onSuccess: (newWO) => {
-      logAuditEvent("wo_recurrence_created", "work_order", newWO.id, {
-        original_wo_id: wo.id,
-        original_wo_number: wo.wo_number,
+    onSuccess: (res) => {
+      logAuditEvent("wo_recurrence_created", "work_order", wo.id, {
+        wo_number: wo.wo_number,
+        episode_number: res.episode_number,
       });
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      queryClient.invalidateQueries({ queryKey: ["work_order", wo.id] });
       queryClient.invalidateQueries({ queryKey: ["wo_recurrence", wo.id] });
+      queryClient.invalidateQueries({ queryKey: ["downtime_events", wo.id] });
       toast({
-        title: "🔁 Recurrence reported",
-        description: `WO-${String(newWO.wo_number).padStart(6, "0")} opened. Engineer has been notified.`,
+        title: `🔁 Episode ${res.episode_number} opened`,
+        description: `WO-${String(wo.wo_number).padStart(6, "0")} reopened. Engineer notified.`,
       });
       setOpen(false);
       setReason("");
-      navigate(`/dashboard/wo/${newWO.id}`);
+      navigate(`/dashboard/wo/${wo.id}`);
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
