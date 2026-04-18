@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -32,12 +32,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Database["public"]["Tables"]["profiles"]["Row"] | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [roleLoading, setRoleLoading] = useState(false);
+  const currentUserIdRef = useRef<string | null>(null);
 
   const fetchUserData = async (userId: string) => {
     setRoleLoading(true);
-    setRole(null);
-    setProfile(null);
-
     try {
       const [profileRes, roleRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", userId).single(),
@@ -56,25 +54,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     const clearAuthState = () => {
+      currentUserIdRef.current = null;
       setSession(null);
       setUser(null);
       setRole(null);
       setProfile(null);
     };
 
+    const syncSessionUser = (newSession: Session) => {
+      setSession(newSession);
+      setUser(newSession.user);
+      const isNewUser = currentUserIdRef.current !== newSession.user.id;
+      if (isNewUser) {
+        currentUserIdRef.current = newSession.user.id;
+        void fetchUserData(newSession.user.id);
+      }
+    };
+
     const initializeAuth = async () => {
       const { data: { session: currentSession } } = await supabase.auth.getSession();
-
       if (!mounted) return;
 
       if (currentSession?.user) {
-        setSession(currentSession);
-        setUser(currentSession.user);
-        void fetchUserData(currentSession.user.id);
+        syncSessionUser(currentSession);
       } else {
         clearAuthState();
       }
-
       setIsReady(true);
     };
 
@@ -83,25 +88,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!mounted) return;
 
+      // Only explicit sign out clears state
       if (event === "SIGNED_OUT") {
         clearAuthState();
         setIsReady(true);
         return;
       }
 
-      if (!newSession?.user) {
-        clearAuthState();
-        setIsReady(true);
+      // Token refresh — just sync, never refetch profile or clear
+      if (event === "TOKEN_REFRESHED") {
+        if (newSession) {
+          setSession(newSession);
+          setUser(newSession.user);
+        }
         return;
       }
 
-      setSession(newSession);
-      setUser(newSession.user);
-
-      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
-        void fetchUserData(newSession.user.id);
+      // Initial session, sign-in, user updated
+      if (newSession?.user) {
+        syncSessionUser(newSession);
+        if (event === "USER_UPDATED") {
+          void fetchUserData(newSession.user.id);
+        }
       }
-
       setIsReady(true);
     });
 
@@ -113,13 +122,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    currentUserIdRef.current = null;
     setSession(null);
     setUser(null);
     setRole(null);
     setProfile(null);
   };
 
-  const loading = !isReady || roleLoading;
+  // Loading is only true on initial boot, never during token refreshes
+  const loading = !isReady || (!!session && !role && roleLoading);
 
   return (
     <AuthContext.Provider value={{ session, user, role, profile, loading, signOut }}>
