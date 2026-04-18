@@ -264,6 +264,12 @@ export default function WorkOrderDetail() {
             <div className="flex items-center gap-2 flex-wrap mt-1">
               <p className="text-muted-foreground text-sm font-mono">{woLabel}</p>
               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} />
+              {((wo as any).current_episode ?? 1) > 1 && (
+                <Badge variant="outline" className="text-sm px-3 py-1 border-amber-600 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30">
+                  🔁 Episode {(wo as any).current_episode}
+                  {((wo as any).reopen_count ?? 0) > 0 && ` · reopened ${(wo as any).reopen_count}×`}
+                </Badge>
+              )}
             </div>
           </div>
           <div className="flex gap-2">
