@@ -597,21 +597,14 @@ export default function EngineerDashboard() {
                                     <PhotoStatusButton woId={wo.id} photoType="before" onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending} size="sm" />
                                     <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
                                     <PhotoStatusButton woId={wo.id} photoType="after" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending} size="sm" />
-                                    {(wo as any).line_stopped === true && (
-                                      <Button
-                                        size="sm"
-                                        className="bg-green-600 hover:bg-green-700 text-white"
-                                        onClick={() => {
-                                          if (!confirm("Confirm machine is back to work? Downtime stops; the order stays open.")) return;
-                                          machineBackToWork.mutate(wo.id, {
-                                            onSuccess: () => toast({ title: "✓ Line marked as running", description: "Downtime stopped." }),
-                                          });
-                                        }}
-                                        disabled={machineBackToWork.isPending}
-                                      >
-                                        <CheckCircle className="h-3 w-3 mr-1" /> Back to Work
-                                      </Button>
-                                    )}
+                                    <div className="w-full mt-1">
+                                      <LineDowntimeControl
+                                        workOrderId={wo.id}
+                                        workOrderStatus={wo.status}
+                                        operatorId={(wo as any).operator_id}
+                                        engineerId={(wo as any).engineer_id}
+                                      />
+                                    </div>
                                     <DesktopFinishButton wo={wo} />
                                   </>
                                 )}
