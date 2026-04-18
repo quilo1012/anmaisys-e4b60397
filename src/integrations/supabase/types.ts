@@ -205,6 +205,7 @@ export type Database = {
         Row: {
           created_at: string
           duration_minutes: number | null
+          episode_number: number
           id: string
           is_recurrence: boolean
           resumed_at: string | null
@@ -220,6 +221,7 @@ export type Database = {
         Insert: {
           created_at?: string
           duration_minutes?: number | null
+          episode_number?: number
           id?: string
           is_recurrence?: boolean
           resumed_at?: string | null
@@ -235,6 +237,7 @@ export type Database = {
         Update: {
           created_at?: string
           duration_minutes?: number | null
+          episode_number?: number
           id?: string
           is_recurrence?: boolean
           resumed_at?: string | null
@@ -785,6 +788,62 @@ export type Database = {
         }
         Relationships: []
       }
+      wo_episodes: {
+        Row: {
+          accepted_at: string | null
+          arrived_at: string | null
+          episode_number: number
+          finish_engineer_id: string | null
+          finish_pin_verified: boolean
+          finished_at: string | null
+          id: string
+          notes: string | null
+          reopen_reason: string | null
+          reopened_by: string | null
+          started_at: string
+          started_work_at: string | null
+          work_order_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          arrived_at?: string | null
+          episode_number: number
+          finish_engineer_id?: string | null
+          finish_pin_verified?: boolean
+          finished_at?: string | null
+          id?: string
+          notes?: string | null
+          reopen_reason?: string | null
+          reopened_by?: string | null
+          started_at?: string
+          started_work_at?: string | null
+          work_order_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          arrived_at?: string | null
+          episode_number?: number
+          finish_engineer_id?: string | null
+          finish_pin_verified?: boolean
+          finished_at?: string | null
+          id?: string
+          notes?: string | null
+          reopen_reason?: string | null
+          reopened_by?: string | null
+          started_at?: string
+          started_work_at?: string | null
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wo_episodes_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wo_messages: {
         Row: {
           created_at: string
@@ -921,6 +980,7 @@ export type Database = {
           closed_by: string | null
           completed_at: string | null
           created_at: string
+          current_episode: number
           description: string
           engineer_id: string | null
           engineer_name: string | null
@@ -943,6 +1003,7 @@ export type Database = {
           priority: string
           received_at: string | null
           recurrence_of_wo_id: string | null
+          reopen_count: number
           requester_name: string
           signed_by_name: string | null
           started_at: string | null
@@ -957,6 +1018,7 @@ export type Database = {
           closed_by?: string | null
           completed_at?: string | null
           created_at?: string
+          current_episode?: number
           description: string
           engineer_id?: string | null
           engineer_name?: string | null
@@ -979,6 +1041,7 @@ export type Database = {
           priority?: string
           received_at?: string | null
           recurrence_of_wo_id?: string | null
+          reopen_count?: number
           requester_name: string
           signed_by_name?: string | null
           started_at?: string | null
@@ -993,6 +1056,7 @@ export type Database = {
           closed_by?: string | null
           completed_at?: string | null
           created_at?: string
+          current_episode?: number
           description?: string
           engineer_id?: string | null
           engineer_name?: string | null
@@ -1015,6 +1079,7 @@ export type Database = {
           priority?: string
           received_at?: string | null
           recurrence_of_wo_id?: string | null
+          reopen_count?: number
           requester_name?: string
           signed_by_name?: string | null
           started_at?: string | null
@@ -1181,6 +1246,10 @@ export type Database = {
           _entity_type: string
         }
         Returns: undefined
+      }
+      reopen_wo_recurrence: {
+        Args: { _reason: string; _wo_id: string }
+        Returns: Json
       }
       set_admin_pin: { Args: { _new_pin: string }; Returns: undefined }
       set_engineer_pin: {
