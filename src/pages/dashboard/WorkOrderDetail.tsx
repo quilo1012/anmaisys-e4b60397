@@ -330,13 +330,25 @@ export default function WorkOrderDetail() {
 
         {/* PRODUCTION IMPACT */}
         {(() => {
-          const stopCount = downtimeEvents.length;
-          const totalDowntimeSec = downtimeEvents.reduce((acc, e) => {
+          // Operator-declared downtime: starts when WO is created with line_stopped=true,
+          // ends when operator confirms line resumed (line_resumed_at). If still stopped, count up to "now".
+          const operatorStopStart = (wo as any).line_stopped_at || (((wo as any).line_stopped) ? wo.created_at : null);
+          const operatorStopEnd = (wo as any).line_resumed_at || null;
+          const hasOperatorStop = !!operatorStopStart;
+          const operatorDowntimeSec = hasOperatorStop
+            ? Math.max(0, differenceInSeconds(new Date(operatorStopEnd || new Date()), new Date(operatorStopStart)))
+            : 0;
+
+          // Engineer-recorded downtime events (additional stoppages logged during the WO)
+          const engineerDowntimeSec = downtimeEvents.reduce((acc, e) => {
             if (e.duration_minutes != null) return acc + e.duration_minutes * 60;
             if (e.resumed_at) return acc + differenceInSeconds(new Date(e.resumed_at), new Date(e.stopped_at));
             return acc + differenceInSeconds(new Date(), new Date(e.stopped_at));
           }, 0);
-          const lineOperating = !(wo as any).line_stopped;
+
+          const stopCount = downtimeEvents.length + (hasOperatorStop ? 1 : 0);
+          const totalDowntimeSec = operatorDowntimeSec + engineerDowntimeSec;
+          const lineOperating = !(wo as any).line_stopped || !!(wo as any).line_resumed_at;
           return (
             <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
               <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Production Impact</CardTitle></CardHeader>
