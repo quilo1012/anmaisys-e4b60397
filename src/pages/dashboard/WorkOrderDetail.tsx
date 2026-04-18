@@ -331,8 +331,8 @@ export default function WorkOrderDetail() {
         {/* PRODUCTION IMPACT */}
         {(() => {
           // Operator-declared downtime: starts when WO is created with line_stopped=true,
-          // ends when operator confirms line resumed (line_resumed_at). If still stopped, count up to "now".
-          const operatorStopStart = (wo as any).line_stopped_at || (((wo as any).line_stopped) ? wo.created_at : null);
+          // ends only when the operator signs/closes the WO (line_resumed_at).
+          const operatorStopStart = (wo as any).line_stopped_at || null;
           const operatorStopEnd = (wo as any).line_resumed_at || null;
           const hasOperatorStop = !!operatorStopStart;
           const operatorDowntimeSec = hasOperatorStop
@@ -348,7 +348,7 @@ export default function WorkOrderDetail() {
 
           const stopCount = downtimeEvents.length + (hasOperatorStop ? 1 : 0);
           const totalDowntimeSec = operatorDowntimeSec + engineerDowntimeSec;
-          const lineOperating = !(wo as any).line_stopped || !!(wo as any).line_resumed_at;
+          const lineOperating = !((wo as any).line_stopped && !(wo as any).line_resumed_at);
           return (
             <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
               <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Production Impact</CardTitle></CardHeader>
