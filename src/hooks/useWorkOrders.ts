@@ -30,6 +30,8 @@ export interface WorkOrder {
   completed_at: string | null;
   paused_at: string | null;
   total_paused_minutes: number;
+  recurrence_of_wo_id?: string | null;
+  locked_engineer_id?: string | null;
   operator?: { name: string };
   engineer?: { name: string };
   closer?: { name: string };
