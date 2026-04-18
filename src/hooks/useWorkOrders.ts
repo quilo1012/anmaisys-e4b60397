@@ -35,7 +35,8 @@ export interface WorkOrder {
   closer?: { name: string };
 }
 
-// Helper to insert a work_order_log entry
+// Helper to insert a work_order_log entry. Idempotent: silently ignores duplicates
+// (unique partial index on work_order_id+engineer_id+action prevents repeats).
 async function logWOAction(workOrderId: string, engineerId: string, engineerName: string, action: string) {
   const { error } = await supabase.from("work_order_logs" as any).insert({
     work_order_id: workOrderId,
@@ -43,7 +44,10 @@ async function logWOAction(workOrderId: string, engineerId: string, engineerName
     engineer_name: engineerName,
     action,
   } as any);
-  if (error) console.error("logWOAction failed:", error);
+  // 23505 = unique violation → swallow (action already logged for this engineer)
+  if (error && (error as any).code !== "23505") {
+    console.error("logWOAction failed:", error);
+  }
 }
 
 export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOStatus[] }) {
