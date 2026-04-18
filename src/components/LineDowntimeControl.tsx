@@ -51,9 +51,14 @@ export function LineDowntimeControl({
   const totalMinutes = useMemo(() => {
     if (!events) return 0;
     return events.reduce((sum, e) => {
-      if (e.duration_minutes !== null && e.duration_minutes !== undefined) {
-        return sum + e.duration_minutes;
+      // Resolved stop: use stored duration, or compute from resumed_at as fallback
+      if (e.resumed_at) {
+        if (e.duration_minutes !== null && e.duration_minutes !== undefined) {
+          return sum + e.duration_minutes;
+        }
+        return sum + differenceInMinutes(new Date(e.resumed_at), new Date(e.stopped_at));
       }
+      // Only count live time when the line is actually still stopped
       return sum + differenceInMinutes(new Date(), new Date(e.stopped_at));
     }, 0);
   }, [events]);
