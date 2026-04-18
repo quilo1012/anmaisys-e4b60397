@@ -17,7 +17,7 @@ const Index = () => {
     else if (role === "engineer") navigate("/dashboard/engineer", { replace: true });
     else if (role === "operator") navigate("/dashboard/operator", { replace: true });
     else navigate("/login", { replace: true });
-  }, [isReady, user, role, navigate]);
+  }, [loading, user, role, navigate]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
