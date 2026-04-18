@@ -188,20 +188,16 @@ export default function WorkOrderDetail() {
 
         {/* ═══ PRINT-ONLY: Industrial Document Header ═══ */}
         <div className="hidden print:block mb-4">
-          <div className="flex items-center justify-between border-b-2 border-black pb-3">
-            <div className="flex items-center gap-3">
-              <img src="/appliedlogo.jpeg" alt="Logo" crossOrigin="anonymous" className="h-12 w-auto object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
-              <div>
-                <p className="text-lg font-bold tracking-wide">AN MAINTENANCE</p>
-                <p className="text-[8pt] text-gray-500">Applied Nutrition Ltd.</p>
-              </div>
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-bold tracking-widest">WORK ORDER</p>
-            </div>
-            <div className="text-right">
+          <div className="border-b-2 border-black pb-3 grid grid-cols-3 items-center">
+            <div className="text-left">
               <p className="text-sm font-bold font-mono">{woLabel}</p>
               <p className="text-[8pt] text-gray-600">{format(new Date(wo.created_at), "dd/MM/yyyy HH:mm")}</p>
+            </div>
+            <div className="flex justify-center">
+              <img src="/appliedlogo.jpeg" alt="Applied Nutrition" crossOrigin="anonymous" className="h-16 w-auto object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-bold tracking-widest">WORK ORDER</p>
             </div>
           </div>
           {/* Document metadata row */}
