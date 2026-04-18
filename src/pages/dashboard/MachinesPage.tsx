@@ -167,7 +167,7 @@ export default function MachinesPage() {
               value={machineType}
               onChange={setMachineType}
               suggestions={distinct?.machineTypes || []}
-              placeholder="Blender, Mixer, Conveyor..."
+              placeholder="Blender, Conveyor, Filler..."
             />
             {errors.machineType && <p className="text-xs text-destructive">{errors.machineType}</p>}
           </div>
