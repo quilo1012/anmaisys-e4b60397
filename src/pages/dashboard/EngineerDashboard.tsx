@@ -348,19 +348,7 @@ export default function EngineerDashboard() {
     setSignName("");
     requirePin("Confirm FINISH (PIN)", async (engineer) => {
       try {
-        // Use locked RPC: only the locked engineer can finish, with PIN.
-        const { data, error } = await supabase.rpc("finish_wo_with_pin" as any, {
-          _wo_id: woId,
-          _pin: "__via_dialog__", // not used: PinDialog already verified the PIN.
-          _signed_by_name: signature,
-        } as any);
-        // PinDialog already validated the PIN with verify-engineer-pin and gave us
-        // the engineer identity. The RPC re-validates the PIN — but since we don't
-        // re-collect it here, we fall back to the existing finishWO mutation when
-        // the RPC rejects. This keeps backward-compatibility while the lock is in place.
-        if (error || (data && (data as any).success === false)) {
-          await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name });
-        }
+        await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name });
         setCurrentEngineer(null);
         sessionStorage.removeItem("currentEngineer");
         toast({ title: "✅ Work order finished" });
