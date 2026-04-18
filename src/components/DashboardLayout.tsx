@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -321,7 +321,7 @@ function SidebarShell({
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate(stoppedTarget)}
-                className="bg-red-600 hover:bg-red-700 text-white animate-pulse gap-1.5 h-9"
+                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground animate-pulse gap-1.5 h-9"
                 aria-label={`${stoppedLinesCount} production lines currently stopped`}
               >
                 <PowerOff className="h-4 w-4" />
