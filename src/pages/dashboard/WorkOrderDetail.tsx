@@ -166,22 +166,18 @@ export default function WorkOrderDetail() {
   const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
   const woLabel = `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`;
 
-  const responseTime = wo.received_at
-    ? differenceInMinutes(new Date(wo.received_at), new Date(wo.created_at))
-    : wo.started_at
-      ? differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at))
-      : null;
-  const travelTime = wo.arrived_at
-    ? differenceInMinutes(new Date(wo.arrived_at), new Date(wo.received_at || wo.created_at))
-    : wo.started_at && !wo.received_at ? 0 : null;
-  const pausedMinutes = (wo as any).total_paused_minutes || 0;
-  const rawRepairTime = wo.started_at && (wo.finished_at || wo.completed_at) ? differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at)) : null;
-  const repairTime = rawRepairTime !== null ? rawRepairTime - pausedMinutes : null;
-  const totalTime = (wo.closed_at || wo.completed_at)
-    ? differenceInMinutes(new Date(wo.closed_at || wo.completed_at!), new Date(wo.created_at))
-    : (responseTime || 0) + (travelTime || 0) + (repairTime !== null ? repairTime : (wo.started_at ? differenceInMinutes(new Date(), new Date(wo.started_at)) : 0));
-
-  const timelineRows = getTimelineRows(wo);
+  // ── New simplified metric model (post Accept/Start split) ──────────────
+  // Resposta = created → accepted (or first action) | Execução = started → finished | Total = created → finished
+  const acceptedAt = (wo as any).accepted_at || wo.received_at || wo.started_at;
+  const responseMin = acceptedAt
+    ? differenceInMinutes(new Date(acceptedAt), new Date(wo.created_at))
+    : null;
+  const executionMin = wo.started_at && (wo.finished_at || wo.completed_at)
+    ? differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at))
+    : null;
+  const totalMin = (wo.finished_at || wo.completed_at || wo.closed_at)
+    ? differenceInMinutes(new Date(wo.finished_at || wo.closed_at || wo.completed_at!), new Date(wo.created_at))
+    : null;
 
   return (
     <DashboardLayout>
