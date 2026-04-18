@@ -68,21 +68,46 @@ export function OperatorRecurrenceCard({ wo }: Props) {
         `Original problem: ${wo.description}` +
         (reason.trim() ? `\n\nOperator note: ${reason.trim()}` : "");
 
+      // Look up previous engineer to inherit assignment + lock
+      const { data: prev } = await (supabase as any)
+        .from("work_orders")
+        .select("engineer_id, engineer_name, locked_engineer_id")
+        .eq("id", wo.id)
+        .single();
+
+      const inheritedEngineerId: string | null = prev?.engineer_id ?? null;
+      const inheritedEngineerName: string | null = prev?.engineer_name ?? wo.engineer_name ?? null;
+      const inheritedLockedId: string | null = prev?.locked_engineer_id ?? inheritedEngineerId;
+
+      const insertPayload: any = {
+        machine: wo.machine,
+        description,
+        requester_name: profile?.name || user!.email || "Operator",
+        operator_id: user!.id,
+        priority: "high",
+        recurrence_of_wo_id: wo.id,
+      };
+
+      // If we know the engineer, pre-assign + pre-receive + lock so it shows up
+      // immediately on their dashboard with no extra acceptance step.
+      if (inheritedEngineerId) {
+        insertPayload.engineer_id = inheritedEngineerId;
+        insertPayload.engineer_name = inheritedEngineerName;
+        insertPayload.locked_engineer_id = inheritedLockedId;
+        insertPayload.locked_at = new Date().toISOString();
+        insertPayload.status = "received";
+        insertPayload.received_at = new Date().toISOString();
+      } else {
+        insertPayload.status = "open";
+      }
+
       const { data, error } = await (supabase as any)
         .from("work_orders")
-        .insert({
-          machine: wo.machine,
-          description,
-          requester_name: profile?.name || user!.email || "Operator",
-          operator_id: user!.id,
-          status: "open",
-          priority: "high",
-          recurrence_of_wo_id: wo.id,
-        })
-        .select("id, wo_number")
+        .insert(insertPayload)
+        .select("id, wo_number, engineer_id")
         .single();
       if (error) throw error;
-      return data as { id: string; wo_number: number };
+      return data as { id: string; wo_number: number; engineer_id: string | null };
     },
     onSuccess: (newWO) => {
       logAuditEvent("wo_recurrence_created", "work_order", newWO.id, {

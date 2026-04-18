@@ -294,39 +294,49 @@ export default function EngineerDashboard() {
     });
   };
 
-  // STEP 2 — ARRIVED (received → arrived)
+  // Verify the current user owns the WO lock (silent ops between Accept and Finish)
+  const ensureLockedToMe = (wo: any): boolean => {
+    const lockId = (wo as any).locked_engineer_id;
+    if (!lockId) return true; // not locked yet → allow
+    if (lockId === user?.id) return true;
+    const lockedToName = wo.engineer_name || "another engineer";
+    toast({ title: "🔒 Locked", description: `This WO is locked to ${lockedToName}.`, variant: "destructive" });
+    return false;
+  };
+
+  // STEP 2 — ARRIVED (received → arrived) — NO PIN, lock-protected
   const handleArrivedClick = (woId: string) => {
-    requirePin("Confirm ARRIVED", async (engineer) => {
-      setCurrentEngineer(engineer);
-      try {
-        await arriveWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
-        toast({ title: "📍 Arrival recorded", description: "Tap 'Start Work' when you begin the repair." });
-      } catch (err: any) {
-        toast({ title: "Error recording arrival", description: err.message, variant: "destructive" });
-      }
-    });
+    const wo = workOrders?.find(w => w.id === woId);
+    if (!wo || !ensureLockedToMe(wo)) return;
+    const engineer: EngineerIdentity = currentEngineer
+      ?? (wo.engineer_id && wo.engineer_name ? { id: wo.engineer_id, name: wo.engineer_name } : { id: user!.id, name: profile?.name || user!.email || "Engineer" });
+    setCurrentEngineer(engineer);
+    arriveWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name })
+      .then(() => toast({ title: "📍 Arrival recorded", description: "Tap 'Start Work' when you begin the repair." }))
+      .catch((err: any) => toast({ title: "Error recording arrival", description: err.message, variant: "destructive" }));
   };
 
-  // STEP 3 — START (arrived → in_progress)
+  // STEP 3 — START (arrived → in_progress) — NO PIN
   const handleStartClick = (woId: string) => {
-    requirePin("Confirm START", async (engineer) => {
-      setCurrentEngineer(engineer);
-      try {
-        await startWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
-        toast({ title: "✅ Work Order started!", description: "Don't forget to add a Before photo!" });
-      } catch (err: any) {
-        toast({ title: "Error starting WO", description: err.message, variant: "destructive" });
-      }
-    });
+    const wo = workOrders?.find(w => w.id === woId);
+    if (!wo || !ensureLockedToMe(wo)) return;
+    const engineer: EngineerIdentity = currentEngineer
+      ?? (wo.engineer_id && wo.engineer_name ? { id: wo.engineer_id, name: wo.engineer_name } : { id: user!.id, name: profile?.name || user!.email || "Engineer" });
+    setCurrentEngineer(engineer);
+    startWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name })
+      .then(() => toast({ title: "✅ Work Order started!", description: "Don't forget to add a Before photo!" }))
+      .catch((err: any) => toast({ title: "Error starting WO", description: err.message, variant: "destructive" }));
   };
 
-  // FINISH → PIN → signature dialog (no post-checklist dialog)
+  // FINISH → opens signature dialog (PIN is collected at confirm step). No PIN here.
   const handleFinishClick = (woId: string) => {
-    requirePin("Confirm FINISH", (engineer) => {
-      setCurrentEngineer(engineer);
-      toast({ title: "📸 Photo reminder", description: "Don't forget to add an After photo!" });
-      setSignDialogWO(woId);
-    });
+    const wo = workOrders?.find(w => w.id === woId);
+    if (!wo || !ensureLockedToMe(wo)) return;
+    const engineer: EngineerIdentity = currentEngineer
+      ?? (wo.engineer_id && wo.engineer_name ? { id: wo.engineer_id, name: wo.engineer_name } : { id: user!.id, name: profile?.name || user!.email || "Engineer" });
+    setCurrentEngineer(engineer);
+    toast({ title: "📸 Photo reminder", description: "Don't forget to add an After photo!" });
+    setSignDialogWO(woId);
   };
 
   const handleFinishConfirm = async () => {
