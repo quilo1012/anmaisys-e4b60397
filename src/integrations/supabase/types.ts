@@ -201,6 +201,87 @@ export type Database = {
           },
         ]
       }
+      downtime_events: {
+        Row: {
+          created_at: string
+          duration_minutes: number | null
+          id: string
+          resumed_at: string | null
+          resumed_by: string | null
+          resumed_by_name: string | null
+          resumed_note: string | null
+          stopped_at: string
+          stopped_by: string | null
+          stopped_by_name: string | null
+          stopped_reason: string | null
+          work_order_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          resumed_at?: string | null
+          resumed_by?: string | null
+          resumed_by_name?: string | null
+          resumed_note?: string | null
+          stopped_at: string
+          stopped_by?: string | null
+          stopped_by_name?: string | null
+          stopped_reason?: string | null
+          work_order_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          resumed_at?: string | null
+          resumed_by?: string | null
+          resumed_by_name?: string | null
+          resumed_note?: string | null
+          stopped_at?: string
+          stopped_by?: string | null
+          stopped_by_name?: string | null
+          stopped_reason?: string | null
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "downtime_events_resumed_by_fkey"
+            columns: ["resumed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "downtime_events_resumed_by_fkey"
+            columns: ["resumed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "downtime_events_stopped_by_fkey"
+            columns: ["stopped_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "downtime_events_stopped_by_fkey"
+            columns: ["stopped_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "downtime_events_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       engineer_scores: {
         Row: {
           engineer_id: string
@@ -916,6 +997,23 @@ export type Database = {
           shift?: string | null
         }
         Relationships: []
+      }
+      v_wo_downtime_total: {
+        Row: {
+          has_open_stop: boolean | null
+          stop_count: number | null
+          total_minutes: number | null
+          work_order_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "downtime_events_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
