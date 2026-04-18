@@ -20,6 +20,7 @@ import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { LineStatusBanner } from "@/components/LineStatusBanner";
+import { LineDowntimeControl } from "@/components/LineDowntimeControl";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
@@ -369,38 +370,14 @@ export default function EngineerDashboard() {
           </div>
           <p className="text-sm text-muted-foreground truncate">{wo.description}</p>
 
-          {/* Machine Back to Work block — only shown when line was reported as stopped */}
-          {isInProgress && (wo as any).line_stopped === true && (
-            <div className="rounded-lg border-2 border-red-500 bg-red-500/10 p-3 space-y-2">
-              <p className="text-sm font-semibold text-red-700 flex items-center gap-1">
-                <PowerOff className="h-4 w-4" /> Line stopped {(wo as any).line_stopped_at ? `since ${format(new Date((wo as any).line_stopped_at), "HH:mm")}` : ""}
-                {(wo as any).line_stopped_at && (
-                  <span className="text-xs font-normal opacity-80">
-                    {" "}({differenceInMinutes(new Date(), new Date((wo as any).line_stopped_at))}m ago)
-                  </span>
-                )}
-              </p>
-              <Button
-                size="lg"
-                className="w-full h-14 text-base font-bold bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => {
-                  if (!confirm("Confirm machine is back to work? This stops the downtime counter — the work order stays open for you to finish later.")) return;
-                  machineBackToWork.mutate(wo.id, {
-                    onSuccess: () => toast({ title: "✓ Line marked as running", description: "Downtime stopped. You can finish the work order whenever you're ready." }),
-                  });
-                }}
-                disabled={machineBackToWork.isPending}
-              >
-                <CheckCircle className="h-5 w-5 mr-2" /> MACHINE BACK TO WORK
-              </Button>
-              <p className="text-xs text-muted-foreground">Click when machine is running again — this does NOT close the order.</p>
-            </div>
-          )}
-          {isInProgress && (wo as any).line_resumed_at && !(wo as any).line_stopped && (
-            <div className="rounded-lg border border-green-500 bg-green-500/10 p-2 text-sm text-green-700">
-              ✓ Line running since {format(new Date((wo as any).line_resumed_at), "HH:mm")}
-              {(wo as any).line_stopped_at && ` · Downtime: ${differenceInMinutes(new Date((wo as any).line_resumed_at), new Date((wo as any).line_stopped_at))}m`}
-            </div>
+          {/* Multi-cycle line stop/resume control */}
+          {(isInProgress || wo.status === "open") && (
+            <LineDowntimeControl
+              workOrderId={wo.id}
+              workOrderStatus={wo.status}
+              operatorId={(wo as any).operator_id}
+              engineerId={(wo as any).engineer_id}
+            />
           )}
 
           {/* Checklist temporarily hidden */}
@@ -620,21 +597,14 @@ export default function EngineerDashboard() {
                                     <PhotoStatusButton woId={wo.id} photoType="before" onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending} size="sm" />
                                     <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
                                     <PhotoStatusButton woId={wo.id} photoType="after" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending} size="sm" />
-                                    {(wo as any).line_stopped === true && (
-                                      <Button
-                                        size="sm"
-                                        className="bg-green-600 hover:bg-green-700 text-white"
-                                        onClick={() => {
-                                          if (!confirm("Confirm machine is back to work? Downtime stops; the order stays open.")) return;
-                                          machineBackToWork.mutate(wo.id, {
-                                            onSuccess: () => toast({ title: "✓ Line marked as running", description: "Downtime stopped." }),
-                                          });
-                                        }}
-                                        disabled={machineBackToWork.isPending}
-                                      >
-                                        <CheckCircle className="h-3 w-3 mr-1" /> Back to Work
-                                      </Button>
-                                    )}
+                                    <div className="w-full mt-1">
+                                      <LineDowntimeControl
+                                        workOrderId={wo.id}
+                                        workOrderStatus={wo.status}
+                                        operatorId={(wo as any).operator_id}
+                                        engineerId={(wo as any).engineer_id}
+                                      />
+                                    </div>
                                     <DesktopFinishButton wo={wo} />
                                   </>
                                 )}

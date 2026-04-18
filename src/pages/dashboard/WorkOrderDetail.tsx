@@ -15,7 +15,8 @@ import { format, differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { LineStatusBanner } from "@/components/LineStatusBanner";
+import { LineDowntimeControl } from "@/components/LineDowntimeControl";
+import { DowntimeTimelineCard } from "@/components/DowntimeTimelineCard";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -274,13 +275,13 @@ export default function WorkOrderDetail() {
           </div>
         </div>
 
-        {/* Production Line Status — visible at the top, screen-only */}
+        {/* Production Line Status — multi-cycle stop/resume control */}
         <div className="print:hidden">
-          <LineStatusBanner
-            variant="detail"
-            lineStopped={(wo as any).line_stopped === true}
-            lineStoppedAt={(wo as any).line_stopped_at}
-            lineResumedAt={(wo as any).line_resumed_at}
+          <LineDowntimeControl
+            workOrderId={wo.id}
+            workOrderStatus={wo.status}
+            operatorId={(wo as any).operator_id}
+            engineerId={(wo as any).engineer_id}
           />
         </div>
 
@@ -401,7 +402,8 @@ export default function WorkOrderDetail() {
           </Card>
         )}
 
-        {/* Checklist — temporarily hidden */}
+        {/* Multi-cycle line stop history */}
+        <DowntimeTimelineCard workOrderId={wo.id} />
         {false && checklistItems && checklistItems.length > 0 && (
           <Card className="print:border print:border-black print:shadow-none print:rounded-none">
             <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold flex items-center gap-2"><ClipboardCheck className="h-4 w-4 print:hidden" /> Checklist</CardTitle></CardHeader>
