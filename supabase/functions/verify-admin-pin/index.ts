@@ -64,8 +64,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify PIN using pgcrypto crypt() comparison
-    const { data: match, error: matchError } = await supabaseAdmin.rpc("verify_admin_pin", {
+    // Verify PIN using pgcrypto crypt() comparison.
+    // Must use the user-scoped client so auth.uid() resolves inside the SECURITY DEFINER function.
+    const { data: match, error: matchError } = await supabaseUser.rpc("verify_admin_pin", {
       _pin: pin,
     });
 
