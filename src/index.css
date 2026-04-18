@@ -124,7 +124,7 @@ select:-webkit-autofill {
 /* ─── Print Styles ─── */
 
 @page {
-  margin: 10mm !important;
+  margin: 0 !important;
   size: A4 portrait;
 }
 
