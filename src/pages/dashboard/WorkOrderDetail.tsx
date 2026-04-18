@@ -402,7 +402,8 @@ export default function WorkOrderDetail() {
           </Card>
         )}
 
-        {/* Checklist — temporarily hidden */}
+        {/* Multi-cycle line stop history */}
+        <DowntimeTimelineCard workOrderId={wo.id} />
         {false && checklistItems && checklistItems.length > 0 && (
           <Card className="print:border print:border-black print:shadow-none print:rounded-none">
             <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold flex items-center gap-2"><ClipboardCheck className="h-4 w-4 print:hidden" /> Checklist</CardTitle></CardHeader>
