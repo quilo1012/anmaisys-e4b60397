@@ -375,6 +375,34 @@ export default function EngineerDashboard() {
     const isOpen = wo.status === "open";
     const checklistComplete = useChecklistComplete(wo.description, wo.id);
     const isInProgress = wo.status === "in_progress";
+    const lockedToOther = !!(wo as any).locked_engineer_id && (wo as any).locked_engineer_id !== user?.id;
+
+    if (lockedToOther) {
+      return (
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-bold text-base">
+                WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+              </span>
+              <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
+            </div>
+            <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 p-3 border border-amber-300 dark:border-amber-800 flex items-start gap-2">
+              <Lock className="h-4 w-4 text-amber-700 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold text-amber-900 dark:text-amber-200 text-sm">
+                  Locked to {wo.engineer_name || "another engineer"}
+                </p>
+                <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
+                  Only the assigned engineer can work on this order. Contact admin to reassign.
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">{wo.machine} · {wo.description}</p>
+          </CardContent>
+        </Card>
+      );
+    }
 
     return (
       <Card className={`${isOpen ? "border-destructive bg-destructive/5 animate-pulse" : ""}`}>
