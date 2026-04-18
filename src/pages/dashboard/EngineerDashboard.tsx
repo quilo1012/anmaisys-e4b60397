@@ -22,6 +22,7 @@ import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { LineStatusBanner } from "@/components/LineStatusBanner";
+import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { LineDowntimeControl } from "@/components/LineDowntimeControl";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -381,10 +382,11 @@ export default function EngineerDashboard() {
       return (
         <Card>
           <CardContent className="p-4 space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono font-bold text-base">
                 WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
               </span>
+              <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
             </div>
             <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 p-3 border border-amber-300 dark:border-amber-800 flex items-start gap-2">
@@ -414,10 +416,13 @@ export default function EngineerDashboard() {
             lineResumedAt={(wo as any).line_resumed_at}
             machine={wo.machine}
           />
-          <div className="flex items-center justify-between">
-            <span className="font-mono font-bold text-lg cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-              WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
-            </span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <span className="font-mono font-bold text-lg cursor-pointer hover:underline truncate" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+              </span>
+              <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
+            </div>
             <div className="flex gap-1.5 items-center">
               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
               {wo.status === "in_progress" && wo.started_at && <LiveTimer startedAt={wo.started_at} />}
@@ -632,7 +637,14 @@ export default function EngineerDashboard() {
                       return (
                         <>
                           <tr key={wo.id} className={`border-b ${wo.priority === "critical" ? "bg-red-50" : ""}`}>
-                            <td className="p-2 font-mono font-medium cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</td>
+                            <td className="p-2 font-mono font-medium">
+                              <div className="flex items-center gap-2">
+                                <span className="cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                                  WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                                </span>
+                                <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
+                              </div>
+                            </td>
                             
                             <td className="p-2">{wo.requester_name}</td>
                             <td className="p-2">{wo.machine}</td>
