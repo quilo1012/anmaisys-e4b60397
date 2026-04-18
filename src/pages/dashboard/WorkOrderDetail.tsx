@@ -278,6 +278,9 @@ export default function WorkOrderDetail() {
           />
         </div>
 
+        {/* Operator: report a recurring failure on a finished/closed WO */}
+        <OperatorRecurrenceCard wo={wo as any} />
+
         {/* Problem Description */}
         <Card className="print:border print:border-black print:shadow-none print:rounded-none">
           <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Problem Description</CardTitle></CardHeader>
