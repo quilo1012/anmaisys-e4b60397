@@ -158,8 +158,6 @@ export function useAcceptAndStartWorkOrder() {
           status: "in_progress" as any,
           engineer_id: engineerId,
           engineer_name: engineerName,
-          received_at: now,
-          arrived_at: now,
           started_at: now,
         } as any)
         .eq("id", woId)
@@ -167,8 +165,7 @@ export function useAcceptAndStartWorkOrder() {
         .single();
       if (error) throw error;
       if (!updated) throw new Error("Work order update failed — no rows affected");
-      await logWOAction(woId, engineerId, engineerName, "received");
-      await logWOAction(woId, engineerId, engineerName, "arrived");
+      // Single canonical action per accept+start; no longer log obsolete received/arrived
       await logWOAction(woId, engineerId, engineerName, "started");
       return { before };
     },
