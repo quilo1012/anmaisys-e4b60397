@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
