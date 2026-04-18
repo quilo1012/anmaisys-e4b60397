@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { useWorkOrders, useAcceptAndStartWorkOrder, useStartWorkOrder, useFinishWorkOrder, usePauseWorkOrder, useResumeWorkOrder, useMachineBackToWork } from "@/hooks/useWorkOrders";
+import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder, usePauseWorkOrder, useResumeWorkOrder, useMachineBackToWork } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { stopAlertSound } from "@/lib/shifts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
@@ -158,7 +158,8 @@ export default function EngineerDashboard() {
   const isMobile = useIsMobile();
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });
   const { data: allCompleted } = useWorkOrders({ statusIn: ["completed", "closed", "finished"] as any });
-  const acceptAndStartWO = useAcceptAndStartWorkOrder();
+  const acceptWO = useReceiveWorkOrder();
+  const arriveWO = useArriveWorkOrder();
   const startWO = useStartWorkOrder();
   const finishWO = useFinishWorkOrder();
   const pauseWO = usePauseWorkOrder();
@@ -279,21 +280,34 @@ export default function EngineerDashboard() {
     setPinDialogOpen(true);
   }, []);
 
-  // ACCEPT + START → PIN → immediately in_progress (no checklist dialog)
-  const handleAcceptAndStartClick = (woId: string) => {
+  // STEP 1 — ACCEPT (open → received)
+  const handleAcceptClick = (woId: string) => {
     stopAlertSound();
-    requirePin("Confirm Accept + Start", async (engineer) => {
+    requirePin("Confirm ACCEPT", async (engineer) => {
       setCurrentEngineer(engineer);
       try {
-        await acceptAndStartWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
-        toast({ title: "✅ Work Order started!", description: "Don't forget to add a Before photo!" });
+        await acceptWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
+        toast({ title: "✅ Order accepted", description: "Head to the machine, then tap 'I Have Arrived'." });
       } catch (err: any) {
-        toast({ title: "Error starting WO", description: err.message, variant: "destructive" });
+        toast({ title: "Error accepting WO", description: err.message, variant: "destructive" });
       }
     });
   };
 
-  // For WOs in received/arrived — just start
+  // STEP 2 — ARRIVED (received → arrived)
+  const handleArrivedClick = (woId: string) => {
+    requirePin("Confirm ARRIVED", async (engineer) => {
+      setCurrentEngineer(engineer);
+      try {
+        await arriveWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
+        toast({ title: "📍 Arrival recorded", description: "Tap 'Start Work' when you begin the repair." });
+      } catch (err: any) {
+        toast({ title: "Error recording arrival", description: err.message, variant: "destructive" });
+      }
+    });
+  };
+
+  // STEP 3 — START (arrived → in_progress)
   const handleStartClick = (woId: string) => {
     requirePin("Confirm START", async (engineer) => {
       setCurrentEngineer(engineer);
@@ -384,13 +398,18 @@ export default function EngineerDashboard() {
 
           <div className="grid grid-cols-2 gap-2 pt-1">
             {wo.status === "open" && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-green-600 hover:bg-green-700 text-white" onClick={() => handleAcceptAndStartClick(wo.id)} disabled={acceptAndStartWO.isPending}>
-                <Play className="h-5 w-5 mr-2" /> Accept + Start WO
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-green-600 hover:bg-green-700 text-white" onClick={() => handleAcceptClick(wo.id)} disabled={acceptWO.isPending}>
+                <CheckCircle className="h-5 w-5 mr-2" /> ACCEPT ORDER
               </Button>
             )}
-            {(wo.status === "received" || wo.status === "arrived") && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
-                <Play className="h-5 w-5 mr-2" /> START
+            {wo.status === "received" && (
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
+                <Activity className="h-5 w-5 mr-2" /> I HAVE ARRIVED
+              </Button>
+            )}
+            {wo.status === "arrived" && (
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-amber-600 hover:bg-amber-700 text-white" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
+                <Play className="h-5 w-5 mr-2" /> START WORK
               </Button>
             )}
             {isInProgress && (
@@ -570,13 +589,18 @@ export default function EngineerDashboard() {
                             <td className="p-2">
                               <div className="flex gap-1 flex-wrap">
                                 {wo.status === "open" && (
-                                  <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleAcceptAndStartClick(wo.id)} disabled={acceptAndStartWO.isPending}>
-                                    <Play className="h-3 w-3 mr-1" /> Accept + Start WO
+                                  <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleAcceptClick(wo.id)} disabled={acceptWO.isPending}>
+                                    <CheckCircle className="h-3 w-3 mr-1" /> Accept
                                   </Button>
                                 )}
-                                {(wo.status === "received" || wo.status === "arrived") && (
-                                  <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
-                                    <Play className="h-3 w-3 mr-1" /> Start
+                                {wo.status === "received" && (
+                                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
+                                    <Activity className="h-3 w-3 mr-1" /> I Have Arrived
+                                  </Button>
+                                )}
+                                {wo.status === "arrived" && (
+                                  <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
+                                    <Play className="h-3 w-3 mr-1" /> Start Work
                                   </Button>
                                 )}
                                 {wo.status === "in_progress" && (
