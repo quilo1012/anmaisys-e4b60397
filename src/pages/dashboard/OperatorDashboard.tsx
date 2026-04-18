@@ -145,7 +145,7 @@ export default function OperatorDashboard() {
       const effectivePriority = lineStopped ? "high" : autoPriority.priority;
       await createWO.mutateAsync({ requester_name: requestedBy.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: effectivePriority, created_at, line_stopped: lineStopped });
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
-      setRequestedBy(""); setLine(""); setMachine(""); setDescription(""); setNotes("");
+      setRequestedBy(""); setLineId(""); setSide(""); setMachine(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
@@ -204,29 +204,17 @@ export default function OperatorDashboard() {
                   autoComplete="off"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Line</Label>
-                <Select value={line} onValueChange={(v) => { setLine(v); setMachine(""); }}>
-                  <SelectTrigger><SelectValue placeholder="Select line..." /></SelectTrigger>
-                  <SelectContent>
-                    {lines.map((l) => (
-                      <SelectItem key={l} value={l}>{l}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="machine">Machine</Label>
-                <Select value={machine} onValueChange={setMachine}>
-                  <SelectTrigger><SelectValue placeholder="Select machine..." /></SelectTrigger>
-                  <SelectContent>
-                    {filteredMachines.map((m) => (
-                      <SelectItem key={m.id} value={m.name}>
-                        {m.name}{m.current_location ? ` (${m.current_location})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-2 md:col-span-2">
+                <MachineSelector
+                  lineId={lineId}
+                  side={side}
+                  machineName={machine}
+                  onChange={({ lineId: lid, side: s, machineName }) => {
+                    setLineId(lid);
+                    setSide(s);
+                    setMachine(machineName);
+                  }}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="desc">Problem Description</Label>
