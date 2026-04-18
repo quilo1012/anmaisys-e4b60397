@@ -5,13 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool, Phone, MapPin, Wrench, Lock, Camera, DollarSign, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool, Phone, MapPin, Wrench, Lock, Camera, DollarSign, ClipboardCheck, AlertOctagon, CheckSquare, Square, FileText } from "lucide-react";
 import { useWorkOrderById } from "@/hooks/useWorkOrders";
 import { usePartsUsedByWO } from "@/hooks/useStock";
 import { useWOPhotos, getWOPhotoUrl } from "@/hooks/useWOPhotos";
 import { useChecklistResponses, useChecklistsByProblemName } from "@/hooks/useChecklists";
+import { useDowntimeEvents } from "@/hooks/useDowntimeEvents";
 
-import { format, differenceInMinutes } from "date-fns";
+import { format, differenceInMinutes, differenceInSeconds } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -53,25 +54,19 @@ function TimelineItem({ icon: Icon, label, time, className }: { icon: React.Comp
 }
 
 function formatDuration(minutes: number | null) {
-  if (minutes === null) return "";
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes === null || minutes === undefined) return "—";
+  if (minutes < 1) return "<1 min";
+  if (minutes < 60) return `${Math.round(minutes)} min`;
   const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${h}h ${m}min`;
+  const m = Math.round(minutes % 60);
+  return m === 0 ? `${h}h` : `${h}h ${m}min`;
 }
 
-// Timeline data for print audit table
-function getTimelineRows(wo: any) {
-  const rows: { step: string; timestamp: string }[] = [];
-  if (wo.created_at) rows.push({ step: "Created", timestamp: format(new Date(wo.created_at), "dd/MM/yyyy HH:mm:ss") });
-  if (wo.received_at) rows.push({ step: "Received", timestamp: format(new Date(wo.received_at), "dd/MM/yyyy HH:mm:ss") });
-  if (wo.arrived_at) rows.push({ step: "Arrived", timestamp: format(new Date(wo.arrived_at), "dd/MM/yyyy HH:mm:ss") });
-  if (wo.started_at) rows.push({ step: "Started", timestamp: format(new Date(wo.started_at), "dd/MM/yyyy HH:mm:ss") });
-  if (wo.finished_at) rows.push({ step: "Finished", timestamp: format(new Date(wo.finished_at), "dd/MM/yyyy HH:mm:ss") });
-  if (wo.closed_at) rows.push({ step: "Closed", timestamp: format(new Date(wo.closed_at), "dd/MM/yyyy HH:mm:ss") });
-  else if (wo.completed_at && wo.status !== "force_closed") rows.push({ step: "Completed", timestamp: format(new Date(wo.completed_at), "dd/MM/yyyy HH:mm:ss") });
-  if (wo.status === "force_closed" && wo.completed_at) rows.push({ step: "Force Closed", timestamp: format(new Date(wo.completed_at), "dd/MM/yyyy HH:mm:ss") });
-  return rows;
+function formatShortDuration(seconds: number) {
+  if (seconds < 60) return `${seconds} seg`;
+  const min = Math.floor(seconds / 60);
+  const sec = seconds % 60;
+  return sec === 0 ? `${min} min` : `${min}min ${sec}s`;
 }
 
 function SignedPhoto({ storagePath, alt }: { storagePath: string; alt: string }) {
