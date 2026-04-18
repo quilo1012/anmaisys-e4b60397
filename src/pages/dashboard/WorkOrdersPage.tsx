@@ -116,18 +116,23 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const [clearing, setClearing] = useState(false);
   const [clearConfirmText, setClearConfirmText] = useState("");
 
-  // Build machine line lookup
+  // Build machine line lookup. For machines on a sided line (A/B), show "Line 5A".
+  // "common"/shared machines stay as just the line name.
   const machineLineMap = useMemo(() => {
     const map: Record<string, string> = {};
-    machines?.forEach((m) => { map[m.name] = m.line || ""; });
+    machines?.forEach((m: any) => {
+      const base = m.line || "";
+      const withSide = base && (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
+      map[m.name] = withSide;
+    });
     return map;
   }, [machines]);
 
   const distinctLines = useMemo(() => {
     const lines = new Set<string>();
-    machines?.forEach((m) => { if (m.line) lines.add(m.line); });
+    Object.values(machineLineMap).forEach((l) => { if (l) lines.add(l); });
     return Array.from(lines).sort();
-  }, [machines]);
+  }, [machineLineMap]);
 
   const filteredWOs = useMemo(() => {
     if (!workOrders) return [];
