@@ -88,6 +88,7 @@ export default function WorkOrderDetail() {
   const { data: woPhotos } = useWOPhotos(id!);
   const { data: checklistResponses } = useChecklistResponses(id);
   const { data: checklistItems } = useChecklistsByProblemName(wo?.description);
+  const { data: downtimeEvents = [] } = useDowntimeEvents(id);
 
   const { data: woLogs } = useQuery({
     queryKey: ["work_order_logs", id],
@@ -298,111 +299,195 @@ export default function WorkOrderDetail() {
           </Card>
         )}
 
-        {/* Personnel */}
-        <div className="grid gap-4 md:grid-cols-3 print:grid-cols-4 print:gap-0">
+        {/* Personnel — "Signed By" removed (operator signature is in footer) */}
+        <div className="grid gap-4 md:grid-cols-3 print:grid-cols-3 print:gap-0">
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Requested By</p><p className="font-medium print:text-[9pt]">{wo.requester_name}</p></CardContent></Card>
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Engineer</p><p className="font-medium print:text-[9pt]">{wo.engineer_name || wo.engineer?.name || ""}</p></CardContent></Card>
           {wo.closer?.name && <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Closed By</p><p className="font-medium print:text-[9pt]">{wo.closer.name}</p></CardContent></Card>}
-          {wo.signed_by_name && <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Signed By</p><p className="font-medium print:text-[9pt] flex items-center gap-1"><PenTool className="h-3 w-3 print:hidden" />{wo.signed_by_name}</p></CardContent></Card>}
         </div>
 
-        {/* Metrics */}
-        <div className="grid gap-4 md:grid-cols-4 print:grid-cols-4 print:gap-0">
-          <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Response Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(responseTime)}</p></CardContent></Card>
-          <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Travel Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(travelTime)}</p></CardContent></Card>
-          <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Repair Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(repairTime)}</p>{pausedMinutes > 0 && <p className="text-xs text-muted-foreground">({formatDuration(pausedMinutes)} paused)</p>}</CardContent></Card>
-          <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Total Time</p><p className="text-xl font-bold print:text-sm">{formatDuration(totalTime)}</p></CardContent></Card>
-        </div>
-
-        {/* Timeline — Screen: icon-based, Print: audit table */}
-        <Card className="print:border print:border-black print:shadow-none print:rounded-none">
-          <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Timeline</CardTitle></CardHeader>
-          <CardContent>
-            {/* Screen version */}
-            <div className="space-y-4 print:hidden">
-              <TimelineItem icon={Clock} label="Created" time={wo.created_at} className="bg-blue-100 text-blue-700" />
-              <TimelineItem icon={Phone} label="Received" time={wo.received_at} className="bg-indigo-100 text-indigo-700" />
-              <TimelineItem icon={MapPin} label="Arrived" time={wo.arrived_at} className="bg-purple-100 text-purple-700" />
-              <TimelineItem icon={Play} label="Started" time={wo.started_at} className="bg-amber-100 text-amber-700" />
-              {(wo as any).pause_reason && (
-                <div className="flex items-start gap-3">
-                  <div className="rounded-full p-1.5 bg-yellow-100 text-yellow-700"><Wrench className="h-4 w-4" /></div>
-                  <div>
-                    <p className="font-medium text-sm">Paused</p>
-                    <p className="text-xs text-muted-foreground">Reason: {(wo as any).pause_reason}</p>
-                  </div>
-                </div>
-              )}
-              <TimelineItem icon={Wrench} label="Finished" time={wo.finished_at} className="bg-teal-100 text-teal-700" />
-              {wo.closed_at && <TimelineItem icon={CheckCircle} label="Closed" time={wo.closed_at} className="bg-green-100 text-green-700" />}
-              {wo.completed_at && !wo.closed_at && wo.status !== "force_closed" && <TimelineItem icon={CheckCircle} label="Completed" time={wo.completed_at} className="bg-green-100 text-green-700" />}
-              {wo.status === "force_closed" && <TimelineItem icon={XCircle} label="Force Closed" time={wo.completed_at} className="bg-gray-100 text-gray-700" />}
-            </div>
-            {/* Print version: bordered audit table */}
-            <div className="hidden print:block">
-              <table className="w-full text-[8pt] border-collapse">
-                <thead>
-                  <tr>
-                    <th className="text-left border border-black bg-gray-100 px-2 py-1 font-bold">Step</th>
-                    <th className="text-left border border-black bg-gray-100 px-2 py-1 font-bold">Timestamp</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {timelineRows.map((row, i) => (
-                    <tr key={i}>
-                      <td className="border border-black px-2 py-1">{row.step}</td>
-                      <td className="border border-black px-2 py-1 font-mono">{row.timestamp}</td>
-                    </tr>
-                  ))}
-                  {(wo as any).pause_reason && (
-                    <tr>
-                      <td className="border border-black px-2 py-1">Pause Reason</td>
-                      <td className="border border-black px-2 py-1">{(wo as any).pause_reason}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+        {/* TEMPOS DE ATENDIMENTO */}
+        <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
+          <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Tempos de Atendimento</CardTitle></CardHeader>
+          <CardContent className="print:pt-0">
+            <div className="grid grid-cols-3 gap-4 print:gap-0">
+              <div className="text-center print:border print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Resposta</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">abertura → aceitação</p><p className="text-3xl font-bold print:text-base">{formatDuration(responseMin)}</p></div>
+              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Execução</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">início → término</p><p className="text-3xl font-bold print:text-base">{formatDuration(executionMin)}</p></div>
+              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Tempo Total</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">abertura → término</p><p className="text-3xl font-bold print:text-base">{formatDuration(totalMin)}</p></div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Action Log (work_order_logs) */}
-        {woLogs && woLogs.length > 0 && (
-          <Card className="print:border print:border-black print:shadow-none print:rounded-none">
-            <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Action Log</CardTitle></CardHeader>
+        {/* IMPACTO NA PRODUÇÃO */}
+        {(() => {
+          const stopCount = downtimeEvents.length;
+          const totalDowntimeSec = downtimeEvents.reduce((acc, e) => {
+            if (e.duration_minutes != null) return acc + e.duration_minutes * 60;
+            if (e.resumed_at) return acc + differenceInSeconds(new Date(e.resumed_at), new Date(e.stopped_at));
+            return acc + differenceInSeconds(new Date(), new Date(e.stopped_at));
+          }, 0);
+          const lineOperating = !(wo as any).line_stopped;
+          return (
+            <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
+              <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Impacto na Produção</CardTitle></CardHeader>
+              <CardContent className="print:pt-0">
+                <div className="grid grid-cols-3 gap-4 print:gap-0">
+                  <div className="text-center print:border print:border-black print:py-2">
+                    <p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Status da Linha</p>
+                    <p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">no fechamento</p>
+                    <p className={`text-2xl font-bold flex items-center justify-center gap-1 print:text-base ${lineOperating ? "text-emerald-600" : "text-destructive"}`}>
+                      {lineOperating ? <><CheckCircle className="h-5 w-5 print:hidden" /> Operando</> : <><AlertOctagon className="h-5 w-5 print:hidden" /> Parada</>}
+                    </p>
+                  </div>
+                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Paradas</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">registradas</p><p className="text-3xl font-bold print:text-base">{stopCount}</p></div>
+                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Downtime Total</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">tempo parada</p><p className="text-3xl font-bold print:text-base">{stopCount === 0 ? "—" : formatShortDuration(totalDowntimeSec)}</p></div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+        {/* LINHA DO TEMPO — vertical, deduped (one row per real event) */}
+        <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
+          <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Linha do Tempo</CardTitle></CardHeader>
+          <CardContent>
+            {(() => {
+              type Ev = { ts: string; icon: "open" | "stop" | "resume" | "done" | "force"; title: string; sub?: string; delta?: string };
+              const evs: Ev[] = [];
+              const created = new Date(wo.created_at);
+              evs.push({ ts: wo.created_at, icon: "open", title: "Ordem criada", sub: `por ${wo.requester_name} (operador)` });
+              if (acceptedAt) {
+                const dMin = differenceInMinutes(new Date(acceptedAt), created);
+                evs.push({ ts: acceptedAt, icon: "open", title: "Ordem aceita (PIN ✓)", sub: `por ${wo.engineer_name || "—"}`, delta: dMin > 0 ? `${dMin}min após abertura` : undefined });
+              }
+              if (wo.started_at && wo.started_at !== acceptedAt) {
+                evs.push({ ts: wo.started_at, icon: "open", title: "Trabalho iniciado", sub: `por ${wo.engineer_name || "—"}` });
+              }
+              downtimeEvents.forEach((d) => {
+                evs.push({ ts: d.stopped_at, icon: "stop", title: "Linha marcada como parada", sub: `por ${d.stopped_by_name || "—"}${d.stopped_reason ? ` — motivo: "${d.stopped_reason}"` : ""}` });
+                if (d.resumed_at) {
+                  const dur = formatShortDuration(differenceInSeconds(new Date(d.resumed_at), new Date(d.stopped_at)));
+                  evs.push({ ts: d.resumed_at, icon: "resume", title: "Linha voltou a operar", sub: `por ${d.resumed_by_name || "—"} — parada: ${dur}` });
+                }
+              });
+              if (wo.finished_at) evs.push({ ts: wo.finished_at, icon: "done", title: "Finalizada (PIN ✓)", sub: `por ${wo.engineer_name || "—"}` });
+              if (wo.closed_at) evs.push({ ts: wo.closed_at, icon: "done", title: "Fechada", sub: wo.closer?.name ? `por ${wo.closer.name}` : undefined });
+              if (wo.status === "force_closed" && wo.completed_at) evs.push({ ts: wo.completed_at, icon: "force", title: "Fechamento forçado", sub: wo.closer?.name ? `por ${wo.closer.name}` : undefined });
+              evs.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+              const iconFor = (i: Ev["icon"]) => {
+                if (i === "stop") return <span className="text-destructive">🛑</span>;
+                if (i === "resume") return <span className="text-emerald-600">✓</span>;
+                if (i === "force") return <span className="text-muted-foreground">✕</span>;
+                return <span className="text-primary">●</span>;
+              };
+              return (
+                <ol className="relative border-l border-border pl-5 space-y-4 print:space-y-2">
+                  {evs.map((e, i) => (
+                    <li key={i} className="text-sm print:text-[8pt]">
+                      <div className="flex items-baseline gap-2">
+                        <span className="-ml-7 w-5 text-center inline-block">{iconFor(e.icon)}</span>
+                        <span className="font-mono text-xs print:text-[7pt] text-muted-foreground">{format(new Date(e.ts), "dd/MM HH:mm:ss")}</span>
+                        <span className="font-medium">{e.title}</span>
+                        {e.delta && <span className="text-xs print:text-[7pt] text-muted-foreground">— {e.delta}</span>}
+                      </div>
+                      {e.sub && <p className="ml-1 text-xs print:text-[7pt] text-muted-foreground">{e.sub}</p>}
+                    </li>
+                  ))}
+                </ol>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
+        {/* HISTÓRICO DE PARADAS DA LINHA — only renders if there are events */}
+        {downtimeEvents.length > 0 && (
+          <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
+            <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Histórico de Paradas da Linha</CardTitle></CardHeader>
             <CardContent>
               <table className="w-full text-sm print:text-[8pt] border-collapse">
                 <thead>
-                  <tr>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black print:bg-gray-100">Action</th>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black print:bg-gray-100">Engineer</th>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black print:bg-gray-100">Timestamp</th>
+                  <tr className="bg-muted print:bg-gray-100">
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black w-10">#</th>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Parou</th>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Voltou</th>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Duração</th>
+                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Motivo</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {woLogs.map((log: any) => (
-                    <tr key={log.id}>
-                      <td className="px-2 py-1 print:border print:border-black capitalize">{log.action}</td>
-                      <td className="px-2 py-1 print:border print:border-black">{log.engineer_name}</td>
-                      <td className="px-2 py-1 print:border print:border-black text-muted-foreground font-mono">{format(new Date(log.created_at), "dd/MM/yyyy HH:mm:ss")}</td>
-                    </tr>
-                  ))}
+                  {downtimeEvents.map((d, i) => {
+                    const dur = d.resumed_at
+                      ? formatShortDuration(differenceInSeconds(new Date(d.resumed_at), new Date(d.stopped_at)))
+                      : <span className="text-destructive font-medium">em andamento</span>;
+                    return (
+                      <tr key={d.id} className={i % 2 === 1 ? "bg-muted/30 print:bg-gray-50" : ""}>
+                        <td className="px-2 py-1 print:border print:border-black font-mono">{i + 1}</td>
+                        <td className="px-2 py-1 print:border print:border-black font-mono">{format(new Date(d.stopped_at), "dd/MM HH:mm:ss")}</td>
+                        <td className="px-2 py-1 print:border print:border-black font-mono">{d.resumed_at ? format(new Date(d.resumed_at), "dd/MM HH:mm:ss") : "—"}</td>
+                        <td className="px-2 py-1 print:border print:border-black">{dur}</td>
+                        <td className="px-2 py-1 print:border print:border-black">{d.stopped_reason || "—"}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
+                <tfoot>
+                  <tr className="font-bold border-t-2 border-border">
+                    <td colSpan={5} className="px-2 py-1 print:border print:border-black">
+                      TOTAL: {downtimeEvents.length} parada{downtimeEvents.length !== 1 ? "s" : ""} · {formatShortDuration(downtimeEvents.reduce((acc, e) => acc + (e.resumed_at ? differenceInSeconds(new Date(e.resumed_at), new Date(e.stopped_at)) : differenceInSeconds(new Date(), new Date(e.stopped_at))), 0))}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </CardContent>
           </Card>
         )}
 
-        {/* Multi-cycle line stop history */}
-        <DowntimeTimelineCard workOrderId={wo.id} />
-        {false && checklistItems && checklistItems.length > 0 && (
-          <Card className="print:border print:border-black print:shadow-none print:rounded-none">
-            <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold flex items-center gap-2"><ClipboardCheck className="h-4 w-4 print:hidden" /> Checklist</CardTitle></CardHeader>
+        {/* CHECKLIST EXECUTADO — groups by type, shows completed_by + completed_at */}
+        {checklistItems && checklistItems.length > 0 && (
+          <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
+            <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black flex items-center gap-2"><ClipboardCheck className="h-4 w-4 print:hidden" /> Checklist Executado</CardTitle></CardHeader>
             <CardContent>
-              <table className="w-full text-sm print:text-[8pt] border-collapse">
-                <thead>
-                  <tr>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black print:bg-gray-100">Item</th>
+              {(() => {
+                const groups: Record<string, typeof checklistItems> = {};
+                checklistItems.forEach((it) => { (groups[it.type] ||= [] as any).push(it); });
+                const required = checklistItems.filter((i) => i.is_required);
+                const requiredDone = required.filter((i) => checklistResponses?.find((r) => r.checklist_id === i.id && r.completed)).length;
+                return (
+                  <div className="space-y-3 print:space-y-1">
+                    {Object.entries(groups).map(([type, items]) => (
+                      <div key={type}>
+                        <p className="text-xs uppercase tracking-wide font-bold text-muted-foreground mb-1 print:text-[7pt]">{type}</p>
+                        <ul className="space-y-1 ml-2">
+                          {items.map((it) => {
+                            const r = checklistResponses?.find((x) => x.checklist_id === it.id);
+                            const done = r?.completed;
+                            return (
+                              <li key={it.id} className="text-sm print:text-[8pt] flex items-start gap-2">
+                                {done ? <CheckSquare className="h-4 w-4 text-emerald-600 mt-0.5 print:h-3 print:w-3" /> : <Square className="h-4 w-4 text-muted-foreground mt-0.5 print:h-3 print:w-3" />}
+                                <div>
+                                  <span>{it.description}{it.is_required && <span className="text-destructive ml-1">*</span>}</span>
+                                  {done && r?.completed_at && (
+                                    <p className="text-xs print:text-[7pt] text-muted-foreground">{wo.engineer_name || "—"} · {format(new Date(r.completed_at), "dd/MM HH:mm:ss")}</p>
+                                  )}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ))}
+                    <p className="text-xs print:text-[7pt] font-medium pt-2 border-t border-border mt-2">STATUS: {requiredDone}/{required.length} itens obrigatórios completos {requiredDone === required.length && required.length > 0 ? "✓" : ""}</p>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Multi-cycle line stop history (screen-only rich timeline) */}
+        <div className="print:hidden">
+          <DowntimeTimelineCard workOrderId={wo.id} />
+        </div>
                     <th className="text-left px-2 py-1 font-bold print:border print:border-black print:bg-gray-100">Type</th>
                     <th className="text-center px-2 py-1 font-bold print:border print:border-black print:bg-gray-100 w-20">Status</th>
                   </tr>
