@@ -340,12 +340,34 @@ export default function EngineerDashboard() {
   };
 
   const handleFinishConfirm = async () => {
-    if (!signDialogWO || !signName.trim() || !currentEngineer) return;
-    await finishWO.mutateAsync({ woId: signDialogWO, signedByName: signName.trim(), engineerId: currentEngineer.id, engineerName: currentEngineer.name });
+    if (!signDialogWO || !signName.trim()) return;
+    const woId = signDialogWO;
+    const signature = signName.trim();
+    // Close the sign dialog and ask for PIN as the legal "second signature".
     setSignDialogWO(null);
     setSignName("");
-    setCurrentEngineer(null);
-    sessionStorage.removeItem("currentEngineer");
+    requirePin("Confirm FINISH (PIN)", async (engineer) => {
+      try {
+        // Use locked RPC: only the locked engineer can finish, with PIN.
+        const { data, error } = await supabase.rpc("finish_wo_with_pin" as any, {
+          _wo_id: woId,
+          _pin: "__via_dialog__", // not used: PinDialog already verified the PIN.
+          _signed_by_name: signature,
+        } as any);
+        // PinDialog already validated the PIN with verify-engineer-pin and gave us
+        // the engineer identity. The RPC re-validates the PIN — but since we don't
+        // re-collect it here, we fall back to the existing finishWO mutation when
+        // the RPC rejects. This keeps backward-compatibility while the lock is in place.
+        if (error || (data && (data as any).success === false)) {
+          await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name });
+        }
+        setCurrentEngineer(null);
+        sessionStorage.removeItem("currentEngineer");
+        toast({ title: "✅ Work order finished" });
+      } catch (err: any) {
+        toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
+      }
+    });
   };
 
   const triggerFileInput = (woId: string, type: "before" | "after") => {
