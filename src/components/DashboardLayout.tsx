@@ -193,79 +193,158 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <SidebarProvider>
-        <div className="flex h-screen w-full overflow-hidden">
-          <Sidebar collapsible="icon" className="border-r-0 print:hidden">
-            <div className="flex items-center gap-2 px-4 py-4 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:justify-center">
-              <img src={appliedLogo} alt="Applied Nutrition" className="h-8 w-8 rounded object-contain" />
-              <span className="text-lg font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">AN Maintenance</span>
+      <SidebarProvider defaultOpen={false}>
+        <SidebarShell
+          role={role}
+          profile={profile}
+          signOut={signOut}
+          dark={dark}
+          toggleDark={toggleDark}
+          filteredItems={filteredItems}
+          isOnline={isOnline}
+          showStoppedBadge={showStoppedBadge}
+          stoppedLinesCount={stoppedLinesCount}
+          stoppedTarget={stoppedTarget}
+          navigate={navigate}
+          location={location}
+        >
+          {children}
+        </SidebarShell>
+      </SidebarProvider>
+    </TooltipProvider>
+  );
+}
+
+interface SidebarShellProps {
+  role: AppRole | null;
+  profile: ReturnType<typeof useAuth>["profile"];
+  signOut: () => Promise<void>;
+  dark: boolean;
+  toggleDark: () => void;
+  filteredItems: NavItem[];
+  isOnline: boolean;
+  showStoppedBadge: boolean;
+  stoppedLinesCount: number;
+  stoppedTarget: string;
+  navigate: ReturnType<typeof useNavigate>;
+  location: ReturnType<typeof useLocation>;
+  children: ReactNode;
+}
+
+function SidebarShell({
+  role, profile, signOut, dark, toggleDark, filteredItems,
+  isOnline, showStoppedBadge, stoppedLinesCount, stoppedTarget,
+  navigate, location, children,
+}: SidebarShellProps) {
+  const { open, setOpen, isMobile, setOpenMobile } = useSidebar();
+
+  // Auto-close sidebar when route changes
+  const lastPathRef = useRef(location.pathname);
+  useEffect(() => {
+    if (lastPathRef.current !== location.pathname) {
+      lastPathRef.current = location.pathname;
+      if (isMobile) setOpenMobile(false);
+      else setOpen(false);
+    }
+  }, [location.pathname, isMobile, setOpen, setOpenMobile]);
+
+  // ESC closes sidebar
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (isMobile) setOpenMobile(false);
+        else setOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isMobile, setOpen, setOpenMobile]);
+
+  const desktopOverlayOpen = !isMobile && open;
+
+  return (
+    <div className="flex h-screen w-full overflow-hidden">
+      <Sidebar collapsible="offcanvas" className="border-r-0 print:hidden z-50">
+        <div className="flex items-center gap-2 px-4 py-4">
+          <img src={appliedLogo} alt="Applied Nutrition" className="h-8 w-8 rounded object-contain" />
+          <span className="text-lg font-bold text-sidebar-foreground">AN Maintenance</span>
+        </div>
+        <SidebarContent>
+          <SidebarNav filteredItems={filteredItems} />
+        </SidebarContent>
+        <div className="mt-auto p-4 border-t border-sidebar-border">
+          <div className="text-sm text-sidebar-foreground/70 mb-2 truncate">
+            {profile?.name}
+          </div>
+          <div className="text-xs text-sidebar-foreground/50 mb-3 capitalize">
+            {role ? roleTitle[role] : ""}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            onClick={async () => {
+              await signOut();
+              window.location.href = "/login";
+            }}
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            <span>Sign Out</span>
+          </Button>
+        </div>
+      </Sidebar>
+
+      {/* Desktop backdrop when sidebar is open as overlay */}
+      {desktopOverlayOpen && (
+        <div
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-40 bg-black/30 animate-in fade-in duration-200 print:hidden"
+          aria-hidden="true"
+        />
+      )}
+
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-14 border-b bg-card flex items-center px-4 gap-3 print:hidden">
+          <SidebarTrigger aria-label="Toggle menu" />
+          <img src={appliedLogo} alt="Applied Nutrition" className="h-8 w-8 rounded object-contain" />
+          <h1 className="text-lg font-semibold text-foreground">
+            {role ? roleTitle[role] : ""} Dashboard
+          </h1>
+          {(role === "admin" || role === "manager") && (
+            <div className="ml-4">
+              <OnlineEngineersPanel />
             </div>
-            <SidebarContent>
-              <SidebarNav filteredItems={filteredItems} />
-            </SidebarContent>
-            <div className="mt-auto p-4 border-t border-sidebar-border group-data-[collapsible=icon]:p-2">
-              <div className="text-sm text-sidebar-foreground/70 mb-2 truncate group-data-[collapsible=icon]:hidden">
-                {profile?.name}
-              </div>
-              <div className="text-xs text-sidebar-foreground/50 mb-3 capitalize group-data-[collapsible=icon]:hidden">
-                {role ? roleTitle[role] : ""}
-              </div>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            {showStoppedBadge && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
-                onClick={signOut}
+                onClick={() => navigate(stoppedTarget)}
+                className="bg-red-600 hover:bg-red-700 text-white animate-pulse gap-1.5 h-9"
+                aria-label={`${stoppedLinesCount} production lines currently stopped`}
               >
-                <LogOut className="h-4 w-4 mr-2 group-data-[collapsible=icon]:mr-0" />
-                <span className="group-data-[collapsible=icon]:hidden">Sign Out</span>
+                <PowerOff className="h-4 w-4" />
+                <span className="font-bold">{stoppedLinesCount}</span>
+                <span className="hidden sm:inline text-xs">line{stoppedLinesCount > 1 ? "s" : ""} stopped</span>
               </Button>
-            </div>
-          </Sidebar>
-
-          <main className="flex-1 flex flex-col overflow-hidden transition-all duration-200">
-            <header className="h-14 border-b bg-card flex items-center px-4 gap-3 print:hidden">
-              <SidebarTrigger />
-              <img src={appliedLogo} alt="Applied Nutrition" className="h-8 w-8 rounded object-contain" />
-              <h1 className="text-lg font-semibold text-foreground">
-                {role ? roleTitle[role] : ""} Dashboard
-              </h1>
-              {(role === "admin" || role === "manager") && (
-                <div className="ml-4">
-                  <OnlineEngineersPanel />
-                </div>
-              )}
-              <div className="ml-auto flex items-center gap-2">
-                {showStoppedBadge && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate(stoppedTarget)}
-                    className="bg-red-600 hover:bg-red-700 text-white animate-pulse gap-1.5 h-9"
-                    aria-label={`${stoppedLinesCount} production lines currently stopped`}
-                  >
-                    <PowerOff className="h-4 w-4" />
-                    <span className="font-bold">{stoppedLinesCount}</span>
-                    <span className="hidden sm:inline text-xs">line{stoppedLinesCount > 1 ? "s" : ""} stopped</span>
-                  </Button>
-                )}
-                <NotificationPanel />
-                <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"}>
-                  {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-                </Button>
-                <LiveClock />
-              </div>
-            </header>
-            {!isOnline && (
-              <div className="bg-destructive text-destructive-foreground text-center text-sm py-1 px-4 font-medium">
-                ⚠️ You are offline — changes will sync when connection is restored
-              </div>
             )}
-            <div className="flex-1 overflow-y-auto p-4 md:p-6">
-              {children}
-            </div>
-          </main>
+            <NotificationPanel />
+            <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"}>
+              {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </Button>
+            <LiveClock />
+          </div>
+        </header>
+        {!isOnline && (
+          <div className="bg-destructive text-destructive-foreground text-center text-sm py-1 px-4 font-medium">
+            ⚠️ You are offline — changes will sync when connection is restored
+          </div>
+        )}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          {children}
         </div>
-      </SidebarProvider>
-    </TooltipProvider>
+      </main>
+    </div>
   );
 }
