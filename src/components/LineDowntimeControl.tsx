@@ -78,10 +78,12 @@ export function LineDowntimeControl({
 
   const handleConfirmStop = async () => {
     try {
-      await stopLine.mutateAsync({ workOrderId, reason });
+      // Mark as recurrence when there is at least one resolved stop already
+      const isRecurrence = stopCount > 0;
+      await stopLine.mutateAsync({ workOrderId, reason, isRecurrence });
       toast({
-        title: "🛑 Line marked as stopped",
-        description: stopCount > 0 ? `Stop #${stopCount + 1} recorded` : "First stop recorded for this work order",
+        title: isRecurrence ? "🚨 Line stopped again — engineer notified" : "🛑 Line marked as stopped",
+        description: stopCount > 0 ? `Stop #${stopCount + 1} recorded (recurrence)` : "First stop recorded for this work order",
         variant: "destructive",
       });
       setStopDialogOpen(false);
