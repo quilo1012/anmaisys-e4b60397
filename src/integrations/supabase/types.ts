@@ -206,6 +206,7 @@ export type Database = {
           created_at: string
           duration_minutes: number | null
           id: string
+          is_recurrence: boolean
           resumed_at: string | null
           resumed_by: string | null
           resumed_by_name: string | null
@@ -220,6 +221,7 @@ export type Database = {
           created_at?: string
           duration_minutes?: number | null
           id?: string
+          is_recurrence?: boolean
           resumed_at?: string | null
           resumed_by?: string | null
           resumed_by_name?: string | null
@@ -234,6 +236,7 @@ export type Database = {
           created_at?: string
           duration_minutes?: number | null
           id?: string
+          is_recurrence?: boolean
           resumed_at?: string | null
           resumed_by?: string | null
           resumed_by_name?: string | null
@@ -871,6 +874,7 @@ export type Database = {
           paused_at: string | null
           priority: string
           received_at: string | null
+          recurrence_of_wo_id: string | null
           requester_name: string
           signed_by_name: string | null
           started_at: string | null
@@ -904,6 +908,7 @@ export type Database = {
           paused_at?: string | null
           priority?: string
           received_at?: string | null
+          recurrence_of_wo_id?: string | null
           requester_name: string
           signed_by_name?: string | null
           started_at?: string | null
@@ -937,6 +942,7 @@ export type Database = {
           paused_at?: string | null
           priority?: string
           received_at?: string | null
+          recurrence_of_wo_id?: string | null
           requester_name?: string
           signed_by_name?: string | null
           started_at?: string | null
@@ -985,6 +991,13 @@ export type Database = {
             columns: ["operator_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_recurrence_of_wo_id_fkey"
+            columns: ["recurrence_of_wo_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
