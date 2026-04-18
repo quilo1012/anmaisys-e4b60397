@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
+import { Lock } from "lucide-react";
 import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder, usePauseWorkOrder, useResumeWorkOrder, useMachineBackToWork } from "@/hooks/useWorkOrders";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { stopAlertSound } from "@/lib/shifts";
@@ -153,7 +155,7 @@ function PhotoStatusButton({ woId, photoType, onClick, disabled, size = "lg" }: 
 }
 
 export default function EngineerDashboard() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });
@@ -280,13 +282,18 @@ export default function EngineerDashboard() {
     setPinDialogOpen(true);
   }, []);
 
-  // STEP 1 — ACCEPT (open → received)
+  // STEP 1 — ACCEPT (open → received) — PIN + lock to engineer
   const handleAcceptClick = (woId: string) => {
     stopAlertSound();
     requirePin("Confirm ACCEPT", async (engineer) => {
       setCurrentEngineer(engineer);
       try {
         await acceptWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
+        // Lock the WO to this engineer so other engineers see a lock card.
+        await supabase
+          .from("work_orders")
+          .update({ locked_engineer_id: engineer.id, locked_at: new Date().toISOString() } as any)
+          .eq("id", woId);
         toast({ title: "✅ Order accepted", description: "Head to the machine, then tap 'I Have Arrived'." });
       } catch (err: any) {
         toast({ title: "Error accepting WO", description: err.message, variant: "destructive" });
@@ -294,48 +301,68 @@ export default function EngineerDashboard() {
     });
   };
 
-  // STEP 2 — ARRIVED (received → arrived)
+  // Verify the current user owns the WO lock (silent ops between Accept and Finish)
+  const ensureLockedToMe = (wo: any): boolean => {
+    const lockId = (wo as any).locked_engineer_id;
+    if (!lockId) return true; // not locked yet → allow
+    if (lockId === user?.id) return true;
+    const lockedToName = wo.engineer_name || "another engineer";
+    toast({ title: "🔒 Locked", description: `This WO is locked to ${lockedToName}.`, variant: "destructive" });
+    return false;
+  };
+
+  // STEP 2 — ARRIVED (received → arrived) — NO PIN, lock-protected
   const handleArrivedClick = (woId: string) => {
-    requirePin("Confirm ARRIVED", async (engineer) => {
-      setCurrentEngineer(engineer);
-      try {
-        await arriveWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
-        toast({ title: "📍 Arrival recorded", description: "Tap 'Start Work' when you begin the repair." });
-      } catch (err: any) {
-        toast({ title: "Error recording arrival", description: err.message, variant: "destructive" });
-      }
-    });
+    const wo = workOrders?.find(w => w.id === woId);
+    if (!wo || !ensureLockedToMe(wo)) return;
+    const engineer: EngineerIdentity = currentEngineer
+      ?? (wo.engineer_id && wo.engineer_name ? { id: wo.engineer_id, name: wo.engineer_name } : { id: user!.id, name: profile?.name || user!.email || "Engineer" });
+    setCurrentEngineer(engineer);
+    arriveWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name })
+      .then(() => toast({ title: "📍 Arrival recorded", description: "Tap 'Start Work' when you begin the repair." }))
+      .catch((err: any) => toast({ title: "Error recording arrival", description: err.message, variant: "destructive" }));
   };
 
-  // STEP 3 — START (arrived → in_progress)
+  // STEP 3 — START (arrived → in_progress) — NO PIN
   const handleStartClick = (woId: string) => {
-    requirePin("Confirm START", async (engineer) => {
-      setCurrentEngineer(engineer);
-      try {
-        await startWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
-        toast({ title: "✅ Work Order started!", description: "Don't forget to add a Before photo!" });
-      } catch (err: any) {
-        toast({ title: "Error starting WO", description: err.message, variant: "destructive" });
-      }
-    });
+    const wo = workOrders?.find(w => w.id === woId);
+    if (!wo || !ensureLockedToMe(wo)) return;
+    const engineer: EngineerIdentity = currentEngineer
+      ?? (wo.engineer_id && wo.engineer_name ? { id: wo.engineer_id, name: wo.engineer_name } : { id: user!.id, name: profile?.name || user!.email || "Engineer" });
+    setCurrentEngineer(engineer);
+    startWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name })
+      .then(() => toast({ title: "✅ Work Order started!", description: "Don't forget to add a Before photo!" }))
+      .catch((err: any) => toast({ title: "Error starting WO", description: err.message, variant: "destructive" }));
   };
 
-  // FINISH → PIN → signature dialog (no post-checklist dialog)
+  // FINISH → opens signature dialog (PIN is collected at confirm step). No PIN here.
   const handleFinishClick = (woId: string) => {
-    requirePin("Confirm FINISH", (engineer) => {
-      setCurrentEngineer(engineer);
-      toast({ title: "📸 Photo reminder", description: "Don't forget to add an After photo!" });
-      setSignDialogWO(woId);
-    });
+    const wo = workOrders?.find(w => w.id === woId);
+    if (!wo || !ensureLockedToMe(wo)) return;
+    const engineer: EngineerIdentity = currentEngineer
+      ?? (wo.engineer_id && wo.engineer_name ? { id: wo.engineer_id, name: wo.engineer_name } : { id: user!.id, name: profile?.name || user!.email || "Engineer" });
+    setCurrentEngineer(engineer);
+    toast({ title: "📸 Photo reminder", description: "Don't forget to add an After photo!" });
+    setSignDialogWO(woId);
   };
 
   const handleFinishConfirm = async () => {
-    if (!signDialogWO || !signName.trim() || !currentEngineer) return;
-    await finishWO.mutateAsync({ woId: signDialogWO, signedByName: signName.trim(), engineerId: currentEngineer.id, engineerName: currentEngineer.name });
+    if (!signDialogWO || !signName.trim()) return;
+    const woId = signDialogWO;
+    const signature = signName.trim();
+    // Close the sign dialog and ask for PIN as the legal "second signature".
     setSignDialogWO(null);
     setSignName("");
-    setCurrentEngineer(null);
-    sessionStorage.removeItem("currentEngineer");
+    requirePin("Confirm FINISH (PIN)", async (engineer) => {
+      try {
+        await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name });
+        setCurrentEngineer(null);
+        sessionStorage.removeItem("currentEngineer");
+        toast({ title: "✅ Work order finished" });
+      } catch (err: any) {
+        toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
+      }
+    });
   };
 
   const triggerFileInput = (woId: string, type: "before" | "after") => {
@@ -348,6 +375,34 @@ export default function EngineerDashboard() {
     const isOpen = wo.status === "open";
     const checklistComplete = useChecklistComplete(wo.description, wo.id);
     const isInProgress = wo.status === "in_progress";
+    const lockedToOther = !!(wo as any).locked_engineer_id && (wo as any).locked_engineer_id !== user?.id;
+
+    if (lockedToOther) {
+      return (
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-bold text-base">
+                WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+              </span>
+              <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
+            </div>
+            <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 p-3 border border-amber-300 dark:border-amber-800 flex items-start gap-2">
+              <Lock className="h-4 w-4 text-amber-700 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold text-amber-900 dark:text-amber-200 text-sm">
+                  Locked to {wo.engineer_name || "another engineer"}
+                </p>
+                <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
+                  Only the assigned engineer can work on this order. Contact admin to reassign.
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">{wo.machine} · {wo.description}</p>
+          </CardContent>
+        </Card>
+      );
+    }
 
     return (
       <Card className={`${isOpen ? "border-destructive bg-destructive/5 animate-pulse" : ""}`}>
