@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     } else {
       const { data: newManager, error: mErr } = await supabaseAdmin.auth.admin.createUser({
         email: managerEmail,
-        password: "DemoPass123!",
+        password: demoPassword,
         email_confirm: true,
         user_metadata: { name: "Demo Manager" },
       });
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
     } else {
       const { data: newEngineer, error: eErr } = await supabaseAdmin.auth.admin.createUser({
         email: engineerEmail,
-        password: "DemoPass123!",
+        password: demoPassword,
         email_confirm: true,
         user_metadata: { name: "Demo Engineer" },
       });
@@ -123,9 +123,9 @@ Deno.serve(async (req) => {
 
       await supabaseAdmin.rpc("set_engineer_pin_standalone", {
         _engineer_id: demoEngineerId,
-        _new_pin: "1234",
+        _new_pin: demoPin,
       });
-      summary.push("Created Demo Engineer identity (PIN: 1234)");
+      summary.push("Created Demo Engineer identity (PIN configured via secret)");
     }
 
     // --- 4. Problem descriptions ---
@@ -264,11 +264,12 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       success: true,
       summary,
-      credentials: {
-        manager: { email: managerEmail, password: "DemoPass123!" },
-        engineer: { email: engineerEmail, password: "DemoPass123!" },
-        engineerPin: "1234",
+      // Credentials intentionally NOT returned. Retrieve them from your secrets manager.
+      accountsCreated: {
+        manager: managerEmail,
+        engineer: engineerEmail,
       },
+      note: "Passwords/PIN are configured via SEED_DEMO_PASSWORD and SEED_DEMO_PIN secrets. They are not returned in this response.",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
