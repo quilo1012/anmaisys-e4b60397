@@ -315,12 +315,8 @@ function SidebarShell({
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 border-b bg-card flex items-center px-4 gap-3 print:hidden">
           <SidebarTrigger aria-label="Toggle menu" />
-          <img src={appliedLogo} alt="Applied Nutrition" className="h-8 w-8 rounded object-contain" />
-          <h1 className="text-lg font-semibold text-foreground">
-            {role ? roleTitle[role] : ""} Dashboard
-          </h1>
           {(role === "admin" || role === "manager") && (
-            <div className="ml-4">
+            <div className="ml-2">
               <OnlineEngineersPanel />
             </div>
           )}
