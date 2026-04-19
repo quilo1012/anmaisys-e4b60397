@@ -17,7 +17,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import appliedLogo from "@/assets/appliedlogo.jpeg";
+import appliedLogo from "@/assets/appliedlogo.png";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
