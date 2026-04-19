@@ -297,7 +297,9 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   const handleAccept = () => {
     if (!active) return;
     const id = active.woId;
-    acknowledge();
+    // Persist the acknowledgment before navigation so this same open WO
+    // does not replay the modal on remount/reconnect/reload.
+    acknowledge(id);
     navigate(`/dashboard/wo/${id}`);
   };
 
@@ -371,7 +373,7 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
                 size="lg"
                 variant="secondary"
                 className="h-14 font-bold"
-                onClick={() => acknowledge()}
+                onClick={() => active && acknowledge(active.woId)}
               >
                 <Bell className="h-5 w-5 mr-2" /> Acknowledge
               </Button>
@@ -381,7 +383,7 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
                 className="h-14 font-bold bg-foreground text-background hover:bg-foreground/90"
                 onClick={handleAccept}
               >
-                Accept Now
+                Open Order
               </Button>
             </div>
           </div>
