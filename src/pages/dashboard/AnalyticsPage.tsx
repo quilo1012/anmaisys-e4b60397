@@ -395,7 +395,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Orders by Status</CardTitle></CardHeader>
             <CardContent>
               {!ordersByStatus.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
@@ -425,7 +425,7 @@ export default function AnalyticsPage() {
                 }
                 const data = Object.entries(wosByType).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([type, count]) => ({ type, count }));
                 return !data.length ? (
-                  <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                  <EmptyChart />
                 ) : (
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={data} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="type" width={140} tick={{ fontSize: 11 }}  /><Tooltip /><Bar dataKey="count" fill="#8b5cf6" name="WOs" radius={[0, 4, 4, 0]} /></BarChart>
@@ -448,7 +448,7 @@ export default function AnalyticsPage() {
                 const data = Object.entries(statusCounts).map(([name, value]) => ({ name, value }));
                 const STATUS_COLORS = ["#10b981", "#f59e0b", "#ef4444", "#6b7280", "#8b5cf6"];
                 return !data.length ? (
-                  <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                  <EmptyChart />
                 ) : (
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
@@ -467,7 +467,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Lines with Most Problems</CardTitle></CardHeader>
             <CardContent>
               {!lineProblems.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={lineProblems} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} /></BarChart>
@@ -479,7 +479,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Top 5 Problems</CardTitle></CardHeader>
             <CardContent>
               {!topProblems.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={topProblems} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="problem" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} /></BarChart>
@@ -491,7 +491,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Orders by Priority</CardTitle></CardHeader>
             <CardContent>
               {!ordersByPriority.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={ordersByPriority}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="priority" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} /></BarChart>
@@ -503,7 +503,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Machines with Most Downtime</CardTitle></CardHeader>
             <CardContent>
               {!downtimeByMachine.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={downtimeByMachine} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip formatter={(v: number) => `${v} min`} /><Bar dataKey="minutes" fill="#ef4444" name="Downtime (min)" radius={[0, 4, 4, 0]} /></BarChart>
@@ -515,7 +515,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Most Used Machines</CardTitle></CardHeader>
             <CardContent>
               {!mostUsedMachines.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={mostUsedMachines} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--primary))" name="Total WOs" radius={[0, 4, 4, 0]} /></BarChart>
@@ -527,7 +527,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Maintenance Frequency (avg WOs/month)</CardTitle></CardHeader>
             <CardContent>
               {!maintenanceFrequency.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={maintenanceFrequency} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" /><YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip /><Bar dataKey="avgPerMonth" fill="hsl(var(--accent))" name="Avg/Month" radius={[0, 4, 4, 0]} /></BarChart>
@@ -543,7 +543,7 @@ export default function AnalyticsPage() {
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><Trophy className="h-5 w-5 text-yellow-500" /> Engineer Ranking</CardTitle></CardHeader>
           <CardContent>
             {!rankedEngineers.length ? (
-              <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+              <EmptyChart />
             ) : (
               <div className="space-y-6">
                 {/* Top 3 podium */}
