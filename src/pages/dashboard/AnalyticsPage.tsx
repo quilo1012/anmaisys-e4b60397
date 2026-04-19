@@ -28,6 +28,13 @@ const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444
 
 const truncLabel = (s: string, max = 20) => s.length > max ? s.slice(0, max - 1) + "…" : s;
 
+const EmptyChart = () => (
+  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+    <BarChart3 className="h-8 w-8 mb-2 opacity-50" />
+    <p className="text-sm">No data available</p>
+  </div>
+);
+
 type PeriodPreset = "7d" | "30d" | "90d" | "custom";
 
 export default function AnalyticsPage() {
@@ -76,6 +83,7 @@ export default function AnalyticsPage() {
   const inProgressCount = allWOs?.filter((w) => w.status === "in_progress").length ?? 0;
   const completedToday = allWOs?.filter((w) => DONE_STATUSES.includes(w.status) && (w.closed_at || w.completed_at || w.finished_at) && new Date(w.closed_at || w.completed_at || w.finished_at!).toDateString() === today).length ?? 0;
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
+  const hasNoActivity = !woLoading && !!rawWOs && (allWOs?.length ?? 0) === 0;
 
   // Single source of truth: derive avgResponse / avgMTTR from v_wo_metrics view.
   // MTBF still computed locally from creation timestamps (no equivalent view column).
@@ -357,16 +365,16 @@ export default function AnalyticsPage() {
 
         {/* KPI cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Open WOs</CardTitle><ClipboardList className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{openCount}</div></CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">In Progress</CardTitle><LayoutDashboard className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{inProgressCount}</div></CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Completed Today</CardTitle><ClipboardList className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{completedToday}</div></CardContent></Card>
+          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Open WOs</CardTitle><ClipboardList className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{openCount}</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
+          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">In Progress</CardTitle><LayoutDashboard className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{inProgressCount}</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
+          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Completed Today</CardTitle><ClipboardList className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{completedToday}</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Users</CardTitle><Users className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{userCount ?? "—"}</div></CardContent></Card>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg Response</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgResponse} min</div></CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg MTTR</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgMTTR} min</div></CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg MTBF</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgMTBF > 60 ? `${Math.round(kpis.avgMTBF / 60)}h` : `${kpis.avgMTBF} min`}</div><p className="text-xs text-muted-foreground">Mean Time Between Failures</p></CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">SLA Compliance</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-2xl font-bold ${slaCompliance.rate < 80 ? "text-destructive" : "text-green-600"}`}>{slaCompliance.rate}%</div></CardContent></Card>
+          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg Response</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgResponse} min</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
+          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg MTTR</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgMTTR} min</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
+          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg MTBF</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgMTBF > 60 ? `${Math.round(kpis.avgMTBF / 60)}h` : `${kpis.avgMTBF} min`}</div><p className="text-xs text-muted-foreground">{hasNoActivity ? "No activity in selected period" : "Mean Time Between Failures"}</p></CardContent></Card>
+          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">SLA Compliance</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-2xl font-bold ${slaCompliance.rate < 80 ? "text-destructive" : "text-green-600"}`}>{slaCompliance.rate}%</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
         </div>
 
         {/* Charts */}
@@ -375,7 +383,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">WOs per Day (Last 7 Days)</CardTitle></CardHeader>
             <CardContent>
               {!wosPerDay.length || wosPerDay.every((d: any) => !d.count) ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={wosPerDay}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} /></BarChart>
@@ -387,7 +395,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Orders by Status</CardTitle></CardHeader>
             <CardContent>
               {!ordersByStatus.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
@@ -417,7 +425,7 @@ export default function AnalyticsPage() {
                 }
                 const data = Object.entries(wosByType).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([type, count]) => ({ type, count }));
                 return !data.length ? (
-                  <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                  <EmptyChart />
                 ) : (
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={data} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="type" width={140} tick={{ fontSize: 11 }}  /><Tooltip /><Bar dataKey="count" fill="#8b5cf6" name="WOs" radius={[0, 4, 4, 0]} /></BarChart>
@@ -440,7 +448,7 @@ export default function AnalyticsPage() {
                 const data = Object.entries(statusCounts).map(([name, value]) => ({ name, value }));
                 const STATUS_COLORS = ["#10b981", "#f59e0b", "#ef4444", "#6b7280", "#8b5cf6"];
                 return !data.length ? (
-                  <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                  <EmptyChart />
                 ) : (
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
@@ -459,7 +467,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Lines with Most Problems</CardTitle></CardHeader>
             <CardContent>
               {!lineProblems.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={lineProblems} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} /></BarChart>
@@ -471,7 +479,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Top 5 Problems</CardTitle></CardHeader>
             <CardContent>
               {!topProblems.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={topProblems} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="problem" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} /></BarChart>
@@ -483,7 +491,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Orders by Priority</CardTitle></CardHeader>
             <CardContent>
               {!ordersByPriority.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={ordersByPriority}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="priority" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} /></BarChart>
@@ -495,7 +503,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Machines with Most Downtime</CardTitle></CardHeader>
             <CardContent>
               {!downtimeByMachine.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={downtimeByMachine} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip formatter={(v: number) => `${v} min`} /><Bar dataKey="minutes" fill="#ef4444" name="Downtime (min)" radius={[0, 4, 4, 0]} /></BarChart>
@@ -507,7 +515,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Most Used Machines</CardTitle></CardHeader>
             <CardContent>
               {!mostUsedMachines.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={mostUsedMachines} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--primary))" name="Total WOs" radius={[0, 4, 4, 0]} /></BarChart>
@@ -519,7 +527,7 @@ export default function AnalyticsPage() {
             <CardHeader><CardTitle className="text-base">Maintenance Frequency (avg WOs/month)</CardTitle></CardHeader>
             <CardContent>
               {!maintenanceFrequency.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+                <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={maintenanceFrequency} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" /><YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip /><Bar dataKey="avgPerMonth" fill="hsl(var(--accent))" name="Avg/Month" radius={[0, 4, 4, 0]} /></BarChart>
@@ -535,7 +543,7 @@ export default function AnalyticsPage() {
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><Trophy className="h-5 w-5 text-yellow-500" /> Engineer Ranking</CardTitle></CardHeader>
           <CardContent>
             {!rankedEngineers.length ? (
-              <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+              <EmptyChart />
             ) : (
               <div className="space-y-6">
                 {/* Top 3 podium */}
