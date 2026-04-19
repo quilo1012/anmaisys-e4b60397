@@ -386,14 +386,18 @@ export default function AnalyticsPage() {
           <Card>
             <CardHeader><CardTitle className="text-base">Orders by Status</CardTitle></CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie data={ordersByStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine>
-                    {ordersByStatus.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip /><Legend />
-                </PieChart>
-              </ResponsiveContainer>
+              {!ordersByStatus.length ? (
+                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie data={ordersByStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine>
+                      {ordersByStatus.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip /><Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
 
