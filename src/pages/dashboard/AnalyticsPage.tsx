@@ -83,6 +83,7 @@ export default function AnalyticsPage() {
   const inProgressCount = allWOs?.filter((w) => w.status === "in_progress").length ?? 0;
   const completedToday = allWOs?.filter((w) => DONE_STATUSES.includes(w.status) && (w.closed_at || w.completed_at || w.finished_at) && new Date(w.closed_at || w.completed_at || w.finished_at!).toDateString() === today).length ?? 0;
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
+  const hasNoActivity = !woLoading && !!rawWOs && (allWOs?.length ?? 0) === 0;
 
   // Single source of truth: derive avgResponse / avgMTTR from v_wo_metrics view.
   // MTBF still computed locally from creation timestamps (no equivalent view column).
