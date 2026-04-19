@@ -296,52 +296,78 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
         </div>
 
         <Card>
-          <CardHeader className="space-y-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex border rounded-md overflow-hidden">
-                  <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("table")} className="rounded-none h-8"><List className="h-4 w-4" /></Button>
-                  <Button variant={viewMode === "board" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("board")} className="rounded-none h-8"><LayoutGrid className="h-4 w-4" /></Button>
+          <CardHeader className="space-y-4 border-b bg-muted/30">
+            {/* Row 1 — Search + Status pills */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="relative flex-1 min-w-[240px] max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search WO#, requester, machine…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 h-9 bg-background"
+                />
+              </div>
+              <div className="inline-flex items-center rounded-md border bg-background p-0.5 shadow-sm">
+                <Button
+                  variant={lineStoppedFilter === "all" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-7 px-3 text-xs font-medium"
+                  onClick={() => setLineStoppedFilter("all")}
+                >
+                  All · {(workOrders ?? []).length}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLineStoppedFilter("stopped")}
+                  className={`h-7 px-3 text-xs font-medium ${lineStoppedFilter === "stopped" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "text-destructive hover:bg-destructive/10 hover:text-destructive"}`}
+                >
+                  Stopped · {stoppedCount}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLineStoppedFilter("running")}
+                  className={`h-7 px-3 text-xs font-medium ${lineStoppedFilter === "running" ? "bg-success text-success-foreground hover:bg-success/90" : "text-success hover:bg-success/10 hover:text-success"}`}
+                >
+                  Running · {runningCount}
+                </Button>
+              </div>
+            </div>
+
+            {/* Row 2 — View toggle + Date pills + Custom range */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="inline-flex items-center rounded-md border bg-background p-0.5 shadow-sm">
+                  <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("table")} className="h-7 w-8 p-0"><List className="h-4 w-4" /></Button>
+                  <Button variant={viewMode === "board" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("board")} className="h-7 w-8 p-0"><LayoutGrid className="h-4 w-4" /></Button>
                 </div>
-                <div className="flex gap-1">
-                  {([["today", "Today"], ["yesterday", "Yesterday"], ["7days", "7 Days"], ["month", "This Month"], ["all", "All"]] as const).map(([key, label]) => (
-                    <Button key={key} variant={dateQuickFilter === key ? "secondary" : "ghost"} size="sm" className="h-8" onClick={() => { setDateQuickFilter(key); setDateFrom(""); setDateTo(""); }}>{label}</Button>
+                <div className="inline-flex items-center rounded-md border bg-background p-0.5 shadow-sm">
+                  {([["today", "Today"], ["yesterday", "Yesterday"], ["7days", "7D"], ["month", "Month"], ["all", "All"]] as const).map(([key, label]) => (
+                    <Button
+                      key={key}
+                      variant={dateQuickFilter === key ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-7 px-3 text-xs font-medium"
+                      onClick={() => { setDateQuickFilter(key); setDateFrom(""); setDateTo(""); }}
+                    >
+                      {label}
+                    </Button>
                   ))}
                 </div>
-                <div className="flex gap-1 ml-2 border-l pl-2">
-                  <Button
-                    variant={lineStoppedFilter === "all" ? "secondary" : "ghost"}
-                    size="sm"
-                    className="h-8"
-                    onClick={() => setLineStoppedFilter("all")}
-                  >
-                    All ({(workOrders ?? []).length})
-                  </Button>
-                  <Button
-                    variant={lineStoppedFilter === "stopped" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setLineStoppedFilter("stopped")}
-                    className={lineStoppedFilter === "stopped" ? "h-8 bg-destructive hover:bg-destructive/90 text-destructive-foreground" : "h-8 text-destructive hover:bg-destructive/10 hover:text-destructive"}
-                  >
-                    🛑 Line Stopped ({stoppedCount})
-                  </Button>
-                  <Button
-                    variant={lineStoppedFilter === "running" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setLineStoppedFilter("running")}
-                    className={lineStoppedFilter === "running" ? "h-8 bg-success hover:bg-success/90 text-success-foreground" : "h-8 text-success hover:bg-success/10 hover:text-success"}
-                  >
-                    ✓ Running ({runningCount})
-                  </Button>
+                <div className="flex items-center gap-1">
+                  <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateQuickFilter(""); }} className="w-[140px] h-8 bg-background" />
+                  <span className="text-xs text-muted-foreground">→</span>
+                  <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateQuickFilter(""); }} className="w-[140px] h-8 bg-background" />
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateQuickFilter(""); }} className="w-[140px] h-8" />
-                <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateQuickFilter(""); }} className="w-[140px] h-8" />
-                <Button variant="ghost" size="sm" className="h-8" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
-                  <Download className="h-4 w-4 mr-1" /> CSV
+
+              <div className="inline-flex items-center gap-1 rounded-md border bg-background p-0.5 shadow-sm">
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
+                  <Download className="h-3.5 w-3.5 mr-1" /> CSV
                 </Button>
-                <Button variant="ghost" size="sm" className="h-8" onClick={() => {
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={() => {
                   if (!filteredWOs) return;
                   const allWOs = filteredWOs;
                   const engPerf = engineerScores?.map((s) => ({ name: s.engineer_name || "Unknown", score: s.score, completed: 0 })) || [];
@@ -354,14 +380,14 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                     dateRange: dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? dateQuickFilter : "All records",
                   });
                 }}>
-                  <FileText className="h-4 w-4 mr-1" /> PDF
+                  <FileText className="h-3.5 w-3.5 mr-1" /> PDF
                 </Button>
-                <Button variant="ghost" size="sm" className="h-8 no-print" onClick={() => window.print()}>
-                  <Printer className="h-4 w-4 mr-1" /> Print
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs no-print" onClick={() => window.print()}>
+                  <Printer className="h-3.5 w-3.5 mr-1" /> Print
                 </Button>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8"><SlidersHorizontal className="h-4 w-4 mr-1" /> Columns</Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs"><SlidersHorizontal className="h-3.5 w-3.5 mr-1" /> Columns</Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-48 p-3" align="end">
                     <p className="text-xs font-semibold mb-2">Toggle Columns</p>
@@ -375,13 +401,11 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 </Popover>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-wrap mt-2 filters-section">
-              <div className="relative flex-1 min-w-[200px] max-w-[300px]">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search WO#, requester, machine..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8" />
-              </div>
+
+            {/* Row 3 — Dropdown filters */}
+            <div className="flex items-center gap-2 flex-wrap filters-section">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectTrigger className="w-[150px] h-8 bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
@@ -395,21 +419,21 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 </SelectContent>
               </Select>
               <Select value={lineFilter} onValueChange={setLineFilter}>
-                <SelectTrigger className="w-[150px]"><SelectValue placeholder="Line" /></SelectTrigger>
+                <SelectTrigger className="w-[150px] h-8 bg-background"><SelectValue placeholder="Line" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Lines</SelectItem>
                   {distinctLines.map((line) => <SelectItem key={line} value={line}>{line}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={problemFilter} onValueChange={setProblemFilter}>
-                <SelectTrigger className="w-[170px]"><SelectValue placeholder="Problem" /></SelectTrigger>
+                <SelectTrigger className="w-[170px] h-8 bg-background"><SelectValue placeholder="Problem" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Problems</SelectItem>
                   {problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={machineFilter} onValueChange={setMachineFilter}>
-                <SelectTrigger className="w-[170px]"><SelectValue placeholder="Machine" /></SelectTrigger>
+                <SelectTrigger className="w-[170px] h-8 bg-background"><SelectValue placeholder="Machine" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Machines</SelectItem>
                   {machines?.map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}
