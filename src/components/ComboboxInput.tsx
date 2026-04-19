@@ -21,9 +21,11 @@ export function ComboboxInput({ value, onChange, suggestions, placeholder, class
     setInputValue(value);
   }, [value]);
 
-  const filtered = suggestions.filter(
-    (s) => s.toLowerCase().includes(inputValue.toLowerCase()) && s.toLowerCase() !== inputValue.toLowerCase()
-  );
+  const filtered = inputValue.length > 0
+    ? suggestions.filter(
+        (s) => s.toLowerCase().includes(inputValue.toLowerCase()) && s.toLowerCase() !== inputValue.toLowerCase()
+      )
+    : [];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
