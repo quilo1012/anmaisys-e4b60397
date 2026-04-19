@@ -158,7 +158,7 @@ function PhotoStatusButton({ woId, photoType, onClick, disabled, size = "lg" }: 
 }
 
 export default function EngineerDashboard() {
-  const { user, profile, role, loading: authLoading } = useAuth();
+  const { role, loading: authLoading } = useAuth();
 
   // Defense-in-depth role guard — redirect unauthorized roles before any data hooks fire
   if (authLoading) {
@@ -172,6 +172,11 @@ export default function EngineerDashboard() {
     return <Navigate to="/login" replace />;
   }
 
+  return <EngineerDashboardContent />;
+}
+
+function EngineerDashboardContent() {
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });

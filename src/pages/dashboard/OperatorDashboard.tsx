@@ -37,7 +37,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 };
 
 export default function OperatorDashboard() {
-  const { profile, role, loading: authLoading } = useAuth();
+  const { role, loading: authLoading } = useAuth();
 
   // Defense-in-depth role guard — redirect unauthorized roles before any data hooks fire
   if (authLoading) {
@@ -50,6 +50,12 @@ export default function OperatorDashboard() {
   if (role !== "operator") {
     return <Navigate to="/login" replace />;
   }
+
+  return <OperatorDashboardContent />;
+}
+
+function OperatorDashboardContent() {
+  const { profile } = useAuth();
 
   const [lineId, setLineId] = useState<string>("");
   const [side, setSide] = useState<MachineSide | "">("");

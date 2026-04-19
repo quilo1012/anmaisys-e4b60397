@@ -34,6 +34,10 @@ export default function ManagerDashboard() {
     return <Navigate to="/login" replace />;
   }
 
+  return <ManagerDashboardContent />;
+}
+
+function ManagerDashboardContent() {
   const { data: allWOs } = useWorkOrders();
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products } = useProducts();
