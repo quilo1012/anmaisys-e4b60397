@@ -91,10 +91,6 @@ export default function Login() {
             <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">Industrial Operations</p>
           </div>
         </div>
-        <div className="hidden items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-medium text-emerald-300 sm:flex">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_hsl(142_70%_55%)]" />
-          System Online
-        </div>
       </header>
 
       {/* ── Center card ─────────────────────────────────── */}
@@ -113,9 +109,6 @@ export default function Login() {
                   className="h-28 w-auto rounded-xl object-contain sm:h-32"
                 />
               </div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-amber-400/90">
-                Maintenance Platform
-              </p>
               <h1 className="mt-2 text-[26px] font-semibold tracking-tight">Sign in to continue</h1>
               <p className="mt-1.5 text-sm text-white/55">
                 Use your corporate credentials to access the system.
