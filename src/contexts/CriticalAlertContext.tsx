@@ -373,7 +373,7 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
                 size="lg"
                 variant="secondary"
                 className="h-14 font-bold"
-                onClick={() => acknowledge()}
+                onClick={() => active && acknowledge(active.woId)}
               >
                 <Bell className="h-5 w-5 mr-2" /> Acknowledge
               </Button>
