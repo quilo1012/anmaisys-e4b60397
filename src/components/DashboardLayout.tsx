@@ -264,8 +264,12 @@ function SidebarShell({
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar collapsible="offcanvas" className="border-r-0 print:hidden z-50">
-        <div className="flex items-center justify-center px-4 py-4">
-          <img src={appliedLogo} alt="Applied Nutrition" className="h-10 w-auto rounded object-contain" />
+        <div className="flex items-center justify-center border-b border-sidebar-border px-4 py-6">
+          <img
+            src={appliedLogo}
+            alt="Applied Nutrition"
+            className="h-20 w-auto rounded-md object-contain"
+          />
         </div>
         <SidebarContent>
           <SidebarNav filteredItems={filteredItems} />
