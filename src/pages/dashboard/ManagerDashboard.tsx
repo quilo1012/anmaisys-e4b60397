@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, Plus, ExternalLink, Monitor } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, Plus, ExternalLink, Monitor, Clock, Wrench, PowerOff } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
+import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeFunction } from "@/lib/invokeFunction";
@@ -22,6 +23,7 @@ export default function ManagerDashboard() {
   const { data: allWOs } = useWorkOrders();
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products } = useProducts();
+  const { data: woMetrics = [] } = useAllWoMetrics();
   const { role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -38,20 +40,25 @@ export default function ManagerDashboard() {
   const completedToday = allWOs?.filter((w) => DONE_STATUSES.includes(w.status) && (w.closed_at || w.completed_at || w.finished_at) && new Date(w.closed_at || w.completed_at || w.finished_at!).toDateString() === today).length ?? 0;
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
 
+  // Three distinct labeled time KPIs from v_wo_metrics (single source of truth)
   const kpis = useMemo(() => {
-    if (!allWOs) return { avgResponse: 0, avgMTTR: 0 };
-    const done = allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.started_at);
-    let totalResp = 0, totalMTTR = 0, count = 0;
-    done.forEach((wo) => {
-      totalResp += differenceInMinutes(new Date(wo.started_at!), new Date(wo.created_at));
-      const end = wo.finished_at || wo.completed_at;
-      if (end) {
-        totalMTTR += differenceInMinutes(new Date(end), new Date(wo.started_at!));
-      }
-      count++;
-    });
-    return { avgResponse: count ? Math.round(totalResp / count) : 0, avgMTTR: count ? Math.round(totalMTTR / count) : 0 };
-  }, [allWOs]);
+    const respM = woMetrics.filter((m) => m.response_time_sec !== null);
+    const avgResponse = respM.length
+      ? Math.round(respM.reduce((s, m) => s + (m.response_time_sec || 0), 0) / respM.length / 60)
+      : 0;
+
+    const repairM = woMetrics.filter((m) => m.active_repair_sec !== null && m.active_repair_sec > 0);
+    const avgActiveRepair = repairM.length
+      ? Math.round(repairM.reduce((s, m) => s + (m.active_repair_sec || 0), 0) / repairM.length / 60)
+      : 0;
+
+    const downM = woMetrics.filter((m) => m.line_downtime_sec !== null && m.line_downtime_sec > 0);
+    const avgLineDowntime = downM.length
+      ? Math.round(downM.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / downM.length / 60)
+      : 0;
+
+    return { avgResponse, avgActiveRepair, avgLineDowntime };
+  }, [woMetrics]);
 
   const handleChangePin = async () => {
     if (newPin.length < 4) {
