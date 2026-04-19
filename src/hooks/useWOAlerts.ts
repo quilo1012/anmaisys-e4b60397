@@ -55,6 +55,8 @@ export function useWOAlerts() {
             notified_engineers: string[] | null;
           };
 
+          console.log("[useWOAlerts INSERT]", wo.id, "ack:", wo.engineer_notified_acknowledged_at);
+
           // Server-side ack gate — never re-fire if already acknowledged.
           if (wo.engineer_notified_acknowledged_at) return;
           // Status gate — only 'open' WOs alert.
@@ -101,6 +103,7 @@ export function useWOAlerts() {
         { event: "UPDATE", schema: "public", table: "work_orders" },
         (payload) => {
           const updated = payload.new as { id: string; status: string };
+          console.log("[useWOAlerts UPDATE]", updated.id, updated.status);
           if (["received", "in_progress"].includes(updated.status)) {
             // Pass woId so we only ack the matching alert; another engineer
             // accepting a different WO won't dismiss this engineer's modal.
