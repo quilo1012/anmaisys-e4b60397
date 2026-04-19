@@ -24,6 +24,7 @@ import { NotificationPanel } from "@/components/NotificationPanel";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useOfflineDetection } from "@/hooks/useOfflineQueue";
 import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
+import { useLanguage } from "@/contexts/LanguageContext";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -157,6 +158,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { isOnline } = useOfflineDetection();
   const { data: stoppedLinesCount = 0 } = useStoppedLinesCount();
+  const { language, toggle: toggleLanguage } = useLanguage();
 
   useHeartbeat();
 
@@ -244,6 +246,16 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   </Button>
                 )}
                 <NotificationPanel />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleLanguage}
+                  title={language === "en" ? "Switch to Português" : "Mudar para English"}
+                  className="shrink-0 font-semibold uppercase text-xs h-9 px-2"
+                  aria-label="Toggle language"
+                >
+                  {language.toUpperCase()}
+                </Button>
                 <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className="shrink-0">
                   {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>

@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CriticalAlertProvider } from "@/contexts/CriticalAlertContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Skeleton } from "@/components/ui/skeleton";
 import Login from "./pages/Login";
@@ -83,6 +84,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <LanguageProvider>
           <CriticalAlertProvider>
             <Suspense fallback={<PageLoader />}>
               <Routes>
@@ -228,6 +230,7 @@ const App = () => (
               </Routes>
             </Suspense>
           </CriticalAlertProvider>
+          </LanguageProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
