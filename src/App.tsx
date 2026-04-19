@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { CriticalAlertProvider } from "@/contexts/CriticalAlertContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Skeleton } from "@/components/ui/skeleton";
 import Login from "./pages/Login";
@@ -82,6 +83,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <CriticalAlertProvider>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/login" element={<Login />} />
@@ -106,6 +108,7 @@ const App = () => (
               <Route path="*" element={<SessionRedirect />} />
             </Routes>
           </Suspense>
+          </CriticalAlertProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
