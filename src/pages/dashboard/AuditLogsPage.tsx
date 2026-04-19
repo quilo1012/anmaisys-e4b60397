@@ -1,35 +1,18 @@
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Loader2, Search, Shield, Trash2 } from "lucide-react";
-import { useAuditLogs, logAuditEvent } from "@/hooks/useAuditLogs";
-import { invokeFunction } from "@/lib/invokeFunction";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { Loader2, Search, Shield } from "lucide-react";
+import { useAuditLogs } from "@/hooks/useAuditLogs";
 import { format } from "date-fns";
 
 export default function AuditLogsPage() {
   const [entityType, setEntityType] = useState("all");
   const [search, setSearch] = useState("");
-  const [pin, setPin] = useState("");
-  const [clearing, setClearing] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [confirmText, setConfirmText] = useState("");
 
-  const { role, profile } = useAuth();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const { data: logs, isLoading } = useAuditLogs({ entityType, search });
 
   const entityTypes = useMemo(() => {
@@ -37,66 +20,14 @@ export default function AuditLogsPage() {
     return [...new Set(logs.map((l) => l.entity_type))].sort();
   }, [logs]);
 
-  const handleClearLogs = async () => {
-    setClearing(true);
-    try {
-      // Force refresh to get a valid token (session may be stale)
-      const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
-      const token = refreshed?.session?.access_token;
-      if (refreshErr || !token) {
-        toast({ title: "Session expired", description: "Please log in again.", variant: "destructive" });
-        setClearing(false);
-        return;
-      }
-      const pinRes = await invokeFunction("verify-admin-pin", { pin });
-      if (pinRes.error || !pinRes.data?.valid) {
-        toast({ title: "Invalid PIN", description: "The PIN entered is incorrect.", variant: "destructive" });
-        setClearing(false);
-        return;
-      }
-      const { error } = await supabase.from("audit_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ["audit_logs"] });
-      logAuditEvent("audit_logs_cleared", "system", undefined, { cleared_by: profile?.email });
-      toast({ title: "Audit logs cleared" });
-      setDialogOpen(false);
-      setPin("");
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    } finally {
-      setClearing(false);
-    }
-  };
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2"><Shield className="h-6 w-6" /> Audit Logs</h2>
-            <p className="text-muted-foreground">Complete activity log for compliance and security</p>
+            <p className="text-muted-foreground">Complete activity log for compliance and security. Logs are tamper-proof and cannot be deleted.</p>
           </div>
-          {role === "admin" && (
-            <AlertDialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setPin(""); setConfirmText(""); } }}>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4 mr-2" />Clear Logs</Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Clear All Audit Logs?</AlertDialogTitle>
-                  <AlertDialogDescription>This action cannot be undone. Enter admin PIN and type CONFIRM to proceed.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <Input type="password" placeholder="Admin PIN" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={10} />
-                <Input placeholder='Type "CONFIRM" to proceed' value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <Button variant="destructive" onClick={handleClearLogs} disabled={!pin || clearing || confirmText !== "CONFIRM"}>
-                    {clearing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}Confirm
-                  </Button>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
         </div>
 
         <Card>
