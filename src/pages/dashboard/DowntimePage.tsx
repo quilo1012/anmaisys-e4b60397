@@ -49,6 +49,7 @@ export default function DowntimePage() {
   const { data: allWOs } = useWorkOrders();
   const { data: machines } = useMachines();
   const { data: machineEvents } = useRecentMachineEvents();
+  const { data: woMetrics = [] } = useAllWoMetrics();
   const createDowntime = useCreateDowntime();
   const updateDowntime = useUpdateDowntime();
   const deleteDowntime = useDeleteDowntime();
