@@ -16,8 +16,8 @@ import { useWorkOrders, useCreateWorkOrder, useCloseWorkOrder } from "@/hooks/us
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePartsCountByWOs } from "@/hooks/useStock";
-import { useMachines, useLines, type MachineSide } from "@/hooks/useMachines";
-import { MachineSelector } from "@/components/MachineSelector";
+import { useMachines, useLines } from "@/hooks/useMachines";
+import { LinePicker } from "@/components/LinePicker";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, Navigate } from "react-router-dom";
@@ -58,8 +58,7 @@ function OperatorDashboardContent() {
   const { profile } = useAuth();
 
   const [lineId, setLineId] = useState<string>("");
-  const [side, setSide] = useState<MachineSide | "">("");
-  const [machine, setMachine] = useState("");
+  const [mobileAssetId, setMobileAssetId] = useState<string>("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
@@ -150,7 +149,14 @@ function OperatorDashboardContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // No required field validation — all fields are optional
+    if (!lineId) {
+      toast({ title: "Line required", description: "Please select a production line.", variant: "destructive" });
+      return;
+    }
+    if (!description.trim()) {
+      toast({ title: "Problem required", description: "Please describe the problem.", variant: "destructive" });
+      return;
+    }
     try {
       let created_at: string | undefined;
       if (isRetroactive && retroDate) {
@@ -162,9 +168,19 @@ function OperatorDashboardContent() {
         created_at = d.toISOString();
       }
       const effectivePriority = lineStopped ? "high" : autoPriority.priority;
-      await createWO.mutateAsync({ requester_name: requestedBy.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: effectivePriority, created_at, line_stopped: lineStopped });
+      await createWO.mutateAsync({
+        requester_name: requestedBy.trim(),
+        line_id: lineId,
+        mobile_asset_id: mobileAssetId || null,
+        machine: "",
+        description: description.trim(),
+        notes: notes.trim(),
+        priority: effectivePriority,
+        created_at,
+        line_stopped: lineStopped,
+      });
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
-      setRequestedBy(""); setLineId(""); setSide(""); setMachine(""); setDescription(""); setNotes("");
+      setRequestedBy(""); setLineId(""); setMobileAssetId(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
@@ -209,7 +225,7 @@ function OperatorDashboardContent() {
               <Plus className="h-5 w-5" />
               Create Work Order
               {lineStopped && <Badge variant="destructive" className="ml-2">🛑 Line Stopped</Badge>}
-              {!lineStopped && (requestedBy || machine || description) && <Badge className="ml-2 bg-amber-500 text-white border-amber-500">⚠️ Line Running</Badge>}
+              {!lineStopped && (requestedBy || lineId || description) && <Badge className="ml-2 bg-amber-500 text-white border-amber-500">⚠️ Line Running</Badge>}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -224,14 +240,12 @@ function OperatorDashboardContent() {
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <MachineSelector
+                <LinePicker
                   lineId={lineId}
-                  side={side}
-                  machineName={machine}
-                  onChange={({ lineId: lid, side: s, machineName }) => {
+                  mobileAssetId={mobileAssetId}
+                  onChange={({ lineId: lid, mobileAssetId: mid }) => {
                     setLineId(lid);
-                    setSide(s);
-                    setMachine(machineName);
+                    setMobileAssetId(mid);
                   }}
                 />
               </div>
