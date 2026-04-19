@@ -19,7 +19,7 @@ import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStoc
 import { useUploadWOPhoto, useWOPhotos } from "@/hooks/useWOPhotos";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
@@ -158,7 +158,20 @@ function PhotoStatusButton({ woId, photoType, onClick, disabled, size = "lg" }: 
 }
 
 export default function EngineerDashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, role, loading: authLoading } = useAuth();
+
+  // Defense-in-depth role guard — redirect unauthorized roles before any data hooks fire
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+  if (role !== "engineer") {
+    return <Navigate to="/login" replace />;
+  }
+
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });
