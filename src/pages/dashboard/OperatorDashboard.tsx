@@ -91,7 +91,7 @@ function OperatorDashboardContent() {
   // Smart suggestions: recent WOs for selected line
   const machineSuggestions = useMemo(() => {
     if (!selectedLineName || !allWOs) return null;
-    const lineWOs = allWOs.filter((w) => w.line_at_time === selectedLineName);
+    const lineWOs = allWOs.filter((w) => (w as any).line_at_time === selectedLineName);
     if (!lineWOs.length) return null;
     const lastWO = lineWOs[0];
     const daysSinceLast = differenceInDays(new Date(), new Date(lastWO.created_at));
@@ -107,18 +107,18 @@ function OperatorDashboardContent() {
     const cutoff7 = subDays(new Date(), 7).toISOString();
     const cutoff5 = subDays(new Date(), 5).toISOString();
 
-    const recent7d = allWOs.filter((w) => w.line_at_time === selectedLineName && w.description === description && w.created_at >= cutoff7);
+    const recent7d = allWOs.filter((w) => (w as any).line_at_time === selectedLineName && w.description === description && w.created_at >= cutoff7);
     if (recent7d.length >= 3) {
       return { priority: "high", reason: `Recurring issue: ${recent7d.length}x in the last 7 days` };
     }
 
-    const recentRepair = allWOs.find((w) => w.line_at_time === selectedLineName && w.finished_at && w.finished_at >= cutoff5);
+    const recentRepair = allWOs.find((w) => (w as any).line_at_time === selectedLineName && w.finished_at && w.finished_at >= cutoff5);
     if (recentRepair) {
       return { priority: "high", reason: "Recent repair on this line (< 5 days)" };
     }
 
     const cutoff30 = subDays(new Date(), 30).toISOString();
-    const repeated30d = allWOs.filter((w) => w.line_at_time === selectedLineName && w.description === description && w.created_at >= cutoff30);
+    const repeated30d = allWOs.filter((w) => (w as any).line_at_time === selectedLineName && w.description === description && w.created_at >= cutoff30);
     if (repeated30d.length >= 2) {
       return { priority: "medium", reason: `Repeated issue: ${repeated30d.length}x in 30 days` };
     }
@@ -130,7 +130,7 @@ function OperatorDashboardContent() {
   const aiInsights = useMemo(() => {
     if (!selectedLineName || !description || !allWOs) return null;
     const cutoff30 = subDays(new Date(), 30).toISOString();
-    const similar = allWOs.filter((w) => w.line_at_time === selectedLineName && w.description === description && w.created_at >= cutoff30);
+    const similar = allWOs.filter((w) => (w as any).line_at_time === selectedLineName && w.description === description && w.created_at >= cutoff30);
     if (!similar.length) return null;
     const cutoff7 = subDays(new Date(), 7).toISOString();
     const weekCount = similar.filter((w) => w.created_at >= cutoff7).length;
