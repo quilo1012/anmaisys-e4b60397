@@ -1065,6 +1065,7 @@ export type Database = {
           description: string
           engineer_id: string | null
           engineer_name: string | null
+          engineer_notified_acknowledged_at: string | null
           finished_at: string | null
           id: string
           line_resumed_at: string | null
@@ -1103,6 +1104,7 @@ export type Database = {
           description: string
           engineer_id?: string | null
           engineer_name?: string | null
+          engineer_notified_acknowledged_at?: string | null
           finished_at?: string | null
           id?: string
           line_resumed_at?: string | null
@@ -1141,6 +1143,7 @@ export type Database = {
           description?: string
           engineer_id?: string | null
           engineer_name?: string | null
+          engineer_notified_acknowledged_at?: string | null
           finished_at?: string | null
           id?: string
           line_resumed_at?: string | null
@@ -1402,6 +1405,7 @@ export type Database = {
         Args: { _pin: string; _wo_id: string }
         Returns: Json
       }
+      acknowledge_wo_alert: { Args: { _wo_id: string }; Returns: undefined }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
