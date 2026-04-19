@@ -556,6 +556,41 @@ export type Database = {
           },
         ]
       }
+      mobile_assets: {
+        Row: {
+          active: boolean
+          asset_number: number
+          asset_type: Database["public"]["Enums"]["mobile_asset_type"]
+          created_at: string
+          current_line_id: string | null
+          id: string
+        }
+        Insert: {
+          active?: boolean
+          asset_number: number
+          asset_type: Database["public"]["Enums"]["mobile_asset_type"]
+          created_at?: string
+          current_line_id?: string | null
+          id?: string
+        }
+        Update: {
+          active?: boolean
+          asset_number?: number
+          asset_type?: Database["public"]["Enums"]["mobile_asset_type"]
+          created_at?: string
+          current_line_id?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mobile_assets_current_line_id_fkey"
+            columns: ["current_line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           action_url: string | null
@@ -1116,6 +1151,7 @@ export type Database = {
           finished_at: string | null
           id: string
           line_at_time: string | null
+          line_id: string | null
           line_resumed_at: string | null
           line_resumed_by: string | null
           line_stopped: boolean
@@ -1123,7 +1159,8 @@ export type Database = {
           line_stopped_by: string | null
           locked_at: string | null
           locked_engineer_id: string | null
-          machine: string
+          machine: string | null
+          mobile_asset_id: string | null
           notes: string | null
           notified_engineers: string[] | null
           operator_id: string
@@ -1156,6 +1193,7 @@ export type Database = {
           finished_at?: string | null
           id?: string
           line_at_time?: string | null
+          line_id?: string | null
           line_resumed_at?: string | null
           line_resumed_by?: string | null
           line_stopped?: boolean
@@ -1163,7 +1201,8 @@ export type Database = {
           line_stopped_by?: string | null
           locked_at?: string | null
           locked_engineer_id?: string | null
-          machine: string
+          machine?: string | null
+          mobile_asset_id?: string | null
           notes?: string | null
           notified_engineers?: string[] | null
           operator_id: string
@@ -1196,6 +1235,7 @@ export type Database = {
           finished_at?: string | null
           id?: string
           line_at_time?: string | null
+          line_id?: string | null
           line_resumed_at?: string | null
           line_resumed_by?: string | null
           line_stopped?: boolean
@@ -1203,7 +1243,8 @@ export type Database = {
           line_stopped_by?: string | null
           locked_at?: string | null
           locked_engineer_id?: string | null
-          machine?: string
+          machine?: string | null
+          mobile_asset_id?: string | null
           notes?: string | null
           notified_engineers?: string[] | null
           operator_id?: string
@@ -1251,6 +1292,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "work_orders_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "work_orders_locked_engineer_id_fkey"
             columns: ["locked_engineer_id"]
             isOneToOne: false
@@ -1262,6 +1310,13 @@ export type Database = {
             columns: ["locked_engineer_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_mobile_asset_id_fkey"
+            columns: ["mobile_asset_id"]
+            isOneToOne: false
+            referencedRelation: "mobile_assets"
             referencedColumns: ["id"]
           },
           {
@@ -1527,6 +1582,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "engineer" | "operator" | "manager" | "viewer"
       machine_category: "line_fixed" | "line_mobile" | "support"
+      mobile_asset_type: "printer" | "bag_sealer"
       wo_status:
         | "open"
         | "in_progress"
@@ -1665,6 +1721,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "engineer", "operator", "manager", "viewer"],
       machine_category: ["line_fixed", "line_mobile", "support"],
+      mobile_asset_type: ["printer", "bag_sealer"],
       wo_status: [
         "open",
         "in_progress",
