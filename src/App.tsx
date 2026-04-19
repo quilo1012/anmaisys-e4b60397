@@ -191,7 +191,10 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                <Route path="/dashboard/reliability" element={<Navigate to="/dashboard/downtime" replace />} />
+                <Route
+                  path="/dashboard/reliability"
+                  element={<ProtectedRoute allowedRoles={["admin", "manager"]} element={<ReliabilityDashboard />} />}
+                />
                 <Route
                   path="/dashboard/wo/:id"
                   element={
