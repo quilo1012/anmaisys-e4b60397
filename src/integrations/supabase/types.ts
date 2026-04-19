@@ -1179,24 +1179,39 @@ export type Database = {
       profiles_safe: {
         Row: {
           active: boolean | null
+          created_at: string | null
+          email: string | null
           id: string | null
+          labor_rate: number | null
           last_seen_at: string | null
           name: string | null
           shift: string | null
+          ui_preferences: Json | null
+          updated_at: string | null
         }
         Insert: {
           active?: boolean | null
+          created_at?: string | null
+          email?: string | null
           id?: string | null
+          labor_rate?: number | null
           last_seen_at?: string | null
           name?: string | null
           shift?: string | null
+          ui_preferences?: Json | null
+          updated_at?: string | null
         }
         Update: {
           active?: boolean | null
+          created_at?: string | null
+          email?: string | null
           id?: string | null
+          labor_rate?: number | null
           last_seen_at?: string | null
           name?: string | null
           shift?: string | null
+          ui_preferences?: Json | null
+          updated_at?: string | null
         }
         Relationships: []
       }
