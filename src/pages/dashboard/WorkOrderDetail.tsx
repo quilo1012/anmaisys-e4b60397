@@ -125,13 +125,12 @@ export default function WorkOrderDetail() {
   const { data: engineerProfile } = useQuery({
     queryKey: ["engineer_rate", wo?.engineer_id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("labor_rate")
-        .eq("id", wo!.engineer_id!)
-        .single();
+      // Admin-only RPC; column SELECT on profiles.labor_rate is revoked
+      const { data, error } = await supabase.rpc("get_profile_labor_rate", {
+        _user_id: wo!.engineer_id!,
+      });
       if (error) throw error;
-      return data as { labor_rate: number };
+      return { labor_rate: Number(data) || 0 };
     },
     enabled: !!wo?.engineer_id && isAdmin,
   });

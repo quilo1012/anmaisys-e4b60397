@@ -74,15 +74,33 @@ export default function ManageUsers() {
   const [deleteEngLoading, setDeleteEngLoading] = useState<string | null>(null);
 
   const fetchUsers = async () => {
-    const { data: profiles } = await supabase.from("profiles").select("*");
+    // Select explicit columns — labor_rate is admin-only and fetched via RPC below
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, name, email, shift, active, last_seen_at, ui_preferences, created_at, updated_at");
     if (!profiles) return;
     const { data: roles } = await supabase.from("user_roles").select("*");
     const roleMap = new Map(roles?.map((r) => [r.user_id, r.role]));
-    setUsers(profiles.map((p) => ({ ...p, role: roleMap.get(p.id) })));
+
+    // Fetch labor_rate via admin-only SECURITY DEFINER RPC
+    const { data: rates } = await supabase.rpc("list_profile_labor_rates");
+    const rateMap = new Map((rates ?? []).map((r: any) => [r.id, Number(r.labor_rate) || 0]));
+
+    setUsers(
+      profiles.map((p: any) => ({
+        ...p,
+        labor_rate: rateMap.get(p.id) ?? 0,
+        role: roleMap.get(p.id),
+      })) as Profile[]
+    );
   };
 
   const fetchEngineers = async () => {
-    const { data } = await supabase.from("engineers" as any).select("id, name, is_active, created_at").order("created_at", { ascending: false });
+    // Read from engineers_safe view — pin_hash is no longer readable from base table
+    const { data } = await supabase
+      .from("engineers_safe" as any)
+      .select("id, name, is_active, created_at")
+      .order("created_at", { ascending: false });
     if (data) setEngineers(data as any);
   };
 
