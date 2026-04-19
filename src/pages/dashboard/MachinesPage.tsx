@@ -72,7 +72,7 @@ export default function MachinesPage() {
   const [side, setSide] = useState<MachineSide>("common");
   const [sector, setSector] = useState("");
   const [code, setCode] = useState("");
-  const [status, setStatus] = useState("active");
+  const [status, setStatus] = useState("");
   const [machineType, setMachineType] = useState("");
   const [currentLocation, setCurrentLocation] = useState("");
 
@@ -90,7 +90,7 @@ export default function MachinesPage() {
     setSide("common");
     setSector("");
     setCode("");
-    setStatus("active");
+    setStatus("");
     setMachineType("");
     setCurrentLocation("");
     setErrors({});
@@ -103,7 +103,7 @@ export default function MachinesPage() {
     setSide((m.side as MachineSide) || "common");
     setSector(m.sector || "");
     setCode(m.code || "");
-    setStatus(m.status || "active");
+    setStatus(m.status || "");
     setMachineType(m.machine_type || "");
     setCurrentLocation(m.current_location || "");
     setErrors({});
@@ -226,7 +226,7 @@ export default function MachinesPage() {
             <Label>Status</Label>
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Select status..." />
               </SelectTrigger>
               <SelectContent>
                 {STATUS_OPTIONS.map((o) => (
