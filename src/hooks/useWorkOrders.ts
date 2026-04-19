@@ -219,9 +219,19 @@ export function useReceiveWorkOrder() {
   return useMutation({
     mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
       const { data: before } = await supabase.from("work_orders").select("status, engineer_id").eq("id", woId).single();
+      const now = new Date().toISOString();
+      // Atomic accept: status + assignment + lock + ack — all in one update so realtime fires once.
       const { error } = await supabase
         .from("work_orders")
-        .update({ status: "received" as any, engineer_id: engineerId, engineer_name: engineerName, received_at: new Date().toISOString() } as any)
+        .update({
+          status: "received" as any,
+          engineer_id: engineerId,
+          engineer_name: engineerName,
+          received_at: now,
+          locked_engineer_id: engineerId,
+          locked_at: now,
+          engineer_notified_acknowledged_at: now,
+        } as any)
         .eq("id", woId);
       if (error) throw error;
       await logWOAction(woId, engineerId, engineerName, "received");

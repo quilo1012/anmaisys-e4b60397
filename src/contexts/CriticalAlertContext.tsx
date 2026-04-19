@@ -240,8 +240,12 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
 
   const triggerAlert = useCallback((payload: CriticalAlertPayload) => {
     setActive((current) => {
+      // Idempotency guard: same WO already active → do nothing (prevents double sound/modal).
+      if (current && current.woId === payload.woId) {
+        return current;
+      }
       if (current) {
-        // Already an active alert — queue this one
+        // Another alert is active — queue this one (dedup by woId).
         setQueue((q) => (q.find((x) => x.woId === payload.woId) ? q : [...q, payload]));
         return current;
       }

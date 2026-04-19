@@ -150,65 +150,32 @@ export function NotificationPanel() {
 
     const channel = supabase
       .channel(`notifications_panel_${user.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "work_orders" }, (payload) => {
-        const wo = payload.new as any;
-        // Ignore our own backfill on first second
-        if (Date.now() - mountedAt.current < 1500) return;
-        // Engineers/admins receive the critical full-screen modal via useWOAlerts —
-        // skip duplicate panel entries for them. Only managers see new-WO panel toasts.
-        if (role === "manager") {
-          const priority = PRIORITY_FROM_WO[wo.priority] || "medium";
-          addNotification({
-            type: "new_wo",
-            title: priority === "critical" ? "🚨 Critical Work Order" : "New Work Order",
-            message: `WO #${wo.wo_number} • ${wo.machine} — ${wo.description}`,
-            priority,
-            woId: wo.id,
-          });
-        }
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "work_orders" }, (payload) => {
-        const wo = payload.new as any;
-        const old = payload.old as any;
-        const priority = PRIORITY_FROM_WO[wo.priority] || "medium";
-
-        // Engineer assigned to this WO
-        if (!old.engineer_id && wo.engineer_id && wo.engineer_id === user.id) {
-          addNotification({
-            type: "assigned",
-            title: "Assigned to You",
-            message: `WO #${wo.wo_number} • ${wo.machine}`,
-            priority: priority === "low" ? "medium" : priority,
-            woId: wo.id,
-          });
-          return;
-        }
-
-        // Line stopped → high priority alert to engineers
-        if (!old.line_stopped && wo.line_stopped && (role === "engineer" || role === "admin" || role === "manager")) {
-          addNotification({
-            type: "overdue",
-            title: "⛔ Line Stopped",
-            message: `WO #${wo.wo_number} • ${wo.machine} — production halted`,
-            priority: "critical",
-            woId: wo.id,
-          });
-          return;
-        }
-
-        if (old.status !== wo.status) {
-          if (wo.engineer_id === user.id && old.status === "open" && wo.status === "received") return;
-          if (role === "admin" || role === "manager" || wo.engineer_id === user.id || wo.operator_id === user.id) {
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "work_orders", filter: "status=eq.open" },
+        (payload) => {
+          const wo = payload.new as any;
+          // Ignore our own backfill on first second
+          if (Date.now() - mountedAt.current < 1500) return;
+          // Skip if already acknowledged on the server (prevents replay on reconnect/backfill).
+          if (wo.engineer_notified_acknowledged_at) return;
+          // Engineers/admins receive the critical full-screen modal via useWOAlerts —
+          // skip duplicate panel entries for them. Only managers see new-WO panel toasts.
+          if (role === "manager") {
+            const priority = PRIORITY_FROM_WO[wo.priority] || "medium";
             addNotification({
-              type: "status_change",
-              title: "Status Changed",
-              message: `WO #${wo.wo_number} → ${String(wo.status).replace("_", " ")}`,
-              priority: "low",
+              type: "new_wo",
+              title: priority === "critical" ? "🚨 Critical Work Order" : "New Work Order",
+              message: `WO #${wo.wo_number} • ${wo.machine} — ${wo.description}`,
+              priority,
               woId: wo.id,
             });
           }
         }
-      })
+      )
+      // NOTE: UPDATE listener intentionally removed — it caused the alert to re-fire
+      // immediately after Accept (status open→received is an UPDATE event).
+      // Status/assignment/line-stopped notifications are no longer surfaced via the panel.
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "products" }, (payload) => {
         const product = payload.new as any;
         if ((role === "admin" || role === "manager") && product.quantity <= product.min_stock) {
