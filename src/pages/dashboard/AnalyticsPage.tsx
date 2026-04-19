@@ -46,12 +46,12 @@ export default function AnalyticsPage() {
     }
   };
 
-  const { data: rawWOs } = useWorkOrders();
+  const { data: rawWOs, isLoading: woLoading } = useWorkOrders();
   const { data: partsToday } = useTotalPartsUsedToday();
-  const { data: products } = useProducts();
-  const { data: machines } = useMachines();
-  const { data: engineerScores } = useEngineerScores();
-  const { data: woMetricsRange } = useAllWoMetrics({ from: startDate, to: endDate });
+  const { data: products, isLoading: productsLoading } = useProducts();
+  const { data: machines, isLoading: machinesLoading } = useMachines();
+  const { data: engineerScores, isLoading: scoresLoading } = useEngineerScores();
+  const { data: woMetricsRange, isLoading: metricsLoading } = useAllWoMetrics({ from: startDate, to: endDate });
 
   // Filter WOs by date range
   const allWOs = useMemo(() => {
