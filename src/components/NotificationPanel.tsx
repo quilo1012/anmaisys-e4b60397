@@ -121,7 +121,7 @@ export function NotificationPanel() {
       icon: <Icon className="h-5 w-5" />,
       action: n.woId ? {
         label: "Open",
-        onClick: () => navigate(`/dashboard/work-orders/${n.woId}`),
+        onClick: () => navigate(`/dashboard/wo/${n.woId}`),
       } : undefined,
     });
 
@@ -154,7 +154,9 @@ export function NotificationPanel() {
         const wo = payload.new as any;
         // Ignore our own backfill on first second
         if (Date.now() - mountedAt.current < 1500) return;
-        if (role === "admin" || role === "manager" || role === "engineer") {
+        // Engineers/admins receive the critical full-screen modal via useWOAlerts —
+        // skip duplicate panel entries for them. Only managers see new-WO panel toasts.
+        if (role === "manager") {
           const priority = PRIORITY_FROM_WO[wo.priority] || "medium";
           addNotification({
             type: "new_wo",
@@ -229,7 +231,7 @@ export function NotificationPanel() {
   const markAllRead = () => setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   const handleClick = (n: Notification) => {
     setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
-    if (n.woId) { setOpen(false); navigate(`/dashboard/work-orders/${n.woId}`); }
+    if (n.woId) { setOpen(false); navigate(`/dashboard/wo/${n.woId}`); }
   };
 
   return (
