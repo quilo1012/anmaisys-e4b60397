@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Bell, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface CriticalAlertPayload {
   woId: string;
@@ -251,17 +252,20 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const acknowledge = useCallback((woId?: string) => {
+    // Persist acknowledgment server-side so re-mounts / reconnects /
+    // tab refocus don't replay the alert. Fire-and-forget.
+    if (woId) {
+      void supabase.rpc("acknowledge_wo_alert", { _wo_id: woId });
+    }
     setActive((current) => {
       // If a specific woId was provided, only acknowledge when it matches
       // the active alert. This prevents another engineer's status update
       // from closing this engineer's modal prematurely.
       if (woId && current && current.woId !== woId) {
-        // Drop it from the queue if present, but keep current alert active
         setQueue((q) => q.filter((x) => x.woId !== woId));
         return current;
       }
       engineRef.current?.stop();
-      // Promote next queued alert (small delay so user sees acknowledgment)
       setQueue((q) => {
         if (q.length === 0) return q;
         const [next, ...rest] = q;
