@@ -254,9 +254,14 @@ export default function WorkOrderDetail() {
         </div>
 
         {/* Screen-only title with badges */}
-        <div className="flex items-center justify-between print:hidden">
-          <div>
-            <h2 className="text-2xl font-bold">{wo.requester_name} — {wo.machine}</h2>
+        <div className="flex items-start justify-between gap-4 print:hidden">
+          <div className="flex flex-col gap-1 min-w-0 flex-1">
+            <h2 className="text-2xl font-bold truncate" title={wo.requester_name}>
+              {wo.requester_name}
+            </h2>
+            <p className="text-base text-muted-foreground truncate" title={wo.machine}>
+              {wo.machine}
+            </p>
             <div className="flex items-center gap-2 flex-wrap mt-1">
               <p className="text-muted-foreground text-sm font-mono">{woLabel}</p>
               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} />
@@ -268,7 +273,7 @@ export default function WorkOrderDetail() {
               )}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <Badge variant="outline" className={`text-sm px-3 py-1 ${pri.className}`}>{pri.label}</Badge>
             <Badge variant="outline" className={`text-sm px-3 py-1 ${cfg.className}`}>{cfg.label}</Badge>
           </div>
