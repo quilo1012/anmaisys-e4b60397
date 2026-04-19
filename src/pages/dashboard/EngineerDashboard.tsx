@@ -474,11 +474,7 @@ export default function EngineerDashboard() {
             <div className="flex gap-1.5 items-center">
               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
               {wo.status === "in_progress" && wo.started_at && <LiveTimer startedAt={wo.started_at} />}
-              {!isOpen && (
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}>
-                  <Printer className="h-4 w-4" />
-                </Button>
-              )}
+              {/* Print button hidden for engineers (admin/manager only) */}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm">
@@ -747,11 +743,7 @@ export default function EngineerDashboard() {
                                     <DesktopFinishButton wo={wo} />
                                   </>
                                 )}
-                                {wo.status !== "open" && (
-                                  <Button size="sm" variant="ghost" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}>
-                                    <Printer className="h-3 w-3 mr-1" /> Print
-                                  </Button>
-                                )}
+                                {/* Print button hidden for engineers (admin/manager only) */}
                               </div>
                             </td>
                           </tr>

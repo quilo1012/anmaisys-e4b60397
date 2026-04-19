@@ -170,7 +170,7 @@ export default function WorkOrderDetail() {
   const woLabel = `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`;
 
   // ── New simplified metric model (post Accept/Start split) ──────────────
-  // Resposta = created → accepted (or first action) | Execução = started → finished | Total = created → finished
+  // Response = created → accepted (or first action) | Execution = started → finished | Total = created → finished
   const acceptedAt = (wo as any).accepted_at || wo.received_at || wo.started_at;
   const responseMin = acceptedAt
     ? differenceInMinutes(new Date(acceptedAt), new Date(wo.created_at))
@@ -215,41 +215,45 @@ export default function WorkOrderDetail() {
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
-              <Printer className="h-4 w-4" /> Print
-            </Button>
-            <Button variant="outline" size="sm" onClick={async () => {
-              const el = document.getElementById("wo-print-content");
-              if (!el) return;
-              const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-                import("html2canvas"),
-                import("jspdf"),
-              ]);
-              document.body.classList.add("pdf-export");
-              try {
-                const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
-                const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-                const pageW = 210, pageH = 297, margin = 10;
-                const imgW = pageW - margin * 2;
-                const imgH = (canvas.height * imgW) / canvas.width;
-                const imgData = canvas.toDataURL("image/png");
-                let heightLeft = imgH;
-                let position = margin;
-                pdf.addImage(imgData, "PNG", margin, position, imgW, imgH);
-                heightLeft -= pageH - margin * 2;
-                while (heightLeft > 0) {
-                  pdf.addPage();
-                  position = margin - (imgH - heightLeft);
-                  pdf.addImage(imgData, "PNG", margin, position, imgW, imgH);
-                  heightLeft -= pageH - margin * 2;
-                }
-                pdf.save(`${woLabel}_${format(new Date(), "yyyyMMdd")}.pdf`);
-              } finally {
-                document.body.classList.remove("pdf-export");
-              }
-            }} className="gap-2">
-              <Printer className="h-4 w-4" /> PDF
-            </Button>
+            {(role === "admin" || role === "manager") && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
+                  <Printer className="h-4 w-4" /> Print
+                </Button>
+                <Button variant="outline" size="sm" onClick={async () => {
+                  const el = document.getElementById("wo-print-content");
+                  if (!el) return;
+                  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+                    import("html2canvas"),
+                    import("jspdf"),
+                  ]);
+                  document.body.classList.add("pdf-export");
+                  try {
+                    const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+                    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+                    const pageW = 210, pageH = 297, margin = 10;
+                    const imgW = pageW - margin * 2;
+                    const imgH = (canvas.height * imgW) / canvas.width;
+                    const imgData = canvas.toDataURL("image/png");
+                    let heightLeft = imgH;
+                    let position = margin;
+                    pdf.addImage(imgData, "PNG", margin, position, imgW, imgH);
+                    heightLeft -= pageH - margin * 2;
+                    while (heightLeft > 0) {
+                      pdf.addPage();
+                      position = margin - (imgH - heightLeft);
+                      pdf.addImage(imgData, "PNG", margin, position, imgW, imgH);
+                      heightLeft -= pageH - margin * 2;
+                    }
+                    pdf.save(`${woLabel}_${format(new Date(), "yyyyMMdd")}.pdf`);
+                  } finally {
+                    document.body.classList.remove("pdf-export");
+                  }
+                }} className="gap-2">
+                  <Printer className="h-4 w-4" /> PDF
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -508,7 +512,7 @@ export default function WorkOrderDetail() {
                         </ul>
                       </div>
                     ))}
-                    <p className="text-xs print:text-[7pt] font-medium pt-2 border-t border-border mt-2">STATUS: {requiredDone}/{required.length} itens obrigatórios completos {requiredDone === required.length && required.length > 0 ? "✓" : ""}</p>
+                    <p className="text-xs print:text-[7pt] font-medium pt-2 border-t border-border mt-2">STATUS: {requiredDone}/{required.length} required items completed {requiredDone === required.length && required.length > 0 ? "✓" : ""}</p>
                   </div>
                 );
               })()}
