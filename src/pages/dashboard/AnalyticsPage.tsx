@@ -144,17 +144,27 @@ export default function AnalyticsPage() {
     return Object.entries(pc).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([problem, count]) => ({ problem, count }));
   }, [allWOs]);
 
+  const metricsById = useMemo(() => {
+    const m = new Map<string, typeof woMetricsRange[number]>();
+    (woMetricsRange ?? []).forEach((row) => { if (row.id) m.set(row.id, row); });
+    return m;
+  }, [woMetricsRange]);
+
   const slaCompliance = useMemo(() => {
     if (!allWOs) return { rate: 0, total: 0, met: 0 };
-    const relevant = allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.received_at);
+    const relevant = allWOs.filter((w) => DONE_STATUSES.includes(w.status));
     let met = 0;
+    let counted = 0;
     relevant.forEach((wo) => {
+      const m = metricsById.get(wo.id);
+      if (!m || typeof m.response_time_sec !== "number") return;
+      counted++;
       const target = SLA_TARGETS[wo.priority || "medium"] || 60;
-      const responseMin = differenceInMinutes(new Date(wo.received_at!), new Date(wo.created_at));
+      const responseMin = m.response_time_sec / 60;
       if (responseMin <= target) met++;
     });
-    return { rate: relevant.length ? Math.round((met / relevant.length) * 100) : 0, total: relevant.length, met };
-  }, [allWOs]);
+    return { rate: counted ? Math.round((met / counted) * 100) : 0, total: counted, met };
+  }, [allWOs, metricsById]);
 
   const ordersByPriority = useMemo(() => {
     if (!allWOs) return [];
@@ -184,12 +194,14 @@ export default function AnalyticsPage() {
   const downtimeByMachine = useMemo(() => {
     if (!allWOs) return [];
     const map: Record<string, number> = {};
-    allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.started_at && (w.finished_at || w.completed_at)).forEach((wo) => {
-      const repair = differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at!));
+    allWOs.filter((w) => DONE_STATUSES.includes(w.status)).forEach((wo) => {
+      const m = metricsById.get(wo.id);
+      if (!m || typeof m.active_repair_sec !== "number") return;
+      const repair = m.active_repair_sec / 60;
       map[wo.machine] = (map[wo.machine] || 0) + repair;
     });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([machine, minutes]) => ({ machine, minutes }));
-  }, [allWOs]);
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([machine, minutes]) => ({ machine, minutes: Math.round(minutes) }));
+  }, [allWOs, metricsById]);
 
   // Most used machines (highest WO count)
   const mostUsedMachines = useMemo(() => {
@@ -218,23 +230,29 @@ export default function AnalyticsPage() {
 
   const engineerPerformance = useMemo(() => {
     if (!allWOs) return [];
-    const engineers: Record<string, { name: string; completed: number; totalResp: number; totalMTTR: number }> = {};
-    allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.engineer_id && w.started_at).forEach((wo) => {
+    const engineers: Record<string, { name: string; completed: number; totalResp: number; totalMTTR: number; respCount: number; mttrCount: number }> = {};
+    allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.engineer_id).forEach((wo) => {
       const eid = wo.engineer_id!;
-      const name = wo.engineer_name || wo.engineer?.name || "Unknown";
-      if (!engineers[eid]) engineers[eid] = { name, completed: 0, totalResp: 0, totalMTTR: 0 };
+      const name = wo.engineer_name || (wo as any).engineer?.name || "Unknown";
+      if (!engineers[eid]) engineers[eid] = { name, completed: 0, totalResp: 0, totalMTTR: 0, respCount: 0, mttrCount: 0 };
       engineers[eid].completed++;
-      engineers[eid].totalResp += differenceInMinutes(new Date(wo.started_at!), new Date(wo.created_at));
-      const end = wo.finished_at || wo.completed_at;
-      if (end) engineers[eid].totalMTTR += differenceInMinutes(new Date(end), new Date(wo.started_at!));
+      const m = metricsById.get(wo.id);
+      if (m && typeof m.response_time_sec === "number") {
+        engineers[eid].totalResp += m.response_time_sec / 60;
+        engineers[eid].respCount++;
+      }
+      if (m && typeof m.active_repair_sec === "number") {
+        engineers[eid].totalMTTR += m.active_repair_sec / 60;
+        engineers[eid].mttrCount++;
+      }
     });
     return Object.values(engineers).map((e) => ({
       name: e.name,
       completed: e.completed,
-      avgResponse: Math.round(e.totalResp / e.completed),
-      avgMTTR: Math.round(e.totalMTTR / e.completed),
+      avgResponse: e.respCount ? Math.round(e.totalResp / e.respCount) : 0,
+      avgMTTR: e.mttrCount ? Math.round(e.totalMTTR / e.mttrCount) : 0,
     })).sort((a, b) => b.completed - a.completed);
-  }, [allWOs]);
+  }, [allWOs, metricsById]);
 
 
   // Merge ranking with scores
