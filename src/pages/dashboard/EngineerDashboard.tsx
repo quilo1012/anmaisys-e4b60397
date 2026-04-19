@@ -18,6 +18,7 @@ import { stopAlertSound } from "@/lib/shifts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
 import { useUploadWOPhoto, useWOPhotos } from "@/hooks/useWOPhotos";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
@@ -174,6 +175,8 @@ export default function EngineerDashboard() {
   const navigate = useNavigate();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
   useWOAlerts();
+  const { promptEnableAudio, audioEnabled } = useCriticalAlert();
+  useEffect(() => { if (!audioEnabled) promptEnableAudio(); }, [audioEnabled, promptEnableAudio]);
   const { alerts: predictiveAlerts } = usePredictiveAlerts();
   const { data: onlineEngineers } = useOnlineEngineers();
   const [focusMode, setFocusMode] = useState(false);

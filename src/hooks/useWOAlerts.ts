@@ -1,19 +1,20 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { playAlertSound, stopAlertSound, warmUpAudio, requestNotificationPermission, sendWebNotification, playNotificationChime } from "@/lib/shifts";
+import { stopAlertSound, requestNotificationPermission, sendWebNotification } from "@/lib/shifts";
 import { useToast } from "@/hooks/use-toast";
+import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 
 export function useWOAlerts() {
   const { user, role } = useAuth();
   const { toast } = useToast();
+  const { triggerAlert, acknowledge } = useCriticalAlert();
 
-  // Warm up AudioContext on first user gesture
+  // Request notification permission on first user gesture
   useEffect(() => {
     if (!role) return;
 
     const handler = () => {
-      warmUpAudio();
       requestNotificationPermission();
       document.removeEventListener("click", handler);
       document.removeEventListener("keydown", handler);
@@ -27,7 +28,7 @@ export function useWOAlerts() {
     };
   }, [role]);
 
-  // Engineers, Admins & Managers: continuous alert on new WO, stop on received
+  // Engineers & Admins: critical full-screen alert + audio loop + vibration
   useEffect(() => {
     if (!role || !user) return;
     if (role !== "engineer" && role !== "admin") return;
@@ -41,16 +42,36 @@ export function useWOAlerts() {
         { event: "INSERT", schema: "public", table: "work_orders" },
         (payload) => {
           console.log("[WOAlerts] Received INSERT payload", payload);
+          const wo = payload.new as {
+            id: string;
+            wo_number: number;
+            requester_name: string;
+            machine: string;
+            description: string;
+            priority?: string;
+            notified_engineers: string[] | null;
+          };
 
-          // Sound alerts disabled — visual notifications only
-          const wo = payload.new as { id: string; requester_name: string; machine: string; description: string; notified_engineers: string[] | null };
-          
-          const notifBody = `Requester: ${wo.requester_name} — Machine: ${wo.machine}\n${wo.description}`;
-          sendWebNotification("🔔 New Work Order!", notifBody);
-          
+          // Layer 1+3+4: critical alert (audio loop, modal, vibration, flash title, favicon)
+          triggerAlert({
+            woId: wo.id,
+            woNumber: wo.wo_number,
+            machine: wo.machine,
+            requester: wo.requester_name,
+            description: wo.description,
+            priority: wo.priority,
+          });
+
+          // Background notification (when tab hidden)
+          sendWebNotification(
+            "🚨 NEW WORK ORDER",
+            `${wo.machine} — ${wo.requester_name}\n${wo.description}`
+          );
+
+          // Toast as supplementary signal
           toast({
-            title: "🔔 New Work Order!",
-            description: `Requester: ${wo.requester_name} — Machine: ${wo.machine}\n${wo.description}`,
+            title: "🚨 New Work Order",
+            description: `${wo.machine} — ${wo.requester_name}`,
             duration: 10000,
           });
 
@@ -71,13 +92,14 @@ export function useWOAlerts() {
           const updated = payload.new as { status: string };
           if (["received", "in_progress"].includes(updated.status)) {
             stopAlertSound();
+            acknowledge();
           }
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [role, user, toast]);
+  }, [role, user, toast, triggerAlert, acknowledge]);
 
   // Operators: single chime when their WO is finished/closed
   useEffect(() => {
@@ -95,7 +117,6 @@ export function useWOAlerts() {
           if (wo.operator_id !== user.id) return;
           if (["finished", "closed"].includes(wo.status)) {
             console.log("[WOAlerts] Operator WO completed:", wo.id);
-            // Sound disabled — visual notification only
             const woLabel = `WO-${String(wo.wo_number).padStart(6, "0")}`;
             sendWebNotification(`✅ ${woLabel} Completed!`, `Machine: ${wo.machine} — Status: ${wo.status}`);
             toast({
