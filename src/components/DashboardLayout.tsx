@@ -264,22 +264,37 @@ function SidebarShell({
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar collapsible="offcanvas" className="border-r-0 print:hidden z-50">
-        <div className="flex items-center justify-center border-b border-sidebar-border px-4 py-6">
+        <div className="flex flex-col items-center gap-2 border-b border-sidebar-border bg-sidebar-accent/30 px-4 py-5">
           <img
             src={appliedLogo}
             alt="Applied Nutrition"
-            className="h-20 w-auto rounded-md object-contain"
+            className="h-16 w-16 rounded-lg object-contain shadow-sm ring-1 ring-sidebar-border"
           />
+          <div className="text-center">
+            <div className="text-sm font-semibold tracking-wide text-sidebar-foreground">
+              AN MAINTENANCE
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.15em] text-sidebar-foreground/50">
+              Industrial CMMS
+            </div>
+          </div>
         </div>
         <SidebarContent>
           <SidebarNav filteredItems={filteredItems} />
         </SidebarContent>
-        <div className="mt-auto p-4 border-t border-sidebar-border">
-          <div className="text-sm text-sidebar-foreground/70 mb-2 truncate">
-            {profile?.name}
-          </div>
-          <div className="text-xs text-sidebar-foreground/50 mb-3 capitalize">
-            {role ? roleTitle[role] : ""}
+        <div className="mt-auto border-t border-sidebar-border p-4">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-accent text-sm font-semibold text-sidebar-foreground">
+              {profile?.name?.charAt(0).toUpperCase() || "?"}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-sidebar-foreground">
+                {profile?.name}
+              </div>
+              <div className="truncate text-[11px] uppercase tracking-wider text-sidebar-foreground/50">
+                {role ? roleTitle[role] : ""}
+              </div>
+            </div>
           </div>
           <Button
             variant="ghost"
