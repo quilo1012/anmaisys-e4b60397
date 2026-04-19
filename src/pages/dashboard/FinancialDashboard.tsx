@@ -3,10 +3,13 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, TrendingUp, Factory, Wrench } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DollarSign, TrendingUp, Factory, Wrench, ShieldAlert } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useProducts } from "@/hooks/useStock";
 import { useMachines } from "@/hooks/useMachines";
+import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { differenceInHours, differenceInMinutes, startOfDay, startOfMonth, format } from "date-fns";
@@ -15,6 +18,39 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 const DONE_STATUSES = ["completed", "closed", "finished", "force_closed"];
 
 export default function FinancialDashboard() {
+  const { role, loading: roleLoading } = useRole();
+
+  // Defense-in-depth role guard — runs before any data hooks fire.
+  if (roleLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+  if (role !== "admin" && role !== "manager") {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+          <ShieldAlert className="h-12 w-12 text-destructive" />
+          <h1 className="text-xl font-semibold">Access Denied</h1>
+          <p className="text-muted-foreground text-sm max-w-md">
+            The Financial Dashboard is restricted to admins and managers.
+          </p>
+          <Button asChild variant="outline">
+            <Link to="/">Go back</Link>
+          </Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return <FinancialDashboardContent />;
+}
+
+function FinancialDashboardContent() {
   const { data: allWOs } = useWorkOrders();
   const { data: products } = useProducts();
   const { data: machines } = useMachines();

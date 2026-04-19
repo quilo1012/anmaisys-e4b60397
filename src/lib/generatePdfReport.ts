@@ -2,6 +2,33 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import type { WorkOrder } from "@/hooks/useWorkOrders";
+import { invokeFunction } from "@/lib/invokeFunction";
+
+/**
+ * Server-side authorization for PDF generation.
+ * Returns true if the caller (admin/manager) is allowed to proceed.
+ * Throws with a friendly message on 403 / network failure.
+ */
+export async function authorizePdfGeneration(opts?: {
+  reportType?: string;
+  entityId?: string;
+}): Promise<true> {
+  const { data, error } = await invokeFunction<{ ok?: boolean; error?: string }>(
+    "generate-wo-pdf-auth",
+    {
+      reportType: opts?.reportType ?? "wo_report",
+      entityId: opts?.entityId,
+    }
+  );
+  if (error) {
+    const status = (error as any)?.context?.status;
+    if (status === 403) throw new Error("You don't have permission to generate this report.");
+    if (status === 401) throw new Error("Your session has expired. Please sign in again.");
+    throw new Error("Could not authorize report generation. Try again.");
+  }
+  if (!data?.ok) throw new Error("Report generation was not authorized.");
+  return true;
+}
 
 interface ReportData {
   workOrders: WorkOrder[];

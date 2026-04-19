@@ -33,7 +33,7 @@ export function useWOAlerts() {
     if (!role || !user) return;
     if (role !== "engineer" && role !== "admin") return;
 
-    console.log("[WOAlerts] Subscribing to work_orders for engineer/admin", user.id);
+    
 
     const channel = supabase
       .channel("wo_alerts")
@@ -41,7 +41,7 @@ export function useWOAlerts() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "work_orders" },
         (payload) => {
-          console.log("[WOAlerts] Received INSERT payload", payload);
+          
           const wo = payload.new as {
             id: string;
             wo_number: number;
@@ -106,7 +106,7 @@ export function useWOAlerts() {
   useEffect(() => {
     if (role !== "operator" || !user) return;
 
-    console.log("[WOAlerts] Subscribing to operator notifications for", user.id);
+    
 
     const channel = supabase
       .channel("wo_operator_alerts")
@@ -117,7 +117,7 @@ export function useWOAlerts() {
           const wo = payload.new as { id: string; status: string; operator_id: string; machine: string; wo_number: number };
           if (wo.operator_id !== user.id) return;
           if (["finished", "closed"].includes(wo.status)) {
-            console.log("[WOAlerts] Operator WO completed:", wo.id);
+            
             const woLabel = `WO-${String(wo.wo_number).padStart(6, "0")}`;
             sendWebNotification(`✅ ${woLabel} Completed!`, `Machine: ${wo.machine} — Status: ${wo.status}`);
             toast({
