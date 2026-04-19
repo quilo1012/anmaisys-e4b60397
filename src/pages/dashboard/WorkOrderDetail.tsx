@@ -202,16 +202,13 @@ export default function WorkOrderDetail() {
 
         {/* ═══ PRINT-ONLY: Industrial Document Header ═══ */}
         <div className="hidden print:block mb-4">
-          <div className="border-b-2 border-black pb-3 grid grid-cols-3 items-center">
-            <div className="text-left">
-              <p className="text-sm font-bold font-mono">{woLabel}</p>
-              <p className="text-[8pt] text-gray-600">{format(new Date(wo.created_at), "dd/MM/yyyy HH:mm")}</p>
-            </div>
-            <div className="flex justify-center">
+          <div className="border-b-2 border-black pb-3 flex items-center justify-between">
+            <div className="flex-shrink-0">
               <img src="/appliedlogo.jpeg" alt="Applied Nutrition" crossOrigin="anonymous" className="h-16 w-auto object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
             </div>
             <div className="text-right">
-              <p className="text-lg font-bold tracking-widest">WORK ORDER</p>
+              <p className="text-base font-bold font-mono">{woLabel}</p>
+              <p className="text-[8pt] text-gray-600">{format(new Date(wo.created_at), "dd/MM/yyyy HH:mm")}</p>
             </div>
           </div>
           {/* Document metadata row */}
