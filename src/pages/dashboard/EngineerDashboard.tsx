@@ -182,6 +182,9 @@ export default function EngineerDashboard() {
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
   const [pauseDialogWO, setPauseDialogWO] = useState<string | null>(null);
+  // BUG 4: state for "line still stopped" modal when trying to finish
+  const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string } | null>(null);
+  const [resumingThenFinish, setResumingThenFinish] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
   
   // PIN dialog state
