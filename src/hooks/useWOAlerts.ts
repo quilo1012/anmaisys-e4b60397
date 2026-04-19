@@ -126,9 +126,11 @@ export function useWOAlerts() {
         { event: "UPDATE", schema: "public", table: "work_orders" },
         (payload) => {
           const wo = payload.new as { id: string; status: string; operator_id: string; machine: string; wo_number: number };
+          const old = payload.old as { status?: string };
           if (wo.operator_id !== user.id) return;
+          // Only react when status actually changes — avoids spurious chimes on metadata updates.
+          if (old?.status === wo.status) return;
           if (["finished", "closed"].includes(wo.status)) {
-            
             const woLabel = `WO-${String(wo.wo_number).padStart(6, "0")}`;
             sendWebNotification(`✅ ${woLabel} Completed!`, `Machine: ${wo.machine} — Status: ${wo.status}`);
             toast({

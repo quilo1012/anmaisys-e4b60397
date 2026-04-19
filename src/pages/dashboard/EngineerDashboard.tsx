@@ -309,18 +309,15 @@ function EngineerDashboardContent() {
     setPinDialogOpen(true);
   }, []);
 
-  // STEP 1 — ACCEPT (open → received) — PIN + lock to engineer
+  // STEP 1 — ACCEPT (open → received) — PIN + atomic lock+ack via useReceiveWorkOrder
   const handleAcceptClick = (woId: string) => {
     stopAlertSound();
     requirePin("Confirm ACCEPT", async (engineer) => {
       setCurrentEngineer(engineer);
       try {
+        // Single atomic update: status + engineer + lock + ack timestamp.
+        // Prevents the alert from re-firing via realtime UPDATE event.
         await acceptWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
-        // Lock the WO to this engineer so other engineers see a lock card.
-        await supabase
-          .from("work_orders")
-          .update({ locked_engineer_id: engineer.id, locked_at: new Date().toISOString() } as any)
-          .eq("id", woId);
         toast({ title: "✅ Order accepted", description: "Head to the machine, then tap 'I Have Arrived'." });
       } catch (err: any) {
         toast({ title: "Error accepting WO", description: err.message, variant: "destructive" });
