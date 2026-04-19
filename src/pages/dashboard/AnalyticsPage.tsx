@@ -144,17 +144,27 @@ export default function AnalyticsPage() {
     return Object.entries(pc).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([problem, count]) => ({ problem, count }));
   }, [allWOs]);
 
+  const metricsById = useMemo(() => {
+    const m = new Map<string, typeof woMetricsRange[number]>();
+    (woMetricsRange ?? []).forEach((row) => { if (row.id) m.set(row.id, row); });
+    return m;
+  }, [woMetricsRange]);
+
   const slaCompliance = useMemo(() => {
     if (!allWOs) return { rate: 0, total: 0, met: 0 };
-    const relevant = allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.received_at);
+    const relevant = allWOs.filter((w) => DONE_STATUSES.includes(w.status));
     let met = 0;
+    let counted = 0;
     relevant.forEach((wo) => {
+      const m = metricsById.get(wo.id);
+      if (!m || typeof m.response_time_sec !== "number") return;
+      counted++;
       const target = SLA_TARGETS[wo.priority || "medium"] || 60;
-      const responseMin = differenceInMinutes(new Date(wo.received_at!), new Date(wo.created_at));
+      const responseMin = m.response_time_sec / 60;
       if (responseMin <= target) met++;
     });
-    return { rate: relevant.length ? Math.round((met / relevant.length) * 100) : 0, total: relevant.length, met };
-  }, [allWOs]);
+    return { rate: counted ? Math.round((met / counted) * 100) : 0, total: counted, met };
+  }, [allWOs, metricsById]);
 
   const ordersByPriority = useMemo(() => {
     if (!allWOs) return [];
