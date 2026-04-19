@@ -169,6 +169,7 @@ export default function EngineerDashboard() {
   const pauseWO = usePauseWorkOrder();
   const resumeWO = useResumeWorkOrder();
   const machineBackToWork = useMachineBackToWork();
+  const resumeLine = useResumeLine();
   const uploadPhoto = useUploadWOPhoto();
   const navigate = useNavigate();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
