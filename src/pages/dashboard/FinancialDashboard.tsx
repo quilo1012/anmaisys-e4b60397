@@ -67,15 +67,17 @@ function FinancialDashboardContent() {
     },
   });
 
-  // Fetch engineer labor rates
+  // Fetch engineer labor rates via admin-only SECURITY DEFINER RPC
   const { data: profiles } = useQuery({
     queryKey: ["profiles_labor_rates"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, name, labor_rate");
+      const { data, error } = await supabase.rpc("list_profile_labor_rates");
       if (error) throw error;
-      return data as { id: string; name: string; labor_rate: number }[];
+      return (data ?? []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        labor_rate: Number(r.labor_rate) || 0,
+      }));
     },
   });
 

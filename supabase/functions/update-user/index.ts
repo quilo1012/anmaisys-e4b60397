@@ -51,6 +51,11 @@ Deno.serve(async (req) => {
     // Only admins can assign admin role
     if (role === "admin" && !isAdmin) throw new Error("Only admins can assign the Admin role");
 
+    // Only admins can modify labor_rate (compensation field)
+    if (labor_rate !== undefined && !isAdmin) {
+      throw new Error("Only admins can modify labor rates");
+    }
+
     if (email) {
       const { error: emailError } = await supabaseAdmin.auth.admin.updateUserById(userId, { email });
       if (emailError) throw emailError;

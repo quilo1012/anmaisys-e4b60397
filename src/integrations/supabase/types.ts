@@ -1270,7 +1270,6 @@ export type Database = {
           created_at: string | null
           email: string | null
           id: string | null
-          labor_rate: number | null
           last_seen_at: string | null
           name: string | null
           shift: string | null
@@ -1282,7 +1281,6 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           id?: string | null
-          labor_rate?: number | null
           last_seen_at?: string | null
           name?: string | null
           shift?: string | null
@@ -1294,7 +1292,6 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           id?: string | null
-          labor_rate?: number | null
           last_seen_at?: string | null
           name?: string | null
           shift?: string | null
@@ -1413,6 +1410,7 @@ export type Database = {
         Args: { _pin: string; _signed_by_name?: string; _wo_id: string }
         Returns: Json
       }
+      get_profile_labor_rate: { Args: { _user_id: string }; Returns: number }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -1423,6 +1421,14 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      list_profile_labor_rates: {
+        Args: never
+        Returns: {
+          id: string
+          labor_rate: number
+          name: string
+        }[]
       }
       log_audit_event: {
         Args: {
