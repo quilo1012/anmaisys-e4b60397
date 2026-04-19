@@ -174,6 +174,8 @@ export default function EngineerDashboard() {
   const navigate = useNavigate();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
   useWOAlerts();
+  const { promptEnableAudio, audioEnabled } = useCriticalAlert();
+  useEffect(() => { if (!audioEnabled) promptEnableAudio(); }, [audioEnabled, promptEnableAudio]);
   const { alerts: predictiveAlerts } = usePredictiveAlerts();
   const { data: onlineEngineers } = useOnlineEngineers();
   const [focusMode, setFocusMode] = useState(false);
