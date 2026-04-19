@@ -77,8 +77,8 @@ export default function Login() {
           maskImage: "radial-gradient(ellipse at center, black 40%, transparent 80%)",
         }}
       />
-      {/* noise / vignette */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_55%,hsl(222_60%_3%)_100%)]" />
+      {/* soft vignette (subtle) */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_70%,hsl(222_55%_4%/0.7)_100%)]" />
 
       {/* ── Top bar ──────────────────────────────────────── */}
       <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 pt-6 sm:px-10">
