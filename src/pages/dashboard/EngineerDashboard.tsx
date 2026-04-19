@@ -193,7 +193,7 @@ function EngineerDashboardContent() {
   const navigate = useNavigate();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
   useWOAlerts();
-  const { promptEnableAudio, audioEnabled } = useCriticalAlert();
+  const { promptEnableAudio, audioEnabled, acknowledge } = useCriticalAlert();
   useEffect(() => { if (!audioEnabled) promptEnableAudio(); }, [audioEnabled, promptEnableAudio]);
   const { alerts: predictiveAlerts } = usePredictiveAlerts();
   const { data: onlineEngineers } = useOnlineEngineers();
