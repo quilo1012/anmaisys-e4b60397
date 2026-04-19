@@ -795,7 +795,30 @@ export default function EngineerDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Pause Reason Dialog */}
+      {/* BUG 4: Line still stopped — block finish until line is resumed */}
+      <Dialog open={!!stoppedFinishCtx} onOpenChange={(o) => { if (!o) setStoppedFinishCtx(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" /> Line is still marked as stopped
+            </DialogTitle>
+            <DialogDescription>
+              You must resume the line before finishing this work order. Otherwise the
+              factory dashboard will keep showing the line as stopped after the WO is closed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setStoppedFinishCtx(null)} disabled={resumingThenFinish}>
+              Go back
+            </Button>
+            <Button onClick={handleResumeThenFinish} disabled={resumingThenFinish}>
+              {resumingThenFinish && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <PlayCircle className="h-4 w-4 mr-2" />
+              Resume line now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!pauseDialogWO} onOpenChange={(open) => { if (!open) { setPauseDialogWO(null); setPauseReason(""); } }}>
         <DialogContent>
           <DialogHeader>
