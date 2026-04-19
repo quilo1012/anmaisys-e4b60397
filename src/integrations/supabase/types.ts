@@ -371,6 +371,44 @@ export type Database = {
         }
         Relationships: []
       }
+      machine_assignments: {
+        Row: {
+          assigned_from: string
+          assigned_line: string
+          assigned_until: string | null
+          id: string
+          machine_id: string
+          moved_by: string | null
+          notes: string | null
+        }
+        Insert: {
+          assigned_from?: string
+          assigned_line: string
+          assigned_until?: string | null
+          id?: string
+          machine_id: string
+          moved_by?: string | null
+          notes?: string | null
+        }
+        Update: {
+          assigned_from?: string
+          assigned_line?: string
+          assigned_until?: string | null
+          id?: string
+          machine_id?: string
+          moved_by?: string | null
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "machine_assignments_machine_id_fkey"
+            columns: ["machine_id"]
+            isOneToOne: false
+            referencedRelation: "machines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       machine_events: {
         Row: {
           action_taken: string | null
@@ -455,9 +493,12 @@ export type Database = {
       }
       machines: {
         Row: {
+          category: Database["public"]["Enums"]["machine_category"] | null
           code: string | null
           created_at: string
+          current_line: string | null
           current_location: string
+          fixed_line: string | null
           health_score: number
           id: string
           last_maintenance_date: string | null
@@ -470,9 +511,12 @@ export type Database = {
           status: string | null
         }
         Insert: {
+          category?: Database["public"]["Enums"]["machine_category"] | null
           code?: string | null
           created_at?: string
+          current_line?: string | null
           current_location?: string
+          fixed_line?: string | null
           health_score?: number
           id?: string
           last_maintenance_date?: string | null
@@ -485,9 +529,12 @@ export type Database = {
           status?: string | null
         }
         Update: {
+          category?: Database["public"]["Enums"]["machine_category"] | null
           code?: string | null
           created_at?: string
+          current_line?: string | null
           current_location?: string
+          fixed_line?: string | null
           health_score?: number
           id?: string
           last_maintenance_date?: string | null
@@ -1068,6 +1115,7 @@ export type Database = {
           engineer_notified_acknowledged_at: string | null
           finished_at: string | null
           id: string
+          line_at_time: string | null
           line_resumed_at: string | null
           line_resumed_by: string | null
           line_stopped: boolean
@@ -1107,6 +1155,7 @@ export type Database = {
           engineer_notified_acknowledged_at?: string | null
           finished_at?: string | null
           id?: string
+          line_at_time?: string | null
           line_resumed_at?: string | null
           line_resumed_by?: string | null
           line_stopped?: boolean
@@ -1146,6 +1195,7 @@ export type Database = {
           engineer_notified_acknowledged_at?: string | null
           finished_at?: string | null
           id?: string
+          line_at_time?: string | null
           line_resumed_at?: string | null
           line_resumed_by?: string | null
           line_stopped?: boolean
@@ -1443,6 +1493,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      move_machine_to_line: {
+        Args: { _machine_id: string; _new_line: string; _notes?: string }
+        Returns: undefined
+      }
       reopen_wo_recurrence: {
         Args: { _reason: string; _wo_id: string }
         Returns: Json
@@ -1472,6 +1526,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "engineer" | "operator" | "manager" | "viewer"
+      machine_category: "line_fixed" | "line_mobile" | "support"
       wo_status:
         | "open"
         | "in_progress"
@@ -1609,6 +1664,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "engineer", "operator", "manager", "viewer"],
+      machine_category: ["line_fixed", "line_mobile", "support"],
       wo_status: [
         "open",
         "in_progress",
