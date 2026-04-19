@@ -230,23 +230,29 @@ export default function AnalyticsPage() {
 
   const engineerPerformance = useMemo(() => {
     if (!allWOs) return [];
-    const engineers: Record<string, { name: string; completed: number; totalResp: number; totalMTTR: number }> = {};
-    allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.engineer_id && w.started_at).forEach((wo) => {
+    const engineers: Record<string, { name: string; completed: number; totalResp: number; totalMTTR: number; respCount: number; mttrCount: number }> = {};
+    allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.engineer_id).forEach((wo) => {
       const eid = wo.engineer_id!;
-      const name = wo.engineer_name || wo.engineer?.name || "Unknown";
-      if (!engineers[eid]) engineers[eid] = { name, completed: 0, totalResp: 0, totalMTTR: 0 };
+      const name = wo.engineer_name || (wo as any).engineer?.name || "Unknown";
+      if (!engineers[eid]) engineers[eid] = { name, completed: 0, totalResp: 0, totalMTTR: 0, respCount: 0, mttrCount: 0 };
       engineers[eid].completed++;
-      engineers[eid].totalResp += differenceInMinutes(new Date(wo.started_at!), new Date(wo.created_at));
-      const end = wo.finished_at || wo.completed_at;
-      if (end) engineers[eid].totalMTTR += differenceInMinutes(new Date(end), new Date(wo.started_at!));
+      const m = metricsById.get(wo.id);
+      if (m && typeof m.response_time_sec === "number") {
+        engineers[eid].totalResp += m.response_time_sec / 60;
+        engineers[eid].respCount++;
+      }
+      if (m && typeof m.active_repair_sec === "number") {
+        engineers[eid].totalMTTR += m.active_repair_sec / 60;
+        engineers[eid].mttrCount++;
+      }
     });
     return Object.values(engineers).map((e) => ({
       name: e.name,
       completed: e.completed,
-      avgResponse: Math.round(e.totalResp / e.completed),
-      avgMTTR: Math.round(e.totalMTTR / e.completed),
+      avgResponse: e.respCount ? Math.round(e.totalResp / e.respCount) : 0,
+      avgMTTR: e.mttrCount ? Math.round(e.totalMTTR / e.mttrCount) : 0,
     })).sort((a, b) => b.completed - a.completed);
-  }, [allWOs]);
+  }, [allWOs, metricsById]);
 
 
   // Merge ranking with scores
