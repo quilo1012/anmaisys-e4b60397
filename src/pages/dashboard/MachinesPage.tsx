@@ -214,28 +214,20 @@ export default function MachinesPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label>Machine Type *</Label>
-            <ComboboxInput
+            <Input
               value={machineType}
-              onChange={setMachineType}
-              suggestions={distinct?.machineTypes || []}
+              onChange={(e) => setMachineType(e.target.value)}
               placeholder="Blender, Conveyor, Filler..."
             />
             {errors.machineType && <p className="text-xs text-destructive">{errors.machineType}</p>}
           </div>
           <div className="space-y-1.5">
             <Label>Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select status..." />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              placeholder="Active, Idle, Maintenance..."
+            />
           </div>
         </div>
       </div>
