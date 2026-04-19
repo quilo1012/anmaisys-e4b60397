@@ -137,32 +137,47 @@ export default function DowntimePage() {
 
   // ── Downtime KPIs ─────────────────────────────────────────────
   const kpis = useMemo(() => {
-    if (!records) return { totalToday: 0, active: 0, avgDuration: 0, mostAffected: "—" };
     const now = new Date();
     const todayStart = startOfDay(now);
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const monthStart = startOfMonth(now);
 
-    const todayRecords = records.filter(r => new Date(r.started_at) >= todayStart);
-    const totalToday = todayRecords.reduce((sum, r) => {
+    const safeRecords = records || [];
+
+    // Manual downtime records started today
+    const todayRecords = safeRecords.filter(r => new Date(r.started_at) >= todayStart);
+    const manualTodayMin = todayRecords.reduce((sum, r) => {
       const end = r.ended_at ? new Date(r.ended_at) : now;
       return sum + differenceInMinutes(end, new Date(r.started_at));
     }, 0);
 
-    const active = records.filter(r => !r.ended_at).length;
+    // WO line-stops today (single source of truth: v_wo_metrics)
+    const woTodayMin = woMetrics
+      .filter(m => m.line_stopped_at && new Date(m.line_stopped_at) >= todayStart)
+      .reduce((sum, m) => {
+        if (m.line_downtime_sec != null) return sum + Math.round(m.line_downtime_sec / 60);
+        // open stop: count from line_stopped_at until now
+        return sum + differenceInMinutes(now, new Date(m.line_stopped_at!));
+      }, 0);
 
-    const weekRecords = records.filter(r => new Date(r.started_at) >= weekStart && r.ended_at);
+    const totalToday = manualTodayMin + woTodayMin;
+
+    const manualActive = safeRecords.filter(r => !r.ended_at).length;
+    const woActive = woMetrics.filter(m => m.line_stopped_at && !m.line_resumed_at).length;
+    const active = manualActive + woActive;
+
+    const weekRecords = safeRecords.filter(r => new Date(r.started_at) >= weekStart && r.ended_at);
     const avgDuration = weekRecords.length
       ? Math.round(weekRecords.reduce((s, r) => s + differenceInMinutes(new Date(r.ended_at!), new Date(r.started_at)), 0) / weekRecords.length)
       : 0;
 
-    const monthRecords = records.filter(r => new Date(r.started_at) >= monthStart);
+    const monthRecords = safeRecords.filter(r => new Date(r.started_at) >= monthStart);
     const lineCount: Record<string, number> = {};
     monthRecords.forEach(r => { lineCount[r.line] = (lineCount[r.line] || 0) + 1; });
     const mostAffected = Object.entries(lineCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
 
     return { totalToday, active, avgDuration, mostAffected };
-  }, [records]);
+  }, [records, woMetrics]);
 
   const filteredRecords = useMemo(() => {
     if (!records) return [];
