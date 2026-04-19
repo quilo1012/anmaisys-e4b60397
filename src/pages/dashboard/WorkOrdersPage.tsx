@@ -280,67 +280,68 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center justify-between flex-wrap gap-3 border-b pb-4">
           <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2"><ClipboardList className="h-6 w-6" /> Work Orders</h2>
-            <p className="text-muted-foreground">Manage and track all work orders</p>
+            <h2 className="text-2xl font-semibold tracking-tight flex items-center gap-2"><ClipboardList className="h-6 w-6 text-muted-foreground" /> Work Orders</h2>
+            <p className="text-sm text-muted-foreground mt-1">Manage and track all work orders</p>
           </div>
           <div className="flex gap-2">
             {role === "admin" && (
-              <Button variant="destructive" size="sm" onClick={() => setShowClearWOs(true)}>
+              <Button variant="outline" size="sm" onClick={() => setShowClearWOs(true)} className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive">
                 <AlertTriangle className="h-4 w-4 mr-2" /> Clear WOs
               </Button>
             )}
-            <Button onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 mr-2" /> Create WO</Button>
+            <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 mr-2" /> Create WO</Button>
           </div>
         </div>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex border rounded-md">
-                  <Button variant={viewMode === "table" ? "default" : "ghost"} size="sm" onClick={() => setViewMode("table")} className="rounded-r-none"><List className="h-4 w-4" /></Button>
-                  <Button variant={viewMode === "board" ? "default" : "ghost"} size="sm" onClick={() => setViewMode("board")} className="rounded-l-none"><LayoutGrid className="h-4 w-4" /></Button>
+                <div className="flex border rounded-md overflow-hidden">
+                  <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("table")} className="rounded-none h-8"><List className="h-4 w-4" /></Button>
+                  <Button variant={viewMode === "board" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("board")} className="rounded-none h-8"><LayoutGrid className="h-4 w-4" /></Button>
                 </div>
                 <div className="flex gap-1">
                   {([["today", "Today"], ["yesterday", "Yesterday"], ["7days", "7 Days"], ["month", "This Month"], ["all", "All"]] as const).map(([key, label]) => (
-                    <Button key={key} variant={dateQuickFilter === key ? "default" : "outline"} size="sm" onClick={() => { setDateQuickFilter(key); setDateFrom(""); setDateTo(""); }}>{label}</Button>
+                    <Button key={key} variant={dateQuickFilter === key ? "secondary" : "ghost"} size="sm" className="h-8" onClick={() => { setDateQuickFilter(key); setDateFrom(""); setDateTo(""); }}>{label}</Button>
                   ))}
                 </div>
                 <div className="flex gap-1 ml-2 border-l pl-2">
                   <Button
-                    variant={lineStoppedFilter === "all" ? "default" : "outline"}
+                    variant={lineStoppedFilter === "all" ? "secondary" : "ghost"}
                     size="sm"
+                    className="h-8"
                     onClick={() => setLineStoppedFilter("all")}
                   >
                     All ({(workOrders ?? []).length})
                   </Button>
                   <Button
-                    variant={lineStoppedFilter === "stopped" ? "default" : "outline"}
+                    variant={lineStoppedFilter === "stopped" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setLineStoppedFilter("stopped")}
-                    className={lineStoppedFilter === "stopped" ? "bg-red-600 hover:bg-red-700 text-white" : "text-red-600 border-red-600/40 hover:bg-red-600/10"}
+                    className={lineStoppedFilter === "stopped" ? "h-8 bg-destructive hover:bg-destructive/90 text-destructive-foreground" : "h-8 text-destructive hover:bg-destructive/10 hover:text-destructive"}
                   >
                     🛑 Line Stopped ({stoppedCount})
                   </Button>
                   <Button
-                    variant={lineStoppedFilter === "running" ? "default" : "outline"}
+                    variant={lineStoppedFilter === "running" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setLineStoppedFilter("running")}
-                    className={lineStoppedFilter === "running" ? "bg-green-600 hover:bg-green-700 text-white" : "text-green-700 border-green-600/40 hover:bg-green-600/10"}
+                    className={lineStoppedFilter === "running" ? "h-8 bg-success hover:bg-success/90 text-success-foreground" : "h-8 text-success hover:bg-success/10 hover:text-success"}
                   >
                     ✓ Running ({runningCount})
                   </Button>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateQuickFilter(""); }} className="w-[140px]" />
-                <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateQuickFilter(""); }} className="w-[140px]" />
-                <Button variant="outline" size="sm" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateQuickFilter(""); }} className="w-[140px] h-8" />
+                <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateQuickFilter(""); }} className="w-[140px] h-8" />
+                <Button variant="ghost" size="sm" className="h-8" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
                   <Download className="h-4 w-4 mr-1" /> CSV
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => {
+                <Button variant="ghost" size="sm" className="h-8" onClick={() => {
                   if (!filteredWOs) return;
                   const allWOs = filteredWOs;
                   const engPerf = engineerScores?.map((s) => ({ name: s.engineer_name || "Unknown", score: s.score, completed: 0 })) || [];
@@ -355,12 +356,12 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 }}>
                   <FileText className="h-4 w-4 mr-1" /> PDF
                 </Button>
-                <Button variant="outline" size="sm" className="no-print" onClick={() => window.print()}>
+                <Button variant="ghost" size="sm" className="h-8 no-print" onClick={() => window.print()}>
                   <Printer className="h-4 w-4 mr-1" /> Print
                 </Button>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm"><SlidersHorizontal className="h-4 w-4 mr-1" /> Columns</Button>
+                    <Button variant="ghost" size="sm" className="h-8"><SlidersHorizontal className="h-4 w-4 mr-1" /> Columns</Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-48 p-3" align="end">
                     <p className="text-xs font-semibold mb-2">Toggle Columns</p>
