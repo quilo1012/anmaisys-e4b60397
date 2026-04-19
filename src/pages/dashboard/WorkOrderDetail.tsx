@@ -93,6 +93,7 @@ export default function WorkOrderDetail() {
   const { data: checklistResponses } = useChecklistResponses(id);
   const { data: checklistItems } = useChecklistsByProblemName(wo?.description);
   const { data: downtimeEvents = [] } = useDowntimeEvents(id);
+  const { data: woMetrics } = useWoMetrics(id);
 
   const { data: woLogs } = useQuery({
     queryKey: ["work_order_logs", id],
