@@ -130,7 +130,7 @@ export function NotificationPanel() {
       try {
         new Notification(`[${priorityStyles[n.priority].label}] ${n.title}`, {
           body: n.message,
-          tag: n.id,
+          tag: notif.id,
           requireInteraction: n.priority === "critical",
         });
       } catch { /* ignore */ }
