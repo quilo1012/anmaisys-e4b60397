@@ -193,7 +193,11 @@ const App = () => (
                 />
                 <Route
                   path="/dashboard/reliability"
-                  element={<ProtectedRoute allowedRoles={["admin", "manager"]} element={<ReliabilityDashboard />} />}
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <ReliabilityDashboard />
+                    </ProtectedRoute>
+                  }
                 />
                 <Route
                   path="/dashboard/wo/:id"
