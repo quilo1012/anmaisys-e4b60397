@@ -271,11 +271,35 @@ export function useStartWorkOrder() {
   });
 }
 
+export class LineStillStoppedError extends Error {
+  code = "line_still_stopped" as const;
+  constructor(message = "Line is still marked as stopped. Resume the line before finishing the work order.") {
+    super(message);
+    this.name = "LineStillStoppedError";
+  }
+}
+
 export function useFinishWorkOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ woId, signedByName, engineerId, engineerName }: { woId: string; signedByName: string; engineerId: string; engineerName: string }) => {
+      // GUARD: block finish if line is still marked as stopped
+      const { data: woState } = await supabase
+        .from("work_orders")
+        .select("line_stopped, line_resumed_at")
+        .eq("id", woId)
+        .single() as any;
+      const flagStillStopped = !!woState?.line_stopped && !woState?.line_resumed_at;
+      const { count: openDtCount } = await supabase
+        .from("downtime_events")
+        .select("id", { count: "exact", head: true })
+        .eq("work_order_id", woId)
+        .is("resumed_at", null) as any;
+      if (flagStillStopped || (openDtCount ?? 0) > 0) {
+        throw new LineStillStoppedError();
+      }
+
       const { data: before } = await supabase.from("work_orders").select("status, machine, description").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
