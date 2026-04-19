@@ -45,17 +45,8 @@ export function MachineSelector({ lineId, side, machineName, onChange }: Props) 
     });
   }, [machines, selectedLine, lineHasSides, side]);
 
-  const lineSuffix = useMemo(() => {
-    if (!selectedLine) return "";
-    // Extract trailing number from line name (e.g., "Line 5" -> "5")
-    const match = selectedLine.name.match(/(\d+)\s*$/);
-    return match ? match[1] : selectedLine.name;
-  }, [selectedLine]);
-
-  const formatMachineLabel = (m: Machine) => {
-    if (!lineHasSides || m.side === "common" || !side) return m.name;
-    return `${m.name} ${lineSuffix}${side}`;
-  };
+  // Machine names already include their full identifier (e.g. "Filler Line 5A").
+  const formatMachineLabel = (m: Machine) => m.name;
 
   const grouped = useMemo(() => {
     const map = new Map<string, Machine[]>();
