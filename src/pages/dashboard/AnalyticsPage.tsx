@@ -18,6 +18,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
@@ -28,6 +30,8 @@ const truncLabel = (s: string, max = 20) => s.length > max ? s.slice(0, max - 1)
 type PeriodPreset = "7d" | "30d" | "90d" | "custom";
 
 export default function AnalyticsPage() {
+  const { role } = useAuth();
+  const { toast } = useToast();
   const [period, setPeriod] = useState<PeriodPreset>("30d");
   const [startDate, setStartDate] = useState<Date>(startOfDay(subDays(new Date(), 30)));
   const [endDate, setEndDate] = useState<Date>(endOfDay(new Date()));
@@ -267,7 +271,13 @@ export default function AnalyticsPage() {
             <p className="text-muted-foreground">KPIs, charts, and performance metrics</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Button variant="outline" size="sm" onClick={() => {
+              if (role !== "admin" && role !== "manager") {
+                toast({ title: "Cannot print", description: "You don't have permission to print reports.", variant: "destructive" });
+                return;
+              }
+              window.print();
+            }}>
               <Printer className="h-4 w-4 mr-1" /> Print
             </Button>
           </div>

@@ -369,6 +369,11 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 </Button>
                 <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={async () => {
                   if (!filteredWOs) return;
+                  // Client-side defense-in-depth: block before any network call.
+                  if (role !== "admin" && role !== "manager") {
+                    toast({ title: "Cannot generate PDF", description: "You don't have permission to generate this report.", variant: "destructive" });
+                    return;
+                  }
                   try {
                     await authorizePdfGeneration({ reportType: "wo_report" });
                   } catch (err: any) {
@@ -378,17 +383,28 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                   const allWOs = filteredWOs;
                   const engPerf = engineerScores?.map((s) => ({ name: s.engineer_name || "Unknown", score: s.score, completed: 0 })) || [];
                   const openWOs = allWOs.filter((w) => w.status === "open").length;
-                  generatePdfReport({
-                    workOrders: allWOs,
-                    machineLineMap,
-                    engineerRanking: engPerf,
-                    kpis: { avgResponse: 0, avgMTTR: 0, totalWOs: allWOs.length, openWOs, slaRate: 0 },
-                    dateRange: dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? dateQuickFilter : "All records",
-                  });
+                  try {
+                    generatePdfReport({
+                      workOrders: allWOs,
+                      machineLineMap,
+                      engineerRanking: engPerf,
+                      kpis: { avgResponse: 0, avgMTTR: 0, totalWOs: allWOs.length, openWOs, slaRate: 0 },
+                      dateRange: dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? dateQuickFilter : "All records",
+                      callerRole: role,
+                    });
+                  } catch (err: any) {
+                    toast({ title: "Cannot generate PDF", description: err?.message ?? "Failed to generate report.", variant: "destructive" });
+                  }
                 }}>
                   <FileText className="h-3.5 w-3.5 mr-1" /> PDF
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs no-print" onClick={() => window.print()}>
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs no-print" onClick={() => {
+                  if (role !== "admin" && role !== "manager") {
+                    toast({ title: "Cannot print", description: "You don't have permission to print reports.", variant: "destructive" });
+                    return;
+                  }
+                  window.print();
+                }}>
                   <Printer className="h-3.5 w-3.5 mr-1" /> Print
                 </Button>
                 <Popover>
