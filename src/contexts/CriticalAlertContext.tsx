@@ -257,36 +257,37 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
 
   const acknowledge = useCallback((woId?: string) => {
     console.log("[acknowledge]", woId);
-    // Persist acknowledgment server-side so re-mounts / reconnects /
-    // tab refocus don't replay the alert. Fire-and-forget.
+    // Persist server-side so re-mounts / reconnects don't replay.
     if (woId) {
       void supabase.rpc("acknowledge_wo_alert", { _wo_id: woId });
     }
 
-    // Remove from queue if it's queued (any woId match)
-    if (woId) {
-      setQueue((q) => q.filter((x) => x.woId !== woId));
-    }
+    let shouldAdvance = false;
 
-    // Close active alert only if it matches (or no woId given = close any)
+    // Close the active alert only if it matches (or no woId given).
     setActive((current) => {
-      if (woId && current && current.woId !== woId) {
-        return current; // different WO active — don't close
-      }
+      if (!current) return null;
+      if (woId && current.woId !== woId) return current;
+      shouldAdvance = true;
       engineRef.current?.stop();
       return null;
     });
 
-    // Promote next queued alert (separate update — runs after active is set null)
-    setQueue((q) => {
-      if (q.length === 0) return q;
-      const [next, ...rest] = q;
-      window.setTimeout(() => {
-        engineRef.current?.start();
-        setActive(next);
-      }, 300);
-      return rest;
-    });
+    // Always remove this woId from the queue (no-op if not queued).
+    setQueue((q) => (woId ? q.filter((x) => x.woId !== woId) : q));
+
+    // Only promote next-in-queue when we actually closed the active alert.
+    if (shouldAdvance) {
+      setQueue((q) => {
+        if (q.length === 0) return q;
+        const [next, ...rest] = q;
+        window.setTimeout(() => {
+          engineRef.current?.start();
+          setActive(next);
+        }, 300);
+        return rest;
+      });
+    }
   }, []);
 
   const enableAudio = useCallback(() => {
