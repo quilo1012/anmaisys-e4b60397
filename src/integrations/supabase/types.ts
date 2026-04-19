@@ -1223,6 +1223,10 @@ export type Database = {
         Args: { _pin: string; _wo_id: string }
         Returns: Json
       }
+      current_user_role: {
+        Args: never
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
       finish_wo_with_pin: {
         Args: { _pin: string; _signed_by_name?: string; _wo_id: string }
         Returns: Json
