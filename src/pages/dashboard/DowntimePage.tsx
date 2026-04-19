@@ -22,6 +22,7 @@ import { useDowntime, useCreateDowntime, useUpdateDowntime, useDeleteDowntime, t
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines } from "@/hooks/useMachines";
 import { useRecentMachineEvents } from "@/hooks/useMachineEvents";
+import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { type RiskLevel } from "@/hooks/usePredictiveAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
