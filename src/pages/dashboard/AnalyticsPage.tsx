@@ -20,6 +20,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
@@ -45,12 +46,12 @@ export default function AnalyticsPage() {
     }
   };
 
-  const { data: rawWOs } = useWorkOrders();
+  const { data: rawWOs, isLoading: woLoading } = useWorkOrders();
   const { data: partsToday } = useTotalPartsUsedToday();
-  const { data: products } = useProducts();
-  const { data: machines } = useMachines();
-  const { data: engineerScores } = useEngineerScores();
-  const { data: woMetricsRange } = useAllWoMetrics({ from: startDate, to: endDate });
+  const { data: products, isLoading: productsLoading } = useProducts();
+  const { data: machines, isLoading: machinesLoading } = useMachines();
+  const { data: engineerScores, isLoading: scoresLoading } = useEngineerScores();
+  const { data: woMetricsRange, isLoading: metricsLoading } = useAllWoMetrics({ from: startDate, to: endDate });
 
   // Filter WOs by date range
   const allWOs = useMemo(() => {
@@ -337,6 +338,22 @@ export default function AnalyticsPage() {
           </Popover>
           <Badge variant="secondary" className="text-xs">{allWOs?.length ?? 0} WOs in range</Badge>
         </div>
+
+        {(woLoading || machinesLoading || metricsLoading || scoresLoading || productsLoading) && !rawWOs && (
+          <div className="space-y-6 print:hidden" aria-busy="true" aria-label="Loading analytics">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={`kpi-${i}`} className="h-28 w-full" />
+              ))}
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={`chart-${i}`} className="h-72 w-full" />
+              ))}
+            </div>
+            <Skeleton className="h-64 w-full" />
+          </div>
+        )}
 
         {/* KPI cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
