@@ -256,6 +256,8 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const acknowledge = useCallback((woId?: string) => {
+    const pendingCount = (active ? 1 : 0) + queue.length;
+    console.log("[acknowledge]", woId, "pending before:", pendingCount);
     // Persist acknowledgment server-side so re-mounts / reconnects /
     // tab refocus don't replay the alert. Fire-and-forget.
     if (woId) {
