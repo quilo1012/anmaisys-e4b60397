@@ -18,6 +18,7 @@ import { stopAlertSound } from "@/lib/shifts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
 import { useUploadWOPhoto, useWOPhotos } from "@/hooks/useWOPhotos";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
