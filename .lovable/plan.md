@@ -1,62 +1,64 @@
 
-## System Audit — Issues & Fixes
 
-### CRITICAL — Security (database)
-1. **PIN exposure to managers** (HIGH RISK)
-   - `profiles.pin` (bcrypt hash) readable by all managers via "Managers can view non-admin profiles"
-   - `engineers.pin_hash` readable by all managers
-   - **Fix:** Create a SQL migration that drops manager SELECT on these tables and recreates the policies through a `SECURITY DEFINER` view (`public.profiles_safe`, `public.engineers_safe`) that omits `pin`/`pin_hash`. Update frontend reads in `ManageUsers.tsx` and any engineer listing to use the safe view.
+User wants to apply the audit fixes. The plan was already approved implicitly by them saying "make the fixes now". I'll re-present a concise final plan covering all audit findings ready for implementation.
 
-2. **Audit logs policy scoped to `public` role** — change role from `{public}` to `{authenticated}`.
+# Apply Post-Sprint Audit Fixes
 
-3. **`user_roles` manager UPDATE WITH CHECK** missing `has_role(auth.uid(),'manager')` re-assertion — add it.
+## 🔴 Critical — Server-side PDF gating
 
-4. **Leaked password protection disabled** — enable in Auth settings.
+Create new edge function `generate-wo-pdf-auth`:
+- Validates JWT, checks `has_role(uid, 'admin'|'manager')` → 403 otherwise
+- Logs `pdf.generated` to `audit_logs` via `log_audit_event` RPC
+- Returns `{ ok: true }` so client can proceed with rendering
 
-### HIGH — Notification system bugs (functional)
+Update `src/lib/generatePdfReport.ts` and any PDF/print buttons in `WorkOrderDetail.tsx` and `AnalyticsPage.tsx` to call this function first; abort with toast on 403.
 
-5. **Missing `/public/alert.mp3` asset**
-   - `CriticalAlertContext` references `/alert.mp3` which doesn't exist → `htmlAudio.play()` rejects silently. Only the WebAudio oscillator beep plays.
-   - **Fix:** Generate a synthesized siren WAV (1s, looped) and write to `public/alert.mp3` via script. Engine then loops the real asset.
+## 🟠 High — `wo_pauses` RLS hardening (migration)
 
-6. **Duplicate alerting** for engineers/admins
-   - `useWOAlerts` (Engineer/Manager dashboards) AND `NotificationPanel` (DashboardLayout, all roles) BOTH subscribe to `work_orders` INSERT → engineer sees: critical red modal + sonner toast + radix toast + chime, all at once.
-   - **Fix:** In `NotificationPanel`, skip `new_wo` notifications when role is `engineer` or `admin` (already covered by `useWOAlerts` critical modal). Keep panel notifications only for managers + status changes + low stock.
+Drop the 3 permissive policies and replace:
+- **SELECT**: admin/manager OR engineer locked to the WO OR operator who created the WO
+- **INSERT**: admin/manager OR the engineer currently `locked_engineer_id` of the WO
+- **UPDATE**: same rule as INSERT (so only the locking engineer can resume their own pause)
 
-7. **Auto-acknowledge race condition** (`useWOAlerts.ts` line 91-97)
-   - Any status change to `received`/`in_progress` calls `acknowledge()` → engineer A gets a popup, engineer B accepts the WO, engineer A's modal closes before they read it.
-   - **Fix:** Only acknowledge if the WO ID matches the currently active alert (track active woId), OR only if the engineer who acknowledged is the current user. Pass the woId into `acknowledge(woId?)` and clear only matching alerts.
+## 🟠 High — `v_wo_metrics` GRANT (migration)
 
-8. **NotificationPanel toast navigation** uses wrong path
-   - Line 124: `navigate(\`/dashboard/work-orders/${n.woId}\`)` — but actual route is `/dashboard/wo/:id`.
-   - **Fix:** Use `/dashboard/wo/${n.woId}`.
+`GRANT SELECT ON public.v_wo_metrics TO authenticated;`
+Confirm view runs with `security_invoker = true` to inherit `work_orders` RLS.
 
-9. **`stopAlertSound` import is dead code** in `useWOAlerts.ts` — `shifts.ts` exports it as no-op. Remove the import and call (cleanup only).
+## 🟠 High — Defense-in-depth role guard on FinancialDashboard
 
-### MEDIUM — Polish
+`src/pages/dashboard/FinancialDashboard.tsx`: add `useRole()` early-return Access Denied screen for non-admin/manager, before any data hooks fire.
 
-10. **Title flash leaks original title** if alert triggers before mount — `originalTitleRef` captures `document.title` once at mount which is fine, but if user switched routes the title changed. Re-capture before flashing starts.
+## 🟠 High — Metrics consolidation (single source of truth)
 
-11. **Favicon badge** loads `originalFaviconHref` cross-origin — may fail on canvas taint. Add CORS handling fallback already present (good), but ensure favicon path is `/favicon.ico` not external.
+**`AnalyticsPage.tsx`** — remove inline `differenceInMinutes(finished_at, started_at)` math; use `useAllWoMetrics({ from, to })` for `avgResponse`, `avgMTTR`, downtime aggregations.
 
-### Files to change
-- **NEW SQL migration**: secure profile/engineer views, fix audit_logs role scope, fix user_roles WITH CHECK
-- **NEW** `scripts/gen-alert.mjs` + `public/alert.mp3` (generated 1s siren)
-- `src/contexts/CriticalAlertContext.tsx` — `acknowledge(woId?)` signature, re-capture title
-- `src/hooks/useWOAlerts.ts` — pass woId to acknowledge, remove dead import, dedupe with panel
-- `src/components/NotificationPanel.tsx` — skip new_wo for engineer/admin, fix nav path
-- `src/pages/users/ManageUsers.tsx` — switch reads to safe view (if affected)
-- Auth config — enable leaked password protection
+**`WorkOrderDetail.tsx`** — replace local attendance/production-impact card calculations with values from `useWoMetrics(workOrderId)`. Keep `WoTimeline` and cost breakdown unchanged.
 
-### Out of scope (defer)
-- Push notifications (L2), escalation cron (L5), email/SMS (L6) — already deferred by user
-- UI redesign
+## 🟡 Medium — Cleanup
 
-### Verification checklist after implementation
-- [ ] Manager cannot SELECT pin/pin_hash columns (test query as manager)
-- [ ] New WO triggers ONE critical modal for engineers (not duplicate toasts)
-- [ ] Engineer A's alert stays visible when engineer B accepts a different WO
-- [ ] Acknowledging closes only the matching alert; queued alerts surface next
-- [ ] alert.mp3 plays in Chrome desktop after "Enable Alerts"
-- [ ] Notification toast "Open" navigates to correct WO detail page
-- [ ] Audit logs still visible to admins/managers; not to anonymous
+- Add SQL `COMMENT ON TABLE public.downtime IS 'DEPRECATED — use downtime_events. Kept for historical data.'`
+- Remove leftover dev `console.log` introduced during Etapas 1-3 (sweep `src/`)
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `supabase/migrations/<new>.sql` | wo_pauses RLS rewrite + v_wo_metrics grant + downtime deprecation comment |
+| `supabase/functions/generate-wo-pdf-auth/index.ts` | NEW — role-gated PDF auth + audit log |
+| `src/lib/generatePdfReport.ts` | Call edge function before rendering; abort on 403 |
+| `src/pages/dashboard/FinancialDashboard.tsx` | Add useRole() early-return guard |
+| `src/pages/dashboard/AnalyticsPage.tsx` | Swap to `useAllWoMetrics`; remove inline duration math |
+| `src/pages/dashboard/WorkOrderDetail.tsx` | Swap timing cards to `useWoMetrics` |
+
+## Verification Checklist
+
+- [ ] Engineer/operator hits PDF endpoint directly → 403 + audit log entry
+- [ ] Manager/admin prints WO PDF → success + audit log entry
+- [ ] Engineer A pauses WO locked to A → success; Engineer B pause attempt → blocked
+- [ ] Operator queries `wo_pauses` directly → only own WO pauses visible
+- [ ] Operator visiting `/dashboard/financial` → "Access Denied" (no data hooks fire)
+- [ ] Analytics avg metrics match Manager Dashboard for same period
+- [ ] WO Detail timing cards match `v_wo_metrics` row exactly
+- [ ] No console errors on any dashboard load
+
