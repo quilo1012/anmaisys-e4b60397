@@ -102,11 +102,14 @@ export function useWOAlerts() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "work_orders" },
         (payload) => {
-          const updated = payload.new as { id: string; status: string };
-          console.log("[useWOAlerts UPDATE]", updated.id, updated.status);
-          if (["received", "in_progress"].includes(updated.status)) {
-            // Pass woId so we only ack the matching alert; another engineer
-            // accepting a different WO won't dismiss this engineer's modal.
+          const updated = payload.new as { id: string; status: string; engineer_id: string | null };
+          console.log("[useWOAlerts UPDATE]", updated.id, updated.status, "eng:", updated.engineer_id);
+          // Guard: only ack if this engineer owns the WO (prevents another
+          // engineer's status change from closing this engineer's modal).
+          if (
+            ["received", "in_progress"].includes(updated.status) &&
+            updated.engineer_id === user.id
+          ) {
             acknowledge(updated.id);
           }
         }
