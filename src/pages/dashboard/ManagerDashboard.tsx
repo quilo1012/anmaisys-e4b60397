@@ -8,7 +8,7 @@ import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { differenceInMinutes } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeFunction } from "@/lib/invokeFunction";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 const DONE_STATUSES = ["completed", "closed", "finished"];
 
 export default function ManagerDashboard() {
+  const { role, loading: authLoading } = useAuth();
+
+  // Defense-in-depth role guard — redirect unauthorized roles before any data hooks fire
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+  if (role !== "admin" && role !== "manager") {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <ManagerDashboardContent />;
+}
+
+function ManagerDashboardContent() {
   const { data: allWOs } = useWorkOrders();
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products } = useProducts();

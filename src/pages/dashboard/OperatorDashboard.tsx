@@ -20,7 +20,7 @@ import { useMachines, useLines, type MachineSide } from "@/hooks/useMachines";
 import { MachineSelector } from "@/components/MachineSelector";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
@@ -37,8 +37,26 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 };
 
 export default function OperatorDashboard() {
+  const { role, loading: authLoading } = useAuth();
+
+  // Defense-in-depth role guard — redirect unauthorized roles before any data hooks fire
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+  if (role !== "operator") {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <OperatorDashboardContent />;
+}
+
+function OperatorDashboardContent() {
   const { profile } = useAuth();
-  
+
   const [lineId, setLineId] = useState<string>("");
   const [side, setSide] = useState<MachineSide | "">("");
   const [machine, setMachine] = useState("");
