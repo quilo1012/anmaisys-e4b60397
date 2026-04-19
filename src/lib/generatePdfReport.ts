@@ -37,9 +37,16 @@ interface ReportData {
   kpis: { avgResponse: number; avgMTTR: number; totalWOs: number; openWOs: number; slaRate: number };
   dateRange: string;
   financials?: { totalPartsCost: number; totalLaborCost: number; totalOvertimeCost: number; grandTotal: number };
+  /** Caller's role — used as a defense-in-depth client guard before generating. */
+  callerRole?: string | null;
 }
 
 export function generatePdfReport(data: ReportData) {
+  // Defense-in-depth client guard. Real authorization happens server-side
+  // via authorizePdfGeneration(), but this prevents misuse if a caller forgets.
+  if (data.callerRole && data.callerRole !== "admin" && data.callerRole !== "manager") {
+    throw new Error("You don't have permission to generate this report.");
+  }
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
