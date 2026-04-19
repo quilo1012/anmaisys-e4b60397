@@ -195,7 +195,7 @@ export default function WorkOrderDetail() {
               <p className="text-[8pt] text-gray-600">{format(new Date(wo.created_at), "dd/MM/yyyy HH:mm")}</p>
             </div>
             <div className="flex justify-center">
-              <img src="/appliedlogo.png" alt="Applied Nutrition" crossOrigin="anonymous" className="h-16 w-auto object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
+              <img src="/appliedlogo.jpeg" alt="Applied Nutrition" crossOrigin="anonymous" className="h-16 w-auto object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
             </div>
             <div className="text-right">
               <p className="text-lg font-bold tracking-widest">WORK ORDER</p>

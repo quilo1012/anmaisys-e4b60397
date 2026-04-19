@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock, Eye, EyeOff, ShieldCheck, Loader2, ArrowRight } from "lucide-react";
-import appliedLogo from "@/assets/appliedlogo.png";
+import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/contexts/AuthContext";
 
