@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines } from "@/hooks/useMachines";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
+import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { differenceInMinutes, subDays, format, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Timer, Activity, Trophy, TrendingUp, BarChart3 } from "lucide-react";
@@ -13,6 +14,7 @@ export default function ExecutiveDashboard() {
   const { data: workOrders = [] } = useWorkOrders();
   const { data: machines = [] } = useMachines();
   const { data: engineerScores = [] } = useEngineerScores();
+  const { data: woMetrics = [] } = useAllWoMetrics();
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const toggleFullscreen = useCallback(() => {
@@ -28,14 +30,16 @@ export default function ExecutiveDashboard() {
   const kpis = useMemo(() => {
     const openWOs = workOrders.filter((w) => !["closed", "completed", "force_closed"].includes(w.status)).length;
 
-    const completedWOs = workOrders.filter((w) => w.received_at);
-    const avgResponse = completedWOs.length
-      ? Math.round(completedWOs.reduce((s, w) => s + differenceInMinutes(new Date(w.received_at!), new Date(w.created_at)), 0) / completedWOs.length)
+    // Avg Response Time = AVG(response_time_sec) from v_wo_metrics
+    const respMetrics = woMetrics.filter((m) => m.response_time_sec !== null);
+    const avgResponse = respMetrics.length
+      ? Math.round(respMetrics.reduce((s, m) => s + (m.response_time_sec || 0), 0) / respMetrics.length / 60)
       : 0;
 
-    const repairedWOs = workOrders.filter((w) => w.started_at && (w.finished_at || w.completed_at));
-    const avgMTTR = repairedWOs.length
-      ? Math.round(repairedWOs.reduce((s, w) => s + differenceInMinutes(new Date(w.finished_at || w.completed_at!), new Date(w.started_at!)), 0) / repairedWOs.length)
+    // Avg Active Repair (MTTR) = AVG(active_repair_sec) from v_wo_metrics
+    const repairMetrics = woMetrics.filter((m) => m.active_repair_sec !== null && m.active_repair_sec > 0);
+    const avgMTTR = repairMetrics.length
+      ? Math.round(repairMetrics.reduce((s, m) => s + (m.active_repair_sec || 0), 0) / repairMetrics.length / 60)
       : 0;
 
     const slaTargets: Record<string, number> = { critical: 10, high: 30, medium: 60, low: 120 };
@@ -46,14 +50,17 @@ export default function ExecutiveDashboard() {
     }).length;
     const slaPercent = closedWOs.length ? Math.round((withinSLA / closedWOs.length) * 100) : 100;
 
+    // Total Line Downtime Today = SUM(line_downtime_sec) from v_wo_metrics
     const today = startOfDay(new Date());
-    const todayWOs = workOrders.filter((w) => new Date(w.created_at) >= today && w.started_at && (w.finished_at || w.completed_at));
-    const totalDowntime = todayWOs.reduce((s, w) => s + differenceInMinutes(new Date(w.finished_at || w.completed_at!), new Date(w.started_at!)), 0);
+    const todayMetrics = woMetrics.filter((m) => new Date(m.created_at) >= today);
+    const lineDowntimeTodayMin = Math.round(
+      todayMetrics.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / 60
+    );
 
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
 
-    return { openWOs, avgResponse, avgMTTR, slaPercent, totalDowntime, machinesAtRisk };
-  }, [workOrders, machines]);
+    return { openWOs, avgResponse, avgMTTR, slaPercent, lineDowntimeTodayMin, machinesAtRisk };
+  }, [workOrders, machines, woMetrics]);
 
   // WOs per day (last 7 days)
   const wosPerDay = useMemo(() => {
@@ -140,18 +147,20 @@ export default function ExecutiveDashboard() {
             <CardContent className="pt-4 pb-3">
               <div className="flex items-center gap-2 text-muted-foreground mb-1">
                 <Clock className="h-4 w-4" />
-                <span className="text-xs font-medium">Avg Response</span>
+                <span className="text-xs font-medium">Avg Response Time</span>
               </div>
               <p className="text-3xl font-bold">{formatMins(kpis.avgResponse)}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">created → accepted</p>
             </CardContent>
           </Card>
           <Card className="border-l-4 border-l-amber-500">
             <CardContent className="pt-4 pb-3">
               <div className="flex items-center gap-2 text-muted-foreground mb-1">
                 <Gauge className="h-4 w-4" />
-                <span className="text-xs font-medium">Avg MTTR</span>
+                <span className="text-xs font-medium">Avg Active Repair</span>
               </div>
               <p className="text-3xl font-bold">{formatMins(kpis.avgMTTR)}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">MTTR — pauses excluded</p>
             </CardContent>
           </Card>
           <Card className="border-l-4 border-l-green-500">
@@ -167,9 +176,10 @@ export default function ExecutiveDashboard() {
             <CardContent className="pt-4 pb-3">
               <div className="flex items-center gap-2 text-muted-foreground mb-1">
                 <Timer className="h-4 w-4" />
-                <span className="text-xs font-medium">Downtime Today</span>
+                <span className="text-xs font-medium">Line Downtime Today</span>
               </div>
-              <p className="text-3xl font-bold">{formatMins(kpis.totalDowntime)}</p>
+              <p className="text-3xl font-bold">{formatMins(kpis.lineDowntimeTodayMin)}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">minutes lines were stopped</p>
             </CardContent>
           </Card>
           <Card className={`border-l-4 ${kpis.machinesAtRisk > 0 ? "border-l-destructive" : "border-l-green-500"}`}>

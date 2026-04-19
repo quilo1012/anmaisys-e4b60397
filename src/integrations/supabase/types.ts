@@ -196,6 +196,13 @@ export type Database = {
             foreignKeyName: "downtime_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "v_wo_metrics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "downtime_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -277,6 +284,13 @@ export type Database = {
             columns: ["stopped_by"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "downtime_events_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_wo_metrics"
             referencedColumns: ["id"]
           },
           {
@@ -585,6 +599,13 @@ export type Database = {
             foreignKeyName: "parts_used_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "v_wo_metrics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parts_used_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -839,6 +860,13 @@ export type Database = {
             foreignKeyName: "wo_episodes_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "v_wo_metrics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wo_episodes_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -873,6 +901,48 @@ export type Database = {
           work_order_id?: string
         }
         Relationships: []
+      }
+      wo_pauses: {
+        Row: {
+          created_at: string
+          id: string
+          paused_at: string
+          reason: string | null
+          resumed_at: string | null
+          wo_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          paused_at: string
+          reason?: string | null
+          resumed_at?: string | null
+          wo_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          paused_at?: string
+          reason?: string | null
+          resumed_at?: string | null
+          wo_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wo_pauses_wo_id_fkey"
+            columns: ["wo_id"]
+            isOneToOne: false
+            referencedRelation: "v_wo_metrics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wo_pauses_wo_id_fkey"
+            columns: ["wo_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wo_photos: {
         Row: {
@@ -912,6 +982,13 @@ export type Database = {
             columns: ["uploaded_by"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wo_photos_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_wo_metrics"
             referencedColumns: ["id"]
           },
           {
@@ -961,6 +1038,13 @@ export type Database = {
             columns: ["engineer_id"]
             isOneToOne: false
             referencedRelation: "engineers_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_logs_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_wo_metrics"
             referencedColumns: ["id"]
           },
           {
@@ -1148,6 +1232,13 @@ export type Database = {
             foreignKeyName: "work_orders_recurrence_of_wo_id_fkey"
             columns: ["recurrence_of_wo_id"]
             isOneToOne: false
+            referencedRelation: "v_wo_metrics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_recurrence_of_wo_id_fkey"
+            columns: ["recurrence_of_wo_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -1227,10 +1318,89 @@ export type Database = {
             foreignKeyName: "downtime_events_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "v_wo_metrics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "downtime_events_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
+      }
+      v_wo_metrics: {
+        Row: {
+          accepted_at: string | null
+          active_repair_sec: number | null
+          arrived_at: string | null
+          closed_at: string | null
+          created_at: string | null
+          finished_at: string | null
+          id: string | null
+          line_downtime_sec: number | null
+          line_resumed_at: string | null
+          line_stopped_at: string | null
+          machine: string | null
+          paperwork_delay_sec: number | null
+          priority: string | null
+          reporting_delay_sec: number | null
+          response_time_sec: number | null
+          restart_delay_sec: number | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["wo_status"] | null
+          total_cycle_sec: number | null
+          travel_time_sec: number | null
+          wo_number: number | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          active_repair_sec?: never
+          arrived_at?: string | null
+          closed_at?: string | null
+          created_at?: string | null
+          finished_at?: string | null
+          id?: string | null
+          line_downtime_sec?: never
+          line_resumed_at?: string | null
+          line_stopped_at?: string | null
+          machine?: string | null
+          paperwork_delay_sec?: never
+          priority?: string | null
+          reporting_delay_sec?: never
+          response_time_sec?: never
+          restart_delay_sec?: never
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"] | null
+          total_cycle_sec?: never
+          travel_time_sec?: never
+          wo_number?: number | null
+        }
+        Update: {
+          accepted_at?: string | null
+          active_repair_sec?: never
+          arrived_at?: string | null
+          closed_at?: string | null
+          created_at?: string | null
+          finished_at?: string | null
+          id?: string | null
+          line_downtime_sec?: never
+          line_resumed_at?: string | null
+          line_stopped_at?: string | null
+          machine?: string | null
+          paperwork_delay_sec?: never
+          priority?: string | null
+          reporting_delay_sec?: never
+          response_time_sec?: never
+          restart_delay_sec?: never
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"] | null
+          total_cycle_sec?: never
+          travel_time_sec?: never
+          wo_number?: number | null
+        }
+        Relationships: []
       }
     }
     Functions: {
@@ -1291,6 +1461,7 @@ export type Database = {
           engineer_name: string
         }[]
       }
+      wo_total_pause_seconds: { Args: { _wo_id: string }; Returns: number }
     }
     Enums: {
       app_role: "admin" | "engineer" | "operator" | "manager" | "viewer"
