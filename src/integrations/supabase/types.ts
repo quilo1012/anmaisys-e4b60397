@@ -707,7 +707,7 @@ export type Database = {
           labor_rate: number
           last_seen_at: string | null
           name: string
-          pin: string | null
+          pin_hash: string | null
           shift: string | null
           ui_preferences: Json
           updated_at: string
@@ -720,7 +720,7 @@ export type Database = {
           labor_rate?: number
           last_seen_at?: string | null
           name: string
-          pin?: string | null
+          pin_hash?: string | null
           shift?: string | null
           ui_preferences?: Json
           updated_at?: string
@@ -733,7 +733,7 @@ export type Database = {
           labor_rate?: number
           last_seen_at?: string | null
           name?: string
-          pin?: string | null
+          pin_hash?: string | null
           shift?: string | null
           ui_preferences?: Json
           updated_at?: string
@@ -1449,6 +1449,10 @@ export type Database = {
         Args: { _engineer_id: string; _new_pin: string }
         Returns: undefined
       }
+      set_profile_pin: {
+        Args: { _pin: string; _user_id: string }
+        Returns: undefined
+      }
       verify_admin_pin: { Args: { _pin: string }; Returns: boolean }
       verify_engineer_pin: {
         Args: { _pin: string; _user_id: string }
@@ -1460,6 +1464,10 @@ export type Database = {
           engineer_id: string
           engineer_name: string
         }[]
+      }
+      verify_profile_pin: {
+        Args: { _pin: string; _user_id: string }
+        Returns: boolean
       }
       wo_total_pause_seconds: { Args: { _wo_id: string }; Returns: number }
     }
