@@ -16,7 +16,10 @@ export interface CriticalAlertPayload {
 
 interface CriticalAlertContextType {
   triggerAlert: (payload: CriticalAlertPayload) => void;
-  acknowledge: () => void;
+  /** Acknowledge the active alert. If `woId` is provided, only acknowledges
+   *  when it matches the currently-active alert (prevents race conditions
+   *  where another engineer's status change closes this engineer's modal). */
+  acknowledge: (woId?: string) => void;
   audioEnabled: boolean;
   promptEnableAudio: () => void;
 }
@@ -202,6 +205,10 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
       document.title = originalTitleRef.current;
       return;
     }
+    // Re-capture in case the route changed the title since mount
+    if (!document.title.startsWith("🚨")) {
+      originalTitleRef.current = document.title;
+    }
     let toggle = false;
     titleTimerRef.current = window.setInterval(() => {
       toggle = !toggle;
@@ -243,18 +250,28 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const acknowledge = useCallback(() => {
-    engineRef.current?.stop();
-    setActive(null);
-    // Promote next queued alert (small delay so user sees acknowledgment)
-    setQueue((q) => {
-      if (q.length === 0) return q;
-      const [next, ...rest] = q;
-      window.setTimeout(() => {
-        engineRef.current?.start();
-        setActive(next);
-      }, 300);
-      return rest;
+  const acknowledge = useCallback((woId?: string) => {
+    setActive((current) => {
+      // If a specific woId was provided, only acknowledge when it matches
+      // the active alert. This prevents another engineer's status update
+      // from closing this engineer's modal prematurely.
+      if (woId && current && current.woId !== woId) {
+        // Drop it from the queue if present, but keep current alert active
+        setQueue((q) => q.filter((x) => x.woId !== woId));
+        return current;
+      }
+      engineRef.current?.stop();
+      // Promote next queued alert (small delay so user sees acknowledgment)
+      setQueue((q) => {
+        if (q.length === 0) return q;
+        const [next, ...rest] = q;
+        window.setTimeout(() => {
+          engineRef.current?.start();
+          setActive(next);
+        }, 300);
+        return rest;
+      });
+      return null;
     });
   }, []);
 
@@ -346,7 +363,7 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
                 size="lg"
                 variant="secondary"
                 className="h-14 font-bold"
-                onClick={acknowledge}
+                onClick={() => acknowledge()}
               >
                 <Bell className="h-5 w-5 mr-2" /> Acknowledge
               </Button>

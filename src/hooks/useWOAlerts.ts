@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { stopAlertSound, requestNotificationPermission, sendWebNotification } from "@/lib/shifts";
+import { requestNotificationPermission, sendWebNotification } from "@/lib/shifts";
 import { useToast } from "@/hooks/use-toast";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 
@@ -89,10 +89,11 @@ export function useWOAlerts() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "work_orders" },
         (payload) => {
-          const updated = payload.new as { status: string };
+          const updated = payload.new as { id: string; status: string };
           if (["received", "in_progress"].includes(updated.status)) {
-            stopAlertSound();
-            acknowledge();
+            // Pass woId so we only ack the matching alert; another engineer
+            // accepting a different WO won't dismiss this engineer's modal.
+            acknowledge(updated.id);
           }
         }
       )
