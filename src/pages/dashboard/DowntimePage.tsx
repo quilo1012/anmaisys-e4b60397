@@ -330,12 +330,7 @@ export default function DowntimePage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Line *</Label>
-          <Select value={formLine} onValueChange={setFormLine}>
-            <SelectTrigger><SelectValue placeholder="Select line" /></SelectTrigger>
-            <SelectContent>
-              {LINES.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Input value={formLine} onChange={e => setFormLine(e.target.value)} placeholder="e.g. Line 1" />
         </div>
         <div className="space-y-2">
           <Label>Machine</Label>
@@ -345,12 +340,7 @@ export default function DowntimePage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Category *</Label>
-          <Select value={formCategory} onValueChange={setFormCategory}>
-            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-            <SelectContent>
-              {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Input value={formCategory} onChange={e => setFormCategory(e.target.value)} placeholder="Mechanical, Electrical..." />
         </div>
         <div className="space-y-2">
           <Label>Reason *</Label>
