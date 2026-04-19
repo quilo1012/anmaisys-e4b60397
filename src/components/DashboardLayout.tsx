@@ -264,20 +264,12 @@ function SidebarShell({
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar collapsible="offcanvas" className="border-r-0 print:hidden z-50">
-        <div className="flex flex-col items-center gap-2 border-b border-sidebar-border bg-sidebar-accent/30 px-4 py-5">
+        <div className="border-b border-sidebar-border p-2">
           <img
             src={appliedLogo}
             alt="Applied Nutrition"
-            className="h-16 w-16 rounded-lg object-contain shadow-sm ring-1 ring-sidebar-border"
+            className="block w-full h-auto rounded-md object-cover"
           />
-          <div className="text-center">
-            <div className="text-sm font-semibold tracking-wide text-sidebar-foreground">
-              AN MAINTENANCE
-            </div>
-            <div className="text-[10px] uppercase tracking-[0.15em] text-sidebar-foreground/50">
-              Industrial CMMS
-            </div>
-          </div>
         </div>
         <SidebarContent>
           <SidebarNav filteredItems={filteredItems} />
