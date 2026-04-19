@@ -330,21 +330,21 @@ export default function DowntimePage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Line *</Label>
-          <Input value={formLine} onChange={e => setFormLine(e.target.value)} placeholder="e.g. Line 1" />
+          <Input value={formLine} onChange={e => setFormLine(e.target.value)} />
         </div>
         <div className="space-y-2">
           <Label>Machine</Label>
-          <Input value={formMachine} onChange={e => setFormMachine(e.target.value)} placeholder="Machine name" />
+          <Input value={formMachine} onChange={e => setFormMachine(e.target.value)} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Category *</Label>
-          <Input value={formCategory} onChange={e => setFormCategory(e.target.value)} placeholder="Mechanical, Electrical..." />
+          <Input value={formCategory} onChange={e => setFormCategory(e.target.value)} />
         </div>
         <div className="space-y-2">
           <Label>Reason *</Label>
-          <Input value={formReason} onChange={e => setFormReason(e.target.value)} placeholder="Reason for downtime" required />
+          <Input value={formReason} onChange={e => setFormReason(e.target.value)} required />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -360,7 +360,7 @@ export default function DowntimePage() {
       <div className="space-y-2">
         <Label>Link to Work Order</Label>
         <Select value={formWOId || undefined} onValueChange={setFormWOId}>
-          <SelectTrigger><SelectValue placeholder="Select work order..." /></SelectTrigger>
+          <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">None</SelectItem>
             {workOrders?.map(wo => (
@@ -371,7 +371,7 @@ export default function DowntimePage() {
       </div>
       <div className="space-y-2">
         <Label>Notes</Label>
-        <Textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="Optional notes" rows={2} />
+        <Textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} rows={2} />
       </div>
     </div>
   );
