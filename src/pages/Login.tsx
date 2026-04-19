@@ -77,8 +77,8 @@ export default function Login() {
           maskImage: "radial-gradient(ellipse at center, black 40%, transparent 80%)",
         }}
       />
-      {/* noise / vignette */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_55%,hsl(222_60%_3%)_100%)]" />
+      {/* soft vignette (subtle) */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_70%,hsl(222_55%_4%/0.7)_100%)]" />
 
       {/* ── Top bar ──────────────────────────────────────── */}
       <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 pt-6 sm:px-10">
@@ -104,10 +104,14 @@ export default function Login() {
           <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(214_100%_55%)] opacity-20 blur-[140px]" />
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-8 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] backdrop-blur-2xl sm:p-10">
-            {/* Brand mark */}
+            {/* Brand mark — large logo */}
             <div className="mb-7 flex flex-col items-center text-center">
-              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-b from-white/10 to-white/[0.02] ring-1 ring-white/15">
-                <img src={appliedLogo} alt="Applied Nutrition" className="h-11 w-11 rounded-lg object-contain" />
+              <div className="mb-5 flex items-center justify-center rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-5 ring-1 ring-white/15 shadow-[0_10px_40px_-10px_hsl(214_90%_50%/0.5)]">
+                <img
+                  src={appliedLogo}
+                  alt="Applied Nutrition"
+                  className="h-28 w-auto rounded-xl object-contain sm:h-32"
+                />
               </div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-amber-400/90">
                 Maintenance Platform
