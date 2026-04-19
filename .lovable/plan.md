@@ -1,32 +1,97 @@
+# Plano: RBAC + Sidebar Colapsável + Polish
 
+Execução **uma fase por vez**. Cada fase só inicia após aprovação explícita do usuário.
 
-# Plan: Fix Console Errors and RLS Issues
+---
 
-## Issues Found
+## Fase 1 — Sidebar colapsável (Parte B)
+**Objetivo:** rail de ícones com tooltips, persistência, atalho Ctrl+B, drawer mobile.
 
-### 1. Downtime `FormFields` ref warning
-**Root cause**: `FormFields` is defined as a nested function component inside the render. React tries to pass a ref to it from the Dialog, causing "Function components cannot be given refs" warning. Additionally, defining a component inside render causes it to remount on every state change, losing focus in form inputs.
+- Refatorar `DashboardLayout.tsx` para usar `Sidebar collapsible="icon"` (shadcn).
+- `SidebarTrigger` no header (sempre visível).
+- Prop `tooltip` em cada `SidebarMenuButton` (label aparece quando colapsada).
+- Persistência via cookie nativa do `SidebarProvider`.
+- Mobile <768px: drawer offcanvas automático.
+- Atalho Ctrl/Cmd+B nativo.
 
-**Fix** (`src/pages/dashboard/DowntimePage.tsx`):
-- Convert `FormFields` from a nested component to inline JSX (just extract the JSX directly into both Dialog bodies), OR move it outside the component as a proper component with props
-- Best approach: replace `<FormFields />` in both dialogs with the inline JSX content directly to avoid the ref issue and re-mount problem
+**Arquivos:** `src/components/DashboardLayout.tsx` + extrair `AppSidebar.tsx`.
+**Risco:** baixo (UI only).
 
-### 2. Missing `DialogDescription` accessibility warning
-**Root cause**: Both Create and Edit Downtime dialogs have `DialogContent` without a `DialogDescription`, which Radix UI warns about for accessibility.
+---
 
-**Fix** (`src/pages/dashboard/DowntimePage.tsx`):
-- Add `import { DialogDescription }` 
-- Add `<DialogDescription>` inside each `DialogHeader` with appropriate text (can use `className="sr-only"` to keep it visually hidden)
+## Fase 2 — Roles + helper `useRole` + matriz de permissões
+- Migration: criar `current_user_role()`. `has_role` já existe.
+- `src/lib/permissions.ts` com tipo `Role` e `can(role, action)`.
+- Hook `useRole()` reusa `useAuth().role`.
 
-### 3. Downtime RLS — Engineers can only view, not create/update/delete
-**Root cause**: Looking at the RLS policies, engineers only have SELECT access to the downtime table. If engineers need to register/edit/resolve downtime, they need INSERT/UPDATE/DELETE policies.
+**Risco:** baixíssimo (código novo).
 
-**Fix** (DB migration):
-- Add RLS policies for engineers to INSERT, UPDATE, and DELETE downtime records
+---
 
-## Files Changed
-| File | Change |
-|------|--------|
-| `src/pages/dashboard/DowntimePage.tsx` | Inline FormFields JSX, add DialogDescription |
-| Migration SQL | Add engineer INSERT/UPDATE/DELETE policies for downtime |
+## Fase 3 — UI Gates (esconder botões por role)
+- `can()` em: New WO, Delete, Close, Print/PDF, links Users/Audit Logs.
+- Sidebar filtra por `can()` em vez de `roles.includes()`.
 
+**Risco:** baixo (RLS inalterada).
+
+---
+
+## Fase 4 — RLS em tabelas não-críticas
+**Tabelas:** `machines`, `problem_descriptions`, `audit_logs`, `product_categories`.
+
+- Garantir viewer com SELECT onde matriz pede.
+- Operator sem acesso a `audit_logs`.
+- Adicionar policies faltantes.
+
+**Risco:** médio.
+
+---
+
+## Fase 5 — RLS em `work_orders` (turno isolado)
+- SELECT: admin/manager/engineer/viewer = todos; operator = `operator_id = auth.uid()`.
+- INSERT: admin/manager/operator.
+- UPDATE: admin/manager; engineer só se `locked_engineer_id = auth.uid() OR NULL`.
+- DELETE: **só admin** (remove permissão do manager).
+- Rollback SQL documentado.
+
+**Risco:** alto (coração do sistema).
+
+---
+
+## Fase 6 — Página `/dashboard/users` (admin only)
+- Gate admin no `ProtectedRoute` + toast "Access denied".
+- Coluna "Last Login".
+- Audit log em mudanças de role.
+- Reset PIN só admin.
+
+**Risco:** baixo.
+
+---
+
+## Fase 7 — Polish (Parte C)
+1. Empty states em todas tabelas.
+2. Skeletons substituindo spinners full-page.
+3. ErrorBoundary por rota.
+4. Breadcrumbs no header.
+5. Toasts sonner padronizados.
+6. Tokens semânticos (sem hex hardcoded).
+7. Dark mode parity.
+8. A11y (aria-labels, focus rings, AA).
+9. Limpar console.logs.
+
+Possível dividir em 7a/7b.
+**Risco:** baixo.
+
+---
+
+## Conflitos confirmados
+- Operator **sem** lista de WOs (mantém fluxo atual).
+- Manager **perde DELETE** de WO (só admin).
+- Engineer mantém visão restrita (atribuídas + abertas).
+
+Se quiser mudar algum, avise antes da Fase 5.
+
+---
+
+## Próximo passo
+Aguardando **"aprovado, Fase 1"** para começar pela sidebar.
