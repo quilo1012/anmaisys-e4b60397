@@ -16,8 +16,8 @@ import { useWorkOrders, useCreateWorkOrder, useCloseWorkOrder } from "@/hooks/us
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePartsCountByWOs } from "@/hooks/useStock";
-import { useMachines, useLines, type MachineSide } from "@/hooks/useMachines";
-import { MachineSelector } from "@/components/MachineSelector";
+import { useMachines, useLines } from "@/hooks/useMachines";
+import { LinePicker } from "@/components/LinePicker";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, Navigate } from "react-router-dom";
@@ -58,8 +58,7 @@ function OperatorDashboardContent() {
   const { profile } = useAuth();
 
   const [lineId, setLineId] = useState<string>("");
-  const [side, setSide] = useState<MachineSide | "">("");
-  const [machine, setMachine] = useState("");
+  const [mobileAssetId, setMobileAssetId] = useState<string>("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
@@ -89,68 +88,65 @@ function OperatorDashboardContent() {
     [lines, lineId]
   );
 
-  // Smart suggestions: recent WOs for selected machine
+  // Smart suggestions: recent WOs for selected line
   const machineSuggestions = useMemo(() => {
-    if (!machine || !allWOs) return null;
-    const machineWOs = allWOs.filter((w) => w.machine === machine);
-    if (!machineWOs.length) return null;
-    const lastWO = machineWOs[0];
+    if (!selectedLineName || !allWOs) return null;
+    const lineWOs = allWOs.filter((w) => (w as any).line_at_time === selectedLineName);
+    if (!lineWOs.length) return null;
+    const lastWO = lineWOs[0];
     const daysSinceLast = differenceInDays(new Date(), new Date(lastWO.created_at));
-    // Common problems
     const problemCount: Record<string, number> = {};
-    machineWOs.forEach((w) => { problemCount[w.description] = (problemCount[w.description] || 0) + 1; });
+    lineWOs.forEach((w) => { problemCount[w.description] = (problemCount[w.description] || 0) + 1; });
     const topProblems = Object.entries(problemCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
-    return { totalWOs: machineWOs.length, daysSinceLast, topProblems };
-  }, [machine, allWOs]);
+    return { totalWOs: lineWOs.length, daysSinceLast, topProblems };
+  }, [selectedLineName, allWOs]);
 
-  // Auto-priority: determine priority based on history
+  // Auto-priority: determine priority based on history (line-centric)
   const autoPriority = useMemo(() => {
-    if (!machine || !description || !allWOs) return { priority: "medium" as string, reason: "" };
+    if (!selectedLineName || !description || !allWOs) return { priority: "medium" as string, reason: "" };
     const cutoff7 = subDays(new Date(), 7).toISOString();
     const cutoff5 = subDays(new Date(), 5).toISOString();
 
-    // Check recurring: same machine+problem ≥3 in 7 days
-    const recent7d = allWOs.filter((w) => w.machine === machine && w.description === description && w.created_at >= cutoff7);
+    const recent7d = allWOs.filter((w) => (w as any).line_at_time === selectedLineName && w.description === description && w.created_at >= cutoff7);
     if (recent7d.length >= 3) {
       return { priority: "high", reason: `Recurring issue: ${recent7d.length}x in the last 7 days` };
     }
 
-    // Check recent repair: any WO on this machine finished in last 5 days
-    const recentRepair = allWOs.find((w) => w.machine === machine && w.finished_at && w.finished_at >= cutoff5);
+    const recentRepair = allWOs.find((w) => (w as any).line_at_time === selectedLineName && w.finished_at && w.finished_at >= cutoff5);
     if (recentRepair) {
-      return { priority: "high", reason: "Recent repair detected on this machine (< 5 days)" };
+      return { priority: "high", reason: "Recent repair on this line (< 5 days)" };
     }
 
-    // Check repeated: same problem ≥2 in 30 days
     const cutoff30 = subDays(new Date(), 30).toISOString();
-    const repeated30d = allWOs.filter((w) => w.machine === machine && w.description === description && w.created_at >= cutoff30);
+    const repeated30d = allWOs.filter((w) => (w as any).line_at_time === selectedLineName && w.description === description && w.created_at >= cutoff30);
     if (repeated30d.length >= 2) {
       return { priority: "medium", reason: `Repeated issue: ${repeated30d.length}x in 30 days` };
     }
 
     return { priority: "low", reason: "First occurrence — low priority" };
-  }, [machine, description, allWOs]);
+  }, [selectedLineName, description, allWOs]);
 
-  // AI insights for the selected machine+problem
+  // AI insights (line-centric)
   const aiInsights = useMemo(() => {
-    if (!machine || !description || !allWOs) return null;
+    if (!selectedLineName || !description || !allWOs) return null;
     const cutoff30 = subDays(new Date(), 30).toISOString();
-    const similar = allWOs.filter((w) => w.machine === machine && w.description === description && w.created_at >= cutoff30);
+    const similar = allWOs.filter((w) => (w as any).line_at_time === selectedLineName && w.description === description && w.created_at >= cutoff30);
     if (!similar.length) return null;
-
     const cutoff7 = subDays(new Date(), 7).toISOString();
     const weekCount = similar.filter((w) => w.created_at >= cutoff7).length;
-
-    return {
-      occurrences: similar.length,
-      weekCount,
-      isRecurring: weekCount >= 3,
-    };
-  }, [machine, description, allWOs]);
+    return { occurrences: similar.length, weekCount, isRecurring: weekCount >= 3 };
+  }, [selectedLineName, description, allWOs]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // No required field validation — all fields are optional
+    if (!lineId) {
+      toast({ title: "Line required", description: "Please select a production line.", variant: "destructive" });
+      return;
+    }
+    if (!description.trim()) {
+      toast({ title: "Problem required", description: "Please describe the problem.", variant: "destructive" });
+      return;
+    }
     try {
       let created_at: string | undefined;
       if (isRetroactive && retroDate) {
@@ -162,9 +158,19 @@ function OperatorDashboardContent() {
         created_at = d.toISOString();
       }
       const effectivePriority = lineStopped ? "high" : autoPriority.priority;
-      await createWO.mutateAsync({ requester_name: requestedBy.trim(), machine: machine.trim(), description: description.trim(), notes: notes.trim(), priority: effectivePriority, created_at, line_stopped: lineStopped });
+      await createWO.mutateAsync({
+        requester_name: requestedBy.trim(),
+        line_id: lineId,
+        mobile_asset_id: mobileAssetId || null,
+        machine: "",
+        description: description.trim(),
+        notes: notes.trim(),
+        priority: effectivePriority,
+        created_at,
+        line_stopped: lineStopped,
+      });
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
-      setRequestedBy(""); setLineId(""); setSide(""); setMachine(""); setDescription(""); setNotes("");
+      setRequestedBy(""); setLineId(""); setMobileAssetId(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
@@ -209,7 +215,7 @@ function OperatorDashboardContent() {
               <Plus className="h-5 w-5" />
               Create Work Order
               {lineStopped && <Badge variant="destructive" className="ml-2">🛑 Line Stopped</Badge>}
-              {!lineStopped && (requestedBy || machine || description) && <Badge className="ml-2 bg-amber-500 text-white border-amber-500">⚠️ Line Running</Badge>}
+              {!lineStopped && (requestedBy || lineId || description) && <Badge className="ml-2 bg-amber-500 text-white border-amber-500">⚠️ Line Running</Badge>}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -224,14 +230,12 @@ function OperatorDashboardContent() {
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <MachineSelector
+                <LinePicker
                   lineId={lineId}
-                  side={side}
-                  machineName={machine}
-                  onChange={({ lineId: lid, side: s, machineName }) => {
+                  mobileAssetId={mobileAssetId}
+                  onChange={({ lineId: lid, mobileAssetId: mid }) => {
                     setLineId(lid);
-                    setSide(s);
-                    setMachine(machineName);
+                    setMobileAssetId(mid);
                   }}
                 />
               </div>

@@ -100,9 +100,14 @@ export function useCreateWorkOrder() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (wo: { requester_name: string; machine: string; description: string; notes?: string; priority?: string; created_at?: string; line_stopped?: boolean }) => {
+    mutationFn: async (wo: { requester_name: string; machine?: string; description: string; notes?: string; priority?: string; created_at?: string; line_stopped?: boolean; line_id?: string | null; mobile_asset_id?: string | null }) => {
       const effectiveCreatedAt = wo.created_at || new Date().toISOString();
       const insertPayload: any = { ...wo, operator_id: user!.id, priority: wo.priority || "medium", created_at: effectiveCreatedAt };
+      // machine column is legacy/optional now — keep empty string if not provided
+      if (insertPayload.machine == null) insertPayload.machine = "";
+      // Strip empty FKs so DB sees NULL (not "")
+      if (!insertPayload.line_id) delete insertPayload.line_id;
+      if (!insertPayload.mobile_asset_id) delete insertPayload.mobile_asset_id;
       if (wo.line_stopped) {
         insertPayload.line_stopped = true;
         insertPayload.line_stopped_at = effectiveCreatedAt;
