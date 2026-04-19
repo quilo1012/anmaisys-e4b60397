@@ -102,13 +102,11 @@ export default function Login() {
           <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-8 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] backdrop-blur-2xl sm:p-10">
             {/* Brand mark — large logo */}
             <div className="mb-7 flex flex-col items-center text-center">
-              <div className="mb-5 flex items-center justify-center rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-6 ring-1 ring-white/15 shadow-[0_10px_40px_-10px_hsl(214_90%_50%/0.5)]">
-                <img
-                  src={appliedLogo}
-                  alt="Applied Nutrition"
-                  className="h-64 w-auto rounded-xl object-contain sm:h-80"
-                />
-              </div>
+              <img
+                src={appliedLogo}
+                alt="Applied Nutrition"
+                className="mb-5 w-full h-auto object-contain"
+              />
               <h1 className="mt-2 text-[26px] font-semibold tracking-tight">Sign in to continue</h1>
               <p className="mt-1.5 text-sm text-white/55">
                 Use your corporate credentials to access the system.
