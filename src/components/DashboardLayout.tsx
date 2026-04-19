@@ -76,13 +76,15 @@ function LiveClock() {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const time = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const timeShort = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const timeLong = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const date = now.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
   return (
-    <div className="text-sm font-mono text-muted-foreground tabular-nums">
-      <span className="font-semibold text-foreground">{time}</span>
-      <span className="mx-2">—</span>
-      <span>{date}</span>
+    <div className="hidden xs:flex sm:flex text-xs sm:text-sm font-mono text-muted-foreground tabular-nums items-center">
+      <span className="font-semibold text-foreground sm:hidden">{timeShort}</span>
+      <span className="hidden sm:inline font-semibold text-foreground">{timeLong}</span>
+      <span className="mx-2 hidden md:inline">—</span>
+      <span className="hidden md:inline">{date}</span>
     </div>
   );
 }
@@ -220,20 +222,20 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </Sidebar>
 
           <main className="flex-1 flex flex-col overflow-hidden">
-            <header className="h-14 border-b bg-card flex items-center px-4 gap-3 print:hidden">
-              <SidebarTrigger aria-label="Toggle menu" />
+            <header className="h-14 border-b bg-card flex items-center px-2 sm:px-4 gap-2 sm:gap-3 print:hidden">
+              <SidebarTrigger aria-label="Toggle menu" className="shrink-0" />
               {(role === "admin" || role === "manager") && (
-                <div className="ml-2">
+                <div className="ml-1 sm:ml-2 hidden md:block">
                   <OnlineEngineersPanel />
                 </div>
               )}
-              <div className="ml-auto flex items-center gap-2">
+              <div className="ml-auto flex items-center gap-1 sm:gap-2 min-w-0">
                 {showStoppedBadge && (
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => navigate(stoppedTarget)}
-                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground animate-pulse gap-1.5 h-9"
+                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground animate-pulse gap-1.5 h-9 px-2 sm:px-3"
                     aria-label={`${stoppedLinesCount} production lines currently stopped`}
                   >
                     <PowerOff className="h-4 w-4" />
@@ -242,7 +244,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   </Button>
                 )}
                 <NotificationPanel />
-                <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"}>
+                <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className="shrink-0">
                   {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
                 <LiveClock />
