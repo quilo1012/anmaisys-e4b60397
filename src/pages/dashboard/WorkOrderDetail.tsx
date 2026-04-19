@@ -20,6 +20,7 @@ import { LineDowntimeControl } from "@/components/LineDowntimeControl";
 import { DowntimeTimelineCard } from "@/components/DowntimeTimelineCard";
 import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
+import { WoTimeline } from "@/components/WoTimeline";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -291,6 +292,11 @@ export default function WorkOrderDetail() {
             operatorId={(wo as any).operator_id}
             engineerId={(wo as any).engineer_id}
           />
+        </div>
+
+        {/* Lifecycle Timeline — labeled durations from v_wo_metrics (single source of truth) */}
+        <div className="print:hidden">
+          <WoTimeline workOrderId={wo.id} />
         </div>
 
         {/* Operator: report a recurring failure on a finished/closed WO */}
