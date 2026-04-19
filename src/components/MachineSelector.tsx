@@ -122,16 +122,19 @@ export function MachineSelector({ lineId, side, machineName, onChange }: Props) 
               {grouped.map(([type, items]) => (
                 <SelectGroup key={type}>
                   <SelectLabel>{type}</SelectLabel>
-                  {items.map((m) => (
-                    <SelectItem key={m.id} value={m.name}>
-                      <span className="inline-flex items-center gap-2">
-                        {m.name}
-                        <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", sideBadgeClass(m.side))}>
-                          {m.side === "common" ? "Shared" : m.side}
-                        </Badge>
-                      </span>
-                    </SelectItem>
-                  ))}
+                  {items.map((m) => {
+                    const label = formatMachineLabel(m);
+                    return (
+                      <SelectItem key={m.id} value={m.name}>
+                        <span className="inline-flex items-center gap-2">
+                          {label}
+                          <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", sideBadgeClass(m.side))}>
+                            {m.side === "common" ? "Shared" : m.side}
+                          </Badge>
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectGroup>
               ))}
             </SelectContent>
