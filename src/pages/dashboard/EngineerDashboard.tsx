@@ -193,7 +193,7 @@ function EngineerDashboardContent() {
   const navigate = useNavigate();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
   useWOAlerts();
-  const { promptEnableAudio, audioEnabled } = useCriticalAlert();
+  const { promptEnableAudio, audioEnabled, acknowledge } = useCriticalAlert();
   useEffect(() => { if (!audioEnabled) promptEnableAudio(); }, [audioEnabled, promptEnableAudio]);
   const { alerts: predictiveAlerts } = usePredictiveAlerts();
   const { data: onlineEngineers } = useOnlineEngineers();
@@ -318,6 +318,8 @@ function EngineerDashboardContent() {
         // Single atomic update: status + engineer + lock + ack timestamp.
         // Prevents the alert from re-firing via realtime UPDATE event.
         await acceptWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
+        // Close the critical alert modal immediately — don't wait for realtime UPDATE.
+        acknowledge(woId);
         toast({ title: "✅ Order accepted", description: "Head to the machine, then tap 'I Have Arrived'." });
       } catch (err: any) {
         toast({ title: "Error accepting WO", description: err.message, variant: "destructive" });
