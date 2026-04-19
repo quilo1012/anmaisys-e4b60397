@@ -92,11 +92,7 @@ export default function ManagerDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold">{dashTitle}</h2>
-            <p className="text-muted-foreground">System overview and quick access</p>
-          </div>
+        <div className="flex items-center justify-end">
           <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
             <Lock className="h-4 w-4 mr-2" /> Change PIN
           </Button>
