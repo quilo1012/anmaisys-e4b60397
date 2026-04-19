@@ -66,17 +66,13 @@ export default function Login() {
       className="flex min-h-screen items-center justify-center p-4"
       style={{ background: "linear-gradient(135deg, hsl(222 47% 11%) 0%, hsl(217 33% 17%) 50%, hsl(222 47% 11%) 100%)" }}
     >
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-2xl">
-        <div className="mb-8 flex flex-col items-center space-y-4">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.03] p-10 backdrop-blur-2xl shadow-[0_20px_70px_-15px_rgba(0,0,0,0.5)]">
+        <div className="mb-10 flex flex-col items-center">
           <img
             src={appliedLogo}
             alt="Applied Nutrition Logo"
-            className="h-[120px] w-auto rounded-lg object-contain"
+            className="h-[160px] w-auto rounded-xl object-contain"
           />
-
-          <div className="text-center">
-            <h1 className="text-2xl font-bold tracking-wide text-white">MAINTENANCE PORTAL</h1>
-          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
