@@ -374,9 +374,13 @@ export default function AnalyticsPage() {
           <Card>
             <CardHeader><CardTitle className="text-base">WOs per Day (Last 7 Days)</CardTitle></CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={wosPerDay}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} /></BarChart>
-              </ResponsiveContainer>
+              {!wosPerDay.length || wosPerDay.every((d: any) => !d.count) ? (
+                <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={wosPerDay}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} /></BarChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
           <Card>
