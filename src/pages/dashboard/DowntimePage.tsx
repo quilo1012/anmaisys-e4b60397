@@ -73,12 +73,12 @@ export default function DowntimePage() {
   const [formReason, setFormReason] = useState("");
   const [formStartedAt, setFormStartedAt] = useState("");
   const [formEndedAt, setFormEndedAt] = useState("");
-  const [formWOId, setFormWOId] = useState("none");
+  const [formWOId, setFormWOId] = useState("");
   const [formNotes, setFormNotes] = useState("");
 
   const resetForm = () => {
     setFormLine(""); setFormMachine(""); setFormCategory(""); setFormReason("");
-    setFormStartedAt(""); setFormEndedAt(""); setFormWOId("none"); setFormNotes("");
+    setFormStartedAt(""); setFormEndedAt(""); setFormWOId(""); setFormNotes("");
   };
 
   const openCreate = () => { resetForm(); setShowCreate(true); };
@@ -87,7 +87,7 @@ export default function DowntimePage() {
     setEditRecord(r);
     setFormLine(r.line); setFormMachine(r.machine || ""); setFormCategory(r.category);
     setFormReason(r.reason); setFormStartedAt(r.started_at.slice(0, 16));
-    setFormEndedAt(r.ended_at?.slice(0, 16) || ""); setFormWOId(r.work_order_id || "none");
+    setFormEndedAt(r.ended_at?.slice(0, 16) || ""); setFormWOId(r.work_order_id || "");
     setFormNotes(r.notes || "");
   };
 
