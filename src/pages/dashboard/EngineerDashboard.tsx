@@ -11,7 +11,8 @@ import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, Al
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { Lock } from "lucide-react";
-import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder, usePauseWorkOrder, useResumeWorkOrder, useMachineBackToWork } from "@/hooks/useWorkOrders";
+import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder, usePauseWorkOrder, useResumeWorkOrder, useMachineBackToWork, LineStillStoppedError } from "@/hooks/useWorkOrders";
+import { useResumeLine } from "@/hooks/useDowntimeEvents";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { stopAlertSound } from "@/lib/shifts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
