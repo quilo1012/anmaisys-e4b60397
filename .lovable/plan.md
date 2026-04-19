@@ -1,59 +1,40 @@
 
 
-User wants empty-state messaging on Analytics charts when there are zero work orders to display, instead of blank/empty Recharts canvases.
+The user wants to apply "these fixes" — referring to the next-step suggestions I offered after the empty-state work. The most relevant remaining items are:
 
-Let me check the current Analytics page chart structure.
-<lov-tool-use id="toolu_vrtx_017rUcgGYPE88k5g45AzMJzM" name="code--search_files" integration-id="code" data="{\"query\": \"<BarChart|<LineChart|<PieChart|<AreaChart|ResponsiveContainer\", \"include_patterns\": \"src/pages/dashboard/AnalyticsPage.tsx\"}">
-</lov-tool-use>
+1. Add an empty-state hint to KPI cards when values are zero.
+2. Add a small icon next to "No data available" for a more polished empty state.
 
-<lov-tool-use id="toolu_vrtx_011vFegv853vU9S2uuy6NDh1" name="code--search_files" integration-id="code" data="{\"query\": \"ResponsiveContainer|BarChart|LineChart|PieChart\", \"include_patterns\": \"src/pages/dashboard/AnalyticsPage.tsx\"}">
-</lov-tool-use>
-I have enough context. The page has ~6+ chart cards. Two already have empty-state guards (Problem Types, Machine Status). The others (WOs per Day, Orders by Status, Lines with Most Problems, Top 5 Problems, plus possibly more below line 461) render charts unconditionally — showing empty axes when there's no data.
-
-<lov-plan>
+I'll do both since they're small, related polish items on the same page.
 
 ## Plan
 
-Add a "No data available" empty-state message to every chart card in `src/pages/dashboard/AnalyticsPage.tsx` whose underlying dataset can be empty. Two cards (Problem Types, Machine Status) already do this — I'll mirror that exact pattern across the rest.
+Polish the Analytics page empty states.
 
-### Approach
+### Changes to `src/pages/dashboard/AnalyticsPage.tsx`
 
-For each chart card, wrap the `<ResponsiveContainer>` in a conditional:
-
+**1. Iconified chart empty state**
+Replace the plain `<p>No data available</p>` with a centered block:
 ```tsx
-{data.length === 0 ? (
-  <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
-) : (
-  <ResponsiveContainer ...>...</ResponsiveContainer>
-)}
+<div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+  <BarChart3 className="h-8 w-8 mb-2 opacity-50" />
+  <p className="text-sm">No data available</p>
+</div>
 ```
+Apply to every chart card already guarded in the previous step.
 
-### Charts to update
-
-Based on the file scan, these chart cards currently render unconditionally and need the guard:
-
-1. **WOs per Day (Last 7 Days)** — guard on `wosPerDay.length`
-2. **Orders by Status** — guard on `ordersByStatus.length`
-3. **Lines with Most Problems** — guard on `lineProblems.length`
-4. **Top 5 Problems** — guard on its data array
-5. Any remaining chart cards below line 461 (engineer ranking chart, parts-used chart, etc.) — apply the same pattern
-
-Already correct (no change needed):
-- **Problem Types** (line 412) — already shows "No data yet."
-- **Machine Status** (line 435) — already shows "No machines yet."
-
-### Copy
-
-Use the exact string **"No data available"** (matches user request) for the new guards. Leave the two existing messages ("No data yet.", "No machines yet.") as-is to avoid churn — or normalize them to "No data available" too. I'll **normalize all three** for consistency.
+**2. KPI card empty hint**
+When the entire dataset is empty (no work orders in the selected period), show a subtle muted line under the zero value on each KPI card: `"No activity in selected period"`.
+- Detect with `const hasNoActivity = !woLoading && rawWOs && rawWOs.length === 0;`
+- Render the hint conditionally inside each KPI `<Card>` body.
 
 ### Files Changed
 | File | Change |
 |------|--------|
-| `src/pages/dashboard/AnalyticsPage.tsx` | Wrap each `<ResponsiveContainer>` in an empty-data guard rendering "No data available"; normalize existing empty-state copy |
+| `src/pages/dashboard/AnalyticsPage.tsx` | Add `BarChart3` icon to chart empty states; show "No activity in selected period" hint on KPI cards when zero WOs |
 
 ### Verification
-- On a fresh account / filtered date range with zero WOs, every chart card shows "No data available" instead of empty axes.
-- When data exists, charts render normally.
-- Loading skeleton (added previously) still appears first; empty state appears after load resolves with no data.
-- No console errors.
+- With zero WOs: each chart shows icon + "No data available"; each KPI card shows `0` plus the muted hint.
+- With data: charts and KPIs render normally, no hint visible.
+- No layout shift, no console errors.
 
