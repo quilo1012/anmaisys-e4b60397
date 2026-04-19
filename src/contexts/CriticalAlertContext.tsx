@@ -256,32 +256,36 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const acknowledge = useCallback((woId?: string) => {
-    const pendingCount = (active ? 1 : 0) + queue.length;
-    console.log("[acknowledge]", woId, "pending before:", pendingCount);
+    console.log("[acknowledge]", woId);
     // Persist acknowledgment server-side so re-mounts / reconnects /
     // tab refocus don't replay the alert. Fire-and-forget.
     if (woId) {
       void supabase.rpc("acknowledge_wo_alert", { _wo_id: woId });
     }
+
+    // Remove from queue if it's queued (any woId match)
+    if (woId) {
+      setQueue((q) => q.filter((x) => x.woId !== woId));
+    }
+
+    // Close active alert only if it matches (or no woId given = close any)
     setActive((current) => {
-      // If a specific woId was provided, only acknowledge when it matches
-      // the active alert. This prevents another engineer's status update
-      // from closing this engineer's modal prematurely.
       if (woId && current && current.woId !== woId) {
-        setQueue((q) => q.filter((x) => x.woId !== woId));
-        return current;
+        return current; // different WO active — don't close
       }
       engineRef.current?.stop();
-      setQueue((q) => {
-        if (q.length === 0) return q;
-        const [next, ...rest] = q;
-        window.setTimeout(() => {
-          engineRef.current?.start();
-          setActive(next);
-        }, 300);
-        return rest;
-      });
       return null;
+    });
+
+    // Promote next queued alert (separate update — runs after active is set null)
+    setQueue((q) => {
+      if (q.length === 0) return q;
+      const [next, ...rest] = q;
+      window.setTimeout(() => {
+        engineRef.current?.start();
+        setActive(next);
+      }, 300);
+      return rest;
     });
   }, []);
 
