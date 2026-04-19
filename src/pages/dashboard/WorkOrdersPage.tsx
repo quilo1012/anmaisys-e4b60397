@@ -23,7 +23,7 @@ import { format, subDays, startOfDay, endOfDay, startOfMonth, differenceInMinute
 import { exportWorkOrdersCsv } from "@/lib/exportCsv";
 import { useToast } from "@/hooks/use-toast";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
-import { generatePdfReport } from "@/lib/generatePdfReport";
+import { generatePdfReport, authorizePdfGeneration } from "@/lib/generatePdfReport";
 import { FileText } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
@@ -367,8 +367,14 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
                   <Download className="h-3.5 w-3.5 mr-1" /> CSV
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={() => {
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={async () => {
                   if (!filteredWOs) return;
+                  try {
+                    await authorizePdfGeneration({ reportType: "wo_report" });
+                  } catch (err: any) {
+                    toast({ title: "Cannot generate PDF", description: err?.message ?? "Authorization failed.", variant: "destructive" });
+                    return;
+                  }
                   const allWOs = filteredWOs;
                   const engPerf = engineerScores?.map((s) => ({ name: s.engineer_name || "Unknown", score: s.score, completed: 0 })) || [];
                   const openWOs = allWOs.filter((w) => w.status === "open").length;

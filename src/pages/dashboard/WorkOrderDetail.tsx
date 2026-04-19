@@ -11,6 +11,7 @@ import { usePartsUsedByWO } from "@/hooks/useStock";
 import { useWOPhotos, getWOPhotoUrl } from "@/hooks/useWOPhotos";
 import { useChecklistResponses, useChecklistsByProblemName } from "@/hooks/useChecklists";
 import { useDowntimeEvents } from "@/hooks/useDowntimeEvents";
+import { useWoMetrics } from "@/hooks/useWoMetrics";
 
 import { format, differenceInMinutes, differenceInSeconds } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -92,6 +93,7 @@ export default function WorkOrderDetail() {
   const { data: checklistResponses } = useChecklistResponses(id);
   const { data: checklistItems } = useChecklistsByProblemName(wo?.description);
   const { data: downtimeEvents = [] } = useDowntimeEvents(id);
+  const { data: woMetrics } = useWoMetrics(id);
 
   const { data: woLogs } = useQuery({
     queryKey: ["work_order_logs", id],
@@ -170,18 +172,30 @@ export default function WorkOrderDetail() {
   const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
   const woLabel = `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`;
 
-  // ── New simplified metric model (post Accept/Start split) ──────────────
-  // Response = created → accepted (or first action) | Execution = started → finished | Total = created → finished
+  // ── Metrics from v_wo_metrics view (single source of truth) ──────────
+  // Falls back to inline math while the view is still loading or hasn't
+  // captured the most recent transition.
   const acceptedAt = (wo as any).accepted_at || wo.received_at || wo.started_at;
-  const responseMin = acceptedAt
-    ? differenceInMinutes(new Date(acceptedAt), new Date(wo.created_at))
-    : null;
-  const executionMin = wo.started_at && (wo.finished_at || wo.completed_at)
-    ? differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at))
-    : null;
-  const totalMin = (wo.finished_at || wo.completed_at || wo.closed_at)
-    ? differenceInMinutes(new Date(wo.finished_at || wo.closed_at || wo.completed_at!), new Date(wo.created_at))
-    : null;
+  const secToMin = (s: number | null | undefined) =>
+    typeof s === "number" && s >= 0 ? Math.round(s / 60) : null;
+
+  const viewResponseMin = secToMin(woMetrics?.response_time_sec);
+  const viewExecutionMin = secToMin(woMetrics?.active_repair_sec);
+  const viewTotalMin = secToMin(woMetrics?.total_cycle_sec);
+
+  const responseMin =
+    viewResponseMin ??
+    (acceptedAt ? differenceInMinutes(new Date(acceptedAt), new Date(wo.created_at)) : null);
+  const executionMin =
+    viewExecutionMin ??
+    (wo.started_at && (wo.finished_at || wo.completed_at)
+      ? differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at))
+      : null);
+  const totalMin =
+    viewTotalMin ??
+    ((wo.finished_at || wo.completed_at || wo.closed_at)
+      ? differenceInMinutes(new Date(wo.finished_at || wo.closed_at || wo.completed_at!), new Date(wo.created_at))
+      : null);
 
   return (
     <DashboardLayout>

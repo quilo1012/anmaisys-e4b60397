@@ -12,6 +12,7 @@ import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { useMachines } from "@/hooks/useMachines";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
+import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { differenceInMinutes, format, subDays, startOfDay, endOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -45,6 +46,7 @@ export default function AnalyticsPage() {
   const { data: products } = useProducts();
   const { data: machines } = useMachines();
   const { data: engineerScores } = useEngineerScores();
+  const { data: woMetricsRange } = useAllWoMetrics({ from: startDate, to: endDate });
 
   // Filter WOs by date range
   const allWOs = useMemo(() => {
@@ -70,18 +72,17 @@ export default function AnalyticsPage() {
   const completedToday = allWOs?.filter((w) => DONE_STATUSES.includes(w.status) && (w.closed_at || w.completed_at || w.finished_at) && new Date(w.closed_at || w.completed_at || w.finished_at!).toDateString() === today).length ?? 0;
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
 
+  // Single source of truth: derive avgResponse / avgMTTR from v_wo_metrics view.
+  // MTBF still computed locally from creation timestamps (no equivalent view column).
   const kpis = useMemo(() => {
-    if (!allWOs) return { avgResponse: 0, avgMTTR: 0, avgMTBF: 0 };
-    const done = allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.started_at);
-    let totalResp = 0, totalMTTR = 0, count = 0;
-    done.forEach((wo) => {
-      totalResp += differenceInMinutes(new Date(wo.started_at!), new Date(wo.created_at));
-      const end = wo.finished_at || wo.completed_at;
-      if (end) { totalMTTR += differenceInMinutes(new Date(end), new Date(wo.started_at!)); }
-      count++;
-    });
+    const metrics = woMetricsRange ?? [];
+    const respVals = metrics.map((m) => m.response_time_sec).filter((v): v is number => typeof v === "number" && v >= 0);
+    const repairVals = metrics.map((m) => m.active_repair_sec).filter((v): v is number => typeof v === "number" && v >= 0);
+    const avgResponse = respVals.length ? Math.round(respVals.reduce((a, b) => a + b, 0) / respVals.length / 60) : 0;
+    const avgMTTR = repairVals.length ? Math.round(repairVals.reduce((a, b) => a + b, 0) / repairVals.length / 60) : 0;
+
     let mtbf = 0;
-    if (allWOs.length > 1) {
+    if (allWOs && allWOs.length > 1) {
       const byMachine: Record<string, Date[]> = {};
       allWOs.forEach((w) => {
         if (!byMachine[w.machine]) byMachine[w.machine] = [];
@@ -98,8 +99,8 @@ export default function AnalyticsPage() {
       });
       mtbf = gapCount ? Math.round(totalGaps / gapCount) : 0;
     }
-    return { avgResponse: count ? Math.round(totalResp / count) : 0, avgMTTR: count ? Math.round(totalMTTR / count) : 0, avgMTBF: mtbf };
-  }, [allWOs]);
+    return { avgResponse, avgMTTR, avgMTBF: mtbf };
+  }, [allWOs, woMetricsRange]);
 
   // Compute days for the "WOs per Day" chart based on the selected range
   const rangeDays = useMemo(() => {
