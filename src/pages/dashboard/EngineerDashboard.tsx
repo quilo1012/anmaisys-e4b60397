@@ -366,9 +366,49 @@ export default function EngineerDashboard() {
         sessionStorage.removeItem("currentEngineer");
         toast({ title: "✅ Work order finished" });
       } catch (err: any) {
+        if (err instanceof LineStillStoppedError || err?.code === "line_still_stopped") {
+          // Open dedicated modal so engineer can resume the line first
+          setStoppedFinishCtx({ woId, signature });
+          return;
+        }
         toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
       }
     });
+  };
+
+  // BUG 4: resume the line, then retry finishing the WO with the same signature
+  const handleResumeThenFinish = async () => {
+    if (!stoppedFinishCtx) return;
+    const { woId, signature } = stoppedFinishCtx;
+    setResumingThenFinish(true);
+    try {
+      // 1) Close any open downtime_event
+      try {
+        await resumeLine.mutateAsync({ workOrderId: woId, note: "Auto-resumed at WO finish" });
+      } catch {
+        /* no open event — ignore */
+      }
+      // 2) Clear line_stopped flag on the WO itself
+      try {
+        await machineBackToWork.mutateAsync(woId);
+      } catch {
+        /* already running — ignore */
+      }
+      setStoppedFinishCtx(null);
+      // 3) Retry finish with PIN
+      requirePin("Confirm FINISH (PIN)", async (engineer) => {
+        try {
+          await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name });
+          setCurrentEngineer(null);
+          sessionStorage.removeItem("currentEngineer");
+          toast({ title: "✅ Line resumed and work order finished" });
+        } catch (err: any) {
+          toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
+        }
+      });
+    } finally {
+      setResumingThenFinish(false);
+    }
   };
 
   const triggerFileInput = (woId: string, type: "before" | "after") => {
