@@ -194,12 +194,14 @@ export default function AnalyticsPage() {
   const downtimeByMachine = useMemo(() => {
     if (!allWOs) return [];
     const map: Record<string, number> = {};
-    allWOs.filter((w) => DONE_STATUSES.includes(w.status) && w.started_at && (w.finished_at || w.completed_at)).forEach((wo) => {
-      const repair = differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at!));
+    allWOs.filter((w) => DONE_STATUSES.includes(w.status)).forEach((wo) => {
+      const m = metricsById.get(wo.id);
+      if (!m || typeof m.active_repair_sec !== "number") return;
+      const repair = m.active_repair_sec / 60;
       map[wo.machine] = (map[wo.machine] || 0) + repair;
     });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([machine, minutes]) => ({ machine, minutes }));
-  }, [allWOs]);
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([machine, minutes]) => ({ machine, minutes: Math.round(minutes) }));
+  }, [allWOs, metricsById]);
 
   // Most used machines (highest WO count)
   const mostUsedMachines = useMemo(() => {
