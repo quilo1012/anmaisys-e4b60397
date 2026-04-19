@@ -106,7 +106,7 @@ export default function Login() {
                 <img
                   src={appliedLogo}
                   alt="Applied Nutrition"
-                  className="h-44 w-auto rounded-xl object-contain sm:h-52"
+                  className="h-64 w-auto rounded-xl object-contain sm:h-80"
                 />
               </div>
               <h1 className="mt-2 text-[26px] font-semibold tracking-tight">Sign in to continue</h1>
