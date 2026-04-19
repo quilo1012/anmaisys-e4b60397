@@ -91,8 +91,8 @@ export function MachineSelector({ lineId, side, machineName, onChange }: Props) 
       {lineHasSides && (
         <div className="space-y-2">
           <Label>Which side of {selectedLine?.name}? *</Label>
-          <div className="grid grid-cols-3 gap-2">
-            {(["A", "B", "common"] as const).map((s) => (
+          <div className="grid grid-cols-2 gap-2">
+            {(["A", "B"] as const).map((s) => (
               <Button
                 key={s}
                 type="button"
@@ -100,7 +100,7 @@ export function MachineSelector({ lineId, side, machineName, onChange }: Props) 
                 className={cn("h-14 text-base", side === s && "ring-2 ring-primary")}
                 onClick={() => onChange({ lineId, side: s, machineName: "" })}
               >
-                {s === "common" ? "Not sure / Shared" : `Side ${s}`}
+                {`Side ${s}`}
               </Button>
             ))}
           </div>
