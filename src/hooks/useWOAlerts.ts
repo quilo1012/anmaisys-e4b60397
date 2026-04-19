@@ -36,12 +36,11 @@ export function useWOAlerts() {
     
 
     const channel = supabase
-      .channel("wo_alerts")
+      .channel(`wo_alerts_${user.id}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "work_orders" },
+        { event: "INSERT", schema: "public", table: "work_orders", filter: "status=eq.open" },
         (payload) => {
-          
           const wo = payload.new as {
             id: string;
             wo_number: number;
@@ -49,8 +48,20 @@ export function useWOAlerts() {
             machine: string;
             description: string;
             priority?: string;
+            status: string;
+            engineer_id: string | null;
+            locked_engineer_id: string | null;
+            engineer_notified_acknowledged_at: string | null;
             notified_engineers: string[] | null;
           };
+
+          // Server-side ack gate — never re-fire if already acknowledged.
+          if (wo.engineer_notified_acknowledged_at) return;
+          // Status gate — only 'open' WOs alert.
+          if (wo.status !== "open") return;
+          // Targeting gate — if WO is already locked/assigned to another engineer, don't fire.
+          if (wo.engineer_id && wo.engineer_id !== user.id) return;
+          if (wo.locked_engineer_id && wo.locked_engineer_id !== user.id) return;
 
           // Layer 1+3+4: critical alert (audio loop, modal, vibration, flash title, favicon)
           triggerAlert({
