@@ -358,9 +358,9 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                   ))}
                 </div>
                 <div className="flex items-center gap-1">
-                  <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateQuickFilter(""); }} className="w-[140px] h-8 bg-background" />
+                  <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateQuickFilter(""); }} className="w-[125px] sm:w-[140px] h-9 bg-background" />
                   <span className="text-xs text-muted-foreground">→</span>
-                  <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateQuickFilter(""); }} className="w-[140px] h-8 bg-background" />
+                  <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateQuickFilter(""); }} className="w-[125px] sm:w-[140px] h-9 bg-background" />
                 </div>
               </div>
 
@@ -428,7 +428,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
             {/* Row 3 — Dropdown filters */}
             <div className="flex items-center gap-2 flex-wrap filters-section">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[150px] h-8 bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectTrigger className="w-[140px] sm:w-[150px] h-9 bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
@@ -442,21 +442,21 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 </SelectContent>
               </Select>
               <Select value={lineFilter} onValueChange={setLineFilter}>
-                <SelectTrigger className="w-[150px] h-8 bg-background"><SelectValue placeholder="Line" /></SelectTrigger>
+                <SelectTrigger className="w-[140px] sm:w-[150px] h-9 bg-background"><SelectValue placeholder="Line" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Lines</SelectItem>
                   {distinctLines.map((line) => <SelectItem key={line} value={line}>{line}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={problemFilter} onValueChange={setProblemFilter}>
-                <SelectTrigger className="w-[170px] h-8 bg-background"><SelectValue placeholder="Problem" /></SelectTrigger>
+                <SelectTrigger className="w-[150px] sm:w-[170px] h-9 bg-background"><SelectValue placeholder="Problem" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Problems</SelectItem>
                   {problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={machineFilter} onValueChange={setMachineFilter}>
-                <SelectTrigger className="w-[170px] h-8 bg-background"><SelectValue placeholder="Machine" /></SelectTrigger>
+                <SelectTrigger className="w-[150px] sm:w-[170px] h-9 bg-background"><SelectValue placeholder="Machine" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Machines</SelectItem>
                   {machines?.map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}
