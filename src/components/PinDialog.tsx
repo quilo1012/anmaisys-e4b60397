@@ -64,9 +64,16 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
 
       const match = Array.isArray(data) ? data[0] : null;
       if (match?.engineer_id) {
-        // Reset attempts on success and proceed to confirm step
+        // PIN OK → run action directly (no extra "Confirm Identity" step)
         setAttempts(0);
-        setConfirming({ id: match.engineer_id, name: match.engineer_name });
+        const engineer = { id: match.engineer_id, name: match.engineer_name };
+        try {
+          await onSuccess(engineer);
+          toast.success(`✅ ${engineer.name} verified`);
+        } finally {
+          resetState();
+          onOpenChange(false);
+        }
       } else {
         // Wrong PIN
         const next = attempts + 1;
@@ -84,20 +91,6 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
       setPin("");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleConfirm = async () => {
-    if (!confirming) return;
-    const engineer = confirming;
-    setLoading(true);
-    try {
-      await onSuccess(engineer);
-      toast.success("✅ PIN verified");
-    } finally {
-      setLoading(false);
-      resetState();
-      onOpenChange(false);
     }
   };
 
