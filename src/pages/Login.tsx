@@ -95,10 +95,6 @@ export default function Login() {
                 alt="Applied Nutrition"
                 className="mb-5 w-full h-auto object-contain"
               />
-              <h1 className="mt-2 text-[26px] font-semibold tracking-tight">Sign in to continue</h1>
-              <p className="mt-1.5 text-sm text-white/55">
-                Use your corporate credentials to access the system.
-              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
