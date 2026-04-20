@@ -153,14 +153,21 @@ class AlertAudioEngine {
     this.oscTimer = window.setInterval(beep, 400);
   }
 
+  private playPromise: Promise<void> | null = null;
+
   start() {
     if (this.playing) return;
     this.playing = true;
     // HTMLAudio (loops alert.mp3 if asset available)
     if (this.htmlAudio) {
-      this.htmlAudio.currentTime = 0;
-      this.htmlAudio.volume = 1.0;
-      this.htmlAudio.play().catch(() => { /* fallback to oscillator only */ });
+      try {
+        this.htmlAudio.currentTime = 0;
+        this.htmlAudio.volume = 1.0;
+        const p = this.htmlAudio.play();
+        if (p && typeof p.then === "function") {
+          this.playPromise = p.catch(() => { /* AbortError / autoplay block — fall back to oscillator */ });
+        }
+      } catch { /* ignore */ }
     }
     // WebAudio oscillator fallback in parallel (guarantees sound even without asset)
     if (this.ctx?.state === "suspended") void this.ctx.resume();
@@ -178,7 +185,17 @@ class AlertAudioEngine {
 
   stop() {
     this.playing = false;
-    if (this.htmlAudio) { try { this.htmlAudio.pause(); this.htmlAudio.currentTime = 0; } catch { /* ignore */ } }
+    // Wait for any pending play() to resolve before pause() to avoid AbortError
+    const doPause = () => {
+      if (!this.htmlAudio) return;
+      try { this.htmlAudio.pause(); this.htmlAudio.currentTime = 0; } catch { /* ignore */ }
+    };
+    if (this.playPromise) {
+      this.playPromise.then(doPause).catch(() => doPause());
+      this.playPromise = null;
+    } else {
+      doPause();
+    }
     if (this.oscTimer) { clearInterval(this.oscTimer); this.oscTimer = null; }
     if (this.vibTimer) { clearInterval(this.vibTimer); this.vibTimer = null; }
     if (this.maxTimer) { clearTimeout(this.maxTimer); this.maxTimer = null; }
