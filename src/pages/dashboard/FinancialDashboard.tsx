@@ -144,25 +144,34 @@ function FinancialDashboardContent() {
     });
   }, [allWOs, allPartsUsed, laborRateMap, machineLineMap]);
 
+  // Filter WO costs by selected date range
+  const filteredCosts = useMemo(
+    () => woCosts.filter((w) => {
+      const d = new Date(w.created_at);
+      return d >= startDate && d <= endDate;
+    }),
+    [woCosts, startDate, endDate]
+  );
+
   const now = new Date();
-  const todayCost = woCosts.filter(w => new Date(w.created_at) >= startOfDay(now)).reduce((s, w) => s + w.totalCost, 0);
-  const monthCost = woCosts.filter(w => new Date(w.created_at) >= startOfMonth(now)).reduce((s, w) => s + w.totalCost, 0);
-  const totalParts = woCosts.reduce((s, w) => s + w.partsCost, 0);
-  const totalLabor = woCosts.reduce((s, w) => s + w.laborCost, 0);
+  const todayCost = filteredCosts.filter(w => new Date(w.created_at) >= startOfDay(now)).reduce((s, w) => s + w.totalCost, 0);
+  const periodCost = filteredCosts.reduce((s, w) => s + w.totalCost, 0);
+  const totalParts = filteredCosts.reduce((s, w) => s + w.partsCost, 0);
+  const totalLabor = filteredCosts.reduce((s, w) => s + w.laborCost, 0);
 
   // Cost by machine
   const costByMachine = useMemo(() => {
     const map: Record<string, number> = {};
-    woCosts.forEach((w) => { map[w.machine] = (map[w.machine] || 0) + w.totalCost; });
+    filteredCosts.forEach((w) => { map[w.machine] = (map[w.machine] || 0) + w.totalCost; });
     return Object.entries(map).map(([name, cost]) => ({ name, cost: Math.round(cost * 100) / 100 })).sort((a, b) => b.cost - a.cost).slice(0, 10);
-  }, [woCosts]);
+  }, [filteredCosts]);
 
   // Cost by line
   const costByLine = useMemo(() => {
     const map: Record<string, number> = {};
-    woCosts.forEach((w) => { map[w.line] = (map[w.line] || 0) + w.totalCost; });
+    filteredCosts.forEach((w) => { map[w.line] = (map[w.line] || 0) + w.totalCost; });
     return Object.entries(map).map(([name, cost]) => ({ name, cost: Math.round(cost * 100) / 100 })).sort((a, b) => b.cost - a.cost);
-  }, [woCosts]);
+  }, [filteredCosts]);
 
   const stockValue = useMemo(() => {
     if (!products) return 0;
