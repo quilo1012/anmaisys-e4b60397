@@ -167,22 +167,26 @@ export function useAcceptAndStartWorkOrder() {
   return useMutation({
     mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
       const now = new Date().toISOString();
+      const { data: { user } } = await supabase.auth.getUser();
+      const authUid = user?.id;
+      if (!authUid) throw new Error("Not authenticated");
       const { data: before } = await supabase.from("work_orders").select("status, engineer_id").eq("id", woId).single();
       const { data: updated, error } = await supabase
         .from("work_orders")
         .update({
           status: "in_progress" as any,
-          engineer_id: engineerId,
+          engineer_id: authUid,
           engineer_name: engineerName,
           started_at: now,
+          locked_engineer_id: authUid,
+          locked_at: now,
         } as any)
         .eq("id", woId)
         .select()
         .single();
       if (error) throw error;
       if (!updated) throw new Error("Work order update failed — no rows affected");
-      // Single canonical action per accept+start; no longer log obsolete received/arrived
-      await logWOAction(woId, engineerId, engineerName, "started");
+      await logWOAction(woId, authUid, engineerName, "started");
       return { before };
     },
     onMutate: async ({ woId }) => {
@@ -254,13 +258,16 @@ export function useArriveWorkOrder() {
 
   return useMutation({
     mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const authUid = user?.id;
+      if (!authUid) throw new Error("Not authenticated");
       const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
         .update({ status: "arrived" as any, arrived_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
-      await logWOAction(woId, engineerId, engineerName, "arrived");
+      await logWOAction(woId, authUid, engineerName, "arrived");
       return { before };
     },
     onSuccess: (result, vars) => {
@@ -275,13 +282,23 @@ export function useStartWorkOrder() {
 
   return useMutation({
     mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const authUid = user?.id;
+      if (!authUid) throw new Error("Not authenticated");
       const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
-        .update({ status: "in_progress" as any, started_at: new Date().toISOString() } as any)
+        .update({
+          status: "in_progress" as any,
+          started_at: new Date().toISOString(),
+          engineer_id: authUid,
+          engineer_name: engineerName,
+          locked_engineer_id: authUid,
+          locked_at: new Date().toISOString(),
+        } as any)
         .eq("id", woId);
       if (error) throw error;
-      await logWOAction(woId, engineerId, engineerName, "started");
+      await logWOAction(woId, authUid, engineerName, "started");
       return { before };
     },
     onSuccess: (result, vars) => {
@@ -304,6 +321,9 @@ export function useFinishWorkOrder() {
 
   return useMutation({
     mutationFn: async ({ woId, signedByName, engineerId, engineerName }: { woId: string; signedByName: string; engineerId: string; engineerName: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const authUid = user?.id;
+      if (!authUid) throw new Error("Not authenticated");
       // GUARD: block finish if line is still marked as stopped
       const { data: woState } = await supabase
         .from("work_orders")
@@ -326,7 +346,7 @@ export function useFinishWorkOrder() {
         .update({ status: "finished" as any, finished_at: new Date().toISOString(), signed_by_name: signedByName } as any)
         .eq("id", woId);
       if (error) throw error;
-      await logWOAction(woId, engineerId, engineerName, "finished");
+      await logWOAction(woId, authUid, engineerName, "finished");
 
       // Auto-create machine_event
       if (before) {
@@ -340,7 +360,7 @@ export function useFinishWorkOrder() {
           problem_description: problemDesc,
           action_taken: "Repair completed",
           event_type: "repair",
-          engineer_id: engineerId,
+          engineer_id: authUid,
           engineer_name: engineerName,
         } as any);
       }
