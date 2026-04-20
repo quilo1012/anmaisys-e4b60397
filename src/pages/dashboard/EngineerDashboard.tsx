@@ -343,16 +343,21 @@ function EngineerDashboardContent() {
     return false;
   };
 
-  // STEP 2 — ARRIVED (received → arrived) — NO PIN, lock-protected
-  const handleArrivedClick = (woId: string) => {
+  // STEP 2 + 3 COMBINED — ARRIVED + START (received → in_progress) — NO PIN
+  // Single tap: records arrival and immediately starts the job to reduce friction.
+  const handleArrivedClick = async (woId: string) => {
     const wo = workOrders?.find(w => w.id === woId);
     if (!wo || !ensureLockedToMe(wo)) return;
     const engineer: EngineerIdentity = currentEngineer
       ?? (wo.engineer_id && wo.engineer_name ? { id: wo.engineer_id, name: wo.engineer_name } : { id: user!.id, name: profile?.name || user!.email || "Engineer" });
     setCurrentEngineer(engineer);
-    arriveWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name })
-      .then(() => toast({ title: "📍 Arrival recorded", description: "Tap 'Start Work' when you begin the repair." }))
-      .catch((err: any) => toast({ title: "Error recording arrival", description: err.message, variant: "destructive" }));
+    try {
+      await arriveWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
+      await startWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
+      toast({ title: "🚀 Arrived & Started", description: "Job is now in progress. Don't forget the Before photo!" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
   };
 
   // STEP 3 — START (arrived → in_progress) — NO PIN
@@ -532,8 +537,8 @@ function EngineerDashboardContent() {
               </Button>
             )}
             {wo.status === "received" && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
-                <Activity className="h-5 w-5 mr-2" /> I HAVE ARRIVED
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending || startWO.isPending}>
+                <Activity className="h-5 w-5 mr-2" /> I HAVE ARRIVED & START
               </Button>
             )}
             {wo.status === "arrived" && (
@@ -735,8 +740,8 @@ function EngineerDashboardContent() {
                                   </Button>
                                 )}
                                 {wo.status === "received" && (
-                                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
-                                    <Activity className="h-3 w-3 mr-1" /> I Have Arrived
+                                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending || startWO.isPending}>
+                                    <Activity className="h-3 w-3 mr-1" /> Arrived & Start
                                   </Button>
                                 )}
                                 {wo.status === "arrived" && (
