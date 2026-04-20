@@ -44,6 +44,7 @@ import {
 import { SideBadge } from "@/components/MachineSelector";
 import { ComboboxInput } from "@/components/ComboboxInput";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -52,6 +53,9 @@ import { format } from "date-fns";
 import { QRCodeSVG } from "qrcode.react";
 
 interface LineOption { id: string; name: string; has_sides: boolean }
+
+// Sentinel prefix marking a value that is a new line name (to be created on save)
+export const NEW_LINE_PREFIX = "__new__:";
 
 function LineCombobox({
   value,
@@ -63,10 +67,22 @@ function LineCombobox({
   lines: LineOption[];
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const selected = lines.find((l) => l.id === value);
+  const pendingName = value.startsWith(NEW_LINE_PREFIX) ? value.slice(NEW_LINE_PREFIX.length) : "";
+
+  const trimmed = query.trim();
+  const exactMatch = lines.find((l) => l.name.toLowerCase() === trimmed.toLowerCase());
+  const showCreate = trimmed.length > 0 && !exactMatch;
+
+  const displayLabel = selected
+    ? `${selected.name}${selected.has_sides ? " (A/B)" : ""}`
+    : pendingName
+      ? `${pendingName} (new)`
+      : "Select or type to create...";
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -74,11 +90,11 @@ function LineCombobox({
           role="combobox"
           className="w-full justify-between font-normal"
         >
-          <span className={cn(!selected && "text-muted-foreground")}>
-            {selected ? `${selected.name}${selected.has_sides ? " (A/B)" : ""}` : "Select or type to search..."}
+          <span className={cn(!selected && !pendingName && "text-muted-foreground")}>
+            {displayLabel}
           </span>
           <span className="flex items-center gap-1">
-            {selected && (
+            {(selected || pendingName) && (
               <X
                 className="h-4 w-4 opacity-60 hover:opacity-100"
                 onClick={(e) => {
@@ -92,10 +108,17 @@ function LineCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
-        <Command>
-          <CommandInput placeholder="Search line..." autoFocus />
+        <Command shouldFilter>
+          <CommandInput
+            placeholder="Search or type new line..."
+            autoFocus
+            value={query}
+            onValueChange={setQuery}
+          />
           <CommandList>
-            <CommandEmpty>No line found.</CommandEmpty>
+            <CommandEmpty>
+              {showCreate ? null : "No line found."}
+            </CommandEmpty>
             <CommandGroup>
               {lines.map((l) => (
                 <CommandItem
@@ -104,6 +127,7 @@ function LineCombobox({
                   onSelect={() => {
                     onChange(l.id);
                     setOpen(false);
+                    setQuery("");
                   }}
                 >
                   <Check className={cn("mr-2 h-4 w-4", value === l.id ? "opacity-100" : "opacity-0")} />
@@ -111,6 +135,19 @@ function LineCombobox({
                   {l.has_sides ? " (A/B)" : ""}
                 </CommandItem>
               ))}
+              {showCreate && (
+                <CommandItem
+                  value={`__create__${trimmed}`}
+                  onSelect={() => {
+                    onChange(`${NEW_LINE_PREFIX}${trimmed}`);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create line "{trimmed}"
+                </CommandItem>
+              )}
             </CommandGroup>
           </CommandList>
         </Command>
@@ -218,10 +255,27 @@ export default function MachinesPage() {
     return Object.keys(e).length === 0;
   };
 
-  const buildPayload = () => ({
+  // Resolve lineId: if it carries the NEW_LINE_PREFIX sentinel, insert a new line and return its id.
+  const resolveLineId = async (): Promise<{ id: string | null; name: string }> => {
+    if (!lineId) return { id: null, name: "" };
+    if (lineId.startsWith(NEW_LINE_PREFIX)) {
+      const newName = lineId.slice(NEW_LINE_PREFIX.length).trim();
+      if (!newName) return { id: null, name: "" };
+      const { data, error } = await (supabase as any)
+        .from("lines")
+        .insert({ name: newName })
+        .select()
+        .single();
+      if (error) throw error;
+      return { id: data.id, name: data.name };
+    }
+    return { id: lineId, name: selectedLine?.name || "" };
+  };
+
+  const buildPayload = (resolvedLine: { id: string | null; name: string }) => ({
     name: name.trim(),
-    line: selectedLine?.name || "",
-    line_id: lineId || null,
+    line: resolvedLine.name,
+    line_id: resolvedLine.id,
     side,
     sector: sector.trim(),
     code: code.trim(),
@@ -233,7 +287,8 @@ export default function MachinesPage() {
   const handleAdd = async () => {
     if (!validate()) return;
     try {
-      const result = await addMachine.mutateAsync(buildPayload());
+      const resolved = await resolveLineId();
+      const result = await addMachine.mutateAsync(buildPayload(resolved));
       toast({ title: "Machine added" });
       logAuditEvent("create", "machine", (result as any)?.id, { name: name.trim() });
       setShowAdd(false);
@@ -246,7 +301,8 @@ export default function MachinesPage() {
   const handleEdit = async () => {
     if (!editMachine || !validate(true)) return;
     try {
-      await updateMachine.mutateAsync({ id: editMachine.id, ...buildPayload() });
+      const resolved = await resolveLineId();
+      await updateMachine.mutateAsync({ id: editMachine.id, ...buildPayload(resolved) });
       toast({ title: "Machine updated" });
       logAuditEvent("update", "machine", editMachine.id, { name: name.trim() });
       setEditMachine(null);
