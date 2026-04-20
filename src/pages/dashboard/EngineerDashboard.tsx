@@ -209,7 +209,7 @@ function EngineerDashboardContent() {
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [pauseDialogWO, setPauseDialogWO] = useState<string | null>(null);
   // BUG 4: state for "line still stopped" modal when trying to finish
-  const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string } | null>(null);
+  const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string; notes: string } | null>(null);
   const [resumingThenFinish, setResumingThenFinish] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
   
