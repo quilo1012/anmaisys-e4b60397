@@ -25,11 +25,16 @@ export default function ProblemsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [editProblem, setEditProblem] = useState<ProblemDescription | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showOnlyIncomplete, setShowOnlyIncomplete] = useState(false);
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [active, setActive] = useState(true);
+
+  const isIncomplete = (p: ProblemDescription) => !p.category?.trim() || !p.description?.trim();
+  const incompleteCount = (problems || []).filter(isIncomplete).length;
+  const visibleProblems = (problems || []).filter((p) => (showOnlyIncomplete ? isIncomplete(p) : true));
 
   const resetForm = () => { setName(""); setCategory(""); setDescription(""); setActive(true); };
 
