@@ -115,10 +115,17 @@ class AlertAudioEngine {
         this.htmlAudio.preload = "auto";
         this.htmlAudio.src = "/alert.mp3";
       }
-      // Touch-play to grant permission
+      // Touch-play to grant permission (await play before pause to avoid AbortError)
       const a = this.htmlAudio;
       a.muted = true;
-      a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => {});
+      try {
+        const p = a.play();
+        if (p && typeof p.then === "function") {
+          p.then(() => {
+            try { a.pause(); a.currentTime = 0; a.muted = false; } catch { /* ignore */ }
+          }).catch(() => { /* ignore AbortError / autoplay block */ });
+        }
+      } catch { /* ignore */ }
     } catch { /* ignore */ }
   }
 
