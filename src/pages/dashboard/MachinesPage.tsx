@@ -369,6 +369,8 @@ export default function MachinesPage() {
               </div>
             ) : !machines?.length ? (
               <p className="text-muted-foreground text-center py-8">No machines yet. Add one to get started.</p>
+            ) : !filteredMachines.length ? (
+              <p className="text-muted-foreground text-center py-8">No machines match "{search}".</p>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
