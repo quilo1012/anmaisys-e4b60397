@@ -237,9 +237,11 @@ function OperatorDashboardContent() {
                 <LinePicker
                   lineId={lineId}
                   mobileAssetId={mobileAssetId}
-                  onChange={({ lineId: lid, mobileAssetId: mid }) => {
+                  secondaryAssetId={secondaryAssetId}
+                  onChange={({ lineId: lid, mobileAssetId: mid, secondaryAssetId: sid }) => {
                     setLineId(lid);
                     setMobileAssetId(mid);
+                    setSecondaryAssetId(sid ?? "");
                   }}
                 />
               </div>
