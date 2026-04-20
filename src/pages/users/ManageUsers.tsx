@@ -489,7 +489,7 @@ export default function ManageUsers() {
               <div className="space-y-2"><Label>Email</Label><Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} /></div>
               <div className="space-y-2">
                 <Label>New Password</Label>
-                <Input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="Leave blank to keep current" minLength={6} />
+                <Input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="Leave blank to keep current" minLength={6} maxLength={128} />
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>

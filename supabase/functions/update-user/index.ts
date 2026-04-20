@@ -21,7 +21,7 @@ const getReadableErrorMessage = (error: unknown) => {
   const message = error instanceof Error ? error.message : "Unknown error";
 
   if (message.toLowerCase().includes("known to be weak and easy to guess")) {
-    return "This password is too weak or has appeared in known data breaches. Please use a stronger password with 12+ characters, upper/lowercase letters, numbers, and a symbol.";
+    return "This password was rejected by the backend security policy. Please choose a different password.";
   }
 
   return message;
