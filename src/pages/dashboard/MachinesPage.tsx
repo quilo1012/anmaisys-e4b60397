@@ -66,6 +66,31 @@ export default function MachinesPage() {
   const [moveLocation, setMoveLocation] = useState("");
   const [qrMachine, setQrMachine] = useState<Machine | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [search, setSearch] = useState("");
+
+  // Auto-generate next available machine code (MCH-XXX)
+  const nextMachineCode = useMemo(() => {
+    if (!machines) return "MCH-001";
+    let max = 0;
+    machines.forEach((m) => {
+      const match = m.code?.match(/^MCH-(\d+)$/i);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > max) max = n;
+      }
+    });
+    return `MCH-${String(max + 1).padStart(3, "0")}`;
+  }, [machines]);
+
+  const filteredMachines = useMemo(() => {
+    if (!machines) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return machines;
+    return machines.filter((m) =>
+      [m.name, m.machine_type, m.line, m.current_location, m.code, m.sector]
+        .some((f) => (f || "").toLowerCase().includes(q))
+    );
+  }, [machines, search]);
 
   const [name, setName] = useState("");
   const [lineId, setLineId] = useState<string>("");
