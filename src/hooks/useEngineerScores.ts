@@ -40,6 +40,7 @@ export function useEngineerScores() {
 
       return (data as any[]).map((s: any) => ({
         ...s,
+        score: Math.max(0, Math.min(100, s.score ?? 0)),
         engineer_name: nameMap[s.engineer_id] || "Unknown",
       })) as EngineerScore[];
     },
