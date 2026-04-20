@@ -318,7 +318,7 @@ function FinancialDashboardContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {woCosts.slice(0, 50).map((w) => (
+                  {filteredCosts.slice(0, 50).map((w) => (
                     <TableRow key={w.id}>
                       <TableCell className="font-mono font-medium">WO-{new Date(w.created_at).getFullYear()}-{String(w.wo_number).padStart(6, "0")}</TableCell>
                       <TableCell>{w.line}</TableCell>
