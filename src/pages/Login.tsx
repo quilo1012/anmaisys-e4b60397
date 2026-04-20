@@ -80,18 +80,6 @@ export default function Login() {
       {/* soft vignette (subtle) */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_70%,hsl(222_55%_4%/0.7)_100%)]" />
 
-      {/* ── Top bar ──────────────────────────────────────── */}
-      <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 pt-6 sm:px-10">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/8 ring-1 ring-white/15 backdrop-blur">
-            <img src={appliedLogo} alt="Applied Nutrition" className="h-7 w-7 rounded object-contain" />
-          </div>
-          <div className="leading-tight">
-            <p className="text-[13px] font-semibold tracking-wide">APPLIED NUTRITION</p>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">Industrial Operations</p>
-          </div>
-        </div>
-      </header>
 
       {/* ── Center card ─────────────────────────────────── */}
       <main className="relative z-10 flex min-h-[calc(100vh-5rem)] items-center justify-center px-4 py-10 sm:px-6">
