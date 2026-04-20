@@ -9,14 +9,18 @@ import { isWOAcknowledged, acknowledgeWOLocal } from "@/lib/woAck";
 export function useWOAlerts() {
   const { user, role } = useAuth();
   const { toast } = useToast();
-  const { triggerAlert, acknowledge } = useCriticalAlert();
+  const { triggerAlert, acknowledge, audioEnabled, promptEnableAudio } = useCriticalAlert();
 
-  // Request notification permission on first user gesture
+  // Request notification permission + unlock alert audio on first user gesture
   useEffect(() => {
     if (!role) return;
 
     const handler = () => {
       requestNotificationPermission();
+      // Engineers & admins must have alert audio unlocked to hear the siren
+      if ((role === "engineer" || role === "admin") && !audioEnabled) {
+        promptEnableAudio();
+      }
       document.removeEventListener("click", handler);
       document.removeEventListener("keydown", handler);
     };
