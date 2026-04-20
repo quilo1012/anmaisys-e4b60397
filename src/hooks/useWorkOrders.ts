@@ -321,6 +321,9 @@ export function useFinishWorkOrder() {
 
   return useMutation({
     mutationFn: async ({ woId, signedByName, engineerId, engineerName }: { woId: string; signedByName: string; engineerId: string; engineerName: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const authUid = user?.id;
+      if (!authUid) throw new Error("Not authenticated");
       // GUARD: block finish if line is still marked as stopped
       const { data: woState } = await supabase
         .from("work_orders")
@@ -343,7 +346,7 @@ export function useFinishWorkOrder() {
         .update({ status: "finished" as any, finished_at: new Date().toISOString(), signed_by_name: signedByName } as any)
         .eq("id", woId);
       if (error) throw error;
-      await logWOAction(woId, engineerId, engineerName, "finished");
+      await logWOAction(woId, authUid, engineerName, "finished");
 
       // Auto-create machine_event
       if (before) {
@@ -357,7 +360,7 @@ export function useFinishWorkOrder() {
           problem_description: problemDesc,
           action_taken: "Repair completed",
           event_type: "repair",
-          engineer_id: engineerId,
+          engineer_id: authUid,
           engineer_name: engineerName,
         } as any);
       }
