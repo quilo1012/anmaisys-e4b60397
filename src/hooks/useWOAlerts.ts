@@ -58,6 +58,8 @@ export function useWOAlerts() {
 
           console.log("[useWOAlerts INSERT]", wo.id, "ack:", wo.engineer_notified_acknowledged_at);
 
+          // Client-side ack gate — survives remount/reconnect/refresh even before server propagates.
+          if (isWOAcknowledged(wo.id)) return;
           // Server-side ack gate — never re-fire if already acknowledged.
           if (wo.engineer_notified_acknowledged_at) return;
           // Status gate — only 'open' WOs alert.
