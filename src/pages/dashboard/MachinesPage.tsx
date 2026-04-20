@@ -268,19 +268,11 @@ export default function MachinesPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label>Line</Label>
-            <Select value={lineId} onValueChange={setLineId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select line..." />
-              </SelectTrigger>
-              <SelectContent>
-                {(lines || []).map((l) => (
-                  <SelectItem key={l.id} value={l.id}>
-                    {l.name}
-                    {l.has_sides ? " (A/B)" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <LineCombobox
+              value={lineId}
+              onChange={setLineId}
+              lines={lines || []}
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Side {lineHasSides ? "*" : ""}</Label>
