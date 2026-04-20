@@ -23,6 +23,7 @@ import { useNavigate, Navigate } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
+import { EngineerChangePinDialog } from "@/components/EngineerChangePinDialog";
 import { LineStatusBanner } from "@/components/LineStatusBanner";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { LineDowntimeControl } from "@/components/LineDowntimeControl";
@@ -198,6 +199,7 @@ function EngineerDashboardContent() {
   const { alerts: predictiveAlerts } = usePredictiveAlerts();
   const { data: onlineEngineers } = useOnlineEngineers();
   const [focusMode, setFocusMode] = useState(false);
+  const [changePinOpen, setChangePinOpen] = useState(false);
 
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
@@ -627,6 +629,9 @@ function EngineerDashboardContent() {
             <Button variant={focusMode ? "default" : "outline"} size="sm" onClick={() => setFocusMode(!focusMode)} className="gap-1">
               <Focus className="h-4 w-4" /> {focusMode ? "Focus ON" : "Focus"}
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setChangePinOpen(true)} className="gap-1">
+              <Lock className="h-4 w-4" /> Change PIN
+            </Button>
           </div>
         </div>
 
@@ -873,6 +878,8 @@ function EngineerDashboardContent() {
         title={pinDialogTitle}
         description="Enter your engineer PIN to confirm this action."
       />
+
+      <EngineerChangePinDialog open={changePinOpen} onOpenChange={setChangePinOpen} />
     </DashboardLayout>
   );
 }
