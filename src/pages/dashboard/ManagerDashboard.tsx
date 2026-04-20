@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ManagerNavCards } from "@/components/DashboardNavCards";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 
@@ -181,20 +182,9 @@ function ManagerDashboardContent() {
           </Button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {quickLinks.map((link) => (
-            <Card key={link.url} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(link.url)}>
-              <CardContent className="pt-6 flex items-center gap-4">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <link.icon className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">{link.title}</p>
-                  <p className="text-sm text-muted-foreground">{link.desc}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Quick Navigation</h3>
+          <ManagerNavCards openWOs={openCount} />
         </div>
 
         <Dialog open={showChangePin} onOpenChange={(o) => { setShowChangePin(o); if (!o) { setNewPin(""); setConfirmPin(""); } }}>
