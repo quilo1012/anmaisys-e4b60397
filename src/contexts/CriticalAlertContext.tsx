@@ -223,12 +223,17 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
 
   // Flash tab title while alert active
   useEffect(() => {
+    const restoreTitle = () => {
+      // Strip any leftover 🚨 prefix to guarantee clean restore.
+      const clean = originalTitleRef.current.replace(/^🚨\s*NEW WO\s*—\s*.*$/, "").trim();
+      document.title = clean || "AN Maintenance";
+    };
     if (!active) {
       if (titleTimerRef.current) {
         clearInterval(titleTimerRef.current);
         titleTimerRef.current = null;
       }
-      document.title = originalTitleRef.current;
+      restoreTitle();
       return;
     }
     // Re-capture in case the route changed the title since mount
@@ -241,8 +246,11 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
       document.title = toggle ? `🚨 NEW WO — ${active.machine}` : originalTitleRef.current;
     }, 1000);
     return () => {
-      if (titleTimerRef.current) clearInterval(titleTimerRef.current);
-      document.title = originalTitleRef.current;
+      if (titleTimerRef.current) {
+        clearInterval(titleTimerRef.current);
+        titleTimerRef.current = null;
+      }
+      restoreTitle();
     };
   }, [active]);
 
