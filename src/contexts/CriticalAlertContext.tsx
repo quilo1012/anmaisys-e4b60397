@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, Bell, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { acknowledgeWOLocal } from "@/lib/woAck";
 
 export interface CriticalAlertPayload {
   woId: string;
