@@ -50,9 +50,16 @@ export default function ControlCenterPage() {
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+      const req = document.documentElement.requestFullscreen?.();
+      if (req && typeof req.then === "function") {
+        req.then(() => setIsFullscreen(true)).catch((err) => {
+          console.error("Fullscreen request failed:", err);
+        });
+      } else {
+        setIsFullscreen(true);
+      }
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      document.exitFullscreen?.().then(() => setIsFullscreen(false)).catch(() => {});
     }
   }, []);
 
