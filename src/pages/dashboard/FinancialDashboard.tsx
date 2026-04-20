@@ -1,10 +1,13 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DollarSign, TrendingUp, Factory, Wrench, ShieldAlert } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { DollarSign, TrendingUp, Factory, Wrench, ShieldAlert, CalendarIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useProducts } from "@/hooks/useStock";
@@ -12,8 +15,11 @@ import { useMachines } from "@/hooks/useMachines";
 import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { differenceInHours, differenceInMinutes, startOfDay, startOfMonth, format } from "date-fns";
+import { differenceInMinutes, startOfDay, endOfDay, subDays, format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { cn } from "@/lib/utils";
+
+type PeriodPreset = "7d" | "30d" | "90d" | "custom";
 
 const DONE_STATUSES = ["completed", "closed", "finished", "force_closed"];
 
