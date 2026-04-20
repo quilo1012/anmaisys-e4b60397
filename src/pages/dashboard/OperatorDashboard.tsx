@@ -75,6 +75,7 @@ function OperatorDashboardContent() {
   const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { data: machines } = useMachines();
   const { data: lines } = useLines();
+  const { data: mobileAssets } = useMobileAssets();
   const { data: problemDescriptions } = useActiveProblemDescriptions();
   const createWO = useCreateWorkOrder();
   const closeWO = useCloseWorkOrder();
