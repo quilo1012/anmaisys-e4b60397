@@ -160,11 +160,21 @@ function OperatorDashboardContent() {
         created_at = d.toISOString();
       }
       const effectivePriority = lineStopped ? "high" : autoPriority.priority;
+      // For Sealer/Printer line, both a sealer (mobile_asset_id) and a printer (secondary)
+      // are picked. Combine their labels into `machine` text for tracking/history.
+      let machineLabel = "";
+      if (mobileAssetId || secondaryAssetId) {
+        const all = (await import("@/hooks/useMobileAssets"));
+        const sealer = mobileAssets?.find((a) => a.id === mobileAssetId);
+        const printer = mobileAssets?.find((a) => a.id === secondaryAssetId);
+        machineLabel = [sealer && all.formatMobileAsset(sealer), printer && all.formatMobileAsset(printer)]
+          .filter(Boolean).join(" + ");
+      }
       await createWO.mutateAsync({
         requester_name: requestedBy.trim(),
         line_id: lineId,
-        mobile_asset_id: mobileAssetId || null,
-        machine: "",
+        mobile_asset_id: mobileAssetId || secondaryAssetId || null,
+        machine: machineLabel,
         description: description.trim(),
         notes: notes.trim(),
         priority: effectivePriority,
@@ -172,7 +182,7 @@ function OperatorDashboardContent() {
         line_stopped: lineStopped,
       });
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
-      setRequestedBy(""); setLineId(""); setMobileAssetId(""); setDescription(""); setNotes("");
+      setRequestedBy(""); setLineId(""); setMobileAssetId(""); setSecondaryAssetId(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
