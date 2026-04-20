@@ -31,7 +31,7 @@ export function useWOAlerts() {
       document.removeEventListener("click", handler);
       document.removeEventListener("keydown", handler);
     };
-  }, [role]);
+  }, [role, audioEnabled, promptEnableAudio]);
 
   // Engineers & Admins: critical full-screen alert + audio loop + vibration
   useEffect(() => {
