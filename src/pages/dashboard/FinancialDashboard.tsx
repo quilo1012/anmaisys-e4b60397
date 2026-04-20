@@ -61,6 +61,19 @@ function FinancialDashboardContent() {
   const { data: products } = useProducts();
   const { data: machines } = useMachines();
 
+  const [period, setPeriod] = useState<PeriodPreset>("30d");
+  const [startDate, setStartDate] = useState<Date>(startOfDay(subDays(new Date(), 30)));
+  const [endDate, setEndDate] = useState<Date>(endOfDay(new Date()));
+
+  const handlePeriodChange = (val: PeriodPreset) => {
+    setPeriod(val);
+    if (val !== "custom") {
+      const days = val === "7d" ? 7 : val === "30d" ? 30 : 90;
+      setStartDate(startOfDay(subDays(new Date(), days)));
+      setEndDate(endOfDay(new Date()));
+    }
+  };
+
   // Fetch all parts_used with product price
   const { data: allPartsUsed } = useQuery({
     queryKey: ["all_parts_used_with_price"],
