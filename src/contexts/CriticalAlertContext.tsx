@@ -282,8 +282,10 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
 
   const acknowledge = useCallback((woId?: string) => {
     console.log("[acknowledge]", woId);
-    // Persist server-side so re-mounts / reconnects don't replay.
+    // Persist client-side immediately so re-mounts/reconnects/refresh don't replay.
     if (woId) {
+      acknowledgeWOLocal(woId);
+      // Persist server-side as well (best effort).
       void supabase.rpc("acknowledge_wo_alert", { _wo_id: woId });
     }
 
