@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
@@ -206,9 +207,10 @@ function EngineerDashboardContent() {
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
+  const [resolutionNotes, setResolutionNotes] = useState("");
   const [pauseDialogWO, setPauseDialogWO] = useState<string | null>(null);
   // BUG 4: state for "line still stopped" modal when trying to finish
-  const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string } | null>(null);
+  const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string; notes: string } | null>(null);
   const [resumingThenFinish, setResumingThenFinish] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
   
@@ -380,19 +382,21 @@ function EngineerDashboardContent() {
     if (!signDialogWO || !signName.trim()) return;
     const woId = signDialogWO;
     const signature = signName.trim();
+    const notes = resolutionNotes.trim();
     // Close the sign dialog and ask for PIN as the legal "second signature".
     setSignDialogWO(null);
     setSignName("");
+    setResolutionNotes("");
     requirePin("Confirm FINISH (PIN)", async (engineer) => {
       try {
-        await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name });
+        await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name, resolutionNotes: notes });
         setCurrentEngineer(null);
         sessionStorage.removeItem("currentEngineer");
         toast({ title: "✅ Work order finished" });
       } catch (err: any) {
         if (err instanceof LineStillStoppedError || err?.code === "line_still_stopped") {
           // Open dedicated modal so engineer can resume the line first
-          setStoppedFinishCtx({ woId, signature });
+          setStoppedFinishCtx({ woId, signature, notes });
           return;
         }
         toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
@@ -403,7 +407,7 @@ function EngineerDashboardContent() {
   // BUG 4: resume the line, then retry finishing the WO with the same signature
   const handleResumeThenFinish = async () => {
     if (!stoppedFinishCtx) return;
-    const { woId, signature } = stoppedFinishCtx;
+    const { woId, signature, notes } = stoppedFinishCtx;
     setResumingThenFinish(true);
     try {
       // 1) Close any open downtime_event
@@ -422,7 +426,7 @@ function EngineerDashboardContent() {
       // 3) Retry finish with PIN
       requirePin("Confirm FINISH (PIN)", async (engineer) => {
         try {
-          await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name });
+          await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name, resolutionNotes: notes });
           setCurrentEngineer(null);
           sessionStorage.removeItem("currentEngineer");
           toast({ title: "✅ Line resumed and work order finished" });
@@ -790,25 +794,37 @@ function EngineerDashboardContent() {
       )}
 
       {/* Sign Dialog */}
-      <Dialog open={!!signDialogWO} onOpenChange={(open) => { if (!open) { setSignDialogWO(null); setSignName(""); } }}>
+      <Dialog open={!!signDialogWO} onOpenChange={(open) => { if (!open) { setSignDialogWO(null); setSignName(""); setResolutionNotes(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><PenTool className="h-5 w-5" /> Confirm & Finish Work Order</DialogTitle>
-            <DialogDescription>Sign and finish the work order</DialogDescription>
+            <DialogDescription>Describe the resolution and sign to finish</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {currentEngineer && (
               <p className="text-sm text-muted-foreground">Finishing as: <strong className="text-primary">{currentEngineer.name}</strong></p>
             )}
-            <p className="text-sm text-muted-foreground">Type the operator/line leader's name below to sign and finish this work order.</p>
             <div className="space-y-2">
-              <Label htmlFor="sign-name">Full Name (Digital Signature)</Label>
-              <Input id="sign-name" placeholder="e.g. John Smith" value={signName} onChange={(e) => setSignName(e.target.value)} autoFocus />
+              <Label htmlFor="resolution-notes">What was done to resolve the problem? <span className="text-destructive">*</span></Label>
+              <Textarea
+                id="resolution-notes"
+                placeholder="e.g. Replaced sealing belt, recalibrated pressure sensor, cleared jammed capsule…"
+                value={resolutionNotes}
+                onChange={(e) => setResolutionNotes(e.target.value)}
+                rows={4}
+                maxLength={1000}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground text-right">{resolutionNotes.length}/1000</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sign-name">Operator / Line Leader Signature</Label>
+              <Input id="sign-name" placeholder="e.g. John Smith" value={signName} onChange={(e) => setSignName(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); }}>Cancel</Button>
-            <Button onClick={handleFinishConfirm} disabled={!signName.trim() || finishWO.isPending}>
+            <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); setResolutionNotes(""); }}>Cancel</Button>
+            <Button onClick={handleFinishConfirm} disabled={!signName.trim() || !resolutionNotes.trim() || finishWO.isPending}>
               {finishWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm & Finish
             </Button>

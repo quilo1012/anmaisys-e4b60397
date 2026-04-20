@@ -317,7 +317,7 @@ export function useFinishWorkOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ woId, signedByName, engineerId, engineerName }: { woId: string; signedByName: string; engineerId: string; engineerName: string }) => {
+    mutationFn: async ({ woId, signedByName, engineerId, engineerName, resolutionNotes }: { woId: string; signedByName: string; engineerId: string; engineerName: string; resolutionNotes?: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
       const authUid = user?.id;
       if (!authUid) throw new Error("Not authenticated");
@@ -337,25 +337,39 @@ export function useFinishWorkOrder() {
         throw new LineStillStoppedError();
       }
 
-      const { data: before } = await supabase.from("work_orders").select("status, machine, description").eq("id", woId).single();
+      const { data: before } = await supabase.from("work_orders").select("status, machine, description, notes").eq("id", woId).single();
+
+      // Append the engineer's resolution notes to any existing notes (preserves earlier observations / pause reasons).
+      const trimmedNotes = (resolutionNotes ?? "").trim();
+      const prevNotes = ((before as any)?.notes ?? "").toString().trim();
+      const stamp = new Date().toLocaleString();
+      const resolutionBlock = trimmedNotes
+        ? `[Resolution — ${stamp} — ${engineerName}]\n${trimmedNotes}`
+        : "";
+      const mergedNotes = [prevNotes, resolutionBlock].filter(Boolean).join("\n\n");
+
       const { error } = await supabase
         .from("work_orders")
-        .update({ status: "finished" as any, finished_at: new Date().toISOString(), signed_by_name: signedByName } as any)
+        .update({
+          status: "finished" as any,
+          finished_at: new Date().toISOString(),
+          signed_by_name: signedByName,
+          ...(resolutionBlock ? { notes: mergedNotes } : {}),
+        } as any)
         .eq("id", woId);
       if (error) throw error;
       await logWOAction(woId, engineerId, engineerName, "finished");
 
-      // Auto-create machine_event
+      // Auto-create machine_event with the action_taken filled from the resolution notes.
       if (before) {
         const machineName = (before as any).machine;
         const problemDesc = (before as any).description;
-        // Find machine_id by name
         const { data: machineRow } = await supabase.from("machines").select("id").eq("name", machineName).single();
         await supabase.from("machine_events" as any).insert({
           machine_id: machineRow?.id || null,
           work_order_id: woId,
           problem_description: problemDesc,
-          action_taken: "Repair completed",
+          action_taken: trimmedNotes || "Repair completed",
           event_type: "repair",
           engineer_id: authUid,
           engineer_name: engineerName,
@@ -367,7 +381,7 @@ export function useFinishWorkOrder() {
     onSuccess: (result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
       queryClient.invalidateQueries({ queryKey: ["machine_events"] });
-      logAuditEvent("finish", "work_order", vars.woId, { before: result.before, after: { status: "finished", signed_by: vars.signedByName }, engineer_id: vars.engineerId, engineer_name: vars.engineerName });
+      logAuditEvent("finish", "work_order", vars.woId, { before: result.before, after: { status: "finished", signed_by: vars.signedByName, resolution: vars.resolutionNotes }, engineer_id: vars.engineerId, engineer_name: vars.engineerName });
     },
   });
 }
