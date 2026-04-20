@@ -537,8 +537,8 @@ function EngineerDashboardContent() {
               </Button>
             )}
             {wo.status === "received" && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
-                <Activity className="h-5 w-5 mr-2" /> I HAVE ARRIVED
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending || startWO.isPending}>
+                <Activity className="h-5 w-5 mr-2" /> I HAVE ARRIVED & START
               </Button>
             )}
             {wo.status === "arrived" && (
