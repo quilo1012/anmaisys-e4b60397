@@ -136,6 +136,17 @@ export default function ManageUsers() {
 
   const handleEditUser = async () => {
     if (!editUser) return;
+
+    const trimmedPassword = editPassword.trim();
+    if (trimmedPassword && trimmedPassword.length < 12) {
+      toast({
+        title: "Weak password",
+        description: "Use at least 12 characters with uppercase, lowercase, number, and symbol.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setEditLoading(true);
     try {
       const body: Record<string, unknown> = {
@@ -147,8 +158,8 @@ export default function ManageUsers() {
       if (editEmail.trim() !== editUser.email) {
         body.email = editEmail.trim().toLowerCase();
       }
-      if (editPassword) {
-        body.password = editPassword;
+      if (trimmedPassword) {
+        body.password = trimmedPassword;
       }
       const res = await invokeFunction("update-user", body);
       if (res.error) throw new Error(res.error.message);
