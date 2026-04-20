@@ -60,16 +60,48 @@ export function useShiftDowntime(dateISO: string) {
     queryKey: ["shift_downtime", dateISO],
     queryFn: async (): Promise<ShiftDowntimeData> => {
       const { dayStart, nightEnd } = getShiftWindows(dateISO);
-      // Fetch any event that could overlap (stopped before nightEnd AND (resumed_at>=dayStart OR open))
-      const { data, error } = await (supabase as any)
+
+      // 1) Per-WO downtime events (new model)
+      const { data: dtData, error: dtErr } = await (supabase as any)
         .from("downtime_events")
         .select("*")
         .lt("stopped_at", nightEnd.toISOString())
         .or(`resumed_at.gte.${dayStart.toISOString()},resumed_at.is.null`)
         .order("stopped_at", { ascending: true });
-      if (error) throw error;
-      const events = (data || []) as DowntimeEvent[];
-      return splitByShift(events, dateISO);
+      if (dtErr) throw dtErr;
+      const events = (dtData || []) as DowntimeEvent[];
+      const woIdsWithEvents = new Set(events.map((e) => e.work_order_id));
+
+      // 2) Fallback: legacy work_orders with line_stopped_at populated but no event row
+      const { data: woData, error: woErr } = await (supabase as any)
+        .from("work_orders")
+        .select("id, machine, line_at_time, line_stopped_at, line_stopped_by, line_resumed_at, line_resumed_by, created_at")
+        .not("line_stopped_at", "is", null)
+        .lt("line_stopped_at", nightEnd.toISOString())
+        .or(`line_resumed_at.gte.${dayStart.toISOString()},line_resumed_at.is.null`);
+      if (woErr) throw woErr;
+
+      const synthetic: DowntimeEvent[] = (woData || [])
+        .filter((w: any) => !woIdsWithEvents.has(w.id))
+        .map((w: any) => ({
+          id: `wo-${w.id}`,
+          work_order_id: w.id,
+          stopped_at: w.line_stopped_at,
+          stopped_by: w.line_stopped_by,
+          stopped_by_name: null,
+          stopped_reason: w.machine || w.line_at_time || null,
+          resumed_at: w.line_resumed_at,
+          resumed_by: w.line_resumed_by,
+          resumed_by_name: null,
+          resumed_note: null,
+          duration_minutes: null,
+          created_at: w.created_at,
+          // attach for label aggregation
+          machine: w.machine,
+          line_at_time: w.line_at_time,
+        } as any));
+
+      return splitByShift([...events, ...synthetic], dateISO);
     },
     refetchInterval: 30_000,
   });
