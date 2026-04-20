@@ -258,13 +258,16 @@ export function useArriveWorkOrder() {
 
   return useMutation({
     mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const authUid = user?.id;
+      if (!authUid) throw new Error("Not authenticated");
       const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
         .update({ status: "arrived" as any, arrived_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
-      await logWOAction(woId, engineerId, engineerName, "arrived");
+      await logWOAction(woId, authUid, engineerName, "arrived");
       return { before };
     },
     onSuccess: (result, vars) => {
