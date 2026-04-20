@@ -156,7 +156,7 @@ export default function ProblemsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {problems.map((p) => (
+                  {visibleProblems.map((p) => (
                     <TableRow key={p.id} className={!p.active ? "opacity-50" : ""}>
                       <TableCell className="font-medium">
                         {p.name}
