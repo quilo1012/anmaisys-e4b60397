@@ -282,13 +282,23 @@ export function useStartWorkOrder() {
 
   return useMutation({
     mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const authUid = user?.id;
+      if (!authUid) throw new Error("Not authenticated");
       const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
       const { error } = await supabase
         .from("work_orders")
-        .update({ status: "in_progress" as any, started_at: new Date().toISOString() } as any)
+        .update({
+          status: "in_progress" as any,
+          started_at: new Date().toISOString(),
+          engineer_id: authUid,
+          engineer_name: engineerName,
+          locked_engineer_id: authUid,
+          locked_at: new Date().toISOString(),
+        } as any)
         .eq("id", woId);
       if (error) throw error;
-      await logWOAction(woId, engineerId, engineerName, "started");
+      await logWOAction(woId, authUid, engineerName, "started");
       return { before };
     },
     onSuccess: (result, vars) => {
