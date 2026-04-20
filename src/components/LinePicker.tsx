@@ -59,7 +59,7 @@ export function LinePicker({ lineId, mobileAssetId, onChange }: Props) {
       {showMobile && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label>Mobile asset (optional)</Label>
+            <Label>Machine (optional)</Label>
             <Button
               type="button"
               variant="ghost"
