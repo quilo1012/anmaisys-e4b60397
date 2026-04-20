@@ -616,6 +616,8 @@ function EngineerDashboardContent() {
           </Alert>
         )}
 
+        <EngineerNavCards assignedCount={activeWOs?.filter(wo => wo.status === "in_progress").length ?? 0} />
+
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="text-xl md:text-2xl font-bold">Engineer Panel</h2>
