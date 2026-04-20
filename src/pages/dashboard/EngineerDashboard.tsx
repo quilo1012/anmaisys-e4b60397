@@ -33,6 +33,7 @@ import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { useOnlineEngineers } from "@/hooks/useOnlineEngineers";
 import { useChecklistsByProblemName, useChecklistResponses, useSaveChecklistResponse } from "@/hooks/useChecklists";
 import { EngineerNavCards } from "@/components/DashboardNavCards";
+import { clearAcknowledgedWOLocal } from "@/lib/woAck";
 
 
 
@@ -317,14 +318,14 @@ function EngineerDashboardContent() {
     stopAlertSound();
     requirePin("Confirm ACCEPT", async (engineer) => {
       setCurrentEngineer(engineer);
+      acknowledge(woId);
       try {
         // Single atomic update: status + engineer + lock + ack timestamp.
         // Prevents the alert from re-firing via realtime UPDATE event.
         await acceptWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name });
-        // Close the critical alert modal immediately — don't wait for realtime UPDATE.
-        acknowledge(woId);
         toast({ title: "✅ Order accepted", description: "Head to the machine, then tap 'I Have Arrived'." });
       } catch (err: any) {
+        clearAcknowledgedWOLocal(woId);
         toast({ title: "Error accepting WO", description: err.message, variant: "destructive" });
       }
     });
