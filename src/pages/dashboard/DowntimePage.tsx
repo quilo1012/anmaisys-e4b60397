@@ -457,6 +457,9 @@ export default function DowntimePage() {
           </Card>
         </div>
 
+        {/* Day / Night shift breakdown (Europe/London) */}
+        <ShiftBreakdownCard />
+
         {/* Reliability KPIs */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
