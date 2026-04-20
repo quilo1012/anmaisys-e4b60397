@@ -120,6 +120,24 @@ export default function ProblemsPage() {
           <Button onClick={() => { resetForm(); setShowAdd(true); }}><Plus className="h-4 w-4 mr-2" /> Add Problem</Button>
         </div>
 
+        {incompleteCount > 0 && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/30 dark:border-yellow-800 px-4 py-3 text-sm">
+            <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>
+                <strong>{incompleteCount}</strong> problem{incompleteCount > 1 ? "s are" : " is"} incomplete — missing Category or Description. Complete them to improve reporting accuracy.
+              </span>
+            </div>
+            <Button
+              size="sm"
+              variant={showOnlyIncomplete ? "default" : "outline"}
+              onClick={() => setShowOnlyIncomplete((v) => !v)}
+            >
+              {showOnlyIncomplete ? "Show all" : "View incomplete"}
+            </Button>
+          </div>
+        )}
+
         <Card>
           <CardContent className="pt-6">
             {isLoading ? (
