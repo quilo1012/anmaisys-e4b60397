@@ -356,8 +356,7 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
           className={cn(
             "max-w-lg border-4 border-destructive bg-destructive text-destructive-foreground",
             "shadow-[0_0_60px_hsl(var(--destructive)/0.6)]",
-            "[&>button]:hidden", // hide close X
-            "animate-pulse"
+            "[&>button]:hidden" // hide close X
           )}
           onEscapeKeyDown={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => e.preventDefault()}
