@@ -181,14 +181,18 @@ export default function DowntimePage() {
 
   const filteredRecords = useMemo(() => {
     if (!records) return [];
+    const from = startOfDay(startDate).getTime();
+    const to = endOfDay(endDate).getTime();
     return records.filter(r => {
+      const t = new Date(r.started_at).getTime();
+      if (t < from || t > to) return false;
       if (filterLine !== "all" && r.line !== filterLine) return false;
       if (filterCategory !== "all" && r.category !== filterCategory) return false;
       if (filterStatus === "active" && r.ended_at) return false;
       if (filterStatus === "resolved" && !r.ended_at) return false;
       return true;
     });
-  }, [records, filterLine, filterCategory, filterStatus]);
+  }, [records, filterLine, filterCategory, filterStatus, startDate, endDate]);
 
   const getDuration = (r: DowntimeRecord) => {
     const end = r.ended_at ? new Date(r.ended_at) : new Date();
@@ -392,8 +396,18 @@ export default function DowntimePage() {
                   {format(startDate, "dd/MM")} – {format(endDate, "dd/MM")}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar mode="range" selected={{ from: startDate, to: endDate }} onSelect={(range) => { if (range?.from) setStartDate(range.from); if (range?.to) setEndDate(range.to); }} numberOfMonths={2} />
+              <PopoverContent className="w-auto p-0 z-50 bg-popover" align="end">
+                <Calendar
+                  mode="range"
+                  selected={{ from: startDate, to: endDate }}
+                  onSelect={(range) => {
+                    if (range?.from) setStartDate(startOfDay(range.from));
+                    if (range?.to) setEndDate(endOfDay(range.to));
+                  }}
+                  numberOfMonths={2}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
               </PopoverContent>
             </Popover>
             <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={openCreate}>
