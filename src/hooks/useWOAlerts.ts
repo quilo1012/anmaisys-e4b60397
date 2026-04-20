@@ -113,6 +113,7 @@ export function useWOAlerts() {
             ["received", "in_progress"].includes(updated.status) &&
             updated.engineer_id === user.id
           ) {
+            acknowledgeWOLocal(updated.id);
             acknowledge(updated.id);
           }
         }
