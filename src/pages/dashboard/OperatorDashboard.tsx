@@ -60,6 +60,7 @@ function OperatorDashboardContent() {
 
   const [lineId, setLineId] = useState<string>("");
   const [mobileAssetId, setMobileAssetId] = useState<string>("");
+  const [secondaryAssetId, setSecondaryAssetId] = useState<string>("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
