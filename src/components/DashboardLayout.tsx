@@ -273,6 +273,14 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className="shrink-0">
                   {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
+                {role && (
+                  <span
+                    className={`hidden sm:inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${roleBadgeClass[role] ?? "bg-muted text-muted-foreground"}`}
+                    aria-label={`Current role: ${roleTitle[role]}`}
+                  >
+                    {roleTitle[role]}
+                  </span>
+                )}
                 <LiveClock />
               </div>
             </header>
