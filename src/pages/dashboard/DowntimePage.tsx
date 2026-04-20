@@ -396,8 +396,18 @@ export default function DowntimePage() {
                   {format(startDate, "dd/MM")} – {format(endDate, "dd/MM")}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar mode="range" selected={{ from: startDate, to: endDate }} onSelect={(range) => { if (range?.from) setStartDate(range.from); if (range?.to) setEndDate(range.to); }} numberOfMonths={2} />
+              <PopoverContent className="w-auto p-0 z-50 bg-popover" align="end">
+                <Calendar
+                  mode="range"
+                  selected={{ from: startDate, to: endDate }}
+                  onSelect={(range) => {
+                    if (range?.from) setStartDate(startOfDay(range.from));
+                    if (range?.to) setEndDate(endOfDay(range.to));
+                  }}
+                  numberOfMonths={2}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
               </PopoverContent>
             </Popover>
             <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={openCreate}>
