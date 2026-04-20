@@ -400,7 +400,20 @@ export default function AnalyticsPage() {
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie data={ordersByStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine>
-                      {ordersByStatus.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      {ordersByStatus.map((entry, i) => {
+                        const STATUS_COLORS: Record<string, string> = {
+                          open: "#ef4444",
+                          in_progress: "#f59e0b",
+                          finished: "#22c55e",
+                          completed: "#22c55e",
+                          done: "#14b8a6",
+                          closed: "#14b8a6",
+                          force_closed: "#6b7280",
+                          received: "#3b82f6",
+                          arrived: "#8b5cf6",
+                        };
+                        return <Cell key={i} fill={STATUS_COLORS[entry.name] || COLORS[i % COLORS.length]} />;
+                      })}
                     </Pie>
                     <Tooltip /><Legend />
                   </PieChart>
