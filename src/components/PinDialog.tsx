@@ -112,55 +112,38 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {confirming ? <UserCheck className="h-5 w-5 text-green-500" /> : <Lock className="h-5 w-5" />}
-            {confirming ? "Confirm Identity" : title}
+            <Lock className="h-5 w-5" />
+            {title}
           </DialogTitle>
-          <DialogDescription>
-            {confirming ? "Verify this is the correct engineer." : description}
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        {confirming ? (
-          <div className="flex flex-col items-center gap-4 py-6">
-            <div className="text-center space-y-2">
-              <p className="text-sm text-muted-foreground">Confirming as:</p>
-              <p className="text-2xl font-bold text-primary">{confirming.name}</p>
+        <div className="flex flex-col items-center gap-4 py-4">
+          <InputOTP maxLength={4} value={pin} onChange={setPin} disabled={isLocked || loading} autoFocus>
+            <InputOTPGroup>
+              <InputOTPSlot index={0} />
+              <InputOTPSlot index={1} />
+              <InputOTPSlot index={2} />
+              <InputOTPSlot index={3} />
+            </InputOTPGroup>
+          </InputOTP>
+          {error && (
+            <div className="flex items-start gap-2 w-full rounded-md border border-destructive bg-destructive/10 p-3">
+              <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+              <p className="text-sm text-destructive font-medium">{error}</p>
             </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-4 py-4">
-            <InputOTP maxLength={4} value={pin} onChange={setPin} disabled={isLocked || loading}>
-              <InputOTPGroup>
-                <InputOTPSlot index={0} />
-                <InputOTPSlot index={1} />
-                <InputOTPSlot index={2} />
-                <InputOTPSlot index={3} />
-              </InputOTPGroup>
-            </InputOTP>
-            {error && (
-              <div className="flex items-start gap-2 w-full rounded-md border border-destructive bg-destructive/10 p-3">
-                <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                <p className="text-sm text-destructive font-medium">{error}</p>
-              </div>
-            )}
-            {isLocked && (
-              <p className="text-xs text-muted-foreground">Try again in {lockoutLeft}s</p>
-            )}
-          </div>
-        )}
+          )}
+          {isLocked && (
+            <p className="text-xs text-muted-foreground">Try again in {lockoutLeft}s</p>
+          )}
+        </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => handleClose(false)}>Cancel</Button>
-          {confirming ? (
-            <Button onClick={handleConfirm} className="bg-green-600 hover:bg-green-700">
-              <UserCheck className="h-4 w-4 mr-2" /> Confirm
-            </Button>
-          ) : (
-            <Button onClick={handleVerify} disabled={loading || pin.length < 4 || isLocked}>
-              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isLocked ? `Wait ${lockoutLeft}s` : "Verify"}
-            </Button>
-          )}
+          <Button onClick={handleVerify} disabled={loading || pin.length < 4 || isLocked}>
+            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {isLocked ? `Wait ${lockoutLeft}s` : "Confirm"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
