@@ -166,10 +166,9 @@ function OperatorDashboardContent() {
       // are picked. Combine their labels into `machine` text for tracking/history.
       let machineLabel = "";
       if (mobileAssetId || secondaryAssetId) {
-        const all = (await import("@/hooks/useMobileAssets"));
         const sealer = mobileAssets?.find((a) => a.id === mobileAssetId);
         const printer = mobileAssets?.find((a) => a.id === secondaryAssetId);
-        machineLabel = [sealer && all.formatMobileAsset(sealer), printer && all.formatMobileAsset(printer)]
+        machineLabel = [sealer && formatMobileAsset(sealer), printer && formatMobileAsset(printer)]
           .filter(Boolean).join(" + ");
       }
       await createWO.mutateAsync({
