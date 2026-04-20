@@ -301,8 +301,8 @@ function FinancialDashboardContent() {
         <Card>
           <CardHeader><CardTitle className="text-base">Work Order Cost Breakdown</CardTitle></CardHeader>
           <CardContent>
-            {!woCosts.length ? (
-              <p className="text-muted-foreground text-center py-8">No completed work orders with cost data.</p>
+            {!filteredCosts.length ? (
+              <p className="text-muted-foreground text-center py-8">No completed work orders with cost data in this date range.</p>
             ) : (
               <Table>
                 <TableHeader>
