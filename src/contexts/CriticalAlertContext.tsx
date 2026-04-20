@@ -221,37 +221,17 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
     engineRef.current = new AlertAudioEngine();
   }
 
-  // Flash tab title while alert active
+  // Title flash removed — too distracting. Modal + audio are sufficient signals.
   useEffect(() => {
-    const restoreTitle = () => {
-      // Strip any leftover 🚨 prefix to guarantee clean restore.
-      const clean = originalTitleRef.current.replace(/^🚨\s*NEW WO\s*—\s*.*$/, "").trim();
-      document.title = clean || "AN Maintenance";
-    };
-    if (!active) {
-      if (titleTimerRef.current) {
-        clearInterval(titleTimerRef.current);
-        titleTimerRef.current = null;
-      }
-      restoreTitle();
-      return;
+    if (!active && titleTimerRef.current) {
+      clearInterval(titleTimerRef.current);
+      titleTimerRef.current = null;
     }
-    // Re-capture in case the route changed the title since mount
-    if (!document.title.startsWith("🚨")) {
+    // Always ensure title is clean
+    if (originalTitleRef.current && !document.title.startsWith("🚨")) {
       originalTitleRef.current = document.title;
     }
-    let toggle = false;
-    titleTimerRef.current = window.setInterval(() => {
-      toggle = !toggle;
-      document.title = toggle ? `🚨 NEW WO — ${active.machine}` : originalTitleRef.current;
-    }, 1000);
-    return () => {
-      if (titleTimerRef.current) {
-        clearInterval(titleTimerRef.current);
-        titleTimerRef.current = null;
-      }
-      restoreTitle();
-    };
+    document.title = originalTitleRef.current || "AN Maintenance";
   }, [active]);
 
   // Favicon badge follows pending count (active + queued)
