@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Loader2, Lock, UserCheck, AlertCircle } from "lucide-react";
-import { invokeFunction } from "@/lib/invokeFunction";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export interface EngineerIdentity {
@@ -59,17 +59,14 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
     setLoading(true);
     setError("");
     try {
-      const res = await invokeFunction("verify-engineer-pin", { pin });
-      if (res.error) throw new Error(res.error.message);
-      if (res.data?.error) {
-        setError(`❌ ${res.data.error}`);
-        setPin("");
-        return;
-      }
-      if (res.data?.valid && res.data?.engineer_id) {
+      const { data, error } = await supabase.rpc("verify_pin_by_code", { _pin: pin });
+      if (error) throw error;
+
+      const match = Array.isArray(data) ? data[0] : null;
+      if (match?.engineer_id) {
         // Reset attempts on success and proceed to confirm step
         setAttempts(0);
-        setConfirming({ id: res.data.engineer_id, name: res.data.engineer_name });
+        setConfirming({ id: match.engineer_id, name: match.engineer_name });
       } else {
         // Wrong PIN
         const next = attempts + 1;
