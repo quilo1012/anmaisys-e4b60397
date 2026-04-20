@@ -381,19 +381,21 @@ function EngineerDashboardContent() {
     if (!signDialogWO || !signName.trim()) return;
     const woId = signDialogWO;
     const signature = signName.trim();
+    const notes = resolutionNotes.trim();
     // Close the sign dialog and ask for PIN as the legal "second signature".
     setSignDialogWO(null);
     setSignName("");
+    setResolutionNotes("");
     requirePin("Confirm FINISH (PIN)", async (engineer) => {
       try {
-        await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name });
+        await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name, resolutionNotes: notes });
         setCurrentEngineer(null);
         sessionStorage.removeItem("currentEngineer");
         toast({ title: "✅ Work order finished" });
       } catch (err: any) {
         if (err instanceof LineStillStoppedError || err?.code === "line_still_stopped") {
           // Open dedicated modal so engineer can resume the line first
-          setStoppedFinishCtx({ woId, signature });
+          setStoppedFinishCtx({ woId, signature, notes });
           return;
         }
         toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
