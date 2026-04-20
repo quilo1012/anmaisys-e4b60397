@@ -49,11 +49,21 @@ export default function AuditLogsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2"><Shield className="h-6 w-6" /> Audit Logs</h2>
-            <p className="text-muted-foreground">Complete activity log for compliance and security. Logs are tamper-proof and cannot be deleted.</p>
+            <p className="text-muted-foreground">Complete activity log for compliance and security.</p>
           </div>
+          {role === "admin" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowClear(true)}
+              className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Clear Audit Logs
+            </Button>
+          )}
         </div>
 
         <Card>
