@@ -134,17 +134,25 @@ export default function ManageUsers() {
     setEditPassword("");
   };
 
+  const validateStrongPassword = (pwd: string): string | null => {
+    if (pwd.length < 12) return "Password must be at least 12 characters long.";
+    if (!/[A-Z]/.test(pwd)) return "Password must contain at least one uppercase letter.";
+    if (!/[a-z]/.test(pwd)) return "Password must contain at least one lowercase letter.";
+    if (!/[0-9]/.test(pwd)) return "Password must contain at least one number.";
+    if (!/[^A-Za-z0-9]/.test(pwd)) return "Password must contain at least one symbol (e.g. !@#$%).";
+    return null;
+  };
+
   const handleEditUser = async () => {
     if (!editUser) return;
 
     const trimmedPassword = editPassword.trim();
-    if (trimmedPassword && trimmedPassword.length < 12) {
-      toast({
-        title: "Weak password",
-        description: "Use at least 12 characters with uppercase, lowercase, number, and symbol.",
-        variant: "destructive",
-      });
-      return;
+    if (trimmedPassword) {
+      const pwdError = validateStrongPassword(trimmedPassword);
+      if (pwdError) {
+        toast({ title: "Weak password", description: pwdError, variant: "destructive" });
+        return;
+      }
     }
 
     setEditLoading(true);
