@@ -17,6 +17,16 @@ const updateUserSchema = z.object({
   labor_rate: z.number().min(0).optional(),
 });
 
+const getReadableErrorMessage = (error: unknown) => {
+  const message = error instanceof Error ? error.message : "Unknown error";
+
+  if (message.toLowerCase().includes("known to be weak and easy to guess")) {
+    return "This password is too weak or has appeared in known data breaches. Please use a stronger password with 12+ characters, upper/lowercase letters, numbers, and a symbol.";
+  }
+
+  return message;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -48,23 +58,20 @@ Deno.serve(async (req) => {
     const body = updateUserSchema.parse(await req.json());
     const { userId, name, role, shift, active, email, password, labor_rate } = body;
 
-    // Only admins can assign admin role
     if (role === "admin" && !isAdmin) throw new Error("Only admins can assign the Admin role");
-
-    // Only admins can modify labor_rate (compensation field)
     if (labor_rate !== undefined && !isAdmin) {
       throw new Error("Only admins can modify labor rates");
     }
 
     if (email) {
       const { error: emailError } = await supabaseAdmin.auth.admin.updateUserById(userId, { email });
-      if (emailError) throw emailError;
+      if (emailError) throw new Error(getReadableErrorMessage(emailError));
       await supabaseAdmin.from("profiles").update({ email }).eq("id", userId);
     }
 
     if (password) {
       const { error: pwError } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
-      if (pwError) throw pwError;
+      if (pwError) throw new Error(getReadableErrorMessage(pwError));
     }
 
     const profileUpdate: Record<string, unknown> = {};
@@ -89,14 +96,16 @@ Deno.serve(async (req) => {
         .single();
 
       if (existingRole) {
-        await supabaseAdmin
+        const { error: roleError } = await supabaseAdmin
           .from("user_roles")
           .update({ role })
           .eq("user_id", userId);
+        if (roleError) throw roleError;
       } else {
-        await supabaseAdmin
+        const { error: roleError } = await supabaseAdmin
           .from("user_roles")
           .insert({ user_id: userId, role });
+        if (roleError) throw roleError;
       }
     }
 
@@ -110,8 +119,8 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
+
+    return new Response(JSON.stringify({ error: getReadableErrorMessage(error) }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
