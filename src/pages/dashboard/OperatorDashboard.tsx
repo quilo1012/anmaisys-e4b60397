@@ -24,6 +24,7 @@ import { useNavigate, Navigate } from "react-router-dom";
 import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
+import { OperatorNavCards } from "@/components/DashboardNavCards";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -184,6 +185,8 @@ function OperatorDashboardContent() {
           <h2 className="text-2xl font-bold">Operator Panel</h2>
           <p className="text-muted-foreground">Create and track your work orders</p>
         </div>
+
+        <OperatorNavCards myOpenWOs={workOrders?.filter((w) => w.status === "open" || w.status === "in_progress").length ?? 0} />
 
         {/* Quick CTA buttons — Line Stopped vs Line Running */}
         <div className="grid gap-4 md:grid-cols-2">
