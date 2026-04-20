@@ -44,6 +44,7 @@ import {
 import { SideBadge } from "@/components/MachineSelector";
 import { ComboboxInput } from "@/components/ComboboxInput";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
