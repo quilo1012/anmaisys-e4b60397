@@ -794,25 +794,37 @@ function EngineerDashboardContent() {
       )}
 
       {/* Sign Dialog */}
-      <Dialog open={!!signDialogWO} onOpenChange={(open) => { if (!open) { setSignDialogWO(null); setSignName(""); } }}>
+      <Dialog open={!!signDialogWO} onOpenChange={(open) => { if (!open) { setSignDialogWO(null); setSignName(""); setResolutionNotes(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><PenTool className="h-5 w-5" /> Confirm & Finish Work Order</DialogTitle>
-            <DialogDescription>Sign and finish the work order</DialogDescription>
+            <DialogDescription>Describe the resolution and sign to finish</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {currentEngineer && (
               <p className="text-sm text-muted-foreground">Finishing as: <strong className="text-primary">{currentEngineer.name}</strong></p>
             )}
-            <p className="text-sm text-muted-foreground">Type the operator/line leader's name below to sign and finish this work order.</p>
             <div className="space-y-2">
-              <Label htmlFor="sign-name">Full Name (Digital Signature)</Label>
-              <Input id="sign-name" placeholder="e.g. John Smith" value={signName} onChange={(e) => setSignName(e.target.value)} autoFocus />
+              <Label htmlFor="resolution-notes">What was done to resolve the problem? <span className="text-destructive">*</span></Label>
+              <Textarea
+                id="resolution-notes"
+                placeholder="e.g. Replaced sealing belt, recalibrated pressure sensor, cleared jammed capsule…"
+                value={resolutionNotes}
+                onChange={(e) => setResolutionNotes(e.target.value)}
+                rows={4}
+                maxLength={1000}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground text-right">{resolutionNotes.length}/1000</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sign-name">Operator / Line Leader Signature</Label>
+              <Input id="sign-name" placeholder="e.g. John Smith" value={signName} onChange={(e) => setSignName(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); }}>Cancel</Button>
-            <Button onClick={handleFinishConfirm} disabled={!signName.trim() || finishWO.isPending}>
+            <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); setResolutionNotes(""); }}>Cancel</Button>
+            <Button onClick={handleFinishConfirm} disabled={!signName.trim() || !resolutionNotes.trim() || finishWO.isPending}>
               {finishWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm & Finish
             </Button>
