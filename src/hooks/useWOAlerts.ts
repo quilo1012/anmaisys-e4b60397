@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { requestNotificationPermission, sendWebNotification } from "@/lib/shifts";
 import { useToast } from "@/hooks/use-toast";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
+import { isWOAcknowledged, acknowledgeWOLocal } from "@/lib/woAck";
 
 export function useWOAlerts() {
   const { user, role } = useAuth();
