@@ -132,6 +132,15 @@ const roleTitle: Record<string, string> = {
   manager: "Manager",
   engineer: "Engineer",
   operator: "Operator",
+  viewer: "Viewer",
+};
+
+const roleBadgeClass: Record<string, string> = {
+  admin: "bg-red-500/15 text-red-600 border-red-500/30",
+  manager: "bg-purple-500/15 text-purple-600 border-purple-500/30",
+  engineer: "bg-blue-500/15 text-blue-600 border-blue-500/30",
+  operator: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
+  viewer: "bg-muted text-muted-foreground border-border",
 };
 
 const routeTitles: Record<string, string> = {
@@ -264,6 +273,14 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className="shrink-0">
                   {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
+                {role && (
+                  <span
+                    className={`hidden sm:inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${roleBadgeClass[role] ?? "bg-muted text-muted-foreground"}`}
+                    aria-label={`Current role: ${roleTitle[role]}`}
+                  >
+                    {roleTitle[role]}
+                  </span>
+                )}
                 <LiveClock />
               </div>
             </header>

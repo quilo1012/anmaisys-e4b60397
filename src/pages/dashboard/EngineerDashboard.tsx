@@ -32,6 +32,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { useOnlineEngineers } from "@/hooks/useOnlineEngineers";
 import { useChecklistsByProblemName, useChecklistResponses, useSaveChecklistResponse } from "@/hooks/useChecklists";
+import { EngineerNavCards } from "@/components/DashboardNavCards";
 
 
 
@@ -614,6 +615,8 @@ function EngineerDashboardContent() {
             </AlertDescription>
           </Alert>
         )}
+
+        <EngineerNavCards assignedCount={activeWOs?.filter(wo => wo.status === "in_progress").length ?? 0} />
 
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
