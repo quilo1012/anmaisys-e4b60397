@@ -2,18 +2,44 @@ import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Search, Shield } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Loader2, Search, Shield, Trash2, AlertTriangle } from "lucide-react";
 import { useAuditLogs } from "@/hooks/useAuditLogs";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { invokeFunction } from "@/lib/invokeFunction";
 
 export default function AuditLogsPage() {
   const [entityType, setEntityType] = useState("all");
   const [search, setSearch] = useState("");
+  const [showClear, setShowClear] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [clearing, setClearing] = useState(false);
+  const { role } = useAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
 
   const { data: logs, isLoading } = useAuditLogs({ entityType, search });
+
+  const handleClearLogs = async () => {
+    setClearing(true);
+    const { error } = await invokeFunction("clear-audit-logs");
+    setClearing(false);
+    if (error) {
+      toast({ title: "Error", description: error.message ?? "Failed to clear logs", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Audit logs cleared" });
+    setShowClear(false);
+    setConfirmText("");
+    qc.invalidateQueries({ queryKey: ["audit_logs"] });
+  };
 
   const entityTypes = useMemo(() => {
     if (!logs) return [];
@@ -23,11 +49,21 @@ export default function AuditLogsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2"><Shield className="h-6 w-6" /> Audit Logs</h2>
-            <p className="text-muted-foreground">Complete activity log for compliance and security. Logs are tamper-proof and cannot be deleted.</p>
+            <p className="text-muted-foreground">Complete activity log for compliance and security.</p>
           </div>
+          {role === "admin" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowClear(true)}
+              className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Clear Audit Logs
+            </Button>
+          )}
         </div>
 
         <Card>
@@ -90,7 +126,40 @@ export default function AuditLogsPage() {
             )}
           </CardContent>
         </Card>
+
+        <AlertDialog open={showClear} onOpenChange={(o) => { setShowClear(o); if (!o) setConfirmText(""); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                Clear all audit logs?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This permanently deletes every audit log entry. This action cannot be undone.
+                Type <span className="font-mono font-semibold">CONFIRM</span> to proceed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <Input
+              placeholder='Type "CONFIRM"'
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              autoComplete="off"
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={clearing}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={clearing || confirmText !== "CONFIRM"}
+                onClick={(e) => { e.preventDefault(); handleClearLogs(); }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {clearing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Clear All
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );
 }
+
