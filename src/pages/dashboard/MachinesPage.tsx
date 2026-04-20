@@ -345,11 +345,20 @@ export default function MachinesPage() {
           <Button
             onClick={() => {
               resetForm();
+              setCode(nextMachineCode);
               setShowAdd(true);
             }}
           >
             <Plus className="h-4 w-4 mr-2" /> Add Machine
           </Button>
+        </div>
+
+        <div className="relative max-w-md">
+          <Input
+            placeholder="Search machines..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
 
         <Card>
