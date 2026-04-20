@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { requestNotificationPermission, sendWebNotification } from "@/lib/shifts";
 import { useToast } from "@/hooks/use-toast";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
+import { isWOAcknowledged, acknowledgeWOLocal } from "@/lib/woAck";
 
 export function useWOAlerts() {
   const { user, role } = useAuth();
@@ -57,6 +58,8 @@ export function useWOAlerts() {
 
           console.log("[useWOAlerts INSERT]", wo.id, "ack:", wo.engineer_notified_acknowledged_at);
 
+          // Client-side ack gate — survives remount/reconnect/refresh even before server propagates.
+          if (isWOAcknowledged(wo.id)) return;
           // Server-side ack gate — never re-fire if already acknowledged.
           if (wo.engineer_notified_acknowledged_at) return;
           // Status gate — only 'open' WOs alert.
@@ -110,6 +113,7 @@ export function useWOAlerts() {
             ["received", "in_progress"].includes(updated.status) &&
             updated.engineer_id === user.id
           ) {
+            acknowledgeWOLocal(updated.id);
             acknowledge(updated.id);
           }
         }
