@@ -97,7 +97,6 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
   const resetState = () => {
     setPin("");
     setError("");
-    setConfirming(null);
     setAttempts(0);
     setLockoutLeft(0);
   };
