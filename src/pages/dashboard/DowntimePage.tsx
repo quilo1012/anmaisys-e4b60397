@@ -18,6 +18,7 @@ import {
   Clock, Loader2, Plus, Pencil, Trash2, CheckCircle, AlertTriangle, Activity,
   TrendingUp, CalendarIcon, ChevronDown, History, Cog,
 } from "lucide-react";
+import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
 import { useDowntime, useCreateDowntime, useUpdateDowntime, useDeleteDowntime, type DowntimeRecord } from "@/hooks/useDowntime";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines } from "@/hooks/useMachines";
