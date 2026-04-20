@@ -425,7 +425,7 @@ function EngineerDashboardContent() {
       // 3) Retry finish with PIN
       requirePin("Confirm FINISH (PIN)", async (engineer) => {
         try {
-          await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name });
+          await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name, resolutionNotes: notes });
           setCurrentEngineer(null);
           sessionStorage.removeItem("currentEngineer");
           toast({ title: "✅ Line resumed and work order finished" });
