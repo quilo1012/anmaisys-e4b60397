@@ -374,6 +374,7 @@ function OperatorDashboardContent() {
             ) : !workOrders?.length ? (
               <p className="text-muted-foreground text-center py-8">No work orders yet. Create one above!</p>
             ) : (
+              <div className="overflow-x-auto -mx-3 sm:mx-0">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -424,6 +425,7 @@ function OperatorDashboardContent() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>
