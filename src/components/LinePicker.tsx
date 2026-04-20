@@ -22,7 +22,7 @@ interface Props {
  *
  * No more "machine" dropdown — fixed machines are implicit to the line.
  */
-export function LinePicker({ lineId, mobileAssetId, onChange }: Props) {
+export function LinePicker({ lineId, mobileAssetId, secondaryAssetId = "", onChange }: Props) {
   const { data: lines } = useLines();
   const { data: mobileAssets } = useMobileAssets();
   const upsertAsset = useUpsertMobileAsset();
@@ -42,6 +42,10 @@ export function LinePicker({ lineId, mobileAssetId, onChange }: Props) {
   const printers = (mobileAssets || []).filter((a) => a.asset_type === "printer");
   const sealers = (mobileAssets || []).filter((a) => a.asset_type === "bag_sealer");
 
+  // On the Sealer/Printer line, mobileAssetId holds the SEALER and secondaryAssetId holds the PRINTER.
+  const sealerId = isSealerPrinterLine ? mobileAssetId : "";
+  const printerId = isSealerPrinterLine ? secondaryAssetId : "";
+
   const handleAdd = async (type: MobileAssetType) => {
     const list = type === "printer" ? printers : sealers;
     const nextNumber = (list.reduce((m, a) => Math.max(m, a.asset_number), 0) || 0) + 1;
@@ -52,7 +56,13 @@ export function LinePicker({ lineId, mobileAssetId, onChange }: Props) {
         current_line_id: lineId || null,
         active: true,
       });
-      onChange({ lineId, mobileAssetId: (created as any).id });
+      const newId = (created as any).id;
+      if (isSealerPrinterLine) {
+        if (type === "bag_sealer") onChange({ lineId, mobileAssetId: newId, secondaryAssetId: printerId });
+        else onChange({ lineId, mobileAssetId: sealerId, secondaryAssetId: newId });
+      } else {
+        onChange({ lineId, mobileAssetId: newId });
+      }
       toast.success(`${type === "printer" ? "Printer" : "Bag Sealer"} ${nextNumber} added`);
     } catch (err: any) {
       toast.error(err.message || "Failed to add asset");
@@ -64,7 +74,7 @@ export function LinePicker({ lineId, mobileAssetId, onChange }: Props) {
       {/* Step 1 — Line */}
       <div className="space-y-2">
         <Label>Line *</Label>
-        <Select value={lineId} onValueChange={(v) => onChange({ lineId: v, mobileAssetId })}>
+        <Select value={lineId} onValueChange={(v) => onChange({ lineId: v, mobileAssetId: "", secondaryAssetId: "" })}>
           <SelectTrigger className="h-12">
             <SelectValue placeholder="Select production line..." />
           </SelectTrigger>
@@ -78,8 +88,65 @@ export function LinePicker({ lineId, mobileAssetId, onChange }: Props) {
         </Select>
       </div>
 
-      {/* Step 2 — Mobile asset toggle */}
-      {!showMobile && !isSealerPrinterLine && (
+      {/* Sealer/Printer line: TWO independent selects (each sealer can pair with any printer) */}
+      {isSealerPrinterLine && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Bag Sealer *</Label>
+            <Select
+              value={sealerId || undefined}
+              onValueChange={(v) => onChange({ lineId, mobileAssetId: v, secondaryAssetId: printerId })}
+            >
+              <SelectTrigger className="h-12"><SelectValue placeholder="Select sealer..." /></SelectTrigger>
+              <SelectContent>
+                {sealers.length === 0 && (
+                  <div className="px-2 py-3 text-sm text-muted-foreground">No bag sealers registered.</div>
+                )}
+                {sealers.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>{formatMobileAsset(a)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button" variant="outline" size="sm" className="h-9 w-full"
+              disabled={upsertAsset.isPending}
+              onClick={() => handleAdd("bag_sealer")}
+            >
+              {upsertAsset.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
+              Add Bag Sealer
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Printer *</Label>
+            <Select
+              value={printerId || undefined}
+              onValueChange={(v) => onChange({ lineId, mobileAssetId: sealerId, secondaryAssetId: v })}
+            >
+              <SelectTrigger className="h-12"><SelectValue placeholder="Select printer..." /></SelectTrigger>
+              <SelectContent>
+                {printers.length === 0 && (
+                  <div className="px-2 py-3 text-sm text-muted-foreground">No printers registered.</div>
+                )}
+                {printers.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>{formatMobileAsset(a)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button" variant="outline" size="sm" className="h-9 w-full"
+              disabled={upsertAsset.isPending}
+              onClick={() => handleAdd("printer")}
+            >
+              {upsertAsset.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
+              Add Printer
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Other lines: optional single mobile asset toggle */}
+      {!isSealerPrinterLine && !showMobile && (
         <Button
           type="button"
           variant="outline"
@@ -91,24 +158,22 @@ export function LinePicker({ lineId, mobileAssetId, onChange }: Props) {
         </Button>
       )}
 
-      {showMobile && (
+      {!isSealerPrinterLine && showMobile && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label>{isSealerPrinterLine ? "Machine *" : "Machine (optional)"}</Label>
-            {!isSealerPrinterLine && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={() => {
-                  setShowMobile(false);
-                  onChange({ lineId, mobileAssetId: "" });
-                }}
-              >
-                <X className="h-3 w-3 mr-1" /> Clear
-              </Button>
-            )}
+            <Label>Machine (optional)</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => {
+                setShowMobile(false);
+                onChange({ lineId, mobileAssetId: "" });
+              }}
+            >
+              <X className="h-3 w-3 mr-1" /> Clear
+            </Button>
           </div>
           <Select
             value={mobileAssetId || undefined}
@@ -144,10 +209,7 @@ export function LinePicker({ lineId, mobileAssetId, onChange }: Props) {
 
           <div className="grid grid-cols-2 gap-2 pt-1">
             <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9"
+              type="button" variant="outline" size="sm" className="h-9"
               disabled={upsertAsset.isPending}
               onClick={() => handleAdd("printer")}
             >
@@ -155,10 +217,7 @@ export function LinePicker({ lineId, mobileAssetId, onChange }: Props) {
               Add Printer
             </Button>
             <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9"
+              type="button" variant="outline" size="sm" className="h-9"
               disabled={upsertAsset.isPending}
               onClick={() => handleAdd("bag_sealer")}
             >
