@@ -740,8 +740,8 @@ function EngineerDashboardContent() {
                                   </Button>
                                 )}
                                 {wo.status === "received" && (
-                                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending}>
-                                    <Activity className="h-3 w-3 mr-1" /> I Have Arrived
+                                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending || startWO.isPending}>
+                                    <Activity className="h-3 w-3 mr-1" /> Arrived & Start
                                   </Button>
                                 )}
                                 {wo.status === "arrived" && (
