@@ -10,7 +10,9 @@ import { toast } from "sonner";
 interface Props {
   lineId: string;
   mobileAssetId: string;
-  onChange: (next: { lineId: string; mobileAssetId: string }) => void;
+  /** Optional secondary asset id (used on Sealer/Printer line where both a sealer and a printer are picked). */
+  secondaryAssetId?: string;
+  onChange: (next: { lineId: string; mobileAssetId: string; secondaryAssetId?: string }) => void;
 }
 
 /**
