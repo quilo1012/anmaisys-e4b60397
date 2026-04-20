@@ -26,7 +26,7 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [confirming, setConfirming] = useState<EngineerIdentity | null>(null);
+  // confirming step removed — PIN OK runs onSuccess directly
   const [attempts, setAttempts] = useState(0);
   const [lockoutLeft, setLockoutLeft] = useState(0);
   const lockoutTimerRef = useRef<number | null>(null);
