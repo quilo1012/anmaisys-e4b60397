@@ -126,7 +126,40 @@ export default function AuditLogsPage() {
             )}
           </CardContent>
         </Card>
+
+        <AlertDialog open={showClear} onOpenChange={(o) => { setShowClear(o); if (!o) setConfirmText(""); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                Clear all audit logs?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This permanently deletes every audit log entry. This action cannot be undone.
+                Type <span className="font-mono font-semibold">CONFIRM</span> to proceed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <Input
+              placeholder='Type "CONFIRM"'
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              autoComplete="off"
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={clearing}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={clearing || confirmText !== "CONFIRM"}
+                onClick={(e) => { e.preventDefault(); handleClearLogs(); }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {clearing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Clear All
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );
 }
+
