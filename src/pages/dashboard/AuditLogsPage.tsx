@@ -2,18 +2,44 @@ import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Search, Shield } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Loader2, Search, Shield, Trash2, AlertTriangle } from "lucide-react";
 import { useAuditLogs } from "@/hooks/useAuditLogs";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { invokeFunction } from "@/lib/invokeFunction";
 
 export default function AuditLogsPage() {
   const [entityType, setEntityType] = useState("all");
   const [search, setSearch] = useState("");
+  const [showClear, setShowClear] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [clearing, setClearing] = useState(false);
+  const { role } = useAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
 
   const { data: logs, isLoading } = useAuditLogs({ entityType, search });
+
+  const handleClearLogs = async () => {
+    setClearing(true);
+    const { error } = await invokeFunction("clear-audit-logs");
+    setClearing(false);
+    if (error) {
+      toast({ title: "Error", description: error.message ?? "Failed to clear logs", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Audit logs cleared" });
+    setShowClear(false);
+    setConfirmText("");
+    qc.invalidateQueries({ queryKey: ["audit_logs"] });
+  };
 
   const entityTypes = useMemo(() => {
     if (!logs) return [];
