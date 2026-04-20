@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useAuth } from "@/contexts/AuthContext";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
+import { useMobileAssets, formatMobileAsset } from "@/hooks/useMobileAssets";
 import { LinePicker } from "@/components/LinePicker";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +61,7 @@ function OperatorDashboardContent() {
 
   const [lineId, setLineId] = useState<string>("");
   const [mobileAssetId, setMobileAssetId] = useState<string>("");
+  const [secondaryAssetId, setSecondaryAssetId] = useState<string>("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
@@ -73,6 +75,7 @@ function OperatorDashboardContent() {
   const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { data: machines } = useMachines();
   const { data: lines } = useLines();
+  const { data: mobileAssets } = useMobileAssets();
   const { data: problemDescriptions } = useActiveProblemDescriptions();
   const createWO = useCreateWorkOrder();
   const closeWO = useCloseWorkOrder();
@@ -159,11 +162,20 @@ function OperatorDashboardContent() {
         created_at = d.toISOString();
       }
       const effectivePriority = lineStopped ? "high" : autoPriority.priority;
+      // For Sealer/Printer line, both a sealer (mobile_asset_id) and a printer (secondary)
+      // are picked. Combine their labels into `machine` text for tracking/history.
+      let machineLabel = "";
+      if (mobileAssetId || secondaryAssetId) {
+        const sealer = mobileAssets?.find((a) => a.id === mobileAssetId);
+        const printer = mobileAssets?.find((a) => a.id === secondaryAssetId);
+        machineLabel = [sealer && formatMobileAsset(sealer), printer && formatMobileAsset(printer)]
+          .filter(Boolean).join(" + ");
+      }
       await createWO.mutateAsync({
         requester_name: requestedBy.trim(),
         line_id: lineId,
-        mobile_asset_id: mobileAssetId || null,
-        machine: "",
+        mobile_asset_id: mobileAssetId || secondaryAssetId || null,
+        machine: machineLabel,
         description: description.trim(),
         notes: notes.trim(),
         priority: effectivePriority,
@@ -171,7 +183,7 @@ function OperatorDashboardContent() {
         line_stopped: lineStopped,
       });
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
-      setRequestedBy(""); setLineId(""); setMobileAssetId(""); setDescription(""); setNotes("");
+      setRequestedBy(""); setLineId(""); setMobileAssetId(""); setSecondaryAssetId(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
@@ -236,9 +248,11 @@ function OperatorDashboardContent() {
                 <LinePicker
                   lineId={lineId}
                   mobileAssetId={mobileAssetId}
-                  onChange={({ lineId: lid, mobileAssetId: mid }) => {
+                  secondaryAssetId={secondaryAssetId}
+                  onChange={({ lineId: lid, mobileAssetId: mid, secondaryAssetId: sid }) => {
                     setLineId(lid);
                     setMobileAssetId(mid);
+                    setSecondaryAssetId(sid ?? "");
                   }}
                 />
               </div>
