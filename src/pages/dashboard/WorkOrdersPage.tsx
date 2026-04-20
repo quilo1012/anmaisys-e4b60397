@@ -103,6 +103,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const [newMachine, setNewMachine] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newNotes, setNewNotes] = useState("");
+  const [newPriority, setNewPriority] = useState<string>("medium");
   
 
   const [editWO, setEditWO] = useState<WorkOrder | null>(null);
@@ -222,9 +223,9 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createWO.mutateAsync({ requester_name: newRequester.trim(), machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), priority: "medium" });
+      await createWO.mutateAsync({ requester_name: newRequester.trim(), machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), priority: newPriority });
       toast({ title: "Work Order Created" });
-      setShowCreate(false); setNewRequester(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
+      setShowCreate(false); setNewRequester(""); setNewMachine(""); setNewDesc(""); setNewNotes(""); setNewPriority("medium");
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
 
@@ -609,6 +610,17 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
                 <Select value={newDesc} onValueChange={setNewDesc}>
                   <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
                   <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2"><Label>Priority</Label>
+                <Select value={newPriority} onValueChange={setNewPriority}>
+                  <SelectTrigger><SelectValue placeholder="Select priority..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2"><Label>Observations (optional)</Label>

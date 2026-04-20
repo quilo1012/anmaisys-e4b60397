@@ -368,7 +368,7 @@ export default function AnalyticsPage() {
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Open WOs</CardTitle><ClipboardList className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{openCount}</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">In Progress</CardTitle><LayoutDashboard className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{inProgressCount}</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Completed Today</CardTitle><ClipboardList className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{completedToday}</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Users</CardTitle><Users className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{userCount ?? "—"}</div></CardContent></Card>
+          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Users</CardTitle><Users className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{userCount ?? 0}</div></CardContent></Card>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg Response</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgResponse} min</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
@@ -417,9 +417,9 @@ export default function AnalyticsPage() {
                 const wosByType: Record<string, number> = {};
                 if (allWOs && machines) {
                   const machineTypeMap: Record<string, string> = {};
-                  machines.forEach((m) => { machineTypeMap[m.name] = m.machine_type || "Unknown"; });
+                  machines.forEach((m) => { machineTypeMap[m.name] = m.machine_type || "No Machine Assigned"; });
                   allWOs.forEach((w) => {
-                    const t = machineTypeMap[w.machine] || "Unknown";
+                    const t = w.machine ? (machineTypeMap[w.machine] || "No Machine Assigned") : "No Machine Assigned";
                     wosByType[t] = (wosByType[t] || 0) + 1;
                   });
                 }

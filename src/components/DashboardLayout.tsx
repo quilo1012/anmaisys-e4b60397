@@ -213,8 +213,13 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 title="Sign Out"
                 className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
                 onClick={async () => {
-                  await signOut();
-                  window.location.href = "/login";
+                  try {
+                    await signOut();
+                  } catch {
+                    // ignore — proceed to clear session client-side
+                  } finally {
+                    window.location.replace("/login");
+                  }
                 }}
               >
                 <LogOut className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />

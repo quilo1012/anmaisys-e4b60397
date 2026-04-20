@@ -50,9 +50,16 @@ export default function ControlCenterPage() {
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+      const req = document.documentElement.requestFullscreen?.();
+      if (req && typeof req.then === "function") {
+        req.then(() => setIsFullscreen(true)).catch((err) => {
+          console.error("Fullscreen request failed:", err);
+        });
+      } else {
+        setIsFullscreen(true);
+      }
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      document.exitFullscreen?.().then(() => setIsFullscreen(false)).catch(() => {});
     }
   }, []);
 
@@ -251,8 +258,8 @@ export default function ControlCenterPage() {
                       const downMin = differenceInMinutes(new Date(), new Date(wo.created_at));
                       return (
                         <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-                          <TableCell className="font-medium">{machine?.line || "—"}</TableCell>
-                          <TableCell>{wo.machine}</TableCell>
+                          <TableCell className="font-medium">{machine?.line || "Unassigned"}</TableCell>
+                          <TableCell>{wo.machine || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className={
                               wo.status === "open" ? "bg-red-500/20 border-red-500 text-red-400" :

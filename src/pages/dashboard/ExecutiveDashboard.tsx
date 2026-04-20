@@ -203,18 +203,20 @@ export default function ExecutiveDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={wosPerDay}>
-                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                    {wosPerDay.map((_, i) => (
-                      <Cell key={i} fill="hsl(var(--primary))" />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div style={{ width: "100%", height: 200 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={wosPerDay}>
+                    <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                      {wosPerDay.map((_, i) => (
+                        <Cell key={i} fill="hsl(var(--primary))" />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
 
