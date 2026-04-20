@@ -254,10 +254,27 @@ export default function MachinesPage() {
     return Object.keys(e).length === 0;
   };
 
-  const buildPayload = () => ({
+  // Resolve lineId: if it carries the NEW_LINE_PREFIX sentinel, insert a new line and return its id.
+  const resolveLineId = async (): Promise<{ id: string | null; name: string }> => {
+    if (!lineId) return { id: null, name: "" };
+    if (lineId.startsWith(NEW_LINE_PREFIX)) {
+      const newName = lineId.slice(NEW_LINE_PREFIX.length).trim();
+      if (!newName) return { id: null, name: "" };
+      const { data, error } = await (supabase as any)
+        .from("lines")
+        .insert({ name: newName })
+        .select()
+        .single();
+      if (error) throw error;
+      return { id: data.id, name: data.name };
+    }
+    return { id: lineId, name: selectedLine?.name || "" };
+  };
+
+  const buildPayload = (resolvedLine: { id: string | null; name: string }) => ({
     name: name.trim(),
-    line: selectedLine?.name || "",
-    line_id: lineId || null,
+    line: resolvedLine.name,
+    line_id: resolvedLine.id,
     side,
     sector: sector.trim(),
     code: code.trim(),
@@ -269,7 +286,8 @@ export default function MachinesPage() {
   const handleAdd = async () => {
     if (!validate()) return;
     try {
-      const result = await addMachine.mutateAsync(buildPayload());
+      const resolved = await resolveLineId();
+      const result = await addMachine.mutateAsync(buildPayload(resolved));
       toast({ title: "Machine added" });
       logAuditEvent("create", "machine", (result as any)?.id, { name: name.trim() });
       setShowAdd(false);
@@ -282,7 +300,8 @@ export default function MachinesPage() {
   const handleEdit = async () => {
     if (!editMachine || !validate(true)) return;
     try {
-      await updateMachine.mutateAsync({ id: editMachine.id, ...buildPayload() });
+      const resolved = await resolveLineId();
+      await updateMachine.mutateAsync({ id: editMachine.id, ...buildPayload(resolved) });
       toast({ title: "Machine updated" });
       logAuditEvent("update", "machine", editMachine.id, { name: name.trim() });
       setEditMachine(null);
