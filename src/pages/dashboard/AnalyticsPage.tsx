@@ -417,9 +417,9 @@ export default function AnalyticsPage() {
                 const wosByType: Record<string, number> = {};
                 if (allWOs && machines) {
                   const machineTypeMap: Record<string, string> = {};
-                  machines.forEach((m) => { machineTypeMap[m.name] = m.machine_type || "Unknown"; });
+                  machines.forEach((m) => { machineTypeMap[m.name] = m.machine_type || "No Machine Assigned"; });
                   allWOs.forEach((w) => {
-                    const t = machineTypeMap[w.machine] || "Unknown";
+                    const t = w.machine ? (machineTypeMap[w.machine] || "No Machine Assigned") : "No Machine Assigned";
                     wosByType[t] = (wosByType[t] || 0) + 1;
                   });
                 }
