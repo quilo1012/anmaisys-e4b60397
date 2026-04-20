@@ -51,6 +51,74 @@ import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { format } from "date-fns";
 import { QRCodeSVG } from "qrcode.react";
 
+interface LineOption { id: string; name: string; has_sides: boolean }
+
+function LineCombobox({
+  value,
+  onChange,
+  lines,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  lines: LineOption[];
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = lines.find((l) => l.id === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          className="w-full justify-between font-normal"
+        >
+          <span className={cn(!selected && "text-muted-foreground")}>
+            {selected ? `${selected.name}${selected.has_sides ? " (A/B)" : ""}` : "Select or type to search..."}
+          </span>
+          <span className="flex items-center gap-1">
+            {selected && (
+              <X
+                className="h-4 w-4 opacity-60 hover:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange("");
+                }}
+              />
+            )}
+            <ChevronsUpDown className="h-4 w-4 opacity-50" />
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+        <Command>
+          <CommandInput placeholder="Search line..." autoFocus />
+          <CommandList>
+            <CommandEmpty>No line found.</CommandEmpty>
+            <CommandGroup>
+              {lines.map((l) => (
+                <CommandItem
+                  key={l.id}
+                  value={l.name}
+                  onSelect={() => {
+                    onChange(l.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={cn("mr-2 h-4 w-4", value === l.id ? "opacity-100" : "opacity-0")} />
+                  {l.name}
+                  {l.has_sides ? " (A/B)" : ""}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function MachinesPage() {
   const { data: machines, isLoading } = useMachines();
   const { data: lines } = useLines();
