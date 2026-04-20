@@ -175,7 +175,7 @@ export function useAcceptAndStartWorkOrder() {
         .from("work_orders")
         .update({
           status: "in_progress" as any,
-          engineer_id: authUid,
+          engineer_id: engineerId,
           engineer_name: engineerName,
           started_at: now,
           locked_engineer_id: authUid,
@@ -186,7 +186,7 @@ export function useAcceptAndStartWorkOrder() {
         .single();
       if (error) throw error;
       if (!updated) throw new Error("Work order update failed — no rows affected");
-      await logWOAction(woId, authUid, engineerName, "started");
+      await logWOAction(woId, engineerId, engineerName, "started");
       return { before };
     },
     onMutate: async ({ woId }) => {
@@ -224,9 +224,6 @@ export function useReceiveWorkOrder() {
     mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
       const { data: before } = await supabase.from("work_orders").select("status, engineer_id").eq("id", woId).single();
       const now = new Date().toISOString();
-      // FK note: engineer_id / locked_engineer_id reference profiles(id), not engineers(id).
-      // The PIN dialog returns the standalone engineers.id — use the authenticated user's id
-      // for the FK columns and keep the PIN-verified name for traceability.
       const { data: { user } } = await supabase.auth.getUser();
       const authUid = user?.id;
       if (!authUid) throw new Error("Not authenticated");
@@ -234,7 +231,7 @@ export function useReceiveWorkOrder() {
         .from("work_orders")
         .update({
           status: "received" as any,
-          engineer_id: authUid,
+          engineer_id: engineerId,
           engineer_name: engineerName,
           received_at: now,
           locked_engineer_id: authUid,
@@ -243,7 +240,7 @@ export function useReceiveWorkOrder() {
         } as any)
         .eq("id", woId);
       if (error) throw error;
-      await logWOAction(woId, authUid, engineerName, "received");
+      await logWOAction(woId, engineerId, engineerName, "received");
       return { before };
     },
     onSuccess: (result, vars) => {
@@ -267,7 +264,7 @@ export function useArriveWorkOrder() {
         .update({ status: "arrived" as any, arrived_at: new Date().toISOString() } as any)
         .eq("id", woId);
       if (error) throw error;
-      await logWOAction(woId, authUid, engineerName, "arrived");
+      await logWOAction(woId, engineerId, engineerName, "arrived");
       return { before };
     },
     onSuccess: (result, vars) => {
@@ -291,14 +288,14 @@ export function useStartWorkOrder() {
         .update({
           status: "in_progress" as any,
           started_at: new Date().toISOString(),
-          engineer_id: authUid,
+          engineer_id: engineerId,
           engineer_name: engineerName,
           locked_engineer_id: authUid,
           locked_at: new Date().toISOString(),
         } as any)
         .eq("id", woId);
       if (error) throw error;
-      await logWOAction(woId, authUid, engineerName, "started");
+      await logWOAction(woId, engineerId, engineerName, "started");
       return { before };
     },
     onSuccess: (result, vars) => {
@@ -346,7 +343,7 @@ export function useFinishWorkOrder() {
         .update({ status: "finished" as any, finished_at: new Date().toISOString(), signed_by_name: signedByName } as any)
         .eq("id", woId);
       if (error) throw error;
-      await logWOAction(woId, authUid, engineerName, "finished");
+      await logWOAction(woId, engineerId, engineerName, "finished");
 
       // Auto-create machine_event
       if (before) {
