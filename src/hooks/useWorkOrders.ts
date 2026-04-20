@@ -220,21 +220,26 @@ export function useReceiveWorkOrder() {
     mutationFn: async ({ woId, engineerId, engineerName }: { woId: string; engineerId: string; engineerName: string }) => {
       const { data: before } = await supabase.from("work_orders").select("status, engineer_id").eq("id", woId).single();
       const now = new Date().toISOString();
-      // Atomic accept: status + assignment + lock + ack — all in one update so realtime fires once.
+      // FK note: engineer_id / locked_engineer_id reference profiles(id), not engineers(id).
+      // The PIN dialog returns the standalone engineers.id — use the authenticated user's id
+      // for the FK columns and keep the PIN-verified name for traceability.
+      const { data: { user } } = await supabase.auth.getUser();
+      const authUid = user?.id;
+      if (!authUid) throw new Error("Not authenticated");
       const { error } = await supabase
         .from("work_orders")
         .update({
           status: "received" as any,
-          engineer_id: engineerId,
+          engineer_id: authUid,
           engineer_name: engineerName,
           received_at: now,
-          locked_engineer_id: engineerId,
+          locked_engineer_id: authUid,
           locked_at: now,
           engineer_notified_acknowledged_at: now,
         } as any)
         .eq("id", woId);
       if (error) throw error;
-      await logWOAction(woId, engineerId, engineerName, "received");
+      await logWOAction(woId, authUid, engineerName, "received");
       return { before };
     },
     onSuccess: (result, vars) => {
