@@ -72,9 +72,18 @@ export default function AnalyticsPage() {
   const { data: userCount } = useQuery({
     queryKey: ["user_count"],
     queryFn: async () => {
-      const { count, error } = await supabase.from("profiles").select("*", { count: "exact", head: true });
-      if (error) throw error;
-      return count ?? 0;
+      // Try exact count first
+      const { count, error } = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true });
+      if (!error && count !== null) return count;
+      // Fallback: fetch ids and count length (works around RLS/head quirks)
+      const { data, error: fallbackError } = await supabase.from("profiles").select("id");
+      if (fallbackError) {
+        console.error("Total Users query failed:", fallbackError);
+        return 0;
+      }
+      return data?.length ?? 0;
     },
   });
 
