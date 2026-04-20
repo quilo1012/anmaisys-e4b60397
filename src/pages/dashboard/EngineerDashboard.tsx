@@ -406,7 +406,7 @@ function EngineerDashboardContent() {
   // BUG 4: resume the line, then retry finishing the WO with the same signature
   const handleResumeThenFinish = async () => {
     if (!stoppedFinishCtx) return;
-    const { woId, signature } = stoppedFinishCtx;
+    const { woId, signature, notes } = stoppedFinishCtx;
     setResumingThenFinish(true);
     try {
       // 1) Close any open downtime_event
