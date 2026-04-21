@@ -347,6 +347,42 @@ export type Database = {
         }
         Relationships: []
       }
+      line_problem_descriptions: {
+        Row: {
+          created_at: string
+          id: string
+          line_id: string
+          problem_description_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          line_id: string
+          problem_description_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          line_id?: string
+          problem_description_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "line_problem_descriptions_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "line_problem_descriptions_problem_description_id_fkey"
+            columns: ["problem_description_id"]
+            isOneToOne: false
+            referencedRelation: "problem_descriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lines: {
         Row: {
           created_at: string
