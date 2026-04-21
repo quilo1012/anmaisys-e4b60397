@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLines } from "@/hooks/useMachines";
 import { useMobileAssets, useUpsertMobileAsset, formatMobileAsset, type MobileAssetType } from "@/hooks/useMobileAssets";
-import { Printer, X, Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
