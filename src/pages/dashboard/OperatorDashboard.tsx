@@ -19,7 +19,7 @@ import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
 import { useMobileAssets, formatMobileAsset } from "@/hooks/useMobileAssets";
 import { LinePicker } from "@/components/LinePicker";
-import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
+import { useActiveProblemsForLine } from "@/hooks/useLineProblemDescriptions";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, Navigate } from "react-router-dom";
 import { format, differenceInDays, subDays } from "date-fns";
@@ -76,7 +76,8 @@ function OperatorDashboardContent() {
   const { data: machines } = useMachines();
   const { data: lines } = useLines();
   const { data: mobileAssets } = useMobileAssets();
-  const { data: problemDescriptions } = useActiveProblemDescriptions();
+  // Problems are filtered by selected line; falls back to all active when line has no assignments
+  const { data: problemDescriptions } = useActiveProblemsForLine(lineId || null);
   const createWO = useCreateWorkOrder();
   const closeWO = useCloseWorkOrder();
   const { toast } = useToast();
