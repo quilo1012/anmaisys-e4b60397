@@ -103,33 +103,6 @@ export function OperatorRecurrenceCard({ wo }: Props) {
 
   const finishedTs = wo.finished_at || wo.closed_at;
 
-  // If a recurrence already exists, show a link instead of the button
-  if (existingRecurrence) {
-    return (
-      <div className="rounded-lg border-2 border-amber-600/60 bg-amber-50 dark:bg-amber-950/20 p-4 print:hidden">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
-              This order has a recurrence
-            </p>
-            <p className="text-xs text-amber-800/80 dark:text-amber-200/80 mt-0.5">
-              A follow-up was already opened: WO-{String(existingRecurrence.wo_number).padStart(6, "0")} ({existingRecurrence.status})
-            </p>
-            <Button
-              size="sm"
-              variant="outline"
-              className="mt-2"
-              onClick={() => navigate(`/dashboard/wo/${existingRecurrence.id}`)}
-            >
-              Open recurrence WO →
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="rounded-lg border-2 border-amber-600/60 bg-amber-50 dark:bg-amber-950/20 p-4 print:hidden">
@@ -143,7 +116,10 @@ export function OperatorRecurrenceCard({ wo }: Props) {
               <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
                 Fix signed off by {wo.engineer_name || "engineer"}
                 {finishedTs && ` ${formatDistanceToNow(new Date(finishedTs), { addSuffix: true })}`}.
-                If the same problem returns, report it as a recurrence.
+                If the same problem returns, log it as a recurrence on this order.
+                {retriggerCount && retriggerCount > 0 ? (
+                  <> · <span className="font-semibold">{retriggerCount} previous recurrence{retriggerCount === 1 ? "" : "s"} logged</span></>
+                ) : null}
               </p>
             </div>
             <Button
@@ -163,9 +139,8 @@ export function OperatorRecurrenceCard({ wo }: Props) {
           <DialogHeader>
             <DialogTitle>Report recurring failure</DialogTitle>
             <DialogDescription>
-              This will open a new HIGH-priority work order linked to WO-
-              {String(wo.wo_number).padStart(6, "0")} and notify the engineer
-              who signed off the previous fix.
+              This will add a recurrence event to existing Order WO-
+              {String(wo.wo_number).padStart(6, "0")} and append it to the order's history. No new work order will be created.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -193,7 +168,7 @@ export function OperatorRecurrenceCard({ wo }: Props) {
               ) : (
                 <RotateCw className="h-4 w-4 mr-2" />
               )}
-              Open recurrence WO
+              Confirm Recurrence
             </Button>
           </DialogFooter>
         </DialogContent>
