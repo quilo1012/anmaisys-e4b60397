@@ -118,7 +118,7 @@ export function useStopLine() {
           work_order_id: workOrderId,
           stopped_at: new Date().toISOString(),
           stopped_by: user!.id,
-          stopped_by_name: profile?.name || user!.email || "",
+          stopped_by_name: profile?.name || (user!.email ? user!.email.split("@")[0] : "Unknown"),
           stopped_reason: reason?.trim() || null,
           is_recurrence: !!isRecurrence,
         })
@@ -164,7 +164,7 @@ export function useResumeLine() {
         .update({
           resumed_at: now,
           resumed_by: user!.id,
-          resumed_by_name: profile?.name || user!.email || "",
+          resumed_by_name: profile?.name || (user!.email ? user!.email.split("@")[0] : "Unknown"),
           resumed_note: note?.trim() || null,
         })
         .eq("id", openEvt.id)
