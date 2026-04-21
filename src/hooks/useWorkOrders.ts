@@ -52,7 +52,7 @@ async function logWOAction(workOrderId: string, engineerId: string, engineerName
   }
 }
 
-export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOStatus[] }) {
+export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOStatus[]; lineId?: string | null }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -65,7 +65,10 @@ export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOSt
         .order("created_at", { ascending: false })
         .limit(200);
 
-      if (filter?.operatorOnly && user) {
+      // Device line scoping (operator tablets) — takes precedence over operatorOnly self-filter
+      if (filter?.lineId) {
+        q = q.eq("line_id", filter.lineId);
+      } else if (filter?.operatorOnly && user) {
         q = q.eq("operator_id", user.id);
       }
       if (filter?.statusIn && filter.statusIn.length > 0) {
