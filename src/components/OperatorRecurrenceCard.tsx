@@ -60,33 +60,33 @@ export function OperatorRecurrenceCard({ wo }: Props) {
 
   const createRecurrence = useMutation({
     mutationFn: async () => {
-      // New unified-WO model: reopen the same WO as a new episode.
-      const { data, error } = await (supabase as any).rpc("reopen_wo_recurrence", {
+      // Append a "problem_retriggered" event to the existing WO instead of
+      // reopening it (avoids FK violations on locked_engineer_id).
+      const { data, error } = await (supabase as any).rpc("log_wo_retrigger", {
         _wo_id: wo.id,
         _reason: reason.trim() || "Same problem reported again",
       });
       if (error) throw error;
       if (!data?.success) {
-        throw new Error(data?.error || "Failed to reopen work order");
+        throw new Error(data?.error || "Failed to log recurrence");
       }
-      return data as { success: true; episode_number: number; engineer_id: string | null };
+      return data as { success: true; wo_number: number; retrigger_count: number };
     },
     onSuccess: (res) => {
-      logAuditEvent("wo_recurrence_created", "work_order", wo.id, {
+      logAuditEvent("wo_problem_retriggered", "work_order", wo.id, {
         wo_number: wo.wo_number,
-        episode_number: res.episode_number,
+        retrigger_count: res.retrigger_count,
       });
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
       queryClient.invalidateQueries({ queryKey: ["work_order", wo.id] });
-      queryClient.invalidateQueries({ queryKey: ["wo_recurrence", wo.id] });
-      queryClient.invalidateQueries({ queryKey: ["downtime_events", wo.id] });
+      queryClient.invalidateQueries({ queryKey: ["wo_logs", wo.id] });
+      queryClient.invalidateQueries({ queryKey: ["work_order_logs", wo.id] });
       toast({
-        title: `🔁 Episode ${res.episode_number} opened`,
-        description: `WO-${String(wo.wo_number).padStart(6, "0")} reopened. Engineer notified.`,
+        title: "🔁 Recurrence logged",
+        description: `Event added to existing Order #WO-${String(wo.wo_number).padStart(6, "0")}`,
       });
       setOpen(false);
       setReason("");
-      navigate(`/dashboard/wo/${wo.id}`);
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
