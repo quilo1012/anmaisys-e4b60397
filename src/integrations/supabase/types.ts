@@ -1519,6 +1519,7 @@ export type Database = {
         Args: { _pin: string; _signed_by_name?: string; _wo_id: string }
         Returns: Json
       }
+      get_own_labor_rate: { Args: never; Returns: number }
       get_profile_labor_rate: { Args: { _user_id: string }; Returns: number }
       get_user_role: {
         Args: { _user_id: string }
