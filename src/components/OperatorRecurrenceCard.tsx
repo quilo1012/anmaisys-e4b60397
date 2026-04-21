@@ -35,8 +35,7 @@ interface Props {
  * to the original via recurrence_of_wo_id.
  */
 export function OperatorRecurrenceCard({ wo }: Props) {
-  const { user, role, profile } = useAuth();
-  const navigate = useNavigate();
+  const { user, role } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
