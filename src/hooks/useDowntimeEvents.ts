@@ -112,13 +112,22 @@ export function useStopLine() {
 
   return useMutation({
     mutationFn: async ({ workOrderId, reason, isRecurrence }: { workOrderId: string; reason?: string; isRecurrence?: boolean }) => {
+      // Resolve a real human name: profile context → fresh DB lookup → email local-part as last resort.
+      let displayName = profile?.name?.trim() || "";
+      if (!displayName && user?.id) {
+        const { data: p } = await (supabase as any)
+          .from("profiles").select("name").eq("id", user.id).maybeSingle();
+        displayName = (p?.name || "").trim();
+      }
+      if (!displayName) displayName = user?.email?.split("@")[0] || "Unknown";
+
       const { data, error } = await (supabase as any)
         .from("downtime_events")
         .insert({
           work_order_id: workOrderId,
           stopped_at: new Date().toISOString(),
           stopped_by: user!.id,
-          stopped_by_name: profile?.name || (user!.email ? user!.email.split("@")[0] : "Unknown"),
+          stopped_by_name: displayName,
           stopped_reason: reason?.trim() || null,
           is_recurrence: !!isRecurrence,
         })
