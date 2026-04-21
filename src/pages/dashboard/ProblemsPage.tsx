@@ -12,15 +12,47 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { useProblemDescriptions, useAddProblemDescription, useUpdateProblemDescription, useDeleteProblemDescription, type ProblemDescription } from "@/hooks/useProblemDescriptions";
+import { useLines } from "@/hooks/useMachines";
+import { useLineProblemDescriptions, useSetLineProblemAssignments } from "@/hooks/useLineProblemDescriptions";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 
 export default function ProblemsPage() {
   const { data: problems, isLoading } = useProblemDescriptions();
+  const { data: lines } = useLines();
+  const { data: lineLinks } = useLineProblemDescriptions();
+  const setAssignments = useSetLineProblemAssignments();
   const addProblem = useAddProblemDescription();
   const updateProblem = useUpdateProblemDescription();
   const deleteProblem = useDeleteProblemDescription();
   const { toast } = useToast();
+
+  const [assignProblem, setAssignProblem] = useState<ProblemDescription | null>(null);
+  const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
+
+  const linesByProblem = (problemId: string) =>
+    (lineLinks || []).filter((l) => l.problem_description_id === problemId).map((l) => l.line_id);
+  const lineNamesByProblem = (problemId: string) => {
+    const ids = new Set(linesByProblem(problemId));
+    return (lines || []).filter((l) => ids.has(l.id)).map((l) => l.name);
+  };
+
+  const openAssign = (p: ProblemDescription) => {
+    setAssignProblem(p);
+    setSelectedLineIds(linesByProblem(p.id));
+  };
+
+  const handleSaveAssignments = async () => {
+    if (!assignProblem) return;
+    try {
+      await setAssignments.mutateAsync({ problemId: assignProblem.id, lineIds: selectedLineIds });
+      toast({ title: "Lines updated" });
+      setAssignProblem(null);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
 
   const [showAdd, setShowAdd] = useState(false);
   const [editProblem, setEditProblem] = useState<ProblemDescription | null>(null);
@@ -151,32 +183,51 @@ export default function ProblemsPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Description</TableHead>
+                    <TableHead>Lines</TableHead>
                     <TableHead>Active</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleProblems.map((p) => (
-                    <TableRow key={p.id} className={!p.active ? "opacity-50" : ""}>
-                      <TableCell className="font-medium">
-                        {p.name}
-                        {(!p.category || !p.description) && (
-                          <Badge variant="outline" className="ml-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">Incomplete</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>{p.category || <span className="text-muted-foreground italic">Missing</span>}</TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{p.description || <span className="italic">Missing</span>}</TableCell>
-                      <TableCell>
-                        <Switch checked={p.active !== false} onCheckedChange={() => toggleActive(p)} />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {visibleProblems.map((p) => {
+                    const assignedLines = lineNamesByProblem(p.id);
+                    return (
+                      <TableRow key={p.id} className={!p.active ? "opacity-50" : ""}>
+                        <TableCell className="font-medium">
+                          {p.name}
+                          {(!p.category || !p.description) && (
+                            <Badge variant="outline" className="ml-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">Incomplete</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>{p.category || <span className="text-muted-foreground italic">Missing</span>}</TableCell>
+                        <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{p.description || <span className="italic">Missing</span>}</TableCell>
+                        <TableCell>
+                          {assignedLines.length === 0 ? (
+                            <span className="text-xs text-muted-foreground italic">All lines</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1 max-w-[220px]">
+                              {assignedLines.slice(0, 3).map((n) => (
+                                <Badge key={n} variant="secondary" className="text-xs">{n}</Badge>
+                              ))}
+                              {assignedLines.length > 3 && (
+                                <Badge variant="outline" className="text-xs">+{assignedLines.length - 3}</Badge>
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Switch checked={p.active !== false} onCheckedChange={() => toggleActive(p)} />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="outline" onClick={() => openAssign(p)}>Lines</Button>
+                            <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
@@ -223,6 +274,46 @@ export default function ProblemsPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Assign Lines Dialog */}
+        <Dialog open={!!assignProblem} onOpenChange={(open) => { if (!open) setAssignProblem(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign Lines — {assignProblem?.name}</DialogTitle>
+              <DialogDescription>
+                Select the lines where this problem can be reported. Leave empty to make it available on <strong>all lines</strong>.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto py-2">
+              {(lines || []).map((l) => {
+                const checked = selectedLineIds.includes(l.id);
+                return (
+                  <label key={l.id} className="flex items-center gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50">
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(v) => {
+                        setSelectedLineIds((prev) =>
+                          v ? [...prev, l.id] : prev.filter((id) => id !== l.id)
+                        );
+                      }}
+                    />
+                    <span className="font-medium">{l.name}</span>
+                  </label>
+                );
+              })}
+              {(!lines || lines.length === 0) && (
+                <p className="text-sm text-muted-foreground text-center py-4">No lines configured.</p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSelectedLineIds([])}>Clear (all lines)</Button>
+              <Button variant="outline" onClick={() => setAssignProblem(null)}>Cancel</Button>
+              <Button onClick={handleSaveAssignments} disabled={setAssignments.isPending}>
+                {setAssignments.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
