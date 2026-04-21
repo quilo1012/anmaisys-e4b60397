@@ -27,7 +27,7 @@ export function LinePicker({ lineId, mobileAssetId, secondaryAssetId = "", onCha
   const { data: mobileAssets } = useMobileAssets();
   const upsertAsset = useUpsertMobileAsset();
 
-  // Auto-detect "Sealer / Printer" line by name to show both pickers
+  // Auto-detect "Sealer and Printer INK" line by name to show both pickers
   const selectedLine = useMemo(
     () => (lines || []).find((l) => l.id === lineId),
     [lines, lineId]
