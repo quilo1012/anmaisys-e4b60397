@@ -59,6 +59,8 @@ export default function OperatorDashboard() {
 
 function OperatorDashboardContent() {
   const { profile } = useAuth();
+  const { data: device } = useDeviceLine();
+  const deviceLineId = device?.line_id ?? null;
 
   const [lineId, setLineId] = useState<string>("");
   const [mobileAssetId, setMobileAssetId] = useState<string>("");
@@ -70,19 +72,29 @@ function OperatorDashboardContent() {
   const [isRetroactive, setIsRetroactive] = useState(false);
   const [retroDate, setRetroDate] = useState<Date>();
   const [retroTime, setRetroTime] = useState("");
-  const { data: workOrders, isLoading } = useWorkOrders({ operatorOnly: true });
-  const { data: allWOs } = useWorkOrders();
+  // If the tablet is paired to a line, scope the WO list to that line.
+  // Otherwise fall back to operator-only view (legacy / unpaired devices).
+  const { data: workOrders, isLoading } = useWorkOrders(
+    deviceLineId ? { lineId: deviceLineId } : { operatorOnly: true }
+  );
+  const { data: allWOs } = useWorkOrders(deviceLineId ? { lineId: deviceLineId } : undefined);
   const woIds = workOrders?.map((wo) => wo.id) || [];
   const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { data: machines } = useMachines();
   const { data: lines } = useLines();
   const { data: mobileAssets } = useMobileAssets();
-  // Problems are filtered by selected line; falls back to all active when line has no assignments
-  const { data: problemDescriptions } = useActiveProblemsForLine(lineId || null);
+  // Problems are filtered by the device's paired line if available, otherwise the user-selected line
+  const effectiveLineId = deviceLineId || lineId;
+  const { data: problemDescriptions } = useActiveProblemsForLine(effectiveLineId || null);
   const createWO = useCreateWorkOrder();
   const closeWO = useCloseWorkOrder();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Force the form's line to the device's paired line so operators can't pick another
+  useEffect(() => {
+    if (deviceLineId && lineId !== deviceLineId) setLineId(deviceLineId);
+  }, [deviceLineId, lineId]);
 
   // Close dialog state
   const [closeDialogWO, setCloseDialogWO] = useState<string | null>(null);
