@@ -12,15 +12,47 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { useProblemDescriptions, useAddProblemDescription, useUpdateProblemDescription, useDeleteProblemDescription, type ProblemDescription } from "@/hooks/useProblemDescriptions";
+import { useLines } from "@/hooks/useMachines";
+import { useLineProblemDescriptions, useSetLineProblemAssignments } from "@/hooks/useLineProblemDescriptions";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 
 export default function ProblemsPage() {
   const { data: problems, isLoading } = useProblemDescriptions();
+  const { data: lines } = useLines();
+  const { data: lineLinks } = useLineProblemDescriptions();
+  const setAssignments = useSetLineProblemAssignments();
   const addProblem = useAddProblemDescription();
   const updateProblem = useUpdateProblemDescription();
   const deleteProblem = useDeleteProblemDescription();
   const { toast } = useToast();
+
+  const [assignProblem, setAssignProblem] = useState<ProblemDescription | null>(null);
+  const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
+
+  const linesByProblem = (problemId: string) =>
+    (lineLinks || []).filter((l) => l.problem_description_id === problemId).map((l) => l.line_id);
+  const lineNamesByProblem = (problemId: string) => {
+    const ids = new Set(linesByProblem(problemId));
+    return (lines || []).filter((l) => ids.has(l.id)).map((l) => l.name);
+  };
+
+  const openAssign = (p: ProblemDescription) => {
+    setAssignProblem(p);
+    setSelectedLineIds(linesByProblem(p.id));
+  };
+
+  const handleSaveAssignments = async () => {
+    if (!assignProblem) return;
+    try {
+      await setAssignments.mutateAsync({ problemId: assignProblem.id, lineIds: selectedLineIds });
+      toast({ title: "Lines updated" });
+      setAssignProblem(null);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
 
   const [showAdd, setShowAdd] = useState(false);
   const [editProblem, setEditProblem] = useState<ProblemDescription | null>(null);
