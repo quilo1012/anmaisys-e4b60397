@@ -14,6 +14,8 @@ interface LineDowntimeControlProps {
   workOrderStatus: string;
   operatorId?: string | null;
   engineerId?: string | null;
+  /** Name of the person who originally opened the WO (shown for context). */
+  requesterName?: string | null;
 }
 
 /**
@@ -30,6 +32,7 @@ export function LineDowntimeControl({
   workOrderStatus,
   operatorId,
   engineerId,
+  requesterName,
 }: LineDowntimeControlProps) {
   const { user, role } = useAuth();
   const { toast } = useToast();
@@ -122,7 +125,15 @@ export function LineDowntimeControl({
           Line stopped since {format(new Date(openEvent.stopped_at), "HH:mm")} ({liveDur}m ago)
         </p>
         {openEvent.stopped_by_name && (
-          <p className="text-xs text-red-700/80">Reported by {openEvent.stopped_by_name}{openEvent.stopped_reason ? ` — "${openEvent.stopped_reason}"` : ""}</p>
+          <p className="text-xs text-red-700/80">
+            Reported by <span className="font-medium">{openEvent.stopped_by_name}</span>
+            {openEvent.stopped_reason ? ` — "${openEvent.stopped_reason}"` : ""}
+          </p>
+        )}
+        {requesterName && (
+          <p className="text-xs text-red-700/70">
+            Order created by <span className="font-medium">{requesterName}</span>
+          </p>
         )}
         {canControl && (
           <Button

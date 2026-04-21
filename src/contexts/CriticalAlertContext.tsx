@@ -322,7 +322,10 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
     // Persist the acknowledgment before navigation so this same open WO
     // does not replay the modal on remount/reconnect/reload.
     acknowledge(id);
-    navigate(`/dashboard/wo/${id}`);
+    // Navigate to engineer dashboard where the Accept (PIN) button lives.
+    // Going straight to the detail page caused a confusing double-accept flow:
+    // user clicked "Open Order" then had to come back to the dashboard to accept.
+    navigate(`/dashboard/engineer?accept=${id}`);
   };
 
   const value = useMemo(
