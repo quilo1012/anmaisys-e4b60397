@@ -1627,6 +1627,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      log_wo_retrigger: {
+        Args: { _reason: string; _wo_id: string }
+        Returns: Json
+      }
       move_machine_to_line: {
         Args: { _machine_id: string; _new_line: string; _notes?: string }
         Returns: undefined
