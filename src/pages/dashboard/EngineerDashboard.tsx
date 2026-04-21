@@ -525,6 +525,7 @@ function EngineerDashboardContent() {
               workOrderStatus={wo.status}
               operatorId={(wo as any).operator_id}
               engineerId={(wo as any).engineer_id}
+              requesterName={wo.requester_name}
             />
           )}
 
@@ -773,6 +774,7 @@ function EngineerDashboardContent() {
                                         workOrderStatus={wo.status}
                                         operatorId={(wo as any).operator_id}
                                         engineerId={(wo as any).engineer_id}
+                                        requesterName={wo.requester_name}
                                       />
                                     </div>
                                     <DesktopFinishButton wo={wo} />
