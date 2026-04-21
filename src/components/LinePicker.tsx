@@ -26,18 +26,13 @@ export function LinePicker({ lineId, mobileAssetId, secondaryAssetId = "", onCha
   const { data: lines } = useLines();
   const { data: mobileAssets } = useMobileAssets();
   const upsertAsset = useUpsertMobileAsset();
-  const [showMobile, setShowMobile] = useState(!!mobileAssetId);
 
-  // Auto-detect "Sealer / Printer" line by name and force the mobile picker open
+  // Auto-detect "Sealer / Printer" line by name to show both pickers
   const selectedLine = useMemo(
-     () => (lines || []).find((l) => l.id === lineId),
+    () => (lines || []).find((l) => l.id === lineId),
     [lines, lineId]
   );
   const isSealerPrinterLine = !!selectedLine && /sealer|printer/i.test(selectedLine.name);
-
-  useEffect(() => {
-    if (isSealerPrinterLine) setShowMobile(true);
-  }, [isSealerPrinterLine]);
 
   const printers = (mobileAssets || []).filter((a) => a.asset_type === "printer");
   const sealers = (mobileAssets || []).filter((a) => a.asset_type === "bag_sealer");
