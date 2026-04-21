@@ -42,19 +42,17 @@ export function OperatorRecurrenceCard({ wo }: Props) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
 
-  // Detect if a recurrence already exists for this WO
-  const { data: existingRecurrence } = useQuery({
-    queryKey: ["wo_recurrence", wo.id],
+  // Count existing retriggers (logged events) for this WO
+  const { data: retriggerCount } = useQuery({
+    queryKey: ["wo_retriggers", wo.id],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("work_orders")
-        .select("id, wo_number, status, created_at")
-        .eq("recurrence_of_wo_id", wo.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { count, error } = await (supabase as any)
+        .from("work_order_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("work_order_id", wo.id)
+        .like("action", "problem_retriggered%");
       if (error) throw error;
-      return data as { id: string; wo_number: number; status: string; created_at: string } | null;
+      return count ?? 0;
     },
   });
 
