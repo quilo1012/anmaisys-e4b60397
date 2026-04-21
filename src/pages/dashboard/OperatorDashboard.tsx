@@ -20,6 +20,7 @@ import { useMachines, useLines } from "@/hooks/useMachines";
 import { useMobileAssets, formatMobileAsset } from "@/hooks/useMobileAssets";
 import { LinePicker } from "@/components/LinePicker";
 import { useActiveProblemsForLine } from "@/hooks/useLineProblemDescriptions";
+import { useDeviceLine } from "@/hooks/useDevice";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, Navigate } from "react-router-dom";
 import { format, differenceInDays, subDays } from "date-fns";
