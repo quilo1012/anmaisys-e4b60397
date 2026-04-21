@@ -137,6 +137,47 @@ export type Database = {
           },
         ]
       }
+      devices: {
+        Row: {
+          created_at: string
+          device_token: string
+          id: string
+          label: string | null
+          last_seen_at: string | null
+          line_id: string | null
+          paired_at: string | null
+          paired_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_token: string
+          id?: string
+          label?: string | null
+          last_seen_at?: string | null
+          line_id?: string | null
+          paired_at?: string | null
+          paired_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_token?: string
+          id?: string
+          label?: string | null
+          last_seen_at?: string | null
+          line_id?: string | null
+          paired_at?: string | null
+          paired_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devices_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       downtime: {
         Row: {
           category: string
@@ -1555,6 +1596,7 @@ export type Database = {
         Args: { _pin: string; _signed_by_name?: string; _wo_id: string }
         Returns: Json
       }
+      get_device_line: { Args: { _token: string }; Returns: string }
       get_own_labor_rate: { Args: never; Returns: number }
       get_profile_labor_rate: { Args: { _user_id: string }; Returns: number }
       get_user_role: {
@@ -1589,6 +1631,10 @@ export type Database = {
         Args: { _machine_id: string; _new_line: string; _notes?: string }
         Returns: undefined
       }
+      pair_device: {
+        Args: { _label?: string; _line_id: string; _token: string }
+        Returns: undefined
+      }
       reopen_wo_recurrence: {
         Args: { _reason: string; _wo_id: string }
         Returns: Json
@@ -1602,6 +1648,8 @@ export type Database = {
         Args: { _engineer_id: string; _new_pin: string }
         Returns: undefined
       }
+      touch_device: { Args: { _token: string }; Returns: undefined }
+      unpair_device: { Args: { _device_id: string }; Returns: undefined }
       verify_admin_pin: { Args: { _pin: string }; Returns: boolean }
       verify_engineer_pin: {
         Args: { _pin: string; _user_id: string }
