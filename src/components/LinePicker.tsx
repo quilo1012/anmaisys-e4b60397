@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLines } from "@/hooks/useMachines";
 import { useMobileAssets, useUpsertMobileAsset, formatMobileAsset, type MobileAssetType } from "@/hooks/useMobileAssets";
-import { Printer, X, Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
@@ -26,18 +26,13 @@ export function LinePicker({ lineId, mobileAssetId, secondaryAssetId = "", onCha
   const { data: lines } = useLines();
   const { data: mobileAssets } = useMobileAssets();
   const upsertAsset = useUpsertMobileAsset();
-  const [showMobile, setShowMobile] = useState(!!mobileAssetId);
 
-  // Auto-detect "Sealer / Printer" line by name and force the mobile picker open
+  // Auto-detect "Sealer / Printer" line by name to show both pickers
   const selectedLine = useMemo(
-     () => (lines || []).find((l) => l.id === lineId),
+    () => (lines || []).find((l) => l.id === lineId),
     [lines, lineId]
   );
   const isSealerPrinterLine = !!selectedLine && /sealer|printer/i.test(selectedLine.name);
-
-  useEffect(() => {
-    if (isSealerPrinterLine) setShowMobile(true);
-  }, [isSealerPrinterLine]);
 
   const printers = (mobileAssets || []).filter((a) => a.asset_type === "printer");
   const sealers = (mobileAssets || []).filter((a) => a.asset_type === "bag_sealer");
@@ -145,88 +140,6 @@ export function LinePicker({ lineId, mobileAssetId, secondaryAssetId = "", onCha
         </div>
       )}
 
-      {/* Other lines: optional single mobile asset toggle */}
-      {!isSealerPrinterLine && !showMobile && (
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full h-12 justify-start gap-2"
-          onClick={() => setShowMobile(true)}
-        >
-          <Printer className="h-4 w-4" />
-          Problem with a Printer or Bag Sealer?
-        </Button>
-      )}
-
-      {!isSealerPrinterLine && showMobile && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label>Machine (optional)</Label>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => {
-                setShowMobile(false);
-                onChange({ lineId, mobileAssetId: "" });
-              }}
-            >
-              <X className="h-3 w-3 mr-1" /> Clear
-            </Button>
-          </div>
-          <Select
-            value={mobileAssetId || undefined}
-            onValueChange={(v) => onChange({ lineId, mobileAssetId: v })}
-          >
-            <SelectTrigger className="h-12">
-              <SelectValue placeholder="Select printer or bag sealer..." />
-            </SelectTrigger>
-            <SelectContent>
-              {printers.length === 0 && sealers.length === 0 && (
-                <div className="px-2 py-3 text-sm text-muted-foreground">
-                  No mobile assets registered.
-                </div>
-              )}
-              {printers.length > 0 && (
-                <SelectGroup>
-                  <SelectLabel>Printers</SelectLabel>
-                  {printers.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>{formatMobileAsset(a)}</SelectItem>
-                  ))}
-                </SelectGroup>
-              )}
-              {sealers.length > 0 && (
-                <SelectGroup>
-                  <SelectLabel>Bag Sealers</SelectLabel>
-                  {sealers.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>{formatMobileAsset(a)}</SelectItem>
-                  ))}
-                </SelectGroup>
-              )}
-            </SelectContent>
-          </Select>
-
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <Button
-              type="button" variant="outline" size="sm" className="h-9"
-              disabled={upsertAsset.isPending}
-              onClick={() => handleAdd("printer")}
-            >
-              {upsertAsset.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
-              Add Printer
-            </Button>
-            <Button
-              type="button" variant="outline" size="sm" className="h-9"
-              disabled={upsertAsset.isPending}
-              onClick={() => handleAdd("bag_sealer")}
-            >
-              {upsertAsset.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
-              Add Bag Sealer
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
