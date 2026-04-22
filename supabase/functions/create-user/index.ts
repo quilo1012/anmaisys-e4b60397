@@ -46,6 +46,11 @@ Deno.serve(async (req) => {
     const body = createUserSchema.parse(await req.json());
     const { email, password, name, role, shift } = body;
 
+    // Managers can only create engineers
+    if (isManager && !isAdmin && role !== "engineer") {
+      throw new Error("Managers can only create Engineer users");
+    }
+
     // Only admins can create admin or manager users
     if ((role === "admin" || role === "manager") && !isAdmin) {
       throw new Error("Only admins can assign Admin or Manager roles");

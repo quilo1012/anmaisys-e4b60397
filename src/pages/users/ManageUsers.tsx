@@ -104,12 +104,9 @@ export default function ManageUsers() {
   };
 
   const fetchEngineers = async () => {
-    // Read from engineers_safe view — pin_hash is no longer readable from base table
-    const { data } = await supabase
-      .from("engineers_safe" as any)
-      .select("id, name, is_active, created_at")
-      .order("created_at", { ascending: false });
-    if (data) setEngineers(data as any);
+    const res = await invokeFunction<Engineer[]>("list-engineers");
+    if (res.error) return;
+    if (res.data) setEngineers(res.data as any);
   };
 
   useEffect(() => { if (currentRole) fetchUsers(); fetchEngineers(); }, [currentRole]);
@@ -213,10 +210,12 @@ export default function ManageUsers() {
     if (!engName.trim() || engPin.length < 4) return;
     setEngLoading(true);
     try {
-      // Insert engineer with a temporary pin_hash, then set via function
-      const { data: eng, error } = await supabase.from("engineers" as any).insert({ name: engName.trim(), pin_hash: "temp" } as any).select("id").single();
-      if (error) throw error;
-      await supabase.rpc("set_engineer_pin_standalone" as any, { _engineer_id: (eng as any).id, _new_pin: engPin });
+      const res = await invokeFunction<{ success: boolean; engineerId: string }>("create-engineer", {
+        name: engName.trim(),
+        pin: engPin,
+      });
+      if (res.error) throw new Error(res.error.message);
+      if (!res.data?.success) throw new Error("Failed to create engineer");
       toast({ title: "Engineer created", description: `${engName} has been added` });
       setEngOpen(false);
       setEngName(""); setEngPin("");
@@ -239,10 +238,15 @@ export default function ManageUsers() {
     if (!editEng) return;
     setEditEngLoading(true);
     try {
-      const { error } = await supabase.from("engineers" as any).update({ name: editEngName.trim(), is_active: editEngActive } as any).eq("id", editEng.id);
-      if (error) throw error;
+      const res = await invokeFunction<{ success: boolean }>("update-engineer", {
+        engineerId: editEng.id,
+        name: editEngName.trim(),
+        active: editEngActive,
+        pin: editEngPin.length >= 4 ? editEngPin : undefined,
+      });
+      if (res.error) throw new Error(res.error.message);
+      if (!res.data?.success) throw new Error("Failed to update engineer");
       if (editEngPin.length >= 4) {
-        await supabase.rpc("set_engineer_pin_standalone" as any, { _engineer_id: editEng.id, _new_pin: editEngPin });
         logAuditEvent("pin_changed", "engineer", editEng.id, { engineer_name: editEngName.trim() });
         toast({ title: "PIN updated", description: `PIN updated for ${editEngName.trim()}` });
       } else {
@@ -260,8 +264,9 @@ export default function ManageUsers() {
   const handleDeleteEngineer = async (engId: string) => {
     setDeleteEngLoading(engId);
     try {
-      const { error } = await supabase.from("engineers" as any).delete().eq("id", engId);
-      if (error) throw error;
+      const res = await invokeFunction<{ success: boolean }>("delete-engineer", { engineerId: engId });
+      if (res.error) throw new Error(res.error.message);
+      if (!res.data?.success) throw new Error("Failed to delete engineer");
       toast({ title: "Engineer deleted" });
       fetchEngineers();
     } catch (error: any) {
@@ -295,7 +300,7 @@ export default function ManageUsers() {
                    <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="operator">Operator</SelectItem>
+                      {currentRole === "admin" && <SelectItem value="operator">Operator</SelectItem>}
                       <SelectItem value="engineer">Engineer</SelectItem>
                       {currentRole === "admin" && <SelectItem value="manager">Manager</SelectItem>}
                       {currentRole === "admin" && <SelectItem value="admin">Admin</SelectItem>}
@@ -506,7 +511,7 @@ export default function ManageUsers() {
                   <SelectContent>
                     <SelectItem value="operator">Operator</SelectItem>
                     <SelectItem value="engineer">Engineer</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
+                    {currentRole === "admin" && <SelectItem value="manager">Manager</SelectItem>}
                     {currentRole === "admin" && <SelectItem value="admin">Admin</SelectItem>}
                   </SelectContent>
                 </Select>
