@@ -75,12 +75,12 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
     { title: "Downtime", description: "Track production line stoppages", url: "/dashboard/downtime", icon: Clock },
     { title: "Control Center", description: "Live operations display", url: "/dashboard/control-center", icon: Monitor },
     { title: "Analytics", description: "Performance metrics and trends", url: "/dashboard/analytics", icon: BarChart3 },
-    { title: "Executive", description: "Executive KPI dashboard", url: "/dashboard/executive", icon: Briefcase },
     { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package },
     { title: "Problems", description: "Catalog of standard issues", url: "/dashboard/problems", icon: AlertCircle },
   ];
   if (role === "admin") {
     cards.push(
+      { title: "Executive", description: "Executive KPI dashboard", url: "/dashboard/executive", icon: Briefcase },
       { title: "Financial", description: "Cost and financial overview", url: "/dashboard/financial", icon: DollarSign },
       { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount },
       { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield },
