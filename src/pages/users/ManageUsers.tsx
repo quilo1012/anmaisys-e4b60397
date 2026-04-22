@@ -289,7 +289,7 @@ export default function ManageUsers() {
                     <SelectContent>
                       <SelectItem value="operator">Operator</SelectItem>
                       <SelectItem value="engineer">Engineer</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
+                      {currentRole === "admin" && <SelectItem value="manager">Manager</SelectItem>}
                       {currentRole === "admin" && <SelectItem value="admin">Admin</SelectItem>}
                     </SelectContent>
                   </Select>
