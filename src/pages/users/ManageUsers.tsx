@@ -82,12 +82,20 @@ export default function ManageUsers() {
     const { data: roles } = await supabase.from("user_roles").select("*");
     const roleMap = new Map(roles?.map((r) => [r.user_id, r.role]));
 
-    // Fetch labor_rate via admin-only SECURITY DEFINER RPC
-    const { data: rates } = await supabase.rpc("list_profile_labor_rates");
-    const rateMap = new Map((rates ?? []).map((r: any) => [r.id, Number(r.labor_rate) || 0]));
+    // Fetch labor_rate via admin-only SECURITY DEFINER RPC (admins only)
+    let rateMap = new Map<string, number>();
+    if (currentRole === "admin") {
+      const { data: rates } = await supabase.rpc("list_profile_labor_rates");
+      rateMap = new Map((rates ?? []).map((r: any) => [r.id, Number(r.labor_rate) || 0]));
+    }
+
+    // Managers should not see admin accounts in the list
+    const filtered = currentRole === "manager"
+      ? profiles.filter((p: any) => roleMap.get(p.id) !== "admin")
+      : profiles;
 
     setUsers(
-      profiles.map((p: any) => ({
+      filtered.map((p: any) => ({
         ...p,
         labor_rate: rateMap.get(p.id) ?? 0,
         role: roleMap.get(p.id),
