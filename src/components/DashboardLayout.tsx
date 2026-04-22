@@ -52,7 +52,7 @@ const navItems: NavItem[] = [
   // Reports
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager"], group: "Reports" },
   { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin", "manager"], group: "Reports" },
-  { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin", "manager"], group: "Reports" },
+  { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin"], group: "Reports" },
   // Admin
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin"], group: "Admin" },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Admin" },

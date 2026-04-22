@@ -80,7 +80,7 @@ const MATRIX: Record<Action, Role[]> = {
   // Reports
   "reports.analytics": ["admin", "manager"],
   "reports.financial": ["admin"],
-  "reports.executive": ["admin", "manager"],
+  "reports.executive": ["admin"],
 
   // System
   "system.clear": ["admin"],
