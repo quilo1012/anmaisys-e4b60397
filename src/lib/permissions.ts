@@ -73,8 +73,8 @@ const MATRIX: Record<Action, Role[]> = {
   "stock.pricing": ["admin"],
 
   // Users / Audit
-  "users.view": ["admin"],
-  "users.manage": ["admin"],
+  "users.view": ["admin", "manager"],
+  "users.manage": ["admin", "manager"],
   "audit.view": ["admin", "manager"],
 
   // Reports
