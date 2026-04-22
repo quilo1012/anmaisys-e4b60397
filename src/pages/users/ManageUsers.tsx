@@ -112,7 +112,7 @@ export default function ManageUsers() {
     if (data) setEngineers(data as any);
   };
 
-  useEffect(() => { fetchUsers(); fetchEngineers(); }, []);
+  useEffect(() => { if (currentRole) fetchUsers(); fetchEngineers(); }, [currentRole]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
