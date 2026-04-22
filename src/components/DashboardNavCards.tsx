@@ -85,6 +85,10 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
       { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount },
       { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield },
     );
+  } else if (role === "manager") {
+    cards.push(
+      { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount },
+    );
   }
   return <DashboardNavCards cards={cards} />;
 }
