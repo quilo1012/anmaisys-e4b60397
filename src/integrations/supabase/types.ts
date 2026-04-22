@@ -1588,6 +1588,8 @@ export type Database = {
         Returns: Json
       }
       acknowledge_wo_alert: { Args: { _wo_id: string }; Returns: undefined }
+      current_device_line: { Args: never; Returns: string }
+      current_device_token: { Args: never; Returns: string }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
