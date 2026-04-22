@@ -46,8 +46,10 @@ Deno.serve(async (req) => {
     const body = createUserSchema.parse(await req.json());
     const { email, password, name, role, shift } = body;
 
-    // Only admins can create admin users
-    if (role === "admin" && !isAdmin) throw new Error("Only admins can assign the Admin role");
+    // Only admins can create admin or manager users
+    if ((role === "admin" || role === "manager") && !isAdmin) {
+      throw new Error("Only admins can assign Admin or Manager roles");
+    }
 
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
