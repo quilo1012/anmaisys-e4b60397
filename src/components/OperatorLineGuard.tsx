@@ -3,23 +3,21 @@ import { Loader2, Tablet, Lock, Copy, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useDeviceLine, getDeviceToken } from "@/hooks/useDevice";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useDeviceLines, getDeviceToken } from "@/hooks/useDevice";
 import { useLines } from "@/hooks/useMachines";
-import { DeviceLineProvider } from "@/contexts/DeviceLineContext";
+import { DeviceLineProvider, useDeviceLineCtx, AllowedLine } from "@/contexts/DeviceLineContext";
 import { useAuth } from "@/contexts/AuthContext";
 
 /**
- * Hard gate for operator screens. Resolves the device → line binding and:
+ * Hard gate for operator screens. Resolves the device → allowed-lines binding and:
  *  - shows a spinner while loading
- *  - blocks the UI with a setup card when the tablet is unpaired
- *  - renders children + DeviceLineProvider when paired
- *
- * RLS is the source of truth, but this guard ensures a clean UX and prevents
- * any operator-side calls that would otherwise just return empty.
+ *  - blocks the UI with a setup card when the tablet has zero allowed lines
+ *  - renders children + DeviceLineProvider when at least one line is paired
  */
 export function OperatorLineGuard({ children }: { children: ReactNode }) {
   const { signOut } = useAuth();
-  const { data: device, isLoading } = useDeviceLine();
+  const { data: device, isLoading } = useDeviceLines();
   const { data: lines } = useLines();
   const [copied, setCopied] = useState(false);
 
@@ -31,10 +29,10 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  const lineId = device?.line_id ?? null;
+  const allowedIds = device?.allowedLineIds ?? [];
 
   // Unpaired — block everything.
-  if (!lineId) {
+  if (allowedIds.length === 0) {
     const token = getDeviceToken();
     const handleCopy = async () => {
       await navigator.clipboard.writeText(token);
@@ -49,10 +47,10 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
             <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/10">
               <Tablet className="h-8 w-8 text-amber-500" />
             </div>
-            <CardTitle className="text-2xl">Tablet not assigned to a line</CardTitle>
+            <CardTitle className="text-2xl">Tablet not assigned to any line</CardTitle>
             <CardDescription className="mt-2 text-base">
-              This tablet must be paired to a production line before operators can create
-              or view work orders.
+              This tablet must be paired to one or more production lines before operators can
+              create or view work orders.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -60,7 +58,7 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
               <p className="text-sm font-medium">Ask a manager or admin to:</p>
               <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
                 <li>Open <span className="font-mono">Devices</span> in the dashboard</li>
-                <li>Paste this device token and pick a line</li>
+                <li>Paste this device token and select the allowed lines</li>
               </ol>
             </div>
 
@@ -85,32 +83,76 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  const lineName = lines?.find((l) => l.id === lineId)?.name ?? "Unknown line";
+  // Build the allowed-line list (id + name) from the lines table.
+  const allowedLines: AllowedLine[] = allowedIds
+    .map((id) => {
+      const name = lines?.find((l) => l.id === id)?.name ?? "Unknown line";
+      return { id, name };
+    });
 
   return (
     <DeviceLineProvider
-      value={{
-        lineId,
-        lineName,
-        deviceToken: getDeviceToken(),
-        label: device?.label ?? null,
-      }}
+      allowedLines={allowedLines}
+      deviceToken={getDeviceToken()}
+      label={device?.label ?? null}
     >
-      {/* Locked-line banner */}
+      <LineSelectionBanner />
+      {children}
+    </DeviceLineProvider>
+  );
+}
+
+function LineSelectionBanner() {
+  const { allowedLines, selectedLineId, selectedLineName, setSelectedLineId, label } =
+    useDeviceLineCtx();
+
+  // Single line — show locked banner.
+  if (allowedLines.length === 1) {
+    return (
       <div className="border-2 border-primary bg-primary/10 rounded-lg p-4 mb-4 flex items-center gap-3">
         <Lock className="h-6 w-6 text-primary shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
-            This tablet is locked to
+            {label ? `${label} · ` : ""}This tablet is locked to
           </p>
-          <p className="text-2xl font-bold text-primary truncate">{lineName}</p>
+          <p className="text-2xl font-bold text-primary truncate">{selectedLineName}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             All work orders are automatically assigned to this line.
           </p>
         </div>
       </div>
+    );
+  }
 
-      {children}
-    </DeviceLineProvider>
+  // Multiple lines — show selector.
+  return (
+    <div className="border-2 border-primary bg-primary/10 rounded-lg p-4 mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
+      <Lock className="h-6 w-6 text-primary shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+          {label ? `${label} · ` : ""}Tablet authorized for
+        </p>
+        <p className="text-sm font-medium text-foreground truncate">
+          {allowedLines.map((l) => l.name).join(" · ")}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Work orders use the line selected on the right.
+        </p>
+      </div>
+      <div className="sm:w-64 w-full">
+        <Select value={selectedLineId} onValueChange={setSelectedLineId}>
+          <SelectTrigger className="h-12 text-base font-semibold border-primary">
+            <SelectValue placeholder="Select line" />
+          </SelectTrigger>
+          <SelectContent>
+            {allowedLines.map((l) => (
+              <SelectItem key={l.id} value={l.id} className="text-base">
+                {l.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
   );
 }
