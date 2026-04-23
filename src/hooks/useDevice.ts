@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const DEVICE_TOKEN_KEY = "an_device_token";
 
@@ -24,33 +24,54 @@ export function clearDeviceToken() {
   localStorage.removeItem(DEVICE_TOKEN_KEY);
 }
 
-/** Resolves this device's paired line_id (or null if unpaired). Self-registers on first call. */
-export function useDeviceLine() {
+export interface DeviceLinesResult {
+  token: string;
+  deviceId: string | null;
+  allowedLineIds: string[];
+  label: string | null;
+}
+
+/** Resolves this device's set of allowed line IDs. Self-registers on first call. */
+export function useDeviceLines() {
   const [token] = useState(() => getDeviceToken());
 
-  return useQuery({
-    queryKey: ["device_line", token],
+  return useQuery<DeviceLinesResult>({
+    queryKey: ["device_lines", token],
     queryFn: async () => {
-      // Try to read; if not present, register a row (unpaired)
+      // Look up the device row
       const { data: existing } = await supabase
         .from("devices" as any)
-        .select("id, line_id, label, paired_at")
+        .select("id, label")
         .eq("device_token", token)
         .maybeSingle();
 
-      if (!existing) {
-        await supabase.from("devices" as any).insert({ device_token: token } as any);
-        return { token, line_id: null as string | null, label: null as string | null };
+      let deviceId: string | null = (existing as any)?.id ?? null;
+      let label: string | null = (existing as any)?.label ?? null;
+
+      if (!deviceId) {
+        // Self-register as unpaired
+        const { data: inserted } = await supabase
+          .from("devices" as any)
+          .insert({ device_token: token } as any)
+          .select("id, label")
+          .maybeSingle();
+        deviceId = (inserted as any)?.id ?? null;
+        label = (inserted as any)?.label ?? null;
+      } else {
+        // Touch last_seen
+        void supabase.rpc("touch_device" as any, { _token: token });
       }
 
-      // Touch last_seen
-      void supabase.rpc("touch_device" as any, { _token: token });
+      let allowedLineIds: string[] = [];
+      if (deviceId) {
+        const { data: rows } = await supabase
+          .from("device_lines" as any)
+          .select("line_id")
+          .eq("device_id", deviceId);
+        allowedLineIds = ((rows ?? []) as any[]).map((r) => r.line_id as string);
+      }
 
-      return {
-        token,
-        line_id: (existing as any).line_id as string | null,
-        label: (existing as any).label as string | null,
-      };
+      return { token, deviceId, allowedLineIds, label };
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -60,30 +81,58 @@ export function useAllDevices() {
   return useQuery({
     queryKey: ["devices_all"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: devices, error } = await supabase
         .from("devices" as any)
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as any[];
+
+      const { data: junctions } = await supabase
+        .from("device_lines" as any)
+        .select("device_id, line_id");
+
+      const { data: lines } = await supabase
+        .from("lines" as any)
+        .select("id, name");
+
+      const lineMap = new Map(((lines ?? []) as any[]).map((l) => [l.id, l.name]));
+      const grouped = new Map<string, { id: string; name: string }[]>();
+      ((junctions ?? []) as any[]).forEach((j) => {
+        const arr = grouped.get(j.device_id) ?? [];
+        arr.push({ id: j.line_id, name: lineMap.get(j.line_id) ?? "Unknown" });
+        grouped.set(j.device_id, arr);
+      });
+
+      return ((devices ?? []) as any[]).map((d) => ({
+        ...d,
+        allowed_lines: grouped.get(d.id) ?? [],
+      }));
     },
   });
 }
 
-export function usePairDevice() {
+export function usePairDeviceLines() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ token, lineId, label }: { token: string; lineId: string; label?: string }) => {
-      const { error } = await supabase.rpc("pair_device" as any, {
+    mutationFn: async ({
+      token,
+      lineIds,
+      label,
+    }: {
+      token: string;
+      lineIds: string[];
+      label?: string;
+    }) => {
+      const { error } = await supabase.rpc("pair_device_lines" as any, {
         _token: token,
-        _line_id: lineId,
+        _line_ids: lineIds,
         _label: label ?? null,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["devices_all"] });
-      qc.invalidateQueries({ queryKey: ["device_line"] });
+      qc.invalidateQueries({ queryKey: ["device_lines"] });
     },
   });
 }
@@ -97,7 +146,7 @@ export function useUnpairDevice() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["devices_all"] });
-      qc.invalidateQueries({ queryKey: ["device_line"] });
+      qc.invalidateQueries({ queryKey: ["device_lines"] });
     },
   });
 }
