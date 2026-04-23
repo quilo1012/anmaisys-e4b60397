@@ -1,77 +1,95 @@
+## Plano — Corrigir o `Failed to fetch` ao criar engineers
 
+O problema atual está no caminho de chamada das funções administrativas do backend, não no formulário de UI.
 
-## Plano — Editor Profissional de Dispositivos
+### Diagnóstico confirmado
 
-Atualizar o diálogo de edição de tablets em **Devices** para uma experiência mais profissional, com campos dedicados, organizados em seções claras e ações contextuais. Hoje o editor existe mas tem layout simples — vamos transformá-lo em um painel de gestão completo.
+- A tela `/users/manage` chama `list-engineers` no carregamento e `create-engineer` no submit usando `invokeFunction()`.
+- O navegador mostra `Failed to fetch` para `POST /functions/v1/list-engineers` e `POST /functions/v1/create-engineer`.
+- Os logs dessas funções mostram apenas `booted/shutdown`, sem erro de aplicação retornado ao cliente.
+- O arquivo `supabase/config.toml` hoje só declara:
 
-### O que muda visualmente
-
-Quando o admin clicar em **Edit** numa linha da tabela de dispositivos, ele verá um diálogo maior e estruturado em **três seções** com cabeçalhos discretos:
-
-```
-┌──────────────────────────────────────────────────┐
-│ ✏️  Edit Tablet Device                            │
-│ Manage label, allowed lines and pairing status   │
-├──────────────────────────────────────────────────┤
-│ ▸ IDENTIFICATION                                  │
-│   Device Label    [ Floor tablet 3            ]  │
-│   Device Token    [ aB3xK9... ] [📋 Copy]         │
-│   Last seen       Apr 23, 2026 14:22              │
-│   Paired at       Apr 20, 2026 09:10              │
-│                                                   │
-│ ▸ AUTHORIZED LINES  (2 selected)   [Select all]  │
-│   ☑ Line 1        ☐ Line 2                        │
-│   ☑ Blender 1     ☐ Blender 2                     │
-│   ☐ Sealer Mobile ☐ Printer Mobile                │
-│                                                   │
-│ ▸ DANGER ZONE                                     │
-│   [🗑 Unpair this device]                          │
-│   Removes all line authorizations. The tablet    │
-│   will be blocked until paired again.            │
-├──────────────────────────────────────────────────┤
-│                       [Cancel]  [💾 Save changes]│
-└──────────────────────────────────────────────────┘
+```toml
+[functions.delete-user]
+verify_jwt = false
 ```
 
-### Detalhes funcionais
+Isso deixa as outras funções administrativas em um estado inconsistente. Como essas funções já validam o token manualmente no próprio código (`Authorization` + `getClaims()` / checagem de role), a chamada do navegador está sendo bloqueada antes de a resposta correta chegar ao cliente.
 
-**Section 1 — Identification**
-- Campo **Device Label** dedicado, com ícone e placeholder claro.
-- Campo **Device Token** somente-leitura, fonte mono, com botão copiar inline (igual ao "This Device").
-- **Last seen** e **Paired at** formatados (`PP p`) ao lado, em texto pequeno — read-only metadata.
+### O que vou alterar
 
-**Section 2 — Authorized Lines**
-- Mantém a grade de checkboxes existente, mas:
-  - Adiciona contador "(N selected)" no cabeçalho.
-  - Adiciona botão **Select all / Clear all** que alterna conforme o estado.
-  - Aviso amarelo embaixo se nenhuma linha estiver selecionada: *"Saving with zero lines will block this tablet."*
+#### 1) Ajustar a configuração das funções administrativas
+Atualizar `supabase/config.toml` para declarar `verify_jwt = false` nas funções que já fazem validação manual em código:
 
-**Section 3 — Danger Zone**
-- Bloco vermelho/destructive separado, com botão **Unpair this device** (chama `useUnpairDevice` direto, fecha o diálogo no sucesso).
-- Texto explicativo curto.
-- Apenas aparece se o dispositivo já tem pelo menos uma linha (mesma regra atual da tabela).
+- `create-engineer`
+- `list-engineers`
+- `update-engineer`
+- `delete-engineer`
+- `create-user`
+- `update-user`
+- `delete-user`
 
-**Footer**
-- Botão **Cancel** (outline) e **Save changes** (primary com ícone Save).
-- Save desabilitado enquanto `pair.isPending`.
-- Toast de sucesso/erro mantém o padrão atual.
+Estrutura esperada:
 
-### Polimento adicional na página
+```toml
+project_id = "ybtrzqzliepknpzqdajx"
 
-- **Card "All Devices"**: aumentar padding nas células, alternância de cor de linha sutil (`hover:bg-muted/30`), badges com ícone de linha à esquerda.
-- **Botão Edit** na linha da tabela: trocar para `variant="ghost"` com ícone só (ícone Pencil) e tooltip "Edit device" — mais limpo.
-- **Botão Unpair** removido da tabela (passa a viver dentro do diálogo, na Danger Zone) — evita cliques acidentais e centraliza a gestão.
-- Largura do diálogo: `max-w-2xl` para acomodar as seções confortavelmente.
+[functions.create-user]
+verify_jwt = false
 
-### Arquivos modificados
+[functions.update-user]
+verify_jwt = false
 
-- `src/pages/dashboard/DevicesPage.tsx` — refatorar diálogo de edição em três seções, reorganizar ações da tabela, adicionar `Select all/Clear all` e Danger Zone.
+[functions.delete-user]
+verify_jwt = false
 
-Nenhuma mudança de schema, RLS, hooks ou contexto — toda a infraestrutura já está pronta (`usePairDeviceLines`, `useUnpairDevice`, `useAllDevices`).
+[functions.create-engineer]
+verify_jwt = false
 
-### Fora de escopo
+[functions.update-engineer]
+verify_jwt = false
 
-- Edição em massa de múltiplos dispositivos.
-- Histórico de pareamentos por dispositivo.
-- Renomear/regenerar token (token é gerado pelo próprio tablet via `localStorage`).
+[functions.delete-engineer]
+verify_jwt = false
 
+[functions.list-engineers]
+verify_jwt = false
+```
+
+#### 2) Manter a segurança existente
+Não vou relaxar autorização.
+Essas funções já protegem acesso via:
+
+- leitura do header `Authorization`
+- validação do usuário autenticado
+- checagem de role (`admin` / `manager`)
+
+Ou seja: a segurança continua no código da função, só removendo o bloqueio prematuro da plataforma nesse grupo de funções.
+
+#### 3) Validar o fluxo depois do ajuste
+Depois da alteração, validar:
+
+- carregar lista de engineers sem `Failed to fetch`
+- criar novo engineer com sucesso
+- atualizar/deletar engineer
+- garantir que `create-user` e `update-user` também continuam funcionando no mesmo padrão
+
+## Detalhes técnicos
+
+Arquivos envolvidos:
+- `supabase/config.toml`
+- referência de comportamento já confirmada em:
+  - `supabase/functions/create-engineer/index.ts`
+  - `supabase/functions/list-engineers/index.ts`
+  - `supabase/functions/create-user/index.ts`
+  - `src/lib/invokeFunction.ts`
+  - `src/pages/users/ManageUsers.tsx`
+
+Sem mudança de schema, RLS ou hooks de dados.
+
+## Fora de escopo
+
+- Refatorar `ManageUsers.tsx`
+- Alterar banco de dados
+- Mudar permissões de admin/manager
+- Corrigir os warnings visuais do `Dialog` (isso é separado do erro de Edge Function)

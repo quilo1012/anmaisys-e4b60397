@@ -1,4 +1,22 @@
 project_id = "ybtrzqzliepknpzqdajx"
 
+[functions.create-user]
+verify_jwt = false
+
+[functions.update-user]
+verify_jwt = false
+
 [functions.delete-user]
+verify_jwt = false
+
+[functions.create-engineer]
+verify_jwt = false
+
+[functions.update-engineer]
+verify_jwt = false
+
+[functions.delete-engineer]
+verify_jwt = false
+
+[functions.list-engineers]
 verify_jwt = false
