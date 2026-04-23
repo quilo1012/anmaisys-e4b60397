@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     if (!isAdmin && !isManager) throw new Error("Only managers and admins can view engineers");
 
     const { data, error } = await supabaseAdmin
-      .from("engineers")
+      .from("engineers_safe")
       .select("id, name, is_active, created_at")
       .order("created_at", { ascending: false });
 

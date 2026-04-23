@@ -1,6 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://esm.sh/zod@3.23.8";
 
+const createPendingPinHash = async () => {
+  const { hash } = await import("https://esm.sh/bcryptjs@2.4.3");
+  return hash(crypto.randomUUID(), 10);
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -67,7 +72,11 @@ Deno.serve(async (req) => {
 
     if (createError) throw createError;
 
-    if (shift && newUser.user) {
+    if (!newUser.user) {
+      throw new Error("Failed to create user record");
+    }
+
+    if (shift) {
       await supabaseAdmin
         .from("profiles")
         .update({ shift })
@@ -77,21 +86,54 @@ Deno.serve(async (req) => {
     const { data: existingRole } = await supabaseAdmin
       .from("user_roles")
       .select("id")
-      .eq("user_id", newUser.user!.id)
-      .single();
+      .eq("user_id", newUser.user.id)
+      .maybeSingle();
 
     if (existingRole) {
       await supabaseAdmin
         .from("user_roles")
         .update({ role })
-        .eq("user_id", newUser.user!.id);
+        .eq("user_id", newUser.user.id);
     } else {
       await supabaseAdmin
         .from("user_roles")
-        .insert({ user_id: newUser.user!.id, role });
+        .insert({ user_id: newUser.user.id, role });
     }
 
-    return new Response(JSON.stringify({ success: true, userId: newUser.user!.id }), {
+    if (role === "engineer") {
+      const { data: existingEngineer, error: existingEngineerError } = await supabaseAdmin
+        .from("engineers")
+        .select("id")
+        .eq("id", newUser.user.id)
+        .maybeSingle();
+
+      if (existingEngineerError) throw existingEngineerError;
+
+      if (existingEngineer) {
+        const { error: engineerUpdateError } = await supabaseAdmin
+          .from("engineers")
+          .update({ name, is_active: true })
+          .eq("id", newUser.user.id);
+        if (engineerUpdateError) throw engineerUpdateError;
+      } else {
+        const pinHash = await createPendingPinHash();
+        const { error: engineerInsertError } = await supabaseAdmin
+          .from("engineers")
+          .insert({ id: newUser.user.id, name, pin_hash: pinHash, is_active: true });
+        if (engineerInsertError) throw engineerInsertError;
+      }
+    } else {
+      const { error: engineerDeleteError } = await supabaseAdmin
+        .from("engineers")
+        .delete()
+        .eq("id", newUser.user.id);
+
+      if (engineerDeleteError && engineerDeleteError.code !== "PGRST116") {
+        throw engineerDeleteError;
+      }
+    }
+
+    return new Response(JSON.stringify({ success: true, userId: newUser.user.id }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {

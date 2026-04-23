@@ -56,6 +56,7 @@ Deno.serve(async (req) => {
     await supabaseAdmin.from("work_orders").update({ engineer_id: null }).eq("engineer_id", userId);
     await supabaseAdmin.from("work_orders").update({ closed_by: null }).eq("closed_by", userId);
     await supabaseAdmin.from("parts_used").delete().eq("engineer_id", userId);
+    await supabaseAdmin.from("engineers").delete().eq("id", userId);
 
     // Delete user from auth (cascades to profiles and user_roles via FK)
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
