@@ -64,8 +64,8 @@ export default function OperatorDashboard() {
 }
 
 function OperatorDashboardContent() {
-  // Line is hard-locked by the device — comes from the guard's context.
-  const { lineId, lineName } = useDeviceLineCtx();
+  // Allowed lines are bound to the device; operator may switch among them via the guard banner.
+  const { selectedLineId: lineId, selectedLineName: lineName } = useDeviceLineCtx();
 
   const [mobileAssetId, setMobileAssetId] = useState<string>(""); // sealer
   const [secondaryAssetId, setSecondaryAssetId] = useState<string>(""); // printer
