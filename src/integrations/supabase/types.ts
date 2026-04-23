@@ -137,6 +137,42 @@ export type Database = {
           },
         ]
       }
+      device_lines: {
+        Row: {
+          created_at: string
+          device_id: string
+          id: string
+          line_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          id?: string
+          line_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          id?: string
+          line_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_lines_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_lines_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       devices: {
         Row: {
           created_at: string
@@ -1589,6 +1625,7 @@ export type Database = {
       }
       acknowledge_wo_alert: { Args: { _wo_id: string }; Returns: undefined }
       current_device_line: { Args: never; Returns: string }
+      current_device_line_ids: { Args: never; Returns: string[] }
       current_device_token: { Args: never; Returns: string }
       current_user_role: {
         Args: never
@@ -1639,6 +1676,10 @@ export type Database = {
       }
       pair_device: {
         Args: { _label?: string; _line_id: string; _token: string }
+        Returns: undefined
+      }
+      pair_device_lines: {
+        Args: { _label?: string; _line_ids: string[]; _token: string }
         Returns: undefined
       }
       reopen_wo_recurrence: {
