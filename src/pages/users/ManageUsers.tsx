@@ -105,11 +105,24 @@ export default function ManageUsers() {
 
   const fetchEngineers = async () => {
     const res = await invokeFunction<Engineer[]>("list-engineers");
-    if (res.error) return;
-    if (res.data) setEngineers(res.data as any);
+    if (res.error) {
+      console.error("[ManageUsers] list-engineers failed:", res.error);
+      toast({
+        title: "Failed to load engineers",
+        description: (res.error as any)?.message ?? "Try refreshing the page.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setEngineers((res.data as Engineer[]) ?? []);
   };
 
-  useEffect(() => { if (currentRole) fetchUsers(); fetchEngineers(); }, [currentRole]);
+  useEffect(() => {
+    if (!currentRole) return;
+    fetchUsers();
+    fetchEngineers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRole]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
