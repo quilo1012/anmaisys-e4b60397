@@ -1,80 +1,60 @@
-## Plano — Engineers não aparecem em /users/manage (admin e manager)
+## Diagnóstico final
 
-### Diagnóstico confirmado
+A Network mostra POST para `/functions/v1/list-engineers` saindo com `Authorization` + `apikey` corretos, mas o browser retorna **"Failed to fetch"** sem status nem body. Os logs da função mostram apenas `Boot`/`Shutdown` — **o request nunca chega ao handler**. Mesma sessão consegue chamar `/rest/v1/work_orders` com sucesso (200), então não é problema de auth ou rede.
 
-1. **Banco está correto**: 3 engineers existem (`Lucas`, `Luciano Polo`, `test-curl`).
-2. **Edge Function `list-engineers` funciona**: testei via curl com a sessão real do admin → retorna 200 com os 3 engineers, headers CORS corretos.
-3. **Navegador não chama a função**: os logs de rede da preview em `/users/manage` não mostram nenhuma request para `list-engineers`. Os logs do runtime também não registram invocação recente do browser.
-4. **Causa provável**: o `useEffect` em `ManageUsers.tsx` (linha 112) tem o padrão:
+**Causa raiz:** Minha refatoração anterior do `src/lib/invokeFunction.ts` substituiu `supabase.functions.invoke()` por um `fetch()` manual. Esse fetch manual dispara um **preflight CORS OPTIONS** (por causa do header `Authorization` + `Content-Type: application/json`), e o gateway de Edge Functions da Supabase está bloqueando esse preflight antes do handler executar — resultado: "Failed to fetch" silencioso.
 
-   ```ts
-   useEffect(() => { if (currentRole) fetchUsers(); fetchEngineers(); }, [currentRole]);
-   ```
+O `supabase.functions.invoke()` original do SDK não dispara preflight da mesma forma (usa headers controlados internamente). Ele estava funcionando antes e voltará a funcionar.
 
-   O `if (currentRole)` só protege `fetchUsers()`. O `fetchEngineers()` dispara **sempre**, inclusive no primeiro render quando `currentRole` ainda é `null` e a sessão pode estar incompleta — a chamada falha silenciosamente em `if (res.error) return;` (sem toast, sem log). Quando `currentRole` finalmente chega, o effect re-roda — mas se a primeira chamada deixou algum estado intermediário (ou falhou de forma não capturada), a segunda pode não disparar.
+## O que vou corrigir
 
-5. **Manager nunca via engineers**: além disso, faltava cobertura defensiva — sem feedback de erro, qualquer falha de auth/CORS/rede deixa a tabela vazia mostrando "No engineers configured".
-
-### O que vou alterar
-
-**Arquivo único:** `src/pages/users/ManageUsers.tsx`
-
-#### 1. Corrigir o guard do useEffect
-
-Garantir que **ambos** os fetches só rodem quando `currentRole` estiver disponível:
+### 1. `src/lib/invokeFunction.ts` — reverter para `supabase.functions.invoke()`
+Volto a usar o helper oficial do SDK, mantendo só a parte boa do refactor (refresh proativo de sessão antes da chamada). Isso elimina o preflight problemático.
 
 ```ts
-useEffect(() => {
-  if (!currentRole) return;
-  fetchUsers();
-  fetchEngineers();
-}, [currentRole]);
-```
-
-#### 2. Tornar `fetchEngineers` resiliente e observável
-
-- Mostrar toast de erro real (em vez de engolir).
-- Logar no console para debug.
-- Garantir `setEngineers([])` apenas em caso explícito de "não há engineers", nunca em erro.
-
-```ts
-const fetchEngineers = async () => {
-  const res = await invokeFunction<Engineer[]>("list-engineers");
-  if (res.error) {
-    console.error("[ManageUsers] list-engineers failed:", res.error);
-    toast({
-      title: "Failed to load engineers",
-      description: res.error.message ?? "Try refreshing the page.",
-      variant: "destructive",
-    });
-    return;
+export async function invokeFunction<T = any>(name: string, body?: unknown) {
+  // Refresh session if expiring in <60s
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.expires_at) {
+    const remaining = session.expires_at - Math.floor(Date.now() / 1000);
+    if (remaining < 60) await supabase.auth.refreshSession();
   }
-  setEngineers(res.data ?? []);
-};
+
+  const { data, error } = await supabase.functions.invoke<T>(name, {
+    body: body ?? {},
+  });
+  return { data, error };
+}
 ```
 
-#### 3. Botão manual de "Refresh" na seção Engineers
+### 2. `src/pages/users/ManageUsers.tsx` — guardar fetches por `user.id` (não só `currentRole`)
+A condição atual `if (!currentRole) return;` falha em uma janela onde a session existe mas o role ainda está carregando. Trocar para guardar por `user?.id && currentRole`, que é o que o snippet padrão recomenda. Mantenho o botão "Refresh" e o tratamento de erro com toast que já adicionei.
 
-Pequeno botão ao lado de "New Engineer" que chama `fetchEngineers()`. Útil para debug imediato e para o usuário recuperar caso algum fetch falhe na carga inicial.
+### 3. Preventivo nas 7 Edge Functions administrativas — uniformizar CORS
+Adicionar `Access-Control-Allow-Methods: POST, OPTIONS` e `Access-Control-Max-Age: 86400` ao `corsHeaders` de:
+- `create-user`, `update-user`, `delete-user`
+- `create-engineer`, `update-engineer`, `delete-engineer`, `list-engineers`
 
-### Por que isso resolve
+E trocar `new Response("ok", { headers: corsHeaders })` por `new Response(null, { status: 204, headers: corsHeaders })` para o handler OPTIONS (padrão correto, não confunde proxies). Isso garante que mesmo que algum cliente futuro dispare preflight, ele passe.
 
-- Elimina a corrida onde `fetchEngineers` roda sem sessão pronta.
-- Quando algo der errado de fato, o usuário vê o erro (em vez de uma tabela vazia silenciosa).
-- O botão Refresh dá uma saída de emergência.
-- Não muda backend — funções já estão corretas e testadas (curl retornou os 3 engineers com sucesso).
+## Por que isso resolve
 
-### Validação após o fix
+- **Login & sessão:** já funcionam (auth-logs mostram login bem-sucedido às 22:21:47, e a sessão JWT é válida — todas as outras chamadas REST funcionam).
+- **Carregamento de engineers:** vai funcionar porque `supabase.functions.invoke()` não dispara o preflight que está sendo bloqueado.
+- **Criação de engineers/users:** mesma razão — o canal de Edge Function volta a abrir.
+- **RLS:** já está correta (admin tem `ALL` em `engineers`, manager tem `SELECT`). Não preciso mexer.
+- **Tabela `engineers`:** já tem 4 registros confirmados via psql. Não há problema de dados.
 
-1. Login como **admin** em `/users/manage` → seção Engineers mostra Lucas, Luciano Polo, test-curl.
-2. Login como **manager** em `/users/manage` → mesma lista visível.
-3. Criar novo engineer → aparece imediatamente na tabela após `fetchEngineers()` recarregar.
-4. Se algum fetch falhar, toast de erro vermelho aparece em vez de tabela vazia silenciosa.
-5. (Limpeza opcional) Deletar `test-curl` que sobrou do diagnóstico, pelo próprio botão de delete da UI.
+## Fora de escopo (e por quê)
 
-### Fora de escopo
+- **Não vou criar registro automático em `engineers` ao criar user**: a arquitetura atual é proposital (modelo híbrido — `engineers` é uma tabela standalone para identidade via PIN em terminais compartilhados, separada das contas de login `auth.users`/`profiles`). Misturar os dois quebra o "Hybrid Identity" descrito na memória do projeto.
+- **Não vou refatorar para React Query**: fora do escopo do bug.
+- **Não vou mexer em RLS**: já está correta e auditada.
 
-- Mexer em RLS de `engineers` (admin já tem `ALL` policy; manager tem `SELECT` via policy "Managers can view engineers (safe view only)").
-- Mexer no código das edge functions (já estão corretas).
-- Refatorar para React Query (`useEngineerScores` usa, mas `ManageUsers` é fetch direto — manter padrão atual).
-- Adicionar paginação ou filtros.
+## Validação após a correção
+
+1. Recarregar `/users/manage` como admin → seção "Engineers" mostra 4 registros (Lucas, Luciano Polo, test-curl, debug-temp).
+2. Clicar "New Engineer", criar um → aparece sem erro, `Failed to fetch` sumiu.
+3. Clicar "New User", criar um operator → conta criada, aparece em "Login Accounts".
+4. Logar como manager → vê só engineers (sem coluna admin de users), criação funciona.
+5. Limpar os 2 engineers de teste (`test-curl`, `debug-temp`) pela UI para confirmar delete também funciona.
