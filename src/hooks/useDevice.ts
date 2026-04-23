@@ -77,6 +77,9 @@ export function useDeviceLines() {
   });
 }
 
+/** @deprecated Backward-compat alias for cached bundles. Use `useDeviceLines`. */
+export const useDeviceLine = useDeviceLines;
+
 export function useAllDevices() {
   return useQuery({
     queryKey: ["devices_all"],
