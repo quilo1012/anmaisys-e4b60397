@@ -118,11 +118,14 @@ export default function ManageUsers() {
   };
 
   useEffect(() => {
-    if (!currentRole) return;
+    // Wait for both the session user AND the role to be resolved before
+    // making any authenticated calls (avoids race where session is restoring
+    // but role hasn't been fetched yet).
+    if (!currentUser?.id || !currentRole) return;
     fetchUsers();
     fetchEngineers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentRole]);
+  }, [currentUser?.id, currentRole]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();

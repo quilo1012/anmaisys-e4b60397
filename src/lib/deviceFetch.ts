@@ -29,7 +29,10 @@ export function installDeviceFetch() {
             ? input.toString()
             : (input as Request).url;
 
-      if (url.includes(SUPABASE_HOST)) {
+      // Inject x-device-token only on REST/RPC calls. Edge Functions don't need
+      // it, and adding a custom header forces a CORS preflight that the
+      // /functions/v1/ gateway rejects → "Failed to fetch" in the browser.
+      if (url.includes(SUPABASE_HOST) && !url.includes("/functions/v1/")) {
         const token = getOrCreateDeviceToken();
         const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
         if (!headers.has("x-device-token")) {
