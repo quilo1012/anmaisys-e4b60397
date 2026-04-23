@@ -21,10 +21,60 @@ export async function invokeFunction<T = any>(
     }
     token = session?.access_token;
   } catch {
-    // ignore — invoke will surface the real error
+    // ignore — request below will surface the real error
   }
-  return await supabase.functions.invoke<T>(name, {
-    body,
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
+
+  try {
+    const headers: Record<string, string> = {
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    };
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    if (body !== undefined) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${name}`, {
+      method: "POST",
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+
+    const raw = await response.text();
+    const parsed = raw
+      ? (() => {
+          try {
+            return JSON.parse(raw);
+          } catch {
+            return raw;
+          }
+        })()
+      : null;
+
+    if (!response.ok) {
+      return {
+        data: null,
+        error: {
+          message:
+            (parsed && typeof parsed === "object" && "error" in parsed && typeof parsed.error === "string"
+              ? parsed.error
+              : `Failed to call ${name} (${response.status})`),
+          status: response.status,
+          details: parsed,
+        },
+      };
+    }
+
+    return { data: parsed as T, error: null };
+  } catch (error) {
+    return {
+      data: null,
+      error: {
+        message: error instanceof Error ? error.message : `Failed to call ${name}`,
+      },
+    };
+  }
 }
