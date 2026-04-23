@@ -74,6 +74,7 @@ export default function ManageUsers() {
   const [deleteEngLoading, setDeleteEngLoading] = useState<string | null>(null);
 
   const fetchUsers = async () => {
+    console.info("[ManageUsers] fetching users", { currentUserId: currentUser?.id, currentRole });
     // Select explicit columns — labor_rate is admin-only and fetched via RPC below
     const { data: profiles } = await supabase
       .from("profiles")
@@ -104,6 +105,12 @@ export default function ManageUsers() {
   };
 
   const fetchEngineers = async () => {
+    if (!currentUser?.id || !currentRole) {
+      console.info("[ManageUsers] skipping engineers fetch until auth is ready", { currentUserId: currentUser?.id, currentRole });
+      return;
+    }
+
+    console.info("[ManageUsers] fetching engineers", { currentUserId: currentUser.id, currentRole });
     const res = await invokeFunction<Engineer[]>("list-engineers");
     if (res.error) {
       console.error("[ManageUsers] list-engineers failed:", res.error);
@@ -138,7 +145,7 @@ export default function ManageUsers() {
       logAuditEvent("user_created", "user", undefined, { name: name.trim(), email: email.trim().toLowerCase(), role });
       setOpen(false);
       setEmail(""); setPassword(""); setName(""); setRole("operator");
-      fetchUsers();
+      await Promise.all([fetchUsers(), fetchEngineers()]);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -195,7 +202,7 @@ export default function ManageUsers() {
       }
       toast({ title: "User updated" });
       setEditUser(null);
-      fetchUsers();
+      await Promise.all([fetchUsers(), fetchEngineers()]);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -212,7 +219,7 @@ export default function ManageUsers() {
       if (res.data?.error) throw new Error(res.data.error);
       logAuditEvent("user_deleted", "user", userId, { name: targetUser?.name, email: targetUser?.email });
       toast({ title: "User deleted" });
-      fetchUsers();
+      await Promise.all([fetchUsers(), fetchEngineers()]);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
