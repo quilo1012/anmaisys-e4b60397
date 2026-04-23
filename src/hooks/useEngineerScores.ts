@@ -29,7 +29,7 @@ export function useEngineerScores() {
         .in("id", ids);
 
       const { data: engineers } = await supabase
-        .from("engineers")
+        .from("engineers_safe" as any)
         .select("id, name")
         .in("id", ids);
 
