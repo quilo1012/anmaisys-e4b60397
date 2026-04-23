@@ -1,95 +1,80 @@
-## Plano — Corrigir o `Failed to fetch` ao criar engineers
-
-O problema atual está no caminho de chamada das funções administrativas do backend, não no formulário de UI.
+## Plano — Engineers não aparecem em /users/manage (admin e manager)
 
 ### Diagnóstico confirmado
 
-- A tela `/users/manage` chama `list-engineers` no carregamento e `create-engineer` no submit usando `invokeFunction()`.
-- O navegador mostra `Failed to fetch` para `POST /functions/v1/list-engineers` e `POST /functions/v1/create-engineer`.
-- Os logs dessas funções mostram apenas `booted/shutdown`, sem erro de aplicação retornado ao cliente.
-- O arquivo `supabase/config.toml` hoje só declara:
+1. **Banco está correto**: 3 engineers existem (`Lucas`, `Luciano Polo`, `test-curl`).
+2. **Edge Function `list-engineers` funciona**: testei via curl com a sessão real do admin → retorna 200 com os 3 engineers, headers CORS corretos.
+3. **Navegador não chama a função**: os logs de rede da preview em `/users/manage` não mostram nenhuma request para `list-engineers`. Os logs do runtime também não registram invocação recente do browser.
+4. **Causa provável**: o `useEffect` em `ManageUsers.tsx` (linha 112) tem o padrão:
 
-```toml
-[functions.delete-user]
-verify_jwt = false
-```
+   ```ts
+   useEffect(() => { if (currentRole) fetchUsers(); fetchEngineers(); }, [currentRole]);
+   ```
 
-Isso deixa as outras funções administrativas em um estado inconsistente. Como essas funções já validam o token manualmente no próprio código (`Authorization` + `getClaims()` / checagem de role), a chamada do navegador está sendo bloqueada antes de a resposta correta chegar ao cliente.
+   O `if (currentRole)` só protege `fetchUsers()`. O `fetchEngineers()` dispara **sempre**, inclusive no primeiro render quando `currentRole` ainda é `null` e a sessão pode estar incompleta — a chamada falha silenciosamente em `if (res.error) return;` (sem toast, sem log). Quando `currentRole` finalmente chega, o effect re-roda — mas se a primeira chamada deixou algum estado intermediário (ou falhou de forma não capturada), a segunda pode não disparar.
+
+5. **Manager nunca via engineers**: além disso, faltava cobertura defensiva — sem feedback de erro, qualquer falha de auth/CORS/rede deixa a tabela vazia mostrando "No engineers configured".
 
 ### O que vou alterar
 
-#### 1) Ajustar a configuração das funções administrativas
-Atualizar `supabase/config.toml` para declarar `verify_jwt = false` nas funções que já fazem validação manual em código:
+**Arquivo único:** `src/pages/users/ManageUsers.tsx`
 
-- `create-engineer`
-- `list-engineers`
-- `update-engineer`
-- `delete-engineer`
-- `create-user`
-- `update-user`
-- `delete-user`
+#### 1. Corrigir o guard do useEffect
 
-Estrutura esperada:
+Garantir que **ambos** os fetches só rodem quando `currentRole` estiver disponível:
 
-```toml
-project_id = "ybtrzqzliepknpzqdajx"
-
-[functions.create-user]
-verify_jwt = false
-
-[functions.update-user]
-verify_jwt = false
-
-[functions.delete-user]
-verify_jwt = false
-
-[functions.create-engineer]
-verify_jwt = false
-
-[functions.update-engineer]
-verify_jwt = false
-
-[functions.delete-engineer]
-verify_jwt = false
-
-[functions.list-engineers]
-verify_jwt = false
+```ts
+useEffect(() => {
+  if (!currentRole) return;
+  fetchUsers();
+  fetchEngineers();
+}, [currentRole]);
 ```
 
-#### 2) Manter a segurança existente
-Não vou relaxar autorização.
-Essas funções já protegem acesso via:
+#### 2. Tornar `fetchEngineers` resiliente e observável
 
-- leitura do header `Authorization`
-- validação do usuário autenticado
-- checagem de role (`admin` / `manager`)
+- Mostrar toast de erro real (em vez de engolir).
+- Logar no console para debug.
+- Garantir `setEngineers([])` apenas em caso explícito de "não há engineers", nunca em erro.
 
-Ou seja: a segurança continua no código da função, só removendo o bloqueio prematuro da plataforma nesse grupo de funções.
+```ts
+const fetchEngineers = async () => {
+  const res = await invokeFunction<Engineer[]>("list-engineers");
+  if (res.error) {
+    console.error("[ManageUsers] list-engineers failed:", res.error);
+    toast({
+      title: "Failed to load engineers",
+      description: res.error.message ?? "Try refreshing the page.",
+      variant: "destructive",
+    });
+    return;
+  }
+  setEngineers(res.data ?? []);
+};
+```
 
-#### 3) Validar o fluxo depois do ajuste
-Depois da alteração, validar:
+#### 3. Botão manual de "Refresh" na seção Engineers
 
-- carregar lista de engineers sem `Failed to fetch`
-- criar novo engineer com sucesso
-- atualizar/deletar engineer
-- garantir que `create-user` e `update-user` também continuam funcionando no mesmo padrão
+Pequeno botão ao lado de "New Engineer" que chama `fetchEngineers()`. Útil para debug imediato e para o usuário recuperar caso algum fetch falhe na carga inicial.
 
-## Detalhes técnicos
+### Por que isso resolve
 
-Arquivos envolvidos:
-- `supabase/config.toml`
-- referência de comportamento já confirmada em:
-  - `supabase/functions/create-engineer/index.ts`
-  - `supabase/functions/list-engineers/index.ts`
-  - `supabase/functions/create-user/index.ts`
-  - `src/lib/invokeFunction.ts`
-  - `src/pages/users/ManageUsers.tsx`
+- Elimina a corrida onde `fetchEngineers` roda sem sessão pronta.
+- Quando algo der errado de fato, o usuário vê o erro (em vez de uma tabela vazia silenciosa).
+- O botão Refresh dá uma saída de emergência.
+- Não muda backend — funções já estão corretas e testadas (curl retornou os 3 engineers com sucesso).
 
-Sem mudança de schema, RLS ou hooks de dados.
+### Validação após o fix
 
-## Fora de escopo
+1. Login como **admin** em `/users/manage` → seção Engineers mostra Lucas, Luciano Polo, test-curl.
+2. Login como **manager** em `/users/manage` → mesma lista visível.
+3. Criar novo engineer → aparece imediatamente na tabela após `fetchEngineers()` recarregar.
+4. Se algum fetch falhar, toast de erro vermelho aparece em vez de tabela vazia silenciosa.
+5. (Limpeza opcional) Deletar `test-curl` que sobrou do diagnóstico, pelo próprio botão de delete da UI.
 
-- Refatorar `ManageUsers.tsx`
-- Alterar banco de dados
-- Mudar permissões de admin/manager
-- Corrigir os warnings visuais do `Dialog` (isso é separado do erro de Edge Function)
+### Fora de escopo
+
+- Mexer em RLS de `engineers` (admin já tem `ALL` policy; manager tem `SELECT` via policy "Managers can view engineers (safe view only)").
+- Mexer no código das edge functions (já estão corretas).
+- Refatorar para React Query (`useEngineerScores` usa, mas `ManageUsers` é fetch direto — manter padrão atual).
+- Adicionar paginação ou filtros.

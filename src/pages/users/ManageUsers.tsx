@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound } from "lucide-react";
+import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -105,11 +105,24 @@ export default function ManageUsers() {
 
   const fetchEngineers = async () => {
     const res = await invokeFunction<Engineer[]>("list-engineers");
-    if (res.error) return;
-    if (res.data) setEngineers(res.data as any);
+    if (res.error) {
+      console.error("[ManageUsers] list-engineers failed:", res.error);
+      toast({
+        title: "Failed to load engineers",
+        description: (res.error as any)?.message ?? "Try refreshing the page.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setEngineers((res.data as Engineer[]) ?? []);
   };
 
-  useEffect(() => { if (currentRole) fetchUsers(); fetchEngineers(); }, [currentRole]);
+  useEffect(() => {
+    if (!currentRole) return;
+    fetchUsers();
+    fetchEngineers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRole]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -407,10 +420,14 @@ export default function ManageUsers() {
             <h2 className="text-2xl font-bold">Engineers (PIN Identity)</h2>
             <p className="text-muted-foreground">Manage engineer identities for PIN-based actions</p>
           </div>
-          <Dialog open={engOpen} onOpenChange={setEngOpen}>
-            <DialogTrigger asChild>
-              <Button><KeyRound className="h-4 w-4 mr-2" />New Engineer</Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" onClick={fetchEngineers} aria-label="Refresh engineers">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Dialog open={engOpen} onOpenChange={setEngOpen}>
+              <DialogTrigger asChild>
+                <Button><KeyRound className="h-4 w-4 mr-2" />New Engineer</Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Create Engineer Identity</DialogTitle></DialogHeader>
               <form onSubmit={handleCreateEngineer} className="space-y-4" autoComplete="off">
@@ -423,8 +440,9 @@ export default function ManageUsers() {
                   {engLoading ? "Creating..." : "Create Engineer"}
                 </Button>
               </form>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <Card>
