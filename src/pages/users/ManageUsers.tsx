@@ -440,8 +440,9 @@ export default function ManageUsers() {
                   {engLoading ? "Creating..." : "Create Engineer"}
                 </Button>
               </form>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <Card>
