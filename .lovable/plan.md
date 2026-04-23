@@ -1,59 +1,94 @@
 
 
-## Fix the `permission denied for table profiles` (403) error
+## Plan — Lock Operator Tablets to Their Paired Line
 
-### Root cause
+Most of the device-pairing infrastructure already exists. This plan closes the remaining gaps so each tablet is hard-locked to its assigned line, with no manual override and full server-side enforcement.
 
-Migration `20260420110424` and `20260421084300` revoked column-level `SELECT` on `profiles.labor_rate` from `authenticated`. Postgres column-level grants enforce that **`SELECT *` fails with `42501` if any column lacks a grant** — even for admins, even when RLS would otherwise allow the row.
+### What's already in place (no work needed)
 
-The active offender is `src/contexts/AuthContext.tsx` line 41:
+- `devices` table with `device_token` ↔ `line_id` pairing
+- `x-device-token` header injected into every Supabase request via `src/lib/deviceFetch.ts`
+- `current_device_line()` SQL function and operator RLS policies on `work_orders` that already require `line_id = current_device_line()` for both SELECT and INSERT
+- Admin/Manager **Devices** page (`/dashboard/devices`) for pairing
+- `useDeviceLine()` hook and partial usage in OperatorDashboard
 
-```ts
-supabase.from("profiles").select("*").eq("id", userId).single()
-```
+### What's missing / wrong
 
-This runs on every login / token-refresh / USER_UPDATED event. It fails for **everyone** (admin included), which matches the 403 we see in the network log for the admin user. The app keeps running because `AuthContext` swallows the error in the `catch` block, but `profile` stays `null` — breaking any UI that depends on it (header name, profile-aware permissions, etc.).
+1. Operator dashboard still renders `<LinePicker>` and lets the operator change the line via state — even though the form is auto-set to the device line, the picker is visible and interactive.
+2. No clear "this tablet is locked to Line X" banner.
+3. When the tablet is **unpaired**, the operator can still see the form, see other lines' data via legacy `operatorOnly` fallback, and attempt to submit (RLS will reject, but UX is broken).
+4. No setup/blocking screen showing the device token so an admin can pair it.
+5. `useWorkOrders` falls back to `operatorOnly: true` when unpaired — should instead return empty + block.
 
-A second offender is `src/hooks/useDowntimeEvents.ts` line 119, which only selects `name` (already safe — no fix needed), and `src/pages/dashboard/AnalyticsPage.tsx` line 81 which selects `id` only (also safe).
+### Changes
 
-### Plan
+**1. New `OperatorLineGuard` component** (wraps operator dashboard content)
 
-**1. Replace `select("*")` in `AuthContext.tsx`** with the explicit non-sensitive column list that matches the column-level grants:
+Reads `useDeviceLine()`. Three states:
+- **Loading** → spinner
+- **Unpaired** (`line_id = null`) → full-screen setup card:
+  - Big lock icon + heading "This tablet is not assigned to a production line"
+  - Sub-text explaining an admin/manager must pair it
+  - Device token shown in a monospace box with copy button
+  - Link/instruction: "Ask your supervisor to open Devices and pair this token"
+  - **No** access to WO list or create form
+- **Paired** → renders children, passes `lineId` + `lineName` via context
 
-```ts
-.select("id, name, email, shift, active, ui_preferences, last_seen_at, created_at, updated_at, labor_rate")
-```
+**2. New `DeviceLineContext`** (`src/contexts/DeviceLineContext.tsx`)
 
-Wait — `labor_rate` is revoked. We must drop it from the list:
+Lightweight provider exposing `{ lineId, lineName, deviceToken, label }` so all operator screens read the same source of truth without prop-drilling.
 
-```ts
-.select("id, name, email, shift, active, ui_preferences, last_seen_at, created_at, updated_at")
-```
+**3. Refactor `OperatorDashboard.tsx`**
 
-The `profile` object in `AuthContext` is typed as the full `profiles` row. We'll keep that type (the runtime object simply omits `labor_rate`, which is fine — no consumer reads it from the auth profile; admins fetch labor data via the `list_profile_labor_rates` / `get_own_labor_rate` RPCs).
+- Wrap `OperatorDashboardContent` in `OperatorLineGuard`
+- Remove `<LinePicker>` from the form entirely
+- Remove `lineId` local state (use context)
+- Add a **prominent locked-line banner** at the top of the dashboard:
+  ```
+  ┌──────────────────────────────────────────────┐
+  │ 🔒 This tablet is locked to: LINE 3          │
+  │    All work orders will be assigned to this  │
+  │    line automatically.                       │
+  └──────────────────────────────────────────────┘
+  ```
+- Keep mobile-asset (sealer/printer) sub-pickers when the locked line is the Sealer/Printer line — those are *per-WO* asset choices, not line choices. Extract that small portion out of `LinePicker` into a new `MobileAssetSubPicker` component used only when needed.
+- `handleSubmit` always uses `context.lineId`; never reads form state for line.
 
-**2. Verify no other consumer of `AuthContext.profile` reads `labor_rate`.** A grep for `profile?.labor_rate` / `profile.labor_rate` will confirm. If any are found, switch them to call `get_own_labor_rate()` RPC.
+**4. Tighten `useWorkOrders` behavior for operators**
 
-**3. Sanity-check the rest of the codebase** for any other `from("profiles").select("*")` patterns and convert them to explicit safe columns. Current scan shows only `AuthContext` is affected.
+In `OperatorDashboard`, stop falling back to `{ operatorOnly: true }`. If `deviceLineId` is missing, the guard already blocks rendering, so the hook is never called in the unpaired case. Pass only `{ lineId: deviceLineId }`.
 
-### Files changed
+**5. Block direct-URL access from other screens**
 
-- `src/contexts/AuthContext.tsx` — replace `select("*")` with explicit safe-column list.
-- (Conditional) any consumer found in step 2 that reads `profile.labor_rate`.
+The only operator-accessible routes are `/dashboard/operator` and `/dashboard/wo/:id`. RLS already prevents reading WOs from other lines, so direct URL changes return empty — no extra code needed. Verified.
 
-### Why this is the right fix (not an SQL migration)
+**6. No backend/migration changes**
 
-- The column revoke is a **deliberate security hardening** — exposing `labor_rate` to all authenticated users would re-introduce a salary-leak finding.
-- The frontend should never `select *` on `profiles` going forward; the safe column list is the contract.
-- No RLS or grant change is required.
+All required RLS, RPCs (`pair_device`, `unpair_device`, `current_device_line`, `touch_device`), and policies already exist and are correct. The plan is purely frontend.
 
-### What this does NOT change
+### Files
 
-- Manager engineer-management flow (already migrated to edge functions).
-- Device-token RLS model (already reviewed and intentionally accepted).
-- The `engineers_safe` view (already correct).
+**New**
+- `src/contexts/DeviceLineContext.tsx` — provider + `useDeviceLineCtx()` hook
+- `src/components/OperatorLineGuard.tsx` — wrapper with paired/unpaired states
+- `src/components/MobileAssetSubPicker.tsx` — extracted sealer+printer pickers (~80 lines copied from LinePicker)
 
-### Note on "3 critical issues"
+**Modified**
+- `src/pages/dashboard/OperatorDashboard.tsx` — wrap in guard, remove LinePicker, add locked-line banner, drop legacy fallback, use context
+- (Optional cleanup) `src/components/LinePicker.tsx` — leave as-is; still used by Manager/Admin WO creation flows
 
-Your message was cut off and the second/third issues weren't listed. Only the `profiles 403` is reproducible from the current network log and runtime state. Once you share the other two (or the truncated text), I'll fold them into this plan before implementing. If you'd like me to proceed with the profiles fix now and address the others as you confirm them, just say "go".
+### Technical details
+
+- **Banner styling**: `border-2 border-primary bg-primary/10`, `Lock` icon from lucide-react, `text-2xl font-bold` for line name. Sticky-top isn't needed since Operator dashboard is already short.
+- **Unpaired screen**: full-height centered card with `Tablet` icon, token in `<Input readOnly>` + copy button (reuse pattern from `DevicesPage`).
+- **Token display**: use `getDeviceToken()` already exported from `useDevice.ts`.
+- **RLS confirmation**: existing INSERT policy `Operators create WOs on device line` already enforces `line_id = current_device_line()` server-side, so even a tampered client cannot inject a different line.
+- **Mobile assets**: the sealer/printer sub-picker stays because it picks *which* mobile asset on the locked line, not which line.
+- **No changes to `useDeviceLine` query** — already invalidates correctly when admin pairs/unpairs.
+
+### Out of scope
+
+- Re-binding tokens across browsers (each browser/localStorage = one device — this is intentional and matches the original design).
+- Auto-detecting tablet-vs-laptop — pairing remains explicit.
+- Non-operator roles — engineers/admins/managers continue to work without device locking.
 
