@@ -523,8 +523,8 @@ function DevicesPageContent() {
                     onToggle={toggleEditLine}
                   />
                   {editing.lineSet.size === 0 && (
-                    <div className="mt-2 flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400">
-                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
+                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-warning" />
                       <span>Saving with zero lines will block this tablet from operating.</span>
                     </div>
                   )}
