@@ -355,6 +355,7 @@ export default function ManageUsers() {
                 {users.map((user) => {
                   const RoleIcon = user.role ? roleIcons[user.role] : Shield;
                   const isCurrentUser = user.id === currentUser?.id;
+                  const managerBlockedTarget = currentRole === "manager" && (user.role === "manager" || user.role === "admin");
                   return (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.name}</TableCell>
@@ -379,10 +380,12 @@ export default function ManageUsers() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => openEditUser(user)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          {!isCurrentUser && !(currentRole === "manager" && (user.role === "manager" || user.role === "admin")) && (
+                          {!managerBlockedTarget && (
+                            <Button size="icon" variant="ghost" onClick={() => openEditUser(user)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {!isCurrentUser && !managerBlockedTarget && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">

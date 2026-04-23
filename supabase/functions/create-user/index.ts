@@ -1,6 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://esm.sh/zod@3.23.8";
 
+const createPendingPinHash = async () => {
+  const { hash } = await import("https://esm.sh/bcryptjs@2.4.3");
+  return hash(crypto.randomUUID(), 10);
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -82,7 +87,7 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("id")
       .eq("user_id", newUser.user.id)
-      .single();
+      .maybeSingle();
 
     if (existingRole) {
       await supabaseAdmin
@@ -111,9 +116,10 @@ Deno.serve(async (req) => {
           .eq("id", newUser.user.id);
         if (engineerUpdateError) throw engineerUpdateError;
       } else {
+        const pinHash = await createPendingPinHash();
         const { error: engineerInsertError } = await supabaseAdmin
           .from("engineers")
-          .insert({ id: newUser.user.id, name, pin_hash: "pending_setup", is_active: true });
+          .insert({ id: newUser.user.id, name, pin_hash: pinHash, is_active: true });
         if (engineerInsertError) throw engineerInsertError;
       }
     } else {
