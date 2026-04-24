@@ -520,7 +520,7 @@ export default function MachinesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredMachines.map((m) => (
+                    {pagedMachines.map((m) => (
                       <TableRow key={m.id}>
                         <TableCell className="font-medium">
                           {m.name}
