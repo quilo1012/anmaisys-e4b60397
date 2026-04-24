@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
+import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -560,6 +561,9 @@ export default function ManageUsers() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* ===== TABLET / OPERATOR ACCOUNTS SECTION ===== */}
+        <OperatorAccountsSection isAdmin={currentRole === "admin"} />
 
         {/* Edit Engineer Dialog */}
         <Dialog open={!!editEng} onOpenChange={(open) => !open && setEditEng(null)}>

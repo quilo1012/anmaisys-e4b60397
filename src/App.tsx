@@ -28,7 +28,6 @@ const ExecutiveDashboard = lazy(() => import("./pages/dashboard/ExecutiveDashboa
 const ReliabilityDashboard = lazy(() => import("./pages/dashboard/ReliabilityDashboard"));
 const ManageUsers = lazy(() => import("./pages/users/ManageUsers"));
 const DowntimePage = lazy(() => import("./pages/dashboard/DowntimePage"));
-const DevicesPage = lazy(() => import("./pages/dashboard/DevicesPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -223,14 +222,6 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager"]}>
                       <ManageUsers />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard/devices"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
-                      <DevicesPage />
                     </ProtectedRoute>
                   }
                 />
