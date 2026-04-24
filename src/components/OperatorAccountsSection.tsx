@@ -53,6 +53,7 @@ import {
   type OperatorLineAccount,
 } from "@/hooks/useOperatorAccounts";
 import { format } from "date-fns";
+import { checkPasswordStrength, describePasswordError } from "@/lib/passwordPolicy";
 
 const EMAIL_DOMAIN = "@anmaisys.local";
 
@@ -139,12 +140,17 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     });
 
   const handleCreate = async () => {
-    if (!cLabel.trim() || !cEmail.trim() || cPassword.length < 6 || cLineSet.size === 0) {
+    if (!cLabel.trim() || !cEmail.trim() || cLineSet.size === 0) {
       toast({
         title: "Missing info",
-        description: "Label, email, password (≥6 chars) and ≥1 line are required.",
+        description: "Label, email and ≥1 line are required.",
         variant: "destructive",
       });
+      return;
+    }
+    const strength = checkPasswordStrength(cPassword);
+    if (!strength.ok) {
+      toast({ title: "Weak password", description: strength.reason, variant: "destructive" });
       return;
     }
     try {
@@ -161,7 +167,11 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       resetCreateForm();
       setCreateOpen(false);
     } catch (e: any) {
-      toast({ title: "Create failed", description: e.message, variant: "destructive" });
+      toast({
+        title: "Create failed",
+        description: describePasswordError(e?.message),
+        variant: "destructive",
+      });
     }
   };
 
