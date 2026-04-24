@@ -11,7 +11,7 @@ export interface EngineerScore {
 
 export function useEngineerScores() {
   return useQuery({
-    queryKey: ["engineer_scores"],
+    queryKey: ["engineer_scores", "v2"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("engineer_scores")
@@ -19,25 +19,31 @@ export function useEngineerScores() {
         .order("score", { ascending: false });
       if (error) throw error;
 
-      // Fetch engineer names from both profiles and engineers tables
       const ids = (data as any[]).map((s: any) => s.engineer_id);
       if (!ids.length) return [] as EngineerScore[];
 
-      const { data: profiles } = await supabase
-        .from("profiles_safe" as any)
-        .select("id, name")
-        .in("id", ids);
-
-      // engineers table has SELECT blocked by RLS; use the SECURITY DEFINER
-      // RPC `list_engineer_names` which returns id+name (no PIN) for active
-      // engineers. This is what makes the "Top Engineers" panel show real names
-      // instead of "Unknown".
-      const { data: engineers } = await (supabase as any).rpc("list_engineer_names");
+      // Resolve names from BOTH sources in parallel:
+      // - `engineers` (PIN identity) via SECURITY DEFINER RPC `list_engineer_names`
+      // - `profiles_safe` (auth user identity) for engineers that login via email
+      // We fetch ALL active rows (no `.in()` filter) because list_engineer_names
+      // doesn't accept arguments — then build a map locally.
+      const [enginRes, profRes] = await Promise.all([
+        (supabase as any).rpc("list_engineer_names"),
+        supabase.from("profiles_safe" as any).select("id, name, email").in("id", ids),
+      ]);
 
       const nameMap: Record<string, string> = {};
-      (profiles as any[])?.forEach((p: any) => { nameMap[p.id] = p.name; });
-      // Engineers table takes priority (PIN identity = real engineer name)
-      (engineers as any[])?.forEach((e: any) => { if (e.name) nameMap[e.id] = e.name; });
+
+      // 1) Lower priority: profile name/email (auth identity)
+      (profRes.data as any[])?.forEach((p: any) => {
+        if (p.name) nameMap[p.id] = p.name;
+        else if (p.email) nameMap[p.id] = p.email;
+      });
+
+      // 2) Higher priority: engineers table (PIN-based identity = real operator)
+      (enginRes.data as any[])?.forEach((e: any) => {
+        if (e.name) nameMap[e.id] = e.name;
+      });
 
       return (data as any[]).map((s: any) => ({
         ...s,
@@ -46,5 +52,6 @@ export function useEngineerScores() {
       })) as EngineerScore[];
     },
     refetchInterval: 30_000,
+    staleTime: 0,
   });
 }
