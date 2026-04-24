@@ -5,11 +5,13 @@ import { requestNotificationPermission, sendWebNotification } from "@/lib/shifts
 import { useToast } from "@/hooks/use-toast";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { isWOAcknowledged, acknowledgeWOLocal } from "@/lib/woAck";
+import { useEngineerLineFilter } from "@/hooks/useEngineerLineFilter";
 
 export function useWOAlerts() {
   const { user, role } = useAuth();
   const { toast } = useToast();
   const { triggerAlert, acknowledge, audioEnabled, promptEnableAudio } = useCriticalAlert();
+  const { shouldAlertForLine } = useEngineerLineFilter();
 
   // Request notification permission + unlock alert audio on first user gesture
   useEffect(() => {
