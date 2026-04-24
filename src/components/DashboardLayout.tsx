@@ -15,7 +15,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound } from "lucide-react";
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { useLocation, useNavigate } from "react-router-dom";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
