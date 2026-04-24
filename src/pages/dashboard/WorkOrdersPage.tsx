@@ -17,6 +17,7 @@ import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWork
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
+import { useProfileNames } from "@/hooks/useProfileNames";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { format, subDays, startOfDay, endOfDay, startOfMonth, differenceInMinutes } from "date-fns";
