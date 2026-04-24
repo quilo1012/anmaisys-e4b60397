@@ -218,16 +218,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   </div>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                title="Change Password"
-                className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 mb-1"
-                onClick={() => setChangePwdOpen(true)}
-              >
-                <KeyRound className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
-                <span className="group-data-[collapsible=icon]:hidden">Change Password</span>
-              </Button>
+              {role !== "operator" && role !== "viewer" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Change Password"
+                  className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 mb-1"
+                  onClick={() => setChangePwdOpen(true)}
+                >
+                  <KeyRound className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
+                  <span className="group-data-[collapsible=icon]:hidden">Change Password</span>
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
