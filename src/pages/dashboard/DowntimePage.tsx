@@ -21,7 +21,7 @@ import {
 import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
 import { useDowntime, useCreateDowntime, useUpdateDowntime, useDeleteDowntime, type DowntimeRecord } from "@/hooks/useDowntime";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
-import { useMachines } from "@/hooks/useMachines";
+import { useMachines, useLines } from "@/hooks/useMachines";
 import { useRecentMachineEvents } from "@/hooks/useMachineEvents";
 import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { type RiskLevel } from "@/hooks/usePredictiveAlerts";
@@ -33,7 +33,7 @@ import {
 } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 
-const CATEGORIES = ["Mechanical", "Electrical", "Human Error", "Material", "Planned", "Other"] as const;
+const CATEGORIES = ["Mechanical", "Electrical", "Machine", "Maintenance", "Filler", "Other"] as const;
 const LINES = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"] as const;
 
 const riskBadge: Record<RiskLevel, { label: string; className: string }> = {
@@ -49,6 +49,7 @@ export default function DowntimePage() {
   const { data: workOrders } = useWorkOrders({ statusIn: ["open", "in_progress", "received", "arrived"] as any });
   const { data: allWOs } = useWorkOrders();
   const { data: machines } = useMachines();
+  const { data: linesData } = useLines();
   const { data: machineEvents } = useRecentMachineEvents();
   const { data: woMetrics = [] } = useAllWoMetrics();
   const createDowntime = useCreateDowntime();
@@ -330,22 +331,60 @@ export default function DowntimePage() {
     return machineEvents.filter((e) => e.machine_id === m.id).slice(0, 10);
   };
 
+  const lineOptions = useMemo(() => {
+    const fromDb = (linesData ?? []).map((l: any) => l.name).filter(Boolean);
+    return fromDb.length > 0 ? fromDb : [...LINES];
+  }, [linesData]);
+
+  const machineOptions = useMemo(() => {
+    if (!machines) return [];
+    if (!formLine) return machines.map((m: any) => m.name).filter(Boolean);
+    return machines
+      .filter((m: any) => {
+        const ml = m.current_line || m.fixed_line || m.line || "";
+        return ml === formLine;
+      })
+      .map((m: any) => m.name)
+      .filter(Boolean);
+  }, [machines, formLine]);
+
   const formFieldsJsx = (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Line *</Label>
-          <Input value={formLine} onChange={e => setFormLine(e.target.value)} />
+          <Select value={formLine || undefined} onValueChange={(v) => { setFormLine(v); setFormMachine(""); }}>
+            <SelectTrigger><SelectValue placeholder="Select line" /></SelectTrigger>
+            <SelectContent>
+              {lineOptions.map((l) => (
+                <SelectItem key={l} value={l}>{l}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label>Machine</Label>
-          <Input value={formMachine} onChange={e => setFormMachine(e.target.value)} />
+          <Select value={formMachine || undefined} onValueChange={setFormMachine} disabled={machineOptions.length === 0}>
+            <SelectTrigger><SelectValue placeholder={machineOptions.length === 0 ? "Select line first" : "Select machine"} /></SelectTrigger>
+            <SelectContent>
+              {machineOptions.map((m) => (
+                <SelectItem key={m} value={m}>{m}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Category *</Label>
-          <Input value={formCategory} onChange={e => setFormCategory(e.target.value)} />
+          <Select value={formCategory || undefined} onValueChange={setFormCategory}>
+            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+            <SelectContent>
+              {CATEGORIES.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label>Reason *</Label>
