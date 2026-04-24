@@ -134,7 +134,7 @@ export function useWOAlerts() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [role, user, toast, triggerAlert, acknowledge]);
+  }, [role, user, toast, triggerAlert, acknowledge, shouldAlertForLine]);
 
   // Operators: single chime when their WO is finished/closed
   useEffect(() => {
