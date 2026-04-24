@@ -93,9 +93,16 @@ function OperatorDashboardContent() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Close dialog state
-  const [closeDialogWO, setCloseDialogWO] = useState<string | null>(null);
-  const [closeSigName, setCloseSigName] = useState("");
+  // Operator close — no signature dialog; uses requester or operator profile name as signature
+  const handleQuickClose = async (woId: string, fallbackRequester: string | null) => {
+    const sig = (fallbackRequester?.trim() || "Operator").slice(0, 100);
+    try {
+      await closeWO.mutateAsync({ woId, signatureName: sig });
+      toast({ title: "Work Order Closed", description: "The work order has been closed." });
+    } catch {
+      toast({ title: "Error", description: "Failed to close work order", variant: "destructive" });
+    }
+  };
 
   // Detect Sealer/Printer line by name to show the asset sub-picker.
   const isSealerPrinterLine = useMemo(
