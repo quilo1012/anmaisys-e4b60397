@@ -28,6 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, Pencil, Trash2, Loader2, Cog, History, MapPin, QrCode } from "lucide-react";
 import {
   useMachines,
