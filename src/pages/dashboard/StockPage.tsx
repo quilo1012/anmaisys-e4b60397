@@ -280,6 +280,53 @@ export default function StockPage() {
               </Card>
             </div>
 
+            {/* Adjustment History — last 10 manual stock adjustments */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <History className="h-4 w-4" /> Adjustment History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!adjustmentHistory || adjustmentHistory.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No manual adjustments recorded yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date / Time</TableHead>
+                          <TableHead>Product</TableHead>
+                          <TableHead className="text-right">Adjustment</TableHead>
+                          <TableHead className="text-right">New Qty</TableHead>
+                          <TableHead>User</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {adjustmentHistory.map((row) => (
+                          <TableRow key={row.id}>
+                            <TableCell className="whitespace-nowrap text-sm">
+                              {format(new Date(row.created_at), "dd/MM/yyyy HH:mm")}
+                            </TableCell>
+                            <TableCell className="text-sm">{row.product_label}</TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant={row.adjustment >= 0 ? "default" : "destructive"}>
+                                {row.adjustment > 0 ? `+${row.adjustment}` : row.adjustment}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right text-sm">
+                              {row.new_quantity ?? "—"}
+                            </TableCell>
+                            <TableCell className="text-sm">{row.user_name}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Category Management */}
             <Card>
               <CardHeader><CardTitle className="text-base flex items-center gap-2"><Tags className="h-4 w-4" /> Manage Categories</CardTitle></CardHeader>
