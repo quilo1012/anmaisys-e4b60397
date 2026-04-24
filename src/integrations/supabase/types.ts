@@ -1693,6 +1693,10 @@ export type Database = {
         Args: { _label?: string; _line_ids: string[]; _token: string }
         Returns: undefined
       }
+      reopen_wo_as_recurrence: {
+        Args: { _reason: string; _wo_id: string }
+        Returns: Json
+      }
       reopen_wo_recurrence: {
         Args: { _reason: string; _wo_id: string }
         Returns: Json
