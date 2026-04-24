@@ -154,8 +154,8 @@ export function OperatorRecurrenceCard({ wo }: Props) {
           <DialogHeader>
             <DialogTitle>Report recurring failure</DialogTitle>
             <DialogDescription>
-              This will open a NEW work order linked to WO-
-              {String(wo.wo_number).padStart(6, "0")} as a recurrence. Engineers will be notified.
+              This will reopen WO-{String(wo.wo_number).padStart(6, "0")} (same number).
+              A new repair episode is added and times will accumulate. Engineers will be notified.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
