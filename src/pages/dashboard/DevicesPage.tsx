@@ -44,6 +44,7 @@ import {
 } from "@/hooks/useDevice";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
 
 export default function DevicesPage() {
   const { role, loading } = useAuth();
@@ -113,6 +114,7 @@ function SectionHeader({
 }
 
 function DevicesPageContent() {
+  const { role } = useAuth();
   const { data: lines } = useLines();
   const { data: devices, isLoading } = useAllDevices();
   const { data: thisDevice } = useDeviceLines();
@@ -421,6 +423,9 @@ function DevicesPageContent() {
               )}
             </CardContent>
           </Card>
+
+          {/* Operator accounts (per-tablet logins) */}
+          <OperatorAccountsSection isAdmin={role === "admin"} />
         </div>
 
         {/* Edit dialog */}
