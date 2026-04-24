@@ -44,6 +44,7 @@ import {
 } from "@/hooks/useDevice";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
 
 export default function DevicesPage() {
   const { role, loading } = useAuth();
