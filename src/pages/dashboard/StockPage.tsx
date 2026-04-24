@@ -31,6 +31,8 @@ export default function StockPage() {
   const deleteCategory = useDeleteCategory();
   const { toast } = useToast();
   const isManager = role === "admin" || role === "manager";
+  const queryClient = useQueryClient();
+  const { data: adjustmentHistory } = useStockAdjustmentHistory(10);
 
   // Edit/Delete state
   const [editProduct, setEditProduct] = useState<Product | null>(null);
