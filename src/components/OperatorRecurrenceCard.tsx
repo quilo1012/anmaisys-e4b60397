@@ -50,16 +50,17 @@ export function OperatorRecurrenceCard({ wo }: Props) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
 
-  // Count past recurrences spawned from this WO.
+  // Count episodes (recurrences) for this WO. Episode 1 = original; >1 = reopens.
   const { data: recurrenceCount } = useQuery({
     queryKey: ["wo_recurrences", wo.id],
     queryFn: async () => {
       const { count, error } = await (supabase as any)
-        .from("work_orders")
+        .from("wo_episodes")
         .select("id", { count: "exact", head: true })
-        .eq("recurrence_of_wo_id", wo.id);
+        .eq("work_order_id", wo.id);
       if (error) throw error;
-      return count ?? 0;
+      // Subtract the initial episode so we report only the *re*opens.
+      return Math.max(0, (count ?? 0) - 1);
     },
   });
 
@@ -71,32 +72,33 @@ export function OperatorRecurrenceCard({ wo }: Props) {
       });
       if (error) throw error;
       if (!data?.success) {
-        throw new Error(data?.error || "Failed to create recurrence");
+        throw new Error(data?.error || "Failed to reopen recurrence");
       }
       return data as {
         success: true;
-        new_wo_id: string;
-        new_wo_number: number;
-        original_wo_id: string;
-        original_wo_number: number;
+        wo_id: string;
+        wo_number: number;
+        episode_number: number;
       };
     },
     onSuccess: (res) => {
-      logAuditEvent("wo_recurrence_opened", "work_order", res.new_wo_id, {
-        original_wo_id: res.original_wo_id,
-        original_wo_number: res.original_wo_number,
-        new_wo_number: res.new_wo_number,
+      logAuditEvent("wo_recurrence_reopened", "work_order", res.wo_id, {
+        wo_number: res.wo_number,
+        episode_number: res.episode_number,
       });
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
       queryClient.invalidateQueries({ queryKey: ["work_order", wo.id] });
+      queryClient.invalidateQueries({ queryKey: ["wo_metrics", wo.id] });
+      queryClient.invalidateQueries({ queryKey: ["downtime_events", wo.id] });
       queryClient.invalidateQueries({ queryKey: ["wo_recurrences", wo.id] });
       toast({
-        title: "🔁 Recurrence opened",
-        description: `New Order WO-${String(res.new_wo_number).padStart(6, "0")} created. Engineers will be notified.`,
+        title: "🔁 Recurrence reopened",
+        description: `WO-${String(res.wo_number).padStart(6, "0")} reopened (episode #${res.episode_number}). Times will accumulate.`,
       });
       setOpen(false);
       setReason("");
-      navigate(`/dashboard/wo/${res.new_wo_id}`);
+      // Stay on the same WO — it's the SAME order, now reopened.
+      navigate(`/dashboard/wo/${res.wo_id}`);
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -128,10 +130,10 @@ export function OperatorRecurrenceCard({ wo }: Props) {
               <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
                 Fix signed off by {wo.engineer_name || "engineer"}
                 {finishedTs && ` ${formatDistanceToNow(new Date(finishedTs), { addSuffix: true })}`}.
-                If the same problem returns, open a recurrence and a new work order will be created
-                linked to this one.
+                If the same problem returns, reopen this work order — its time will be
+                added to the previous repair (no new WO number).
                 {recurrenceCount && recurrenceCount > 0 ? (
-                  <> · <span className="font-semibold">{recurrenceCount} previous recurrence{recurrenceCount === 1 ? "" : "s"} opened</span></>
+                  <> · <span className="font-semibold">{recurrenceCount} previous reopen{recurrenceCount === 1 ? "" : "s"}</span></>
                 ) : null}
               </p>
             </div>
@@ -152,8 +154,8 @@ export function OperatorRecurrenceCard({ wo }: Props) {
           <DialogHeader>
             <DialogTitle>Report recurring failure</DialogTitle>
             <DialogDescription>
-              This will open a NEW work order linked to WO-
-              {String(wo.wo_number).padStart(6, "0")} as a recurrence. Engineers will be notified.
+              This will reopen WO-{String(wo.wo_number).padStart(6, "0")} (same number).
+              A new repair episode is added and times will accumulate. Engineers will be notified.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
