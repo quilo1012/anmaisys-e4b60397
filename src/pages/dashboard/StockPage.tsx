@@ -14,7 +14,10 @@ import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, us
 import { useCategories, useAddCategory, useDeleteCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { logAuditEvent } from "@/hooks/useAuditLogs";
+import { logAuditEvent, useStockAdjustmentHistory } from "@/hooks/useAuditLogs";
+import { useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { History } from "lucide-react";
 
 export default function StockPage() {
   const { role } = useAuth();
