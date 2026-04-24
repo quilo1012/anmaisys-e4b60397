@@ -34,6 +34,7 @@ import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { useOnlineEngineers } from "@/hooks/useOnlineEngineers";
 import { useChecklistsByProblemName, useChecklistResponses, useSaveChecklistResponse } from "@/hooks/useChecklists";
 import { EngineerNavCards } from "@/components/DashboardNavCards";
+import { EngineerAlertLineFilter } from "@/components/EngineerAlertLineFilter";
 import { clearAcknowledgedWOLocal } from "@/lib/woAck";
 
 
