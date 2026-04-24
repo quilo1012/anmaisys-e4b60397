@@ -339,7 +339,17 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
 
       {/* Unlock-audio modal (first login gesture) */}
       <Dialog open={showUnlock} onOpenChange={(o) => !o && setShowUnlock(false)}>
-        <DialogContent className="max-w-md">
+        <DialogContent
+          className="max-w-md"
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => {
+            // Prevent the underlying element (e.g. "lines stopped" header button)
+            // from receiving the click that dismisses this modal.
+            e.preventDefault();
+            setShowUnlock(false);
+          }}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <DialogTitle className="flex items-center gap-2">
             <Volume2 className="h-5 w-5 text-primary" /> Enable Alert Sounds
           </DialogTitle>
