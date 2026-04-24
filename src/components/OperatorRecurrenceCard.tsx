@@ -50,16 +50,17 @@ export function OperatorRecurrenceCard({ wo }: Props) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
 
-  // Count past recurrences spawned from this WO.
+  // Count episodes (recurrences) for this WO. Episode 1 = original; >1 = reopens.
   const { data: recurrenceCount } = useQuery({
     queryKey: ["wo_recurrences", wo.id],
     queryFn: async () => {
       const { count, error } = await (supabase as any)
-        .from("work_orders")
+        .from("wo_episodes")
         .select("id", { count: "exact", head: true })
-        .eq("recurrence_of_wo_id", wo.id);
+        .eq("work_order_id", wo.id);
       if (error) throw error;
-      return count ?? 0;
+      // Subtract the initial episode so we report only the *re*opens.
+      return Math.max(0, (count ?? 0) - 1);
     },
   });
 
