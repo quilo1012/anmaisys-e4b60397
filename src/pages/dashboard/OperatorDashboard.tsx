@@ -451,39 +451,6 @@ function OperatorDashboardContent() {
         </CardContent>
       </Card>
 
-      {/* Close WO Dialog — Operator Signature */}
-      <Dialog open={!!closeDialogWO} onOpenChange={(o) => { if (!o) setCloseDialogWO(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Close Work Order</DialogTitle>
-            <DialogDescription>Sign your name to confirm and close this work order.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label>Operator Signature (Name)</Label>
-            <Input value={closeSigName} onChange={(e) => setCloseSigName(e.target.value)} placeholder="Enter your name" autoComplete="off" />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCloseDialogWO(null)}>Cancel</Button>
-            <Button
-              disabled={!closeSigName.trim() || closeWO.isPending}
-              onClick={async () => {
-                if (!closeDialogWO) return;
-                try {
-                  await closeWO.mutateAsync({ woId: closeDialogWO, signatureName: closeSigName.trim() });
-                  toast({ title: "Work Order Closed", description: "The work order has been closed successfully." });
-                  setCloseDialogWO(null);
-                  setCloseSigName("");
-                } catch {
-                  toast({ title: "Error", description: "Failed to close work order", variant: "destructive" });
-                }
-              }}
-            >
-              {closeWO.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Confirm & Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
