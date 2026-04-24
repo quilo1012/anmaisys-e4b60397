@@ -1,27 +1,28 @@
-import { ReactNode, useState } from "react";
-import { Loader2, Tablet, Lock, Copy, Check } from "lucide-react";
+import { ReactNode } from "react";
+import { Loader2, Tablet, Lock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useDeviceLines, getDeviceToken } from "@/hooks/useDevice";
+import { useOperatorAccounts } from "@/hooks/useOperatorAccounts";
 import { useLines } from "@/hooks/useMachines";
 import { DeviceLineProvider, useDeviceLineCtx, AllowedLine } from "@/contexts/DeviceLineContext";
 import { useAuth } from "@/contexts/AuthContext";
 
 /**
- * Hard gate for operator screens. Resolves the device → allowed-lines binding and:
+ * Hard gate for operator screens. Resolves the operator-account → allowed-lines binding and:
  *  - shows a spinner while loading
- *  - blocks the UI with a setup card when the tablet has zero allowed lines
- *  - renders children + DeviceLineProvider when at least one line is paired
+ *  - blocks the UI with a setup card when the account has zero allowed lines
+ *  - renders children + DeviceLineProvider when at least one line is bound
+ *
+ * Identity now comes from the logged-in user's `operator_line_accounts` row,
+ * not from a per-device token.
  */
 export function OperatorLineGuard({ children }: { children: ReactNode }) {
-  const { signOut } = useAuth();
-  const { data: device, isLoading } = useDeviceLines();
-  const { data: lines } = useLines();
-  const [copied, setCopied] = useState(false);
+  const { user, signOut } = useAuth();
+  const { data: accounts, isLoading: accountsLoading } = useOperatorAccounts();
+  const { data: lines, isLoading: linesLoading } = useLines();
 
-  if (isLoading) {
+  if (accountsLoading || linesLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -29,17 +30,11 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  const allowedIds = device?.allowedLineIds ?? [];
+  const account = accounts?.find((a) => a.user_id === user?.id) ?? null;
+  const allowedIds = account?.line_ids ?? [];
 
-  // Unpaired — block everything.
-  if (allowedIds.length === 0) {
-    const token = getDeviceToken();
-    const handleCopy = async () => {
-      await navigator.clipboard.writeText(token);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    };
-
+  // No account or unbound — block everything.
+  if (!account || allowedIds.length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-lg border-2 border-amber-500/40">
@@ -47,33 +42,13 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
             <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/10">
               <Tablet className="h-8 w-8 text-amber-500" />
             </div>
-            <CardTitle className="text-2xl">Tablet not assigned to any line</CardTitle>
+            <CardTitle className="text-2xl">Tablet account not configured</CardTitle>
             <CardDescription className="mt-2 text-base">
-              This tablet must be paired to one or more production lines before operators can
-              create or view work orders.
+              This login is not bound to any production line. Ask a manager or admin to
+              configure it in <span className="font-semibold">Manage Users → Tablet Accounts</span>.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-              <p className="text-sm font-medium">Ask a manager or admin to:</p>
-              <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-                <li>Open <span className="font-mono">Devices</span> in the dashboard</li>
-                <li>Paste this device token and select the allowed lines</li>
-              </ol>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                This device's token
-              </p>
-              <div className="flex items-center gap-2">
-                <Input value={token} readOnly className="font-mono text-sm" />
-                <Button variant="outline" size="icon" onClick={handleCopy} aria-label="Copy token">
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-
             <Button variant="ghost" className="w-full" onClick={() => signOut()}>
               Sign out
             </Button>
@@ -84,17 +59,16 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
   }
 
   // Build the allowed-line list (id + name) from the lines table.
-  const allowedLines: AllowedLine[] = allowedIds
-    .map((id) => {
-      const name = lines?.find((l) => l.id === id)?.name ?? "Unknown line";
-      return { id, name };
-    });
+  const allowedLines: AllowedLine[] = allowedIds.map((id) => {
+    const name = lines?.find((l) => l.id === id)?.name ?? "Unknown line";
+    return { id, name };
+  });
 
   return (
     <DeviceLineProvider
       allowedLines={allowedLines}
-      deviceToken={getDeviceToken()}
-      label={device?.label ?? null}
+      deviceToken=""
+      label={account.label}
     >
       <LineSelectionBanner />
       {children}
