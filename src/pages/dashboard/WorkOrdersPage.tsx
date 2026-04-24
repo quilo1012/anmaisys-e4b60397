@@ -603,7 +603,14 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
           <DialogContent>
             <DialogHeader><DialogTitle>Create Work Order</DialogTitle><DialogDescription className="sr-only">Fill in work order details</DialogDescription></DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4" autoComplete="off">
-              <div className="space-y-2"><Label>Requested By</Label><Input value={newRequester} onChange={(e) => setNewRequester(e.target.value)} placeholder="e.g. John Smith" required /></div>
+              <div className="space-y-2"><Label>Requested By</Label>
+                <Select value={newRequester} onValueChange={setNewRequester}>
+                  <SelectTrigger><SelectValue placeholder="Select requester..." /></SelectTrigger>
+                  <SelectContent>
+                    {profileNames?.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2"><Label>Machine</Label>
                 <Select value={newMachine} onValueChange={setNewMachine}>
                   <SelectTrigger><SelectValue placeholder="Select machine..." /></SelectTrigger>
@@ -642,7 +649,17 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
           <DialogContent>
             <DialogHeader><DialogTitle>Edit Work Order</DialogTitle><DialogDescription className="sr-only">Modify work order details</DialogDescription></DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2"><Label>Requested By</Label><Input value={editRequester} onChange={(e) => setEditRequester(e.target.value)} /></div>
+              <div className="space-y-2"><Label>Requested By</Label>
+                <Select value={editRequester} onValueChange={setEditRequester}>
+                  <SelectTrigger><SelectValue placeholder="Select requester..." /></SelectTrigger>
+                  <SelectContent>
+                    {profileNames?.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+                    {editRequester && !profileNames?.some((p) => p.name === editRequester) && (
+                      <SelectItem value={editRequester}>{editRequester}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2"><Label>Machine</Label>
                 <Select value={editMachine} onValueChange={setEditMachine}>
                   <SelectTrigger><SelectValue placeholder="Select machine..." /></SelectTrigger>
