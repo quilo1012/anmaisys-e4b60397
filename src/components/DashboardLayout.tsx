@@ -306,6 +306,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             </div>
           </main>
         </div>
+        <ChangePasswordDialog open={changePwdOpen} onOpenChange={setChangePwdOpen} />
       </SidebarProvider>
     </TooltipProvider>
   );
