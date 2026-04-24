@@ -423,6 +423,9 @@ function DevicesPageContent() {
               )}
             </CardContent>
           </Card>
+
+          {/* Operator accounts (per-tablet logins) */}
+          <OperatorAccountsSection isAdmin={role === "admin"} />
         </div>
 
         {/* Edit dialog */}
