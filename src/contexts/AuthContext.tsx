@@ -76,7 +76,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const initializeAuth = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      // Try to get the current session first
+      let { data: { session: currentSession } } = await supabase.auth.getSession();
+
+      // If no session but tokens may exist (failed refresh), attempt explicit refresh
+      // This handles transient refresh-token failures across tabs/devices without logging out
+      if (!currentSession) {
+        try {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          if (refreshed?.session) currentSession = refreshed.session;
+        } catch {
+          // Refresh failed (no token at all) — user is genuinely logged out
+        }
+      }
+
       if (!mounted) return;
 
       if (currentSession?.user) {
@@ -92,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!mounted) return;
 
-      // Only explicit sign out clears state
+      // ONLY explicit sign out clears state. Never auto-logout on transient events.
       if (event === "SIGNED_OUT") {
         clearAuthState();
         setIsReady(true);
@@ -105,10 +118,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(newSession);
           setUser(newSession.user);
         }
+        // If refresh produced no session, do NOT clear — keep current state.
+        // Supabase will retry; clearing here causes spurious logouts on tab switch.
         return;
       }
 
-      // Initial session, sign-in, user updated
+      // INITIAL_SESSION with no session: do NOT clear if we already have a user.
+      // This event fires on tab focus/visibility changes and can spuriously be null.
+      if (event === "INITIAL_SESSION" && !newSession && currentUserIdRef.current) {
+        return;
+      }
+
+      // Sign-in, user updated, or initial session with valid user
       if (newSession?.user) {
         syncSessionUser(newSession);
         if (event === "USER_UPDATED") {
