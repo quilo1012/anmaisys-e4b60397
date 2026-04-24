@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Loader2, Tablet, Lock } from "lucide-react";
+import { Loader2, Tablet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -70,57 +70,33 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
       deviceToken=""
       label={account.label}
     >
-      <LineSelectionBanner />
+      <LineSelector />
       {children}
     </DeviceLineProvider>
   );
 }
 
-function LineSelectionBanner() {
-  const { allowedLines, selectedLineId, selectedLineName, setSelectedLineId, label } =
-    useDeviceLineCtx();
+/**
+ * Compact line switcher. Hidden when the account is bound to a single line
+ * (login is per-line, so there's nothing to choose). Only renders when the
+ * account covers multiple lines and the operator must pick one.
+ */
+function LineSelector() {
+  const { allowedLines, selectedLineId, setSelectedLineId } = useDeviceLineCtx();
 
-  // Single line — show locked banner.
-  if (allowedLines.length === 1) {
-    return (
-      <div className="border-2 border-primary bg-primary/10 rounded-lg p-4 mb-4 flex items-center gap-3">
-        <Lock className="h-6 w-6 text-primary shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
-            {label ? `${label} · ` : ""}This tablet is locked to
-          </p>
-          <p className="text-2xl font-bold text-primary truncate">{selectedLineName}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            All work orders are automatically assigned to this line.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (allowedLines.length <= 1) return null;
 
-  // Multiple lines — show selector.
   return (
-    <div className="border-2 border-primary bg-primary/10 rounded-lg p-4 mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
-      <Lock className="h-6 w-6 text-primary shrink-0" />
-      <div className="flex-1 min-w-0">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
-          {label ? `${label} · ` : ""}Tablet authorized for
-        </p>
-        <p className="text-sm font-medium text-foreground truncate">
-          {allowedLines.map((l) => l.name).join(" · ")}
-        </p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Work orders use the line selected on the right.
-        </p>
-      </div>
-      <div className="sm:w-64 w-full">
+    <div className="mb-4 flex items-center gap-2">
+      <span className="text-sm text-muted-foreground">Line:</span>
+      <div className="w-56">
         <Select value={selectedLineId} onValueChange={setSelectedLineId}>
-          <SelectTrigger className="h-12 text-base font-semibold border-primary">
+          <SelectTrigger className="h-9">
             <SelectValue placeholder="Select line" />
           </SelectTrigger>
           <SelectContent>
             {allowedLines.map((l) => (
-              <SelectItem key={l.id} value={l.id} className="text-base">
+              <SelectItem key={l.id} value={l.id}>
                 {l.name}
               </SelectItem>
             ))}
