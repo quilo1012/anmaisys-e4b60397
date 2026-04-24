@@ -1,42 +1,84 @@
-## Padronização de nomes de Linha
+# Plan
 
-### Contexto
-O dropdown **Line** no Edit Machine puxa da tabela `lines`, que ainda mantém o prefixo `"Filler "` em 6 registros. O campo legado `machines.line` (texto) e o histórico `work_orders.line_at_time` também guardam o nome antigo.
+## What I found
+There are two different errors being mixed together:
 
-### Estado atual confirmado
-- `lines`: 6 registros com prefixo "Filler " (Filler Line 1 → Filler Line 6)
-- `machines.line`: 8 máquinas com valor "Filler Line X"
-- `work_orders.line_at_time`: contém valores antigos a serem reescritos
+1. Operator password create/reset is failing because leaked-password protection is active in the backend, so weak/reused passwords are rejected.
+2. Work order creation for operators is still blocked by database rules that require the request to match `current_device_line_ids()`, which depends on the `x-device-token` header. The current app no longer sends that header and instead uses `operator_line_accounts` + logged-in user mapping.
 
-### Mudanças (1 migration de UPDATE)
+That is why it feels like “the same error all the time”: one issue is password policy, the other is work order authorization.
 
-**1. Tabela `lines`** — remover prefixo "Filler " do `name`:
-```sql
-UPDATE public.lines
-SET name = regexp_replace(name, '^Filler\s+', '')
-WHERE name ILIKE 'Filler %';
+## Implementation steps
+
+### 1. Fix operator account password UX
+Update `src/components/OperatorAccountsSection.tsx` to prevent obvious bad passwords before submit:
+- add clear password guidance in create/reset dialogs
+- block common weak formats before calling the backend
+- show backend rejection text directly when the backend rejects a leaked password
+
+This keeps the security protection on, but stops the admin flow from feeling random.
+
+### 2. Fix operator work-order creation to match the current identity model
+Update the database access logic so operator work-order INSERT does not rely on device-header pairing that the app no longer uses.
+
+Preferred fix:
+- add a new `INSERT` policy for `work_orders` that allows operators to create when:
+  - `operator_id = auth.uid()`
+  - the chosen `line_id` is inside that user’s `operator_line_accounts.line_ids`
+- remove the old operator INSERT policy that depends on `current_device_line_ids()` for creation
+
+This matches the current app flow:
+```text
+operator login -> operator_line_accounts row -> allowed line_ids -> selected line -> create WO
 ```
-Resultado: `Filler Line 1` → `Line 1`, …, `Filler Line 6` → `Line 6`.
-**Não toca em** `Blender Line X` nem em `Capsules & Tablets`, `Gel Line`, `Sealer and Printer INK`.
 
-**2. Tabela `machines`** — limpar campo legado `line`:
-```sql
-UPDATE public.machines
-SET line = regexp_replace(line, '^Filler\s+', '')
-WHERE line ILIKE 'Filler %';
-```
+### 3. Keep operator read scoping consistent
+Review `SELECT` scoping for operator work orders so it also aligns with account-based line permissions, not only device-token headers.
 
-**3. Tabela `work_orders`** — atualizar histórico `line_at_time`:
-```sql
-UPDATE public.work_orders
-SET line_at_time = regexp_replace(line_at_time, '^Filler\s+', '')
-WHERE line_at_time ILIKE 'Filler %';
-```
+If needed, adjust operator `SELECT` policies to allow:
+- own work orders
+- work orders on lines assigned to the logged-in operator account
 
-### Não será alterado
-- Código frontend (o dropdown lê `lines.name` dinamicamente — vai refletir automaticamente).
-- Tabela `Blender Line X` (ficará como está).
-- `machine_type` (categoria "Filler" continua válida como tipo de máquina).
+This avoids future mismatches where create works but list/read fails.
 
-### Verificação pós-migração
-Conferir no Edit Machine que o dropdown Line agora mostra "Line 1" … "Line 6".
+### 4. Fix the Requested By field at the same time
+Update `src/pages/dashboard/OperatorDashboard.tsx` so `Requested By` starts empty and remains manually editable, using the existing combobox/suggestion pattern instead of the rigid select.
+
+This restores the intended operator workflow and removes the autofill-like behavior.
+
+### 5. Apply the approved Blender cleanup
+Create a database migration that:
+- rewrites historical `work_orders.line_at_time` containing “Blender” to `Removed`
+- deletes Blender-related lines
+- deletes or detaches Blender-linked machines safely according to existing references
+
+I will verify references before finalizing the migration so it does not break foreign-key or app assumptions.
+
+### 6. Validate end-to-end
+After implementation, test these flows:
+- create operator account with a strong password
+- reset one operator password with a strong password
+- log in as operator
+- create a work order on an allowed line
+- confirm the new work order appears in the operator list
+
+## Files likely involved
+- `src/components/OperatorAccountsSection.tsx`
+- `src/pages/dashboard/OperatorDashboard.tsx`
+- `src/hooks/useWorkOrders.ts` (only if small client-side error handling needs improvement)
+- new database migration for `work_orders` operator RLS and Blender cleanup
+
+## Technical details
+- Current `work_orders` INSERT policy is: `operator_id = auth.uid() AND line_id = ANY(current_device_line_ids())`
+- `current_device_line_ids()` reads from `request.headers -> x-device-token`
+- the frontend client does not send `x-device-token`
+- `OperatorLineGuard` now derives allowed lines from `operator_line_accounts`, not device tokens
+- leaked-password protection is documented backend behavior and should remain enabled per your decision to keep strong password protection
+
+## Outcome
+After this change:
+- strong operator passwords will save reliably
+- weak/leaked passwords will fail with a clearer reason
+- operator work orders will stop failing because authorization will match the real login model
+- the `Requested By` field will stop coming prefilled incorrectly
+- Blender entries will be removed as requested
