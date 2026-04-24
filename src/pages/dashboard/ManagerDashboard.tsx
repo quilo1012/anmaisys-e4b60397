@@ -17,6 +17,7 @@ import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ManagerNavCards } from "@/components/DashboardNavCards";
+import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 
