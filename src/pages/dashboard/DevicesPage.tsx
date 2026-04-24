@@ -54,8 +54,10 @@ export default function DevicesPage() {
       </div>
     );
   }
+  // ProtectedRoute already enforces role access; if role is missing transiently, just wait
+  if (!role) return null;
   if (role !== "admin" && role !== "manager") {
-    return <Navigate to="/login" replace />;
+    return null;
   }
   return <DevicesPageContent />;
 }
