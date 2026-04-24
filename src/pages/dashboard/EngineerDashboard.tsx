@@ -386,61 +386,64 @@ function EngineerDashboardContent() {
   };
 
   const handleFinishConfirm = async () => {
-    if (!signDialogWO || !signName.trim()) return;
+    if (!signDialogWO) return;
     const woId = signDialogWO;
-    const signature = signName.trim();
     const notes = resolutionNotes.trim();
-    // Close the sign dialog and ask for PIN as the legal "second signature".
+    if (!notes) return;
+    const engineer: EngineerIdentity = currentEngineer
+      ?? { id: user!.id, name: profile?.name || user!.email || "Engineer" };
     setSignDialogWO(null);
     setSignName("");
     setResolutionNotes("");
-    requirePin("Confirm FINISH (PIN)", async (engineer) => {
-      try {
-        await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name, resolutionNotes: notes });
-        setCurrentEngineer(null);
-        sessionStorage.removeItem("currentEngineer");
-        toast({ title: "✅ Work order finished" });
-      } catch (err: any) {
-        if (err instanceof LineStillStoppedError || err?.code === "line_still_stopped") {
-          // Open dedicated modal so engineer can resume the line first
-          setStoppedFinishCtx({ woId, signature, notes });
-          return;
-        }
-        toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
+    try {
+      await finishWO.mutateAsync({
+        woId,
+        signedByName: engineer.name,
+        engineerId: engineer.id,
+        engineerName: engineer.name,
+        resolutionNotes: notes,
+      });
+      setCurrentEngineer(null);
+      sessionStorage.removeItem("currentEngineer");
+      toast({ title: "✅ Work order finished" });
+    } catch (err: any) {
+      if (err instanceof LineStillStoppedError || err?.code === "line_still_stopped") {
+        setStoppedFinishCtx({ woId, signature: engineer.name, notes });
+        return;
       }
-    });
+      toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
+    }
   };
 
-  // BUG 4: resume the line, then retry finishing the WO with the same signature
+  // BUG 4: resume the line, then retry finishing the WO (no PIN)
   const handleResumeThenFinish = async () => {
     if (!stoppedFinishCtx) return;
     const { woId, signature, notes } = stoppedFinishCtx;
     setResumingThenFinish(true);
     try {
-      // 1) Close any open downtime_event
       try {
         await resumeLine.mutateAsync({ workOrderId: woId, note: "Auto-resumed at WO finish" });
-      } catch {
-        /* no open event — ignore */
-      }
-      // 2) Clear line_stopped flag on the WO itself
+      } catch { /* no open event — ignore */ }
       try {
         await machineBackToWork.mutateAsync(woId);
-      } catch {
-        /* already running — ignore */
-      }
+      } catch { /* already running — ignore */ }
       setStoppedFinishCtx(null);
-      // 3) Retry finish with PIN
-      requirePin("Confirm FINISH (PIN)", async (engineer) => {
-        try {
-          await finishWO.mutateAsync({ woId, signedByName: signature, engineerId: engineer.id, engineerName: engineer.name, resolutionNotes: notes });
-          setCurrentEngineer(null);
-          sessionStorage.removeItem("currentEngineer");
-          toast({ title: "✅ Line resumed and work order finished" });
-        } catch (err: any) {
-          toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
-        }
-      });
+      const engineer: EngineerIdentity = currentEngineer
+        ?? { id: user!.id, name: profile?.name || user!.email || "Engineer" };
+      try {
+        await finishWO.mutateAsync({
+          woId,
+          signedByName: signature,
+          engineerId: engineer.id,
+          engineerName: engineer.name,
+          resolutionNotes: notes,
+        });
+        setCurrentEngineer(null);
+        sessionStorage.removeItem("currentEngineer");
+        toast({ title: "✅ Line resumed and work order finished" });
+      } catch (err: any) {
+        toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
+      }
     } finally {
       setResumingThenFinish(false);
     }
