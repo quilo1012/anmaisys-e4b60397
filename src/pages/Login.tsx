@@ -16,6 +16,8 @@ const dashMap: Record<string, string> = {
 };
 
 export default function Login() {
+  const [mode, setMode] = useState<"operator" | "staff">("operator");
+  const [selectedOperatorEmail, setSelectedOperatorEmail] = useState<string>("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -23,6 +25,7 @@ export default function Login() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { session, role, loading: authLoading } = useAuth();
+  const { data: operatorAccounts } = useOperatorAccounts();
 
   useEffect(() => {
     if (!authLoading && session && role) {
