@@ -3,12 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * Calls a Supabase Edge Function via the official SDK.
  * Proactively refreshes the session when it's about to expire to avoid stale-JWT errors.
- *
- * Why use the SDK instead of a manual `fetch`?
- *   - The SDK uses headers that don't trigger a CORS preflight.
- *   - The custom fetch wrapper installed by `installDeviceFetch()` adds
- *     `x-device-token`, which DOES trigger a preflight and is rejected by
- *     the Edge Functions gateway. The SDK avoids that path.
  */
 export async function invokeFunction<T = any>(
   name: string,
