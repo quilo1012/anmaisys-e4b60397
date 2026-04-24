@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
@@ -30,26 +31,33 @@ interface Props {
 }
 
 /**
- * Shows a "Report Recurring Failure" CTA on a finished/closed WO when the
- * current user is the operator who opened it. Creates a NEW WO linked back
- * to the original via recurrence_of_wo_id.
+ * "Report Recurring Failure" CTA shown on a finished/closed WO.
+ *
+ * Calls the SECURITY DEFINER RPC `reopen_wo_as_recurrence`, which creates a
+ * NEW work order in `open` status linked to the original via
+ * `recurrence_of_wo_id`. The new WO then flows through the normal engineer
+ * lifecycle (accept → start → finish), and we navigate the operator to it.
+ *
+ * This replaces the old `log_wo_retrigger` flow, which violated the FK
+ * `work_order_logs.engineer_id → engineers.id` whenever the caller's
+ * `auth.uid()` did not exist in the standalone `engineers` table.
  */
 export function OperatorRecurrenceCard({ wo }: Props) {
   const { user, role } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
 
-  // Count existing retriggers (logged events) for this WO
-  const { data: retriggerCount } = useQuery({
-    queryKey: ["wo_retriggers", wo.id],
+  // Count past recurrences spawned from this WO.
+  const { data: recurrenceCount } = useQuery({
+    queryKey: ["wo_recurrences", wo.id],
     queryFn: async () => {
       const { count, error } = await (supabase as any)
-        .from("work_order_logs")
+        .from("work_orders")
         .select("id", { count: "exact", head: true })
-        .eq("work_order_id", wo.id)
-        .like("action", "problem_retriggered%");
+        .eq("recurrence_of_wo_id", wo.id);
       if (error) throw error;
       return count ?? 0;
     },
@@ -57,33 +65,38 @@ export function OperatorRecurrenceCard({ wo }: Props) {
 
   const createRecurrence = useMutation({
     mutationFn: async () => {
-      // Append a "problem_retriggered" event to the existing WO instead of
-      // reopening it (avoids FK violations on locked_engineer_id).
-      const { data, error } = await (supabase as any).rpc("log_wo_retrigger", {
+      const { data, error } = await (supabase as any).rpc("reopen_wo_as_recurrence", {
         _wo_id: wo.id,
         _reason: reason.trim() || "Same problem reported again",
       });
       if (error) throw error;
       if (!data?.success) {
-        throw new Error(data?.error || "Failed to log recurrence");
+        throw new Error(data?.error || "Failed to create recurrence");
       }
-      return data as { success: true; wo_number: number; retrigger_count: number };
+      return data as {
+        success: true;
+        new_wo_id: string;
+        new_wo_number: number;
+        original_wo_id: string;
+        original_wo_number: number;
+      };
     },
     onSuccess: (res) => {
-      logAuditEvent("wo_problem_retriggered", "work_order", wo.id, {
-        wo_number: wo.wo_number,
-        retrigger_count: res.retrigger_count,
+      logAuditEvent("wo_recurrence_opened", "work_order", res.new_wo_id, {
+        original_wo_id: res.original_wo_id,
+        original_wo_number: res.original_wo_number,
+        new_wo_number: res.new_wo_number,
       });
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
       queryClient.invalidateQueries({ queryKey: ["work_order", wo.id] });
-      queryClient.invalidateQueries({ queryKey: ["wo_logs", wo.id] });
-      queryClient.invalidateQueries({ queryKey: ["work_order_logs", wo.id] });
+      queryClient.invalidateQueries({ queryKey: ["wo_recurrences", wo.id] });
       toast({
-        title: "🔁 Recurrence logged",
-        description: `Event added to existing Order #WO-${String(wo.wo_number).padStart(6, "0")}`,
+        title: "🔁 Recurrence opened",
+        description: `New Order WO-${String(res.new_wo_number).padStart(6, "0")} created. Engineers will be notified.`,
       });
       setOpen(false);
       setReason("");
+      navigate(`/dashboard/wo/${res.new_wo_id}`);
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -115,9 +128,10 @@ export function OperatorRecurrenceCard({ wo }: Props) {
               <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
                 Fix signed off by {wo.engineer_name || "engineer"}
                 {finishedTs && ` ${formatDistanceToNow(new Date(finishedTs), { addSuffix: true })}`}.
-                If the same problem returns, log it as a recurrence on this order.
-                {retriggerCount && retriggerCount > 0 ? (
-                  <> · <span className="font-semibold">{retriggerCount} previous recurrence{retriggerCount === 1 ? "" : "s"} logged</span></>
+                If the same problem returns, open a recurrence and a new work order will be created
+                linked to this one.
+                {recurrenceCount && recurrenceCount > 0 ? (
+                  <> · <span className="font-semibold">{recurrenceCount} previous recurrence{recurrenceCount === 1 ? "" : "s"} opened</span></>
                 ) : null}
               </p>
             </div>
@@ -138,8 +152,8 @@ export function OperatorRecurrenceCard({ wo }: Props) {
           <DialogHeader>
             <DialogTitle>Report recurring failure</DialogTitle>
             <DialogDescription>
-              This will add a recurrence event to existing Order WO-
-              {String(wo.wo_number).padStart(6, "0")} and append it to the order's history. No new work order will be created.
+              This will open a NEW work order linked to WO-
+              {String(wo.wo_number).padStart(6, "0")} as a recurrence. Engineers will be notified.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -167,7 +181,7 @@ export function OperatorRecurrenceCard({ wo }: Props) {
               ) : (
                 <RotateCw className="h-4 w-4 mr-2" />
               )}
-              Confirm Recurrence
+              Open Recurrence
             </Button>
           </DialogFooter>
         </DialogContent>
