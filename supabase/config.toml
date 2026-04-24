@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.list-engineers]
 verify_jwt = false
+
+[functions.create-operator-account]
+verify_jwt = false
+
+[functions.reset-operator-password]
+verify_jwt = false
