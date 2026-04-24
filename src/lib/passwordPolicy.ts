@@ -11,7 +11,12 @@ const OBVIOUS_WEAK = new Set([
   "iloveyou", "monkey", "dragon",
 ]);
 
-export function checkPasswordStrength(pwd: string): { ok: true } | { ok: false; reason: string } {
+export interface PasswordCheckResult {
+  ok: boolean;
+  reason?: string;
+}
+
+export function checkPasswordStrength(pwd: string): PasswordCheckResult {
   if (!pwd || pwd.length < 8) {
     return { ok: false, reason: "Password must be at least 8 characters." };
   }
