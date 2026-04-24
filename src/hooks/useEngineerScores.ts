@@ -28,15 +28,16 @@ export function useEngineerScores() {
         .select("id, name")
         .in("id", ids);
 
-      const { data: engineers } = await supabase
-        .from("engineers_safe" as any)
-        .select("id, name")
-        .in("id", ids);
+      // engineers table has SELECT blocked by RLS; use the SECURITY DEFINER
+      // RPC `list_engineer_names` which returns id+name (no PIN) for active
+      // engineers. This is what makes the "Top Engineers" panel show real names
+      // instead of "Unknown".
+      const { data: engineers } = await (supabase as any).rpc("list_engineer_names");
 
       const nameMap: Record<string, string> = {};
       (profiles as any[])?.forEach((p: any) => { nameMap[p.id] = p.name; });
       // Engineers table takes priority (PIN identity = real engineer name)
-      engineers?.forEach((e: any) => { if (e.name) nameMap[e.id] = e.name; });
+      (engineers as any[])?.forEach((e: any) => { if (e.name) nameMap[e.id] = e.name; });
 
       return (data as any[]).map((s: any) => ({
         ...s,
