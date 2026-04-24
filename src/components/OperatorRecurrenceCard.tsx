@@ -71,32 +71,33 @@ export function OperatorRecurrenceCard({ wo }: Props) {
       });
       if (error) throw error;
       if (!data?.success) {
-        throw new Error(data?.error || "Failed to create recurrence");
+        throw new Error(data?.error || "Failed to reopen recurrence");
       }
       return data as {
         success: true;
-        new_wo_id: string;
-        new_wo_number: number;
-        original_wo_id: string;
-        original_wo_number: number;
+        wo_id: string;
+        wo_number: number;
+        episode_number: number;
       };
     },
     onSuccess: (res) => {
-      logAuditEvent("wo_recurrence_opened", "work_order", res.new_wo_id, {
-        original_wo_id: res.original_wo_id,
-        original_wo_number: res.original_wo_number,
-        new_wo_number: res.new_wo_number,
+      logAuditEvent("wo_recurrence_reopened", "work_order", res.wo_id, {
+        wo_number: res.wo_number,
+        episode_number: res.episode_number,
       });
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
       queryClient.invalidateQueries({ queryKey: ["work_order", wo.id] });
+      queryClient.invalidateQueries({ queryKey: ["wo_metrics", wo.id] });
+      queryClient.invalidateQueries({ queryKey: ["downtime_events", wo.id] });
       queryClient.invalidateQueries({ queryKey: ["wo_recurrences", wo.id] });
       toast({
-        title: "🔁 Recurrence opened",
-        description: `New Order WO-${String(res.new_wo_number).padStart(6, "0")} created. Engineers will be notified.`,
+        title: "🔁 Recurrence reopened",
+        description: `WO-${String(res.wo_number).padStart(6, "0")} reopened (episode #${res.episode_number}). Times will accumulate.`,
       });
       setOpen(false);
       setReason("");
-      navigate(`/dashboard/wo/${res.new_wo_id}`);
+      // Stay on the same WO — it's the SAME order, now reopened.
+      navigate(`/dashboard/wo/${res.wo_id}`);
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
