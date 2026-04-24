@@ -1693,6 +1693,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      list_active_profile_names: {
+        Args: never
+        Returns: {
+          id: string
+          name: string
+        }[]
+      }
       list_operator_account_user_ids: {
         Args: never
         Returns: {
