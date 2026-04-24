@@ -369,7 +369,7 @@ export default function MachinesPage() {
             <Input
               value={machineType}
               onChange={(e) => setMachineType(e.target.value)}
-              placeholder="Blender, Conveyor, Filler..."
+              placeholder="Conveyor, Filler, Capper..."
             />
             {errors.machineType && <p className="text-xs text-destructive">{errors.machineType}</p>}
           </div>

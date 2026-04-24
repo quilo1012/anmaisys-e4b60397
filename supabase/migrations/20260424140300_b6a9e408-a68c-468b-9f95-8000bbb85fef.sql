@@ -1,0 +1,1 @@
+UPDATE public.machines SET machine_type = '' WHERE machine_type = 'Blender';
