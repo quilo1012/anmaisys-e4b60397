@@ -14,7 +14,10 @@ import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, us
 import { useCategories, useAddCategory, useDeleteCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { logAuditEvent } from "@/hooks/useAuditLogs";
+import { logAuditEvent, useStockAdjustmentHistory } from "@/hooks/useAuditLogs";
+import { useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { History } from "lucide-react";
 
 export default function StockPage() {
   const { role } = useAuth();
@@ -28,6 +31,8 @@ export default function StockPage() {
   const deleteCategory = useDeleteCategory();
   const { toast } = useToast();
   const isManager = role === "admin" || role === "manager";
+  const queryClient = useQueryClient();
+  const { data: adjustmentHistory } = useStockAdjustmentHistory(10);
 
   // Edit/Delete state
   const [editProduct, setEditProduct] = useState<Product | null>(null);
@@ -78,7 +83,8 @@ export default function StockPage() {
     try {
       await updateStock.mutateAsync({ id: adjustId, quantity: newQty });
       toast({ title: "Stock updated" });
-      logAuditEvent("adjust_stock", "product", adjustId, { adjustment: parseInt(adjustQty), new_quantity: newQty });
+      await logAuditEvent("adjust_stock", "product", adjustId, { adjustment: parseInt(adjustQty), new_quantity: newQty });
+      queryClient.invalidateQueries({ queryKey: ["stock_adjustment_history"] });
       setAdjustId(""); setAdjustQty("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -273,6 +279,53 @@ export default function StockPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Adjustment History — last 10 manual stock adjustments */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <History className="h-4 w-4" /> Adjustment History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!adjustmentHistory || adjustmentHistory.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No manual adjustments recorded yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date / Time</TableHead>
+                          <TableHead>Product</TableHead>
+                          <TableHead className="text-right">Adjustment</TableHead>
+                          <TableHead className="text-right">New Qty</TableHead>
+                          <TableHead>User</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {adjustmentHistory.map((row) => (
+                          <TableRow key={row.id}>
+                            <TableCell className="whitespace-nowrap text-sm">
+                              {format(new Date(row.created_at), "dd/MM/yyyy HH:mm")}
+                            </TableCell>
+                            <TableCell className="text-sm">{row.product_label}</TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant={row.adjustment >= 0 ? "default" : "destructive"}>
+                                {row.adjustment > 0 ? `+${row.adjustment}` : row.adjustment}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right text-sm">
+                              {row.new_quantity ?? "—"}
+                            </TableCell>
+                            <TableCell className="text-sm">{row.user_name}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Category Management */}
             <Card>
