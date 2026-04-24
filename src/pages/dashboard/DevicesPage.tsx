@@ -114,6 +114,7 @@ function SectionHeader({
 }
 
 function DevicesPageContent() {
+  const { role } = useAuth();
   const { data: lines } = useLines();
   const { data: devices, isLoading } = useAllDevices();
   const { data: thisDevice } = useDeviceLines();
