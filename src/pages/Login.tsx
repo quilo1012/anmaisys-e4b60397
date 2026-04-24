@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, Eye, EyeOff, ShieldCheck, Loader2, ArrowRight } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ShieldCheck, Loader2, ArrowRight, Tablet, User as UserIcon } from "lucide-react";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOperatorAccounts } from "@/hooks/useOperatorAccounts";
 
 const dashMap: Record<string, string> = {
   admin: "/dashboard/manager",
@@ -15,6 +16,8 @@ const dashMap: Record<string, string> = {
 };
 
 export default function Login() {
+  const [mode, setMode] = useState<"operator" | "staff">("operator");
+  const [selectedOperatorEmail, setSelectedOperatorEmail] = useState<string>("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -22,6 +25,7 @@ export default function Login() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { session, role, loading: authLoading } = useAuth();
+  const { data: operatorAccounts } = useOperatorAccounts();
 
   useEffect(() => {
     if (!authLoading && session && role) {
@@ -32,7 +36,12 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = (mode === "operator" ? selectedOperatorEmail : email).trim().toLowerCase();
+    if (!normalizedEmail) {
+      setLoading(false);
+      toast({ title: "Select your line/tablet", variant: "destructive" });
+      return;
+    }
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,

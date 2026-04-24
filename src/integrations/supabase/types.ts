@@ -740,6 +740,39 @@ export type Database = {
         }
         Relationships: []
       }
+      operator_line_accounts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email: string
+          id: string
+          label: string
+          line_ids: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email: string
+          id?: string
+          label: string
+          line_ids?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          id?: string
+          label?: string
+          line_ids?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       parts_used: {
         Row: {
           created_at: string
@@ -1659,6 +1692,13 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      list_operator_account_user_ids: {
+        Args: never
+        Returns: {
+          email: string
+          user_id: string
+        }[]
       }
       list_profile_labor_rates: {
         Args: never

@@ -185,10 +185,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={0}>
-      {/* defaultOpen reads cookie automatically; SidebarProvider persists state. Ctrl/Cmd+B is built-in. */}
-      <SidebarProvider>
+      {/* Sidebar hidden by default — opens as overlay only when user taps the trigger. */}
+      <SidebarProvider defaultOpen={false}>
         <div className="flex h-screen w-full overflow-hidden">
-          <Sidebar collapsible="icon" className="border-r border-sidebar-border print:hidden">
+          <Sidebar collapsible="offcanvas" className="border-r border-sidebar-border print:hidden">
             <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-1">
               <img
                 src={appliedLogo}
@@ -218,16 +218,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   </div>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                title="Change Password"
-                className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 mb-1"
-                onClick={() => setChangePwdOpen(true)}
-              >
-                <KeyRound className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
-                <span className="group-data-[collapsible=icon]:hidden">Change Password</span>
-              </Button>
+              {role !== "operator" && role !== "viewer" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Change Password"
+                  className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 mb-1"
+                  onClick={() => setChangePwdOpen(true)}
+                >
+                  <KeyRound className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
+                  <span className="group-data-[collapsible=icon]:hidden">Change Password</span>
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"

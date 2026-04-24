@@ -145,6 +145,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Proactive keep-alive: every 5 min, force a session check so refresh tokens
+  // rotate well before expiry (defends against tablets that sleep for hours).
+  // Also wake-up listener on tab visibility change.
+  useEffect(() => {
+    let mounted = true;
+    const ping = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        // If supabase already has a fresh session, sync it silently.
+        if (data.session) {
+          setSession(data.session);
+          setUser(data.session.user);
+        }
+      } catch {
+        // Network blip — keep current state, never clear.
+      }
+    };
+    const interval = setInterval(ping, 5 * 60 * 1000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void ping();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+
   const signOut = async () => {
     await supabase.auth.signOut();
     currentUserIdRef.current = null;
