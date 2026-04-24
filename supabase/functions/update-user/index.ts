@@ -27,8 +27,17 @@ const updateUserSchema = z.object({
 const getReadableErrorMessage = (error: unknown) => {
   const message = error instanceof Error ? error.message : "Unknown error";
 
-  if (message.toLowerCase().includes("known to be weak and easy to guess")) {
-    return "This password was rejected by the backend security policy. Please choose a different password.";
+  const lower = message.toLowerCase();
+  if (
+    lower.includes("known to be weak and easy to guess") ||
+    lower.includes("pwned") ||
+    lower.includes("compromised") ||
+    lower.includes("leaked")
+  ) {
+    return "This password has appeared in a known data breach and was rejected. Please choose a different, stronger password (e.g. mix of letters, numbers, and symbols not used elsewhere).";
+  }
+  if (lower.includes("weak password") || lower.includes("should be at least")) {
+    return message;
   }
 
   return message;
