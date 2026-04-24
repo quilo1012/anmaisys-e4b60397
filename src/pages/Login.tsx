@@ -36,7 +36,12 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = (mode === "operator" ? selectedOperatorEmail : email).trim().toLowerCase();
+    if (!normalizedEmail) {
+      setLoading(false);
+      toast({ title: "Select your line/tablet", variant: "destructive" });
+      return;
+    }
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
