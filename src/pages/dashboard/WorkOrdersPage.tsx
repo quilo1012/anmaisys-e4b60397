@@ -94,6 +94,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
 
   const { data: machines } = useMachines();
   const { data: problemDescriptions } = useActiveProblemDescriptions();
+  const { data: profileNames } = useProfileNames();
   const { data: engineerScores } = useEngineerScores();
 
   const woIds = useMemo(() => workOrders?.map((w) => w.id) ?? [], [workOrders]);
