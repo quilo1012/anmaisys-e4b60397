@@ -57,20 +57,15 @@ function TimelineItem({ icon: Icon, label, time, className }: { icon: React.Comp
   );
 }
 
+import { formatDuration as formatDurationFromSec, formatMinutes } from "@/lib/formatDuration";
+
+// Standardized: always "Xh Ym" (no seconds, no plain "min").
 function formatDuration(minutes: number | null) {
-  if (minutes === null || minutes === undefined) return "—";
-  if (minutes < 1) return "<1 min";
-  if (minutes < 60) return `${Math.round(minutes)} min`;
-  const h = Math.floor(minutes / 60);
-  const m = Math.round(minutes % 60);
-  return m === 0 ? `${h}h` : `${h}h ${m}min`;
+  return formatMinutes(minutes);
 }
 
 function formatShortDuration(seconds: number) {
-  if (seconds < 60) return `${seconds} seg`;
-  const min = Math.floor(seconds / 60);
-  const sec = seconds % 60;
-  return sec === 0 ? `${min} min` : `${min}min ${sec}s`;
+  return formatDurationFromSec(seconds);
 }
 
 function SignedPhoto({ storagePath, alt }: { storagePath: string; alt: string }) {
