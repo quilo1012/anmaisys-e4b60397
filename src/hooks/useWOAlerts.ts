@@ -60,9 +60,10 @@ export function useWOAlerts() {
             locked_engineer_id: string | null;
             engineer_notified_acknowledged_at: string | null;
             notified_engineers: string[] | null;
+            line_id: string | null;
           };
 
-          console.log("[useWOAlerts INSERT]", wo.id, "ack:", wo.engineer_notified_acknowledged_at);
+          console.log("[useWOAlerts INSERT]", wo.id, "ack:", wo.engineer_notified_acknowledged_at, "line:", wo.line_id);
 
           // Client-side ack gate — survives remount/reconnect/refresh even before server propagates.
           if (isWOAcknowledged(wo.id)) return;
@@ -73,6 +74,12 @@ export function useWOAlerts() {
           // Targeting gate — if WO is already locked/assigned to another engineer, don't fire.
           if (wo.engineer_id && wo.engineer_id !== user.id) return;
           if (wo.locked_engineer_id && wo.locked_engineer_id !== user.id) return;
+          // Line filter — engineer-scoped preference (no filter = all lines).
+          if (!shouldAlertForLine(wo.line_id)) {
+            console.log("[useWOAlerts INSERT] suppressed by line filter:", wo.line_id);
+            return;
+          }
+
 
           // Layer 1+3+4: critical alert (audio loop, modal, vibration, flash title, favicon)
           triggerAlert({
