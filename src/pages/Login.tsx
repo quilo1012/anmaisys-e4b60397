@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, Eye, EyeOff, ShieldCheck, Loader2, ArrowRight } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ShieldCheck, Loader2, ArrowRight, Tablet, User as UserIcon } from "lucide-react";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOperatorAccounts } from "@/hooks/useOperatorAccounts";
 
 const dashMap: Record<string, string> = {
   admin: "/dashboard/manager",
