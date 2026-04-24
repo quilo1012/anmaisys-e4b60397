@@ -501,7 +501,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <div className="flex items-center gap-2">
                 <Input
                   type={cShowPwd ? "text" : "password"}
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 chars, not a common word"
                   value={cPassword}
                   onChange={(e) => setCPassword(e.target.value)}
                 />
@@ -619,7 +619,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   type={rShow ? "text" : "password"}
                   value={rPwd}
                   onChange={(e) => setRPwd(e.target.value)}
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 chars, not a common word"
                 />
                 <Button
                   type="button"
@@ -680,7 +680,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   type={aShow ? "text" : "password"}
                   value={aPwd}
                   onChange={(e) => setAPwd(e.target.value)}
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 chars, not a common word"
                 />
                 <Button
                   type="button"
