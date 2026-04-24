@@ -39,10 +39,18 @@ export interface WorkOrder {
 
 // Helper to insert a work_order_log entry. Idempotent: silently ignores duplicates
 // (unique partial index on work_order_id+engineer_id+action prevents repeats).
-async function logWOAction(workOrderId: string, engineerId: string, engineerName: string, action: string) {
+// SECURITY: engineer_id MUST equal auth.uid() to satisfy RLS — we always read the
+// authenticated user from supabase.auth and ignore any caller-supplied id.
+async function logWOAction(workOrderId: string, _engineerId: string, engineerName: string, action: string) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const authUid = user?.id;
+  if (!authUid) {
+    console.warn("logWOAction skipped: no authenticated user");
+    return;
+  }
   const { error } = await supabase.from("work_order_logs" as any).insert({
     work_order_id: workOrderId,
-    engineer_id: engineerId,
+    engineer_id: authUid,
     engineer_name: engineerName,
     action,
   } as any);
