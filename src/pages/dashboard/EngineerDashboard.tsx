@@ -829,14 +829,10 @@ function EngineerDashboardContent() {
               />
               <p className="text-xs text-muted-foreground text-right">{resolutionNotes.length}/1000</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="sign-name">Operator / Line Leader Signature</Label>
-              <Input id="sign-name" placeholder="e.g. John Smith" value={signName} onChange={(e) => setSignName(e.target.value)} />
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); setResolutionNotes(""); }}>Cancel</Button>
-            <Button onClick={handleFinishConfirm} disabled={!signName.trim() || !resolutionNotes.trim() || finishWO.isPending}>
+            <Button onClick={handleFinishConfirm} disabled={!resolutionNotes.trim() || finishWO.isPending}>
               {finishWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm & Finish
             </Button>
