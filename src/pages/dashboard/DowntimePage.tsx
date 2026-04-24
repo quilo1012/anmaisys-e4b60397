@@ -21,7 +21,7 @@ import {
 import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
 import { useDowntime, useCreateDowntime, useUpdateDowntime, useDeleteDowntime, type DowntimeRecord } from "@/hooks/useDowntime";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
-import { useMachines } from "@/hooks/useMachines";
+import { useMachines, useLines } from "@/hooks/useMachines";
 import { useRecentMachineEvents } from "@/hooks/useMachineEvents";
 import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { type RiskLevel } from "@/hooks/usePredictiveAlerts";
