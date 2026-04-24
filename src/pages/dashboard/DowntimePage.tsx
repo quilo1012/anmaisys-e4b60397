@@ -331,22 +331,60 @@ export default function DowntimePage() {
     return machineEvents.filter((e) => e.machine_id === m.id).slice(0, 10);
   };
 
+  const lineOptions = useMemo(() => {
+    const fromDb = (linesData ?? []).map((l: any) => l.name).filter(Boolean);
+    return fromDb.length > 0 ? fromDb : [...LINES];
+  }, [linesData]);
+
+  const machineOptions = useMemo(() => {
+    if (!machines) return [];
+    if (!formLine) return machines.map((m: any) => m.name).filter(Boolean);
+    return machines
+      .filter((m: any) => {
+        const ml = m.current_line || m.fixed_line || m.line || "";
+        return ml === formLine;
+      })
+      .map((m: any) => m.name)
+      .filter(Boolean);
+  }, [machines, formLine]);
+
   const formFieldsJsx = (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Line *</Label>
-          <Input value={formLine} onChange={e => setFormLine(e.target.value)} />
+          <Select value={formLine || undefined} onValueChange={(v) => { setFormLine(v); setFormMachine(""); }}>
+            <SelectTrigger><SelectValue placeholder="Select line" /></SelectTrigger>
+            <SelectContent>
+              {lineOptions.map((l) => (
+                <SelectItem key={l} value={l}>{l}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label>Machine</Label>
-          <Input value={formMachine} onChange={e => setFormMachine(e.target.value)} />
+          <Select value={formMachine || undefined} onValueChange={setFormMachine} disabled={machineOptions.length === 0}>
+            <SelectTrigger><SelectValue placeholder={machineOptions.length === 0 ? "Select line first" : "Select machine"} /></SelectTrigger>
+            <SelectContent>
+              {machineOptions.map((m) => (
+                <SelectItem key={m} value={m}>{m}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Category *</Label>
-          <Input value={formCategory} onChange={e => setFormCategory(e.target.value)} />
+          <Select value={formCategory || undefined} onValueChange={setFormCategory}>
+            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+            <SelectContent>
+              {CATEGORIES.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label>Reason *</Label>
