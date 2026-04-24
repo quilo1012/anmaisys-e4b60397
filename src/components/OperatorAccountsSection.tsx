@@ -232,12 +232,9 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
 
   const handleResetSingle = async () => {
     if (!resetTarget) return;
-    if (rPwd.length < 6) {
-      toast({
-        title: "Weak password",
-        description: "Password must be at least 6 characters.",
-        variant: "destructive",
-      });
+    const strength = checkPasswordStrength(rPwd);
+    if (!strength.ok) {
+      toast({ title: "Weak password", description: strength.reason, variant: "destructive" });
       return;
     }
     if (rPwd !== rPwd2) {
@@ -256,7 +253,11 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       });
       closeReset();
     } catch (e: any) {
-      toast({ title: "Reset failed", description: e.message, variant: "destructive" });
+      toast({
+        title: "Reset failed",
+        description: describePasswordError(e?.message),
+        variant: "destructive",
+      });
     }
   };
 
@@ -276,12 +277,9 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   };
 
   const handleResetAll = async () => {
-    if (aPwd.length < 6) {
-      toast({
-        title: "Weak password",
-        description: "Password must be at least 6 characters.",
-        variant: "destructive",
-      });
+    const strength = checkPasswordStrength(aPwd);
+    if (!strength.ok) {
+      toast({ title: "Weak password", description: strength.reason, variant: "destructive" });
       return;
     }
     if (aPwd !== aPwd2) {
@@ -304,7 +302,11 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       });
       closeResetAll();
     } catch (e: any) {
-      toast({ title: "Reset failed", description: e.message, variant: "destructive" });
+      toast({
+        title: "Reset failed",
+        description: describePasswordError(e?.message),
+        variant: "destructive",
+      });
     }
   };
 
