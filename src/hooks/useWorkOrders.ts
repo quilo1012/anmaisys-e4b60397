@@ -61,7 +61,7 @@ export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOSt
     queryFn: async () => {
       let q = supabase
         .from("work_orders")
-        .select("*, operator:profiles!work_orders_operator_id_fkey(name), engineer:engineers!work_orders_engineer_id_fkey(name), closer:profiles!work_orders_closed_by_fkey(name)")
+        .select("*, operator:profiles_safe!work_orders_operator_id_fkey(name), engineer:engineers_safe!work_orders_engineer_id_fkey(name), closer:profiles_safe!work_orders_closed_by_fkey(name)")
         .order("created_at", { ascending: false })
         .limit(200);
 
@@ -549,7 +549,7 @@ export function useWorkOrderById(id: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("work_orders")
-        .select("*, operator:profiles!work_orders_operator_id_fkey(name), engineer:engineers!work_orders_engineer_id_fkey(name), closer:profiles!work_orders_closed_by_fkey(name)")
+        .select("*, operator:profiles_safe!work_orders_operator_id_fkey(name), engineer:engineers_safe!work_orders_engineer_id_fkey(name), closer:profiles_safe!work_orders_closed_by_fkey(name)")
         .eq("id", id)
         .single();
       if (error) throw error;
