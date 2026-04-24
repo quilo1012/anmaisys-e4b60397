@@ -130,10 +130,10 @@ export function OperatorRecurrenceCard({ wo }: Props) {
               <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
                 Fix signed off by {wo.engineer_name || "engineer"}
                 {finishedTs && ` ${formatDistanceToNow(new Date(finishedTs), { addSuffix: true })}`}.
-                If the same problem returns, open a recurrence and a new work order will be created
-                linked to this one.
+                If the same problem returns, reopen this work order — its time will be
+                added to the previous repair (no new WO number).
                 {recurrenceCount && recurrenceCount > 0 ? (
-                  <> · <span className="font-semibold">{recurrenceCount} previous recurrence{recurrenceCount === 1 ? "" : "s"} opened</span></>
+                  <> · <span className="font-semibold">{recurrenceCount} previous reopen{recurrenceCount === 1 ? "" : "s"}</span></>
                 ) : null}
               </p>
             </div>
