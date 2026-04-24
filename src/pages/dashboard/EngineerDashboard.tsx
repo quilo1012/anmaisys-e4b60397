@@ -172,8 +172,10 @@ export default function EngineerDashboard() {
       </div>
     );
   }
+  // ProtectedRoute already enforces role access; if role is missing transiently, just wait
+  if (!role) return null;
   if (role !== "engineer") {
-    return <Navigate to="/login" replace />;
+    return null;
   }
 
   return <EngineerDashboardContent />;

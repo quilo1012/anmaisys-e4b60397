@@ -50,8 +50,10 @@ export default function OperatorDashboard() {
       </div>
     );
   }
+  // ProtectedRoute already enforces role access; if role is missing transiently, just wait
+  if (!role) return null;
   if (role !== "operator") {
-    return <Navigate to="/login" replace />;
+    return null;
   }
 
   return (
