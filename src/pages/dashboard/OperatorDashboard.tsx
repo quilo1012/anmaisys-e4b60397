@@ -252,11 +252,17 @@ function OperatorDashboardContent() {
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2" autoComplete="off">
             <div className="space-y-2">
               <Label htmlFor="requested-by">Requested By</Label>
-              <ComboboxInput
+              <Input
+                id="requested-by"
+                name="requested-by"
+                type="text"
                 value={requestedBy}
-                onChange={setRequestedBy}
-                suggestions={(profileNames ?? []).map((p) => p.name)}
+                onChange={(e) => setRequestedBy(e.target.value)}
                 placeholder="Type the requester's name..."
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
               />
             </div>
 
