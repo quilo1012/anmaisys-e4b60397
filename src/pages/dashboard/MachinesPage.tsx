@@ -201,6 +201,18 @@ export default function MachinesPage() {
     );
   }, [machines, search]);
 
+  // Pagination — 10 per page
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filteredMachines.length / PAGE_SIZE));
+  // Reset to page 1 whenever the filter changes or pages shrink
+  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  const pagedMachines = useMemo(
+    () => filteredMachines.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredMachines, page]
+  );
+
   const [name, setName] = useState("");
   const [lineId, setLineId] = useState<string>("");
   const [side, setSide] = useState<MachineSide>("common");
@@ -508,7 +520,7 @@ export default function MachinesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredMachines.map((m) => (
+                    {pagedMachines.map((m) => (
                       <TableRow key={m.id}>
                         <TableCell className="font-medium">
                           {m.name}
@@ -608,6 +620,38 @@ export default function MachinesPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+            {filteredMachines.length > 0 && (
+              <div className="flex items-center justify-between gap-3 pt-4 flex-wrap">
+                <div className="text-sm text-muted-foreground">
+                  Showing{" "}
+                  <span className="font-medium text-foreground">
+                    {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredMachines.length)}
+                  </span>{" "}
+                  of <span className="font-medium text-foreground">{filteredMachines.length}</span> machines
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground tabular-nums">
+                    Page {page} / {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>
