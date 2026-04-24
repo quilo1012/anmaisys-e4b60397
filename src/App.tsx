@@ -225,6 +225,14 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/dashboard/users"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <ManageUsers />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/" element={<SessionRedirect />} />
                 <Route path="*" element={<SessionRedirect />} />
               </Routes>
