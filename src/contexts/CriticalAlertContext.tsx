@@ -343,12 +343,19 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
           className="max-w-md"
           onCloseAutoFocus={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => {
-            // Prevent the underlying element (e.g. "lines stopped" header button)
-            // from receiving the click that dismisses this modal.
+            // Prevent the underlying element (e.g. "lines stopped" header button
+            // or a dashboard nav card) from receiving the click that dismisses
+            // this modal — which would cause unintended navigation.
             e.preventDefault();
             setShowUnlock(false);
           }}
           onInteractOutside={(e) => e.preventDefault()}
+          // Stop the close (X) click from bubbling to underlying elements
+          // (e.g. dashboard nav cards), which previously caused the user to be
+          // redirected to Work Orders after closing the modal.
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           <DialogTitle className="flex items-center gap-2">
             <Volume2 className="h-5 w-5 text-primary" /> Enable Alert Sounds
