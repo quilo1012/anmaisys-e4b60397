@@ -20,7 +20,7 @@ import { useMachines, useLines } from "@/hooks/useMachines";
 import { useMobileAssets, formatMobileAsset } from "@/hooks/useMobileAssets";
 import { MobileAssetSubPicker } from "@/components/MobileAssetSubPicker";
 import { useActiveProblemsForLine } from "@/hooks/useLineProblemDescriptions";
-import { useProfileNames } from "@/hooks/useProfileNames";
+
 import { OperatorLineGuard } from "@/components/OperatorLineGuard";
 import { useDeviceLineCtx } from "@/contexts/DeviceLineContext";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +29,7 @@ import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { OperatorNavCards } from "@/components/DashboardNavCards";
-import { ComboboxInput } from "@/components/ComboboxInput";
+
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -90,7 +90,7 @@ function OperatorDashboardContent() {
   const { data: lines } = useLines();
   const { data: mobileAssets } = useMobileAssets();
   const { data: problemDescriptions } = useActiveProblemsForLine(lineId);
-  const { data: profileNames } = useProfileNames();
+  
   const createWO = useCreateWorkOrder();
   const closeWO = useCloseWorkOrder();
   const { toast } = useToast();
@@ -252,11 +252,17 @@ function OperatorDashboardContent() {
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2" autoComplete="off">
             <div className="space-y-2">
               <Label htmlFor="requested-by">Requested By</Label>
-              <ComboboxInput
+              <Input
+                id="requested-by"
+                name="requested-by"
+                type="text"
                 value={requestedBy}
-                onChange={setRequestedBy}
-                suggestions={(profileNames ?? []).map((p) => p.name)}
+                onChange={(e) => setRequestedBy(e.target.value)}
                 placeholder="Type the requester's name..."
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
               />
             </div>
 
