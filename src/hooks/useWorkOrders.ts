@@ -37,20 +37,22 @@ export interface WorkOrder {
   closer?: { name: string };
 }
 
-// Helper to insert a work_order_log entry. Idempotent: silently ignores duplicates
-// (unique partial index on work_order_id+engineer_id+action prevents repeats).
-// SECURITY: engineer_id MUST equal auth.uid() to satisfy RLS — we always read the
-// authenticated user from supabase.auth and ignore any caller-supplied id.
-async function logWOAction(workOrderId: string, _engineerId: string, engineerName: string, action: string) {
+// Helper to insert a work_order_log entry. Idempotent: silently ignores duplicates.
+// engineer_id MUST be a valid id from the standalone engineers table (FK constraint).
+// PIN verification (verify_pin_by_code) returns the engineer.id used here.
+async function logWOAction(workOrderId: string, engineerId: string, engineerName: string, action: string) {
   const { data: { user } } = await supabase.auth.getUser();
-  const authUid = user?.id;
-  if (!authUid) {
+  if (!user?.id) {
     console.warn("logWOAction skipped: no authenticated user");
+    return;
+  }
+  if (!engineerId) {
+    console.warn("logWOAction skipped: missing engineerId");
     return;
   }
   const { error } = await supabase.from("work_order_logs" as any).insert({
     work_order_id: workOrderId,
-    engineer_id: authUid,
+    engineer_id: engineerId,
     engineer_name: engineerName,
     action,
   } as any);
