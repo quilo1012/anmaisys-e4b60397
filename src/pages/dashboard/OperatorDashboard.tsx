@@ -89,6 +89,7 @@ function OperatorDashboardContent() {
   const { data: lines } = useLines();
   const { data: mobileAssets } = useMobileAssets();
   const { data: problemDescriptions } = useActiveProblemsForLine(lineId);
+  const { data: profileNames } = useProfileNames();
   const createWO = useCreateWorkOrder();
   const closeWO = useCloseWorkOrder();
   const { toast } = useToast();
@@ -250,12 +251,16 @@ function OperatorDashboardContent() {
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2" autoComplete="off">
             <div className="space-y-2">
               <Label>Requested By</Label>
-              <Input
-                value={requestedBy}
-                onChange={(e) => setRequestedBy(e.target.value)}
-                placeholder="Enter requester name"
-                autoComplete="off"
-              />
+              <Select value={requestedBy} onValueChange={setRequestedBy}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select requester..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {profileNames?.map((p) => (
+                    <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Mobile-asset sub-picker (only on Sealer/Printer line). Line itself is locked. */}
