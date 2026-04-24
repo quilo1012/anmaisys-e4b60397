@@ -20,6 +20,7 @@ import { useMachines, useLines } from "@/hooks/useMachines";
 import { useMobileAssets, formatMobileAsset } from "@/hooks/useMobileAssets";
 import { MobileAssetSubPicker } from "@/components/MobileAssetSubPicker";
 import { useActiveProblemsForLine } from "@/hooks/useLineProblemDescriptions";
+import { useProfileNames } from "@/hooks/useProfileNames";
 import { OperatorLineGuard } from "@/components/OperatorLineGuard";
 import { useDeviceLineCtx } from "@/contexts/DeviceLineContext";
 import { useToast } from "@/hooks/use-toast";
