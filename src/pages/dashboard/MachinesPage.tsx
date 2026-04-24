@@ -201,6 +201,18 @@ export default function MachinesPage() {
     );
   }, [machines, search]);
 
+  // Pagination — 10 per page
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filteredMachines.length / PAGE_SIZE));
+  // Reset to page 1 whenever the filter changes or pages shrink
+  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  const pagedMachines = useMemo(
+    () => filteredMachines.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredMachines, page]
+  );
+
   const [name, setName] = useState("");
   const [lineId, setLineId] = useState<string>("");
   const [side, setSide] = useState<MachineSide>("common");
