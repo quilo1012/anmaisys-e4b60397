@@ -431,7 +431,12 @@ function OperatorDashboardContent() {
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           {wo.status === "finished" && (
-                            <Button size="sm" variant="default" onClick={() => { setCloseDialogWO(wo.id); setCloseSigName(""); }}>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              disabled={closeWO.isPending}
+                              onClick={() => handleQuickClose(wo.id, wo.requester_name ?? null)}
+                            >
                               <CheckCircle className="h-3 w-3 mr-1" /> Close
                             </Button>
                           )}
