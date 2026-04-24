@@ -83,7 +83,8 @@ export default function StockPage() {
     try {
       await updateStock.mutateAsync({ id: adjustId, quantity: newQty });
       toast({ title: "Stock updated" });
-      logAuditEvent("adjust_stock", "product", adjustId, { adjustment: parseInt(adjustQty), new_quantity: newQty });
+      await logAuditEvent("adjust_stock", "product", adjustId, { adjustment: parseInt(adjustQty), new_quantity: newQty });
+      queryClient.invalidateQueries({ queryKey: ["stock_adjustment_history"] });
       setAdjustId(""); setAdjustQty("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
