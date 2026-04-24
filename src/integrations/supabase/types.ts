@@ -1700,6 +1700,13 @@ export type Database = {
           name: string
         }[]
       }
+      list_engineer_names: {
+        Args: never
+        Returns: {
+          id: string
+          name: string
+        }[]
+      }
       list_operator_account_user_ids: {
         Args: never
         Returns: {
