@@ -49,6 +49,7 @@ export default function DowntimePage() {
   const { data: workOrders } = useWorkOrders({ statusIn: ["open", "in_progress", "received", "arrived"] as any });
   const { data: allWOs } = useWorkOrders();
   const { data: machines } = useMachines();
+  const { data: linesData } = useLines();
   const { data: machineEvents } = useRecentMachineEvents();
   const { data: woMetrics = [] } = useAllWoMetrics();
   const createDowntime = useCreateDowntime();
