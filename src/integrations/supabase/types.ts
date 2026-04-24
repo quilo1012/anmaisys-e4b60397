@@ -1624,6 +1624,17 @@ export type Database = {
         Returns: Json
       }
       acknowledge_wo_alert: { Args: { _wo_id: string }; Returns: undefined }
+      admin_list_device_tokens: {
+        Args: never
+        Returns: {
+          device_token: string
+          id: string
+          label: string
+          last_seen_at: string
+          line_id: string
+          paired_at: string
+        }[]
+      }
       current_device_line: { Args: never; Returns: string }
       current_device_line_ids: { Args: never; Returns: string[] }
       current_device_token: { Args: never; Returns: string }
