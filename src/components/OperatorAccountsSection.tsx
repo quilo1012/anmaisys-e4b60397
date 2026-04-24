@@ -53,6 +53,7 @@ import {
   type OperatorLineAccount,
 } from "@/hooks/useOperatorAccounts";
 import { format } from "date-fns";
+import { checkPasswordStrength, describePasswordError } from "@/lib/passwordPolicy";
 
 const EMAIL_DOMAIN = "@anmaisys.local";
 
@@ -139,12 +140,17 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     });
 
   const handleCreate = async () => {
-    if (!cLabel.trim() || !cEmail.trim() || cPassword.length < 6 || cLineSet.size === 0) {
+    if (!cLabel.trim() || !cEmail.trim() || cLineSet.size === 0) {
       toast({
         title: "Missing info",
-        description: "Label, email, password (≥6 chars) and ≥1 line are required.",
+        description: "Label, email and ≥1 line are required.",
         variant: "destructive",
       });
+      return;
+    }
+    const strength = checkPasswordStrength(cPassword);
+    if (!strength.ok) {
+      toast({ title: "Weak password", description: strength.reason, variant: "destructive" });
       return;
     }
     try {
@@ -161,7 +167,11 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       resetCreateForm();
       setCreateOpen(false);
     } catch (e: any) {
-      toast({ title: "Create failed", description: e.message, variant: "destructive" });
+      toast({
+        title: "Create failed",
+        description: describePasswordError(e?.message),
+        variant: "destructive",
+      });
     }
   };
 
@@ -222,12 +232,9 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
 
   const handleResetSingle = async () => {
     if (!resetTarget) return;
-    if (rPwd.length < 6) {
-      toast({
-        title: "Weak password",
-        description: "Password must be at least 6 characters.",
-        variant: "destructive",
-      });
+    const strength = checkPasswordStrength(rPwd);
+    if (!strength.ok) {
+      toast({ title: "Weak password", description: strength.reason, variant: "destructive" });
       return;
     }
     if (rPwd !== rPwd2) {
@@ -246,7 +253,11 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       });
       closeReset();
     } catch (e: any) {
-      toast({ title: "Reset failed", description: e.message, variant: "destructive" });
+      toast({
+        title: "Reset failed",
+        description: describePasswordError(e?.message),
+        variant: "destructive",
+      });
     }
   };
 
@@ -266,12 +277,9 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   };
 
   const handleResetAll = async () => {
-    if (aPwd.length < 6) {
-      toast({
-        title: "Weak password",
-        description: "Password must be at least 6 characters.",
-        variant: "destructive",
-      });
+    const strength = checkPasswordStrength(aPwd);
+    if (!strength.ok) {
+      toast({ title: "Weak password", description: strength.reason, variant: "destructive" });
       return;
     }
     if (aPwd !== aPwd2) {
@@ -294,7 +302,11 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       });
       closeResetAll();
     } catch (e: any) {
-      toast({ title: "Reset failed", description: e.message, variant: "destructive" });
+      toast({
+        title: "Reset failed",
+        description: describePasswordError(e?.message),
+        variant: "destructive",
+      });
     }
   };
 
@@ -489,7 +501,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <div className="flex items-center gap-2">
                 <Input
                   type={cShowPwd ? "text" : "password"}
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 chars, not a common word"
                   value={cPassword}
                   onChange={(e) => setCPassword(e.target.value)}
                 />
@@ -607,7 +619,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   type={rShow ? "text" : "password"}
                   value={rPwd}
                   onChange={(e) => setRPwd(e.target.value)}
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 chars, not a common word"
                 />
                 <Button
                   type="button"
@@ -668,7 +680,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   type={aShow ? "text" : "password"}
                   value={aPwd}
                   onChange={(e) => setAPwd(e.target.value)}
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 chars, not a common word"
                 />
                 <Button
                   type="button"

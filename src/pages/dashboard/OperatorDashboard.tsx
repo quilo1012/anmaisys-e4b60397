@@ -29,6 +29,7 @@ import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { OperatorNavCards } from "@/components/DashboardNavCards";
+import { ComboboxInput } from "@/components/ComboboxInput";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -250,17 +251,13 @@ function OperatorDashboardContent() {
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2" autoComplete="off">
             <div className="space-y-2">
-              <Label>Requested By</Label>
-              <Select value={requestedBy} onValueChange={setRequestedBy}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select requester..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {profileNames?.map((p) => (
-                    <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="requested-by">Requested By</Label>
+              <ComboboxInput
+                value={requestedBy}
+                onChange={setRequestedBy}
+                suggestions={(profileNames ?? []).map((p) => p.name)}
+                placeholder="Type the requester's name..."
+              />
             </div>
 
             {/* Mobile-asset sub-picker (only on Sealer/Printer line). Line itself is locked. */}
