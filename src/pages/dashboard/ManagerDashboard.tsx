@@ -129,14 +129,53 @@ function ManagerDashboardContent() {
 
         {/* Unified KPI grid: 8 cards in 2 rows of 4 (single source of truth: v_wo_metrics) */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-fr">
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Open WOs</CardTitle><ClipboardList className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{openCount}</div></CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">In Progress</CardTitle><LayoutDashboard className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{inProgressCount}</div></CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Finished Today</CardTitle><ClipboardList className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{completedToday}</div></CardContent></Card>
-          <Card className={lowStockCount > 0 ? "border-destructive" : ""}><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Low Stock</CardTitle><AlertTriangle className={`h-4 w-4 ${lowStockCount > 0 ? "text-destructive" : "text-muted-foreground"}`} /></CardHeader><CardContent><div className={`text-2xl font-bold ${lowStockCount > 0 ? "text-destructive" : ""}`}>{lowStockCount}</div></CardContent></Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-sm font-medium">Open WOs</CardTitle>
+                <KpiInfoTooltip text="Open Work Orders: ordens criadas que ainda não foram aceites por um engenheiro. Indica o backlog atual a aguardar resposta." />
+              </div>
+              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent><div className="text-2xl font-bold">{openCount}</div></CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+                <KpiInfoTooltip text="In Progress: ordens já aceites por um engenheiro e em execução (recebidas, em deslocação ou em reparação)." />
+              </div>
+              <LayoutDashboard className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent><div className="text-2xl font-bold">{inProgressCount}</div></CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-sm font-medium">Finished Today</CardTitle>
+                <KpiInfoTooltip text="Finished Today: número de ordens concluídas (finished/closed/completed) no dia de hoje. Indicador de produtividade diária." />
+              </div>
+              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent><div className="text-2xl font-bold">{completedToday}</div></CardContent>
+          </Card>
+          <Card className={lowStockCount > 0 ? "border-destructive" : ""}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
+                <KpiInfoTooltip text="Low Stock: número de produtos cuja quantidade em armazém está igual ou abaixo do stock mínimo definido. Requer reposição." />
+              </div>
+              <AlertTriangle className={`h-4 w-4 ${lowStockCount > 0 ? "text-destructive" : "text-muted-foreground"}`} />
+            </CardHeader>
+            <CardContent><div className={`text-2xl font-bold ${lowStockCount > 0 ? "text-destructive" : ""}`}>{lowStockCount}</div></CardContent>
+          </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
+                <KpiInfoTooltip text="Avg Response Time: tempo médio desde a criação da WO até ser aceite pelo engenheiro. Métrica-chave de SLA — quanto menor, melhor a capacidade de resposta da equipa." />
+              </div>
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -146,7 +185,10 @@ function ManagerDashboardContent() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Active Repair</CardTitle>
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-sm font-medium">Avg Active Repair</CardTitle>
+                <KpiInfoTooltip text="Avg Active Repair (MTTR): tempo médio efetivo de reparação, do início do trabalho até à conclusão, excluindo pausas. Mede a eficiência técnica do engenheiro." />
+              </div>
               <Wrench className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -156,7 +198,10 @@ function ManagerDashboardContent() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Line Downtime</CardTitle>
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-sm font-medium">Avg Line Downtime</CardTitle>
+                <KpiInfoTooltip text="Avg Line Downtime: tempo médio em que a linha de produção esteve parada (linha parada → linha retomada). Mede o impacto real no negócio em minutos perdidos." />
+              </div>
               <PowerOff className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -166,7 +211,10 @@ function ManagerDashboardContent() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Parts Used Today</CardTitle>
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-sm font-medium">Parts Used Today</CardTitle>
+                <KpiInfoTooltip text="Parts Used Today: total de peças/produtos consumidos em reparações durante o dia de hoje. Útil para acompanhamento de consumo e custos." />
+              </div>
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
