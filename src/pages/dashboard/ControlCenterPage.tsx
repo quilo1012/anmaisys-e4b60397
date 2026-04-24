@@ -90,7 +90,7 @@ export default function ControlCenterPage() {
     if (!machines) return {};
     const map: Record<string, typeof machines> = {};
     machines.forEach((m) => {
-      const zone = m.current_location || m.line || "Unassigned";
+      const zone = getZoneFor(m);
       if (!map[zone]) map[zone] = [];
       map[zone].push(m);
     });
