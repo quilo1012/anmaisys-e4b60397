@@ -15,9 +15,9 @@ export function useProfileNames() {
   return useQuery({
     queryKey: ["profile-names-active"],
     queryFn: async (): Promise<ProfileName[]> => {
-      const { data, error } = await supabase.rpc("list_active_profile_names");
+      const { data, error } = await (supabase as any).rpc("list_active_profile_names");
       if (error) throw error;
-      return (data ?? []).filter((p): p is ProfileName => !!p.id && !!p.name);
+      return ((data ?? []) as ProfileName[]).filter((p) => !!p.id && !!p.name);
     },
     staleTime: 60_000,
   });
