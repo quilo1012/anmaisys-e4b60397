@@ -18,12 +18,22 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 
 const ZONE_ORDER = ["Line 1", "Line 2", "Line 3", "Line A", "Line B", "Line C", "Storage", "Maintenance Area"];
 
+function getZoneFor(m: any): string {
+  // Group by production line/area first (e.g. "Sealer / Printer Area",
+  // "Capsules & Tablets") so all machines from the same area show in one zone.
+  // Fall back to current_location only when no line is assigned.
+  return (
+    (m.line && String(m.line).trim()) ||
+    (m.current_line && String(m.current_line).trim()) ||
+    (m.fixed_line && String(m.fixed_line).trim()) ||
+    (m.current_location && String(m.current_location).trim()) ||
+    "Unassigned"
+  );
+}
+
 function getZones(machines: any[]) {
   const zones = new Set<string>();
-  machines.forEach((m) => {
-    const loc = m.current_location || m.line || "Unassigned";
-    zones.add(loc);
-  });
+  machines.forEach((m) => zones.add(getZoneFor(m)));
   // Sort: known zones first, then alphabetical unknowns
   return Array.from(zones).sort((a, b) => {
     const ai = ZONE_ORDER.indexOf(a);
