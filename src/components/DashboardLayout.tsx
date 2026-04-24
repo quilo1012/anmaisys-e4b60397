@@ -185,10 +185,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={0}>
-      {/* defaultOpen reads cookie automatically; SidebarProvider persists state. Ctrl/Cmd+B is built-in. */}
-      <SidebarProvider>
+      {/* Sidebar hidden by default — opens as overlay only when user taps the trigger. */}
+      <SidebarProvider defaultOpen={false}>
         <div className="flex h-screen w-full overflow-hidden">
-          <Sidebar collapsible="icon" className="border-r border-sidebar-border print:hidden">
+          <Sidebar collapsible="offcanvas" className="border-r border-sidebar-border print:hidden">
             <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-1">
               <img
                 src={appliedLogo}
