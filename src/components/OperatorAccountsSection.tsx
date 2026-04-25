@@ -342,6 +342,32 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     return m;
   }, [lines]);
 
+  const fillGeneratedPassword = async (target: "create" | "single" | "all") => {
+    const next = generateStrongPassword();
+    if (target === "create") {
+      setCPassword(next);
+      setCPasswordError(null);
+      setCShowPwd(true);
+    } else if (target === "single") {
+      setRPwd(next);
+      setRPwd2(next);
+      setRPasswordError(null);
+      setRShow(true);
+    } else {
+      setAPwd(next);
+      setAPwd2(next);
+      setAPasswordError(null);
+      setAShow(true);
+    }
+
+    try {
+      await navigator.clipboard.writeText(next);
+      toast({ title: "Strong password generated", description: "Copied to clipboard." });
+    } catch {
+      toast({ title: "Strong password generated", description: "Copy it before closing this dialog." });
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
