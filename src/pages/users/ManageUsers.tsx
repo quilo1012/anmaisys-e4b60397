@@ -17,7 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
-import { checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
+import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -140,7 +140,7 @@ export default function ManageUsers() {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    const strength = checkPasswordStrength(password);
+    const strength = await checkPasswordSecurity(password);
     if (!strength.ok) {
       setPasswordError(strength.reason ?? "Use a stronger password.");
       toast({ title: "Invalid password", description: strength.reason, variant: "destructive" });
@@ -176,9 +176,9 @@ export default function ManageUsers() {
     setEditPasswordError(null);
   };
 
-  const validatePassword = (pwd: string): string | null => {
+  const validatePassword = async (pwd: string): Promise<string | null> => {
     if (pwd.length > 128) return "Password must be at most 128 characters long.";
-    const strength = checkPasswordStrength(pwd);
+    const strength = await checkPasswordSecurity(pwd);
     return strength.ok ? null : strength.reason ?? "Use a stronger password.";
   };
 
@@ -187,7 +187,7 @@ export default function ManageUsers() {
 
     const trimmedPassword = editPassword.trim();
     if (trimmedPassword) {
-      const pwdError = validatePassword(trimmedPassword);
+      const pwdError = await validatePassword(trimmedPassword);
       if (pwdError) {
         setEditPasswordError(pwdError);
         toast({ title: "Invalid password", description: pwdError, variant: "destructive" });
