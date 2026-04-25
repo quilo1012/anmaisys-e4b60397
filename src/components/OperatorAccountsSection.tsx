@@ -42,6 +42,7 @@ import {
   Eye,
   EyeOff,
   ShieldAlert,
+  Wand2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLines } from "@/hooks/useMachines";
