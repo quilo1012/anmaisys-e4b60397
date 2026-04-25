@@ -49,6 +49,7 @@ import {
   useOperatorAccounts,
   useCreateOperatorAccount,
   useUpdateOperatorAccountLines,
+  useUpdateOperatorAccountEmail,
   useResetOperatorPassword,
   type OperatorLineAccount,
 } from "@/hooks/useOperatorAccounts";
