@@ -117,7 +117,21 @@ export default function ManageUsers() {
     }
 
     console.info("[ManageUsers] fetching engineers", { currentUserId: currentUser.id, currentRole });
-    const res = await invokeFunction<Engineer[]>("list-engineers");
+
+    // Retry transient edge runtime errors (cold starts return 503 intermittently)
+    let res = await invokeFunction<Engineer[]>("list-engineers");
+    let attempts = 1;
+    while (
+      res.error &&
+      attempts < 3 &&
+      ((res.error as any)?.context?.code === "SUPABASE_EDGE_RUNTIME_ERROR" ||
+        /temporarily unavailable|503/i.test((res.error as any)?.message ?? ""))
+    ) {
+      await new Promise((r) => setTimeout(r, 600 * attempts));
+      res = await invokeFunction<Engineer[]>("list-engineers");
+      attempts++;
+    }
+
     if (res.error) {
       console.error("[ManageUsers] list-engineers failed:", res.error);
       toast({
