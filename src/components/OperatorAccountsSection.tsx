@@ -49,6 +49,7 @@ import {
   useOperatorAccounts,
   useCreateOperatorAccount,
   useUpdateOperatorAccountLines,
+  useUpdateOperatorAccountEmail,
   useResetOperatorPassword,
   type OperatorLineAccount,
 } from "@/hooks/useOperatorAccounts";
@@ -106,6 +107,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   const { data: accounts, isLoading } = useOperatorAccounts();
   const createAcc = useCreateOperatorAccount();
   const updateAcc = useUpdateOperatorAccountLines();
+  const updateEmail = useUpdateOperatorAccountEmail();
   const resetPwd = useResetOperatorPassword();
 
   // ── Create dialog ────────────────────────────────────────
@@ -183,11 +185,15 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   // ── Edit dialog ──────────────────────────────────────────
   const [editing, setEditing] = useState<OperatorLineAccount | null>(null);
   const [eLabel, setELabel] = useState("");
+  const [eEmail, setEEmail] = useState("");
+  const [eEmailError, setEEmailError] = useState<string | null>(null);
   const [eLineSet, setELineSet] = useState<Set<string>>(new Set());
 
   const openEdit = (acc: OperatorLineAccount) => {
     setEditing(acc);
     setELabel(acc.label);
+    setEEmail(acc.email);
+    setEEmailError(null);
     setELineSet(new Set(acc.line_ids));
   };
 
@@ -201,24 +207,39 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
 
   const handleSaveEdit = async () => {
     if (!editing) return;
-    if (!eLabel.trim() || eLineSet.size === 0) {
+    const trimmedEmail = eEmail.trim().toLowerCase();
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+    if (!eLabel.trim() || eLineSet.size === 0 || !trimmedEmail) {
       toast({
         title: "Missing info",
-        description: "Label and at least one line are required.",
+        description: "Label, email and at least one line are required.",
         variant: "destructive",
       });
       return;
     }
+    if (!emailValid) {
+      setEEmailError("Enter a valid email address.");
+      toast({ title: "Invalid email", description: "Enter a valid email address.", variant: "destructive" });
+      return;
+    }
+    setEEmailError(null);
     try {
+      // 1) Update label + lines
       await updateAcc.mutateAsync({
         id: editing.id,
         label: eLabel.trim(),
         line_ids: Array.from(eLineSet),
       });
+      // 2) Update email if it changed
+      if (trimmedEmail !== editing.email.toLowerCase()) {
+        await updateEmail.mutateAsync({ id: editing.id, email: trimmedEmail });
+      }
       toast({ title: "Account updated", description: eLabel.trim() });
       setEditing(null);
     } catch (e: any) {
-      toast({ title: "Update failed", description: e.message, variant: "destructive" });
+      const msg = e?.message ?? "Update failed";
+      setEEmailError(msg);
+      toast({ title: "Update failed", description: msg, variant: "destructive" });
     }
   };
 
@@ -612,8 +633,9 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Pencil className="h-5 w-5 text-primary" /> Edit Operator Account
             </DialogTitle>
             <DialogDescription>
-              Update the label and the lines this tablet account is allowed to operate. Email is
-              fixed once the account is created.
+              Update the label, login email and the lines this tablet account is allowed to operate.
+              Changing the email will force any tablet currently logged in with the old email to log
+              in again.
             </DialogDescription>
           </DialogHeader>
 
@@ -621,9 +643,20 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
             <div className="space-y-4 py-2">
               <div className="space-y-1.5">
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Email (read-only)
+                  Login email
                 </Label>
-                <Input value={editing.email} readOnly className="font-mono text-sm" />
+                <Input
+                  type="email"
+                  value={eEmail}
+                  onChange={(e) => {
+                    setEEmail(e.target.value);
+                    setEEmailError(null);
+                  }}
+                  className="font-mono text-sm"
+                  placeholder="operator.line1@anmaisys.local"
+                  aria-invalid={!!eEmailError}
+                />
+                {eEmailError && <p className="text-xs text-destructive">{eEmailError}</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -646,8 +679,13 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
             <Button variant="outline" onClick={() => setEditing(null)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveEdit} disabled={updateAcc.isPending}>
-              {updateAcc.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            <Button
+              onClick={handleSaveEdit}
+              disabled={updateAcc.isPending || updateEmail.isPending}
+            >
+              {(updateAcc.isPending || updateEmail.isPending) && (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              )}
               Save changes
             </Button>
           </DialogFooter>
