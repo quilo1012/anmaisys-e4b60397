@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
+import { checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -43,6 +44,7 @@ export default function ManageUsers() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [role, setRole] = useState<AppRole>("operator");
   const [loading, setLoading] = useState(false);
@@ -56,6 +58,7 @@ export default function ManageUsers() {
   const [editActive, setEditActive] = useState(true);
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
+  const [editPasswordError, setEditPasswordError] = useState<string | null>(null);
   const [editLoading, setEditLoading] = useState(false);
 
   // Delete state
