@@ -42,6 +42,7 @@ const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = 
 
 export default function ManageUsers() {
   const [users, setUsers] = useState<Profile[]>([]);
+  const [activeTab, setActiveTab] = useState<"staff" | "tablets" | "engineers">("staff");
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
