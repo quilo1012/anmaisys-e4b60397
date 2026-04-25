@@ -278,6 +278,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   const [aPwd2, setAPwd2] = useState("");
   const [aConfirm, setAConfirm] = useState(false);
   const [aShow, setAShow] = useState(false);
+  const [aPasswordError, setAPasswordError] = useState<string | null>(null);
 
   const closeResetAll = () => {
     setResetAllOpen(false);
@@ -285,15 +286,18 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     setAPwd2("");
     setAConfirm(false);
     setAShow(false);
+    setAPasswordError(null);
   };
 
   const handleResetAll = async () => {
     const strength = checkPasswordStrength(aPwd);
     if (!strength.ok) {
+      setAPasswordError(strength.reason ?? "Use a stronger password.");
       toast({ title: "Weak password", description: strength.reason, variant: "destructive" });
       return;
     }
     if (aPwd !== aPwd2) {
+      setAPasswordError("Please retype the same password in both fields.");
       toast({ title: "Passwords don't match", variant: "destructive" });
       return;
     }
@@ -305,6 +309,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       });
       return;
     }
+    setAPasswordError(null);
     try {
       const res = await resetPwd.mutateAsync({ password: aPwd });
       toast({
@@ -313,6 +318,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       });
       closeResetAll();
     } catch (e: any) {
+      setAPasswordError(describePasswordError(e?.message));
       toast({
         title: "Reset failed",
         description: describePasswordError(e?.message),
