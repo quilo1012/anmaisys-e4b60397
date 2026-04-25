@@ -387,8 +387,7 @@ export default function ManageUsers() {
           </Button>
         </div>
 
-        {activeTab === "staff" && (
-          <div className="space-y-4">
+        <div className={activeTab === "staff" ? "space-y-4" : "hidden"}>
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Staff Members</h2>
