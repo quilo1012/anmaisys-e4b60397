@@ -441,6 +441,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     });
   };
 
+  return (
     <Card>
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
