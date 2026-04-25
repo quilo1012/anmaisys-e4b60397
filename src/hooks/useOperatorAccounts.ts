@@ -52,6 +52,19 @@ export function useUpdateOperatorAccountLines() {
   });
 }
 
+export function useUpdateOperatorAccountEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; email: string }) => {
+      const { data, error } = await invokeFunction("update-operator-email", input);
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as { success: true; email: string };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["operator_line_accounts"] }),
+  });
+}
+
 export function useResetOperatorPassword() {
   return useMutation({
     mutationFn: async (input: { password: string; user_id?: string }) => {
