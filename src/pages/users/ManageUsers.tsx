@@ -631,7 +631,6 @@ export default function ManageUsers() {
           </CardContent>
         </Card>
           </div>
-        )}
 
         {/* Edit User Dialog */}
         <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
