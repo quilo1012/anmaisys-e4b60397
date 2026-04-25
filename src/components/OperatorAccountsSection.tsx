@@ -711,8 +711,12 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Input
                 type={rShow ? "text" : "password"}
                 value={rPwd2}
-                onChange={(e) => setRPwd2(e.target.value)}
+                onChange={(e) => {
+                  setRPwd2(e.target.value);
+                  setRPasswordError(null);
+                }}
                 placeholder="Retype password"
+                aria-invalid={!!rPasswordError}
               />
             </div>
           </div>
@@ -748,12 +752,26 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
                 New password
               </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fillGeneratedPassword("all")}
+                className="w-full justify-start"
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                Generate strong password
+              </Button>
               <div className="flex items-center gap-2">
                 <Input
                   type={aShow ? "text" : "password"}
                   value={aPwd}
-                  onChange={(e) => setAPwd(e.target.value)}
+                  onChange={(e) => {
+                    setAPwd(e.target.value);
+                    setAPasswordError(null);
+                  }}
                   placeholder="At least 8 chars, not a common word"
+                  aria-invalid={!!aPasswordError}
                 />
                 <Button
                   type="button"
@@ -764,6 +782,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   {aShow ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
+              {aPasswordError && <p className="text-xs text-destructive">{aPasswordError}</p>}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -772,8 +791,12 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Input
                 type={aShow ? "text" : "password"}
                 value={aPwd2}
-                onChange={(e) => setAPwd2(e.target.value)}
+                onChange={(e) => {
+                  setAPwd2(e.target.value);
+                  setAPasswordError(null);
+                }}
                 placeholder="Retype password"
+                aria-invalid={!!aPasswordError}
               />
             </div>
             <Label className="flex items-start gap-2 cursor-pointer rounded-md border bg-muted/20 p-3">
