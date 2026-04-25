@@ -352,7 +352,24 @@ export default function ManageUsers() {
               <form onSubmit={handleCreateUser} className="space-y-4" autoComplete="off">
                 <div className="space-y-2"><Label>Full Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
                 <div className="space-y-2"><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
-                <div className="space-y-2"><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required /></div>
+                <div className="space-y-2">
+                  <Label>Password</Label>
+                  <Button type="button" variant="outline" size="sm" className="w-full justify-start" onClick={() => fillGeneratedUserPassword("create")}>
+                    <KeyRound className="h-4 w-4 mr-2" />Generate strong password
+                  </Button>
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setPasswordError(null);
+                    }}
+                    minLength={8}
+                    required
+                    aria-invalid={!!passwordError}
+                  />
+                  {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
+                </div>
                 <div className="space-y-2">
                   <Label>Role</Label>
                    <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
@@ -568,7 +585,22 @@ export default function ManageUsers() {
               <div className="space-y-2"><Label>Email</Label><Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} /></div>
               <div className="space-y-2">
                 <Label>New Password</Label>
-                <Input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="Leave blank to keep current" minLength={6} maxLength={128} />
+                <Button type="button" variant="outline" size="sm" className="w-full justify-start" onClick={() => fillGeneratedUserPassword("edit")}>
+                  <KeyRound className="h-4 w-4 mr-2" />Generate strong password
+                </Button>
+                <Input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => {
+                    setEditPassword(e.target.value);
+                    setEditPasswordError(null);
+                  }}
+                  placeholder="Leave blank to keep current"
+                  minLength={8}
+                  maxLength={128}
+                  aria-invalid={!!editPasswordError}
+                />
+                {editPasswordError && <p className="text-xs text-destructive">{editPasswordError}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>
