@@ -390,7 +390,57 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     }
   };
 
-  return (
+  // ── Auto-create missing tablets (one per line) ───────────
+  const DEFAULT_TABLET_PASSWORD = "Tablet@AN2026!";
+  const [autoOpen, setAutoOpen] = useState(false);
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [autoResults, setAutoResults] = useState<
+    { line_name: string; email: string; status: "created" | "skipped" | "failed"; reason?: string }[]
+  >([]);
+
+  const linesWithoutTablet = useMemo(() => {
+    if (!lines || !accounts) return [];
+    const covered = new Set<string>();
+    accounts.forEach((a) => a.line_ids.forEach((id) => covered.add(id)));
+    return lines.filter((l) => !covered.has(l.id));
+  }, [lines, accounts]);
+
+  const handleAutoCreate = async () => {
+    if (linesWithoutTablet.length === 0) return;
+    setAutoRunning(true);
+    setAutoResults([]);
+    const results: typeof autoResults = [];
+
+    for (const line of linesWithoutTablet) {
+      const email = buildEmailFromLabel(line.name);
+      try {
+        await createAcc.mutateAsync({
+          email,
+          password: DEFAULT_TABLET_PASSWORD,
+          label: line.name,
+          line_ids: [line.id],
+        });
+        results.push({ line_name: line.name, email, status: "created" });
+      } catch (e: any) {
+        const msg = describePasswordError(e?.message ?? "Unknown error");
+        const skipped = /already|exists|duplicate/i.test(msg);
+        results.push({
+          line_name: line.name,
+          email,
+          status: skipped ? "skipped" : "failed",
+          reason: msg,
+        });
+      }
+      setAutoResults([...results]);
+    }
+    setAutoRunning(false);
+    const created = results.filter((r) => r.status === "created").length;
+    toast({
+      title: "Auto-create finished",
+      description: `${created}/${results.length} tablet account(s) created.`,
+    });
+  };
+
     <Card>
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
