@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
+import { checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -43,6 +44,7 @@ export default function ManageUsers() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [role, setRole] = useState<AppRole>("operator");
   const [loading, setLoading] = useState(false);
@@ -56,6 +58,7 @@ export default function ManageUsers() {
   const [editActive, setEditActive] = useState(true);
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
+  const [editPasswordError, setEditPasswordError] = useState<string | null>(null);
   const [editLoading, setEditLoading] = useState(false);
 
   // Delete state
@@ -137,6 +140,13 @@ export default function ManageUsers() {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    const strength = checkPasswordStrength(password);
+    if (!strength.ok) {
+      setPasswordError(strength.reason ?? "Use a stronger password.");
+      toast({ title: "Invalid password", description: strength.reason, variant: "destructive" });
+      return;
+    }
+    setPasswordError(null);
     setLoading(true);
     try {
       const res = await invokeFunction("create-user", { email: email.trim().toLowerCase(), password, name: name.trim(), role });
@@ -145,10 +155,12 @@ export default function ManageUsers() {
       toast({ title: "User created", description: `${name} has been added as ${roleLabels[role]}` });
       logAuditEvent("user_created", "user", undefined, { name: name.trim(), email: email.trim().toLowerCase(), role });
       setOpen(false);
-      setEmail(""); setPassword(""); setName(""); setRole("operator");
+      setEmail(""); setPassword(""); setPasswordError(null); setName(""); setRole("operator");
       await Promise.all([fetchUsers(), fetchEngineers()]);
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      const message = describePasswordError(error.message);
+      setPasswordError(message);
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -161,12 +173,13 @@ export default function ManageUsers() {
     setEditActive(u.active);
     setEditEmail(u.email);
     setEditPassword("");
+    setEditPasswordError(null);
   };
 
   const validatePassword = (pwd: string): string | null => {
-    if (pwd.length < 6) return "Password must be at least 6 characters long.";
     if (pwd.length > 128) return "Password must be at most 128 characters long.";
-    return null;
+    const strength = checkPasswordStrength(pwd);
+    return strength.ok ? null : strength.reason ?? "Use a stronger password.";
   };
 
   const handleEditUser = async () => {
@@ -176,10 +189,12 @@ export default function ManageUsers() {
     if (trimmedPassword) {
       const pwdError = validatePassword(trimmedPassword);
       if (pwdError) {
+        setEditPasswordError(pwdError);
         toast({ title: "Invalid password", description: pwdError, variant: "destructive" });
         return;
       }
     }
+    setEditPasswordError(null);
 
     setEditLoading(true);
     try {
@@ -205,9 +220,28 @@ export default function ManageUsers() {
       setEditUser(null);
       await Promise.all([fetchUsers(), fetchEngineers()]);
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      const message = describePasswordError(error.message);
+      setEditPasswordError(message);
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const fillGeneratedUserPassword = async (target: "create" | "edit") => {
+    const next = generateStrongPassword();
+    if (target === "create") {
+      setPassword(next);
+      setPasswordError(null);
+    } else {
+      setEditPassword(next);
+      setEditPasswordError(null);
+    }
+    try {
+      await navigator.clipboard.writeText(next);
+      toast({ title: "Strong password generated", description: "Copied to clipboard." });
+    } catch {
+      toast({ title: "Strong password generated", description: "Copy it before closing this dialog." });
     }
   };
 
@@ -318,7 +352,24 @@ export default function ManageUsers() {
               <form onSubmit={handleCreateUser} className="space-y-4" autoComplete="off">
                 <div className="space-y-2"><Label>Full Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
                 <div className="space-y-2"><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
-                <div className="space-y-2"><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required /></div>
+                <div className="space-y-2">
+                  <Label>Password</Label>
+                  <Button type="button" variant="outline" size="sm" className="w-full justify-start" onClick={() => fillGeneratedUserPassword("create")}>
+                    <KeyRound className="h-4 w-4 mr-2" />Generate strong password
+                  </Button>
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setPasswordError(null);
+                    }}
+                    minLength={8}
+                    required
+                    aria-invalid={!!passwordError}
+                  />
+                  {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
+                </div>
                 <div className="space-y-2">
                   <Label>Role</Label>
                    <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
@@ -534,7 +585,22 @@ export default function ManageUsers() {
               <div className="space-y-2"><Label>Email</Label><Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} /></div>
               <div className="space-y-2">
                 <Label>New Password</Label>
-                <Input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="Leave blank to keep current" minLength={6} maxLength={128} />
+                <Button type="button" variant="outline" size="sm" className="w-full justify-start" onClick={() => fillGeneratedUserPassword("edit")}>
+                  <KeyRound className="h-4 w-4 mr-2" />Generate strong password
+                </Button>
+                <Input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => {
+                    setEditPassword(e.target.value);
+                    setEditPasswordError(null);
+                  }}
+                  placeholder="Leave blank to keep current"
+                  minLength={8}
+                  maxLength={128}
+                  aria-invalid={!!editPasswordError}
+                />
+                {editPasswordError && <p className="text-xs text-destructive">{editPasswordError}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>

@@ -53,7 +53,7 @@ import {
   type OperatorLineAccount,
 } from "@/hooks/useOperatorAccounts";
 import { format } from "date-fns";
-import { checkPasswordStrength, describePasswordError } from "@/lib/passwordPolicy";
+import { checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 
 const EMAIL_DOMAIN = "@anmaisys.local";
 
@@ -116,6 +116,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   const [cPassword, setCPassword] = useState("");
   const [cShowPwd, setCShowPwd] = useState(false);
   const [cLineSet, setCLineSet] = useState<Set<string>>(new Set());
+  const [cPasswordError, setCPasswordError] = useState<string | null>(null);
 
   const resetCreateForm = () => {
     setCLabel("");
@@ -123,6 +124,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     setCEmailManuallyEdited(false);
     setCPassword("");
     setCShowPwd(false);
+    setCPasswordError(null);
     setCLineSet(new Set());
   };
 
@@ -150,9 +152,11 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     }
     const strength = checkPasswordStrength(cPassword);
     if (!strength.ok) {
+      setCPasswordError(strength.reason ?? "Use a stronger password.");
       toast({ title: "Weak password", description: strength.reason, variant: "destructive" });
       return;
     }
+    setCPasswordError(null);
     try {
       await createAcc.mutateAsync({
         email: cEmail.trim(),
@@ -167,6 +171,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       resetCreateForm();
       setCreateOpen(false);
     } catch (e: any) {
+      setCPasswordError(describePasswordError(e?.message));
       toast({
         title: "Create failed",
         description: describePasswordError(e?.message),
@@ -222,22 +227,26 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   const [rPwd, setRPwd] = useState("");
   const [rPwd2, setRPwd2] = useState("");
   const [rShow, setRShow] = useState(false);
+  const [rPasswordError, setRPasswordError] = useState<string | null>(null);
 
   const closeReset = () => {
     setResetTarget(null);
     setRPwd("");
     setRPwd2("");
     setRShow(false);
+    setRPasswordError(null);
   };
 
   const handleResetSingle = async () => {
     if (!resetTarget) return;
     const strength = checkPasswordStrength(rPwd);
     if (!strength.ok) {
+      setRPasswordError(strength.reason ?? "Use a stronger password.");
       toast({ title: "Weak password", description: strength.reason, variant: "destructive" });
       return;
     }
     if (rPwd !== rPwd2) {
+      setRPasswordError("Please retype the same password in both fields.");
       toast({
         title: "Passwords don't match",
         description: "Please retype the same password in both fields.",
@@ -245,6 +254,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       });
       return;
     }
+    setRPasswordError(null);
     try {
       const res = await resetPwd.mutateAsync({ password: rPwd, user_id: resetTarget.user_id });
       toast({
@@ -253,6 +263,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       });
       closeReset();
     } catch (e: any) {
+      setRPasswordError(describePasswordError(e?.message));
       toast({
         title: "Reset failed",
         description: describePasswordError(e?.message),
@@ -267,6 +278,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   const [aPwd2, setAPwd2] = useState("");
   const [aConfirm, setAConfirm] = useState(false);
   const [aShow, setAShow] = useState(false);
+  const [aPasswordError, setAPasswordError] = useState<string | null>(null);
 
   const closeResetAll = () => {
     setResetAllOpen(false);
@@ -274,15 +286,18 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     setAPwd2("");
     setAConfirm(false);
     setAShow(false);
+    setAPasswordError(null);
   };
 
   const handleResetAll = async () => {
     const strength = checkPasswordStrength(aPwd);
     if (!strength.ok) {
+      setAPasswordError(strength.reason ?? "Use a stronger password.");
       toast({ title: "Weak password", description: strength.reason, variant: "destructive" });
       return;
     }
     if (aPwd !== aPwd2) {
+      setAPasswordError("Please retype the same password in both fields.");
       toast({ title: "Passwords don't match", variant: "destructive" });
       return;
     }
@@ -294,6 +309,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       });
       return;
     }
+    setAPasswordError(null);
     try {
       const res = await resetPwd.mutateAsync({ password: aPwd });
       toast({
@@ -302,6 +318,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       });
       closeResetAll();
     } catch (e: any) {
+      setAPasswordError(describePasswordError(e?.message));
       toast({
         title: "Reset failed",
         description: describePasswordError(e?.message),
@@ -324,6 +341,32 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     lines?.forEach((l) => m.set(l.id, l.name));
     return m;
   }, [lines]);
+
+  const fillGeneratedPassword = async (target: "create" | "single" | "all") => {
+    const next = generateStrongPassword();
+    if (target === "create") {
+      setCPassword(next);
+      setCPasswordError(null);
+      setCShowPwd(true);
+    } else if (target === "single") {
+      setRPwd(next);
+      setRPwd2(next);
+      setRPasswordError(null);
+      setRShow(true);
+    } else {
+      setAPwd(next);
+      setAPwd2(next);
+      setAPasswordError(null);
+      setAShow(true);
+    }
+
+    try {
+      await navigator.clipboard.writeText(next);
+      toast({ title: "Strong password generated", description: "Copied to clipboard." });
+    } catch {
+      toast({ title: "Strong password generated", description: "Copy it before closing this dialog." });
+    }
+  };
 
   return (
     <Card>
@@ -498,12 +541,26 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
                 Password
               </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fillGeneratedPassword("create")}
+                className="w-full justify-start"
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                Generate strong password
+              </Button>
               <div className="flex items-center gap-2">
                 <Input
                   type={cShowPwd ? "text" : "password"}
                   placeholder="At least 8 chars, not a common word"
                   value={cPassword}
-                  onChange={(e) => setCPassword(e.target.value)}
+                  onChange={(e) => {
+                    setCPassword(e.target.value);
+                    setCPasswordError(null);
+                  }}
+                  aria-invalid={!!cPasswordError}
                 />
                 <Button
                   type="button"
@@ -514,8 +571,9 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   {cShowPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
+              {cPasswordError && <p className="text-xs text-destructive">{cPasswordError}</p>}
               <p className="text-xs text-muted-foreground">
-                Tip: use the same password for all operator accounts to simplify tablet setup.
+                Avoid common words like line1, tablet5a, operator123 or reused passwords.
               </p>
             </div>
 
@@ -614,12 +672,26 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
                 New password
               </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fillGeneratedPassword("single")}
+                className="w-full justify-start"
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                Generate strong password
+              </Button>
               <div className="flex items-center gap-2">
                 <Input
                   type={rShow ? "text" : "password"}
                   value={rPwd}
-                  onChange={(e) => setRPwd(e.target.value)}
+                  onChange={(e) => {
+                    setRPwd(e.target.value);
+                    setRPasswordError(null);
+                  }}
                   placeholder="At least 8 chars, not a common word"
+                  aria-invalid={!!rPasswordError}
                 />
                 <Button
                   type="button"
@@ -630,6 +702,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   {rShow ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
+              {rPasswordError && <p className="text-xs text-destructive">{rPasswordError}</p>}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -638,8 +711,12 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Input
                 type={rShow ? "text" : "password"}
                 value={rPwd2}
-                onChange={(e) => setRPwd2(e.target.value)}
+                onChange={(e) => {
+                  setRPwd2(e.target.value);
+                  setRPasswordError(null);
+                }}
                 placeholder="Retype password"
+                aria-invalid={!!rPasswordError}
               />
             </div>
           </div>
@@ -675,12 +752,26 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
                 New password
               </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fillGeneratedPassword("all")}
+                className="w-full justify-start"
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                Generate strong password
+              </Button>
               <div className="flex items-center gap-2">
                 <Input
                   type={aShow ? "text" : "password"}
                   value={aPwd}
-                  onChange={(e) => setAPwd(e.target.value)}
+                  onChange={(e) => {
+                    setAPwd(e.target.value);
+                    setAPasswordError(null);
+                  }}
                   placeholder="At least 8 chars, not a common word"
+                  aria-invalid={!!aPasswordError}
                 />
                 <Button
                   type="button"
@@ -691,6 +782,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   {aShow ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
+              {aPasswordError && <p className="text-xs text-destructive">{aPasswordError}</p>}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -699,8 +791,12 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Input
                 type={aShow ? "text" : "password"}
                 value={aPwd2}
-                onChange={(e) => setAPwd2(e.target.value)}
+                onChange={(e) => {
+                  setAPwd2(e.target.value);
+                  setAPasswordError(null);
+                }}
                 placeholder="Retype password"
+                aria-invalid={!!aPasswordError}
               />
             </div>
             <Label className="flex items-start gap-2 cursor-pointer rounded-md border bg-muted/20 p-3">
