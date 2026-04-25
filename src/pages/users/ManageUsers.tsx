@@ -500,8 +500,15 @@ export default function ManageUsers() {
             </Table>
           </CardContent>
         </Card>
+          </TabsContent>
 
-        {/* ===== ENGINEERS (PIN IDENTITIES) SECTION ===== */}
+          {/* ===== TABLET STATIONS TAB ===== */}
+          <TabsContent value="tablets" className="space-y-4">
+            <OperatorAccountsSection isAdmin={currentRole === "admin"} />
+          </TabsContent>
+
+          {/* ===== ENGINEERS (PIN IDENTITIES) TAB ===== */}
+          <TabsContent value="engineers" className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Engineers (PIN Identity)</h2>
