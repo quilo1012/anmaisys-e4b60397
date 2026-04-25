@@ -659,9 +659,6 @@ export default function ManageUsers() {
           </DialogContent>
         </Dialog>
 
-        {/* ===== TABLET / OPERATOR ACCOUNTS SECTION ===== */}
-        <OperatorAccountsSection isAdmin={currentRole === "admin"} />
-
         {/* Edit Engineer Dialog */}
         <Dialog open={!!editEng} onOpenChange={(open) => !open && setEditEng(null)}>
           <DialogContent>
