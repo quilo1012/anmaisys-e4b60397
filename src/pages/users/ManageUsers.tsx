@@ -529,16 +529,12 @@ export default function ManageUsers() {
           </CardContent>
         </Card>
           </div>
-        )}
 
-        {activeTab === "tablets" && (
-          <div className="space-y-4">
-            <OperatorAccountsSection isAdmin={currentRole === "admin"} />
-          </div>
-        )}
+        <div className={activeTab === "tablets" ? "space-y-4" : "hidden"}>
+          <OperatorAccountsSection isAdmin={currentRole === "admin"} />
+        </div>
 
-        {activeTab === "engineers" && (
-          <div className="space-y-4">
+        <div className={activeTab === "engineers" ? "space-y-4" : "hidden"}>
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Engineers (PIN Identity)</h2>
