@@ -1,84 +1,48 @@
-# Plan
+## Problema
 
-## What I found
-There are two different errors being mixed together:
+Hoje a página `/users/manage` tem dois cards que parecem mostrar a mesma coisa:
 
-1. Operator password create/reset is failing because leaked-password protection is active in the backend, so weak/reused passwords are rejected.
-2. Work order creation for operators is still blocked by database rules that require the request to match `current_device_line_ids()`, which depends on the `x-device-token` header. The current app no longer sends that header and instead uses `operator_line_accounts` + logged-in user mapping.
+- **Login Accounts** → mostra `Name + Email + Role` (admins, managers, engenheiros)
+- **Operator Accounts** → mostra `Label + Email + Lines` (tablets)
 
-That is why it feels like “the same error all the time”: one issue is password policy, the other is work order authorization.
+O **Email** aparece nos dois lugares, com formatos diferentes (real vs. `operator.tablet-5a@anmaisys.local`), o que confunde sobre "qual é o email de quem".
 
-## Implementation steps
+## Mudanças propostas
 
-### 1. Fix operator account password UX
-Update `src/components/OperatorAccountsSection.tsx` to prevent obvious bad passwords before submit:
-- add clear password guidance in create/reset dialogs
-- block common weak formats before calling the backend
-- show backend rejection text directly when the backend rejects a leaked password
+### 1. Renomear os títulos para deixar o propósito claro
 
-This keeps the security protection on, but stops the admin flow from feeling random.
+**`src/pages/users/ManageUsers.tsx`** (linhas ~343-344 e ~394)
+- `User Management` → **`Staff Members`**
+- subtítulo `Create and manage login accounts` → **`Admins, managers and engineers — people who log in with their personal email`**
+- Card title `Login Accounts` → **`Staff Members`**
 
-### 2. Fix operator work-order creation to match the current identity model
-Update the database access logic so operator work-order INSERT does not rely on device-header pairing that the app no longer uses.
+**`src/components/OperatorAccountsSection.tsx`** (linhas ~377-382)
+- Card title `Operator Accounts` → **`Tablet Stations`**
+- Description → **`One station per tablet (or tablet group). Each station covers one or more production lines and shares the same login across shifts.`**
 
-Preferred fix:
-- add a new `INSERT` policy for `work_orders` that allows operators to create when:
-  - `operator_id = auth.uid()`
-  - the chosen `line_id` is inside that user’s `operator_line_accounts.line_ids`
-- remove the old operator INSERT policy that depends on `current_device_line_ids()` for creation
+### 2. Esconder a coluna Email em Tablet Stations
 
-This matches the current app flow:
-```text
-operator login -> operator_line_accounts row -> allowed line_ids -> selected line -> create WO
-```
+Em `OperatorAccountsSection.tsx` (linhas ~417-446):
+- Remover a coluna **`Email`** do `<TableHeader>` e do `<TableBody>` da tabela.
+- Manter o botão **`Copy email`** em Actions (já existe) para quando admin/manager precisar do email para suporte.
+- Adicionar tooltip no botão Copy: `"Copy login email (used by the tablet)"`.
 
-### 3. Keep operator read scoping consistent
-Review `SELECT` scoping for operator work orders so it also aligns with account-based line permissions, not only device-token headers.
+Resultado: a tabela passa a mostrar **`Label | Lines covered | Created | Actions`** — focada na função operacional (qual tablet cobre quais linhas), sem expor o email técnico que ninguém digita.
 
-If needed, adjust operator `SELECT` policies to allow:
-- own work orders
-- work orders on lines assigned to the logged-in operator account
+### 3. Pequena dica visual no card Tablet Stations
 
-This avoids future mismatches where create works but list/read fails.
+Logo abaixo do `<CardDescription>`, adicionar um aviso discreto:
+> *"Operators don't type an email — they pick their tablet from a dropdown on the login screen."*
 
-### 4. Fix the Requested By field at the same time
-Update `src/pages/dashboard/OperatorDashboard.tsx` so `Requested By` starts empty and remains manually editable, using the existing combobox/suggestion pattern instead of the rigid select.
+Isso reforça que o "email" do tablet é interno e não precisa estar visível na lista.
 
-This restores the intended operator workflow and removes the autofill-like behavior.
+### 4. (Sem mudanças no backend / RLS / migrations)
 
-### 5. Apply the approved Blender cleanup
-Create a database migration that:
-- rewrites historical `work_orders.line_at_time` containing “Blender” to `Removed`
-- deletes Blender-related lines
-- deletes or detaches Blender-linked machines safely according to existing references
+A coluna `email` continua existindo na tabela `operator_line_accounts` (necessária para o Supabase Auth) e continua sendo retornada pelo hook `useOperatorAccounts` — só não é mais renderizada como coluna na tabela. Login do tablet continua funcionando normalmente.
 
-I will verify references before finalizing the migration so it does not break foreign-key or app assumptions.
+## Arquivos editados
 
-### 6. Validate end-to-end
-After implementation, test these flows:
-- create operator account with a strong password
-- reset one operator password with a strong password
-- log in as operator
-- create a work order on an allowed line
-- confirm the new work order appears in the operator list
+- `src/pages/users/ManageUsers.tsx` — renomear título, subtítulo e título do card
+- `src/components/OperatorAccountsSection.tsx` — renomear card, esconder coluna Email, adicionar dica
 
-## Files likely involved
-- `src/components/OperatorAccountsSection.tsx`
-- `src/pages/dashboard/OperatorDashboard.tsx`
-- `src/hooks/useWorkOrders.ts` (only if small client-side error handling needs improvement)
-- new database migration for `work_orders` operator RLS and Blender cleanup
-
-## Technical details
-- Current `work_orders` INSERT policy is: `operator_id = auth.uid() AND line_id = ANY(current_device_line_ids())`
-- `current_device_line_ids()` reads from `request.headers -> x-device-token`
-- the frontend client does not send `x-device-token`
-- `OperatorLineGuard` now derives allowed lines from `operator_line_accounts`, not device tokens
-- leaked-password protection is documented backend behavior and should remain enabled per your decision to keep strong password protection
-
-## Outcome
-After this change:
-- strong operator passwords will save reliably
-- weak/leaked passwords will fail with a clearer reason
-- operator work orders will stop failing because authorization will match the real login model
-- the `Requested By` field will stop coming prefilled incorrectly
-- Blender entries will be removed as requested
+Nenhuma migration, nenhum edge function, nenhuma quebra de login.
