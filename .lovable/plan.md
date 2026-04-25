@@ -1,48 +1,58 @@
-## Problema
+## Objetivo
+1. Eliminar o conflito visual entre **Staff Members** e **Tablet Stations** (atualmente são duas seções separadas que confundem).
+2. Criar automaticamente uma conta de tablet para cada linha de produção que ainda não tem.
 
-Hoje a página `/users/manage` tem dois cards que parecem mostrar a mesma coisa:
+---
 
-- **Login Accounts** → mostra `Name + Email + Role` (admins, managers, engenheiros)
-- **Operator Accounts** → mostra `Label + Email + Lines` (tablets)
+## Parte 1 — Unificar a página de gestão (`/users/manage`)
 
-O **Email** aparece nos dois lugares, com formatos diferentes (real vs. `operator.tablet-5a@anmaisys.local`), o que confunde sobre "qual é o email de quem".
+Em vez de duas seções separadas, a página passa a ter **uma única tabela "Accounts"** com filtro por tipo:
 
-## Mudanças propostas
+- **Toggle/Tabs no topo**: `[ All ] [ Staff ] [ Tablet Stations ]`
+- Coluna **Type** com badge colorido:
+  - 🟣 **Staff** (Admin, Manager, Engineer) — login por email pessoal
+  - 🔵 **Tablet** (Operator) — login por dropdown de estação
+- Botões de ação contextual:
+  - "+ Add Staff Member" → abre dialog atual de criação de usuário staff
+  - "+ Add Tablet Station" → abre dialog atual de criação de tablet
+- Comportamento mantido: edição, reset de senha, exclusão funcionam igual; só muda o agrupamento visual.
 
-### 1. Renomear os títulos para deixar o propósito claro
+Arquivos afetados:
+- `src/pages/users/ManageUsers.tsx` — refator para tabs + tabela unificada
+- `src/components/OperatorAccountsSection.tsx` — converter de seção autônoma para sub-componente reutilizável (lógica de criação/edição/reset preservada)
 
-**`src/pages/users/ManageUsers.tsx`** (linhas ~343-344 e ~394)
-- `User Management` → **`Staff Members`**
-- subtítulo `Create and manage login accounts` → **`Admins, managers and engineers — people who log in with their personal email`**
-- Card title `Login Accounts` → **`Staff Members`**
+Resultado: uma única tela coerente, sem duplicação de UI.
 
-**`src/components/OperatorAccountsSection.tsx`** (linhas ~377-382)
-- Card title `Operator Accounts` → **`Tablet Stations`**
-- Description → **`One station per tablet (or tablet group). Each station covers one or more production lines and shares the same login across shifts.`**
+---
 
-### 2. Esconder a coluna Email em Tablet Stations
+## Parte 2 — Criar tablets automaticamente para todas as linhas
 
-Em `OperatorAccountsSection.tsx` (linhas ~417-446):
-- Remover a coluna **`Email`** do `<TableHeader>` e do `<TableBody>` da tabela.
-- Manter o botão **`Copy email`** em Actions (já existe) para quando admin/manager precisar do email para suporte.
-- Adicionar tooltip no botão Copy: `"Copy login email (used by the tablet)"`.
+Hoje só existem 2 contas (`LINE 1` e `Tablet 5A+5B`). As 7 linhas sem tablet são:
 
-Resultado: a tabela passa a mostrar **`Label | Lines covered | Created | Actions`** — focada na função operacional (qual tablet cobre quais linhas), sem expor o email técnico que ninguém digita.
+| Linha | Email gerado |
+|---|---|
+| Line 2 | `operator.line2@anmaisys.local` |
+| Line 3 | `operator.line3@anmaisys.local` |
+| Line 4 | `operator.line4@anmaisys.local` |
+| Line 5 | `operator.line5@anmaisys.local` |
+| Line 6 | `operator.line6@anmaisys.local` |
+| Capsules & Tablets | `operator.capsules-tablets@anmaisys.local` |
+| Gel Line | `operator.gel-line@anmaisys.local` |
+| Sealer and Printer INK | *(já está vinculada a LINE 1 e Tablet 5A+5B — pular)* |
 
-### 3. Pequena dica visual no card Tablet Stations
+**Senha inicial padrão** para todas: `Tablet@AN2026!`
+(forte, passa no HIBP check, é a mesma para facilitar a configuração inicial; admin pode trocar individualmente em seguida)
 
-Logo abaixo do `<CardDescription>`, adicionar um aviso discreto:
-> *"Operators don't type an email — they pick their tablet from a dropdown on the login screen."*
+**Como será feito:**
+- Reutilizar a Edge Function existente `create-operator-account` (já valida, cria auth user, perfil, role operator e registro em `operator_line_accounts`).
+- Disparar uma chamada por linha a partir de um botão **"Auto-create missing tablets"** no topo da nova aba **Tablet Stations**.
+- Após criação, exibir tabela com email + senha temporária para você anotar e configurar nos tablets físicos.
 
-Isso reforça que o "email" do tablet é interno e não precisa estar visível na lista.
+---
 
-### 4. (Sem mudanças no backend / RLS / migrations)
+## Confirme antes de prosseguir
+- ✅ Senha padrão `Tablet@AN2026!` para todas, com troca posterior individual?
+- ✅ Pular `Sealer and Printer INK` (já coberta por outras contas)?
+- ✅ Unificar as duas seções em uma única tabela com tabs?
 
-A coluna `email` continua existindo na tabela `operator_line_accounts` (necessária para o Supabase Auth) e continua sendo retornada pelo hook `useOperatorAccounts` — só não é mais renderizada como coluna na tabela. Login do tablet continua funcionando normalmente.
-
-## Arquivos editados
-
-- `src/pages/users/ManageUsers.tsx` — renomear título, subtítulo e título do card
-- `src/components/OperatorAccountsSection.tsx` — renomear card, esconder coluna Email, adicionar dica
-
-Nenhuma migration, nenhum edge function, nenhuma quebra de login.
+Se aprovar, executo Parte 1 (refator UI) + Parte 2 (botão de auto-criação) na mesma rodada.
