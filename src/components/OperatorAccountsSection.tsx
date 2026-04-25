@@ -53,7 +53,7 @@ import {
   type OperatorLineAccount,
 } from "@/hooks/useOperatorAccounts";
 import { format } from "date-fns";
-import { checkPasswordStrength, describePasswordError } from "@/lib/passwordPolicy";
+import { checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 
 const EMAIL_DOMAIN = "@anmaisys.local";
 
@@ -116,6 +116,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   const [cPassword, setCPassword] = useState("");
   const [cShowPwd, setCShowPwd] = useState(false);
   const [cLineSet, setCLineSet] = useState<Set<string>>(new Set());
+  const [cPasswordError, setCPasswordError] = useState<string | null>(null);
 
   const resetCreateForm = () => {
     setCLabel("");
@@ -123,6 +124,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     setCEmailManuallyEdited(false);
     setCPassword("");
     setCShowPwd(false);
+    setCPasswordError(null);
     setCLineSet(new Set());
   };
 
@@ -150,9 +152,11 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     }
     const strength = checkPasswordStrength(cPassword);
     if (!strength.ok) {
+      setCPasswordError(strength.reason ?? "Use a stronger password.");
       toast({ title: "Weak password", description: strength.reason, variant: "destructive" });
       return;
     }
+    setCPasswordError(null);
     try {
       await createAcc.mutateAsync({
         email: cEmail.trim(),
@@ -167,6 +171,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       resetCreateForm();
       setCreateOpen(false);
     } catch (e: any) {
+      setCPasswordError(describePasswordError(e?.message));
       toast({
         title: "Create failed",
         description: describePasswordError(e?.message),
@@ -222,22 +227,26 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   const [rPwd, setRPwd] = useState("");
   const [rPwd2, setRPwd2] = useState("");
   const [rShow, setRShow] = useState(false);
+  const [rPasswordError, setRPasswordError] = useState<string | null>(null);
 
   const closeReset = () => {
     setResetTarget(null);
     setRPwd("");
     setRPwd2("");
     setRShow(false);
+    setRPasswordError(null);
   };
 
   const handleResetSingle = async () => {
     if (!resetTarget) return;
     const strength = checkPasswordStrength(rPwd);
     if (!strength.ok) {
+      setRPasswordError(strength.reason ?? "Use a stronger password.");
       toast({ title: "Weak password", description: strength.reason, variant: "destructive" });
       return;
     }
     if (rPwd !== rPwd2) {
+      setRPasswordError("Please retype the same password in both fields.");
       toast({
         title: "Passwords don't match",
         description: "Please retype the same password in both fields.",
@@ -245,6 +254,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       });
       return;
     }
+    setRPasswordError(null);
     try {
       const res = await resetPwd.mutateAsync({ password: rPwd, user_id: resetTarget.user_id });
       toast({
@@ -253,6 +263,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       });
       closeReset();
     } catch (e: any) {
+      setRPasswordError(describePasswordError(e?.message));
       toast({
         title: "Reset failed",
         description: describePasswordError(e?.message),
