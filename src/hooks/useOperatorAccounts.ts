@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeFunction } from "@/lib/invokeFunction";
 
 export interface OperatorLineAccount {
   id: string;
@@ -28,7 +29,7 @@ export function useCreateOperatorAccount() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { email: string; password: string; label: string; line_ids: string[] }) => {
-      const { data, error } = await supabase.functions.invoke("create-operator-account", { body: input });
+      const { data, error } = await invokeFunction("create-operator-account", input);
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
       return data;
@@ -54,7 +55,7 @@ export function useUpdateOperatorAccountLines() {
 export function useResetOperatorPassword() {
   return useMutation({
     mutationFn: async (input: { password: string; user_id?: string }) => {
-      const { data, error } = await supabase.functions.invoke("reset-operator-password", { body: input });
+      const { data, error } = await invokeFunction("reset-operator-password", input);
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
       return data as { success: true; updated: number; total: number };
