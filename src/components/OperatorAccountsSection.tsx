@@ -541,12 +541,26 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
                 Password
               </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fillGeneratedPassword("create")}
+                className="w-full justify-start"
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                Generate strong password
+              </Button>
               <div className="flex items-center gap-2">
                 <Input
                   type={cShowPwd ? "text" : "password"}
                   placeholder="At least 8 chars, not a common word"
                   value={cPassword}
-                  onChange={(e) => setCPassword(e.target.value)}
+                  onChange={(e) => {
+                    setCPassword(e.target.value);
+                    setCPasswordError(null);
+                  }}
+                  aria-invalid={!!cPasswordError}
                 />
                 <Button
                   type="button"
@@ -557,8 +571,9 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   {cShowPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
+              {cPasswordError && <p className="text-xs text-destructive">{cPasswordError}</p>}
               <p className="text-xs text-muted-foreground">
-                Tip: use the same password for all operator accounts to simplify tablet setup.
+                Avoid common words like line1, tablet5a, operator123 or reused passwords.
               </p>
             </div>
 
@@ -657,12 +672,26 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
                 New password
               </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fillGeneratedPassword("single")}
+                className="w-full justify-start"
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                Generate strong password
+              </Button>
               <div className="flex items-center gap-2">
                 <Input
                   type={rShow ? "text" : "password"}
                   value={rPwd}
-                  onChange={(e) => setRPwd(e.target.value)}
+                  onChange={(e) => {
+                    setRPwd(e.target.value);
+                    setRPasswordError(null);
+                  }}
                   placeholder="At least 8 chars, not a common word"
+                  aria-invalid={!!rPasswordError}
                 />
                 <Button
                   type="button"
@@ -673,6 +702,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   {rShow ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
+              {rPasswordError && <p className="text-xs text-destructive">{rPasswordError}</p>}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
