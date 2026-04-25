@@ -934,6 +934,120 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Auto-create missing tablets Dialog ───────────── */}
+      <Dialog
+        open={autoOpen}
+        onOpenChange={(o) => {
+          if (autoRunning) return;
+          setAutoOpen(o);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="h-5 w-5 text-amber-500" /> Auto-create Tablet Stations
+            </DialogTitle>
+            <DialogDescription>
+              One tablet account will be created per production line that doesn't have one yet,
+              using the same default password. Change each password individually afterwards.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <div className="font-medium mb-1">Default password (same for all):</div>
+              <code className="font-mono text-xs bg-background px-2 py-1 rounded border">
+                {DEFAULT_TABLET_PASSWORD}
+              </code>
+              <p className="text-xs text-muted-foreground mt-2">
+                Write it down — you'll need it to log in on each tablet. Then use{" "}
+                <strong>Reset password</strong> per station to change it.
+              </p>
+            </div>
+
+            {autoResults.length === 0 ? (
+              <>
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Lines without a tablet ({linesWithoutTablet.length})
+                </Label>
+                <div className="rounded-md border max-h-64 overflow-y-auto divide-y">
+                  {linesWithoutTablet.map((l) => (
+                    <div key={l.id} className="flex items-center justify-between px-3 py-2">
+                      <span className="text-sm font-medium">{l.name}</span>
+                      <code className="font-mono text-xs text-muted-foreground">
+                        {buildEmailFromLabel(l.name)}
+                      </code>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Results
+                </Label>
+                <div className="rounded-md border max-h-64 overflow-y-auto divide-y">
+                  {autoResults.map((r, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium truncate">{r.line_name}</div>
+                        <code className="font-mono text-xs text-muted-foreground truncate block">
+                          {r.email}
+                        </code>
+                        {r.reason && r.status === "failed" && (
+                          <p className="text-xs text-destructive mt-0.5">{r.reason}</p>
+                        )}
+                      </div>
+                      <Badge
+                        variant={
+                          r.status === "created"
+                            ? "default"
+                            : r.status === "skipped"
+                              ? "secondary"
+                              : "destructive"
+                        }
+                      >
+                        {r.status}
+                      </Badge>
+                    </div>
+                  ))}
+                  {autoRunning && autoResults.length < linesWithoutTablet.length && (
+                    <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Creating remaining accounts…
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAutoOpen(false)}
+              disabled={autoRunning}
+            >
+              {autoResults.length > 0 ? "Close" : "Cancel"}
+            </Button>
+            {autoResults.length === 0 && (
+              <Button
+                onClick={handleAutoCreate}
+                disabled={autoRunning || linesWithoutTablet.length === 0}
+                className="bg-amber-500 hover:bg-amber-600 text-white"
+              >
+                {autoRunning && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Create {linesWithoutTablet.length} account
+                {linesWithoutTablet.length === 1 ? "" : "s"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
