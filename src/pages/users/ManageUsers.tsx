@@ -346,21 +346,35 @@ export default function ManageUsers() {
           </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 max-w-2xl">
-            <TabsTrigger value="staff" className="gap-2">
-              <UsersIcon className="h-4 w-4" /> Staff
-            </TabsTrigger>
-            <TabsTrigger value="tablets" className="gap-2">
-              <Tablet className="h-4 w-4" /> Tablet Stations
-            </TabsTrigger>
-            <TabsTrigger value="engineers" className="gap-2">
-              <KeyRound className="h-4 w-4" /> Engineers (PIN)
-            </TabsTrigger>
-          </TabsList>
+        <div className="flex flex-wrap gap-2 border-b border-border pb-2">
+          <Button
+            type="button"
+            variant={activeTab === "staff" ? "default" : "ghost"}
+            onClick={() => setActiveTab("staff")}
+            className="gap-2"
+          >
+            <UsersIcon className="h-4 w-4" /> Staff
+          </Button>
+          <Button
+            type="button"
+            variant={activeTab === "tablets" ? "default" : "ghost"}
+            onClick={() => setActiveTab("tablets")}
+            className="gap-2"
+          >
+            <Tablet className="h-4 w-4" /> Tablet Stations
+          </Button>
+          <Button
+            type="button"
+            variant={activeTab === "engineers" ? "default" : "ghost"}
+            onClick={() => setActiveTab("engineers")}
+            className="gap-2"
+          >
+            <KeyRound className="h-4 w-4" /> Engineers (PIN)
+          </Button>
+        </div>
 
-          {/* ===== STAFF MEMBERS TAB ===== */}
-          <TabsContent value="staff" className="space-y-4">
+        {activeTab === "staff" && (
+          <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Staff Members</h2>
