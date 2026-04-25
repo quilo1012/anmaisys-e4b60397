@@ -42,6 +42,7 @@ import {
   Eye,
   EyeOff,
   ShieldAlert,
+  Wand2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLines } from "@/hooks/useMachines";
@@ -389,6 +390,57 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     }
   };
 
+  // ── Auto-create missing tablets (one per line) ───────────
+  const DEFAULT_TABLET_PASSWORD = "Tablet@AN2026!";
+  const [autoOpen, setAutoOpen] = useState(false);
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [autoResults, setAutoResults] = useState<
+    { line_name: string; email: string; status: "created" | "skipped" | "failed"; reason?: string }[]
+  >([]);
+
+  const linesWithoutTablet = useMemo(() => {
+    if (!lines || !accounts) return [];
+    const covered = new Set<string>();
+    accounts.forEach((a) => a.line_ids.forEach((id) => covered.add(id)));
+    return lines.filter((l) => !covered.has(l.id));
+  }, [lines, accounts]);
+
+  const handleAutoCreate = async () => {
+    if (linesWithoutTablet.length === 0) return;
+    setAutoRunning(true);
+    setAutoResults([]);
+    const results: typeof autoResults = [];
+
+    for (const line of linesWithoutTablet) {
+      const email = buildEmailFromLabel(line.name);
+      try {
+        await createAcc.mutateAsync({
+          email,
+          password: DEFAULT_TABLET_PASSWORD,
+          label: line.name,
+          line_ids: [line.id],
+        });
+        results.push({ line_name: line.name, email, status: "created" });
+      } catch (e: any) {
+        const msg = describePasswordError(e?.message ?? "Unknown error");
+        const skipped = /already|exists|duplicate/i.test(msg);
+        results.push({
+          line_name: line.name,
+          email,
+          status: skipped ? "skipped" : "failed",
+          reason: msg,
+        });
+      }
+      setAutoResults([...results]);
+    }
+    setAutoRunning(false);
+    const created = results.filter((r) => r.status === "created").length;
+    toast({
+      title: "Auto-create finished",
+      description: `${created}/${results.length} tablet account(s) created.`,
+    });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -406,6 +458,21 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {linesWithoutTablet.length > 0 && (
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => {
+                  setAutoResults([]);
+                  setAutoOpen(true);
+                }}
+                className="bg-amber-500 hover:bg-amber-600 text-white"
+              >
+                <Wand2 className="h-4 w-4 mr-2" />
+                Auto-create {linesWithoutTablet.length} missing tablet
+                {linesWithoutTablet.length === 1 ? "" : "s"}
+              </Button>
+            )}
             {isAdmin && accounts && accounts.length > 0 && (
               <Button
                 variant="outline"
@@ -867,6 +934,120 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Auto-create missing tablets Dialog ───────────── */}
+      <Dialog
+        open={autoOpen}
+        onOpenChange={(o) => {
+          if (autoRunning) return;
+          setAutoOpen(o);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="h-5 w-5 text-amber-500" /> Auto-create Tablet Stations
+            </DialogTitle>
+            <DialogDescription>
+              One tablet account will be created per production line that doesn't have one yet,
+              using the same default password. Change each password individually afterwards.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <div className="font-medium mb-1">Default password (same for all):</div>
+              <code className="font-mono text-xs bg-background px-2 py-1 rounded border">
+                {DEFAULT_TABLET_PASSWORD}
+              </code>
+              <p className="text-xs text-muted-foreground mt-2">
+                Write it down — you'll need it to log in on each tablet. Then use{" "}
+                <strong>Reset password</strong> per station to change it.
+              </p>
+            </div>
+
+            {autoResults.length === 0 ? (
+              <>
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Lines without a tablet ({linesWithoutTablet.length})
+                </Label>
+                <div className="rounded-md border max-h-64 overflow-y-auto divide-y">
+                  {linesWithoutTablet.map((l) => (
+                    <div key={l.id} className="flex items-center justify-between px-3 py-2">
+                      <span className="text-sm font-medium">{l.name}</span>
+                      <code className="font-mono text-xs text-muted-foreground">
+                        {buildEmailFromLabel(l.name)}
+                      </code>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Results
+                </Label>
+                <div className="rounded-md border max-h-64 overflow-y-auto divide-y">
+                  {autoResults.map((r, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium truncate">{r.line_name}</div>
+                        <code className="font-mono text-xs text-muted-foreground truncate block">
+                          {r.email}
+                        </code>
+                        {r.reason && r.status === "failed" && (
+                          <p className="text-xs text-destructive mt-0.5">{r.reason}</p>
+                        )}
+                      </div>
+                      <Badge
+                        variant={
+                          r.status === "created"
+                            ? "default"
+                            : r.status === "skipped"
+                              ? "secondary"
+                              : "destructive"
+                        }
+                      >
+                        {r.status}
+                      </Badge>
+                    </div>
+                  ))}
+                  {autoRunning && autoResults.length < linesWithoutTablet.length && (
+                    <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Creating remaining accounts…
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAutoOpen(false)}
+              disabled={autoRunning}
+            >
+              {autoResults.length > 0 ? "Close" : "Cancel"}
+            </Button>
+            {autoResults.length === 0 && (
+              <Button
+                onClick={handleAutoCreate}
+                disabled={autoRunning || linesWithoutTablet.length === 0}
+                className="bg-amber-500 hover:bg-amber-600 text-white"
+              >
+                {autoRunning && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Create {linesWithoutTablet.length} account
+                {linesWithoutTablet.length === 1 ? "" : "s"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

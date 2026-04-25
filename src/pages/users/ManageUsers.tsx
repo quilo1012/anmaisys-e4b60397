@@ -12,9 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw } from "lucide-react";
+import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Tablet, Users as UsersIcon } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
@@ -337,7 +338,28 @@ export default function ManageUsers() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* ===== STAFF MEMBERS SECTION ===== */}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage staff logins, tablet station logins, and engineer PIN identities — all in one place.
+          </p>
+        </div>
+
+        <Tabs defaultValue="staff" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 max-w-2xl">
+            <TabsTrigger value="staff" className="gap-2">
+              <UsersIcon className="h-4 w-4" /> Staff
+            </TabsTrigger>
+            <TabsTrigger value="tablets" className="gap-2">
+              <Tablet className="h-4 w-4" /> Tablet Stations
+            </TabsTrigger>
+            <TabsTrigger value="engineers" className="gap-2">
+              <KeyRound className="h-4 w-4" /> Engineers (PIN)
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ===== STAFF MEMBERS TAB ===== */}
+          <TabsContent value="staff" className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Staff Members</h2>
@@ -478,8 +500,15 @@ export default function ManageUsers() {
             </Table>
           </CardContent>
         </Card>
+          </TabsContent>
 
-        {/* ===== ENGINEERS (PIN IDENTITIES) SECTION ===== */}
+          {/* ===== TABLET STATIONS TAB ===== */}
+          <TabsContent value="tablets" className="space-y-4">
+            <OperatorAccountsSection isAdmin={currentRole === "admin"} />
+          </TabsContent>
+
+          {/* ===== ENGINEERS (PIN IDENTITIES) TAB ===== */}
+          <TabsContent value="engineers" className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Engineers (PIN Identity)</h2>
@@ -575,6 +604,8 @@ export default function ManageUsers() {
             </Table>
           </CardContent>
         </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* Edit User Dialog */}
         <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
@@ -627,9 +658,6 @@ export default function ManageUsers() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        {/* ===== TABLET / OPERATOR ACCOUNTS SECTION ===== */}
-        <OperatorAccountsSection isAdmin={currentRole === "admin"} />
 
         {/* Edit Engineer Dialog */}
         <Dialog open={!!editEng} onOpenChange={(open) => !open && setEditEng(null)}>
