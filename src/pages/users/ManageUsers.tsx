@@ -338,7 +338,28 @@ export default function ManageUsers() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* ===== STAFF MEMBERS SECTION ===== */}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage staff logins, tablet station logins, and engineer PIN identities — all in one place.
+          </p>
+        </div>
+
+        <Tabs defaultValue="staff" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 max-w-2xl">
+            <TabsTrigger value="staff" className="gap-2">
+              <UsersIcon className="h-4 w-4" /> Staff
+            </TabsTrigger>
+            <TabsTrigger value="tablets" className="gap-2">
+              <Tablet className="h-4 w-4" /> Tablet Stations
+            </TabsTrigger>
+            <TabsTrigger value="engineers" className="gap-2">
+              <KeyRound className="h-4 w-4" /> Engineers (PIN)
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ===== STAFF MEMBERS TAB ===== */}
+          <TabsContent value="staff" className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Staff Members</h2>
