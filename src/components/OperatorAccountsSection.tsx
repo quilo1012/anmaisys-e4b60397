@@ -458,6 +458,21 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {linesWithoutTablet.length > 0 && (
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => {
+                  setAutoResults([]);
+                  setAutoOpen(true);
+                }}
+                className="bg-amber-500 hover:bg-amber-600 text-white"
+              >
+                <Wand2 className="h-4 w-4 mr-2" />
+                Auto-create {linesWithoutTablet.length} missing tablet
+                {linesWithoutTablet.length === 1 ? "" : "s"}
+              </Button>
+            )}
             {isAdmin && accounts && accounts.length > 0 && (
               <Button
                 variant="outline"
