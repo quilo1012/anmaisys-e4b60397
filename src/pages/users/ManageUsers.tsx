@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Tabs replaced by simple button group + conditional render for reliability
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Tablet, Users as UsersIcon } from "lucide-react";
@@ -346,21 +346,35 @@ export default function ManageUsers() {
           </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 max-w-2xl">
-            <TabsTrigger value="staff" className="gap-2">
-              <UsersIcon className="h-4 w-4" /> Staff
-            </TabsTrigger>
-            <TabsTrigger value="tablets" className="gap-2">
-              <Tablet className="h-4 w-4" /> Tablet Stations
-            </TabsTrigger>
-            <TabsTrigger value="engineers" className="gap-2">
-              <KeyRound className="h-4 w-4" /> Engineers (PIN)
-            </TabsTrigger>
-          </TabsList>
+        <div className="flex flex-wrap gap-2 border-b border-border pb-2">
+          <Button
+            type="button"
+            variant={activeTab === "staff" ? "default" : "ghost"}
+            onClick={() => setActiveTab("staff")}
+            className="gap-2"
+          >
+            <UsersIcon className="h-4 w-4" /> Staff
+          </Button>
+          <Button
+            type="button"
+            variant={activeTab === "tablets" ? "default" : "ghost"}
+            onClick={() => setActiveTab("tablets")}
+            className="gap-2"
+          >
+            <Tablet className="h-4 w-4" /> Tablet Stations
+          </Button>
+          <Button
+            type="button"
+            variant={activeTab === "engineers" ? "default" : "ghost"}
+            onClick={() => setActiveTab("engineers")}
+            className="gap-2"
+          >
+            <KeyRound className="h-4 w-4" /> Engineers (PIN)
+          </Button>
+        </div>
 
-          {/* ===== STAFF MEMBERS TAB ===== */}
-          <TabsContent value="staff" className="space-y-4">
+        {activeTab === "staff" && (
+          <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Staff Members</h2>
@@ -501,15 +515,17 @@ export default function ManageUsers() {
             </Table>
           </CardContent>
         </Card>
-          </TabsContent>
+          </div>
+        )}
 
-          {/* ===== TABLET STATIONS TAB ===== */}
-          <TabsContent value="tablets" className="space-y-4">
+        {activeTab === "tablets" && (
+          <div className="space-y-4">
             <OperatorAccountsSection isAdmin={currentRole === "admin"} />
-          </TabsContent>
+          </div>
+        )}
 
-          {/* ===== ENGINEERS (PIN IDENTITIES) TAB ===== */}
-          <TabsContent value="engineers" className="space-y-4">
+        {activeTab === "engineers" && (
+          <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Engineers (PIN Identity)</h2>
@@ -605,8 +621,8 @@ export default function ManageUsers() {
             </Table>
           </CardContent>
         </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
 
         {/* Edit User Dialog */}
         <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
