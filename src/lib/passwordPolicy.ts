@@ -9,7 +9,8 @@ const OBVIOUS_WEAK = new Set([
   "qwerty", "qwerty123", "abc123", "111111", "000000",
   "letmein", "welcome", "admin", "admin123", "operator", "operator123",
   "operator1", "operator12", "operator1234", "line1", "line01", "tablet", "tablet1",
-  "tablet5", "tablet5a", "iloveyou", "monkey", "dragon",
+  "tablet5", "tablet5a", "applied123", "applied123@", "appliednutrition123",
+  "anmai123", "anmaisys123", "iloveyou", "monkey", "dragon",
 ]);
 
 const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -41,10 +42,46 @@ export function checkPasswordStrength(pwd: string): PasswordCheckResult {
   if (/^(?:0123456789|1234567890|abcdefgh|qwertyui)/i.test(pwd)) {
     return { ok: false, reason: "Avoid simple keyboard or number sequences." };
   }
+  if (/(applied|nutrition|anmai|anmaisys).*(123|password|operator|tablet)/i.test(pwd)) {
+    return { ok: false, reason: "Avoid company names or obvious site words in passwords." };
+  }
   if (!/[a-z]/i.test(pwd) || !/\d/.test(pwd)) {
     return { ok: false, reason: "Use a mix of letters and numbers." };
   }
   return { ok: true };
+}
+
+export async function checkPasswordSecurity(pwd: string): Promise<PasswordCheckResult> {
+  const local = checkPasswordStrength(pwd);
+  if (!local.ok) return local;
+
+  if (!crypto?.subtle || typeof fetch !== "function") return local;
+
+  try {
+    const digest = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(pwd));
+    const hash = Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase();
+    const prefix = hash.slice(0, 5);
+    const suffix = hash.slice(5);
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+      headers: { "Add-Padding": "true" },
+    });
+    if (!res.ok) return local;
+    const body = await res.text();
+    const matched = body.split("\n").some((line) => line.split(":")[0]?.trim().toUpperCase() === suffix);
+    if (matched) {
+      return {
+        ok: false,
+        reason: "This password has appeared in a known data breach. Please choose a different password.",
+      };
+    }
+  } catch {
+    return local;
+  }
+
+  return local;
 }
 
 export function generateStrongPassword(length = 16): string {
