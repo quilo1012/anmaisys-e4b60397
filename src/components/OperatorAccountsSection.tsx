@@ -633,8 +633,9 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Pencil className="h-5 w-5 text-primary" /> Edit Operator Account
             </DialogTitle>
             <DialogDescription>
-              Update the label and the lines this tablet account is allowed to operate. Email is
-              fixed once the account is created.
+              Update the label, login email and the lines this tablet account is allowed to operate.
+              Changing the email will force any tablet currently logged in with the old email to log
+              in again.
             </DialogDescription>
           </DialogHeader>
 
@@ -642,9 +643,20 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
             <div className="space-y-4 py-2">
               <div className="space-y-1.5">
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Email (read-only)
+                  Login email
                 </Label>
-                <Input value={editing.email} readOnly className="font-mono text-sm" />
+                <Input
+                  type="email"
+                  value={eEmail}
+                  onChange={(e) => {
+                    setEEmail(e.target.value);
+                    setEEmailError(null);
+                  }}
+                  className="font-mono text-sm"
+                  placeholder="operator.line1@anmaisys.local"
+                  aria-invalid={!!eEmailError}
+                />
+                {eEmailError && <p className="text-xs text-destructive">{eEmailError}</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -667,8 +679,13 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
             <Button variant="outline" onClick={() => setEditing(null)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveEdit} disabled={updateAcc.isPending}>
-              {updateAcc.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            <Button
+              onClick={handleSaveEdit}
+              disabled={updateAcc.isPending || updateEmail.isPending}
+            >
+              {(updateAcc.isPending || updateEmail.isPending) && (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              )}
               Save changes
             </Button>
           </DialogFooter>
