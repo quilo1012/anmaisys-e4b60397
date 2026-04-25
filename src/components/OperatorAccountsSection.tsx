@@ -107,6 +107,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   const { data: accounts, isLoading } = useOperatorAccounts();
   const createAcc = useCreateOperatorAccount();
   const updateAcc = useUpdateOperatorAccountLines();
+  const updateEmail = useUpdateOperatorAccountEmail();
   const resetPwd = useResetOperatorPassword();
 
   // ── Create dialog ────────────────────────────────────────
