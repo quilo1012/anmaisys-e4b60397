@@ -337,11 +337,11 @@ export default function ManageUsers() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* ===== AUTH USERS SECTION ===== */}
+        {/* ===== STAFF MEMBERS SECTION ===== */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">User Management</h2>
-            <p className="text-muted-foreground">Create and manage login accounts</p>
+            <h2 className="text-2xl font-bold">Staff Members</h2>
+            <p className="text-muted-foreground">Admins, managers and engineers — people who log in with their personal email</p>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -391,7 +391,7 @@ export default function ManageUsers() {
         </div>
 
         <Card>
-          <CardHeader><CardTitle>Login Accounts</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Staff Members</CardTitle></CardHeader>
           <CardContent>
             <Table>
               <TableHeader>

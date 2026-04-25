@@ -374,12 +374,15 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" /> Operator Accounts
+              <Users className="h-5 w-5 text-primary" /> Tablet Stations
             </CardTitle>
             <CardDescription>
-              One login per tablet (or tablet/line group). Prevents session conflicts when multiple
-              tablets are online at the same time.
+              One station per tablet (or tablet group). Each station covers one or more production
+              lines and shares the same login across shifts.
             </CardDescription>
+            <p className="mt-2 text-xs text-muted-foreground italic">
+              Operators don't type an email — they pick their tablet from a dropdown on the login screen.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             {isAdmin && accounts && accounts.length > 0 && (
@@ -417,7 +420,6 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
             <TableHeader>
               <TableRow>
                 <TableHead>Label</TableHead>
-                <TableHead>Email</TableHead>
                 <TableHead>Lines covered</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -427,7 +429,6 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               {accounts.map((acc) => (
                 <TableRow key={acc.id} className="hover:bg-muted/30 transition-colors">
                   <TableCell className="py-3 font-medium">{acc.label}</TableCell>
-                  <TableCell className="py-3 font-mono text-xs">{acc.email}</TableCell>
                   <TableCell className="py-3">
                     <div className="flex flex-wrap gap-1">
                       {acc.line_ids.length === 0 ? (
@@ -452,7 +453,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title="Copy email"
+                        title="Copy login email (used by the tablet)"
                         onClick={() => handleCopyEmail(acc)}
                       >
                         {copiedId === acc.id ? (
