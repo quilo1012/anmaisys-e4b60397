@@ -346,7 +346,7 @@ export default function ManageUsers() {
           </p>
         </div>
 
-        <Tabs defaultValue="staff" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3 max-w-2xl">
             <TabsTrigger value="staff" className="gap-2">
               <UsersIcon className="h-4 w-4" /> Staff
