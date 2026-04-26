@@ -1,58 +1,36 @@
 ## Objetivo
-1. Eliminar o conflito visual entre **Staff Members** e **Tablet Stations** (atualmente são duas seções separadas que confundem).
-2. Criar automaticamente uma conta de tablet para cada linha de produção que ainda não tem.
+Criar uma conta de tablet **"Production Tablet"** vinculada ao email `productionappliednutrition@gmail.com` com acesso a **todas as linhas de produção** (e portanto, a todas as máquinas via line_id).
 
----
-
-## Parte 1 — Unificar a página de gestão (`/users/manage`)
-
-Em vez de duas seções separadas, a página passa a ter **uma única tabela "Accounts"** com filtro por tipo:
-
-- **Toggle/Tabs no topo**: `[ All ] [ Staff ] [ Tablet Stations ]`
-- Coluna **Type** com badge colorido:
-  - 🟣 **Staff** (Admin, Manager, Engineer) — login por email pessoal
-  - 🔵 **Tablet** (Operator) — login por dropdown de estação
-- Botões de ação contextual:
-  - "+ Add Staff Member" → abre dialog atual de criação de usuário staff
-  - "+ Add Tablet Station" → abre dialog atual de criação de tablet
-- Comportamento mantido: edição, reset de senha, exclusão funcionam igual; só muda o agrupamento visual.
-
-Arquivos afetados:
-- `src/pages/users/ManageUsers.tsx` — refator para tabs + tabela unificada
-- `src/components/OperatorAccountsSection.tsx` — converter de seção autônoma para sub-componente reutilizável (lógica de criação/edição/reset preservada)
-
-Resultado: uma única tela coerente, sem duplicação de UI.
-
----
-
-## Parte 2 — Criar tablets automaticamente para todas as linhas
-
-Hoje só existem 2 contas (`LINE 1` e `Tablet 5A+5B`). As 7 linhas sem tablet são:
-
-| Linha | Email gerado |
+## Detalhes da Conta
+| Campo | Valor |
 |---|---|
-| Line 2 | `operator.line2@anmaisys.local` |
-| Line 3 | `operator.line3@anmaisys.local` |
-| Line 4 | `operator.line4@anmaisys.local` |
-| Line 5 | `operator.line5@anmaisys.local` |
-| Line 6 | `operator.line6@anmaisys.local` |
-| Capsules & Tablets | `operator.capsules-tablets@anmaisys.local` |
-| Gel Line | `operator.gel-line@anmaisys.local` |
-| Sealer and Printer INK | *(já está vinculada a LINE 1 e Tablet 5A+5B — pular)* |
+| **Label** | Production Tablet |
+| **Email** | productionappliednutrition@gmail.com |
+| **Password** | Tablet@AN2026! (mesma padrão das outras tablets) |
+| **Linhas** | TODAS as linhas existentes em `public.lines` |
+| **Role** | operator |
 
-**Senha inicial padrão** para todas: `Tablet@AN2026!`
-(forte, passa no HIBP check, é a mesma para facilitar a configuração inicial; admin pode trocar individualmente em seguida)
+## Implementação (1 passo)
 
-**Como será feito:**
-- Reutilizar a Edge Function existente `create-operator-account` (já valida, cria auth user, perfil, role operator e registro em `operator_line_accounts`).
-- Disparar uma chamada por linha a partir de um botão **"Auto-create missing tablets"** no topo da nova aba **Tablet Stations**.
-- Após criação, exibir tabela com email + senha temporária para você anotar e configurar nos tablets físicos.
+### Edge Function `create-operator-account`
+Invocar a função existente passando:
+- `email`: `productionappliednutrition@gmail.com`
+- `password`: `Tablet@AN2026!`
+- `label`: `Production Tablet`
+- `line_ids`: array com **todos os UUIDs** retornados de `SELECT id FROM public.lines`
 
----
+A função já cuida de:
+1. Criar o usuário em `auth.users` com email confirmado
+2. Atualizar `profiles.name` com o label
+3. Atribuir role `operator` em `user_roles`
+4. Criar registro em `operator_line_accounts` com todas as `line_ids`
 
-## Confirme antes de prosseguir
-- ✅ Senha padrão `Tablet@AN2026!` para todas, com troca posterior individual?
-- ✅ Pular `Sealer and Printer INK` (já coberta por outras contas)?
-- ✅ Unificar as duas seções em uma única tabela com tabs?
+### Verificação
+- Confirmar que a conta aparece na aba **Tablet Stations** (`/users/manage`)
+- Confirmar login funciona via modo Tablet em `/login`
+- Confirmar que ao logar, o seletor de linha mostra TODAS as linhas (porque `allowedLines.length > 1`)
 
-Se aprovar, executo Parte 1 (refator UI) + Parte 2 (botão de auto-criação) na mesma rodada.
+## Notas
+- **Acesso a máquinas**: As máquinas são automaticamente acessíveis porque estão vinculadas às linhas via `line_id`/`current_line`/`fixed_line`. Não há tabela de permissão por máquina — o acesso é derivado da linha selecionada no `DeviceLineContext`.
+- **Sem alteração de schema**: Apenas inserção de dados via Edge Function existente. Nenhuma migração necessária.
+- **Sem alteração de código**: Toda a infraestrutura (login tablet, seletor de linha, OperatorLineGuard) já suporta contas multi-linha.
