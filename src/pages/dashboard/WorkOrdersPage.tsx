@@ -99,6 +99,7 @@ export default function WorkOrdersPage() {
   const deleteWO = useDeleteWorkOrder();
 
   const { data: machines } = useMachines();
+  const { data: lines } = useLines();
   const { data: problemDescriptions } = useActiveProblemDescriptions();
   const { data: profileNames } = useProfileNames();
   const { data: engineerScores } = useEngineerScores();
