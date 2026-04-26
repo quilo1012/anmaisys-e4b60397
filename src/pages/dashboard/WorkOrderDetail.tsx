@@ -533,10 +533,8 @@ export default function WorkOrderDetail() {
           </Card>
         )}
 
-        {/* Multi-cycle line stop history (screen-only rich timeline) */}
-        <div className="print:hidden">
-          <DowntimeTimelineCard workOrderId={wo.id} />
-        </div>
+        {/* Multi-cycle line stop / resume history with date & user filters */}
+        <DowntimeHistorySection workOrderId={wo.id} />
 
         {/* Parts Used */}
         <Card className="print:border print:border-black print:shadow-none print:rounded-none">
