@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Trash2, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
-import { useMachines } from "@/hooks/useMachines";
+import { useMachines, useLines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useProfileNames } from "@/hooks/useProfileNames";
 import { useAuth } from "@/contexts/AuthContext";
@@ -63,8 +63,14 @@ export default function WorkOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [currentPage, setCurrentPage] = useState(1);
-const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "admin" || role === "manager" ? "all" : "today"));
+  const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "admin" || role === "manager" ? "all" : "today"));
   const [lineFilter, setLineFilter] = useState<string>("all");
+
+  useEffect(() => {
+    if (role === "admin" || role === "manager") {
+      setDateQuickFilter("all");
+    }
+  }, [role]);
   const [lineStoppedFilter, setLineStoppedFilter] = useState<"all" | "stopped" | "running">("all");
 
   const ALL_COLUMNS = [
@@ -93,6 +99,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "
   const deleteWO = useDeleteWorkOrder();
 
   const { data: machines } = useMachines();
+  const { data: lines } = useLines();
   const { data: problemDescriptions } = useActiveProblemDescriptions();
   const { data: profileNames } = useProfileNames();
   const { data: engineerScores } = useEngineerScores();
@@ -120,12 +127,26 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "
   const [clearing, setClearing] = useState(false);
   const [clearConfirmText, setClearConfirmText] = useState("");
 
-  // Build machine line lookup. For machines on a sided line (A/B), show "Line 5A".
-  // "common"/shared machines stay as just the line name.
+  const lineNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    lines?.forEach((line: any) => {
+      if (line.id) map[line.id] = line.name;
+    });
+    return map;
+  }, [lines]);
+
+  // Prefer the WO line_id. Fall back to legacy machine-derived line names.
+  const getWoLine = (wo: WorkOrder) => {
+    const explicitLine = lineNameMap[(wo as any).line_id];
+    if (explicitLine) return explicitLine;
+    if (wo.machine) return machineLineMap[wo.machine] || "";
+    return "";
+  };
+
   const machineLineMap = useMemo(() => {
     const map: Record<string, string> = {};
     machines?.forEach((m: any) => {
-      const base = m.line || "";
+      const base = m.current_line || m.fixed_line || m.line || "";
       const withSide = base && (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
       map[m.name] = withSide;
     });
@@ -133,10 +154,11 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "
   }, [machines]);
 
   const distinctLines = useMemo(() => {
-    const lines = new Set<string>();
-    Object.values(machineLineMap).forEach((l) => { if (l) lines.add(l); });
-    return Array.from(lines).sort();
-  }, [machineLineMap]);
+    const lineNames = new Set<string>();
+    lines?.forEach((line: any) => { if (line.name) lineNames.add(line.name); });
+    Object.values(machineLineMap).forEach((l) => { if (l) lineNames.add(l); });
+    return Array.from(lineNames).sort();
+  }, [lines, machineLineMap]);
 
   const filteredWOs = useMemo(() => {
     if (!workOrders) return [];
@@ -158,7 +180,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "
     }
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
-    if (lineFilter !== "all") filtered = filtered.filter((w) => machineLineMap[w.machine] === lineFilter);
+    if (lineFilter !== "all") filtered = filtered.filter((w) => getWoLine(w) === lineFilter);
     if (lineStoppedFilter === "stopped") {
       filtered = filtered.filter((w: any) => w.line_stopped === true && !w.line_resumed_at);
     } else if (lineStoppedFilter === "running") {
@@ -189,13 +211,13 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "
         const tb = b.line_stopped_at ? new Date(b.line_stopped_at).getTime() : 0;
         return ta - tb; // oldest stoppage first
       }
-      const lineA = machineLineMap[a.machine] || "zzz";
-      const lineB = machineLineMap[b.machine] || "zzz";
+      const lineA = getWoLine(a) || "zzz";
+      const lineB = getWoLine(b) || "zzz";
       if (lineA !== lineB) return lineA.localeCompare(lineB);
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return filtered;
-  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, lineFilter, lineStoppedFilter, searchTerm, machineLineMap]);
+  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, lineFilter, lineStoppedFilter, searchTerm, lineNameMap, machineLineMap]);
 
   const stoppedCount = useMemo(
     () => (workOrders ?? []).filter((w: any) => w.line_stopped === true && !w.line_resumed_at).length,
@@ -516,7 +538,7 @@ const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "
                       const cfg = statusConfig[wo.status];
                       const canForceClose = ["open", "received", "arrived", "in_progress"].includes(wo.status);
                       const canClose = wo.status === "finished";
-                      const woLine = machineLineMap[wo.machine] || "—";
+                      const woLine = getWoLine(wo) || "—";
                       return (
                         <TableRow key={wo.id}>
                           {isCol("wo") && (

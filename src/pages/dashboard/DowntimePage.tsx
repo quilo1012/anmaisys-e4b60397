@@ -32,6 +32,7 @@ import {
   subDays, endOfDay,
 } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
+import { useNavigate } from "react-router-dom";
 
 const CATEGORIES = ["Mechanical", "Electrical", "Machine", "Maintenance", "Filler", "Other"] as const;
 const LINES = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"] as const;
@@ -44,6 +45,7 @@ const riskBadge: Record<RiskLevel, { label: string; className: string }> = {
 
 export default function DowntimePage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { data: records, isLoading } = useDowntime();
   const { data: workOrders } = useWorkOrders({ statusIn: ["open", "in_progress", "received", "arrived"] as any });
@@ -539,7 +541,7 @@ export default function DowntimePage() {
                   <SelectTrigger className="w-[140px]"><SelectValue placeholder="Line" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Lines</SelectItem>
-                    {LINES.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                    {lineOptions.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={filterCategory} onValueChange={setFilterCategory}>
@@ -599,17 +601,28 @@ export default function DowntimePage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-                          {!r.ended_at && (
-                            <Button size="icon" variant="ghost" className="text-green-600" onClick={() => handleResolve(r.id)} title="Mark Resolved">
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(r.id)}>
-                            <Trash2 className="h-4 w-4" />
+                        {r.source === "wo_event" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => r.work_order_id && navigate(`/dashboard/wo/${r.work_order_id}`)}
+                            disabled={!r.work_order_id}
+                          >
+                            Open WO
                           </Button>
-                        </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                            {!r.ended_at && (
+                              <Button size="icon" variant="ghost" className="text-green-600" onClick={() => handleResolve(r.id)} title="Mark Resolved">
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(r.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
