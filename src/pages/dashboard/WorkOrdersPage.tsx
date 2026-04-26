@@ -63,8 +63,14 @@ export default function WorkOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [currentPage, setCurrentPage] = useState(1);
-const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "admin" || role === "manager" ? "all" : "today"));
+  const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "admin" || role === "manager" ? "all" : "today"));
   const [lineFilter, setLineFilter] = useState<string>("all");
+
+  useEffect(() => {
+    if (role === "admin" || role === "manager") {
+      setDateQuickFilter("all");
+    }
+  }, [role]);
   const [lineStoppedFilter, setLineStoppedFilter] = useState<"all" | "stopped" | "running">("all");
 
   const ALL_COLUMNS = [
