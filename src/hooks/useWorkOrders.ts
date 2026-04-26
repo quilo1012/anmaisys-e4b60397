@@ -86,7 +86,11 @@ export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOSt
       }
 
       const { data, error } = await q;
-      if (error) throw error;
+      console.log("[useWorkOrders] query result:", { count: data?.length, error, filter, userId: user?.id });
+      if (error) {
+        console.error("[useWorkOrders] query error:", error);
+        throw error;
+      }
 
       const rows = (data || []) as unknown as WorkOrder[];
       const [profilesRes, engineersRes] = await Promise.all([
