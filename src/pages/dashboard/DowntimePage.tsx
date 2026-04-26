@@ -31,7 +31,7 @@ import {
   format, differenceInMinutes, startOfDay, startOfWeek, startOfMonth,
   subDays, endOfDay,
 } from "date-fns";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
+import { useNavigate } from "react-router-dom";
 
 const CATEGORIES = ["Mechanical", "Electrical", "Machine", "Maintenance", "Filler", "Other"] as const;
 const LINES = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"] as const;
