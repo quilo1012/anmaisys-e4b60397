@@ -538,7 +538,7 @@ export default function WorkOrdersPage() {
                       const cfg = statusConfig[wo.status];
                       const canForceClose = ["open", "received", "arrived", "in_progress"].includes(wo.status);
                       const canClose = wo.status === "finished";
-                      const woLine = machineLineMap[wo.machine] || "—";
+                      const woLine = getWoLine(wo) || "—";
                       return (
                         <TableRow key={wo.id}>
                           {isCol("wo") && (
