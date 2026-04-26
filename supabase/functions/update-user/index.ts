@@ -1,9 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://esm.sh/zod@3.23.8";
-import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
 
 const createPendingPinHash = async () => {
-  return bcrypt.hash(crypto.randomUUID(), 10);
+  return "temp";
 };
 
 const corsHeaders = {
