@@ -180,7 +180,7 @@ export default function WorkOrdersPage() {
     }
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
-    if (lineFilter !== "all") filtered = filtered.filter((w) => machineLineMap[w.machine] === lineFilter);
+    if (lineFilter !== "all") filtered = filtered.filter((w) => getWoLine(w) === lineFilter);
     if (lineStoppedFilter === "stopped") {
       filtered = filtered.filter((w: any) => w.line_stopped === true && !w.line_resumed_at);
     } else if (lineStoppedFilter === "running") {
