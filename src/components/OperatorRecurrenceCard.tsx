@@ -105,12 +105,10 @@ export function OperatorRecurrenceCard({ wo }: Props) {
     },
   });
 
-  // Only operators (who opened the WO), admins, or managers can use this
+  // Admins, managers, or any operator (backend RPC enforces same-line check
+  // via operator_line_accounts so cross-shift tablets on the same line work).
   const canReport =
-    !!user &&
-    (role === "admin" ||
-      role === "manager" ||
-      (role === "operator" && wo.operator_id === user.id));
+    !!user && (role === "admin" || role === "manager" || role === "operator");
 
   if (!canReport) return null;
   if (!["finished", "closed", "completed"].includes(wo.status)) return null;
