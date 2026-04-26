@@ -74,6 +74,11 @@ export function LineDowntimeControl({
 }: LineDowntimeControlProps) {
   const { user, role } = useAuth();
   const { data: operatorLineIds } = useOperatorLineIds();
+  const { data: lines } = useLines();
+  const lineName = useMemo(
+    () => (lineId ? (lines || []).find((l: any) => l.id === lineId)?.name || null : null),
+    [lines, lineId],
+  );
   const { toast } = useToast();
   const { data: events } = useDowntimeEvents(workOrderId);
   const stopLine = useStopLine();
