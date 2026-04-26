@@ -45,6 +45,7 @@ const riskBadge: Record<RiskLevel, { label: string; className: string }> = {
 
 export default function DowntimePage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { data: records, isLoading } = useDowntime();
   const { data: workOrders } = useWorkOrders({ statusIn: ["open", "in_progress", "received", "arrived"] as any });
