@@ -183,7 +183,7 @@ export function LineDowntimeControl({
             Order created by <span className="font-medium">{requesterName}</span>
           </p>
         )}
-        {canControl && (
+        {canControl ? (
           <Button
             size="lg"
             className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700 text-white"
@@ -192,6 +192,8 @@ export function LineDowntimeControl({
           >
             <CheckCircle2 className="h-5 w-5 mr-2" /> MACHINE BACK TO WORK
           </Button>
+        ) : (
+          <PermissionBanner role={role} lineName={lineName} lineId={lineId} />
         )}
       </div>
     );
@@ -213,7 +215,7 @@ export function LineDowntimeControl({
           <p className="text-xs flex items-center gap-1 font-medium text-amber-700">
             <AlertTriangle className="h-3 w-3" /> Stops so far: {stopCount} · total: {totalMinutes}m
           </p>
-          {canControl && (
+          {canControl ? (
             <Button
               size="lg"
               variant="destructive"
@@ -222,6 +224,8 @@ export function LineDowntimeControl({
             >
               <PowerOff className="h-5 w-5 mr-2" /> LINE STOPPED AGAIN
             </Button>
+          ) : (
+            <PermissionBanner role={role} lineName={lineName} lineId={lineId} />
           )}
         </div>
         <StopDialog
@@ -254,6 +258,11 @@ export function LineDowntimeControl({
           </Button>
         )}
       </div>
+      {!canControl && workOrderStatus === "in_progress" && (
+        <div className="mt-2">
+          <PermissionBanner role={role} lineName={lineName} lineId={lineId} />
+        </div>
+      )}
       <StopDialog
         open={stopDialogOpen}
         onOpenChange={setStopDialogOpen}
