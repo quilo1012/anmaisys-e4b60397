@@ -601,17 +601,28 @@ export default function DowntimePage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-                          {!r.ended_at && (
-                            <Button size="icon" variant="ghost" className="text-green-600" onClick={() => handleResolve(r.id)} title="Mark Resolved">
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(r.id)}>
-                            <Trash2 className="h-4 w-4" />
+                        {r.source === "wo_event" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => r.work_order_id && navigate(`/dashboard/wo/${r.work_order_id}`)}
+                            disabled={!r.work_order_id}
+                          >
+                            Open WO
                           </Button>
-                        </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                            {!r.ended_at && (
+                              <Button size="icon" variant="ghost" className="text-green-600" onClick={() => handleResolve(r.id)} title="Mark Resolved">
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(r.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
