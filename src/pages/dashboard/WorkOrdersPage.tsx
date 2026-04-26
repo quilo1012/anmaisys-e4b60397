@@ -211,8 +211,8 @@ export default function WorkOrdersPage() {
         const tb = b.line_stopped_at ? new Date(b.line_stopped_at).getTime() : 0;
         return ta - tb; // oldest stoppage first
       }
-      const lineA = machineLineMap[a.machine] || "zzz";
-      const lineB = machineLineMap[b.machine] || "zzz";
+      const lineA = getWoLine(a) || "zzz";
+      const lineB = getWoLine(b) || "zzz";
       if (lineA !== lineB) return lineA.localeCompare(lineB);
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
