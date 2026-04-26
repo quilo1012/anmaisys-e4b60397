@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { differenceInMinutes, format } from "date-fns";
-import { CheckCircle2, PowerOff, AlertTriangle } from "lucide-react";
+import { CheckCircle2, PowerOff, AlertTriangle, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +9,40 @@ import { useToast } from "@/hooks/use-toast";
 import { useDowntimeEvents, useStopLine, useResumeLine } from "@/hooks/useDowntimeEvents";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOperatorLineIds } from "@/hooks/useOperatorLineAccess";
+import { useLines } from "@/hooks/useMachines";
+
+/** Amber banner shown when the current user lacks permission to control downtime. */
+function PermissionBanner({
+  role,
+  lineName,
+  lineId,
+}: {
+  role: string | null | undefined;
+  lineName: string | null;
+  lineId: string | null | undefined;
+}) {
+  let message: string;
+  if (role === "operator") {
+    if (lineId && lineName) {
+      message = `You need access to line "${lineName}" to stop or resume this work order. Ask an admin to add this line to your tablet account.`;
+    } else if (lineId) {
+      message = `You need access to this work order's production line to control downtime. Ask an admin to add the line to your tablet account.`;
+    } else {
+      message = `This work order is not bound to a production line. Ask an admin to assign one before downtime can be controlled.`;
+    }
+  } else {
+    message = `Your role does not allow controlling line downtime. Only the assigned engineer, the operator on the same line, managers and admins can stop or resume the line.`;
+  }
+  return (
+    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+      <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+      <div>
+        <p className="font-semibold">Downtime control blocked</p>
+        <p className="mt-0.5 leading-snug">{message}</p>
+      </div>
+    </div>
+  );
+}
 
 interface LineDowntimeControlProps {
   workOrderId: string;
@@ -40,6 +74,11 @@ export function LineDowntimeControl({
 }: LineDowntimeControlProps) {
   const { user, role } = useAuth();
   const { data: operatorLineIds } = useOperatorLineIds();
+  const { data: lines } = useLines();
+  const lineName = useMemo(
+    () => (lineId ? (lines || []).find((l: any) => l.id === lineId)?.name || null : null),
+    [lines, lineId],
+  );
   const { toast } = useToast();
   const { data: events } = useDowntimeEvents(workOrderId);
   const stopLine = useStopLine();
@@ -144,7 +183,7 @@ export function LineDowntimeControl({
             Order created by <span className="font-medium">{requesterName}</span>
           </p>
         )}
-        {canControl && (
+        {canControl ? (
           <Button
             size="lg"
             className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700 text-white"
@@ -153,6 +192,8 @@ export function LineDowntimeControl({
           >
             <CheckCircle2 className="h-5 w-5 mr-2" /> MACHINE BACK TO WORK
           </Button>
+        ) : (
+          <PermissionBanner role={role} lineName={lineName} lineId={lineId} />
         )}
       </div>
     );
@@ -174,7 +215,7 @@ export function LineDowntimeControl({
           <p className="text-xs flex items-center gap-1 font-medium text-amber-700">
             <AlertTriangle className="h-3 w-3" /> Stops so far: {stopCount} · total: {totalMinutes}m
           </p>
-          {canControl && (
+          {canControl ? (
             <Button
               size="lg"
               variant="destructive"
@@ -183,6 +224,8 @@ export function LineDowntimeControl({
             >
               <PowerOff className="h-5 w-5 mr-2" /> LINE STOPPED AGAIN
             </Button>
+          ) : (
+            <PermissionBanner role={role} lineName={lineName} lineId={lineId} />
           )}
         </div>
         <StopDialog
@@ -215,6 +258,11 @@ export function LineDowntimeControl({
           </Button>
         )}
       </div>
+      {!canControl && workOrderStatus === "in_progress" && (
+        <div className="mt-2">
+          <PermissionBanner role={role} lineName={lineName} lineId={lineId} />
+        </div>
+      )}
       <StopDialog
         open={stopDialogOpen}
         onOpenChange={setStopDialogOpen}

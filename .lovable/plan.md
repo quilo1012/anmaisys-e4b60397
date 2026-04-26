@@ -1,56 +1,84 @@
-## Problema identificado
 
-Operador (Production Tablet, `580bfc5c…`) tentou clicar em **REPORT RECURRING FAILURE** na **WO-2026-000091**, mas a função retornou `forbidden`.
+# Plano: Banner de Permissão + Histórico Avançado de Downtime
 
-### Causa raiz
-A WO-91 foi criada pelo operador **LINE 1** (`cf0dc699…`). A RPC `reopen_wo_as_recurrence` valida permissão assim:
+## 🎯 Objetivos
+1. Mostrar **banner explicativo** quando o usuário não tem permissão para parar/retomar a linha, indicando **qual linha** ele precisa ter acesso.
+2. Adicionar uma **seção rica de histórico de downtime** na página de detalhes da WO, com filtros por **data** e por **operador/usuário**.
 
-```sql
-IF NOT (
-  _user_role IN ('admin','manager')
-  OR _orig.operator_id = _user_id   -- exige ser o MESMO operador que abriu
-) THEN
-  RETURN jsonb_build_object('success', false, 'error', 'forbidden');
-END IF;
-```
+---
 
-Em chão de fábrica, **vários tablets/operadores compartilham a mesma linha**. Hoje, se o operador que abriu a WO já saiu do turno, **nenhum outro operador da mesma linha** consegue reabrir a recorrência — só admin/manager. Isso quebra o fluxo de turnos.
+## 1️⃣ Banner de Bloqueio em `LineDowntimeControl.tsx`
 
-A WO-91 e o operador atual têm acesso à mesma linha (`Line 1` → `57756a3e…`), então a permissão deve passar.
+### Comportamento atual
+Hoje, quando `canControl` é `false`, o componente simplesmente **omite** os botões de "Stop Line" / "Machine Back to Work" — o operador fica sem entender por que não consegue agir.
 
-## Correção (1 migração SQL)
+### Mudança proposta
+Quando `canControl === false` E o usuário tem role `operator`, renderizar um banner âmbar (warning) logo abaixo do status da linha, contendo:
 
-Atualizar `public.reopen_wo_as_recurrence` para autorizar também:
+- **Ícone**: `<Lock />` ou `<ShieldAlert />` (lucide-react)
+- **Título**: `"Downtime control blocked"`
+- **Mensagem dinâmica**:
+  - Se `lineId` existe → buscar nome da linha via `useLines()` e exibir:  
+    `"You need access to line "<LineName>" to stop or resume this work order. Ask an admin to add this line to your tablet account."`
+  - Se `lineId` é `null` → `"This work order is not bound to a line. Ask an admin to assign one."`
+- Para outras roles (`viewer`, etc.) → mensagem genérica `"Your role does not allow controlling line downtime."`
 
-- **operadores que pertencem à mesma linha da WO** (via `operator_line_accounts.line_ids @> ARRAY[wo.line_id]`), além do operador original.
+### Implementação
+- Importar `useLines` de `@/hooks/useMachines` e `Lock` de `lucide-react`.
+- Resolver `lineName` com `useMemo`: `lines?.find(l => l.id === lineId)?.name`.
+- Renderizar o banner em **CASE A**, **CASE B** e **CASE C** quando `!canControl`, no lugar onde hoje os botões aparecem.
+- Estilo: `rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700` com `flex items-start gap-2`.
 
-Pseudo-lógica do novo guard:
+---
 
-```sql
-_is_same_line_operator boolean := EXISTS (
-  SELECT 1 FROM public.operator_line_accounts ola
-  WHERE ola.user_id = _user_id
-    AND _orig.line_id IS NOT NULL
-    AND _orig.line_id = ANY(ola.line_ids)
-);
+## 2️⃣ Histórico Completo de Downtime em `WorkOrderDetail.tsx`
 
-IF NOT (
-  _user_role IN ('admin','manager')
-  OR _orig.operator_id = _user_id
-  OR (has_role(_user_id,'operator'::app_role) AND _is_same_line_operator)
-) THEN
-  RETURN jsonb_build_object('success', false, 'error', 'forbidden');
-END IF;
-```
+### Situação atual
+Hoje há apenas o `DowntimeTimelineCard` (linha 538) que lista todos os eventos sem nenhum filtro.
 
-Tudo o mais (criação de novo episódio, reabertura da mesma WO, downtime event, log) permanece igual.
+### Mudança proposta
+Criar um **novo componente** `src/components/DowntimeHistorySection.tsx` que substitui (ou complementa abaixo de) o `DowntimeTimelineCard` na WO Detail, contendo:
 
-## Impacto
-- Operadores na **mesma linha** da WO podem reabrir recorrência (caso comum entre turnos).
-- Operadores de **outras linhas** continuam bloqueados.
-- Engenheiros continuam não podendo reabrir como operador (apenas admin/manager).
-- Sem mudança de UI; o card **REPORT RECURRING FAILURE** já está exibido para o operador.
+#### Filtros (toolbar no topo)
+- **Date range**: dois `<Input type="date">` (from / to) — filtra por `stopped_at`.
+- **Operator/User**: `<Select>` populado dinamicamente com todos os `stopped_by_name` e `resumed_by_name` distintos dos eventos da WO + opção "All".
+- Botão `"Clear filters"` para resetar.
 
-## Validação após deploy
-1. Logar como `Production Tablet`, abrir WO-2026-000091, clicar em **REPORT RECURRING FAILURE** → deve criar novo episódio (#2), reabrir a WO com status `open`, e abrir um `downtime_events`.
-2. Logar como operador de outra linha → botão segue oculto / RPC nega.
+#### Tabela de eventos (usando `<Table>` do shadcn)
+Colunas:
+| # | Stopped at | Stopped by | Reason | Resumed at | Resumed by | Resume note | Duration | Type |
+|---|---|---|---|---|---|---|---|---|
+| ep# | dd/MM HH:mm | name | text | dd/MM HH:mm or "— ongoing" | name | text | `Xh Ym` (via `formatMinutes`) | Badge "Recurrence" se `is_recurrence` |
+
+- Linhas com `resumed_at = null` → destaque vermelho com timer ao vivo (já temos pattern em `DowntimeTimelineCard`).
+- Ordenação: mais recente primeiro.
+
+#### Resumo abaixo da tabela
+- Total de stops filtrados
+- Soma de minutos (formatada via `formatMinutes` de `@/lib/formatDuration`)
+- Quantidade de recorrências
+
+### Reuso de hooks
+- `useDowntimeEvents(workOrderId)` já retorna todos os eventos com nomes e timestamps.
+- Filtragem feita inteiramente no client com `useMemo`.
+
+### Integração na página
+- Em `WorkOrderDetail.tsx`, **substituir** a linha 538 `<DowntimeTimelineCard workOrderId={wo.id} />` por `<DowntimeHistorySection workOrderId={wo.id} />`.
+- Manter o `DowntimeTimelineCard` apenas para o layout de **impressão** (já tem `print:` styles), ou mover a versão print para o novo componente. **Decisão: mover** — o novo componente terá tanto a UI rica quanto a tabela de print, eliminando duplicação. Removeremos a linha 538 do `DowntimeTimelineCard` e adicionaremos o novo componente.
+
+---
+
+## 📁 Arquivos afetados
+| Arquivo | Ação |
+|---|---|
+| `src/components/LineDowntimeControl.tsx` | Editar — adicionar banner de bloqueio quando `!canControl` |
+| `src/components/DowntimeHistorySection.tsx` | **Criar** — nova seção com filtros |
+| `src/pages/dashboard/WorkOrderDetail.tsx` | Editar — trocar `DowntimeTimelineCard` por `DowntimeHistorySection` |
+
+## ⚠️ Sem mudanças de DB ou RLS
+Toda a lógica é client-side — nenhuma migração necessária. As políticas RLS já garantem que os dados visíveis são apenas os autorizados.
+
+## ✅ Critérios de aceitação
+- Operador da Line 1 abrindo WO da Line 2 vê banner âmbar: *"You need access to line 'Line 2'..."*.
+- Admin na WO Detail vê tabela completa, pode filtrar por data (ex: últimas 24h) e por nome do operador, com totais atualizados.
+- Versão impressa (print) continua funcionando.

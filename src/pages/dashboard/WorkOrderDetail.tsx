@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineDowntimeControl } from "@/components/LineDowntimeControl";
-import { DowntimeTimelineCard } from "@/components/DowntimeTimelineCard";
+import { DowntimeHistorySection } from "@/components/DowntimeHistorySection";
 import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { WoTimeline } from "@/components/WoTimeline";
@@ -533,10 +533,8 @@ export default function WorkOrderDetail() {
           </Card>
         )}
 
-        {/* Multi-cycle line stop history (screen-only rich timeline) */}
-        <div className="print:hidden">
-          <DowntimeTimelineCard workOrderId={wo.id} />
-        </div>
+        {/* Multi-cycle line stop / resume history with date & user filters */}
+        <DowntimeHistorySection workOrderId={wo.id} />
 
         {/* Parts Used */}
         <Card className="print:border print:border-black print:shadow-none print:rounded-none">
