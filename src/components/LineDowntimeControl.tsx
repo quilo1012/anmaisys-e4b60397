@@ -8,12 +8,15 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useDowntimeEvents, useStopLine, useResumeLine } from "@/hooks/useDowntimeEvents";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOperatorLineIds } from "@/hooks/useOperatorLineAccess";
 
 interface LineDowntimeControlProps {
   workOrderId: string;
   workOrderStatus: string;
   operatorId?: string | null;
   engineerId?: string | null;
+  /** Line of the WO — used to allow same-line operators (multi-line tablets) to control downtime. */
+  lineId?: string | null;
   /** Name of the person who originally opened the WO (shown for context). */
   requesterName?: string | null;
 }
@@ -32,9 +35,11 @@ export function LineDowntimeControl({
   workOrderStatus,
   operatorId,
   engineerId,
+  lineId,
   requesterName,
 }: LineDowntimeControlProps) {
   const { user, role } = useAuth();
+  const { data: operatorLineIds } = useOperatorLineIds();
   const { toast } = useToast();
   const { data: events } = useDowntimeEvents(workOrderId);
   const stopLine = useStopLine();
@@ -75,10 +80,14 @@ export function LineDowntimeControl({
   const canControl = useMemo(() => {
     if (!user) return false;
     if (role === "admin" || role === "manager") return true;
-    if (role === "engineer" && engineerId === user.id) return true;
-    if (role === "operator" && operatorId === user.id) return true;
+    if (role === "engineer") return true;
+    if (role === "operator") {
+      if (operatorId === user.id) return true;
+      // Multi-line tablet: allow if WO's line is in the operator's allowed lines.
+      if (lineId && (operatorLineIds || []).includes(lineId)) return true;
+    }
     return false;
-  }, [user, role, engineerId, operatorId]);
+  }, [user, role, engineerId, operatorId, lineId, operatorLineIds]);
 
   // Only show control once the WO is in progress (or open with first stop)
   const allowAtThisStatus = ["open", "received", "arrived", "in_progress"].includes(workOrderStatus);
