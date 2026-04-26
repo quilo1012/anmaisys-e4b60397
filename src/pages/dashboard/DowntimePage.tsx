@@ -541,7 +541,7 @@ export default function DowntimePage() {
                   <SelectTrigger className="w-[140px]"><SelectValue placeholder="Line" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Lines</SelectItem>
-                    {LINES.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                    {lineOptions.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={filterCategory} onValueChange={setFilterCategory}>
