@@ -576,11 +576,27 @@ export function useWorkOrderById(id: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("work_orders")
-        .select("*, operator:profiles_safe!work_orders_operator_id_fkey(name), engineer:engineers_safe!work_orders_engineer_id_fkey(name), closer:profiles_safe!work_orders_closed_by_fkey(name)")
+        .select("*")
         .eq("id", id)
         .single();
       if (error) throw error;
-      return data as unknown as WorkOrder;
+
+      const wo = data as unknown as WorkOrder;
+      const [profilesRes, engineersRes] = await Promise.all([
+        supabase.rpc("list_active_profile_names"),
+        supabase.rpc("list_engineer_names"),
+      ]);
+      const profileNames = new Map((profilesRes.data || []).map((p) => [p.id, p.name]));
+      const engineerNames = new Map((engineersRes.data || []).map((e) => [e.id, e.name]));
+
+      return {
+        ...wo,
+        operator: { name: profileNames.get(wo.operator_id) || wo.requester_name || "Operator" },
+        engineer: wo.engineer_id
+          ? { name: wo.engineer_name || engineerNames.get(wo.engineer_id) || profileNames.get(wo.engineer_id) || "Engineer" }
+          : undefined,
+        closer: wo.closed_by ? { name: profileNames.get(wo.closed_by) || "Closer" } : undefined,
+      } as WorkOrder;
     },
     enabled: !!id,
   });
