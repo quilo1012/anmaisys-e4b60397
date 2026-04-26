@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineDowntimeControl } from "@/components/LineDowntimeControl";
-import { DowntimeTimelineCard } from "@/components/DowntimeTimelineCard";
+import { DowntimeHistorySection } from "@/components/DowntimeHistorySection";
 import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { WoTimeline } from "@/components/WoTimeline";
