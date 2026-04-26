@@ -13,6 +13,8 @@ export interface DowntimeRecord {
   work_order_id: string | null;
   notes: string | null;
   created_at: string;
+  source?: "manual" | "wo_event";
+  source_event_id?: string;
 }
 
 export function useDowntime() {
