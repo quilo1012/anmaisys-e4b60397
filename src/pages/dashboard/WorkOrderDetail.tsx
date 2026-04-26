@@ -296,6 +296,7 @@ export default function WorkOrderDetail() {
             workOrderStatus={wo.status}
             operatorId={(wo as any).operator_id}
             engineerId={(wo as any).engineer_id}
+            lineId={(wo as any).line_id}
             requesterName={wo.requester_name}
           />
         </div>
