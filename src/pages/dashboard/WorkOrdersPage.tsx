@@ -127,12 +127,26 @@ export default function WorkOrdersPage() {
   const [clearing, setClearing] = useState(false);
   const [clearConfirmText, setClearConfirmText] = useState("");
 
-  // Build machine line lookup. For machines on a sided line (A/B), show "Line 5A".
-  // "common"/shared machines stay as just the line name.
+  const lineNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    lines?.forEach((line: any) => {
+      if (line.id) map[line.id] = line.name;
+    });
+    return map;
+  }, [lines]);
+
+  // Prefer the WO line_id. Fall back to legacy machine-derived line names.
+  const getWoLine = (wo: WorkOrder) => {
+    const explicitLine = lineNameMap[(wo as any).line_id];
+    if (explicitLine) return explicitLine;
+    if (wo.machine) return machineLineMap[wo.machine] || "";
+    return "";
+  };
+
   const machineLineMap = useMemo(() => {
     const map: Record<string, string> = {};
     machines?.forEach((m: any) => {
-      const base = m.line || "";
+      const base = m.current_line || m.fixed_line || m.line || "";
       const withSide = base && (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
       map[m.name] = withSide;
     });
@@ -140,10 +154,11 @@ export default function WorkOrdersPage() {
   }, [machines]);
 
   const distinctLines = useMemo(() => {
-    const lines = new Set<string>();
-    Object.values(machineLineMap).forEach((l) => { if (l) lines.add(l); });
-    return Array.from(lines).sort();
-  }, [machineLineMap]);
+    const lineNames = new Set<string>();
+    lines?.forEach((line: any) => { if (line.name) lineNames.add(line.name); });
+    Object.values(machineLineMap).forEach((l) => { if (l) lineNames.add(l); });
+    return Array.from(lineNames).sort();
+  }, [lines, machineLineMap]);
 
   const filteredWOs = useMemo(() => {
     if (!workOrders) return [];
