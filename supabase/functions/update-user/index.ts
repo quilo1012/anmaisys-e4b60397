@@ -18,8 +18,14 @@ const updateUserSchema = z.object({
   role: z.enum(["admin", "manager", "engineer", "operator"]).optional(),
   shift: z.string().max(50).optional(),
   active: z.boolean().optional(),
-  email: z.string().email("Invalid email format").max(255).optional(),
-  password: z.string().min(6, "Password must be at least 6 characters").max(128).optional(),
+  email: z.preprocess(
+    (v) => (typeof v === "string" ? v.trim() : v),
+    z.union([z.literal(""), z.string().email("Invalid email format").max(255)]).optional()
+  ).transform((v) => (v === "" ? undefined : v)),
+  password: z.preprocess(
+    (v) => (typeof v === "string" ? v : v),
+    z.union([z.literal(""), z.string().min(6, "Password must be at least 6 characters").max(128)]).optional()
+  ).transform((v) => (v === "" ? undefined : v)),
   labor_rate: z.number().min(0).optional(),
 });
 
