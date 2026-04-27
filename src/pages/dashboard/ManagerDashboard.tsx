@@ -18,8 +18,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ManagerNavCards } from "@/components/DashboardNavCards";
 import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
+import { isWoOpen, countOpenWOs } from "@/lib/woStatus";
 
-const DONE_STATUSES = ["completed", "closed", "finished"];
+const DONE_STATUSES = ["completed", "closed", "finished", "force_closed"];
 
 export default function ManagerDashboard() {
   const { role, loading: authLoading } = useAuth();
