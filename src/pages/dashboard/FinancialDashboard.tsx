@@ -102,9 +102,20 @@ function FinancialDashboardContent() {
 
   const machineLineMap = useMemo(() => {
     const map: Record<string, string> = {};
-    machines?.forEach((m) => { map[m.name] = m.line || "Unknown"; });
+    machines?.forEach((m) => { if (m.line) map[m.name] = m.line; });
     return map;
   }, [machines]);
+
+  // Resolve a friendly line label using the WO snapshot (line_at_time) first,
+  // then the live machine→line mapping, and finally an em-dash placeholder
+  // for WOs created without a line or whose line was deleted.
+  const resolveLine = (wo: any): string => {
+    const snapshot = (wo?.line_at_time ?? "").toString().trim();
+    if (snapshot && !/^removed$/i.test(snapshot)) return snapshot;
+    const live = machineLineMap[wo?.machine];
+    if (live && live.trim()) return live;
+    return "—";
+  };
 
   const laborRateMap = useMemo(() => {
     const map: Record<string, number> = {};
@@ -132,7 +143,7 @@ function FinancialDashboardContent() {
         id: wo.id,
         wo_number: wo.wo_number,
         machine: wo.machine,
-        line: machineLineMap[wo.machine] || "Unknown",
+        line: resolveLine(wo),
         description: wo.description,
         created_at: wo.created_at,
         partsCost,
