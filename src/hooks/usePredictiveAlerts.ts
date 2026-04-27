@@ -33,12 +33,25 @@ export function usePredictiveAlerts() {
     const cutoff7 = subDays(new Date(), 7).toISOString();
     const recentWOs = allWOs.filter((w) => w.created_at >= cutoff30);
 
-    // Group by machine + problem
-    const groups: Record<string, { count: number; count7d: number; lastOccurrence: string }> = {};
+    // Group by machine + problem (store fields directly to avoid unsafe split-on-separator)
+    const groups: Record<string, {
+      machine: string;
+      problem: string;
+      count: number;
+      count7d: number;
+      lastOccurrence: string;
+    }> = {};
     recentWOs.forEach((wo) => {
-      const key = `${wo.machine}|||${wo.description}`;
+      // Use NUL as separator — won't appear in user-entered text
+      const key = `${wo.machine}\u0000${wo.description}`;
       if (!groups[key]) {
-        groups[key] = { count: 0, count7d: 0, lastOccurrence: wo.created_at };
+        groups[key] = {
+          machine: wo.machine,
+          problem: wo.description,
+          count: 0,
+          count7d: 0,
+          lastOccurrence: wo.created_at,
+        };
       }
       groups[key].count++;
       if (wo.created_at >= cutoff7) groups[key].count7d++;
@@ -48,9 +61,9 @@ export function usePredictiveAlerts() {
     });
 
     const predictive: PredictiveAlert[] = [];
-    Object.entries(groups).forEach(([key, val]) => {
+    Object.values(groups).forEach((val) => {
       if (val.count >= 3) {
-        const [machine, problem] = key.split("|||");
+        const { machine, problem } = val;
         const isRecurring7d = val.count7d >= 3;
         predictive.push({
           machine,
