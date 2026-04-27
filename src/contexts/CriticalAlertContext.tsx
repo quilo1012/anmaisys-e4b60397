@@ -24,6 +24,8 @@ interface CriticalAlertContextType {
   acknowledge: (woId?: string) => void;
   audioEnabled: boolean;
   promptEnableAudio: () => void;
+  /** Plays a short test burst of the alert siren so the user can verify audio. */
+  testSound: () => void;
 }
 
 const CriticalAlertContext = createContext<CriticalAlertContextType>({
@@ -31,6 +33,7 @@ const CriticalAlertContext = createContext<CriticalAlertContextType>({
   acknowledge: () => {},
   audioEnabled: false,
   promptEnableAudio: () => {},
+  testSound: () => {},
 });
 
 export const useCriticalAlert = () => useContext(CriticalAlertContext);
@@ -310,11 +313,38 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(AUDIO_FLAG_KEY, "true"); } catch { /* ignore */ }
     setAudioEnabled(true);
     setShowUnlock(false);
+    // Confirmation beep so the engineer hears proof the audio works
+    setTimeout(() => {
+      try {
+        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = 880;
+        gain.gain.value = 0.2;
+        osc.connect(gain).connect(ctx.destination);
+        const now = ctx.currentTime;
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.2, now + 0.02);
+        gain.gain.linearRampToValueAtTime(0, now + 0.25);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      } catch { /* ignore */ }
+    }, 150);
   }, []);
 
   const promptEnableAudio = useCallback(() => {
     if (!audioEnabled) setShowUnlock(true);
   }, [audioEnabled]);
+
+  const testSound = useCallback(() => {
+    // Make sure audio context is unlocked then run the siren for ~2s
+    engineRef.current?.unlock();
+    engineRef.current?.start();
+    window.setTimeout(() => engineRef.current?.stop(), 2000);
+  }, []);
 
   const handleAccept = () => {
     if (!active) return;
@@ -329,8 +359,8 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   };
 
   const value = useMemo(
-    () => ({ triggerAlert, acknowledge, audioEnabled, promptEnableAudio }),
-    [triggerAlert, acknowledge, audioEnabled, promptEnableAudio]
+    () => ({ triggerAlert, acknowledge, audioEnabled, promptEnableAudio, testSound }),
+    [triggerAlert, acknowledge, audioEnabled, promptEnableAudio, testSound]
   );
 
   return (

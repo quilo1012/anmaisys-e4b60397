@@ -1,83 +1,53 @@
-# Fix: caractere `¦` nos Predictive Alerts
+## Problema
 
-## Causa-raiz
+O sistema **já tem** sirene de alerta crítica para engenheiros (`CriticalAlertContext` + `useWOAlerts`): toca `/alert.mp3` em loop + oscilador WebAudio + vibração + modal vermelho fullscreen quando uma WO chega.
 
-Em `src/hooks/usePredictiveAlerts.ts` (linhas 37–53), o hook agrupa work orders por máquina + descrição construindo uma chave concatenada com `|||`:
+Porém, navegadores bloqueiam `audio.play()` sem gesto explícito do usuário. Hoje o sistema mostra um modal "Enable Alert Sounds" no primeiro login, mas:
 
-```ts
-const key = `${wo.machine}|||${wo.description}`;
-// ...
-const [machine, problem] = key.split("|||");
-```
+- Se o engenheiro fecha o modal sem clicar em "Enable", o áudio fica mudo silenciosamente.
+- Não há indicador visual claro de que o som está desativado.
+- Não há atalho para reativar o som depois.
 
-Quando `wo.description` (ou `wo.machine`) já contém pipes — `|`, `||` ou `|||` — vindos de texto colado, importação, ou descrições do operador — o `split("|||")` retorna fragmentos errados e sobram pipes no início ou no meio de `problem`. Visualmente, `||` em fontes mais condensadas é renderizado como `¦` (broken bar U+00A6), produzindo o "¦ Conveyor Issues..." que você está vendo.
+Resultado: muitos engenheiros não ouvem o alerta sonoro quando uma WO chega.
 
-Não é problema de fonte nem de encoding — é um separador inseguro escolhido em código.
+## Solução
 
-## O que vai ser feito
+Tornar o destrave de áudio **persistente, visível e fácil de reativar**.
 
-### 1. Trocar a estratégia de agrupamento (`src/hooks/usePredictiveAlerts.ts`)
+### 1. Indicador de áudio no header (sino + status)
 
-Em vez de chave string com separador, armazenar `machine` e `problem` como campos do próprio bucket — eliminando o `split` e a possibilidade de colisão com pipes nos dados.
+Em `DashboardLayout.tsx`, ao lado do `NotificationPanel`, adicionar um botão visível **apenas para engineers/admins**:
 
-```ts
-const groups: Record<string, {
-  machine: string;
-  problem: string;
-  count: number;
-  count7d: number;
-  lastOccurrence: string;
-}> = {};
+- Ícone `Volume2` (verde) quando `audioEnabled === true`.
+- Ícone `VolumeX` (vermelho pulsante) quando `audioEnabled === false`, com tooltip "Click to enable critical alert sounds".
+- Clique chama `promptEnableAudio()` → reabre o modal de destrave.
 
-recentWOs.forEach((wo) => {
-  // separador seguro: caractere de controle improvável de ocorrer no texto
-  const key = `${wo.machine}\u0000${wo.description}`;
-  if (!groups[key]) {
-    groups[key] = {
-      machine: wo.machine,
-      problem: wo.description,
-      count: 0,
-      count7d: 0,
-      lastOccurrence: wo.created_at,
-    };
-  }
-  groups[key].count++;
-  // ... resto igual
-});
+### 2. Modal de destrave mais resiliente
 
-Object.values(groups).forEach((val) => {
-  if (val.count >= 3) {
-    const isRecurring7d = val.count7d >= 3;
-    predictive.push({
-      machine: val.machine,
-      problem: val.problem,
-      // ...
-    });
-  }
-});
-```
+Em `CriticalAlertContext.tsx`:
 
-### 2. Sanitização defensiva do texto exibido
+- Impedir fechamento do modal "Enable Alert Sounds" via ESC ou clique fora **na primeira exibição** após login (já é parcialmente bloqueado, mas o ESC fecha). Substituir por aviso "Alerts disabled — click Enable to receive critical Work Order sounds".
+- Após `enableAudio()`, tocar um beep curto de confirmação (200ms) para o engenheiro ter feedback de que o som está funcionando.
 
-Como salvaguarda extra (caso descrições reais contenham pipes propositais que ainda fiquem visualmente confusos), aplicar trim e colapsar pipes consecutivos antes de renderizar nos dois banners:
+### 3. Reabrir prompt sempre que uma WO crítica chega sem áudio destravado
 
-- `src/pages/dashboard/EngineerDashboard.tsx` (linha 642)
-- `src/pages/dashboard/ControlCenterPage.tsx` (linha ~225)
+Em `useWOAlerts.ts`, quando o evento INSERT chega e `audioEnabled === false`, **antes** de `triggerAlert`, chamar `promptEnableAudio()` — assim mesmo se o engenheiro fechou o prompt antes, ele reaparece junto com a WO crítica (modal vermelho permanece visível por trás).
 
-Helper simples:
-```ts
-const cleanProblem = (s: string) =>
-  s.replace(/\|{2,}/g, "|").replace(/^[\s|¦]+|[\s|¦]+$/g, "").trim();
-```
+### 4. Teste manual de áudio na página do engineer
 
-E usar `{cleanProblem(a.problem)}` no JSX dos dois cards.
+Em `EngineerDashboard.tsx`, próximo ao filtro de linhas (`EngineerAlertLineFilter`), adicionar um pequeno botão "🔊 Test Alert Sound" que dispara `engine.start()` por 2 segundos para o engenheiro confirmar que o áudio está funcionando.
 
-## Arquivos afetados
+## Arquivos alterados
 
-- `src/hooks/usePredictiveAlerts.ts` — refatorar agrupamento (remove `|||` e `split`)
-- `src/pages/dashboard/EngineerDashboard.tsx` — sanitizar `a.problem` no banner
-- `src/pages/dashboard/ControlCenterPage.tsx` — sanitizar `a.problem` no banner
+- `src/contexts/CriticalAlertContext.tsx` — beep de confirmação após enable; expor método `testSound()` no contexto.
+- `src/components/DashboardLayout.tsx` — botão `AudioStatusButton` ao lado do `NotificationPanel`.
+- `src/components/AudioStatusButton.tsx` (novo) — ícone Volume2/VolumeX com clique para reabrir prompt.
+- `src/hooks/useWOAlerts.ts` — chamar `promptEnableAudio()` no INSERT se ainda não destravado.
+- `src/pages/dashboard/EngineerDashboard.tsx` — botão "Test Alert Sound".
 
-## Resultado esperado
+## Resultado
 
-Os Predictive Alerts vão mostrar apenas o texto real da descrição da WO, sem `¦`, `||` ou pipes residuais no início/meio. O agrupamento por máquina+problema continua funcionando exatamente como antes, mas sem depender de um separador que pode colidir com o conteúdo do usuário.
+- Engenheiro vê **imediatamente** se o som está mudo (ícone vermelho pulsante no header).
+- Pode reativar com 1 clique a qualquer momento.
+- Pode testar o som sem esperar uma WO real.
+- Quando uma WO chega com áudio mudo, o prompt reaparece automaticamente.
