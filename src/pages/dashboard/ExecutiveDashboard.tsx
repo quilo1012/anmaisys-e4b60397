@@ -29,7 +29,8 @@ export default function ExecutiveDashboard() {
   }, []);
 
   const kpis = useMemo(() => {
-    const openWOs = workOrders.filter((w) => !["closed", "completed", "force_closed"].includes(w.status)).length;
+    // "Open" = anything not in a terminal state (closed/finished/completed/force_closed)
+    const openWOs = countOpenWOs(workOrders);
 
     // Avg Response Time = AVG(response_time_sec) from v_wo_metrics
     const respMetrics = woMetrics.filter((m) => m.response_time_sec !== null);
