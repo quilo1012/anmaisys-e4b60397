@@ -243,6 +243,16 @@ export default function WorkOrdersPage() {
 
   useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, lineFilter, searchTerm, dateQuickFilter, dateFrom, dateTo]);
 
+  // Keep URL in sync with status filter so deep-links from dashboards work
+  useEffect(() => {
+    const current = searchParams.get("status") || "all";
+    if (current !== statusFilter) {
+      const next = new URLSearchParams(searchParams);
+      if (statusFilter === "all") next.delete("status"); else next.set("status", statusFilter);
+      setSearchParams(next, { replace: true });
+    }
+  }, [statusFilter]);
+
   const kanbanColumns = useMemo(() => ({
     open: filteredWOs.filter((w) => w.status === "open"),
     received: filteredWOs.filter((w) => ["received", "arrived"].includes(w.status)),
