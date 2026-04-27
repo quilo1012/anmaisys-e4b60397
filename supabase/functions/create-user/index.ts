@@ -2,8 +2,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://esm.sh/zod@3.23.8";
 
 const createPendingPinHash = async () => {
-  const { hash } = await import("https://esm.sh/bcryptjs@2.4.3");
-  return hash(crypto.randomUUID(), 10);
+  const bcrypt: any = await import("https://esm.sh/bcryptjs@2.4.3");
+  const hashFn = bcrypt.hash ?? bcrypt.default?.hash;
+  if (typeof hashFn !== "function") {
+    // Fallback placeholder; engineer will set a real PIN via set_engineer_pin_standalone
+    return "temp";
+  }
+  return hashFn(crypto.randomUUID(), 10);
 };
 
 const corsHeaders = {
