@@ -198,6 +198,7 @@ function EngineerDashboardContent() {
   const resumeLine = useResumeLine();
   const uploadPhoto = useUploadWOPhoto();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
   useWOAlerts();
   const { promptEnableAudio, audioEnabled, acknowledge } = useCriticalAlert();
