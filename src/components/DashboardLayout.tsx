@@ -275,6 +275,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     <span className="hidden sm:inline text-xs">line{stoppedLinesCount > 1 ? "s" : ""} stopped</span>
                   </Button>
                 )}
+                {(role === "engineer" || role === "admin") && <AudioStatusButton />}
                 <NotificationPanel />
                 <Button
                   variant="ghost"
