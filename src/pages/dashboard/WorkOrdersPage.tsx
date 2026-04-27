@@ -28,6 +28,7 @@ import { generatePdfReport, authorizePdfGeneration } from "@/lib/generatePdfRepo
 import { FileText } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
+import { WO_TERMINAL_STATUSES, isWoOpen } from "@/lib/woStatus";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
