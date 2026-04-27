@@ -17,21 +17,26 @@ export function useWOAlerts() {
   useEffect(() => {
     if (!role) return;
 
-    const handler = () => {
+    const handler = (ev?: Event) => {
+      // Ignore the Escape key — users press ESC to close dialogs, and we
+      // must never interpret that as a "user gesture" that opens the
+      // Enable-Audio prompt (which would steal focus and look like the
+      // original dialog refused to close).
+      if (ev && (ev as KeyboardEvent).key === "Escape") return;
       requestNotificationPermission();
       // Engineers & admins must have alert audio unlocked to hear the siren
       if ((role === "engineer" || role === "admin") && !audioEnabled) {
         promptEnableAudio();
       }
-      document.removeEventListener("click", handler);
-      document.removeEventListener("keydown", handler);
+      document.removeEventListener("click", handler as EventListener);
+      document.removeEventListener("keydown", handler as EventListener);
     };
-    document.addEventListener("click", handler, { once: true });
-    document.addEventListener("keydown", handler, { once: true });
+    document.addEventListener("click", handler as EventListener, { once: true });
+    document.addEventListener("keydown", handler as EventListener);
 
     return () => {
-      document.removeEventListener("click", handler);
-      document.removeEventListener("keydown", handler);
+      document.removeEventListener("click", handler as EventListener);
+      document.removeEventListener("keydown", handler as EventListener);
     };
   }, [role, audioEnabled, promptEnableAudio]);
 
