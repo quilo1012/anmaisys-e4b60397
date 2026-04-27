@@ -95,9 +95,7 @@ export default function WorkOrdersPage() {
   const filterStatuses =
     statusFilter === "all" || statusFilter === "stale"
       ? undefined
-      : statusFilter === "active"
-        ? (["open", "received", "arrived", "in_progress"] as WOStatus[])
-        : [statusFilter as WOStatus];
+      : [statusFilter as WOStatus];
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
   const forceClose = useForceCloseWorkOrder();
   const closeWO = useCloseWorkOrder();
