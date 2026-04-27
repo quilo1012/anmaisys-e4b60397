@@ -628,7 +628,7 @@ function EngineerDashboardContent() {
             <AlertTitle className="text-sm font-bold">{predictiveAlerts.length} Predictive Alert(s)</AlertTitle>
             <AlertDescription className="text-xs">
               {predictiveAlerts.slice(0, 2).map((a, i) => (
-                <span key={i} className="block">{a.machine}: "{a.problem}" — {a.count}x in 30 days</span>
+                <span key={i} className="block">{a.machine}: "{a.problem}" - {a.count}x in 30 days</span>
               ))}
             </AlertDescription>
           </Alert>
