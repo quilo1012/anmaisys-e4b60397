@@ -87,6 +87,11 @@ export function useWOAlerts() {
 
 
           // Layer 1+3+4: critical alert (audio loop, modal, vibration, flash title, favicon)
+          // If audio is still locked (user dismissed the unlock prompt earlier),
+          // surface the prompt again so the next gesture restores the siren.
+          if (!audioEnabled) {
+            promptEnableAudio();
+          }
           triggerAlert({
             woId: wo.id,
             woNumber: wo.wo_number,
