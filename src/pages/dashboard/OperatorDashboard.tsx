@@ -29,6 +29,7 @@ import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { OperatorNavCards } from "@/components/DashboardNavCards";
+import { countOpenWOs } from "@/lib/woStatus";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
