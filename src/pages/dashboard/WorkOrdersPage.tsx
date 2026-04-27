@@ -54,10 +54,11 @@ export default function WorkOrdersPage() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get("status") || "all");
   
   const [problemFilter, setProblemFilter] = useState<string>("all");
   const [machineFilter, setMachineFilter] = useState<string>("all");
