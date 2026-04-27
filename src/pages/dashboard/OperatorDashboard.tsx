@@ -29,6 +29,7 @@ import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { OperatorNavCards } from "@/components/DashboardNavCards";
+import { countOpenWOs } from "@/lib/woStatus";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -213,7 +214,7 @@ function OperatorDashboardContent() {
         <p className="text-muted-foreground">Create and track your work orders</p>
       </div>
 
-      <OperatorNavCards myOpenWOs={workOrders?.filter((w) => w.status === "open" || w.status === "in_progress").length ?? 0} />
+      <OperatorNavCards myOpenWOs={countOpenWOs(workOrders)} />
 
       {/* Quick CTA buttons — Line Stopped vs Line Running */}
       <div className="grid gap-4 md:grid-cols-2">

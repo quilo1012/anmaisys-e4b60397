@@ -18,8 +18,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ManagerNavCards } from "@/components/DashboardNavCards";
 import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
+import { isWoOpen, countOpenWOs } from "@/lib/woStatus";
 
-const DONE_STATUSES = ["completed", "closed", "finished"];
+const DONE_STATUSES = ["completed", "closed", "finished", "force_closed"];
 
 export default function ManagerDashboard() {
   const { role, loading: authLoading } = useAuth();
@@ -57,7 +58,8 @@ function ManagerDashboardContent() {
   useWOAlerts();
 
   const today = new Date().toDateString();
-  const openCount = allWOs?.filter((w) => w.status === "open").length ?? 0;
+  // "Open" = anything that is not in a terminal state (closed/finished/completed/force_closed)
+  const openCount = countOpenWOs(allWOs);
   const inProgressCount = allWOs?.filter((w) => w.status === "in_progress").length ?? 0;
   const completedToday = allWOs?.filter((w) => DONE_STATUSES.includes(w.status) && (w.closed_at || w.completed_at || w.finished_at) && new Date(w.closed_at || w.completed_at || w.finished_at!).toDateString() === today).length ?? 0;
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
@@ -229,7 +231,7 @@ function ManagerDashboardContent() {
           <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => navigate("/dashboard/work-orders", { state: { openCreate: true } })}>
             <Plus className="h-4 w-4 mr-2" /> New Work Order
           </Button>
-          <Button variant="outline" onClick={() => navigate("/dashboard/work-orders?status=open")}>
+          <Button variant="outline" onClick={() => navigate("/dashboard/work-orders?status=active")}>
             <ExternalLink className="h-4 w-4 mr-2" /> View Open WOs
           </Button>
           <Button variant="outline" onClick={() => navigate("/dashboard/control-center")}>

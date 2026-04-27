@@ -9,6 +9,7 @@ import { differenceInMinutes, subDays, format, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Timer, Activity, Trophy, TrendingUp, BarChart3 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
+import { countOpenWOs } from "@/lib/woStatus";
 
 export default function ExecutiveDashboard() {
   const { data: workOrders = [] } = useWorkOrders();
@@ -28,7 +29,8 @@ export default function ExecutiveDashboard() {
   }, []);
 
   const kpis = useMemo(() => {
-    const openWOs = workOrders.filter((w) => !["closed", "completed", "force_closed"].includes(w.status)).length;
+    // "Open" = anything not in a terminal state (closed/finished/completed/force_closed)
+    const openWOs = countOpenWOs(workOrders);
 
     // Avg Response Time = AVG(response_time_sec) from v_wo_metrics
     const respMetrics = woMetrics.filter((m) => m.response_time_sec !== null);

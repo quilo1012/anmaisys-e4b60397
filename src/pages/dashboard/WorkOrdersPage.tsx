@@ -19,7 +19,7 @@ import { useMachines, useLines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useProfileNames } from "@/hooks/useProfileNames";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, subDays, startOfDay, endOfDay, startOfMonth, differenceInMinutes } from "date-fns";
 import { exportWorkOrdersCsv } from "@/lib/exportCsv";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +28,7 @@ import { generatePdfReport, authorizePdfGeneration } from "@/lib/generatePdfRepo
 import { FileText } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
+import { WO_TERMINAL_STATUSES, isWoOpen } from "@/lib/woStatus";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -53,10 +54,11 @@ export default function WorkOrdersPage() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get("status") || "all");
   
   const [problemFilter, setProblemFilter] = useState<string>("all");
   const [machineFilter, setMachineFilter] = useState<string>("all");
@@ -90,7 +92,12 @@ export default function WorkOrdersPage() {
   const toggleCol = (key: ColKey) => setVisibleCols((prev) => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
   const isCol = (key: ColKey) => visibleCols.has(key);
 
-  const filterStatuses = statusFilter === "all" || statusFilter === "stale" ? undefined : [statusFilter as WOStatus];
+  const filterStatuses =
+    statusFilter === "all" || statusFilter === "stale"
+      ? undefined
+      : statusFilter === "active"
+        ? (["open", "received", "arrived", "in_progress"] as WOStatus[])
+        : [statusFilter as WOStatus];
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
   const forceClose = useForceCloseWorkOrder();
   const closeWO = useCloseWorkOrder();
@@ -235,6 +242,16 @@ export default function WorkOrdersPage() {
   }, [filteredWOs, currentPage]);
 
   useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, lineFilter, searchTerm, dateQuickFilter, dateFrom, dateTo]);
+
+  // Keep URL in sync with status filter so deep-links from dashboards work
+  useEffect(() => {
+    const current = searchParams.get("status") || "all";
+    if (current !== statusFilter) {
+      const next = new URLSearchParams(searchParams);
+      if (statusFilter === "all") next.delete("status"); else next.set("status", statusFilter);
+      setSearchParams(next, { replace: true });
+    }
+  }, [statusFilter]);
 
   const kanbanColumns = useMemo(() => ({
     open: filteredWOs.filter((w) => w.status === "open"),
@@ -407,7 +424,7 @@ export default function WorkOrdersPage() {
                   }
                   const allWOs = filteredWOs;
                   const engPerf = engineerScores?.map((s) => ({ name: s.engineer_name || "Unknown", score: s.score, completed: 0 })) || [];
-                  const openWOs = allWOs.filter((w) => w.status === "open").length;
+                  const openWOs = allWOs.filter((w) => isWoOpen(w.status)).length;
                   try {
                     generatePdfReport({
                       workOrders: allWOs,
@@ -455,6 +472,7 @@ export default function WorkOrdersPage() {
                 <SelectTrigger className="w-[140px] sm:w-[150px] h-9 bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active (Open)</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
                   <SelectItem value="received">Received</SelectItem>
                   <SelectItem value="arrived">Arrived</SelectItem>
