@@ -79,13 +79,18 @@ export default function ExecutiveDashboard() {
     return days;
   }, [workOrders]);
 
-  // Top 3 lines by downtime
+  // Top 3 lines by downtime — prefer the WO's preserved snapshot (line_at_time),
+  // fall back to the machine→line mapping, and bucket truly missing data under "—".
   const topLines = useMemo(() => {
     const lineMap: Record<string, number> = {};
     workOrders.forEach((w) => {
       if (w.started_at && (w.finished_at || w.completed_at)) {
+        const snapshot = ((w as any).line_at_time ?? "").toString().trim();
         const machine = machines.find((m) => m.name === w.machine);
-        const line = machine?.line || "Unknown";
+        const liveLine = (machine?.line ?? "").toString().trim();
+        const line = snapshot && !/^removed$/i.test(snapshot)
+          ? snapshot
+          : (liveLine || "—");
         const mins = differenceInMinutes(new Date(w.finished_at || w.completed_at!), new Date(w.started_at!));
         lineMap[line] = (lineMap[line] || 0) + mins;
       }
