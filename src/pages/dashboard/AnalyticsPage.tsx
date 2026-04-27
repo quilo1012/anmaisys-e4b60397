@@ -162,7 +162,7 @@ export default function AnalyticsPage() {
       const live = machineToLine[w.machine];
       const line = snapshot && !/^removed$/i.test(snapshot)
         ? snapshot
-        : (live || "—");
+        : (live && live.trim() ? live : "No Line");
       lc[line] = (lc[line] || 0) + 1;
     });
     return Object.entries(lc)
