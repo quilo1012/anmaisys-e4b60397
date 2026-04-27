@@ -92,7 +92,12 @@ export default function WorkOrdersPage() {
   const toggleCol = (key: ColKey) => setVisibleCols((prev) => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
   const isCol = (key: ColKey) => visibleCols.has(key);
 
-  const filterStatuses = statusFilter === "all" || statusFilter === "stale" ? undefined : [statusFilter as WOStatus];
+  const filterStatuses =
+    statusFilter === "all" || statusFilter === "stale"
+      ? undefined
+      : statusFilter === "active"
+        ? (["open", "received", "arrived", "in_progress"] as WOStatus[])
+        : [statusFilter as WOStatus];
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
   const forceClose = useForceCloseWorkOrder();
   const closeWO = useCloseWorkOrder();
