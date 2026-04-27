@@ -472,7 +472,6 @@ export default function WorkOrdersPage() {
                 <SelectTrigger className="w-[140px] sm:w-[150px] h-9 bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="active">Active (Open)</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
                   <SelectItem value="received">Received</SelectItem>
                   <SelectItem value="arrived">Arrived</SelectItem>
