@@ -58,7 +58,8 @@ function ManagerDashboardContent() {
   useWOAlerts();
 
   const today = new Date().toDateString();
-  const openCount = allWOs?.filter((w) => w.status === "open").length ?? 0;
+  // "Open" = anything that is not in a terminal state (closed/finished/completed/force_closed)
+  const openCount = countOpenWOs(allWOs);
   const inProgressCount = allWOs?.filter((w) => w.status === "in_progress").length ?? 0;
   const completedToday = allWOs?.filter((w) => DONE_STATUSES.includes(w.status) && (w.closed_at || w.completed_at || w.finished_at) && new Date(w.closed_at || w.completed_at || w.finished_at!).toDateString() === today).length ?? 0;
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
