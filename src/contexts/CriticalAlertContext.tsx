@@ -24,6 +24,8 @@ interface CriticalAlertContextType {
   acknowledge: (woId?: string) => void;
   audioEnabled: boolean;
   promptEnableAudio: () => void;
+  /** Plays a short test burst of the alert siren so the user can verify audio. */
+  testSound: () => void;
 }
 
 const CriticalAlertContext = createContext<CriticalAlertContextType>({
@@ -31,6 +33,7 @@ const CriticalAlertContext = createContext<CriticalAlertContextType>({
   acknowledge: () => {},
   audioEnabled: false,
   promptEnableAudio: () => {},
+  testSound: () => {},
 });
 
 export const useCriticalAlert = () => useContext(CriticalAlertContext);
