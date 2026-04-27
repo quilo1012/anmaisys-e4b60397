@@ -143,7 +143,7 @@ function FinancialDashboardContent() {
         id: wo.id,
         wo_number: wo.wo_number,
         machine: wo.machine,
-        line: machineLineMap[wo.machine] || "Unknown",
+        line: resolveLine(wo),
         description: wo.description,
         created_at: wo.created_at,
         partsCost,
