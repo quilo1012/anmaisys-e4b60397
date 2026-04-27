@@ -20,7 +20,7 @@ import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStoc
 import { useUploadWOPhoto, useWOPhotos } from "@/hooks/useWOPhotos";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, useSearchParams } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
@@ -198,6 +198,7 @@ function EngineerDashboardContent() {
   const resumeLine = useResumeLine();
   const uploadPhoto = useUploadWOPhoto();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
   useWOAlerts();
   const { promptEnableAudio, audioEnabled, acknowledge } = useCriticalAlert();
@@ -207,6 +208,16 @@ function EngineerDashboardContent() {
   const [focusMode, setFocusMode] = useState(false);
   const [changePinOpen, setChangePinOpen] = useState(false);
 
+  // When the sidebar's "My Tasks" item is clicked, scroll to the Work Orders section
+  useEffect(() => {
+    if (searchParams.get("focus") === "tasks") {
+      const t = setTimeout(() => {
+        const el = document.getElementById("my-tasks");
+        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [searchParams]);
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
@@ -688,7 +699,7 @@ function EngineerDashboardContent() {
           </Card>
         </div>
 
-        <Card>
+        <Card id="my-tasks" className="scroll-mt-24">
           <CardHeader className="p-4 md:p-6">
             <CardTitle className="flex items-center gap-2 text-lg"><ClipboardList className="h-5 w-5" /> Work Orders</CardTitle>
           </CardHeader>
