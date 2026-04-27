@@ -20,7 +20,7 @@ import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStoc
 import { useUploadWOPhoto, useWOPhotos } from "@/hooks/useWOPhotos";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, useSearchParams } from "react-router-dom";
 import { format, differenceInMinutes } from "date-fns";
 import { PartsUsedDialog } from "@/components/PartsUsedDialog";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
