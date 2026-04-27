@@ -371,14 +371,21 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
       </Dialog>
 
       {/* Critical full-screen alert */}
-      <Dialog open={!!active} onOpenChange={() => { /* cannot dismiss without acknowledge */ }}>
+      <Dialog
+        open={!!active}
+        onOpenChange={(open) => {
+          // Allow ESC (and any other close trigger) to acknowledge the alert,
+          // matching the "Acknowledge" button. Outside-clicks are still
+          // ignored by the handlers below to prevent accidental dismissal.
+          if (!open && active) acknowledge(active.woId);
+        }}
+      >
         <DialogContent
           className={cn(
             "max-w-lg border-4 border-destructive bg-destructive text-destructive-foreground",
             "shadow-[0_0_60px_hsl(var(--destructive)/0.6)]",
             "[&>button]:hidden" // hide close X
           )}
-          onEscapeKeyDown={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
         >
