@@ -31,8 +31,16 @@ export function useDowntime() {
       if (manualError) throw manualError;
       if (eventError) throw eventError;
 
+      const prettifyLineManual = (raw: unknown): string => {
+        const v = (raw ?? "").toString().trim();
+        if (!v) return "— (line deleted)";
+        if (/^removed$/i.test(v)) return "— (line deleted)";
+        return v;
+      };
+
       const manualRecords = (manualData || []).map((r: any) => ({
         ...r,
+        line: prettifyLineManual(r.line),
         source: "manual" as const,
       })) as DowntimeRecord[];
 
