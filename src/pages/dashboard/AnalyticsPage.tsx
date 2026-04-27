@@ -150,10 +150,26 @@ export default function AnalyticsPage() {
 
   const lineProblems = useMemo(() => {
     if (!allWOs) return [];
+    // Build a fast machine→line lookup from the live machines table
+    const machineToLine: Record<string, string> = {};
+    machines?.forEach((m: any) => {
+      const name = (m?.line ?? "").toString().trim();
+      if (m?.name && name) machineToLine[m.name] = name;
+    });
     const lc: Record<string, number> = {};
-    allWOs.forEach((w) => { lc[w.machine] = (lc[w.machine] || 0) + 1; });
-    return Object.entries(lc).sort((a, b) => b[1] - a[1]).slice(0, 7).map(([machine, count]) => ({ machine, count }));
-  }, [allWOs]);
+    allWOs.forEach((w) => {
+      const snapshot = ((w as any).line_at_time ?? "").toString().trim();
+      const live = machineToLine[w.machine];
+      const line = snapshot && !/^removed$/i.test(snapshot)
+        ? snapshot
+        : (live || "—");
+      lc[line] = (lc[line] || 0) + 1;
+    });
+    return Object.entries(lc)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 7)
+      .map(([line, count]) => ({ line, count }));
+  }, [allWOs, machines]);
 
   const topProblems = useMemo(() => {
     if (!allWOs) return [];
