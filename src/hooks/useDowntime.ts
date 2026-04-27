@@ -36,13 +36,26 @@ export function useDowntime() {
         source: "manual" as const,
       })) as DowntimeRecord[];
 
+      // Map legacy/placeholder values to a friendly label so deleted lines
+      // are not surfaced as the literal token "Removed".
+      const prettifyLine = (raw: unknown): string => {
+        const v = (raw ?? "").toString().trim();
+        if (!v) return "— (line deleted)";
+        if (/^removed$/i.test(v)) return "— (line deleted)";
+        return v;
+      };
+
       const eventRecords = (eventData || []).map((event: any) => {
         const wo = event.work_order;
+        // Prefer the live line name, fall back to the snapshot taken at WO
+        // creation, and finally to a friendly "deleted" placeholder.
+        const liveName = wo?.line?.name as string | undefined;
+        const snapshot = wo?.line_at_time as string | undefined;
         return {
           id: `event-${event.id}`,
           source_event_id: event.id,
           source: "wo_event" as const,
-          line: wo?.line?.name || wo?.line_at_time || "Work order line",
+          line: liveName?.trim() || prettifyLine(snapshot),
           machine: wo?.machine || null,
           reason: event.stopped_reason || (event.is_recurrence ? "Recurring failure" : "Line stopped"),
           category: event.is_recurrence ? "Maintenance" : "Machine",
