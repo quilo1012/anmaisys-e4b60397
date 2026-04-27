@@ -231,7 +231,7 @@ function ManagerDashboardContent() {
           <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => navigate("/dashboard/work-orders", { state: { openCreate: true } })}>
             <Plus className="h-4 w-4 mr-2" /> New Work Order
           </Button>
-          <Button variant="outline" onClick={() => navigate("/dashboard/work-orders?status=active")}>
+          <Button variant="outline" onClick={() => navigate("/dashboard/work-orders?status=open")}>
             <ExternalLink className="h-4 w-4 mr-2" /> View Open WOs
           </Button>
           <Button variant="outline" onClick={() => navigate("/dashboard/control-center")}>
