@@ -699,7 +699,7 @@ function EngineerDashboardContent() {
           </Card>
         </div>
 
-        <Card>
+        <Card id="my-tasks" className="scroll-mt-24">
           <CardHeader className="p-4 md:p-6">
             <CardTitle className="flex items-center gap-2 text-lg"><ClipboardList className="h-5 w-5" /> Work Orders</CardTitle>
           </CardHeader>
