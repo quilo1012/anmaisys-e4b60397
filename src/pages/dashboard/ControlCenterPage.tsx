@@ -220,7 +220,7 @@ export default function ControlCenterPage() {
         {predictiveAlerts.length > 0 && (
           <Alert className="border-purple-500 bg-purple-500/10 text-purple-800">
             <AlertTriangle className="h-5 w-5 text-purple-600" />
-            <AlertTitle className={tvMode ? "text-xs" : "text-sm font-bold"}>🟣 {predictiveAlerts.length} Predictive Alert(s)</AlertTitle>
+            <AlertTitle className={tvMode ? "text-xs" : "text-sm font-bold"}>{predictiveAlerts.length} Predictive Alert(s)</AlertTitle>
             <AlertDescription className={tvMode ? "text-[10px]" : "text-xs"}>
               {predictiveAlerts.slice(0, 3).map((a, i) => (
                 <span key={i} className="block">{a.machine}: "{a.problem}" — {a.count}x in 30 days</span>
