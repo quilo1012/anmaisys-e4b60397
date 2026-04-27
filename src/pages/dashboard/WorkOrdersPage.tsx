@@ -19,7 +19,7 @@ import { useMachines, useLines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { useProfileNames } from "@/hooks/useProfileNames";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, subDays, startOfDay, endOfDay, startOfMonth, differenceInMinutes } from "date-fns";
 import { exportWorkOrdersCsv } from "@/lib/exportCsv";
 import { useToast } from "@/hooks/use-toast";
