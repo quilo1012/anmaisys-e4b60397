@@ -587,7 +587,7 @@ export default function DowntimePage() {
                 <TableBody>
                   {filteredRecords.map(r => (
                     <TableRow key={r.id}>
-                      <TableCell className="font-medium">{r.line}</TableCell>
+                      <TableCell className={r.line === "— (line deleted)" ? "italic text-muted-foreground" : "font-medium"}>{r.line}</TableCell>
                       <TableCell>{r.machine || "—"}</TableCell>
                       <TableCell><Badge variant="outline">{r.category}</Badge></TableCell>
                       <TableCell className="max-w-[200px] truncate">{r.reason}</TableCell>
