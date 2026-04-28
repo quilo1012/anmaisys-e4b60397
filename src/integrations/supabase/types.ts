@@ -1382,38 +1382,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "work_orders_engineer_id_fkey"
-            columns: ["engineer_id"]
-            isOneToOne: false
-            referencedRelation: "engineers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "work_orders_engineer_id_fkey"
-            columns: ["engineer_id"]
-            isOneToOne: false
-            referencedRelation: "engineers_safe"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "work_orders_line_id_fkey"
             columns: ["line_id"]
             isOneToOne: false
             referencedRelation: "lines"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "work_orders_locked_engineer_id_fkey"
-            columns: ["locked_engineer_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "work_orders_locked_engineer_id_fkey"
-            columns: ["locked_engineer_id"]
-            isOneToOne: false
-            referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
           {
