@@ -336,34 +336,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "downtime_events_resumed_by_fkey"
-            columns: ["resumed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "downtime_events_resumed_by_fkey"
-            columns: ["resumed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "downtime_events_stopped_by_fkey"
-            columns: ["stopped_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "downtime_events_stopped_by_fkey"
-            columns: ["stopped_by"]
-            isOneToOne: false
-            referencedRelation: "profiles_safe"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "downtime_events_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
@@ -1251,20 +1223,6 @@ export type Database = {
           work_order_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "work_order_logs_engineer_id_fkey"
-            columns: ["engineer_id"]
-            isOneToOne: false
-            referencedRelation: "engineers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "work_order_logs_engineer_id_fkey"
-            columns: ["engineer_id"]
-            isOneToOne: false
-            referencedRelation: "engineers_safe"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "work_order_logs_work_order_id_fkey"
             columns: ["work_order_id"]
