@@ -182,6 +182,17 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { data: stoppedLinesCount = 0 } = useStoppedLinesCount();
   const { language, toggle: toggleLanguage } = useLanguage();
   const [changePwdOpen, setChangePwdOpen] = useState(false);
+  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
+
+  const performSignOut = async () => {
+    try {
+      await signOut();
+    } catch {
+      // ignore — proceed to clear session client-side
+    } finally {
+      window.location.replace("/login");
+    }
+  };
 
   useHeartbeat();
 
