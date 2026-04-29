@@ -331,6 +331,25 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </main>
         </div>
         <ChangePasswordDialog open={changePwdOpen} onOpenChange={setChangePwdOpen} />
+        <AlertDialog open={signOutConfirmOpen} onOpenChange={setSignOutConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Terminar sessão?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tens a certeza que queres sair? Terás de pedir a senha ao responsável para entrar novamente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => void performSignOut()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Sim, sair
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SidebarProvider>
     </TooltipProvider>
   );
