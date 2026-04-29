@@ -258,13 +258,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 size="sm"
                 title="Sign Out"
                 className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
-                onClick={async () => {
-                  try {
-                    await signOut();
-                  } catch {
-                    // ignore — proceed to clear session client-side
-                  } finally {
-                    window.location.replace("/login");
+                onClick={() => {
+                  if (role === "operator") {
+                    setSignOutConfirmOpen(true);
+                  } else {
+                    void performSignOut();
                   }
                 }}
               >
