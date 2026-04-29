@@ -334,18 +334,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         <AlertDialog open={signOutConfirmOpen} onOpenChange={setSignOutConfirmOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Terminar sessão?</AlertDialogTitle>
+              <AlertDialogTitle>Sign out?</AlertDialogTitle>
               <AlertDialogDescription>
-                Tens a certeza que queres sair? Terás de pedir a senha ao responsável para entrar novamente.
+                Are you sure you want to sign out? You will need to ask your supervisor for the password to log in again.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => void performSignOut()}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                Sim, sair
+                Yes, sign out
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
