@@ -17,6 +17,16 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useLocation, useNavigate } from "react-router-dom";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
@@ -172,6 +182,17 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { data: stoppedLinesCount = 0 } = useStoppedLinesCount();
   const { language, toggle: toggleLanguage } = useLanguage();
   const [changePwdOpen, setChangePwdOpen] = useState(false);
+  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
+
+  const performSignOut = async () => {
+    try {
+      await signOut();
+    } catch {
+      // ignore — proceed to clear session client-side
+    } finally {
+      window.location.replace("/login");
+    }
+  };
 
   useHeartbeat();
 
@@ -237,13 +258,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 size="sm"
                 title="Sign Out"
                 className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
-                onClick={async () => {
-                  try {
-                    await signOut();
-                  } catch {
-                    // ignore — proceed to clear session client-side
-                  } finally {
-                    window.location.replace("/login");
+                onClick={() => {
+                  if (role === "operator") {
+                    setSignOutConfirmOpen(true);
+                  } else {
+                    void performSignOut();
                   }
                 }}
               >
@@ -312,6 +331,25 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </main>
         </div>
         <ChangePasswordDialog open={changePwdOpen} onOpenChange={setChangePwdOpen} />
+        <AlertDialog open={signOutConfirmOpen} onOpenChange={setSignOutConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Terminar sessão?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tens a certeza que queres sair? Terás de pedir a senha ao responsável para entrar novamente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => void performSignOut()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Sim, sair
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SidebarProvider>
     </TooltipProvider>
   );
