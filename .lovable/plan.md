@@ -1,53 +1,57 @@
-## Problema
+# Bloquear acesso a utilizadores desativados
 
-O sistema **já tem** sirene de alerta crítica para engenheiros (`CriticalAlertContext` + `useWOAlerts`): toca `/alert.mp3` em loop + oscilador WebAudio + vibração + modal vermelho fullscreen quando uma WO chega.
+## Problema confirmado
 
-Porém, navegadores bloqueiam `audio.play()` sem gesto explícito do usuário. Hoje o sistema mostra um modal "Enable Alert Sounds" no primeiro login, mas:
+A conta `productionappliednutrition@gmail.com` está com `profiles.active = false` na base de dados, mas o utilizador continua a conseguir entrar e usar o sistema normalmente.
 
-- Se o engenheiro fecha o modal sem clicar em "Enable", o áudio fica mudo silenciosamente.
-- Não há indicador visual claro de que o som está desativado.
-- Não há atalho para reativar o som depois.
+**Causa raiz:** o flag `active` é guardado no perfil e mostrado na UI ("Active / Inactive"), mas **nunca é verificado em lado nenhum** do fluxo de autenticação:
+- `src/contexts/AuthContext.tsx` carrega o campo `active` mas não faz nada com ele.
+- `src/components/ProtectedRoute.tsx` só verifica `session` e `role`.
+- O Edge Function `update-user` apenas atualiza `profiles.active`, não revoga sessões existentes.
 
-Resultado: muitos engenheiros não ouvem o alerta sonoro quando uma WO chega.
+Resultado: um utilizador desativado mantém a sessão (e tokens em localStorage com auto-refresh), e mesmo um login novo passaria, porque o Supabase Auth não sabe nada do nosso flag `active`.
 
 ## Solução
 
-Tornar o destrave de áudio **persistente, visível e fácil de reativar**.
+Tratar `profiles.active = false` como "sem acesso" em **três sítios complementares**, sem mexer em mais nenhuma lógica:
 
-### 1. Indicador de áudio no header (sino + status)
+### 1. AuthContext — sign out automático quando `active = false`
+Em `src/contexts/AuthContext.tsx`, na função `fetchUserData` (e numa nova subscription realtime ao próprio profile):
+- Se `profile.active === false`, executar:
+  - `supabase.auth.signOut()`
+  - Limpar estado local (session/user/role/profile)
+  - `toast` a informar: *"Your account has been deactivated. Contact your supervisor."*
+  - Redirecionar para `/login` (via `window.location.replace("/login")`).
+- Adicionar uma subscrição realtime à row `profiles` do utilizador atual, para que **se o admin desativar a conta enquanto o user está ligado, ele seja deslogado em segundos** sem precisar de fechar o tablet.
 
-Em `DashboardLayout.tsx`, ao lado do `NotificationPanel`, adicionar um botão visível **apenas para engineers/admins**:
+### 2. ProtectedRoute — guarda extra
+Em `src/components/ProtectedRoute.tsx`, adicionar verificação:
+- Se `profile && profile.active === false` → mostrar ecrã "Account deactivated. Contact your supervisor." com botão de logout (não usa o dashboard de fallback). Isto cobre o pequeno gap entre o login e o sign-out automático disparar.
 
-- Ícone `Volume2` (verde) quando `audioEnabled === true`.
-- Ícone `VolumeX` (vermelho pulsante) quando `audioEnabled === false`, com tooltip "Click to enable critical alert sounds".
-- Clique chama `promptEnableAudio()` → reabre o modal de destrave.
+### 3. Edge Function `update-user` — revogar sessão ao desativar
+Em `supabase/functions/update-user/index.ts`, quando `active === false` for recebido:
+- Após o `update` ao profile, chamar `supabaseAdmin.auth.admin.signOut(userId, "global")` para invalidar **todos** os refresh tokens do utilizador no servidor.
+- Assim, mesmo que o tablet esteja offline no momento, no próximo refresh de token o Supabase rejeita e o utilizador cai fora.
 
-### 2. Modal de destrave mais resiliente
+## Comportamento final
 
-Em `CriticalAlertContext.tsx`:
+| Cenário | Resultado |
+|---|---|
+| Admin desativa conta com user online | Realtime dispara sign-out automático em ~segundos. Toast a explicar. |
+| Admin desativa conta com tablet offline | No próximo network call, refresh falha (sessão revogada server-side) → cai no login. |
+| User desativado tenta novo login | Login passa em Supabase Auth, mas `AuthContext` ao carregar o profile vê `active=false` e faz sign-out imediato. |
+| User ativo | Sem alteração nenhuma. |
 
-- Impedir fechamento do modal "Enable Alert Sounds" via ESC ou clique fora **na primeira exibição** após login (já é parcialmente bloqueado, mas o ESC fecha). Substituir por aviso "Alerts disabled — click Enable to receive critical Work Order sounds".
-- Após `enableAudio()`, tocar um beep curto de confirmação (200ms) para o engenheiro ter feedback de que o som está funcionando.
+## Notas técnicas
 
-### 3. Reabrir prompt sempre que uma WO crítica chega sem áudio destravado
+- Não tocar em `src/integrations/supabase/client.ts` (auto-gerado).
+- O sign-out automático **não** afeta admin/manager/engineer/operator de forma diferente — qualquer role com `active=false` é bloqueado igualmente.
+- Toast traduzido em inglês para manter consistência com a UI atual.
+- A subscrição realtime usa `postgres_changes` filtrado por `id=eq.<userId>` (RLS já permite ler o próprio profile).
+- Não é necessária migration SQL. Tudo é código de aplicação + edge function.
 
-Em `useWOAlerts.ts`, quando o evento INSERT chega e `audioEnabled === false`, **antes** de `triggerAlert`, chamar `promptEnableAudio()` — assim mesmo se o engenheiro fechou o prompt antes, ele reaparece junto com a WO crítica (modal vermelho permanece visível por trás).
+## Ficheiros alterados
 
-### 4. Teste manual de áudio na página do engineer
-
-Em `EngineerDashboard.tsx`, próximo ao filtro de linhas (`EngineerAlertLineFilter`), adicionar um pequeno botão "🔊 Test Alert Sound" que dispara `engine.start()` por 2 segundos para o engenheiro confirmar que o áudio está funcionando.
-
-## Arquivos alterados
-
-- `src/contexts/CriticalAlertContext.tsx` — beep de confirmação após enable; expor método `testSound()` no contexto.
-- `src/components/DashboardLayout.tsx` — botão `AudioStatusButton` ao lado do `NotificationPanel`.
-- `src/components/AudioStatusButton.tsx` (novo) — ícone Volume2/VolumeX com clique para reabrir prompt.
-- `src/hooks/useWOAlerts.ts` — chamar `promptEnableAudio()` no INSERT se ainda não destravado.
-- `src/pages/dashboard/EngineerDashboard.tsx` — botão "Test Alert Sound".
-
-## Resultado
-
-- Engenheiro vê **imediatamente** se o som está mudo (ícone vermelho pulsante no header).
-- Pode reativar com 1 clique a qualquer momento.
-- Pode testar o som sem esperar uma WO real.
-- Quando uma WO chega com áudio mudo, o prompt reaparece automaticamente.
+- `src/contexts/AuthContext.tsx` — verificação de `active` + realtime subscription + sign-out automático.
+- `src/components/ProtectedRoute.tsx` — ecrã "Account deactivated" como guarda extra.
+- `supabase/functions/update-user/index.ts` — revogar sessão server-side quando `active=false`.
