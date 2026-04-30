@@ -20,7 +20,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { session, role, loading } = useAuth();
+  const { session, role, profile, loading, signOut } = useAuth();
 
   // Still resolving session or role — show spinner
   if (loading) {
