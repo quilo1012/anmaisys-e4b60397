@@ -120,6 +120,17 @@ Deno.serve(async (req) => {
       if (profileError) throw profileError;
     }
 
+    // If user was deactivated, revoke ALL existing sessions/refresh tokens server-side.
+    // This forces the user out of the system on the next request, even if their tablet is offline now.
+    if (active === false) {
+      try {
+        await supabaseAdmin.auth.admin.signOut(userId, "global");
+      } catch (signOutErr) {
+        // Non-fatal: profile is already marked inactive; client-side guard will catch it.
+        console.error("Failed to revoke sessions for deactivated user:", signOutErr);
+      }
+    }
+
     if (role) {
       const { data: existingRole } = await supabaseAdmin
         .from("user_roles")

@@ -20,7 +20,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { session, role, loading } = useAuth();
+  const { session, role, profile, loading, signOut } = useAuth();
 
   // Still resolving session or role — show spinner
   if (loading) {
@@ -34,6 +34,30 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   // No session at all — redirect to login
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Account deactivated — block immediately, even before role resolves
+  if (profile && profile.active === false) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <div className="text-center space-y-4 max-w-md">
+          <ShieldAlert className="mx-auto h-12 w-12 text-destructive" />
+          <h1 className="text-xl font-semibold text-foreground">Account deactivated</h1>
+          <p className="text-muted-foreground text-sm">
+            Your account has been disabled. Please contact your supervisor to regain access.
+          </p>
+          <Button
+            variant="outline"
+            onClick={async () => {
+              await signOut();
+              window.location.replace("/login");
+            }}
+          >
+            Back to login
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   // Session exists but role not yet available (shouldn't happen after loading, but guard)
