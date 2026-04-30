@@ -35,6 +35,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roleLoading, setRoleLoading] = useState(false);
   const currentUserIdRef = useRef<string | null>(null);
 
+  const forceSignOutInactive = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
+    currentUserIdRef.current = null;
+    setSession(null);
+    setUser(null);
+    setRole(null);
+    setProfile(null);
+    toast.error("Your account has been deactivated. Contact your supervisor.");
+    // Hard redirect to clear any in-memory state
+    setTimeout(() => {
+      window.location.replace("/login");
+    }, 100);
+  };
+
   const fetchUserData = async (userId: string) => {
     setRoleLoading(true);
     try {
@@ -46,7 +64,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .single(),
         supabase.rpc("get_user_role", { _user_id: userId }),
       ]);
-      if (profileRes.data) setProfile(profileRes.data);
+      if (profileRes.data) {
+        // If account is deactivated, immediately sign out and bail
+        if (profileRes.data.active === false) {
+          await forceSignOutInactive();
+          return;
+        }
+        setProfile(profileRes.data);
+      }
       if (roleRes.data) setRole(roleRes.data);
     } catch {
       // keep existing role/profile on error
