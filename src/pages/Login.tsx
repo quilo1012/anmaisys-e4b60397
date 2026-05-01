@@ -18,6 +18,10 @@ const dashMap: Record<string, string> = {
 
 const MODE_KEY = "an_login_mode";
 const TABLET_KEY = "an_tablet_account_id";
+// Persisted credentials used to silently re-login a Tablet account whose
+// refresh-token was revoked (e.g. the same shared account refreshing on
+// another tablet). Scoped to Tablet mode only — never used for staff.
+const TABLET_CRED_KEY = "an_tablet_cred";
 
 type Mode = "staff" | "tablet";
 
@@ -114,6 +118,19 @@ export default function Login() {
       localStorage.setItem(MODE_KEY, mode);
       if (mode === "tablet" && selectedAccount) {
         localStorage.setItem(TABLET_KEY, selectedAccount.id);
+        // Persist credentials for silent re-login on token revocation
+        // (only ever stored for shared Tablet operator accounts).
+        try {
+          localStorage.setItem(
+            TABLET_CRED_KEY,
+            JSON.stringify({ accountId: selectedAccount.id, email: loginEmail, password }),
+          );
+        } catch {
+          // localStorage may be unavailable; silent re-login simply won't run.
+        }
+      } else {
+        // Staff login should never leave tablet credentials behind.
+        localStorage.removeItem(TABLET_CRED_KEY);
       }
 
       const { data: { user } } = await supabase.auth.getUser();
