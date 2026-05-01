@@ -18,6 +18,10 @@ const dashMap: Record<string, string> = {
 
 const MODE_KEY = "an_login_mode";
 const TABLET_KEY = "an_tablet_account_id";
+// Persisted credentials used to silently re-login a Tablet account whose
+// refresh-token was revoked (e.g. the same shared account refreshing on
+// another tablet). Scoped to Tablet mode only — never used for staff.
+const TABLET_CRED_KEY = "an_tablet_cred";
 
 type Mode = "staff" | "tablet";
 
