@@ -291,6 +291,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   const signOut = async () => {
+    // Mark this as an explicit user-initiated sign-out so the SIGNED_OUT
+    // listener does not attempt a silent Tablet re-login.
+    explicitSignOutRef.current = true;
+    try {
+      // Wipe persisted Tablet credentials on explicit sign-out only.
+      localStorage.removeItem("an_tablet_cred");
+    } catch { /* ignore */ }
     await supabase.auth.signOut();
     currentUserIdRef.current = null;
     setSession(null);
