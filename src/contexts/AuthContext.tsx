@@ -178,10 +178,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!mounted) return;
 
-      // ONLY explicit sign out clears state. Never auto-logout on transient events.
+      // SIGNED_OUT: if it was an explicit user/admin sign-out, clear and stop.
+      // If it was a server-side token revocation on a shared Tablet account,
+      // try to silently re-login using the persisted Tablet credentials so
+      // the operator never bounces back to the login screen.
       if (event === "SIGNED_OUT") {
-        clearAuthState();
-        setIsReady(true);
+        if (explicitSignOutRef.current) {
+          explicitSignOutRef.current = false;
+          clearAuthState();
+          setIsReady(true);
+          return;
+        }
+        // Implicit sign-out (revoked refresh token, expired session, etc.)
+        void (async () => {
+          const ok = await tryTabletRelogin();
+          if (!ok) {
+            clearAuthState();
+            setIsReady(true);
+          }
+          // If ok, the new SIGNED_IN event will re-populate state.
+        })();
         return;
       }
 
