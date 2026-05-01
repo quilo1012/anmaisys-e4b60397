@@ -426,8 +426,8 @@ function OperatorDashboardContent() {
                            <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
                          </div>
                        </TableCell>
-                       <TableCell className="font-medium">{machines?.find((m) => m.name === wo.machine)?.line || "—"}</TableCell>
-                       <TableCell>{wo.machine}</TableCell>
+                       <TableCell className="font-medium">{lines?.find((l) => l.id === (wo as any).line_id)?.name || machines?.find((m) => m.name === wo.machine)?.line || "—"}</TableCell>
+                       <TableCell>{wo.machine || "—"}</TableCell>
                        <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>
                        <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
                        <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
