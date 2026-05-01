@@ -443,53 +443,7 @@ export default function WorkOrderDetail() {
           </CardContent>
         </Card>
 
-        {/* LINE STOPPAGE HISTORY — only renders if there are events */}
-        {downtimeEvents.length > 0 && (
-          <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
-            <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Line Stoppage History</CardTitle></CardHeader>
-            <CardContent>
-              <table className="w-full text-sm print:text-[8pt] border-collapse">
-                <thead>
-                  <tr className="bg-muted print:bg-gray-100">
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black w-10">#</th>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Stopped</th>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Resumed</th>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Duration</th>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Type</th>
-                    <th className="text-left px-2 py-1 font-bold print:border print:border-black">Reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {downtimeEvents.map((d, i) => {
-                    const dur = d.resumed_at
-                      ? formatShortDuration(differenceInSeconds(new Date(d.resumed_at), new Date(d.stopped_at)))
-                      : <span className="text-destructive font-medium">ongoing</span>;
-                    const isRec = (d as any).is_recurrence === true;
-                    return (
-                      <tr key={d.id} className={i % 2 === 1 ? "bg-muted/30 print:bg-gray-50" : ""}>
-                        <td className="px-2 py-1 print:border print:border-black font-mono">{i + 1}</td>
-                        <td className="px-2 py-1 print:border print:border-black font-mono">{format(new Date(d.stopped_at), "dd/MM HH:mm:ss")}</td>
-                        <td className="px-2 py-1 print:border print:border-black font-mono">{d.resumed_at ? format(new Date(d.resumed_at), "dd/MM HH:mm:ss") : "—"}</td>
-                        <td className="px-2 py-1 print:border print:border-black">{dur}</td>
-                        <td className="px-2 py-1 print:border print:border-black">
-                          {isRec ? <span className="font-semibold text-destructive">Recurrence</span> : <span className="text-muted-foreground">Initial</span>}
-                        </td>
-                        <td className="px-2 py-1 print:border print:border-black">{d.stopped_reason || "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="font-bold border-t-2 border-border">
-                    <td colSpan={6} className="px-2 py-1 print:border print:border-black">
-                      TOTAL: {downtimeEvents.length} stoppage{downtimeEvents.length !== 1 ? "s" : ""} · {formatShortDuration(downtimeEvents.reduce((acc, e) => acc + (e.resumed_at ? differenceInSeconds(new Date(e.resumed_at), new Date(e.stopped_at)) : differenceInSeconds(new Date(), new Date(e.stopped_at))), 0))}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </CardContent>
-          </Card>
-        )}
+        {/* Line stoppage history is rendered below by DowntimeHistorySection */}
 
         {/* CHECKLIST EXECUTADO — groups by type, shows completed_by + completed_at */}
         {checklistItems && checklistItems.length > 0 && (
