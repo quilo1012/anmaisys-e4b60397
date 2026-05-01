@@ -35,7 +35,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roleLoading, setRoleLoading] = useState(false);
   const currentUserIdRef = useRef<string | null>(null);
 
+  const explicitSignOutRef = useRef(false);
+  const reLoginInFlightRef = useRef(false);
+
+  const TABLET_CRED_KEY = "an_tablet_cred";
+  const DEACTIVATED_UNTIL_KEY = "an_account_deactivated_until";
+
+  const tryTabletRelogin = async (): Promise<boolean> => {
+    if (reLoginInFlightRef.current) return false;
+    // If the account was just deactivated, skip silent re-login for 60s.
+    try {
+      const until = Number(localStorage.getItem(DEACTIVATED_UNTIL_KEY) || 0);
+      if (until && Date.now() < until) return false;
+    } catch { /* ignore */ }
+
+    let raw: string | null = null;
+    try { raw = localStorage.getItem(TABLET_CRED_KEY); } catch { return false; }
+    if (!raw) return false;
+
+    let cred: { email?: string; password?: string } | null = null;
+    try { cred = JSON.parse(raw); } catch { return false; }
+    if (!cred?.email || !cred?.password) return false;
+
+    reLoginInFlightRef.current = true;
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: cred.email,
+        password: cred.password,
+      });
+      if (error) {
+        // Bad credentials — wipe the stored creds so we don't loop.
+        try { localStorage.removeItem(TABLET_CRED_KEY); } catch { /* ignore */ }
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    } finally {
+      reLoginInFlightRef.current = false;
+    }
+  };
+
   const forceSignOutInactive = async () => {
+    try {
+      // Suppress the silent-relogin path for a minute.
+      localStorage.setItem(DEACTIVATED_UNTIL_KEY, String(Date.now() + 60_000));
+      localStorage.removeItem(TABLET_CRED_KEY);
+    } catch { /* ignore */ }
+    explicitSignOutRef.current = true;
     try {
       await supabase.auth.signOut();
     } catch {
