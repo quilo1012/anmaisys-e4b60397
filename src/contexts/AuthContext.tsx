@@ -168,7 +168,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (currentSession?.user) {
         syncSessionUser(currentSession);
       } else {
-        clearAuthState();
+        // No session at boot: attempt silent Tablet re-login before giving up.
+        const ok = await tryTabletRelogin();
+        if (!ok && mounted) {
+          clearAuthState();
+        }
+        // On success, the SIGNED_IN event will populate state.
       }
       setIsReady(true);
     };
