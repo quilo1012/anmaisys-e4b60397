@@ -20,10 +20,21 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { session, role, profile, loading, signOut } = useAuth();
+  const { session, role, profile, loading, silentReLoginInFlight, signOut } = useAuth();
 
   // Still resolving session or role — show spinner
   if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  // Silent re-login in progress (shared tablet refresh-token recovery) — wait
+  // instead of bouncing the user to /login. The recovery completes within a
+  // few hundred ms; if it fails, the next render will redirect normally.
+  if (!session && silentReLoginInFlight) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
