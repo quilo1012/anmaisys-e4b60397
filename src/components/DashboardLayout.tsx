@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
+import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useOfflineDetection } from "@/hooks/useOfflineQueue";
 import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
@@ -195,6 +196,17 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   };
 
   useHeartbeat();
+
+  // Engineer/Admin: auto-prompt the "Enable Alerts" gesture on any dashboard
+  // route, not only the engineer dashboard. Without this, an engineer who
+  // navigates straight to /dashboard/work-orders never unlocks audio and
+  // misses the critical-WO siren.
+  const { audioEnabled, promptEnableAudio } = useCriticalAlert();
+  useEffect(() => {
+    if ((role === "engineer" || role === "admin") && !audioEnabled) {
+      promptEnableAudio();
+    }
+  }, [role, audioEnabled, promptEnableAudio]);
 
   // Browser tab title
   useEffect(() => {

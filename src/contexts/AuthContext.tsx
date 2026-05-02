@@ -12,6 +12,10 @@ interface AuthContextType {
   role: AppRole | null;
   profile: Omit<Database["public"]["Tables"]["profiles"]["Row"], "labor_rate"> | null;
   loading: boolean;
+  /** True while a background silent re-login is being attempted (shared tablet
+   *  refresh-token revocation recovery). ProtectedRoute uses this to avoid
+   *  bouncing the user to /login during the recovery window. */
+  silentReLoginInFlight: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -21,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
   role: null,
   profile: null,
   loading: true,
+  silentReLoginInFlight: false,
   signOut: async () => {},
 });
 
@@ -33,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Omit<Database["public"]["Tables"]["profiles"]["Row"], "labor_rate"> | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [roleLoading, setRoleLoading] = useState(false);
+  const [silentReLoginInFlight, setSilentReLoginInFlight] = useState(false);
   const currentUserIdRef = useRef<string | null>(null);
 
   const explicitSignOutRef = useRef(false);
@@ -58,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!cred?.email || !cred?.password) return false;
 
     reLoginInFlightRef.current = true;
+    setSilentReLoginInFlight(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: cred.email,
@@ -73,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     } finally {
       reLoginInFlightRef.current = false;
+      setSilentReLoginInFlight(false);
     }
   };
 
@@ -315,7 +323,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loading = !isReady || (!!session && !role && roleLoading);
 
   return (
-    <AuthContext.Provider value={{ session, user, role, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, role, profile, loading, silentReLoginInFlight, signOut }}>
       {children}
     </AuthContext.Provider>
   );
