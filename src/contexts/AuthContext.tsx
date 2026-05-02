@@ -12,6 +12,10 @@ interface AuthContextType {
   role: AppRole | null;
   profile: Omit<Database["public"]["Tables"]["profiles"]["Row"], "labor_rate"> | null;
   loading: boolean;
+  /** True while a background silent re-login is being attempted (shared tablet
+   *  refresh-token revocation recovery). ProtectedRoute uses this to avoid
+   *  bouncing the user to /login during the recovery window. */
+  silentReLoginInFlight: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -21,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
   role: null,
   profile: null,
   loading: true,
+  silentReLoginInFlight: false,
   signOut: async () => {},
 });
 
