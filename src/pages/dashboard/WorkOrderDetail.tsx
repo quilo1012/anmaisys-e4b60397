@@ -193,7 +193,7 @@ export default function WorkOrderDetail() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-3xl print-content" id="wo-print-content">
+      <div className="space-y-6 max-w-5xl xl:max-w-6xl mx-auto print:max-w-none print-content" id="wo-print-content">
 
         {/* ═══ PRINT-ONLY: Industrial Document Header ═══ */}
         <div className="hidden print:block mb-4">
