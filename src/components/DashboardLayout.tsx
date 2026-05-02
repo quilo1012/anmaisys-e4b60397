@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
+import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useOfflineDetection } from "@/hooks/useOfflineQueue";
 import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
