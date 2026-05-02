@@ -64,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!cred?.email || !cred?.password) return false;
 
     reLoginInFlightRef.current = true;
+    setSilentReLoginInFlight(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: cred.email,
@@ -79,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     } finally {
       reLoginInFlightRef.current = false;
+      setSilentReLoginInFlight(false);
     }
   };
 
