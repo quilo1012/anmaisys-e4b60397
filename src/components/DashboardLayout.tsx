@@ -197,6 +197,17 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   useHeartbeat();
 
+  // Engineer/Admin: auto-prompt the "Enable Alerts" gesture on any dashboard
+  // route, not only the engineer dashboard. Without this, an engineer who
+  // navigates straight to /dashboard/work-orders never unlocks audio and
+  // misses the critical-WO siren.
+  const { audioEnabled, promptEnableAudio } = useCriticalAlert();
+  useEffect(() => {
+    if ((role === "engineer" || role === "admin") && !audioEnabled) {
+      promptEnableAudio();
+    }
+  }, [role, audioEnabled, promptEnableAudio]);
+
   // Browser tab title
   useEffect(() => {
     const pageName = routeTitles[location.pathname] || "Dashboard";
