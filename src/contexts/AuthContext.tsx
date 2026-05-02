@@ -323,7 +323,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loading = !isReady || (!!session && !role && roleLoading);
 
   return (
-    <AuthContext.Provider value={{ session, user, role, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, role, profile, loading, silentReLoginInFlight, signOut }}>
       {children}
     </AuthContext.Provider>
   );
