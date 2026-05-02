@@ -27,29 +27,32 @@ export function AudioStatusButton() {
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant="ghost"
-          size="icon"
+          variant={audioEnabled ? "ghost" : "destructive"}
+          size={audioEnabled ? "icon" : "sm"}
           onClick={handleClick}
           aria-label={audioEnabled ? "Test alert sound" : "Enable critical alert sounds"}
           className={cn(
-            "shrink-0 relative",
-            !audioEnabled && "text-destructive animate-pulse"
+            "shrink-0 relative gap-1.5 h-9",
+            !audioEnabled && "animate-pulse font-bold"
           )}
         >
           {audioEnabled ? (
             <Volume2 className="h-5 w-5 text-emerald-500" />
           ) : (
-            <VolumeX className="h-5 w-5" />
+            <>
+              <VolumeX className="h-4 w-4" />
+              <span className="hidden sm:inline text-[11px] uppercase tracking-wide">Audio Off</span>
+            </>
           )}
           {!audioEnabled && (
-            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-card" />
+            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-card sm:hidden" />
           )}
         </Button>
       </TooltipTrigger>
       <TooltipContent side="bottom">
         {audioEnabled
           ? "Alert sound ON — click to test"
-          : "Alert sound MUTED — click to enable"}
+          : "Alert sound MUTED — tap to enable critical WO sirens"}
       </TooltipContent>
     </Tooltip>
   );
