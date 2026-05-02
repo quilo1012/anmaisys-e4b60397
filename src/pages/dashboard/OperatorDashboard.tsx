@@ -208,7 +208,7 @@ function OperatorDashboardContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-6xl xl:max-w-7xl mx-auto">
       <div>
         <h2 className="text-2xl font-bold">Operator Panel</h2>
         <p className="text-muted-foreground">Create and track your work orders</p>
