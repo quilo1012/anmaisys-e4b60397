@@ -308,16 +308,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 )}
                 {(role === "engineer" || role === "admin") && <AudioStatusButton />}
                 <NotificationPanel />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={toggleLanguage}
-                  title={language === "en" ? "Switch to Português" : "Mudar para English"}
-                  className="shrink-0 font-semibold uppercase text-xs h-9 px-2"
-                  aria-label="Toggle language"
-                >
-                  {language.toUpperCase()}
-                </Button>
+                {/* Language toggle removed by request — app stays in English. */}
                 <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className="shrink-0">
                   {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
