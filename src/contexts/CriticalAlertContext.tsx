@@ -470,14 +470,22 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
                 )}
               </DialogDescription>
             )}
-            <div className="grid grid-cols-2 gap-3 w-full pt-2">
+            <div className="grid grid-cols-3 gap-2 w-full pt-2">
               <Button
                 size="lg"
                 variant="secondary"
                 className="h-14 font-bold"
                 onClick={() => active && acknowledge(active.woId)}
               >
-                <Bell className="h-5 w-5 mr-2" /> Acknowledge
+                <Bell className="h-5 w-5 mr-1" /> Ack
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-14 font-bold bg-background/10 text-destructive-foreground border-destructive-foreground/40 hover:bg-background/20"
+                onClick={() => setDeclineOpen(true)}
+              >
+                Decline
               </Button>
               <Button
                 size="lg"
@@ -485,9 +493,64 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
                 className="h-14 font-bold bg-foreground text-background hover:bg-foreground/90"
                 onClick={handleAccept}
               >
-                Open Order
+                Accept
               </Button>
             </div>
+            {!audioEnabled && (
+              <p className="text-xs pt-2 font-bold uppercase tracking-wide bg-background/20 px-3 py-1.5 rounded">
+                ⚠️ Audio is muted by your browser — tap "Enable Alerts" in the header
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Visual fallback overlay when audio is blocked and an alert is active */}
+      {active && !audioEnabled && (
+        <div
+          className="fixed inset-0 pointer-events-none z-[60] border-[12px] border-destructive animate-pulse"
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Decline reason dialog */}
+      <Dialog open={declineOpen} onOpenChange={setDeclineOpen}>
+        <DialogContent className="max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogTitle>Decline Work Order</DialogTitle>
+          <DialogDescription>
+            Select a reason. The WO stays open for other engineers and your decline is logged in the timeline.
+          </DialogDescription>
+          <div className="space-y-2 py-2">
+            {[
+              "Busy with another WO",
+              "Off-shift / not on duty",
+              "Not on my line",
+              "Other",
+            ].map((r) => (
+              <Button
+                key={r}
+                variant={declineReason === r ? "default" : "outline"}
+                className="w-full justify-start h-12"
+                onClick={() => setDeclineReason(r)}
+              >
+                {r}
+              </Button>
+            ))}
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="ghost" onClick={() => { setDeclineOpen(false); setDeclineReason(""); }}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={!declineReason || !active}
+              onClick={async () => {
+                if (!active || !declineReason) return;
+                await declineAlert(active.woId, declineReason);
+                setDeclineOpen(false);
+                setDeclineReason("");
+              }}
+            >
+              Confirm Decline
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
