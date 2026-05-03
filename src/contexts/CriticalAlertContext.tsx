@@ -339,27 +339,52 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   }, [audioEnabled]);
 
   const testSound = useCallback(() => {
-    // Make sure audio context is unlocked then run the siren for ~2s
     engineRef.current?.unlock();
     engineRef.current?.start();
     window.setTimeout(() => engineRef.current?.stop(), 2000);
   }, []);
 
+  const declineAlert = useCallback(async (woId: string, reason: string) => {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id;
+      if (uid) {
+        const { data: prof } = await supabase.from("profiles").select("name").eq("id", uid).maybeSingle();
+        await supabase.from("work_order_logs" as any).insert({
+          work_order_id: woId,
+          engineer_id: uid,
+          engineer_name: prof?.name || "Engineer",
+          action: `declined: ${reason}`,
+        } as any);
+      }
+    } catch (e) {
+      console.warn("[declineAlert] log failed", e);
+    }
+    // Stop siren on this device only — WO stays open for other engineers
+    acknowledgeWOLocal(woId);
+    setActive((current) => {
+      if (current?.woId === woId) {
+        engineRef.current?.stop();
+        return null;
+      }
+      return current;
+    });
+    setQueue((q) => q.filter((x) => x.woId !== woId));
+  }, []);
+
   const handleAccept = () => {
     if (!active) return;
     const id = active.woId;
-    // Persist the acknowledgment before navigation so this same open WO
-    // does not replay the modal on remount/reconnect/reload.
     acknowledge(id);
-    // Navigate to engineer dashboard where the Accept (PIN) button lives.
-    // Going straight to the detail page caused a confusing double-accept flow:
-    // user clicked "Open Order" then had to come back to the dashboard to accept.
     navigate(`/dashboard/engineer?accept=${id}`);
   };
 
+  const [declineOpen, setDeclineOpen] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
+
   const value = useMemo(
-    () => ({ triggerAlert, acknowledge, audioEnabled, promptEnableAudio, testSound }),
-    [triggerAlert, acknowledge, audioEnabled, promptEnableAudio, testSound]
+    () => ({ triggerAlert, acknowledge, declineAlert, audioEnabled, promptEnableAudio, testSound }),
+    [triggerAlert, acknowledge, declineAlert, audioEnabled, promptEnableAudio, testSound]
   );
 
   return (
