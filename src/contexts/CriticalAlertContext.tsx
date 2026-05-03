@@ -18,19 +18,18 @@ export interface CriticalAlertPayload {
 
 interface CriticalAlertContextType {
   triggerAlert: (payload: CriticalAlertPayload) => void;
-  /** Acknowledge the active alert. If `woId` is provided, only acknowledges
-   *  when it matches the currently-active alert (prevents race conditions
-   *  where another engineer's status change closes this engineer's modal). */
   acknowledge: (woId?: string) => void;
+  /** Decline the active alert with a reason. Logs to work_order_logs and stops siren on this device only. */
+  declineAlert: (woId: string, reason: string) => Promise<void>;
   audioEnabled: boolean;
   promptEnableAudio: () => void;
-  /** Plays a short test burst of the alert siren so the user can verify audio. */
   testSound: () => void;
 }
 
 const CriticalAlertContext = createContext<CriticalAlertContextType>({
   triggerAlert: () => {},
   acknowledge: () => {},
+  declineAlert: async () => {},
   audioEnabled: false,
   promptEnableAudio: () => {},
   testSound: () => {},
