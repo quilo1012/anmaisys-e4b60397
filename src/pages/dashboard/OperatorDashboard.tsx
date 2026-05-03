@@ -84,6 +84,7 @@ function OperatorDashboardContent() {
   const [isRetroactive, setIsRetroactive] = useState(false);
   const [retroDate, setRetroDate] = useState<Date>();
   const [retroTime, setRetroTime] = useState("");
+  const [shiftFilter, setShiftFilter] = useState<"all" | ShiftCode>("all");
 
   // Tablet is paired (guard guarantees lineId) — always scope to this line.
   const { data: workOrders, isLoading } = useWorkOrders({ lineId });
