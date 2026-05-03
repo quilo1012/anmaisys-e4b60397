@@ -2,7 +2,9 @@ import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWoMetrics } from "@/hooks/useWoMetrics";
 import { formatDuration } from "@/lib/formatDuration";
-import { Clock } from "lucide-react";
+import { Clock, XCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   workOrderId: string;
@@ -15,12 +17,24 @@ interface Step {
   metricSec?: number | null;
 }
 
-/**
- * Vertical stepper showing the full WO lifecycle with labeled durations.
- * All durations come from v_wo_metrics (single source of truth).
- */
 export function WoTimeline({ workOrderId }: Props) {
   const { data: m, isLoading } = useWoMetrics(workOrderId);
+
+  // Decline / problem retrigger events from work_order_logs
+  const { data: declineLogs } = useQuery({
+    queryKey: ["wo_decline_logs", workOrderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("work_order_logs" as any)
+        .select("id, engineer_name, action, created_at")
+        .eq("work_order_id", workOrderId)
+        .like("action", "declined:%")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data as any[]) ?? [];
+    },
+    enabled: !!workOrderId,
+  });
 
   if (isLoading || !m) return null;
 
@@ -70,9 +84,26 @@ export function WoTimeline({ workOrderId }: Props) {
               </li>
             );
           })}
+          {/* Decline events */}
+          {declineLogs?.map((d) => {
+            const reason = d.action.replace(/^declined:\s*/, "");
+            return (
+              <li key={d.id} className="ml-4">
+                <span className="absolute -left-1.5 flex h-3 w-3 items-center justify-center rounded-full bg-destructive" />
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-sm font-medium text-destructive flex items-center gap-1">
+                    <XCircle className="h-3.5 w-3.5" /> Declined by {d.engineer_name}
+                  </p>
+                  <span className="text-xs font-mono text-muted-foreground">
+                    {format(new Date(d.created_at), "dd/MM HH:mm:ss")}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">Reason: {reason}</p>
+              </li>
+            );
+          })}
         </ol>
 
-        {/* Headline numbers */}
         <div className="mt-6 grid grid-cols-2 gap-3 pt-4 border-t">
           <div>
             <p className="text-xs text-muted-foreground">Line Downtime</p>
