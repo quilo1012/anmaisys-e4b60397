@@ -128,7 +128,39 @@ export function useWOAlerts() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "work_orders" },
         (payload) => {
-          const updated = payload.new as { id: string; status: string; engineer_id: string | null };
+          const updated = payload.new as { id: string; status: string; engineer_id: string | null; locked_engineer_id: string | null; line_id: string | null; wo_number: number; machine: string; requester_name: string; description: string; priority?: string; engineer_notified_acknowledged_at: string | null; current_episode?: number };
+          const old = payload.old as { status?: string };
+
+          // Recurrence detection: status transitioned TO open (e.g. finished → open via reopen_wo_as_recurrence)
+          if (updated.status === "open" && old?.status !== "open") {
+            console.log("[useWOAlerts UPDATE→open recurrence]", updated.id, "ep:", updated.current_episode);
+            // Reset client-side ack so the new episode re-alerts
+            clearAcknowledgedWOLocal(updated.id);
+            // Targeting gates
+            if (updated.engineer_id && updated.engineer_id !== user.id) return;
+            if (updated.locked_engineer_id && updated.locked_engineer_id !== user.id) return;
+            if (!shouldAlertForLine(updated.line_id)) return;
+            if (!audioEnabled) promptEnableAudio();
+            triggerAlert({
+              woId: updated.id,
+              woNumber: updated.wo_number,
+              machine: updated.machine,
+              requester: updated.requester_name,
+              description: `🔁 Recurrence: ${updated.description}`,
+              priority: updated.priority,
+            });
+            sendWebNotification(
+              "🔁 RECURRING WORK ORDER",
+              `${updated.machine} — ${updated.requester_name}\n${updated.description}`
+            );
+            toast({
+              title: "🔁 Recurring Work Order",
+              description: `${updated.machine} — ${updated.requester_name}`,
+              duration: 10000,
+            });
+            return;
+          }
+
           console.log("[useWOAlerts UPDATE]", updated.id, updated.status, "eng:", updated.engineer_id);
           // Guard: only ack if this engineer owns the WO (prevents another
           // engineer's status change from closing this engineer's modal).
