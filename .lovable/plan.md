@@ -1,81 +1,157 @@
 
-# Plano: Tablet Layout + Sirene Engenheiro + Sessão estável
+## Plan — 9 issues from this turn
 
-## 1. Sessão: parar de deslogar sozinho ao navegar entre páginas
+Each item is independent and small. I'll group them into a single implementation pass.
 
-**Causa raiz confirmada lendo o código:**
-- Em tablets compartilhados, o token de refresh do Supabase é rotacionado. Quando outra aba/tablet refresca, o tablet atual recebe `SIGNED_OUT` (token revogado).
-- Já existe um `tryTabletRelogin()` no `AuthContext`, mas durante a janela em que ele está em curso, o `ProtectedRoute` enxerga `session = null` e redireciona instantaneamente para `/login` — então quando o silent re-login termina, o usuário já saiu da página.
-- Sintoma também aparece quando `fetchUserData` zera `role` durante refetch e `loading` fica `true` por uma fração de segundo, mas o redirect já foi disparado.
+---
 
-**Correções:**
+### 1. Engineer NÃO recebe alerta quando operador abre Recurring Failure
 
-a) **AuthContext.tsx**
-   - Manter `session` e `role` antigos durante a tentativa de silent relogin (não limpar imediatamente em `SIGNED_OUT` implícito).
-   - Adicionar flag `silentReLoginInFlight` exposta no contexto.
-   - Em `fetchUserData`, **nunca zerar** `role`/`profile` antes de receber a nova resposta — só substituir.
-   - No `forceSignOutInactive`, manter o comportamento atual (esse é explícito).
+**Cause**: `reopen_wo_as_recurrence` faz `UPDATE` na mesma WO (mesmo `wo_number`) voltando status para `open`. Mas `useWOAlerts.ts` só escuta `INSERT … status=eq.open`. UPDATEs open→open nunca disparam o siren.
 
-b) **ProtectedRoute.tsx**
-   - Quando `!session` E `silentReLoginInFlight === true` → mostrar spinner em vez de `<Navigate to="/login" />`.
-   - Adicionar grace period de 3s: se há credenciais de tablet salvas (`an_tablet_cred`), aguardar até 3s antes de redirecionar para login.
+**Fix** — `src/hooks/useWOAlerts.ts`:
+- Adicionar 2º listener `UPDATE` que detecta transição para `open` (qualquer status anterior → `open`) e re-dispara `triggerAlert` com os mesmos gates (ack local, line filter, locked engineer).
+- Limpar `acknowledgeWOLocal` quando virar open de novo (reset do gate por episódio — usar `current_episode` como sufixo na chave de ack: `${woId}#ep${episode}`), assim cada recorrência re-toca.
 
-c) **Login.tsx**
-   - Quando o login da tablet é bem-sucedido, redirect baseado no role já implementado — só garantir que limpa a flag `an_account_deactivated_until` numa nova autenticação manual.
+Também atualizar `src/lib/woAck.ts` para aceitar uma chave composta opcional.
 
-## 2. Sirene crítica em TODO login de engenheiro
+---
 
-**Estado atual:** o prompt "Enable Alerts" só aparece após o primeiro click/keydown no documento (em `useWOAlerts.ts`) e depois do mount do `EngineerDashboard`. Se o engenheiro ficar parado em outra rota (ex.: `/dashboard/work-orders`), o áudio pode nunca ser desbloqueado e a sirene falha silenciosamente.
+### 2. Alerta visual + vibratório quando áudio bloqueado
 
-**Correções:**
+**Fix** — `src/contexts/CriticalAlertContext.tsx` (e `useWOAlerts`):
+- Quando `triggerAlert` dispara e `audioEnabled === false`:
+  - Forçar modal full-screen vermelho piscando (já existe), mas adicionar overlay extra com `animate-pulse` borda vermelha grossa em todo viewport.
+  - Disparar `navigator.vibrate([400,150,400,150,400,150,800])` em loop a cada 2s até `acknowledge`.
+  - Adicionar flash do título da aba: `document.title = "🚨 NOVA WO"` alternando.
+  - Ativar Wake Lock se disponível (`navigator.wakeLock`) p/ tablet não dormir.
 
-a) **DashboardLayout.tsx (ou novo componente AlertAudioGate)**
-   - Para roles `engineer` e `admin`: assim que o layout monta com role definido, chamar `promptEnableAudio()` automaticamente se `audioEnabled === false`.
-   - Isso garante que **toda página** dentro do dashboard (não apenas `/dashboard/engineer`) força o desbloqueio.
+---
 
-b) **useWOAlerts.ts**
-   - Quando uma WO crítica chega e `audioEnabled === false`, além de chamar `promptEnableAudio()`, também tentar `engineRef.current?.unlock()` + `start()` mesmo sem gesto — o `AlertAudioEngine` já tem fallback de oscillator + vibration que funciona em alguns navegadores sem unlock prévio. Isso aumenta a chance de tocar mesmo se o engineer ignorou o prompt.
-   - **Adicionar fallback persistente:** se houver WO crítica em `open` com `engineer_notified_acknowledged_at IS NULL` para esta engineer (ou sem assignee), re-disparar o `triggerAlert` ao remontar o hook (já parcialmente implementado — vamos garantir cobertura).
+### 3. Garantir layout mobile / tablet / web
 
-c) **AudioStatusButton (header)**
-   - Já existe e fica vermelho/pulsando quando muted. Vamos torná-lo mais visível para engineers: badge "AUDIO OFF" textual ao lado do ícone quando `!audioEnabled` e role = engineer/admin.
+**Fix** — passar revisão em larguras 360px / 768px / 1024px / 1280px nas páginas:
+- `OperatorDashboard.tsx`: tabela "My Work Orders" (`overflow-x-auto`, min-widths nas colunas).
+- `WorkOrderDetail.tsx`: history table já corrigido; revisar grids `md:grid-cols-2` para `lg:grid-cols-2` em telas tablet retrato.
+- `EngineerDashboard.tsx`: cards stack em <768px.
+- `ManagerDashboard.tsx`, `ExecutiveDashboard.tsx`, `AnalyticsPage.tsx`: KPI grid `grid-cols-2 md:grid-cols-3 xl:grid-cols-4`.
+- `Login.tsx`: form com `max-w-md w-full px-4`.
 
-## 3. Layout responsivo tablet (1280×800 paisagem) — todas as páginas
+---
 
-**Páginas auditadas e ajustes:**
+### 4. "My Work Orders" — adicionar coluna **Created By** e filtro/gráfico por turno
 
-| Página | Problema observado | Ajuste |
-|---|---|---|
-| `Login.tsx` | Card centralizado pequeno em tablet | `max-w-md md:max-w-lg`, padding maior, h-14 nos inputs/botões |
-| `OperatorDashboard.tsx` | Tabela "My Work Orders" com colunas Line/Machine vazias e espaço lateral desperdiçado (img2) | Container `max-w-7xl mx-auto`; tabela com `min-w-[900px]` em scroll horizontal apenas se necessário; coluna Line resolvida via `line_id` (já feito) |
-| `WorkOrderDetail.tsx` (Line Stop & Resume History) | Coluna "Type" cortada ("Recu...") com half-screen vazio à direita (img1) | Mover histórico para usar largura total (`w-full`), não duas colunas; aumentar largura mínima da coluna Type; remover gap lateral |
-| `EngineerDashboard.tsx` | Cards mobile-first OK, mas em tablet horizontal subutiliza espaço | Grid `grid-cols-1 md:grid-cols-2` para WO cards; KPI row em `md:grid-cols-4` |
-| `ManagerDashboard.tsx` | Já responsivo, revisar SLA cards | Garantir `md:grid-cols-3 lg:grid-cols-4` consistente |
-| `WorkOrdersPage.tsx`, `MachinesPage.tsx`, `StockPage.tsx`, `ProblemsPage.tsx` | Tabelas overflow horizontal sem indicação | Wrapper com `overflow-x-auto` e sticky header |
-| `AnalyticsPage.tsx`, `ReliabilityDashboard.tsx`, `ExecutiveDashboard.tsx` | Charts responsivos OK; ajustar grid de KPIs | `md:grid-cols-2 lg:grid-cols-4` |
-| `DashboardLayout.tsx` | Sidebar fixa em tablet ocupa muito | Sidebar collapsa por padrão em viewport `<1024px`, expandida em `>=1280px` |
-| `ControlCenterPage.tsx` | Mapa pode estourar | `max-h-[calc(100vh-12rem)]` e `overflow-auto` |
+**Fix** — `OperatorDashboard.tsx`:
+- Coluna nova "**Created By**" entre Created e Engineer, mostrando `wo.requester_name || wo.created_by_name`.
+- Adicionar tabs/filtro acima da tabela:
+  - **Day Shift** (06:00–17:59)
+  - **Night Shift** (18:00–05:59)
+  - **All**
+- Helper `getShift(date)` em `src/lib/shifts.ts`.
+- Card extra "**WOs by Shift (last 7 days)**" com bar chart (recharts) mostrando Day vs Night.
 
-**Quebras de layout específicas das fotos:**
-- **img1** (Line Stop & Resume History): tabela está dentro de uma `Card` com `w-full` mas o pai tem `grid-cols-2` herdado — precisa `col-span-full`. A coluna Type precisa de `whitespace-nowrap min-w-[120px]`.
-- **img2** (Operator panel): Form de criação está em `max-w-3xl` num container `max-w-7xl`, deixando metade da tela vazia. Mudar para `lg:grid-cols-[1fr_auto]` agrupando criar-WO + insights AI lado-a-lado, ou usar `max-w-5xl` centralizado.
+---
 
-## Arquivos a editar
+### 5. Remover ícone PT/EN
 
-1. `src/contexts/AuthContext.tsx` — silent re-login flag, no clearing
-2. `src/components/ProtectedRoute.tsx` — grace period, spinner durante re-login
-3. `src/components/DashboardLayout.tsx` — AudioGate integrado, sidebar responsiva
-4. `src/hooks/useWOAlerts.ts` — fallback unlock automático, re-trigger em mount
-5. `src/components/AudioStatusButton.tsx` — badge "AUDIO OFF" visível
-6. `src/pages/Login.tsx` — tamanhos tablet
-7. `src/pages/dashboard/OperatorDashboard.tsx` — layout tabela + form
-8. `src/pages/dashboard/WorkOrderDetail.tsx` — Line Stop History full-width
-9. `src/pages/dashboard/EngineerDashboard.tsx` — grid tablet
-10. `src/pages/dashboard/ManagerDashboard.tsx`, `WorkOrdersPage.tsx`, `MachinesPage.tsx`, `StockPage.tsx`, `ProblemsPage.tsx`, `AnalyticsPage.tsx`, `ReliabilityDashboard.tsx`, `ExecutiveDashboard.tsx`, `ControlCenterPage.tsx`, `DowntimePage.tsx`, `MachineHistoryPage.tsx` — ajustes de breakpoints/grids
+**Fix** — `src/components/DashboardLayout.tsx` linha 314–320: remover botão de toggle de idioma. Manter `LanguageContext` (não quebra) mas sem UI de troca. App fica em English por padrão (Core memory já diz isso).
 
-## Fora de escopo
-- Mudanças no esquema do banco
-- Refator do fluxo de PIN/autenticação híbrida
-- Mudanças no chat/checklists (removidos permanentemente)
+---
 
-**Pronto para aplicar quando você aprovar.**
+### 6. Engineer Alert Lines não funciona
+
+**Investigate + Fix** — `src/hooks/useEngineerLineFilter.ts` + `EngineerAlertLineFilter.tsx`:
+- Verificar se `shouldAlertForLine` está retornando `false` quando `line_id` vem `null` (de WO criada sem line). Memory diz "null line_id always alerts" mas precisa confirmar implementação.
+- Garantir que filtro persiste em `localStorage` por engineer e é lido no momento do alert (não em cache de hook).
+- Adicionar log + UI feedback "Filtro: 3 linhas selecionadas — 2 ignoradas" no header.
+
+---
+
+### 7. Finished com PIN do **operador** (dupla confirmação)
+
+**Atual**: engineer finaliza com PIN próprio em `finish_wo_with_pin`.
+**Nova regra**: ao Finish, abrir um 2º dialog "**Operator confirmation**" pedindo PIN/assinatura do operador presente. Só depois disso a WO vai para `finished`.
+
+**Fix**:
+- Nova RPC `finish_wo_with_dual_pin(_wo_id, _engineer_pin, _operator_user_id, _operator_signature)`:
+  - Valida engineer pin (existing `verify_engineer_pin`)
+  - Valida que `_operator_user_id` tem role `operator` E que pertence à `operator_line_accounts` da `wo.line_id`
+  - Stamp `signed_by_name = operator name`, `operator_confirmed_at = now()`.
+- UI: `WorkOrderDetail.tsx` — após engineer entrar PIN, abre 2º step "Pass tablet to operator — they confirm" com Select de operador online + assinatura desenhada.
+- Novo campo `operator_confirmed_at` em `work_orders` (migration).
+
+---
+
+### 8. Impressão da WO sem dados da máquina
+
+**Cause**: PDF/print template está lendo só `wo.machine` (string). Se vazio, sai blank. Não busca `machines` table.
+
+**Fix** — `src/lib/generatePdfReport.ts` (e print view em `WorkOrderDetail.tsx`):
+- JOIN: ao gerar print, buscar `machines` por `wo.machine` (name) OU `wo.line_id` e popular: `code`, `sector`, `line`, `machine_type`, `current_location`, `health_score`.
+- Layout do header de impressão: bloco "Machine" com Code, Type, Line, Sector, Location.
+
+---
+
+### 9. Numeração profissional WO (sugestões)
+
+Sugestão: **`WO-YYYYMM-NNNN`** (e.g. `WO-202605-0042`) — reseta sequência por mês, mostra ano+mês visíveis, ainda curto.
+Alternativas:
+- `WO-YYYY-NNNNNN` (atual)
+- `WO-YYMMDD-NNN` (diário, fica longo no ano)
+- `WO-2026-Q2-0042` (trimestral)
+
+**Recomendação**: manter `wo_number` global no DB (não muda nada) mas mudar **display format** para `WO-YYYYMM-####` calculado client-side a partir de `created_at` + uma sequência mensal derivada (count WOs no mesmo mês).
+
+Vou implementar `WO-YYYYMM-NNNN` em `src/lib/woFormat.ts` e propagar.
+
+---
+
+### 10. Engineer Accept / Decline com timeline
+
+**Fix**:
+- No modal crítico (`CriticalAlertContext`): adicionar 2 botões — **ACCEPT** (atual) e **DECLINE** (novo).
+- DECLINE:
+  - Abre prompt para motivo (obrigatório, dropdown: "Em outra WO", "Fora de turno", "Não é minha linha", "Outro").
+  - Insere `work_order_logs` com action `declined: <reason>`.
+  - Ack local para parar siren neste engineer, mas WO continua `open` para outros engineers.
+  - Engineer pode reabrir depois via "My Open Alerts" (lista nova no EngineerDashboard) e Accept.
+- `WoTimeline.tsx`: render de eventos `declined: …` com ícone vermelho e nome do engineer + motivo.
+
+---
+
+## Database changes (1 migration)
+
+```sql
+-- 1. Operator dual confirmation
+ALTER TABLE public.work_orders
+  ADD COLUMN operator_confirmed_at timestamptz,
+  ADD COLUMN operator_confirmed_by uuid;
+
+-- 2. New RPC: finish_wo_with_dual_pin (engineer PIN + operator validation)
+CREATE OR REPLACE FUNCTION public.finish_wo_with_dual_pin(
+  _wo_id uuid, _engineer_pin text,
+  _operator_id uuid, _operator_signature text
+) RETURNS jsonb ...
+
+-- 3. Decline log helper (uses existing work_order_logs)
+-- no schema change needed
+```
+
+## Files to edit
+
+- `src/hooks/useWOAlerts.ts` (UPDATE listener for recurrence)
+- `src/lib/woAck.ts` (composite key)
+- `src/contexts/CriticalAlertContext.tsx` (visual+vibration fallback, decline button)
+- `src/components/DashboardLayout.tsx` (remove PT/EN)
+- `src/pages/dashboard/OperatorDashboard.tsx` (Created By column, shift filter+chart, layout)
+- `src/pages/dashboard/WorkOrderDetail.tsx` (dual-PIN finish dialog, machine data in print)
+- `src/lib/generatePdfReport.ts` (machine join)
+- `src/lib/woFormat.ts` (new YYYYMM format)
+- `src/lib/shifts.ts` (getShift helper)
+- `src/hooks/useEngineerLineFilter.ts` (debug + fix null handling)
+- `src/components/WoTimeline.tsx` (decline events)
+- `src/components/EngineerAlertLineFilter.tsx` (UI feedback)
+- New migration file
+- Memory updates: `mem://funcionalidades/numeracao-ordens`, new `mem://funcionalidades/dual-pin-finish`, `mem://funcionalidades/decline-wo`
+
+Ready to implement on approval.

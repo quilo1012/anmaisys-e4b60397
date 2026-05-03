@@ -30,6 +30,9 @@ import { cn } from "@/lib/utils";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { OperatorNavCards } from "@/components/DashboardNavCards";
 import { countOpenWOs } from "@/lib/woStatus";
+import { getShift, SHIFT_LABEL, type ShiftCode } from "@/lib/shifts";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, Legend } from "recharts";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -81,6 +84,7 @@ function OperatorDashboardContent() {
   const [isRetroactive, setIsRetroactive] = useState(false);
   const [retroDate, setRetroDate] = useState<Date>();
   const [retroTime, setRetroTime] = useState("");
+  const [shiftFilter, setShiftFilter] = useState<"all" | ShiftCode>("all");
 
   // Tablet is paired (guard guarantees lineId) — always scope to this line.
   const { data: workOrders, isLoading } = useWorkOrders({ lineId });
@@ -387,6 +391,42 @@ function OperatorDashboardContent() {
         </CardContent>
       </Card>
 
+      {/* WOs by Shift — last 7 days */}
+      {workOrders && workOrders.length > 0 && (() => {
+        const cutoff = subDays(new Date(), 7);
+        const byDay: Record<string, { date: string; day: number; night: number }> = {};
+        workOrders.forEach((w) => {
+          const d = new Date(w.created_at);
+          if (d < cutoff) return;
+          const key = format(d, "dd/MM");
+          if (!byDay[key]) byDay[key] = { date: key, day: 0, night: 0 };
+          byDay[key][getShift(d)]++;
+        });
+        const data = Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
+        if (!data.length) return null;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">WOs by Shift — Last 7 Days</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data}>
+                    <XAxis dataKey="date" fontSize={12} />
+                    <YAxis allowDecimals={false} fontSize={12} />
+                    <RTooltip />
+                    <Legend />
+                    <Bar dataKey="day" name="Day (06–18)" fill="hsl(var(--primary))" />
+                    <Bar dataKey="night" name="Night (18–06)" fill="hsl(var(--destructive))" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -395,6 +435,13 @@ function OperatorDashboardContent() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <Tabs value={shiftFilter} onValueChange={(v) => setShiftFilter(v as any)} className="mb-3">
+            <TabsList>
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="day">{SHIFT_LABEL.day}</TabsTrigger>
+              <TabsTrigger value="night">{SHIFT_LABEL.night}</TabsTrigger>
+            </TabsList>
+          </Tabs>
           {isLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
           ) : !workOrders?.length ? (
@@ -410,14 +457,19 @@ function OperatorDashboardContent() {
                    <TableHead>Problem</TableHead>
                    <TableHead>Status</TableHead>
                    <TableHead>Created</TableHead>
+                   <TableHead>Shift</TableHead>
+                   <TableHead>Created By</TableHead>
                    <TableHead>Engineer</TableHead>
                     <TableHead>Parts</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
                </TableHeader>
                <TableBody>
-                 {workOrders.map((wo) => {
+                 {workOrders
+                   .filter((wo) => shiftFilter === "all" || getShift(wo.created_at) === shiftFilter)
+                   .map((wo) => {
                    const cfg = statusConfig[wo.status] || statusConfig.open;
+                   const shift = getShift(wo.created_at);
                    return (
                      <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
                        <TableCell className="font-mono font-medium">
@@ -431,35 +483,41 @@ function OperatorDashboardContent() {
                        <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>
                        <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
                        <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                       <TableCell className="text-xs">
+                         <Badge variant="outline" className={shift === "day" ? "bg-blue-50 text-blue-700" : "bg-indigo-900/30 text-indigo-200"}>
+                           {shift === "day" ? "Day" : "Night"}
+                         </Badge>
+                       </TableCell>
+                       <TableCell className="text-sm">{wo.requester_name || "—"}</TableCell>
                        <TableCell className="text-sm">{wo.engineer?.name || "—"}</TableCell>
                        <TableCell>
-                         {partsCounts?.[wo.id] ? (
-                           <Badge variant="secondary">{partsCounts[wo.id]}</Badge>
-                         ) : (
-                           <span className="text-muted-foreground">—</span>
-                         )}
-                        </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          {wo.status === "finished" && (
-                            <Button
-                              size="sm"
-                              variant="default"
-                              disabled={closeWO.isPending}
-                              onClick={() => handleQuickClose(wo.id, wo.requester_name ?? null)}
-                            >
-                              <CheckCircle className="h-3 w-3 mr-1" /> Close
-                            </Button>
+                          {partsCounts?.[wo.id] ? (
+                            <Badge variant="secondary">{partsCounts[wo.id]}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
                           )}
-                        </TableCell>
-                      </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                         </TableCell>
+                         <TableCell onClick={(e) => e.stopPropagation()}>
+                           {wo.status === "finished" && (
+                             <Button
+                               size="sm"
+                               variant="default"
+                               disabled={closeWO.isPending}
+                               onClick={() => handleQuickClose(wo.id, wo.requester_name ?? null)}
+                             >
+                               <CheckCircle className="h-3 w-3 mr-1" /> Close
+                             </Button>
+                           )}
+                         </TableCell>
+                       </TableRow>
+                   );
+                 })}
+               </TableBody>
+             </Table>
+             </div>
+           )}
+         </CardContent>
+       </Card>
 
     </div>
   );
