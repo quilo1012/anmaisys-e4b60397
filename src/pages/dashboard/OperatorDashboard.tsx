@@ -30,6 +30,9 @@ import { cn } from "@/lib/utils";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { OperatorNavCards } from "@/components/DashboardNavCards";
 import { countOpenWOs } from "@/lib/woStatus";
+import { getShift, SHIFT_LABEL, type ShiftCode } from "@/lib/shifts";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, Legend } from "recharts";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
