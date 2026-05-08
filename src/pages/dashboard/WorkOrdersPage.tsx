@@ -140,8 +140,11 @@ export default function WorkOrdersPage() {
     return map;
   }, [lines]);
 
-  // Prefer the WO line_id. Fall back to legacy machine-derived line names.
+  // Prefer the physical_line_id (real production line for sealer/printer WOs),
+  // then the WO line_id, falling back to legacy machine-derived line names.
   const getWoLine = (wo: WorkOrder) => {
+    const physical = lineNameMap[(wo as any).physical_line_id];
+    if (physical) return physical;
     const explicitLine = lineNameMap[(wo as any).line_id];
     if (explicitLine) return explicitLine;
     if (wo.machine) return machineLineMap[wo.machine] || "";

@@ -1,0 +1,2 @@
+ALTER TABLE public.work_orders ADD COLUMN IF NOT EXISTS physical_line_id uuid REFERENCES public.lines(id);
+CREATE INDEX IF NOT EXISTS idx_work_orders_physical_line_id ON public.work_orders(physical_line_id);

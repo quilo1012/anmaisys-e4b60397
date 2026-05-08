@@ -77,6 +77,7 @@ function OperatorDashboardContent() {
 
   const [mobileAssetId, setMobileAssetId] = useState<string>(""); // sealer
   const [secondaryAssetId, setSecondaryAssetId] = useState<string>(""); // printer
+  const [physicalLineId, setPhysicalLineId] = useState<string>(""); // real production line where the sealer/printer is being used
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
@@ -173,6 +174,10 @@ function OperatorDashboardContent() {
       toast({ title: "Problem required", description: "Please describe the problem.", variant: "destructive" });
       return;
     }
+    if (isSealerPrinterLine && !physicalLineId) {
+      toast({ title: "Production Line required", description: "Select the line where the sealer/printer is being used.", variant: "destructive" });
+      return;
+    }
     try {
       let created_at: string | undefined;
       if (isRetroactive && retroDate) {
@@ -189,13 +194,17 @@ function OperatorDashboardContent() {
       if (mobileAssetId || secondaryAssetId) {
         const sealer = mobileAssets?.find((a) => a.id === mobileAssetId);
         const printer = mobileAssets?.find((a) => a.id === secondaryAssetId);
-        machineLabel = [sealer && formatMobileAsset(sealer), printer && formatMobileAsset(printer)]
+        const assetParts = [sealer && formatMobileAsset(sealer), printer && formatMobileAsset(printer)]
           .filter(Boolean).join(" + ");
+        // Append the real production line so the asset is identifiable everywhere.
+        const physLineName = lines?.find((l: any) => l.id === physicalLineId)?.name;
+        machineLabel = physLineName ? `${assetParts} @ ${physLineName}` : assetParts;
       }
       await createWO.mutateAsync({
         requester_name: requestedBy.trim(),
         line_id: lineId, // hard-locked from device context
         mobile_asset_id: mobileAssetId || secondaryAssetId || null,
+        physical_line_id: isSealerPrinterLine ? physicalLineId : null,
         machine: machineLabel,
         description: description.trim(),
         notes: notes.trim(),
@@ -204,7 +213,7 @@ function OperatorDashboardContent() {
         line_stopped: lineStopped,
       });
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
-      setRequestedBy(""); setMobileAssetId(""); setSecondaryAssetId(""); setDescription(""); setNotes("");
+      setRequestedBy(""); setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
@@ -273,17 +282,34 @@ function OperatorDashboardContent() {
 
             {/* Mobile-asset sub-picker (only on Sealer/Printer line). Line itself is locked. */}
             {isSealerPrinterLine && (
-              <div className="md:col-span-2">
-                <MobileAssetSubPicker
-                  lineId={lineId}
-                  sealerId={mobileAssetId}
-                  printerId={secondaryAssetId}
-                  onChange={({ sealerId, printerId }) => {
-                    setMobileAssetId(sealerId);
-                    setSecondaryAssetId(printerId);
-                  }}
-                />
-              </div>
+              <>
+                <div className="md:col-span-2">
+                  <MobileAssetSubPicker
+                    lineId={lineId}
+                    sealerId={mobileAssetId}
+                    printerId={secondaryAssetId}
+                    onChange={({ sealerId, printerId }) => {
+                      setMobileAssetId(sealerId);
+                      setSecondaryAssetId(printerId);
+                    }}
+                  />
+                </div>
+                <div className="md:col-span-2 space-y-2">
+                  <Label htmlFor="physical-line">Production Line (where the sealer/printer is being used) *</Label>
+                  <Select value={physicalLineId} onValueChange={setPhysicalLineId}>
+                    <SelectTrigger id="physical-line" className="h-12">
+                      <SelectValue placeholder="Select the production line..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(lines || [])
+                        .filter((l: any) => !/sealer|printer/i.test(l.name))
+                        .map((l: any) => (
+                          <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
 
             <div className="space-y-2">
