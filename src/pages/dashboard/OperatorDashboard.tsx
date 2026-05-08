@@ -77,6 +77,7 @@ function OperatorDashboardContent() {
 
   const [mobileAssetId, setMobileAssetId] = useState<string>(""); // sealer
   const [secondaryAssetId, setSecondaryAssetId] = useState<string>(""); // printer
+  const [physicalLineId, setPhysicalLineId] = useState<string>(""); // real production line where the sealer/printer is being used
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
