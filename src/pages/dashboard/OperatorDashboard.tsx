@@ -202,7 +202,10 @@ function OperatorDashboardContent() {
       }
       await createWO.mutateAsync({
         requester_name: requestedBy.trim(),
-        line_id: lineId, // hard-locked from device context
+        // For Sealer/Printer WOs, store the REAL production line as line_id so
+        // it shows correctly in the "Line" column everywhere. The sealer/printer
+        // asset stays tracked via mobile_asset_id + machine label.
+        line_id: isSealerPrinterLine ? physicalLineId : lineId,
         mobile_asset_id: mobileAssetId || secondaryAssetId || null,
         physical_line_id: isSealerPrinterLine ? physicalLineId : null,
         machine: machineLabel,
