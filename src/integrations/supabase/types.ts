@@ -1271,6 +1271,7 @@ export type Database = {
           operator_signature_name: string | null
           pause_reason: string
           paused_at: string | null
+          physical_line_id: string | null
           priority: string
           received_at: string | null
           recurrence_of_wo_id: string | null
@@ -1313,6 +1314,7 @@ export type Database = {
           operator_signature_name?: string | null
           pause_reason?: string
           paused_at?: string | null
+          physical_line_id?: string | null
           priority?: string
           received_at?: string | null
           recurrence_of_wo_id?: string | null
@@ -1355,6 +1357,7 @@ export type Database = {
           operator_signature_name?: string | null
           pause_reason?: string
           paused_at?: string | null
+          physical_line_id?: string | null
           priority?: string
           received_at?: string | null
           recurrence_of_wo_id?: string | null
@@ -1407,6 +1410,13 @@ export type Database = {
             columns: ["operator_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_physical_line_id_fkey"
+            columns: ["physical_line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
             referencedColumns: ["id"]
           },
           {
