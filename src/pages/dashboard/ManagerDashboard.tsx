@@ -137,6 +137,15 @@ function ManagerDashboardContent() {
           </Button>
         </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
+          <span className="text-sm font-medium text-muted-foreground">KPI period filter</span>
+          <DateRangeFilter
+            value={kpiRange}
+            preset={kpiPreset}
+            onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
+          />
+        </div>
+
         {/* Unified KPI grid: 8 cards in 2 rows of 4 (single source of truth: v_wo_metrics) */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-fr">
           <Card>
