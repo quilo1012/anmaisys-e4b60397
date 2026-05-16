@@ -47,7 +47,9 @@ function ManagerDashboardContent() {
   const { data: allWOs } = useWorkOrders();
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products } = useProducts();
-  const { data: woMetrics = [] } = useAllWoMetrics();
+  const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("7d");
+  const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("7d"));
+  const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
   const { role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
