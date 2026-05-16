@@ -55,11 +55,9 @@ export default function ExecutiveDashboard() {
     }).length;
     const slaPercent = closedWOs.length ? Math.round((withinSLA / closedWOs.length) * 100) : 100;
 
-    // Total Line Downtime Today = SUM(line_downtime_sec) from v_wo_metrics
-    const today = startOfDay(new Date());
-    const todayMetrics = woMetrics.filter((m) => new Date(m.created_at) >= today);
+    // Total Line Downtime within selected period = SUM(line_downtime_sec) from v_wo_metrics (already range-filtered)
     const lineDowntimeTodayMin = Math.round(
-      todayMetrics.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / 60
+      woMetrics.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / 60
     );
 
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
