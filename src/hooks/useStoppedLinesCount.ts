@@ -18,7 +18,8 @@ export function useStoppedLinesCount() {
         .from("work_orders")
         .select("id", { count: "exact", head: true }) as any)
         .eq("line_stopped", true)
-        .is("line_resumed_at", null);
+        .is("line_resumed_at", null)
+        .not("status", "in", "(closed,finished,completed,force_closed)");
       if (error) throw error;
       return (count as number) ?? 0;
     },
