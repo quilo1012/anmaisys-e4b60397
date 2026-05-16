@@ -64,19 +64,24 @@ function ManagerDashboardContent() {
   const completedToday = allWOs?.filter((w) => DONE_STATUSES.includes(w.status) && (w.closed_at || w.completed_at || w.finished_at) && new Date(w.closed_at || w.completed_at || w.finished_at!).toDateString() === today).length ?? 0;
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
 
-  // Three distinct labeled time KPIs from v_wo_metrics (single source of truth)
+  // Three distinct labeled time KPIs from v_wo_metrics (single source of truth).
+  // Only count truly finalized WOs (finished/closed/completed) — excludes force_closed
+  // (which never had a real engineer cycle) and in-progress WOs (which have partial times).
   const kpis = useMemo(() => {
-    const respM = woMetrics.filter((m) => m.response_time_sec !== null);
+    const FINAL = new Set(["finished", "closed", "completed"]);
+    const finalized = woMetrics.filter((m) => FINAL.has((m as any).status));
+
+    const respM = finalized.filter((m) => m.response_time_sec !== null && (m.response_time_sec ?? 0) >= 0);
     const avgResponse = respM.length
       ? Math.round(respM.reduce((s, m) => s + (m.response_time_sec || 0), 0) / respM.length / 60)
       : 0;
 
-    const repairM = woMetrics.filter((m) => m.active_repair_sec !== null && m.active_repair_sec > 0);
+    const repairM = finalized.filter((m) => m.active_repair_sec !== null && (m.active_repair_sec ?? 0) > 0);
     const avgActiveRepair = repairM.length
       ? Math.round(repairM.reduce((s, m) => s + (m.active_repair_sec || 0), 0) / repairM.length / 60)
       : 0;
 
-    const downM = woMetrics.filter((m) => m.line_downtime_sec !== null && m.line_downtime_sec > 0);
+    const downM = finalized.filter((m) => m.line_downtime_sec !== null && (m.line_downtime_sec ?? 0) > 0);
     const avgLineDowntime = downM.length
       ? Math.round(downM.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / downM.length / 60)
       : 0;
