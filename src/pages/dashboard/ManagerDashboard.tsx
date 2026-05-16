@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { ManagerNavCards } from "@/components/DashboardNavCards";
 import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
 import { isWoOpen, countOpenWOs } from "@/lib/woStatus";
+import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
 
 const DONE_STATUSES = ["completed", "closed", "finished", "force_closed"];
 
