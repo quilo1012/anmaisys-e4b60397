@@ -32,14 +32,14 @@ export default function ExecutiveDashboard() {
     // "Open" = anything not in a terminal state (closed/finished/completed/force_closed)
     const openWOs = countOpenWOs(workOrders);
 
-    // Avg Response Time = AVG(response_time_sec) from v_wo_metrics
-    const respMetrics = woMetrics.filter((m) => m.response_time_sec !== null);
+    // Avg Response Time = AVG(response_time_sec) from v_wo_metrics (exclude force_closed which skew the average)
+    const respMetrics = woMetrics.filter((m) => m.response_time_sec !== null && (m as any).status !== "force_closed");
     const avgResponse = respMetrics.length
       ? Math.round(respMetrics.reduce((s, m) => s + (m.response_time_sec || 0), 0) / respMetrics.length / 60)
       : 0;
 
-    // Avg Active Repair (MTTR) = AVG(active_repair_sec) from v_wo_metrics
-    const repairMetrics = woMetrics.filter((m) => m.active_repair_sec !== null && m.active_repair_sec > 0);
+    // Avg Active Repair (MTTR) = AVG(active_repair_sec) from v_wo_metrics (exclude force_closed)
+    const repairMetrics = woMetrics.filter((m) => m.active_repair_sec !== null && m.active_repair_sec > 0 && (m as any).status !== "force_closed");
     const avgMTTR = repairMetrics.length
       ? Math.round(repairMetrics.reduce((s, m) => s + (m.active_repair_sec || 0), 0) / repairMetrics.length / 60)
       : 0;
