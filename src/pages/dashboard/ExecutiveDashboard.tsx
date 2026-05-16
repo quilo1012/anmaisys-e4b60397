@@ -140,6 +140,15 @@ export default function ExecutiveDashboard() {
           </Button>
         </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3 print:hidden">
+          <span className="text-sm font-medium text-muted-foreground">KPI period filter</span>
+          <DateRangeFilter
+            value={kpiRange}
+            preset={kpiPreset}
+            onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
+          />
+        </div>
+
         {/* KPI Grid */}
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <Card className="border-l-4 border-l-blue-500">
