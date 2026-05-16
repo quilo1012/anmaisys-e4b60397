@@ -97,7 +97,7 @@ export default function AnalyticsPage() {
   // Single source of truth: derive avgResponse / avgMTTR from v_wo_metrics view.
   // MTBF still computed locally from creation timestamps (no equivalent view column).
   const kpis = useMemo(() => {
-    const metrics = woMetricsRange ?? [];
+    const metrics = (woMetricsRange ?? []).filter((m) => (m as any).status !== "force_closed");
     const respVals = metrics.map((m) => m.response_time_sec).filter((v): v is number => typeof v === "number" && v >= 0);
     const repairVals = metrics.map((m) => m.active_repair_sec).filter((v): v is number => typeof v === "number" && v >= 0);
     const avgResponse = respVals.length ? Math.round(respVals.reduce((a, b) => a + b, 0) / respVals.length / 60) : 0;
