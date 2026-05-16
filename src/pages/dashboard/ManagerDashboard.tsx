@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { ManagerNavCards } from "@/components/DashboardNavCards";
 import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
 import { isWoOpen, countOpenWOs } from "@/lib/woStatus";
+import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
 
 const DONE_STATUSES = ["completed", "closed", "finished", "force_closed"];
 
@@ -46,7 +47,9 @@ function ManagerDashboardContent() {
   const { data: allWOs } = useWorkOrders();
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products } = useProducts();
-  const { data: woMetrics = [] } = useAllWoMetrics();
+  const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("7d");
+  const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("7d"));
+  const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
   const { role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -132,6 +135,15 @@ function ManagerDashboardContent() {
           <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
             <Lock className="h-4 w-4 mr-2" /> Change PIN
           </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
+          <span className="text-sm font-medium text-muted-foreground">KPI period filter</span>
+          <DateRangeFilter
+            value={kpiRange}
+            preset={kpiPreset}
+            onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
+          />
         </div>
 
         {/* Unified KPI grid: 8 cards in 2 rows of 4 (single source of truth: v_wo_metrics) */}

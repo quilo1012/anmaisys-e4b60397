@@ -10,12 +10,15 @@ import { Button } from "@/components/ui/button";
 import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Timer, Activity, Trophy, TrendingUp, BarChart3 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { countOpenWOs } from "@/lib/woStatus";
+import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
 
 export default function ExecutiveDashboard() {
   const { data: workOrders = [] } = useWorkOrders();
   const { data: machines = [] } = useMachines();
   const { data: engineerScores = [] } = useEngineerScores();
-  const { data: woMetrics = [] } = useAllWoMetrics();
+  const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("7d");
+  const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("7d"));
+  const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const toggleFullscreen = useCallback(() => {
@@ -52,11 +55,9 @@ export default function ExecutiveDashboard() {
     }).length;
     const slaPercent = closedWOs.length ? Math.round((withinSLA / closedWOs.length) * 100) : 100;
 
-    // Total Line Downtime Today = SUM(line_downtime_sec) from v_wo_metrics
-    const today = startOfDay(new Date());
-    const todayMetrics = woMetrics.filter((m) => new Date(m.created_at) >= today);
+    // Total Line Downtime within selected period = SUM(line_downtime_sec) from v_wo_metrics (already range-filtered)
     const lineDowntimeTodayMin = Math.round(
-      todayMetrics.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / 60
+      woMetrics.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / 60
     );
 
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
@@ -139,6 +140,15 @@ export default function ExecutiveDashboard() {
           </Button>
         </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3 print:hidden">
+          <span className="text-sm font-medium text-muted-foreground">KPI period filter</span>
+          <DateRangeFilter
+            value={kpiRange}
+            preset={kpiPreset}
+            onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
+          />
+        </div>
+
         {/* KPI Grid */}
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <Card className="border-l-4 border-l-blue-500">
@@ -183,7 +193,7 @@ export default function ExecutiveDashboard() {
             <CardContent className="pt-4 pb-3">
               <div className="flex items-center gap-2 text-muted-foreground mb-1">
                 <Timer className="h-4 w-4" />
-                <span className="text-xs font-medium">Line Downtime Today</span>
+                <span className="text-xs font-medium">Line Downtime (period)</span>
               </div>
               <p className="text-3xl font-bold">{formatMins(kpis.lineDowntimeTodayMin)}</p>
               <p className="text-[10px] text-muted-foreground mt-1">minutes lines were stopped</p>

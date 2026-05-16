@@ -1,50 +1,43 @@
-## Problem
+## Objetivo
 
-No header do Manager/Admin Dashboard, três KPIs estão exagerados:
+Os KPIs (Avg Response Time, Avg Active Repair, Avg Line Downtime) atualmente mostram a média de **todas** as ordens finalizadas desde o início — por isso os valores ficam altos por causa de ordens antigas. O admin/manager quer **escolher um período** e ver os KPIs só desse período.
 
-- **Avg Response Time = 849 min**
-- **Avg Active Repair = 7 min** (ok, mas inclui ruído)
-- **Avg Line Downtime = 3176 min**
+## Mudanças
 
-Causa confirmada na base de dados (`v_wo_metrics` agrupado por status):
+### 1. `src/pages/dashboard/ManagerDashboard.tsx`
 
-| Status | Qtd | Avg Response | Avg Repair | Avg Downtime |
-|--------|-----|--------------|------------|--------------|
-| force_closed | 67 | 759 min | — | 3498 min |
-| finished | 4 | 1583 min | 17 min | 64 min |
-| closed | 8 | 527 min | 1 min | 353 min |
+- Adicionar dois estados: `dateFrom` e `dateTo` (default: últimos 7 dias).
+- Adicionar barra de filtros no topo do dashboard com:
+  - Botões rápidos: **Hoje / 7 dias / 30 dias / Tudo**
+  - Dois `DatePicker` (shadcn) para escolher intervalo customizado
+- Passar `{ from: dateFrom, to: dateTo }` ao hook `useAllWoMetrics()`.
+- Os 3 KPIs (`avgResponse`, `avgActiveRepair`, `avgLineDowntime`) passam a refletir só o período escolhido.
+- Mostrar pequeno label sob os KPIs: "Período: 09/05 – 16/05" para deixar claro o filtro ativo.
 
-As médias atuais no `ManagerDashboard.tsx` (linhas 68–85) **não filtram nada** — entram WOs `force_closed` (onde o engenheiro nunca aceitou, mas `received_at`/`line_resumed_at` foram preenchidos no fecho forçado, distorcendo tudo) e WOs ainda abertas com tempos parciais.
+### 2. `src/pages/dashboard/ExecutiveDashboard.tsx`
 
-O `ExecutiveDashboard` já foi corrigido na resposta anterior para excluir `force_closed`; o `ManagerDashboard` ficou de fora.
+Mesmo padrão de filtro de período (mesmos botões rápidos + DatePicker), aplicado a:
+- Avg Response Time
+- Avg Active Repair (MTTR)
+- Line Downtime Today → renomeado para "Line Downtime (período)"
 
-## Correção
+O KPI "Open WOs" e "Machines at Risk" continuam tempo-real (não dependem de período).
 
-### `src/pages/dashboard/ManagerDashboard.tsx` (linhas 67–85)
+### 3. Comportamento
 
-Restringir as três médias apenas a WOs **realmente finalizadas** (status `finished`, `closed`, `completed`) — isso garante que o número só muda depois da ordem ser concluída, como pedido:
+- `useAllWoMetrics({ from, to })` já aceita range — não precisa alterar o hook.
+- Quando o usuário troca o período, o `queryKey` muda e o React Query refaz a query automaticamente.
+- Default ao abrir: **Últimos 7 dias** (mais útil que "Tudo" e evita poluição do histórico antigo).
 
-```ts
-const FINAL = new Set(["finished", "closed", "completed"]);
-const finalized = woMetrics.filter((m) => FINAL.has((m as any).status));
+## Detalhes técnicos
 
-const respM = finalized.filter((m) => m.response_time_sec !== null && m.response_time_sec >= 0);
-const repairM = finalized.filter((m) => m.active_repair_sec !== null && m.active_repair_sec > 0);
-const downM   = finalized.filter((m) => m.line_downtime_sec !== null && m.line_downtime_sec > 0);
-```
+- Componente `Calendar` do shadcn com `className="p-3 pointer-events-auto"` dentro de `Popover`.
+- Filtros mantêm a regra atual: só conta WOs finalizadas (`finished`, `closed`, `completed`), exclui `force_closed`.
+- Pequeno componente reutilizável `DateRangeFilter` em `src/components/DateRangeFilter.tsx` para evitar duplicar UI entre os dois dashboards.
 
-`force_closed` fica excluído (porque não representa um ciclo real do engenheiro), e WOs abertas/parciais também — exatamente o comportamento pedido: "só atualizar depois da ordem finalizada".
+## Resultado
 
-### Resultado esperado
-
-Com os dados atuais (12 WOs finalizadas):
-
-- Avg Response Time ≈ **879 min** → continua alto mas reflete apenas WOs realmente fechadas. Se quiseres baixar mais, podemos também adicionar um corte (ex.: ignorar response_time > 8h como outlier). **Pergunta abaixo.**
-- Avg Active Repair ≈ **17 min** (só `finished`, único status com tempo de reparo real)
-- Avg Line Downtime ≈ **161 min**
-
-## Pergunta
-
-Queres que eu também adicione um **corte de outliers** (ex.: ignorar `response_time_sec > 8h` e `line_downtime_sec > 24h`) para evitar que WOs antigas mal-fechadas continuem a inflar a média? Ou preferes manter todas as WOs finalizadas sem filtro extra?
-
-Sem alterações visuais, apenas correção da métrica.
+Ao entrar como admin/manager:
+- Por default vê KPIs dos últimos 7 dias (números realistas).
+- Pode clicar em "Hoje" para ver só o dia, ou escolher datas específicas (ex.: 01/05 a 10/05).
+- Os históricos antigos deixam de inflar a média a menos que ele escolha "Tudo".
