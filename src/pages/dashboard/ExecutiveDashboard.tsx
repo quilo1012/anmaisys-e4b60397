@@ -16,7 +16,9 @@ export default function ExecutiveDashboard() {
   const { data: workOrders = [] } = useWorkOrders();
   const { data: machines = [] } = useMachines();
   const { data: engineerScores = [] } = useEngineerScores();
-  const { data: woMetrics = [] } = useAllWoMetrics();
+  const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("7d");
+  const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("7d"));
+  const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const toggleFullscreen = useCallback(() => {
