@@ -193,7 +193,7 @@ export default function ExecutiveDashboard() {
             <CardContent className="pt-4 pb-3">
               <div className="flex items-center gap-2 text-muted-foreground mb-1">
                 <Timer className="h-4 w-4" />
-                <span className="text-xs font-medium">Line Downtime Today</span>
+                <span className="text-xs font-medium">Line Downtime (period)</span>
               </div>
               <p className="text-3xl font-bold">{formatMins(kpis.lineDowntimeTodayMin)}</p>
               <p className="text-[10px] text-muted-foreground mt-1">minutes lines were stopped</p>
