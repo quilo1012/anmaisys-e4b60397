@@ -170,7 +170,7 @@ export default function ManageUsers() {
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("Request timed out after 15s. The server did not respond — check Edge Function logs for create-user.")), 15000)
         ),
-      ]) as Awaited<ReturnType<typeof invokeFunction>>;
+      ]) as { error?: { message: string } | null; data?: { error?: string } | null };
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       toast({ title: "User created", description: `${name} has been added as ${roleLabels[role]}` });
