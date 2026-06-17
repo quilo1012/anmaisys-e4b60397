@@ -120,17 +120,17 @@ export default function ExecutiveDashboard() {
       .map(([line, mins]) => ({ line, mins }));
   }, [filteredWOs, machines]);
 
-  // Top 3 recurring problems
+  // Top 3 recurring problems — respect the selected period
   const topProblems = useMemo(() => {
     const probMap: Record<string, number> = {};
-    workOrders.forEach((w) => {
+    filteredWOs.forEach((w) => {
       probMap[w.description] = (probMap[w.description] || 0) + 1;
     });
     return Object.entries(probMap)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([desc, count]) => ({ desc, count }));
-  }, [workOrders]);
+  }, [filteredWOs]);
 
   // Top 3 engineers
   const topEngineers = useMemo(() => {
