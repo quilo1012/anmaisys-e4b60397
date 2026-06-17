@@ -79,28 +79,30 @@ export default function ExecutiveDashboard() {
     return { openWOs, avgResponse, avgMTTR, slaPercent, lineDowntimeTodayMin, machinesAtRisk };
   }, [workOrders, filteredWOs, machines, woMetrics]);
 
-  // WOs per day (last 7 days)
+  // WOs per day across the selected period (defaults to last 7 days when range is empty).
   const wosPerDay = useMemo(() => {
+    const end = kpiRange.to ?? new Date();
+    const start = kpiRange.from ?? startOfDay(subDays(end, 6));
     const days: { label: string; count: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const day = subDays(new Date(), i);
+    const dayMs = 86_400_000;
+    const totalDays = Math.min(31, Math.max(1, Math.ceil((+startOfDay(end) - +startOfDay(start)) / dayMs) + 1));
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const day = subDays(end, i);
       const dayStart = startOfDay(day);
-      const dayEnd = new Date(dayStart);
-      dayEnd.setDate(dayEnd.getDate() + 1);
+      const dayEnd = new Date(+dayStart + dayMs);
       const count = workOrders.filter((w) => {
         const d = new Date(w.created_at);
         return d >= dayStart && d < dayEnd;
       }).length;
-      days.push({ label: format(day, "EEE"), count });
+      days.push({ label: format(day, totalDays > 10 ? "dd/MM" : "EEE"), count });
     }
     return days;
-  }, [workOrders]);
+  }, [workOrders, kpiRange.from, kpiRange.to]);
 
-  // Top 3 lines by downtime — prefer the WO's preserved snapshot (line_at_time),
-  // fall back to the machine→line mapping, and bucket truly missing data under "—".
+  // Top 3 lines by downtime — respect the selected period (filter by created_at).
   const topLines = useMemo(() => {
     const lineMap: Record<string, number> = {};
-    workOrders.forEach((w) => {
+    filteredWOs.forEach((w) => {
       if (w.started_at && (w.finished_at || w.completed_at)) {
         const snapshot = ((w as any).line_at_time ?? "").toString().trim();
         const machine = machines.find((m) => m.name === w.machine);
@@ -116,7 +118,7 @@ export default function ExecutiveDashboard() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([line, mins]) => ({ line, mins }));
-  }, [workOrders, machines]);
+  }, [filteredWOs, machines]);
 
   // Top 3 recurring problems
   const topProblems = useMemo(() => {
