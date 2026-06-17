@@ -31,8 +31,21 @@ export default function ExecutiveDashboard() {
     }
   }, []);
 
+  // Work orders filtered by the selected KPI period (by created_at).
+  const inRange = useCallback((iso: string) => {
+    const d = new Date(iso);
+    if (kpiRange.from && d < kpiRange.from) return false;
+    if (kpiRange.to && d > kpiRange.to) return false;
+    return true;
+  }, [kpiRange.from, kpiRange.to]);
+
+  const filteredWOs = useMemo(
+    () => workOrders.filter((w) => inRange(w.created_at)),
+    [workOrders, inRange]
+  );
+
   const kpis = useMemo(() => {
-    // "Open" = anything not in a terminal state (closed/finished/completed/force_closed)
+    // "Open" = anything not in a terminal state (closed/finished/completed/force_closed) — real-time, not period-filtered
     const openWOs = countOpenWOs(workOrders);
 
     // Avg Response Time = AVG(response_time_sec) from v_wo_metrics (exclude force_closed which skew the average)
@@ -47,8 +60,9 @@ export default function ExecutiveDashboard() {
       ? Math.round(repairMetrics.reduce((s, m) => s + (m.active_repair_sec || 0), 0) / repairMetrics.length / 60)
       : 0;
 
+    // SLA Compliance — respect the selected period
     const slaTargets: Record<string, number> = { critical: 10, high: 30, medium: 60, low: 120 };
-    const closedWOs = workOrders.filter((w) => ["closed", "completed"].includes(w.status) && w.received_at);
+    const closedWOs = filteredWOs.filter((w) => ["closed", "completed"].includes(w.status) && w.received_at);
     const withinSLA = closedWOs.filter((w) => {
       const target = slaTargets[w.priority || "medium"] || 60;
       return differenceInMinutes(new Date(w.received_at!), new Date(w.created_at)) <= target;
@@ -63,30 +77,32 @@ export default function ExecutiveDashboard() {
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
 
     return { openWOs, avgResponse, avgMTTR, slaPercent, lineDowntimeTodayMin, machinesAtRisk };
-  }, [workOrders, machines, woMetrics]);
+  }, [workOrders, filteredWOs, machines, woMetrics]);
 
-  // WOs per day (last 7 days)
+  // WOs per day across the selected period (defaults to last 7 days when range is empty).
   const wosPerDay = useMemo(() => {
+    const end = kpiRange.to ?? new Date();
+    const start = kpiRange.from ?? startOfDay(subDays(end, 6));
     const days: { label: string; count: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const day = subDays(new Date(), i);
+    const dayMs = 86_400_000;
+    const totalDays = Math.min(31, Math.max(1, Math.ceil((+startOfDay(end) - +startOfDay(start)) / dayMs) + 1));
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const day = subDays(end, i);
       const dayStart = startOfDay(day);
-      const dayEnd = new Date(dayStart);
-      dayEnd.setDate(dayEnd.getDate() + 1);
+      const dayEnd = new Date(+dayStart + dayMs);
       const count = workOrders.filter((w) => {
         const d = new Date(w.created_at);
         return d >= dayStart && d < dayEnd;
       }).length;
-      days.push({ label: format(day, "EEE"), count });
+      days.push({ label: format(day, totalDays > 10 ? "dd/MM" : "EEE"), count });
     }
     return days;
-  }, [workOrders]);
+  }, [workOrders, kpiRange.from, kpiRange.to]);
 
-  // Top 3 lines by downtime — prefer the WO's preserved snapshot (line_at_time),
-  // fall back to the machine→line mapping, and bucket truly missing data under "—".
+  // Top 3 lines by downtime — respect the selected period (filter by created_at).
   const topLines = useMemo(() => {
     const lineMap: Record<string, number> = {};
-    workOrders.forEach((w) => {
+    filteredWOs.forEach((w) => {
       if (w.started_at && (w.finished_at || w.completed_at)) {
         const snapshot = ((w as any).line_at_time ?? "").toString().trim();
         const machine = machines.find((m) => m.name === w.machine);
@@ -102,19 +118,19 @@ export default function ExecutiveDashboard() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([line, mins]) => ({ line, mins }));
-  }, [workOrders, machines]);
+  }, [filteredWOs, machines]);
 
-  // Top 3 recurring problems
+  // Top 3 recurring problems — respect the selected period
   const topProblems = useMemo(() => {
     const probMap: Record<string, number> = {};
-    workOrders.forEach((w) => {
+    filteredWOs.forEach((w) => {
       probMap[w.description] = (probMap[w.description] || 0) + 1;
     });
     return Object.entries(probMap)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([desc, count]) => ({ desc, count }));
-  }, [workOrders]);
+  }, [filteredWOs]);
 
   // Top 3 engineers
   const topEngineers = useMemo(() => {
@@ -216,7 +232,7 @@ export default function ExecutiveDashboard() {
           <Card className="lg:col-span-2">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" /> Work Orders — Last 7 Days
+                <BarChart3 className="h-4 w-4" /> Work Orders — Selected Period
               </CardTitle>
             </CardHeader>
             <CardContent>
