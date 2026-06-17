@@ -232,7 +232,7 @@ export default function ExecutiveDashboard() {
           <Card className="lg:col-span-2">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" /> Work Orders — Last 7 Days
+                <BarChart3 className="h-4 w-4" /> Work Orders — Selected Period
               </CardTitle>
             </CardHeader>
             <CardContent>
