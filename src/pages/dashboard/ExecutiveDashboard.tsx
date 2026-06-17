@@ -31,8 +31,21 @@ export default function ExecutiveDashboard() {
     }
   }, []);
 
+  // Work orders filtered by the selected KPI period (by created_at).
+  const inRange = useCallback((iso: string) => {
+    const d = new Date(iso);
+    if (kpiRange.from && d < kpiRange.from) return false;
+    if (kpiRange.to && d > kpiRange.to) return false;
+    return true;
+  }, [kpiRange.from, kpiRange.to]);
+
+  const filteredWOs = useMemo(
+    () => workOrders.filter((w) => inRange(w.created_at)),
+    [workOrders, inRange]
+  );
+
   const kpis = useMemo(() => {
-    // "Open" = anything not in a terminal state (closed/finished/completed/force_closed)
+    // "Open" = anything not in a terminal state (closed/finished/completed/force_closed) — real-time, not period-filtered
     const openWOs = countOpenWOs(workOrders);
 
     // Avg Response Time = AVG(response_time_sec) from v_wo_metrics (exclude force_closed which skew the average)
@@ -47,8 +60,9 @@ export default function ExecutiveDashboard() {
       ? Math.round(repairMetrics.reduce((s, m) => s + (m.active_repair_sec || 0), 0) / repairMetrics.length / 60)
       : 0;
 
+    // SLA Compliance — respect the selected period
     const slaTargets: Record<string, number> = { critical: 10, high: 30, medium: 60, low: 120 };
-    const closedWOs = workOrders.filter((w) => ["closed", "completed"].includes(w.status) && w.received_at);
+    const closedWOs = filteredWOs.filter((w) => ["closed", "completed"].includes(w.status) && w.received_at);
     const withinSLA = closedWOs.filter((w) => {
       const target = slaTargets[w.priority || "medium"] || 60;
       return differenceInMinutes(new Date(w.received_at!), new Date(w.created_at)) <= target;
@@ -63,7 +77,7 @@ export default function ExecutiveDashboard() {
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
 
     return { openWOs, avgResponse, avgMTTR, slaPercent, lineDowntimeTodayMin, machinesAtRisk };
-  }, [workOrders, machines, woMetrics]);
+  }, [workOrders, filteredWOs, machines, woMetrics]);
 
   // WOs per day (last 7 days)
   const wosPerDay = useMemo(() => {
