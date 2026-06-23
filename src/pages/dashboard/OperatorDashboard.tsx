@@ -81,6 +81,7 @@ function OperatorDashboardContent() {
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
+  const [machineName, setMachineName] = useState<string>(""); // optional, regular lines only
   const [lineStopped, setLineStopped] = useState(false);
   const [isRetroactive, setIsRetroactive] = useState(false);
   const [retroDate, setRetroDate] = useState<Date>();
