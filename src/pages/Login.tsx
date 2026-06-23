@@ -105,6 +105,7 @@ export default function Login() {
     if (tabletAccountId && !operatorAccounts.some((a) => a.id === tabletAccountId)) {
       setTabletAccountId("");
       localStorage.removeItem(TABLET_KEY);
+      localStorage.removeItem(TABLET_TS_KEY);
     }
   }, [operatorAccounts, tabletAccountId]);
 
