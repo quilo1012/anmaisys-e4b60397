@@ -975,6 +975,35 @@ function EngineerDashboardContent() {
       />
 
       <EngineerChangePinDialog open={changePinOpen} onOpenChange={setChangePinOpen} />
+
+      {/* Add Co-Engineer dialog — PIN-verified */}
+      <Dialog open={!!collabDialogWO} onOpenChange={(o) => { if (!o) { setCollabDialogWO(null); setCollabPin(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Add Co-Engineer</DialogTitle>
+            <DialogDescription>
+              Enter your PIN to join this Work Order. Your name will appear on the final signature alongside the primary engineer.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="Your PIN"
+            value={collabPin}
+            onChange={(e) => setCollabPin(e.target.value.replace(/\D/g, ""))}
+            className="h-14 text-center text-2xl tracking-widest"
+            maxLength={8}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setCollabDialogWO(null); setCollabPin(""); }}>Cancel</Button>
+            <Button onClick={handleAddCollaborator} disabled={collabPin.length < 4 || collabBusy}>
+              {collabBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Join Work Order"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
