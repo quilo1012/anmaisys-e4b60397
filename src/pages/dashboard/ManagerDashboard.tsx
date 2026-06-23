@@ -146,101 +146,70 @@ function ManagerDashboardContent() {
           />
         </div>
 
-        {/* Unified KPI grid: 8 cards in 2 rows of 4 (single source of truth: v_wo_metrics) */}
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-fr">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-sm font-medium">Open WOs</CardTitle>
-                <KpiInfoTooltip text="Open Work Orders: ordens criadas que ainda não foram aceites por um engenheiro. Indica o backlog atual a aguardar resposta." />
-              </div>
-              <ClipboardList className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{openCount}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-                <KpiInfoTooltip text="In Progress: ordens já aceites por um engenheiro e em execução (recebidas, em deslocação ou em reparação)." />
-              </div>
-              <LayoutDashboard className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{inProgressCount}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-sm font-medium">Finished Today</CardTitle>
-                <KpiInfoTooltip text="Finished Today: número de ordens concluídas (finished/closed/completed) no dia de hoje. Indicador de produtividade diária." />
-              </div>
-              <ClipboardList className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{completedToday}</div></CardContent>
-          </Card>
-          <Card className={lowStockCount > 0 ? "border-destructive" : ""}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
-                <KpiInfoTooltip text="Low Stock: número de produtos cuja quantidade em armazém está igual ou abaixo do stock mínimo definido. Requer reposição." />
-              </div>
-              <AlertTriangle className={`h-4 w-4 ${lowStockCount > 0 ? "text-destructive" : "text-muted-foreground"}`} />
-            </CardHeader>
-            <CardContent><div className={`text-2xl font-bold ${lowStockCount > 0 ? "text-destructive" : ""}`}>{lowStockCount}</div></CardContent>
-          </Card>
+        {/* Unified KPI grid: 8 cards in 2 rows of 4. Tablet (md) already shows 4 cols. */}
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4 auto-rows-fr">
+          <KpiCard
+            label="Open WOs"
+            value={openCount}
+            icon={ClipboardList}
+            tone="blue"
+            tooltip="Open Work Orders: ordens criadas que ainda não foram aceites por um engenheiro. Indica o backlog atual a aguardar resposta."
+          />
+          <KpiCard
+            label="In Progress"
+            value={inProgressCount}
+            icon={LayoutDashboard}
+            tone="amber"
+            tooltip="In Progress: ordens já aceites por um engenheiro e em execução (recebidas, em deslocação ou em reparação)."
+          />
+          <KpiCard
+            label="Finished Today"
+            value={completedToday}
+            icon={ClipboardList}
+            tone="green"
+            tooltip="Finished Today: número de ordens concluídas (finished/closed/completed) no dia de hoje. Indicador de produtividade diária."
+          />
+          <KpiCard
+            label="Low Stock"
+            value={lowStockCount}
+            icon={AlertTriangle}
+            tone={lowStockCount > 0 ? "red" : "muted"}
+            tooltip="Low Stock: número de produtos cuja quantidade em armazém está igual ou abaixo do stock mínimo definido. Requer reposição."
+            highlight={lowStockCount > 0}
+          />
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
-                <KpiInfoTooltip text="Avg Response Time: tempo médio desde a criação da WO até ser aceite pelo engenheiro. Métrica-chave de SLA — quanto menor, melhor a capacidade de resposta da equipa." />
-              </div>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpis.avgResponse} min</div>
-              <p className="text-xs text-muted-foreground mt-1">created → accepted (SLA metric)</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-sm font-medium">Avg Active Repair</CardTitle>
-                <KpiInfoTooltip text="Avg Active Repair (MTTR): tempo médio efetivo de reparação, do início do trabalho até à conclusão, excluindo pausas. Mede a eficiência técnica do engenheiro." />
-              </div>
-              <Wrench className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpis.avgActiveRepair} min</div>
-              <p className="text-xs text-muted-foreground mt-1">MTTR — pauses excluded</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-sm font-medium">Avg Line Downtime</CardTitle>
-                <KpiInfoTooltip text="Avg Line Downtime: tempo médio em que a linha de produção esteve parada (linha parada → linha retomada). Mede o impacto real no negócio em minutos perdidos." />
-              </div>
-              <PowerOff className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpis.avgLineDowntime} min</div>
-              <p className="text-xs text-muted-foreground mt-1">business impact (line stopped → resumed)</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-sm font-medium">Parts Used Today</CardTitle>
-                <KpiInfoTooltip text="Parts Used Today: total de peças/produtos consumidos em reparações durante o dia de hoje. Útil para acompanhamento de consumo e custos." />
-              </div>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{partsToday ?? 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">total parts consumed today</p>
-            </CardContent>
-          </Card>
+          <KpiCard
+            label="Avg Response Time"
+            value={`${kpis.avgResponse} min`}
+            icon={Clock}
+            tone="muted"
+            footer="created → accepted (SLA metric)"
+            tooltip="Avg Response Time: tempo médio desde a criação da WO até ser aceite pelo engenheiro. Métrica-chave de SLA — quanto menor, melhor a capacidade de resposta da equipa."
+          />
+          <KpiCard
+            label="Avg Active Repair"
+            value={`${kpis.avgActiveRepair} min`}
+            icon={Wrench}
+            tone="muted"
+            footer="MTTR — pauses excluded"
+            tooltip="Avg Active Repair (MTTR): tempo médio efetivo de reparação, do início do trabalho até à conclusão, excluindo pausas. Mede a eficiência técnica do engenheiro."
+          />
+          <KpiCard
+            label="Avg Line Downtime"
+            value={`${kpis.avgLineDowntime} min`}
+            icon={PowerOff}
+            tone="muted"
+            footer="business impact (line stopped → resumed)"
+            tooltip="Avg Line Downtime: tempo médio em que a linha de produção esteve parada (linha parada → linha retomada). Mede o impacto real no negócio em minutos perdidos."
+          />
+          <KpiCard
+            label="Parts Used Today"
+            value={partsToday ?? 0}
+            icon={Package}
+            tone="muted"
+            footer="total parts consumed today"
+            tooltip="Parts Used Today: total de peças/produtos consumidos em reparações durante o dia de hoje. Útil para acompanhamento de consumo e custos."
+          />
         </div>
 
         {/* Quick Actions */}
