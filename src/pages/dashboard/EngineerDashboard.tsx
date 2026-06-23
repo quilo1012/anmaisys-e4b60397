@@ -227,6 +227,39 @@ function EngineerDashboardContent() {
   const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string; notes: string } | null>(null);
   const [resumingThenFinish, setResumingThenFinish] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
+
+  // Add co-engineer (collaborator) dialog state
+  const [collabDialogWO, setCollabDialogWO] = useState<string | null>(null);
+  const [collabPin, setCollabPin] = useState("");
+  const [collabBusy, setCollabBusy] = useState(false);
+  const handleAddCollaborator = async () => {
+    if (!collabDialogWO || collabPin.length < 4) return;
+    setCollabBusy(true);
+    try {
+      const { data, error } = await supabase.rpc("add_wo_collaborator" as any, {
+        _wo_id: collabDialogWO,
+        _pin: collabPin,
+      });
+      if (error) throw error;
+      const res = data as any;
+      if (!res?.success) {
+        const msg = res?.error === "invalid_pin" ? "Invalid PIN" :
+                    res?.error === "already_primary" ? "You are already the primary engineer" :
+                    res?.error === "wo_not_active" ? "WO is not active" :
+                    res?.error === "wo_not_accepted_yet" ? "No one has accepted this WO yet" :
+                    res?.error || "Failed to add co-engineer";
+        toast({ title: "Cannot add co-engineer", description: msg, variant: "destructive" });
+        return;
+      }
+      toast({ title: "👥 Co-engineer added", description: `${res.engineer_name} is now part of this job.` });
+      setCollabDialogWO(null);
+      setCollabPin("");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setCollabBusy(false);
+    }
+  };
   
   // PIN dialog state
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
@@ -585,6 +618,22 @@ function EngineerDashboardContent() {
                 <PhotoStatusButton woId={wo.id} photoType="after" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending} />
                 <Button
                   size="lg"
+                  variant="outline"
+                  className="col-span-2 h-12 text-sm border-blue-500 text-blue-700"
+                  onClick={() => { setCollabDialogWO(wo.id); setCollabPin(""); }}
+                >
+                  <Users className="h-4 w-4 mr-2" /> Add Co-Engineer (PIN)
+                </Button>
+                {Array.isArray((wo as any).collaborator_names) && (wo as any).collaborator_names.length > 0 && (
+                  <div className="col-span-2 text-xs text-muted-foreground flex flex-wrap gap-1 items-center">
+                    <span className="font-semibold">With:</span>
+                    {(wo as any).collaborator_names.map((n: string) => (
+                      <Badge key={n} variant="secondary" className="text-[10px]">{n}</Badge>
+                    ))}
+                  </div>
+                )}
+                <Button
+                  size="lg"
                   variant="secondary"
                   className="col-span-2 h-14 text-base font-bold"
                   onClick={() => handleFinishClick(wo.id)}
@@ -926,6 +975,35 @@ function EngineerDashboardContent() {
       />
 
       <EngineerChangePinDialog open={changePinOpen} onOpenChange={setChangePinOpen} />
+
+      {/* Add Co-Engineer dialog — PIN-verified */}
+      <Dialog open={!!collabDialogWO} onOpenChange={(o) => { if (!o) { setCollabDialogWO(null); setCollabPin(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Add Co-Engineer</DialogTitle>
+            <DialogDescription>
+              Enter your PIN to join this Work Order. Your name will appear on the final signature alongside the primary engineer.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="Your PIN"
+            value={collabPin}
+            onChange={(e) => setCollabPin(e.target.value.replace(/\D/g, ""))}
+            className="h-14 text-center text-2xl tracking-widest"
+            maxLength={8}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setCollabDialogWO(null); setCollabPin(""); }}>Cancel</Button>
+            <Button onClick={handleAddCollaborator} disabled={collabPin.length < 4 || collabBusy}>
+              {collabBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Join Work Order"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
