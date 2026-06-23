@@ -652,10 +652,30 @@ export default function WorkOrdersPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2"><Label>Line</Label>
+                <Select value={newLineId} onValueChange={(v) => { setNewLineId(v); setNewMachine(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Select line..." /></SelectTrigger>
+                  <SelectContent>{lines?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2"><Label>Machine</Label>
-                <Select value={newMachine} onValueChange={setNewMachine}>
-                  <SelectTrigger><SelectValue placeholder="Select machine..." /></SelectTrigger>
-                  <SelectContent>{machines?.map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}</SelectContent>
+                <Select value={newMachine} onValueChange={setNewMachine} disabled={!newLineId}>
+                  <SelectTrigger><SelectValue placeholder={newLineId ? "Select machine..." : "Select line first..."} /></SelectTrigger>
+                  <SelectContent>
+                    {(() => {
+                      const selectedLineName = lines?.find((l: any) => l.id === newLineId)?.name;
+                      const filtered = (machines || []).filter((m: any) => {
+                        if (!selectedLineName) return false;
+                        const base = (m.current_line || m.fixed_line || m.line || "").toString();
+                        if (!base) return false;
+                        const withSide = (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
+                        return withSide === selectedLineName || base === selectedLineName;
+                      });
+                      return filtered.length
+                        ? filtered.map((m: any) => <SelectItem key={m.id} value={m.name}>{m.name}{m.code ? ` (${m.code})` : ""}</SelectItem>)
+                        : <SelectItem value="__none__" disabled>No machines for this line</SelectItem>;
+                    })()}
+                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2"><Label>Problem Description</Label>
