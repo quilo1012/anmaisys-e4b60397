@@ -39,16 +39,8 @@ import { clearAcknowledgedWOLocal } from "@/lib/woAck";
 
 
 
-const statusConfig: Record<string, { label: string; className: string }> = {
-  open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
-  received: { label: "Received", className: "bg-indigo-100 text-indigo-800 border-indigo-200" },
-  arrived: { label: "Arrived", className: "bg-purple-100 text-purple-800 border-purple-200" },
-  in_progress: { label: "In Progress", className: "bg-amber-100 text-amber-800 border-amber-200" },
-  finished: { label: "Finished", className: "bg-teal-100 text-teal-800 border-teal-200" },
-  closed: { label: "Closed", className: "bg-green-100 text-green-800 border-green-200" },
-  completed: { label: "Completed", className: "bg-green-100 text-green-800 border-green-200" },
-  force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
-};
+import { woStatusConfig as statusConfig } from "@/lib/woStatusConfig";
+
 
 function LiveTimer({ startedAt }: { startedAt: string }) {
   const [, setTick] = useState(0);
@@ -653,7 +645,7 @@ function EngineerDashboardContent() {
   const DesktopFinishButton = ({ wo }: { wo: any }) => {
     const checklistComplete = useChecklistComplete(wo.description, wo.id);
     return (
-      <Button size="sm" variant="secondary" className="h-11 min-w-11 px-3" onClick={() => handleFinishClick(wo.id)} disabled={!!(wo as any).paused_at || !checklistComplete} aria-label="Finish work order">
+      <Button size="sm" variant="secondary" className="h-11 min-w-11 px-3 touch-manipulation" onClick={() => handleFinishClick(wo.id)} disabled={!!(wo as any).paused_at || !checklistComplete} aria-label="Finish work order">
         <PenTool className="h-4 w-4 mr-1.5" aria-hidden="true" /> Finish
       </Button>
     );
@@ -807,32 +799,32 @@ function EngineerDashboardContent() {
                             <td className="p-2">
                               <div className="flex gap-2 flex-wrap">
                                 {wo.status === "open" && (
-                                  <Button size="sm" className="h-11 min-w-11 px-3 bg-green-600 hover:bg-green-700 text-white dark:text-white" onClick={() => handleAcceptClick(wo.id)} disabled={acceptWO.isPending} aria-label="Accept work order">
+                                  <Button size="sm" className="h-11 min-w-11 px-3 touch-manipulation bg-green-600 hover:bg-green-700 text-white dark:text-white" onClick={() => handleAcceptClick(wo.id)} disabled={acceptWO.isPending} aria-label="Accept work order">
                                     <CheckCircle className="h-4 w-4 mr-1.5" aria-hidden="true" /> Accept
                                   </Button>
                                 )}
                                 {wo.status === "received" && (
-                                  <Button size="sm" className="h-11 min-w-11 px-3 bg-purple-600 hover:bg-purple-700 text-white dark:text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending || startWO.isPending} aria-label="Mark arrived and start">
+                                  <Button size="sm" className="h-11 min-w-11 px-3 touch-manipulation bg-purple-600 hover:bg-purple-700 text-white dark:text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending || startWO.isPending} aria-label="Mark arrived and start">
                                     <Activity className="h-4 w-4 mr-1.5" aria-hidden="true" /> Arrived & Start
                                   </Button>
                                 )}
                                 {wo.status === "arrived" && (
-                                  <Button size="sm" className="h-11 min-w-11 px-3 bg-amber-600 hover:bg-amber-700 text-white dark:text-white" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending} aria-label="Start work">
+                                  <Button size="sm" className="h-11 min-w-11 px-3 touch-manipulation bg-amber-600 hover:bg-amber-700 text-white dark:text-white" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending} aria-label="Start work">
                                     <Play className="h-4 w-4 mr-1.5" aria-hidden="true" /> Start Work
                                   </Button>
                                 )}
                                 {wo.status === "in_progress" && (
                                   <>
                                     {(wo as any).paused_at ? (
-                                      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 border-green-500 text-foreground hover:bg-green-500/10" onClick={() => resumeWO.mutate(wo.id)} disabled={resumeWO.isPending} aria-label="Resume work order">
+                                      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 touch-manipulation border-green-500 text-foreground hover:bg-green-500/10" onClick={() => resumeWO.mutate(wo.id)} disabled={resumeWO.isPending} aria-label="Resume work order">
                                         <PlayCircle className="h-4 w-4 mr-1.5 text-green-600 dark:text-green-400" aria-hidden="true" /> Resume
                                       </Button>
                                     ) : (
-                                      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 border-yellow-500 text-foreground hover:bg-yellow-500/10" onClick={() => { setPauseDialogWO(wo.id); setPauseReason(""); }} disabled={pauseWO.isPending} aria-label="Pause work order">
+                                      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 touch-manipulation border-yellow-500 text-foreground hover:bg-yellow-500/10" onClick={() => { setPauseDialogWO(wo.id); setPauseReason(""); }} disabled={pauseWO.isPending} aria-label="Pause work order">
                                         <Pause className="h-4 w-4 mr-1.5 text-yellow-600 dark:text-yellow-400" aria-hidden="true" /> Pause
                                       </Button>
                                     )}
-                                    <Button size="sm" variant="outline" className="h-11 min-w-11 px-3" onClick={() => setPartsDialogWO(wo.id)} aria-label="Register parts used">
+                                    <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 touch-manipulation" onClick={() => setPartsDialogWO(wo.id)} aria-label="Register parts used">
                                       <Package className="h-4 w-4 mr-1.5" aria-hidden="true" /> Parts
                                     </Button>
                                     <input type="file" accept="image/*" capture="environment" className="sr-only" tabIndex={-1} aria-hidden="true" ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "before")} />

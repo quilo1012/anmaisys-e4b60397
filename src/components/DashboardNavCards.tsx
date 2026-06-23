@@ -67,27 +67,34 @@ interface AdminCardsProps {
   usersCount?: number;
 }
 
+// Category accents — consistent across roles.
+// Operations = blue, Assets = amber, Reports = purple, Admin = red.
+const OPS = "bg-blue-500/15 text-blue-600 dark:text-blue-400";
+const ASSETS = "bg-amber-500/15 text-amber-600 dark:text-amber-400";
+const REPORTS = "bg-purple-500/15 text-purple-600 dark:text-purple-400";
+const ADMIN = "bg-red-500/15 text-red-600 dark:text-red-400";
+
 export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCardsProps) {
   const { role } = useAuth();
   const cards: NavCard[] = [
-    { title: "Work Orders", description: "Manage all maintenance work orders", url: "/dashboard/work-orders", icon: ClipboardList, badge: openWOs },
-    { title: "Machines", description: "View and manage equipment", url: "/dashboard/machines", icon: Cog, badge: machinesCount },
-    { title: "Downtime", description: "Track production line stoppages", url: "/dashboard/downtime", icon: Clock },
-    { title: "Control Center", description: "Live operations display", url: "/dashboard/control-center", icon: Monitor },
-    { title: "Analytics", description: "Performance metrics and trends", url: "/dashboard/analytics", icon: BarChart3 },
-    { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package },
-    { title: "Problems", description: "Catalog of standard issues", url: "/dashboard/problems", icon: AlertCircle },
+    { title: "Work Orders", description: "Manage all maintenance work orders", url: "/dashboard/work-orders", icon: ClipboardList, badge: openWOs, accent: OPS },
+    { title: "Machines", description: "View and manage equipment", url: "/dashboard/machines", icon: Cog, badge: machinesCount, accent: ASSETS },
+    { title: "Downtime", description: "Track production line stoppages", url: "/dashboard/downtime", icon: Clock, accent: OPS },
+    { title: "Control Center", description: "Live operations display", url: "/dashboard/control-center", icon: Monitor, accent: OPS },
+    { title: "Analytics", description: "Performance metrics and trends", url: "/dashboard/analytics", icon: BarChart3, accent: REPORTS },
+    { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package, accent: ASSETS },
+    { title: "Problems", description: "Catalog of standard issues", url: "/dashboard/problems", icon: AlertCircle, accent: ASSETS },
   ];
   if (role === "admin") {
     cards.push(
-      { title: "Executive", description: "Executive KPI dashboard", url: "/dashboard/executive", icon: Briefcase },
-      { title: "Financial", description: "Cost and financial overview", url: "/dashboard/financial", icon: DollarSign },
-      { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount },
-      { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield },
+      { title: "Executive", description: "Executive KPI dashboard", url: "/dashboard/executive", icon: Briefcase, accent: REPORTS },
+      { title: "Financial", description: "Cost and financial overview", url: "/dashboard/financial", icon: DollarSign, accent: REPORTS },
+      { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN },
+      { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield, accent: ADMIN },
     );
   } else if (role === "manager") {
     cards.push(
-      { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount },
+      { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN },
     );
   }
   return <DashboardNavCards cards={cards} />;

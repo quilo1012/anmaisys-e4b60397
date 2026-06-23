@@ -35,16 +35,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, Legend } from "recharts";
 
 
-const statusConfig: Record<string, { label: string; className: string }> = {
-  open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
-  received: { label: "Received", className: "bg-indigo-100 text-indigo-800 border-indigo-200" },
-  arrived: { label: "Arrived", className: "bg-purple-100 text-purple-800 border-purple-200" },
-  in_progress: { label: "In Progress", className: "bg-amber-100 text-amber-800 border-amber-200" },
-  finished: { label: "Finished", className: "bg-teal-100 text-teal-800 border-teal-200" },
-  closed: { label: "Closed", className: "bg-green-100 text-green-800 border-green-200" },
-  completed: { label: "Completed", className: "bg-green-100 text-green-800 border-green-200" },
-  force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
-};
+import { woStatusConfig as statusConfig, priorityChipClass } from "@/lib/woStatusConfig";
+
 
 export default function OperatorDashboard() {
   const { role, loading: authLoading } = useAuth();
@@ -439,7 +431,7 @@ function OperatorDashboardContent() {
                     <div className="flex items-center gap-2 text-sm">
                       <Zap className="h-4 w-4" />
                       <span className="font-medium">AI Insight</span>
-                      <Badge variant="outline" className={cn("text-xs", autoPriority.priority === "high" ? "bg-red-100 text-red-800" : autoPriority.priority === "medium" ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800")}>
+                      <Badge variant="outline" className={cn("text-xs", priorityChipClass[autoPriority.priority] ?? priorityChipClass.low)}>
                         Priority: {autoPriority.priority.toUpperCase()}
                       </Badge>
                       {aiInsights.isRecurring && <Badge variant="destructive" className="text-xs">Recurring</Badge>}
@@ -451,7 +443,12 @@ function OperatorDashboardContent() {
               </div>
             )}
             <div className="md:col-span-2">
-              <Button type="submit" disabled={createWO.isPending}>
+              <Button
+                type="submit"
+                disabled={createWO.isPending}
+                className="touch-manipulation"
+                title={typeof navigator !== "undefined" && !navigator.onLine ? "Offline — will sync when connection is restored" : undefined}
+              >
                 {createWO.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Submit Work Order
               </Button>
@@ -571,7 +568,7 @@ function OperatorDashboardContent() {
                               <Button
                                 size="sm"
                                 variant="default"
-                                className="h-11 min-w-11 px-3"
+                                className="h-11 min-w-11 px-3 touch-manipulation"
                                 disabled={closeWO.isPending}
                                 onClick={() => handleQuickClose(wo.id, wo.requester_name ?? null)}
                                 aria-label="Close work order"

@@ -224,10 +224,14 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const showStoppedBadge = stoppedLinesCount > 0 && (role === "engineer" || role === "manager" || role === "admin");
   const stoppedTarget = role === "engineer" ? "/dashboard/engineer" : "/dashboard/work-orders";
 
+  // Sidebar opens by default on desktop/tablet (≥ md breakpoint). On phones
+  // it stays closed and the user opens it via the trigger.
+  const defaultSidebarOpen = typeof window !== "undefined" && window.innerWidth >= 768;
+  const currentPageTitle = routeTitles[location.pathname] ?? "";
+
   return (
     <TooltipProvider delayDuration={0}>
-      {/* Sidebar hidden by default — opens as overlay only when user taps the trigger. */}
-      <SidebarProvider defaultOpen={false}>
+      <SidebarProvider defaultOpen={defaultSidebarOpen}>
         <div className="flex h-screen w-full overflow-hidden">
           <Sidebar collapsible="offcanvas" className="border-r border-sidebar-border print:hidden">
             <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-1">
@@ -293,6 +297,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           <main className="flex-1 flex flex-col overflow-hidden">
             <header className="h-14 border-b bg-card flex items-center px-2 sm:px-4 gap-2 sm:gap-3 print:hidden">
               <SidebarTrigger aria-label="Toggle menu" className="shrink-0" />
+              {currentPageTitle && (
+                <h1 className="hidden sm:block text-sm font-semibold text-foreground truncate" aria-live="polite">
+                  {currentPageTitle}
+                </h1>
+              )}
               {(role === "admin" || role === "manager") && (
                 <div className="ml-1 sm:ml-2 hidden md:block">
                   <OnlineEngineersPanel />

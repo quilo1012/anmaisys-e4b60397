@@ -362,3 +362,24 @@ select:-webkit-autofill {
     break-inside: avoid !important;
   }
 }
+
+/* ===========================================================================
+ * Touch / tablet ergonomics
+ * - `.touch-manipulation` utility eliminates the 300ms tap delay on iOS
+ *   Safari (touch-action: manipulation disables double-tap-to-zoom).
+ * - On tablets (≤ 1024px) bump the `h-8` / `h-9` shadcn button sizes to
+ *   the WCAG 2.5.5 minimum of 44px so gloved operators don't miss taps.
+ * =========================================================================== */
+.touch-manipulation {
+  touch-action: manipulation;
+}
+
+@media (max-width: 1024px) {
+  button.h-8,
+  button.h-9,
+  a.h-8,
+  a.h-9 {
+    min-height: 44px;
+  }
+}
+
