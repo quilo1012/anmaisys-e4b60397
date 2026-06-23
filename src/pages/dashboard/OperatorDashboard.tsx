@@ -258,9 +258,14 @@ function OperatorDashboardContent() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 flex-wrap">
             <Plus className="h-5 w-5" />
             Create Work Order
+            {lineName && (
+              <Badge variant="outline" className="ml-1 border-primary text-primary font-semibold">
+                Line: {lineName}
+              </Badge>
+            )}
             {lineStopped && <Badge variant="destructive" className="ml-2">🛑 Line Stopped</Badge>}
             {!lineStopped && (requestedBy || description) && <Badge className="ml-2 bg-amber-500 text-white border-amber-500">⚠️ Line Running</Badge>}
           </CardTitle>
