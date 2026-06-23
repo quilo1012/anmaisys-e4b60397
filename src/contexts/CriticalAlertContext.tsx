@@ -103,8 +103,10 @@ class AlertAudioEngine {
   private htmlAudio: HTMLAudioElement | null = null;
   private oscTimer: number | null = null;
   private vibTimer: number | null = null;
-  private maxTimer: number | null = null;
+  private watchdog: number | null = null;
   private playing = false;
+  /** Called when the browser blocks audio playback so the UI can flip the icon. */
+  onBlocked: (() => void) | null = null;
 
   unlock() {
     try {
@@ -118,6 +120,12 @@ class AlertAudioEngine {
         this.htmlAudio.volume = 1.0;
         this.htmlAudio.preload = "auto";
         this.htmlAudio.src = "/alert.mp3";
+        // Safety net: if loop fails for any reason, restart while still playing.
+        this.htmlAudio.addEventListener("ended", () => {
+          if (this.playing && this.htmlAudio) {
+            try { this.htmlAudio.currentTime = 0; void this.htmlAudio.play(); } catch { /* ignore */ }
+          }
+        });
       }
       // Touch-play to grant permission (await play before pause to avoid AbortError)
       const a = this.htmlAudio;
@@ -162,20 +170,38 @@ class AlertAudioEngine {
   start() {
     if (this.playing) return;
     this.playing = true;
+    let htmlOk = false;
     // HTMLAudio (loops alert.mp3 if asset available)
     if (this.htmlAudio) {
       try {
         this.htmlAudio.currentTime = 0;
         this.htmlAudio.volume = 1.0;
+        this.htmlAudio.muted = false;
         const p = this.htmlAudio.play();
         if (p && typeof p.then === "function") {
-          this.playPromise = p.catch(() => { /* AbortError / autoplay block — fall back to oscillator */ });
+          this.playPromise = p
+            .then(() => { htmlOk = true; })
+            .catch(() => {
+              // Autoplay blocked — notify UI so icon flips to "muted".
+              try { this.onBlocked?.(); } catch { /* ignore */ }
+            });
+        } else {
+          htmlOk = true;
         }
       } catch { /* ignore */ }
     }
     // WebAudio oscillator fallback in parallel (guarantees sound even without asset)
     if (this.ctx?.state === "suspended") void this.ctx.resume();
     this.startOscillator();
+    // If after 1s neither audio context nor html audio is actually producing
+    // output (ctx suspended + html blocked), surface as blocked.
+    this.watchdog = window.setTimeout(() => {
+      if (!this.playing) return;
+      const ctxRunning = this.ctx?.state === "running";
+      if (!htmlOk && !ctxRunning) {
+        try { this.onBlocked?.(); } catch { /* ignore */ }
+      }
+    }, 1000);
     // Vibration loop
     if ("vibrate" in navigator) {
       try { navigator.vibrate(VIBRATE_PATTERN); } catch { /* ignore */ }
@@ -183,8 +209,7 @@ class AlertAudioEngine {
         try { navigator.vibrate(VIBRATE_PATTERN); } catch { /* ignore */ }
       }, 3000);
     }
-    // Auto-stop cap
-    this.maxTimer = window.setTimeout(() => this.stop(), MAX_LOOP_MS);
+    // No auto-stop — siren rings until acknowledge()/decline().
   }
 
   stop() {
@@ -199,6 +224,7 @@ class AlertAudioEngine {
       this.playPromise = null;
     } else {
       doPause();
+
     }
     if (this.oscTimer) { clearInterval(this.oscTimer); this.oscTimer = null; }
     if (this.vibTimer) { clearInterval(this.vibTimer); this.vibTimer = null; }
