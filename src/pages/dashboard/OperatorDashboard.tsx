@@ -219,7 +219,7 @@ function OperatorDashboardContent() {
         line_stopped: lineStopped,
       });
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
-      setRequestedBy(""); setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId(""); setDescription(""); setNotes("");
+      setRequestedBy(""); setMachineName(""); setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
