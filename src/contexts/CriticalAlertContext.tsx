@@ -249,6 +249,14 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   if (!engineRef.current && typeof window !== "undefined") {
     engineRef.current = new AlertAudioEngine();
   }
+  // Reflect autoplay-blocked state in the header icon (green→red).
+  useEffect(() => {
+    if (!engineRef.current) return;
+    engineRef.current.onBlocked = () => {
+      try { localStorage.setItem(AUDIO_FLAG_KEY, "false"); } catch { /* ignore */ }
+      setAudioEnabled(false);
+    };
+  }, []);
 
   // Title flash removed — too distracting. Modal + audio are sufficient signals.
   useEffect(() => {
