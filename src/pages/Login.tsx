@@ -6,7 +6,8 @@ import { Mail, Lock, Eye, EyeOff, ShieldCheck, Loader2, ArrowRight, Tablet, User
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/contexts/AuthContext";
-import { useOperatorAccounts } from "@/hooks/useOperatorAccounts";
+import { usePublicTabletAccounts } from "@/hooks/useOperatorAccounts";
+import { invokeFunction } from "@/lib/invokeFunction";
 import { useLines } from "@/hooks/useMachines";
 
 const dashMap: Record<string, string> = {
@@ -29,7 +30,7 @@ export default function Login() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { session, role, loading: authLoading } = useAuth();
-  const { data: operatorAccounts, isLoading: accountsLoading } = useOperatorAccounts();
+  const { data: operatorAccounts, isLoading: accountsLoading } = usePublicTabletAccounts();
   const { data: lines } = useLines();
 
   // ── Mode state (Staff vs Tablet) ────────────────────────────
