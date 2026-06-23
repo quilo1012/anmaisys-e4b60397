@@ -81,6 +81,7 @@ function OperatorDashboardContent() {
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
+  const [machineName, setMachineName] = useState<string>(""); // optional, regular lines only
   const [lineStopped, setLineStopped] = useState(false);
   const [isRetroactive, setIsRetroactive] = useState(false);
   const [retroDate, setRetroDate] = useState<Date>();
@@ -196,9 +197,11 @@ function OperatorDashboardContent() {
         const printer = mobileAssets?.find((a) => a.id === secondaryAssetId);
         const assetParts = [sealer && formatMobileAsset(sealer), printer && formatMobileAsset(printer)]
           .filter(Boolean).join(" + ");
-        // Append the real production line so the asset is identifiable everywhere.
         const physLineName = lines?.find((l: any) => l.id === physicalLineId)?.name;
         machineLabel = physLineName ? `${assetParts} @ ${physLineName}` : assetParts;
+      } else if (machineName) {
+        // Regular line: use the machine the operator picked.
+        machineLabel = machineName;
       }
       await createWO.mutateAsync({
         requester_name: requestedBy.trim(),
@@ -216,7 +219,7 @@ function OperatorDashboardContent() {
         line_stopped: lineStopped,
       });
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
-      setRequestedBy(""); setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId(""); setDescription(""); setNotes("");
+      setRequestedBy(""); setMachineName(""); setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId(""); setDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
@@ -319,6 +322,36 @@ function OperatorDashboardContent() {
                 </div>
               </>
             )}
+
+            {/* Machine picker — regular lines only (sealer/printer line uses its own asset sub-picker). */}
+            {!isSealerPrinterLine && (
+              <div className="md:col-span-2 space-y-2">
+                <Label htmlFor="machine">Machine (optional)</Label>
+                <Select value={machineName || "__none__"} onValueChange={(v) => setMachineName(v === "__none__" ? "" : v)}>
+                  <SelectTrigger id="machine" className="h-12">
+                    <SelectValue placeholder="Select the machine on this line..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— No specific machine —</SelectItem>
+                    {(machines || [])
+                      .filter((m: any) => {
+                        if (!lineName) return false;
+                        const l = (m.line || m.fixed_line || m.current_line || "").toString();
+                        return l === lineName;
+                      })
+                      .map((m: any) => (
+                        <SelectItem key={m.id} value={m.name}>
+                          {m.name}{m.code ? ` (${m.code})` : ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Pick the specific machine so the WO history is accurate. Leave empty if not applicable.
+                </p>
+              </div>
+            )}
+
 
             <div className="space-y-2">
               <Label htmlFor="desc">Problem Description</Label>
