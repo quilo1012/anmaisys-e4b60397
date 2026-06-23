@@ -653,8 +653,8 @@ function EngineerDashboardContent() {
   const DesktopFinishButton = ({ wo }: { wo: any }) => {
     const checklistComplete = useChecklistComplete(wo.description, wo.id);
     return (
-      <Button size="sm" variant="secondary" onClick={() => handleFinishClick(wo.id)} disabled={!!(wo as any).paused_at || !checklistComplete}>
-        <PenTool className="h-3 w-3 mr-1" /> Finish
+      <Button size="sm" variant="secondary" className="h-11 min-w-11 px-3" onClick={() => handleFinishClick(wo.id)} disabled={!!(wo as any).paused_at || !checklistComplete} aria-label="Finish work order">
+        <PenTool className="h-4 w-4 mr-1.5" aria-hidden="true" /> Finish
       </Button>
     );
   };
