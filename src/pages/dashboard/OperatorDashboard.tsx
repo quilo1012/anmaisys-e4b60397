@@ -563,7 +563,7 @@ function OperatorDashboardContent() {
                               <Button
                                 size="sm"
                                 variant="default"
-                                className="h-11 min-w-11 px-3"
+                                className="h-11 min-w-11 px-3 touch-manipulation"
                                 disabled={closeWO.isPending}
                                 onClick={() => handleQuickClose(wo.id, wo.requester_name ?? null)}
                                 aria-label="Close work order"
