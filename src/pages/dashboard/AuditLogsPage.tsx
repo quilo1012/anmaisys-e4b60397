@@ -99,17 +99,23 @@ export default function AuditLogsPage() {
                     <TableHead>User</TableHead>
                     <TableHead>Action</TableHead>
                     <TableHead>Entity</TableHead>
+                    <TableHead>Machine</TableHead>
                     <TableHead>Entity ID</TableHead>
                     <TableHead>Details</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {logs.map((log) => (
+                  {logs.map((log) => {
+                    const d: any = log.details || {};
+                    const machine =
+                      d.machine || d.after?.machine || d.before?.machine || d.wo_machine || "—";
+                    return (
                     <TableRow key={log.id}>
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{format(new Date(log.created_at), "dd/MM/yyyy HH:mm:ss")}</TableCell>
                       <TableCell className="font-medium">{log.user_name}</TableCell>
                       <TableCell><Badge variant="outline">{log.action}</Badge></TableCell>
                       <TableCell><Badge variant="secondary">{log.entity_type}</Badge></TableCell>
+                      <TableCell className="text-sm">{machine}</TableCell>
                       <TableCell className="font-mono text-xs">{log.entity_id ? log.entity_id.slice(0, 8) + "..." : "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground max-w-[300px]">
                         {log.details?.before || log.details?.after ? (
@@ -120,7 +126,8 @@ export default function AuditLogsPage() {
                         ) : Object.keys(log.details || {}).length ? JSON.stringify(log.details) : "—"}
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
