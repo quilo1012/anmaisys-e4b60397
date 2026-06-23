@@ -5,6 +5,7 @@ interface WOForExport {
   wo_number?: number;
   requester_name: string;
   machine: string;
+  line_at_time?: string | null;
   description: string;
   status: string;
   operator?: { name: string };
@@ -15,14 +16,15 @@ interface WOForExport {
 }
 
 export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_orders.csv", partsCounts?: Record<string, number>) {
-  const headers = ["WO#", "Requester", "Machine", "Description", "Status", "Operator", "Engineer", "Created", "Started", "Completed", "Response Time (min)", "Total Time (min)", "Parts Used"];
+  const headers = ["WO#", "Requester", "Line", "Machine", "Description", "Status", "Operator", "Engineer", "Created", "Started", "Completed", "Response Time (min)", "Total Time (min)", "Parts Used"];
   const rows = workOrders.map((wo) => {
     const responseTime = wo.started_at ? differenceInMinutes(new Date(wo.started_at), new Date(wo.created_at)) : "";
     const totalTime = wo.completed_at ? differenceInMinutes(new Date(wo.completed_at), new Date(wo.created_at)) : "";
     return [
       wo.wo_number ? `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}` : "",
       wo.requester_name,
-      wo.machine,
+      wo.line_at_time || "",
+      wo.machine || "",
       `"${wo.description.replace(/"/g, '""')}"`,
       wo.status,
       wo.operator?.name || "",
