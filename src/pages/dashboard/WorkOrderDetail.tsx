@@ -270,8 +270,8 @@ export default function WorkOrderDetail() {
             <h2 className="text-2xl font-bold truncate" title={wo.requester_name}>
               {wo.requester_name}
             </h2>
-            <p className="text-base text-muted-foreground truncate" title={wo.machine}>
-              {wo.machine}
+            <p className="text-base text-muted-foreground truncate" title={wo.machine || (wo as any).line_at_time || ""}>
+              {[((wo as any).line_at_time), wo.machine].filter(Boolean).join(" · ") || "—"}
             </p>
             <div className="flex items-center gap-2 flex-wrap mt-1">
               <p className="text-muted-foreground text-sm font-mono">{woLabel}</p>
