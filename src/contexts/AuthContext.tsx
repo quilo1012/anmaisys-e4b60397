@@ -59,22 +59,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { raw = localStorage.getItem(TABLET_CRED_KEY); } catch { return false; }
     if (!raw) return false;
 
-    let cred: { email?: string; password?: string } | null = null;
+    let cred: { refresh_token?: string; email?: string; password?: string } | null = null;
     try { cred = JSON.parse(raw); } catch { return false; }
-    if (!cred?.email || !cred?.password) return false;
+    // Legacy credential shape (email+password) is no longer supported — wipe it.
+    if (!cred?.refresh_token) {
+      try { localStorage.removeItem(TABLET_CRED_KEY); } catch { /* ignore */ }
+      return false;
+    }
 
     reLoginInFlightRef.current = true;
     setSilentReLoginInFlight(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: cred.email,
-        password: cred.password,
+      const { data, error } = await supabase.auth.refreshSession({
+        refresh_token: cred.refresh_token,
       });
-      if (error) {
-        // Bad credentials — wipe the stored creds so we don't loop.
+      if (error || !data.session) {
+        // Refresh token revoked/expired — wipe so we don't loop.
         try { localStorage.removeItem(TABLET_CRED_KEY); } catch { /* ignore */ }
         return false;
       }
+      // Rotate stored refresh_token to the new one.
+      try {
+        localStorage.setItem(
+          TABLET_CRED_KEY,
+          JSON.stringify({
+            accountId: (cred as { accountId?: string }).accountId,
+            refresh_token: data.session.refresh_token,
+          }),
+        );
+      } catch { /* ignore */ }
       return true;
     } catch {
       return false;
@@ -82,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       reLoginInFlightRef.current = false;
       setSilentReLoginInFlight(false);
     }
+
   };
 
   const forceSignOutInactive = async () => {

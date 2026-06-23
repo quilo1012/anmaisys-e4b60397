@@ -118,13 +118,16 @@ export default function Login() {
       localStorage.setItem(MODE_KEY, mode);
       if (mode === "tablet" && selectedAccount) {
         localStorage.setItem(TABLET_KEY, selectedAccount.id);
-        // Persist credentials for silent re-login on token revocation
-        // (only ever stored for shared Tablet operator accounts).
+        // Persist refresh_token (NOT the password) for silent re-login on
+        // token revocation. Only ever stored for shared Tablet operator accounts.
         try {
-          localStorage.setItem(
-            TABLET_CRED_KEY,
-            JSON.stringify({ accountId: selectedAccount.id, email: loginEmail, password }),
-          );
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.refresh_token) {
+            localStorage.setItem(
+              TABLET_CRED_KEY,
+              JSON.stringify({ accountId: selectedAccount.id, refresh_token: session.refresh_token }),
+            );
+          }
         } catch {
           // localStorage may be unavailable; silent re-login simply won't run.
         }
@@ -132,6 +135,7 @@ export default function Login() {
         // Staff login should never leave tablet credentials behind.
         localStorage.removeItem(TABLET_CRED_KEY);
       }
+
 
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
