@@ -332,21 +332,15 @@ export default function WorkOrderDetail() {
           </Card>
         )}
 
-        {/* Asset — Line + Machine explicit cards (screen only; print header already has them) */}
-        <div className="grid gap-4 md:grid-cols-2 print:hidden">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Line</p>
-              <p className="font-medium">{(wo as any).line_at_time || "—"}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Machine</p>
-              <p className="font-medium">{wo.machine || "—"}</p>
-            </CardContent>
-          </Card>
+        {/* Asset strip — same 5-field layout as the print header (screen only). */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 print:hidden">
+          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Priority</p><p className="font-medium">{pri.label}</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{cfg.label}</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Line</p><p className="font-medium">{(wo as any).line_at_time || "—"}</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Machine</p><p className="font-medium">{wo.machine || "—"}</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Requester</p><p className="font-medium">{wo.requester_name || "—"}</p></CardContent></Card>
         </div>
+
 
         {/* Personnel — "Signed By" removed (operator signature is in footer) */}
         <div className="grid gap-4 md:grid-cols-3 print:grid-cols-3 print:gap-0">
