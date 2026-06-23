@@ -618,6 +618,22 @@ function EngineerDashboardContent() {
                 <PhotoStatusButton woId={wo.id} photoType="after" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending} />
                 <Button
                   size="lg"
+                  variant="outline"
+                  className="col-span-2 h-12 text-sm border-blue-500 text-blue-700"
+                  onClick={() => { setCollabDialogWO(wo.id); setCollabPin(""); }}
+                >
+                  <Users className="h-4 w-4 mr-2" /> Add Co-Engineer (PIN)
+                </Button>
+                {Array.isArray((wo as any).collaborator_names) && (wo as any).collaborator_names.length > 0 && (
+                  <div className="col-span-2 text-xs text-muted-foreground flex flex-wrap gap-1 items-center">
+                    <span className="font-semibold">With:</span>
+                    {(wo as any).collaborator_names.map((n: string) => (
+                      <Badge key={n} variant="secondary" className="text-[10px]">{n}</Badge>
+                    ))}
+                  </div>
+                )}
+                <Button
+                  size="lg"
                   variant="secondary"
                   className="col-span-2 h-14 text-base font-bold"
                   onClick={() => handleFinishClick(wo.id)}
