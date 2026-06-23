@@ -114,6 +114,7 @@ export default function WorkOrdersPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [newRequester, setNewRequester] = useState("");
+  const [newLineId, setNewLineId] = useState("");
   const [newMachine, setNewMachine] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newNotes, setNewNotes] = useState("");
