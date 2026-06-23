@@ -47,6 +47,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const TABLET_CRED_KEY = "an_tablet_cred";
   const DEACTIVATED_UNTIL_KEY = "an_account_deactivated_until";
 
+  /** Race a promise against a hard timeout so a stalled silent re-login can
+   *  never keep the boot spinner up indefinitely. */
+  const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+    Promise.race([
+      p,
+      new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+    ]);
+
+
   const tryTabletRelogin = async (): Promise<boolean> => {
     if (reLoginInFlightRef.current) return false;
     // If the account was just deactivated, skip silent re-login for 60s.
@@ -191,11 +200,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         syncSessionUser(currentSession);
       } else {
         // No session at boot: attempt silent Tablet re-login before giving up.
-        const ok = await tryTabletRelogin();
+        // Hard 5s timeout so a slow/stuck refresh never keeps the spinner up.
+        const ok = await withTimeout(tryTabletRelogin(), 5000, false);
         if (!ok && mounted) {
           clearAuthState();
         }
         // On success, the SIGNED_IN event will populate state.
+
       }
       setIsReady(true);
     };
@@ -218,13 +229,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         // Implicit sign-out (revoked refresh token, expired session, etc.)
         void (async () => {
-          const ok = await tryTabletRelogin();
+          const ok = await withTimeout(tryTabletRelogin(), 5000, false);
           if (!ok) {
             clearAuthState();
             setIsReady(true);
           }
           // If ok, the new SIGNED_IN event will re-populate state.
         })();
+
         return;
       }
 
