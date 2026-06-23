@@ -207,10 +207,11 @@ export default function WorkOrderDetail() {
             </div>
           </div>
           {/* Document metadata row */}
-          <div className="grid grid-cols-4 border border-black border-t-0 text-[8pt]">
+          <div className="grid grid-cols-5 border border-black border-t-0 text-[8pt]">
             <div className="border-r border-black px-2 py-1"><span className="font-bold">Priority:</span> {pri.label}</div>
             <div className="border-r border-black px-2 py-1"><span className="font-bold">Status:</span> {cfg.label}</div>
-            <div className="border-r border-black px-2 py-1"><span className="font-bold">Machine:</span> {wo.machine}</div>
+            <div className="border-r border-black px-2 py-1"><span className="font-bold">Line:</span> {(wo as any).line_at_time || "—"}</div>
+            <div className="border-r border-black px-2 py-1"><span className="font-bold">Machine:</span> {wo.machine || "—"}</div>
             <div className="px-2 py-1"><span className="font-bold">Requester:</span> {wo.requester_name}</div>
           </div>
         </div>
