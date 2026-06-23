@@ -16,6 +16,9 @@ export function AudioStatusButton() {
     if (audioEnabled) {
       testSound();
     } else {
+      // User gesture from the header button must always re-open the modal,
+      // even if the once-per-session auto-prompt already fired.
+      try { sessionStorage.removeItem("an_audio_prompted"); } catch { /* ignore */ }
       promptEnableAudio();
     }
   };
