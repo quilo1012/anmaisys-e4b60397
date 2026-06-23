@@ -203,9 +203,15 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   // misses the critical-WO siren.
   const { audioEnabled, promptEnableAudio } = useCriticalAlert();
   useEffect(() => {
-    if ((role === "engineer" || role === "admin") && !audioEnabled) {
-      promptEnableAudio();
-    }
+    if ((role !== "engineer" && role !== "admin") || audioEnabled) return;
+    // Once per browser session — sessionStorage clears on tab/window close, so
+    // a fresh login still gets prompted, but mid-session route changes don't
+    // re-open the modal after the user dismissed it.
+    try {
+      if (sessionStorage.getItem("an_audio_prompted") === "1") return;
+      sessionStorage.setItem("an_audio_prompted", "1");
+    } catch { /* sessionStorage unavailable — fall through and prompt */ }
+    promptEnableAudio();
   }, [role, audioEnabled, promptEnableAudio]);
 
   // Browser tab title
