@@ -55,6 +55,25 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // ── Rate limit state ────────────────────────────────────────
+  // Identity used as the rate-limit key (email or tablet account id).
+  const rlId = mode === "tablet" ? tabletAccountId : email.trim().toLowerCase();
+  const [lockedMsLeft, setLockedMsLeft] = useState(0);
+  const [remaining, setRemaining] = useState(5);
+
+  // Refresh lockout status every second while a lockout is active.
+  useEffect(() => {
+    const sync = () => {
+      const s = getLoginLockout(rlId);
+      setLockedMsLeft(s.lockedMsLeft);
+      setRemaining(s.remaining);
+    };
+    sync();
+    if (!rlId) return;
+    const t = window.setInterval(sync, 1000);
+    return () => window.clearInterval(t);
+  }, [rlId]);
+
   // Hide toggle if no operator accounts exist (clean slate for first install)
   const hasOperatorAccounts = (operatorAccounts?.length ?? 0) > 0;
 
