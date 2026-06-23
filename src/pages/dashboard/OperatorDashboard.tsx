@@ -431,7 +431,7 @@ function OperatorDashboardContent() {
                     <div className="flex items-center gap-2 text-sm">
                       <Zap className="h-4 w-4" />
                       <span className="font-medium">AI Insight</span>
-                      <Badge variant="outline" className={cn("text-xs", autoPriority.priority === "high" ? "bg-red-100 text-red-800" : autoPriority.priority === "medium" ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800")}>
+                      <Badge variant="outline" className={cn("text-xs", priorityChipClass[autoPriority.priority] ?? priorityChipClass.low)}>
                         Priority: {autoPriority.priority.toUpperCase()}
                       </Badge>
                       {aiInsights.isRecurring && <Badge variant="destructive" className="text-xs">Recurring</Badge>}
