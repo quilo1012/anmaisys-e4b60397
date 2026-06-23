@@ -811,6 +811,39 @@ export type Database = {
           },
         ]
       }
+      pin_attempts: {
+        Row: {
+          created_at: string
+          failures: number
+          id: string
+          last_attempt: string
+          locked_until: string | null
+          lockout_step: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          failures?: number
+          id?: string
+          last_attempt?: string
+          locked_until?: string | null
+          lockout_step?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          failures?: number
+          id?: string
+          last_attempt?: string
+          locked_until?: string | null
+          lockout_step?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       problem_descriptions: {
         Row: {
           active: boolean | null
@@ -1736,6 +1769,7 @@ export type Database = {
           engineer_name: string
         }[]
       }
+      verify_pin_with_lockout: { Args: { _pin: string }; Returns: Json }
       wo_total_pause_seconds: { Args: { _wo_id: string }; Returns: number }
     }
     Enums: {
