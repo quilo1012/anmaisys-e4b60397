@@ -568,14 +568,16 @@ function OperatorDashboardContent() {
                          </TableCell>
                          <TableCell onClick={(e) => e.stopPropagation()}>
                            {wo.status === "finished" && (
-                             <Button
-                               size="sm"
-                               variant="default"
-                               disabled={closeWO.isPending}
-                               onClick={() => handleQuickClose(wo.id, wo.requester_name ?? null)}
-                             >
-                               <CheckCircle className="h-3 w-3 mr-1" /> Close
-                             </Button>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="h-11 min-w-11 px-3"
+                                disabled={closeWO.isPending}
+                                onClick={() => handleQuickClose(wo.id, wo.requester_name ?? null)}
+                                aria-label="Close work order"
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1.5" aria-hidden="true" /> Close
+                              </Button>
                            )}
                          </TableCell>
                        </TableRow>
