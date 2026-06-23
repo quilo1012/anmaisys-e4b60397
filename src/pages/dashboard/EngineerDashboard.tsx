@@ -612,9 +612,9 @@ function EngineerDashboardContent() {
                 <Button size="lg" variant="outline" className="h-14 text-base" onClick={() => setPartsDialogWO(wo.id)}>
                   <Package className="h-5 w-5 mr-2" /> Parts
                 </Button>
-                <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "before")} />
+                <input type="file" accept="image/*" capture="environment" className="sr-only" tabIndex={-1} aria-hidden="true" ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "before")} />
                 <PhotoStatusButton woId={wo.id} photoType="before" onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending} />
-                <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
+                <input type="file" accept="image/*" capture="environment" className="sr-only" tabIndex={-1} aria-hidden="true" ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
                 <PhotoStatusButton woId={wo.id} photoType="after" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending} />
                 <Button
                   size="lg"
@@ -835,9 +835,9 @@ function EngineerDashboardContent() {
                                     <Button size="sm" variant="outline" onClick={() => setPartsDialogWO(wo.id)}>
                                       <Package className="h-3 w-3 mr-1" /> Parts
                                     </Button>
-                                    <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "before")} />
+                                    <input type="file" accept="image/*" capture="environment" className="sr-only" tabIndex={-1} aria-hidden="true" ref={(el) => { fileInputRefs.current[`${wo.id}-before`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "before")} />
                                     <PhotoStatusButton woId={wo.id} photoType="before" onClick={() => triggerFileInput(wo.id, "before")} disabled={uploadPhoto.isPending} size="sm" />
-                                    <input type="file" accept="image/*" capture="environment" className="hidden" ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
+                                    <input type="file" accept="image/*" capture="environment" className="sr-only" tabIndex={-1} aria-hidden="true" ref={(el) => { fileInputRefs.current[`${wo.id}-after`] = el; }} onChange={(e) => handlePhotoUpload(e, wo.id, "after")} />
                                     <PhotoStatusButton woId={wo.id} photoType="after" onClick={() => triggerFileInput(wo.id, "after")} disabled={uploadPhoto.isPending} size="sm" />
                                     <div className="w-full mt-1">
                                       <LineDowntimeControl
