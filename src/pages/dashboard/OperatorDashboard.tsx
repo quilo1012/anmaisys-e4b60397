@@ -443,7 +443,12 @@ function OperatorDashboardContent() {
               </div>
             )}
             <div className="md:col-span-2">
-              <Button type="submit" disabled={createWO.isPending}>
+              <Button
+                type="submit"
+                disabled={createWO.isPending}
+                className="touch-manipulation"
+                title={typeof navigator !== "undefined" && !navigator.onLine ? "Offline — will sync when connection is restored" : undefined}
+              >
                 {createWO.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Submit Work Order
               </Button>
