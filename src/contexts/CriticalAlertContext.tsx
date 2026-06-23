@@ -370,8 +370,17 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const promptEnableAudio = useCallback(() => {
-    if (!audioEnabled) setShowUnlock(true);
+    if (audioEnabled) return;
+    // Once per browser session — sessionStorage clears on tab/window close.
+    // Without this gate, every dashboard route change + every WO realtime
+    // event re-opens the modal after the user dismisses it.
+    try {
+      if (sessionStorage.getItem("an_audio_prompted") === "1") return;
+      sessionStorage.setItem("an_audio_prompted", "1");
+    } catch { /* sessionStorage unavailable — fall through and prompt */ }
+    setShowUnlock(true);
   }, [audioEnabled]);
+
 
   const testSound = useCallback(() => {
     engineRef.current?.unlock();
