@@ -38,7 +38,8 @@ const CriticalAlertContext = createContext<CriticalAlertContextType>({
 export const useCriticalAlert = () => useContext(CriticalAlertContext);
 
 const AUDIO_FLAG_KEY = "alertAudioEnabled";
-const MAX_LOOP_MS = 30_000;
+// Siren rings continuously until the engineer acknowledges. We used to auto-stop
+// after 30s which made the alert sound "intermittent" — removed.
 const VIBRATE_PATTERN = [500, 200, 500, 200, 500, 200, 500];
 
 // ─── Favicon badge ────────────────────────────────────────────────────────────
