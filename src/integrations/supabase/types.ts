@@ -1245,6 +1245,8 @@ export type Database = {
           checklist_completed: boolean
           closed_at: string | null
           closed_by: string | null
+          collaborator_ids: string[]
+          collaborator_names: string[]
           completed_at: string | null
           created_at: string
           current_episode: number
@@ -1288,6 +1290,8 @@ export type Database = {
           checklist_completed?: boolean
           closed_at?: string | null
           closed_by?: string | null
+          collaborator_ids?: string[]
+          collaborator_names?: string[]
           completed_at?: string | null
           created_at?: string
           current_episode?: number
@@ -1331,6 +1335,8 @@ export type Database = {
           checklist_completed?: boolean
           closed_at?: string | null
           closed_by?: string | null
+          collaborator_ids?: string[]
+          collaborator_names?: string[]
           completed_at?: string | null
           created_at?: string
           current_episode?: number
@@ -1597,6 +1603,10 @@ export type Database = {
         Returns: Json
       }
       acknowledge_wo_alert: { Args: { _wo_id: string }; Returns: undefined }
+      add_wo_collaborator: {
+        Args: { _pin: string; _wo_id: string }
+        Returns: Json
+      }
       admin_list_device_tokens: {
         Args: never
         Returns: {
