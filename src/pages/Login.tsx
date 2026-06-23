@@ -65,10 +65,7 @@ export default function Login() {
 
   // ── Form state ──────────────────────────────────────────────
   const [email, setEmail] = useState("");
-  const [tabletAccountId, setTabletAccountId] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem(TABLET_KEY) ?? "";
-  });
+  const [tabletAccountId, setTabletAccountId] = useState<string>(() => getStoredTabletId());
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
