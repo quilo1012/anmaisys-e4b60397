@@ -13,34 +13,72 @@ export interface AuditLog {
   created_at: string;
 }
 
-export function useAuditLogs(filter?: { entityType?: string; search?: string }) {
+export interface UseAuditLogsFilter {
+  entityType?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface UseAuditLogsResult {
+  logs: AuditLog[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+/**
+ * Server-side filtered + cursor-paginated audit logs.
+ * Filters (entity_type, search) and pagination are applied in Postgres so
+ * results beyond the first 500 are visible and the client never streams the
+ * whole table.
+ */
+export function useAuditLogs(filter?: UseAuditLogsFilter) {
+  const page = Math.max(1, filter?.page ?? 1);
+  const pageSize = Math.max(1, Math.min(filter?.pageSize ?? 50, 200));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   return useQuery({
-    queryKey: ["audit_logs", filter],
-    queryFn: async () => {
+    queryKey: ["audit_logs", filter?.entityType ?? "all", filter?.search ?? "", page, pageSize],
+    queryFn: async (): Promise<UseAuditLogsResult> => {
       let q = supabase
         .from("audit_logs")
-        .select("*")
+        .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
-        .limit(500);
+        .range(from, to);
 
       if (filter?.entityType && filter.entityType !== "all") {
         q = q.eq("entity_type", filter.entityType);
       }
 
-      const { data, error } = await q as any;
-      if (error) throw error;
-      
-      let logs = data as AuditLog[];
-      if (filter?.search?.trim()) {
-        const term = filter.search.toLowerCase();
-        logs = logs.filter((l) =>
-          l.user_name.toLowerCase().includes(term) ||
-          l.action.toLowerCase().includes(term) ||
-          l.entity_type.toLowerCase().includes(term) ||
-          (l.entity_id || "").toLowerCase().includes(term)
-        );
+      const term = filter?.search?.trim();
+      if (term) {
+        // Sanitize for PostgREST `or` syntax — escape % , ( ) and *
+        const safe = term.replace(/[,()*%]/g, " ").trim();
+        if (safe) {
+          q = q.or(
+            [
+              `user_name.ilike.%${safe}%`,
+              `action.ilike.%${safe}%`,
+              `entity_type.ilike.%${safe}%`,
+              `entity_id.ilike.%${safe}%`,
+            ].join(",")
+          );
+        }
       }
-      return logs;
+
+      const { data, error, count } = (await q) as any;
+      if (error) throw error;
+      const total = count ?? 0;
+      return {
+        logs: (data as AuditLog[]) ?? [],
+        total,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      };
     },
   });
 }
