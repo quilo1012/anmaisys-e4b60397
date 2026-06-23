@@ -227,6 +227,39 @@ function EngineerDashboardContent() {
   const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string; notes: string } | null>(null);
   const [resumingThenFinish, setResumingThenFinish] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
+
+  // Add co-engineer (collaborator) dialog state
+  const [collabDialogWO, setCollabDialogWO] = useState<string | null>(null);
+  const [collabPin, setCollabPin] = useState("");
+  const [collabBusy, setCollabBusy] = useState(false);
+  const handleAddCollaborator = async () => {
+    if (!collabDialogWO || collabPin.length < 4) return;
+    setCollabBusy(true);
+    try {
+      const { data, error } = await supabase.rpc("add_wo_collaborator" as any, {
+        _wo_id: collabDialogWO,
+        _pin: collabPin,
+      });
+      if (error) throw error;
+      const res = data as any;
+      if (!res?.success) {
+        const msg = res?.error === "invalid_pin" ? "Invalid PIN" :
+                    res?.error === "already_primary" ? "You are already the primary engineer" :
+                    res?.error === "wo_not_active" ? "WO is not active" :
+                    res?.error === "wo_not_accepted_yet" ? "No one has accepted this WO yet" :
+                    res?.error || "Failed to add co-engineer";
+        toast({ title: "Cannot add co-engineer", description: msg, variant: "destructive" });
+        return;
+      }
+      toast({ title: "👥 Co-engineer added", description: `${res.engineer_name} is now part of this job.` });
+      setCollabDialogWO(null);
+      setCollabPin("");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setCollabBusy(false);
+    }
+  };
   
   // PIN dialog state
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
