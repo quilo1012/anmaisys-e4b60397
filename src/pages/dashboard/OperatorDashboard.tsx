@@ -197,9 +197,11 @@ function OperatorDashboardContent() {
         const printer = mobileAssets?.find((a) => a.id === secondaryAssetId);
         const assetParts = [sealer && formatMobileAsset(sealer), printer && formatMobileAsset(printer)]
           .filter(Boolean).join(" + ");
-        // Append the real production line so the asset is identifiable everywhere.
         const physLineName = lines?.find((l: any) => l.id === physicalLineId)?.name;
         machineLabel = physLineName ? `${assetParts} @ ${physLineName}` : assetParts;
+      } else if (machineName) {
+        // Regular line: use the machine the operator picked.
+        machineLabel = machineName;
       }
       await createWO.mutateAsync({
         requester_name: requestedBy.trim(),
