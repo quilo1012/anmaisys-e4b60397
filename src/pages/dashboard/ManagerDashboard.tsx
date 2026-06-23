@@ -23,6 +23,51 @@ import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/c
 
 const DONE_STATUSES = ["completed", "closed", "finished", "force_closed"];
 
+type KpiTone = "blue" | "amber" | "green" | "red" | "muted";
+const KPI_TONE: Record<KpiTone, string> = {
+  blue: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  amber: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  green: "bg-green-500/15 text-green-600 dark:text-green-400",
+  red: "bg-red-500/15 text-red-600 dark:text-red-400",
+  muted: "bg-muted text-muted-foreground",
+};
+
+function KpiCard({
+  label,
+  value,
+  icon: Icon,
+  tone,
+  tooltip,
+  footer,
+  highlight,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ComponentType<{ className?: string }>;
+  tone: KpiTone;
+  tooltip: string;
+  footer?: string;
+  highlight?: boolean;
+}) {
+  return (
+    <Card className={highlight ? "border-destructive" : ""}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <div className="flex items-center gap-1.5">
+          <CardTitle className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+          <KpiInfoTooltip text={tooltip} />
+        </div>
+        <div className={`flex h-8 w-8 items-center justify-center rounded-md ${KPI_TONE[tone]}`}>
+          <Icon className="h-4 w-4" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className={`text-3xl font-bold tabular-nums ${highlight ? "text-destructive" : ""}`}>{value}</div>
+        {footer && <p className="text-xs text-muted-foreground mt-1">{footer}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ManagerDashboard() {
   const { role, loading: authLoading } = useAuth();
 
