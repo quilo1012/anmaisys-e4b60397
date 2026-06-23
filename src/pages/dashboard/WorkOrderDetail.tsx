@@ -332,6 +332,22 @@ export default function WorkOrderDetail() {
           </Card>
         )}
 
+        {/* Asset — Line + Machine explicit cards (screen only; print header already has them) */}
+        <div className="grid gap-4 md:grid-cols-2 print:hidden">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">Line</p>
+              <p className="font-medium">{(wo as any).line_at_time || "—"}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">Machine</p>
+              <p className="font-medium">{wo.machine || "—"}</p>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Personnel — "Signed By" removed (operator signature is in footer) */}
         <div className="grid gap-4 md:grid-cols-3 print:grid-cols-3 print:gap-0">
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Requested By</p><p className="font-medium print:text-[9pt]">{wo.requester_name}</p></CardContent></Card>
