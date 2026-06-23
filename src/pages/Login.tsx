@@ -2,13 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, Eye, EyeOff, ShieldCheck, Loader2, ArrowRight, Tablet, User as UserIcon } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ShieldCheck, Loader2, ArrowRight, Tablet, User as UserIcon, ShieldAlert } from "lucide-react";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePublicTabletAccounts } from "@/hooks/useOperatorAccounts";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { useLines } from "@/hooks/useMachines";
+import {
+  clearLoginLockout,
+  getLoginLockout,
+  recordLoginFailure,
+} from "@/lib/loginRateLimit";
 
 const dashMap: Record<string, string> = {
   admin: "/dashboard/manager",
@@ -49,6 +54,25 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // ── Rate limit state ────────────────────────────────────────
+  // Identity used as the rate-limit key (email or tablet account id).
+  const rlId = mode === "tablet" ? tabletAccountId : email.trim().toLowerCase();
+  const [lockedMsLeft, setLockedMsLeft] = useState(0);
+  const [remaining, setRemaining] = useState(5);
+
+  // Refresh lockout status every second while a lockout is active.
+  useEffect(() => {
+    const sync = () => {
+      const s = getLoginLockout(rlId);
+      setLockedMsLeft(s.lockedMsLeft);
+      setRemaining(s.remaining);
+    };
+    sync();
+    if (!rlId) return;
+    const t = window.setInterval(sync, 1000);
+    return () => window.clearInterval(t);
+  }, [rlId]);
 
   // Hide toggle if no operator accounts exist (clean slate for first install)
   const hasOperatorAccounts = (operatorAccounts?.length ?? 0) > 0;
@@ -101,6 +125,17 @@ export default function Login() {
       return;
     }
 
+    // Block while locked out.
+    const pre = getLoginLockout(rlId);
+    if (pre.lockedMsLeft > 0) {
+      toast({
+        title: "Too many attempts",
+        description: `Try again in ${Math.ceil(pre.lockedMsLeft / 1000)}s`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       if (mode === "tablet" && selectedAccount) {
@@ -130,6 +165,9 @@ export default function Login() {
         });
         if (error) throw error;
       }
+
+      // Success — wipe the rate-limit counter for this identity.
+      clearLoginLockout(rlId);
 
       // Persist mode + tablet selection on success
       localStorage.setItem(MODE_KEY, mode);
@@ -163,7 +201,14 @@ export default function Login() {
         navigate(dashMap[roleResult as string] || "/dashboard/manager", { replace: true });
       }
     } catch (error: any) {
-      toast({ title: "Sign-in failed", description: error.message, variant: "destructive" });
+      // Count this failure and surface remaining attempts / lockout.
+      const after = recordLoginFailure(rlId);
+      setLockedMsLeft(after.lockedMsLeft);
+      setRemaining(after.remaining);
+      const description = after.lockedMsLeft > 0
+        ? `Too many attempts — locked for ${Math.ceil(after.lockedMsLeft / 1000)}s.`
+        : `${error.message}${after.remaining > 0 ? ` · ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} remaining` : ""}`;
+      toast({ title: "Sign-in failed", description, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -335,11 +380,15 @@ export default function Login() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || lockedMsLeft > 0}
                 className="group relative mt-2 inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-b from-[hsl(214_90%_56%)] to-[hsl(214_90%_44%)] text-sm font-semibold text-white shadow-[0_10px_30px_-10px_hsl(214_90%_50%/0.7)] ring-1 ring-white/10 transition-all hover:from-[hsl(214_90%_60%)] hover:to-[hsl(214_90%_48%)] hover:shadow-[0_14px_36px_-10px_hsl(214_90%_55%/0.8)] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-60"
               >
                 <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-                {loading ? (
+                {lockedMsLeft > 0 ? (
+                  <>
+                    <ShieldAlert className="h-4 w-4" /> Locked — wait {Math.ceil(lockedMsLeft / 1000)}s
+                  </>
+                ) : loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" /> Signing in…
                   </>
@@ -349,6 +398,13 @@ export default function Login() {
                   </>
                 )}
               </button>
+
+              {/* Remaining-attempts hint */}
+              {lockedMsLeft === 0 && remaining < 5 && (
+                <p className="pt-1 text-center text-[11px] text-amber-300/80">
+                  {remaining} attempt{remaining === 1 ? "" : "s"} remaining before lockout
+                </p>
+              )}
 
               {/* Security badge */}
               <div className="mt-1 flex items-center justify-center gap-2 pt-2 text-[11px] text-white/45">
