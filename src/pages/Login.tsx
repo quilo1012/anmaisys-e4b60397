@@ -285,7 +285,7 @@ export default function Login() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+            <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
               {mode === "tablet" ? (
                 /* ── Tablet selector ─────────────────────────── */
                 <div className="space-y-1.5">
@@ -340,7 +340,7 @@ export default function Login() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@appliednutrition.com"
                       required
-                      autoComplete="new-password"
+                      autoComplete="email"
                       className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all placeholder:text-white/30 hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
                     />
                   </div>
@@ -362,7 +362,7 @@ export default function Login() {
                     placeholder="••••••••"
                     minLength={6}
                     required
-                    autoComplete="new-password"
+                    autoComplete="current-password"
                     className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-12 text-sm text-white transition-all placeholder:text-white/30 hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
                   />
                   <button
