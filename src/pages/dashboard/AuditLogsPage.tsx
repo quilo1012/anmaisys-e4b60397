@@ -140,8 +140,37 @@ export default function AuditLogsPage() {
                 </TableBody>
               </Table>
             )}
+
+            {/* Pagination footer */}
+            {!isLoading && total > 0 && (
+              <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-xs text-muted-foreground">
+                  {total.toLocaleString()} total {total === 1 ? "entry" : "entries"}
+                  {" · "}page {page} of {totalPages}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1 || isFetching}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages || isFetching}
+                  >
+                    Next <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
+
 
         <AlertDialog open={showClear} onOpenChange={(o) => { setShowClear(o); if (!o) setConfirmText(""); }}>
           <AlertDialogContent>
