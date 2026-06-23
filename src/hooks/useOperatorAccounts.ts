@@ -11,6 +11,24 @@ export interface OperatorLineAccount {
   created_at: string;
 }
 
+/** Public, anon-safe tablet listing — NO email, NO user_id. Used on the Login screen. */
+export interface PublicTabletAccount {
+  id: string;
+  label: string;
+  line_ids: string[];
+}
+
+export function usePublicTabletAccounts() {
+  return useQuery({
+    queryKey: ["public_tablet_accounts"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("list_tablet_accounts_public");
+      if (error) throw error;
+      return (data ?? []) as PublicTabletAccount[];
+    },
+  });
+}
+
 export function useOperatorAccounts() {
   return useQuery({
     queryKey: ["operator_line_accounts"],
