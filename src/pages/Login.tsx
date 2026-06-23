@@ -24,10 +24,28 @@ const dashMap: Record<string, string> = {
 
 const MODE_KEY = "an_login_mode";
 const TABLET_KEY = "an_tablet_account_id";
+const TABLET_TS_KEY = "an_tablet_account_id_at";
+// Tablet selection auto-clears after one shift (8 hours) so a tablet left
+// idle overnight forces a fresh pick instead of silently re-using yesterday's.
+const TABLET_SELECTION_TTL_MS = 8 * 60 * 60 * 1000;
 // Persisted credentials used to silently re-login a Tablet account whose
 // refresh-token was revoked (e.g. the same shared account refreshing on
 // another tablet). Scoped to Tablet mode only — never used for staff.
 const TABLET_CRED_KEY = "an_tablet_cred";
+
+function getStoredTabletId(): string {
+  if (typeof window === "undefined") return "";
+  const id = localStorage.getItem(TABLET_KEY);
+  if (!id) return "";
+  const tsRaw = localStorage.getItem(TABLET_TS_KEY);
+  const ts = tsRaw ? Number(tsRaw) : 0;
+  if (!ts || Date.now() - ts > TABLET_SELECTION_TTL_MS) {
+    localStorage.removeItem(TABLET_KEY);
+    localStorage.removeItem(TABLET_TS_KEY);
+    return "";
+  }
+  return id;
+}
 
 type Mode = "staff" | "tablet";
 
