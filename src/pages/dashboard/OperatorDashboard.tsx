@@ -323,6 +323,36 @@ function OperatorDashboardContent() {
               </>
             )}
 
+            {/* Machine picker — regular lines only (sealer/printer line uses its own asset sub-picker). */}
+            {!isSealerPrinterLine && (
+              <div className="md:col-span-2 space-y-2">
+                <Label htmlFor="machine">Machine (optional)</Label>
+                <Select value={machineName || "__none__"} onValueChange={(v) => setMachineName(v === "__none__" ? "" : v)}>
+                  <SelectTrigger id="machine" className="h-12">
+                    <SelectValue placeholder="Select the machine on this line..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— No specific machine —</SelectItem>
+                    {(machines || [])
+                      .filter((m: any) => {
+                        if (!lineName) return false;
+                        const l = (m.line || m.fixed_line || m.current_line || "").toString();
+                        return l === lineName;
+                      })
+                      .map((m: any) => (
+                        <SelectItem key={m.id} value={m.name}>
+                          {m.name}{m.code ? ` (${m.code})` : ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Pick the specific machine so the WO history is accurate. Leave empty if not applicable.
+                </p>
+              </div>
+            )}
+
+
             <div className="space-y-2">
               <Label htmlFor="desc">Problem Description</Label>
               <Select value={description} onValueChange={setDescription}>
