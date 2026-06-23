@@ -92,28 +92,44 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    let loginEmail: string;
-    if (mode === "tablet") {
-      if (!selectedAccount) {
-        toast({ title: "Select your tablet", variant: "destructive" });
-        return;
-      }
-      loginEmail = selectedAccount.email.trim().toLowerCase();
-    } else {
-      loginEmail = email.trim().toLowerCase();
-      if (!loginEmail) {
-        toast({ title: "Enter your email", variant: "destructive" });
-        return;
-      }
+    if (mode === "tablet" && !selectedAccount) {
+      toast({ title: "Select your tablet", variant: "destructive" });
+      return;
+    }
+    if (mode === "staff" && !email.trim()) {
+      toast({ title: "Enter your email", variant: "destructive" });
+      return;
     }
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: loginEmail,
-        password,
-      });
-      if (error) throw error;
+      if (mode === "tablet" && selectedAccount) {
+        // Tablet sign-in goes through the edge function so the email is never
+        // sent to the browser. The function resolves the email server-side and
+        // returns only session tokens.
+        const { data, error } = await invokeFunction<{
+          access_token: string;
+          refresh_token: string;
+        }>("tablet-signin", {
+          account_id: selectedAccount.id,
+          password,
+        });
+        if (error) throw error;
+        if (!data?.access_token || !data?.refresh_token) {
+          throw new Error("Invalid credentials");
+        }
+        const { error: setErr } = await supabase.auth.setSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        });
+        if (setErr) throw setErr;
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+        });
+        if (error) throw error;
+      }
 
       // Persist mode + tablet selection on success
       localStorage.setItem(MODE_KEY, mode);
@@ -137,12 +153,10 @@ export default function Login() {
         localStorage.removeItem(TABLET_CRED_KEY);
       }
 
-
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: roleResult } = await supabase.rpc("get_user_role", { _user_id: user.id });
         logAuditEvent("login", "user", user.id, {
-          email: user.email,
           role: roleResult || "unknown",
           mode,
         });
