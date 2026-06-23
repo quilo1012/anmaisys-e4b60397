@@ -90,13 +90,18 @@ export function useStockAdjustmentHistory(limit: number = 10) {
 
 export async function logAuditEvent(action: string, entityType: string, entityId?: string, details?: Record<string, any>) {
   try {
-    await supabase.rpc("log_audit_event", {
-      _action: action,
-      _entity_type: entityType,
-      _entity_id: entityId || null,
-      _details: details || {},
-    } as any);
+    // Route through the edge function so the server captures the real client IP
+    // from x-real-ip / x-forwarded-for. The browser cannot send a trustworthy IP.
+    const { invokeFunction } = await import("@/lib/invokeFunction");
+    const { error } = await invokeFunction("log-audit-event", {
+      action,
+      entity_type: entityType,
+      entity_id: entityId || null,
+      details: details || {},
+    });
+    if (error) throw error;
   } catch (err) {
     console.error("Audit log failed:", err);
   }
 }
+

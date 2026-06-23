@@ -19,34 +19,26 @@ interface PinDialogProps {
   description?: string;
 }
 
-const MAX_ATTEMPTS = 3;
-const LOCKOUT_SECONDS = 30;
+// Cosmetic-only ceiling for the local countdown when the server hasn't sent a
+// `locked_until` (e.g. transient errors). The server is the authority.
+const FALLBACK_LOCKOUT_SECONDS = 30;
 
 export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", description = "Enter your engineer PIN to confirm this action." }: PinDialogProps) {
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // confirming step removed — PIN OK runs onSuccess directly
-  const [attempts, setAttempts] = useState(0);
   const [lockoutLeft, setLockoutLeft] = useState(0);
+  const [remaining, setRemaining] = useState<number | null>(null);
   const lockoutTimerRef = useRef<number | null>(null);
 
-  // Countdown for lockout
+  // Countdown for lockout (cosmetic — server enforces the real lock)
   useEffect(() => {
     if (lockoutLeft <= 0) return;
-    lockoutTimerRef.current = window.setTimeout(() => setLockoutLeft((s) => s - 1), 1000);
+    lockoutTimerRef.current = window.setTimeout(() => setLockoutLeft((s) => Math.max(0, s - 1)), 1000);
     return () => {
       if (lockoutTimerRef.current) clearTimeout(lockoutTimerRef.current);
     };
   }, [lockoutLeft]);
-
-  // When lockout ends, reset attempts
-  useEffect(() => {
-    if (lockoutLeft === 0 && attempts >= MAX_ATTEMPTS) {
-      setAttempts(0);
-      setError("");
-    }
-  }, [lockoutLeft, attempts]);
 
   const isLocked = lockoutLeft > 0;
 
@@ -59,14 +51,28 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
     setLoading(true);
     setError("");
     try {
-      const { data, error } = await supabase.rpc("verify_pin_by_code", { _pin: pin });
+      // Prefer the new server-side rate-limited RPC. Fall back to the legacy one
+      // if it doesn't exist yet (migration not applied).
+      const rpc: any = (supabase.rpc as any)("verify_pin_with_lockout", { _pin: pin });
+      let { data, error } = await rpc;
+      if (error && /function .* does not exist/i.test(error.message || "")) {
+        const legacy = await supabase.rpc("verify_pin_by_code", { _pin: pin });
+        data = legacy.data;
+        error = legacy.error;
+      }
       if (error) throw error;
 
-      const match = Array.isArray(data) ? data[0] : null;
-      if (match?.engineer_id) {
-        // PIN OK → run action directly (no extra "Confirm Identity" step)
-        setAttempts(0);
-        const engineer = { id: match.engineer_id, name: match.engineer_name };
+      // Legacy shape: array of { engineer_id, engineer_name }
+      // New shape:    { success, engineer_id?, engineer_name?, error?, locked_seconds?, remaining? }
+      const arrMatch = Array.isArray(data) ? (data[0] as any) : null;
+      const obj = !Array.isArray(data) ? (data as any) : null;
+
+      const engineerId = arrMatch?.engineer_id ?? (obj?.success ? obj.engineer_id : null);
+      const engineerName = arrMatch?.engineer_name ?? obj?.engineer_name;
+
+      if (engineerId) {
+        setRemaining(null);
+        const engineer = { id: engineerId as string, name: engineerName as string };
         try {
           await onSuccess(engineer);
           toast.success(`✅ ${engineer.name} verified`);
@@ -75,20 +81,24 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
           onOpenChange(false);
         }
       } else {
-        // Wrong PIN
-        const next = attempts + 1;
-        setAttempts(next);
         setPin("");
-        if (next >= MAX_ATTEMPTS) {
-          setLockoutLeft(LOCKOUT_SECONDS);
-          setError(`❌ Too many attempts. Please wait ${LOCKOUT_SECONDS} seconds.`);
+        const lockedSeconds = Number(obj?.locked_seconds ?? 0);
+        const left = Number.isFinite(obj?.remaining) ? Number(obj.remaining) : null;
+        setRemaining(left);
+        if (lockedSeconds > 0) {
+          setLockoutLeft(lockedSeconds);
+          setError(`❌ Too many attempts. Wait ${lockedSeconds}s before trying again.`);
+        } else if (left !== null) {
+          setError(`❌ Incorrect PIN. ${left} attempt${left === 1 ? "" : "s"} left before lockout.`);
         } else {
-          setError(`❌ Incorrect PIN. Please try again. (${MAX_ATTEMPTS - next} attempt${MAX_ATTEMPTS - next === 1 ? "" : "s"} left)`);
+          setError("❌ Incorrect PIN. Please try again.");
         }
       }
     } catch (err: any) {
       setError(`❌ ${err.message || "Verification failed. Contact your administrator."}`);
       setPin("");
+      // Defensive cosmetic lockout if server didn't respond cleanly.
+      if (!isLocked) setLockoutLeft(FALLBACK_LOCKOUT_SECONDS);
     } finally {
       setLoading(false);
     }
@@ -97,7 +107,7 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
   const resetState = () => {
     setPin("");
     setError("");
-    setAttempts(0);
+    setRemaining(null);
     setLockoutLeft(0);
   };
 
