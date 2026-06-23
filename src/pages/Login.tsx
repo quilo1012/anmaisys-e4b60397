@@ -189,6 +189,7 @@ export default function Login() {
       localStorage.setItem(MODE_KEY, mode);
       if (mode === "tablet" && selectedAccount) {
         localStorage.setItem(TABLET_KEY, selectedAccount.id);
+        localStorage.setItem(TABLET_TS_KEY, String(Date.now()));
         // Persist refresh_token (NOT the password) for silent re-login on
         // token revocation. Only ever stored for shared Tablet operator accounts.
         try {
