@@ -1672,6 +1672,14 @@ export type Database = {
           name: string
         }[]
       }
+      list_tablet_accounts_public: {
+        Args: never
+        Returns: {
+          id: string
+          label: string
+          line_ids: string[]
+        }[]
+      }
       log_audit_event: {
         Args: {
           _action: string
