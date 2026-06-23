@@ -336,8 +336,10 @@ function OperatorDashboardContent() {
                     {(machines || [])
                       .filter((m: any) => {
                         if (!lineName) return false;
-                        const l = (m.line || m.fixed_line || m.current_line || "").toString();
-                        return l === lineName;
+                        const base = (m.current_line || m.fixed_line || m.line || "").toString();
+                        if (!base) return false;
+                        const withSide = (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
+                        return withSide === lineName || base === lineName;
                       })
                       .map((m: any) => (
                         <SelectItem key={m.id} value={m.name}>
