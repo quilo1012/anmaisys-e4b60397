@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, Search, Shield, Trash2, AlertTriangle } from "lucide-react";
+import { Loader2, Search, Shield, Trash2, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuditLogs } from "@/hooks/useAuditLogs";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,9 +15,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { invokeFunction } from "@/lib/invokeFunction";
 
+const PAGE_SIZE = 50;
+
 export default function AuditLogsPage() {
   const [entityType, setEntityType] = useState("all");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [showClear, setShowClear] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [clearing, setClearing] = useState(false);
@@ -25,7 +28,13 @@ export default function AuditLogsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { data: logs, isLoading } = useAuditLogs({ entityType, search });
+  // Reset to page 1 whenever filters change
+  useEffect(() => { setPage(1); }, [entityType, search]);
+
+  const { data, isLoading, isFetching } = useAuditLogs({ entityType, search, page, pageSize: PAGE_SIZE });
+  const logs = data?.logs ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = data?.totalPages ?? 1;
 
   const handleClearLogs = async () => {
     setClearing(true);
@@ -42,7 +51,7 @@ export default function AuditLogsPage() {
   };
 
   const entityTypes = useMemo(() => {
-    if (!logs) return [];
+    // Derived from the visible page — good enough for a quick filter chip list.
     return [...new Set(logs.map((l) => l.entity_type))].sort();
   }, [logs]);
 
