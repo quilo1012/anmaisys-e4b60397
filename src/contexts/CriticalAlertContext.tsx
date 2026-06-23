@@ -228,7 +228,7 @@ class AlertAudioEngine {
     }
     if (this.oscTimer) { clearInterval(this.oscTimer); this.oscTimer = null; }
     if (this.vibTimer) { clearInterval(this.vibTimer); this.vibTimer = null; }
-    if (this.maxTimer) { clearTimeout(this.maxTimer); this.maxTimer = null; }
+    if (this.watchdog) { clearTimeout(this.watchdog); this.watchdog = null; }
     if ("vibrate" in navigator) { try { navigator.vibrate(0); } catch { /* ignore */ } }
   }
 }
