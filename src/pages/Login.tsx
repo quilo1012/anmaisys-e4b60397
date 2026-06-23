@@ -125,6 +125,17 @@ export default function Login() {
       return;
     }
 
+    // Block while locked out.
+    const pre = getLoginLockout(rlId);
+    if (pre.lockedMsLeft > 0) {
+      toast({
+        title: "Too many attempts",
+        description: `Try again in ${Math.ceil(pre.lockedMsLeft / 1000)}s`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       if (mode === "tablet" && selectedAccount) {
@@ -154,6 +165,9 @@ export default function Login() {
         });
         if (error) throw error;
       }
+
+      // Success — wipe the rate-limit counter for this identity.
+      clearLoginLockout(rlId);
 
       // Persist mode + tablet selection on success
       localStorage.setItem(MODE_KEY, mode);
@@ -187,7 +201,14 @@ export default function Login() {
         navigate(dashMap[roleResult as string] || "/dashboard/manager", { replace: true });
       }
     } catch (error: any) {
-      toast({ title: "Sign-in failed", description: error.message, variant: "destructive" });
+      // Count this failure and surface remaining attempts / lockout.
+      const after = recordLoginFailure(rlId);
+      setLockedMsLeft(after.lockedMsLeft);
+      setRemaining(after.remaining);
+      const description = after.lockedMsLeft > 0
+        ? `Too many attempts — locked for ${Math.ceil(after.lockedMsLeft / 1000)}s.`
+        : `${error.message}${after.remaining > 0 ? ` · ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} remaining` : ""}`;
+      toast({ title: "Sign-in failed", description, variant: "destructive" });
     } finally {
       setLoading(false);
     }
