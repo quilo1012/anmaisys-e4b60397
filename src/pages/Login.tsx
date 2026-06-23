@@ -275,8 +275,8 @@ export default function Login() {
                   </div>
                   {selectedAccount && (
                     <p className="pl-1 text-[11px] text-white/45">
-                      Signed-in as{" "}
-                      <span className="font-mono text-white/60">{selectedAccount.email}</span>
+                      Tablet ID:{" "}
+                      <span className="font-mono text-white/60">{selectedAccount.label}</span>
                     </p>
                   )}
                 </div>
