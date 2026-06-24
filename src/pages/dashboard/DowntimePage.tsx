@@ -301,6 +301,22 @@ export default function DowntimePage() {
     return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
   }, [filteredRisks]);
 
+  // ── Debug mode (?debug=1) — log hook outputs feeding Risk Assessment & Problem History ──
+  const debugMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1";
+  if (debugMode) {
+    // eslint-disable-next-line no-console
+    console.log("[DowntimeDebug]", {
+      range: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
+      allWOs_count: allWOs?.length ?? 0,
+      filteredWOs_count: filteredWOs.length,
+      filteredWOs: filteredWOs.map((w) => ({ id: w.id, wo_number: w.wo_number, machine: w.machine, created_at: w.created_at, status: w.status, description: w.description })),
+      machineHistory_count: machineHistory.length,
+      machineHistory,
+      filteredRisks_count: filteredRisks.length,
+      filteredRisks,
+    });
+  }
+
   const topProblemMachines = useMemo(() => {
     const counts: Record<string, number> = {};
     filteredWOs.forEach((w) => { counts[w.machine] = (counts[w.machine] || 0) + 1; });
