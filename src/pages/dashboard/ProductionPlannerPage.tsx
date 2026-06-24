@@ -98,11 +98,12 @@ export default function ProductionPlannerPage() {
   useEffect(() => {
     if (existing) {
       setLeaderId(existing.leader_id ?? "");
+      setLeaderName(existing.leader_name ?? "");
       setStaffPlanned(existing.staff_planned ?? 0);
       setStaffActual(existing.staff_actual ?? 0);
       setNotes(existing.notes ?? "");
     } else {
-      setLeaderId(""); setStaffPlanned(0); setStaffActual(0); setNotes("");
+      setLeaderId(""); setLeaderName(""); setStaffPlanned(0); setStaffActual(0); setNotes("");
     }
   }, [existing]);
 
