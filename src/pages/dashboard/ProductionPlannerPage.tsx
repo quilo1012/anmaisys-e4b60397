@@ -8,15 +8,55 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Progress } from "@/components/ui/progress";
+import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check } from "lucide-react";
 import {
   useLines, useLeaders, useSkuProducts, useSessionsRange, useSession, useSessionItems,
-  useUpsertSession, useSaveItems, useToggleSessionLock, type ProductionItem,
+  useUpsertSession, useSaveItems, useToggleSessionLock,
 } from "@/hooks/useProductionPlanner";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO, addDays, subDays } from "date-fns";
+import { cn } from "@/lib/utils";
 
-type Row = { sku_id: string; target_qty: number; actual_qty: number };
+type Row = { sku_id: string; sku_name: string; target_qty: number; actual_qty: number };
+
+function SkuCombobox({
+  value, onPick, skus, disabled,
+}: { value: string; onPick: (id: string, name: string) => void; skus: { id: string; code: string; name: string }[]; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const current = skus.find((s) => s.id === value);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" disabled={disabled} className="w-full justify-between font-normal">
+          <span className="flex items-center gap-2 truncate">
+            <Search className="h-4 w-4 opacity-50 shrink-0" />
+            {current ? current.code : "Search SKU…"}
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[320px] p-0 pointer-events-auto" align="start">
+        <Command>
+          <CommandInput placeholder="Search by code or name…" />
+          <CommandList>
+            <CommandEmpty>No SKU found.</CommandEmpty>
+            <CommandGroup>
+              {skus.slice(0, 200).map((s) => (
+                <CommandItem key={s.id} value={`${s.code} ${s.name}`} onSelect={() => { onPick(s.id, s.name); setOpen(false); }}>
+                  <Check className={cn("mr-2 h-4 w-4", value === s.id ? "opacity-100" : "opacity-0")} />
+                  <span className="font-mono text-xs mr-2">{s.code}</span>
+                  <span className="truncate">{s.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function ProductionPlannerPage() {
   const { role } = useAuth();
@@ -42,10 +82,7 @@ export default function ProductionPlannerPage() {
     fromDate, toDate, historyLine === "__all__" ? undefined : historyLine,
   );
 
-  const todaySessions = useMemo(
-    () => history.filter((s) => s.session_date === date),
-    [history, date],
-  );
+  const todaySessions = useMemo(() => history.filter((s) => s.session_date === date), [history, date]);
   const existingId = useMemo(
     () => todaySessions.find((s) => s.line === line && s.shift === shift)?.id ?? null,
     [todaySessions, line, shift],
@@ -70,33 +107,32 @@ export default function ProductionPlannerPage() {
 
   useEffect(() => {
     if (existingItems.length) {
-      setRows(existingItems.map((i) => ({
-        sku_id: i.sku_id,
-        target_qty: Number(i.target_qty ?? i.planned_qty ?? 0),
-        actual_qty: Number(i.actual_qty ?? 0),
-      })));
+      setRows(existingItems.map((i) => {
+        const sku = skus.find((s) => s.id === i.sku_id);
+        return {
+          sku_id: i.sku_id,
+          sku_name: sku?.name ?? "",
+          target_qty: Number(i.target_qty ?? i.planned_qty ?? 0),
+          actual_qty: Number(i.actual_qty ?? 0),
+        };
+      }));
     } else {
       setRows([]);
     }
-  }, [existingItems]);
+  }, [existingItems, skus]);
 
   const locked = existing?.locked ?? false;
   const totalTarget = rows.reduce((a, r) => a + (r.target_qty || 0), 0);
   const totalActual = rows.reduce((a, r) => a + (r.actual_qty || 0), 0);
   const efficiency = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
 
-  const kpis = useMemo(() => {
-    const tgt = todaySessions.length;
-    return { sessions: tgt };
-  }, [todaySessions]);
-
-  const addRow = () => setRows((r) => [...r, { sku_id: "", target_qty: 0, actual_qty: 0 }]);
+  const addRow = () => setRows((r) => [...r, { sku_id: "", sku_name: "", target_qty: 0, actual_qty: 0 }]);
   const updateRow = (i: number, patch: Partial<Row>) =>
     setRows((r) => r.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
   const removeRow = (i: number) => setRows((r) => r.filter((_, idx) => idx !== i));
 
   const save = async () => {
-    if (!line) return alert("Pick a line");
+    if (!line) return alert("Pick a production line");
     const leader = leaders.find((l) => l.id === leaderId);
     const session = await upsertSession.mutateAsync({
       id: existingId ?? undefined,
@@ -132,95 +168,166 @@ export default function ProductionPlannerPage() {
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold">Production Planner</h1>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => setDate(format(subDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronLeft className="h-4 w-4" /></Button>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" />
-            <Button variant="outline" size="icon" onClick={() => setDate(format(addDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronRight className="h-4 w-4" /></Button>
-            <Select value={shift} onValueChange={setShift}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="DAY">Day</SelectItem>
-                <SelectItem value="NIGHT">Night</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {existingId && isManager && (
+            <Button variant="outline" size="sm" onClick={() => toggleLock.mutate({ id: existingId, lock: !locked })}>
+              {locked ? <><Unlock className="h-4 w-4 mr-1" />Unlock</> : <><Lock className="h-4 w-4 mr-1" />Lock</>}
+            </Button>
+          )}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Sessions today</div><div className="text-2xl font-bold">{kpis.sessions}</div></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Target</div><div className="text-2xl font-bold">{totalTarget}</div></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Actual</div><div className="text-2xl font-bold">{totalActual}</div></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Efficiency</div><div className={`text-2xl font-bold ${effColor(efficiency)}`}>{efficiency.toFixed(1)}%</div></CardContent></Card>
-        </div>
-
+        {/* Shift Information — horizontal row */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Session</CardTitle>
-            <div className="flex gap-2">
-              {existingId && isManager && (
-                <Button variant="outline" size="sm" onClick={() => toggleLock.mutate({ id: existingId, lock: !locked })}>
-                  {locked ? <><Unlock className="h-4 w-4 mr-1" />Unlock</> : <><Lock className="h-4 w-4 mr-1" />Lock</>}
-                </Button>
-              )}
-              <Button size="sm" onClick={save} disabled={locked || upsertSession.isPending || saveItems.isPending}>
-                <Save className="h-4 w-4 mr-1" />Save
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardHeader><CardTitle className="text-base">Shift Information</CardTitle></CardHeader>
+          <CardContent>
             <div className="grid gap-4 md:grid-cols-4">
-              <div><Label>Line</Label>
-                <Select value={line} onValueChange={setLine} disabled={locked}>
-                  <SelectTrigger><SelectValue placeholder="Pick line" /></SelectTrigger>
-                  <SelectContent>{lines.map((l: { id: string; name: string }) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+              <div>
+                <Label>Date</Label>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="icon" onClick={() => setDate(format(subDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronLeft className="h-4 w-4" /></Button>
+                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1" />
+                  <Button variant="outline" size="icon" onClick={() => setDate(format(addDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronRight className="h-4 w-4" /></Button>
+                </div>
+              </div>
+              <div>
+                <Label>Shift</Label>
+                <Select value={shift} onValueChange={setShift}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DAY">Day</SelectItem>
+                    <SelectItem value="NIGHT">Night</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
-              <div><Label>Leader</Label>
+              <div>
+                <Label>Production Line</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" disabled={locked} className="w-full justify-between font-normal">
+                      <span className="flex items-center gap-2 truncate"><Search className="h-4 w-4 opacity-50" />{line || "Pick line…"}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[260px] p-0 pointer-events-auto" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search line…" />
+                      <CommandList>
+                        <CommandEmpty>No line.</CommandEmpty>
+                        <CommandGroup>
+                          {lines.map((l: { id: string; name: string }) => (
+                            <CommandItem key={l.id} value={l.name} onSelect={() => setLine(l.name)}>
+                              <Check className={cn("mr-2 h-4 w-4", line === l.name ? "opacity-100" : "opacity-0")} />{l.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label>Line Leader</Label>
                 <Select value={leaderId} onValueChange={setLeaderId} disabled={locked}>
                   <SelectTrigger><SelectValue placeholder="Pick leader" /></SelectTrigger>
                   <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Staff Planned</Label><Input type="number" value={staffPlanned} onChange={(e) => setStaffPlanned(+e.target.value)} disabled={locked} /></div>
-              <div><Label>Staff Actual</Label><Input type="number" value={staffActual} onChange={(e) => setStaffActual(+e.target.value)} disabled={locked} /></div>
             </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2"><Label>SKUs</Label>
-                <Button variant="outline" size="sm" onClick={addRow} disabled={locked}><Plus className="h-4 w-4 mr-1" />Add SKU</Button>
-              </div>
-              <Table>
-                <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Target</TableHead><TableHead>Actual</TableHead><TableHead>Eff %</TableHead><TableHead /></TableRow></TableHeader>
-                <TableBody>
-                  {rows.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No SKUs yet</TableCell></TableRow>}
-                  {rows.map((r, i) => {
-                    const eff = r.target_qty > 0 ? (r.actual_qty / r.target_qty) * 100 : 0;
-                    return (
-                      <TableRow key={i}>
-                        <TableCell>
-                          <Select value={r.sku_id} onValueChange={(v) => updateRow(i, { sku_id: v })} disabled={locked}>
-                            <SelectTrigger className="w-56"><SelectValue placeholder="Pick SKU" /></SelectTrigger>
-                            <SelectContent>{skus.map((s) => <SelectItem key={s.id} value={s.id}>{s.code} — {s.name}</SelectItem>)}</SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell><Input type="number" value={r.target_qty} onChange={(e) => updateRow(i, { target_qty: +e.target.value })} disabled={locked} className="w-24" /></TableCell>
-                        <TableCell><Input type="number" value={r.actual_qty} onChange={(e) => updateRow(i, { actual_qty: +e.target.value })} disabled={locked} className="w-24" /></TableCell>
-                        <TableCell className={effColor(eff)}>{eff.toFixed(0)}%</TableCell>
-                        <TableCell><Button variant="ghost" size="icon" onClick={() => removeRow(i)} disabled={locked}><Trash2 className="h-4 w-4" /></Button></TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div><Label>Notes</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} disabled={locked} /></div>
           </CardContent>
         </Card>
 
+        {/* Products / SKUs */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>History (30d)</CardTitle>
+            <CardTitle className="text-base">Products / SKUs</CardTitle>
+            <Button variant="outline" size="sm" onClick={addRow} disabled={locked}><Plus className="h-4 w-4 mr-1" />Add Product</Button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {rows.length === 0 && (
+              <div className="text-sm text-muted-foreground text-center py-6">No products yet. Click "Add Product".</div>
+            )}
+            {rows.map((r, i) => {
+              const eff = r.target_qty > 0 ? (r.actual_qty / r.target_qty) * 100 : 0;
+              return (
+                <div key={i} className="grid gap-3 md:grid-cols-12 items-end border rounded-lg p-3">
+                  <div className="md:col-span-3">
+                    <Label>SKU</Label>
+                    <SkuCombobox
+                      value={r.sku_id}
+                      onPick={(id, name) => {
+                        const sku = skus.find((s) => s.id === id);
+                        const tph = sku?.target_per_hour ?? 0;
+                        updateRow(i, { sku_id: id, sku_name: name, target_qty: r.target_qty || (tph ? tph * 8 : 0) });
+                      }}
+                      skus={skus}
+                      disabled={locked}
+                    />
+                  </div>
+                  <div className="md:col-span-3">
+                    <Label>Product Name</Label>
+                    <Input value={r.sku_name} onChange={(e) => updateRow(i, { sku_name: e.target.value })} disabled={locked} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Target</Label>
+                    <div className="flex items-center gap-1">
+                      <Input type="number" value={r.target_qty} onChange={(e) => updateRow(i, { target_qty: +e.target.value })} disabled={locked} />
+                      <span className="text-xs text-muted-foreground">units</span>
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Actual</Label>
+                    <div className="flex items-center gap-1">
+                      <Input type="number" value={r.actual_qty} onChange={(e) => updateRow(i, { actual_qty: +e.target.value })} disabled={locked} />
+                      <span className="text-xs text-muted-foreground">units</span>
+                    </div>
+                  </div>
+                  <div className="md:col-span-2 flex items-end gap-2">
+                    <div className="flex-1">
+                      <div className={cn("text-xs font-medium mb-1", effColor(eff))}>{eff.toFixed(0)}%</div>
+                      <Progress value={Math.min(100, eff)} className="h-2" />
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => removeRow(i)} disabled={locked}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        {/* Staffing */}
+        <Card>
+          <CardHeader><CardTitle className="text-base">Staffing</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div><Label>Staff Planned</Label><Input type="number" value={staffPlanned} onChange={(e) => setStaffPlanned(+e.target.value)} disabled={locked} /></div>
+              <div><Label>Staff Actual</Label><Input type="number" value={staffActual} onChange={(e) => setStaffActual(+e.target.value)} disabled={locked} /></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Observações */}
+        <Card>
+          <CardHeader><CardTitle className="text-base">Observations</CardTitle></CardHeader>
+          <CardContent>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} disabled={locked} rows={4} placeholder="Notes, issues, comments…" />
+          </CardContent>
+        </Card>
+
+        {/* KPI summary */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total Target</div><div className="text-2xl font-bold">{totalTarget.toLocaleString()}</div></CardContent></Card>
+          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total Actual</div><div className="text-2xl font-bold">{totalActual.toLocaleString()}</div></CardContent></Card>
+          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Efficiency</div><div className={cn("text-2xl font-bold", effColor(efficiency))}>{efficiency.toFixed(1)}%</div></CardContent></Card>
+        </div>
+
+        <div className="flex justify-end">
+          <Button size="lg" onClick={save} disabled={locked || upsertSession.isPending || saveItems.isPending}>
+            <Save className="h-4 w-4 mr-2" />Save Session
+          </Button>
+        </div>
+
+        {/* History */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">History (last 30 days)</CardTitle>
             <Select value={historyLine} onValueChange={setHistoryLine}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -231,7 +338,7 @@ export default function ProductionPlannerPage() {
           </CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Shift</TableHead><TableHead>Line</TableHead><TableHead>Leader</TableHead><TableHead>Lock</TableHead><TableHead /></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Shift</TableHead><TableHead>Line</TableHead><TableHead>Leader</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
               <TableBody>
                 {history.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No sessions</TableCell></TableRow>}
                 {history.map((s) => (
