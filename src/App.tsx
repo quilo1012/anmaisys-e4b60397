@@ -31,6 +31,7 @@ const DowntimePage = lazy(() => import("./pages/dashboard/DowntimePage"));
 const IntouchIntegrationPage = lazy(() => import("./pages/dashboard/IntouchIntegrationPage"));
 const PreventiveMaintenancePage = lazy(() => import("./pages/dashboard/PreventiveMaintenancePage"));
 const SettingsPage = lazy(() => import("./pages/dashboard/SettingsPage"));
+const SuppliersPage = lazy(() => import("./pages/dashboard/SuppliersPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
