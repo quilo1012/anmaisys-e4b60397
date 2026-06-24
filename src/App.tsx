@@ -32,6 +32,10 @@ const IntouchIntegrationPage = lazy(() => import("./pages/dashboard/IntouchInteg
 const PreventiveMaintenancePage = lazy(() => import("./pages/dashboard/PreventiveMaintenancePage"));
 const SettingsPage = lazy(() => import("./pages/dashboard/SettingsPage"));
 const SuppliersPage = lazy(() => import("./pages/dashboard/SuppliersPage"));
+const ProductionPlannerPage = lazy(() => import("./pages/dashboard/ProductionPlannerPage"));
+const SKUProductsPage = lazy(() => import("./pages/dashboard/SKUProductsPage"));
+const ProductionPerformancePage = lazy(() => import("./pages/dashboard/ProductionPerformancePage"));
+const QualityActionsPage = lazy(() => import("./pages/dashboard/QualityActionsPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -266,6 +270,38 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager"]}>
                       <SuppliersPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/planner"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <ProductionPlannerPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/sku-products"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <SKUProductsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/production-performance"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <ProductionPerformancePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/quality"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <QualityActionsPage />
                     </ProtectedRoute>
                   }
                 />
