@@ -64,14 +64,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const body = await req.json();
-    const userIds: string[] = body.user_ids || (body.user_id ? [body.user_id] : []);
-    if (!userIds.length) {
-      return new Response(
-        JSON.stringify({ error: "user_id or user_ids required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
     // Always write in-app notification (bell), even if push isn't configured
     const { error: notifErr } = await supabase.from("notifications").insert(
