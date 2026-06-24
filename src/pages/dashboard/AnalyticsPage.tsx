@@ -377,7 +377,12 @@ export default function AnalyticsPage() {
             </div>
             <div className="text-right">
               <h2 className="text-lg font-bold">ANALYTICS REPORT</h2>
-              <p className="text-sm">Period: {format(startDate, "dd/MM/yyyy")} — {format(endDate, "dd/MM/yyyy")}</p>
+              <p className="text-sm">
+                Period: {format(startDate, "dd/MM/yyyy HH:mm")} — {format(endDate, "dd/MM/yyyy HH:mm")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Timezone: Europe/London ({new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", timeZoneName: "short" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value ?? ""})
+              </p>
               <p className="text-xs text-muted-foreground">Printed: {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
             </div>
           </div>
