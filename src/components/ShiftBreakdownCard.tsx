@@ -49,7 +49,33 @@ function ShiftPanel({ shift, events, windowStart, windowEnd }: ShiftPanelProps) 
     return Object.values(byKey).sort((a, b) => b.minutes - a.minutes);
   }, [events, windowStart, windowEnd]);
 
-  const total = rows.reduce((s, r) => s + r.minutes, 0);
+  // Wall-clock total = union of intervals clamped to the shift window.
+  // Avoids summing parallel stoppages above the shift duration.
+  const total = useMemo(() => {
+    const ws = windowStart.getTime();
+    const we = windowEnd.getTime();
+    const now = Date.now();
+    const ivs = events
+      .map((e) => {
+        const s = Math.max(ws, new Date(e.stopped_at).getTime());
+        const en = Math.min(we, e.resumed_at ? new Date(e.resumed_at).getTime() : now);
+        return [s, en] as [number, number];
+      })
+      .filter(([s, e]) => e > s)
+      .sort((a, b) => a[0] - b[0]);
+    let acc = 0;
+    let curS = 0, curE = 0;
+    for (const [s, e] of ivs) {
+      if (s > curE) {
+        acc += curE - curS;
+        curS = s; curE = e;
+      } else if (e > curE) {
+        curE = e;
+      }
+    }
+    acc += curE - curS;
+    return Math.round(acc / 60_000);
+  }, [events, windowStart, windowEnd]);
   const isDay = shift === "day";
 
   return (
