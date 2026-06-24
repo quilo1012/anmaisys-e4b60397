@@ -138,12 +138,21 @@ function ManagerDashboardContent() {
       ? Math.round(downM.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / downM.length / 60)
       : 0;
 
-    const totalDowntimeMin = Math.round(
-      finalized.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / 60
-    );
-
-    return { avgResponse, avgActiveRepair, avgLineDowntime, totalDowntimeMin };
+    return { avgResponse, avgActiveRepair, avgLineDowntime };
   }, [woMetrics]);
+
+  // Total downtime aligned with the Downtime page (parallel stoppages counted once).
+  const totalDowntimeMin = useMemo(() => {
+    const recs = downtimeRecords || [];
+    const rangeStartMs = startOfDay(kpiRange.from).getTime();
+    const rangeEndMs = Math.min(endOfDay(kpiRange.to).getTime(), Date.now());
+    return reconcileMinutes(
+      recs.map((r) => ({ start: r.started_at, end: r.ended_at })),
+      rangeStartMs,
+      rangeEndMs,
+      Date.now(),
+    );
+  }, [downtimeRecords, kpiRange]);
 
   const handleChangePin = async () => {
     if (newPin.length < 4) {
