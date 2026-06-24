@@ -51,7 +51,51 @@ function LiveTimer({ startedAt }: { startedAt: string }) {
   const mins = differenceInMinutes(new Date(), new Date(startedAt));
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  return <span className="text-xs font-mono text-amber-700">⏱ {h}h {m}m</span>;
+  const overdue = mins > 60;
+  return (
+    <span className={`text-xs font-mono ${overdue ? "text-red-600 dark:text-red-400 font-bold" : "text-amber-700 dark:text-amber-400"}`}>
+      ⏱ {h}h {m}m
+    </span>
+  );
+}
+
+function WaitTimer({ createdAt }: { createdAt: string }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(timer);
+  }, []);
+  const mins = differenceInMinutes(new Date(), new Date(createdAt));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const urgent = mins > 30;
+  return (
+    <span
+      className={`text-xs font-mono ${urgent ? "text-red-600 dark:text-red-400 font-bold animate-pulse" : "text-muted-foreground"}`}
+      title="Time since this WO was created"
+    >
+      ⏳ waiting {h > 0 ? `${h}h ` : ""}{m}m
+    </span>
+  );
+}
+
+const PRIORITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+
+function PriorityBadge({ priority }: { priority?: string | null }) {
+  if (!priority || (priority !== "critical" && priority !== "high")) return null;
+  const isCritical = priority === "critical";
+  return (
+    <Badge
+      variant="outline"
+      className={
+        isCritical
+          ? "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40 font-bold"
+          : "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/40 font-bold"
+      }
+    >
+      {isCritical ? "Critical" : "High"}
+    </Badge>
+  );
 }
 
 function StaleBadge({ wo }: { wo: any }) {
