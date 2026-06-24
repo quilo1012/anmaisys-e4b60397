@@ -142,19 +142,13 @@ export default function DowntimePage() {
     }
   };
 
-  // ── Downtime KPIs ─────────────────────────────────────────────
+  // ── Downtime KPIs (all follow top date range) ─────────────────
   const kpis = useMemo(() => {
-    const now = new Date();
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-    const monthStart = startOfMonth(now);
-
     const safeRecords = records || [];
-
-    // Shared reconciliation — same math as Shift Breakdown.
-    // Follows the page date filter so the KPI matches the records shown below.
     const rangeStartMs = startOfDay(startDate).getTime();
     const rangeEndMs = Math.min(endOfDay(endDate).getTime(), Date.now());
-    const nowMs = now.getTime();
+    const nowMs = Date.now();
+
     const totalRange = reconcileMinutes(
       [
         ...safeRecords.map((r) => ({ start: r.started_at, end: r.ended_at })),
@@ -169,14 +163,22 @@ export default function DowntimePage() {
     const woActive = woMetrics.filter(m => m.line_stopped_at && !m.line_resumed_at).length;
     const active = manualActive + woActive;
 
-    const weekRecords = safeRecords.filter(r => new Date(r.started_at) >= weekStart && r.ended_at);
-    const avgDuration = weekRecords.length
-      ? Math.round(weekRecords.reduce((s, r) => s + differenceInMinutes(new Date(r.ended_at!), new Date(r.started_at)), 0) / weekRecords.length)
+    // Average duration over the selected range (resolved records only)
+    const inRange = safeRecords.filter(r => {
+      const t = new Date(r.started_at).getTime();
+      return t >= rangeStartMs && t <= rangeEndMs && r.ended_at;
+    });
+    const avgDuration = inRange.length
+      ? Math.round(inRange.reduce((s, r) => s + differenceInMinutes(new Date(r.ended_at!), new Date(r.started_at)), 0) / inRange.length)
       : 0;
 
-    const monthRecords = safeRecords.filter(r => new Date(r.started_at) >= monthStart);
+    // Most affected line over the selected range
+    const rangeRecords = safeRecords.filter(r => {
+      const t = new Date(r.started_at).getTime();
+      return t >= rangeStartMs && t <= rangeEndMs;
+    });
     const lineCount: Record<string, number> = {};
-    monthRecords.forEach(r => { lineCount[r.line] = (lineCount[r.line] || 0) + 1; });
+    rangeRecords.forEach(r => { lineCount[r.line] = (lineCount[r.line] || 0) + 1; });
     const mostAffected = Object.entries(lineCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
 
     return { totalRange, active, avgDuration, mostAffected };
