@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, Plus, ExternalLink, Monitor, Clock, Wrench, PowerOff } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, Plus, ExternalLink, Monitor, Clock, Wrench, PowerOff, TrendingDown } from "lucide-react";
+import { formatMinutes } from "@/lib/formatDuration";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { useAllWoMetrics } from "@/hooks/useWoMetrics";
@@ -134,7 +135,11 @@ function ManagerDashboardContent() {
       ? Math.round(downM.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / downM.length / 60)
       : 0;
 
-    return { avgResponse, avgActiveRepair, avgLineDowntime };
+    const totalDowntimeMin = Math.round(
+      finalized.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / 60
+    );
+
+    return { avgResponse, avgActiveRepair, avgLineDowntime, totalDowntimeMin };
   }, [woMetrics]);
 
   const handleChangePin = async () => {
@@ -254,7 +259,14 @@ function ManagerDashboardContent() {
             tone="muted"
             footer="total parts consumed today"
             tooltip="Parts Used Today: total parts/products consumed in repairs during today. Useful for consumption and cost tracking."
-
+          />
+          <KpiCard
+            label="Total Downtime (Selected Range)"
+            value={formatMinutes(kpis.totalDowntimeMin)}
+            icon={TrendingDown}
+            tone={kpis.totalDowntimeMin > 0 ? "red" : "muted"}
+            footer="sum of line downtime in period"
+            tooltip="Total Downtime: sum of all line stoppage minutes for finalized WOs within the selected period."
           />
         </div>
 
