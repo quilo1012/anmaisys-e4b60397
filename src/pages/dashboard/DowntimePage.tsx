@@ -19,6 +19,7 @@ import {
   TrendingUp, CalendarIcon, ChevronDown, History, Cog,
 } from "lucide-react";
 import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
+import { DateRangeFilter, type DateRangePreset, getPresetRange } from "@/components/DateRangeFilter";
 import { useDowntime, useCreateDowntime, useUpdateDowntime, useDeleteDowntime, type DowntimeRecord } from "@/hooks/useDowntime";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines, useLines } from "@/hooks/useMachines";
