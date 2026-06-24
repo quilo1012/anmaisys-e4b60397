@@ -289,6 +289,20 @@ export default function AnalyticsPage() {
     return Math.round(total);
   }, [allWOs, metricsById]);
 
+  const mostAffectedLine = useMemo(() => {
+    if (!allWOs) return null;
+    const map: Record<string, number> = {};
+    allWOs.filter((w) => DONE_STATUSES.includes(w.status)).forEach((wo: any) => {
+      const m = metricsById.get(wo.id);
+      if (!m || typeof m.active_repair_sec !== "number") return;
+      const name = (wo.line_id && lineNameById.get(wo.line_id)) || "Unassigned";
+      map[name] = (map[name] || 0) + m.active_repair_sec / 60;
+    });
+    const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+    if (!sorted.length) return null;
+    return { name: sorted[0][0], minutes: Math.round(sorted[0][1]) };
+  }, [allWOs, metricsById, lineNameById]);
+
   // Most used machines (highest WO count)
   const mostUsedMachines = useMemo(() => {
     if (!allWOs) return [];
