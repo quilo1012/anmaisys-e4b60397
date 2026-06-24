@@ -227,10 +227,19 @@ export default function ProductionPlannerPage() {
               </div>
               <div>
                 <Label>Line Leader</Label>
-                <Select value={leaderId} onValueChange={setLeaderId} disabled={locked}>
-                  <SelectTrigger><SelectValue placeholder="Pick leader" /></SelectTrigger>
-                  <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
-                </Select>
+                {leaders.length > 0 ? (
+                  <Select value={leaderId} onValueChange={setLeaderId} disabled={locked}>
+                    <SelectTrigger><SelectValue placeholder="Pick leader" /></SelectTrigger>
+                    <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={leaderName}
+                    onChange={(e) => setLeaderName(e.target.value)}
+                    placeholder="Type leader name"
+                    disabled={locked}
+                  />
+                )}
               </div>
             </div>
           </CardContent>
