@@ -29,23 +29,17 @@ import { FileText } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { WO_TERMINAL_STATUSES, isWoOpen } from "@/lib/woStatus";
+import { getWoStatusConfig } from "@/lib/woStatusConfig";
 
-const statusConfig: Record<string, { label: string; className: string }> = {
-  open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
-  received: { label: "Received", className: "bg-indigo-100 text-indigo-800 border-indigo-200" },
-  arrived: { label: "Arrived", className: "bg-purple-100 text-purple-800 border-purple-200" },
-  in_progress: { label: "In Progress", className: "bg-amber-100 text-amber-800 border-amber-200" },
-  finished: { label: "Finished", className: "bg-teal-100 text-teal-800 border-teal-200" },
-  closed: { label: "Closed", className: "bg-green-100 text-green-800 border-green-200" },
-  completed: { label: "Completed", className: "bg-green-100 text-green-800 border-green-200" },
-  force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
-};
+const statusConfig = new Proxy({} as Record<string, { label: string; className: string }>, {
+  get: (_t, key: string) => getWoStatusConfig(key),
+});
 
 const priorityConfig: Record<string, { label: string; className: string }> = {
-  low: { label: "Low", className: "bg-slate-100 text-slate-700" },
-  medium: { label: "Medium", className: "bg-blue-100 text-blue-700" },
-  high: { label: "High", className: "bg-orange-100 text-orange-700" },
-  critical: { label: "Critical", className: "bg-red-100 text-red-700" },
+  low: { label: "Low", className: "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30" },
+  medium: { label: "Medium", className: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" },
+  high: { label: "High", className: "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30" },
+  critical: { label: "Critical", className: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30" },
 };
 
 const ITEMS_PER_PAGE = 20;
@@ -537,7 +531,76 @@ export default function WorkOrdersPage() {
               </div>
             ) : (
               <div className="print-content">
-                <Table>
+                {/* Mobile card list (< md) */}
+                <div className="md:hidden space-y-3">
+                  {paginatedWOs.map((wo) => {
+                    const cfg = getWoStatusConfig(wo.status);
+                    const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
+                    const canForceClose = ["open", "received", "arrived", "in_progress"].includes(wo.status);
+                    const canClose = wo.status === "finished";
+                    const woLine = getWoLine(wo) || "—";
+                    const isStale = wo.status === "in_progress" && wo.started_at && differenceInMinutes(new Date(), new Date(wo.started_at)) > 4320;
+                    return (
+                      <Card key={wo.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                        <CardContent className="p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="font-mono text-xs font-semibold flex items-center gap-1.5">
+                              WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                              <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
+                              {isStale && (
+                                <Badge variant="outline" className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-[10px]" title="In progress > 3 days">Stale</Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-sm font-medium">{wo.machine} <span className="text-muted-foreground font-normal">· {woLine}</span></div>
+                          <p className="text-sm text-muted-foreground line-clamp-2">{wo.description}</p>
+                          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground flex-wrap">
+                            <span>{wo.requester_name} → {wo.engineer?.name || "—"}</span>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${pri.className}`}>{pri.label}</Badge>
+                              <span>{format(new Date(wo.created_at), "dd/MM HH:mm")}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                            <Button size="sm" variant="outline" className="h-10 flex-1 touch-manipulation" onClick={() => openEdit(wo)}>
+                              <Pencil className="h-4 w-4 mr-1" /> Edit
+                            </Button>
+                            {canClose && (
+                              <Button size="sm" variant="default" className="h-10 flex-1 touch-manipulation" onClick={() => closeWO.mutate({ woId: wo.id, signatureName: "Manager/Admin" })} disabled={closeWO.isPending}>
+                                {closeWO.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />} Close
+                              </Button>
+                            )}
+                            {canForceClose && (role === "admin" || role === "manager") && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="destructive" className="h-10 flex-1 touch-manipulation" disabled={forceClose.isPending}>
+                                    {forceClose.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />} Force
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Force Close Work Order?</AlertDialogTitle>
+                                    <AlertDialogDescription>This will force-close the work order regardless of its current status. This action will be recorded in the audit log.</AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => forceClose.mutate(wo.id)}>Force Close</AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop table (≥ md) */}
+                <Table className="hidden md:table">
                   <TableHeader>
                     <TableRow>
                       {isCol("wo") && <TableHead>WO#</TableHead>}
@@ -554,7 +617,7 @@ export default function WorkOrdersPage() {
                   </TableHeader>
                   <TableBody>
                     {paginatedWOs.map((wo) => {
-                      const cfg = statusConfig[wo.status];
+                      const cfg = getWoStatusConfig(wo.status);
                       const canForceClose = ["open", "received", "arrived", "in_progress"].includes(wo.status);
                       const canClose = wo.status === "finished";
                       const woLine = getWoLine(wo) || "—";
@@ -577,7 +640,7 @@ export default function WorkOrdersPage() {
                             <div className="flex items-center gap-1">
                               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
                               {wo.status === "in_progress" && wo.started_at && differenceInMinutes(new Date(), new Date(wo.started_at)) > 4320 && (
-                                <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-[10px]" variant="outline" title="This work order has been in progress for more than 3 days. Consider reviewing or closing it.">Stale</Badge>
+                                <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-[10px]" variant="outline" title="This work order has been in progress for more than 3 days. Consider reviewing or closing it.">Stale</Badge>
                               )}
                             </div>
                           </TableCell>}
