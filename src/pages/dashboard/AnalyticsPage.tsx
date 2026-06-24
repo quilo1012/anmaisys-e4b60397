@@ -618,7 +618,7 @@ export default function AnalyticsPage() {
                 <EmptyChart />
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={topProblems} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="problem" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} /></BarChart>
+                  <BarChart data={topProblems} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="problem" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip /><Bar dataKey="count" radius={[0, 4, 4, 0]}>{topProblems.map((_, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}<LabelList dataKey="count" position="right" fontSize={11} /></Bar></BarChart>
                 </ResponsiveContainer>
               )}
             </CardContent>
