@@ -52,8 +52,8 @@ function parseCSV(text: string): Partial<Sku>[] {
     .trim();
   const headers = parseLine(lines[0]).map(normalize);
   const idx = (names: string[]) => headers.findIndex((h) => names.includes(h));
-  const iCode = idx(["sku", "code", "codigo", "cod", "item"]);
-  const iName = idx(["name", "produto", "product", "nome", "descricao", "description", "designacao"]);
+  const iCode = idx(["sku", "code", "codigo", "cod", "item", "product_code", "product code", "productcode"]);
+  const iName = idx(["name", "produto", "product", "nome", "descricao", "description", "designacao", "product_description", "product description", "productdescription"]);
   const iCat = idx(["category", "categoria"]);
   const iTph = idx(["target_per_hour", "target", "tph", "target per hour", "objetivo"]);
   const hasHeader = iCode >= 0 || iName >= 0;
@@ -173,8 +173,14 @@ export default function SKUProductsPage() {
   return (
     <DashboardLayout>
       <div className="p-4 md:p-6 space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-bold">SKU Products</h1>
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">SKU Products</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Upload CSV File — required columns: <code>product_code</code> (or SKU) and <code>product_description</code> (or name).
+              Accepts various header formats (SKU, Codigo, Code, Name, Description, etc.).
+            </p>
+          </div>
           <div className="flex gap-2">
             <Button
               variant="outline"
