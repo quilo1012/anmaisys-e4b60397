@@ -44,8 +44,18 @@ Deno.serve(async (req) => {
 
     const { data: roles } = await supabase
       .from("user_roles").select("role").eq("user_id", claimsData.claims.sub);
-    const allowed = (roles ?? []).some((r: any) => ["admin", "manager"].includes(r.role));
-    if (!allowed) {
+    const isStaff = (roles ?? []).some((r: any) => ["admin", "manager"].includes(r.role));
+
+    const body = await req.json();
+    const userIds: string[] = body.user_ids || (body.user_id ? [body.user_id] : []);
+    if (!userIds.length) {
+      return new Response(
+        JSON.stringify({ error: "user_id or user_ids required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    // Non-staff callers may only target themselves.
+    if (!isStaff && userIds.some((id) => id !== claimsData.claims.sub)) {
       return new Response(JSON.stringify({ error: "forbidden" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
