@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   ClipboardList, Cog, Users, BarChart3, Briefcase, DollarSign,
   Monitor, Shield, Package, AlertCircle, Clock, LayoutDashboard,
-  Plus, Wrench, Radio,
+  Plus, Wrench, Radio, Truck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
