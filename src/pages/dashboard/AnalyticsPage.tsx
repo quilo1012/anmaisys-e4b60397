@@ -501,7 +501,7 @@ export default function AnalyticsPage() {
             <CardContent>
               <div className="text-2xl font-bold">{formatMinutes(totalDowntimeMinutes)}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {hasNoActivity ? "No activity in selected period" : "Sum of active repair time across completed WOs"}
+                {hasNoActivity ? "No activity in selected period" : "Wall-clock line stoppage (parallel stoppages counted once)"}
               </p>
             </CardContent>
           </Card>
