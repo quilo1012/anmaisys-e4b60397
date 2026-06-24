@@ -154,4 +154,36 @@ describe("buildMachineRisks", () => {
     );
     expect(risks.map((r) => r.machine)).toEqual(["M_HIGH", "M_MED", "M_LOW"]);
   });
+
+  it("flags HIGH via mtbfWarning when current gap ≥ 80% of MTBF", () => {
+    // Two failures 10h apart → MTBF = 10h. Last one was 9h ago → 9 ≥ 0.8*10.
+    const risks = buildMachineRisks(
+      [
+        wo({ machine: "M1", created_at: iso("2026-06-24T00:00:00Z"), description: "A" }),
+        wo({ machine: "M1", created_at: iso("2026-06-24T10:00:00Z"), description: "B" }),
+      ],
+      new Date("2026-06-24T19:00:00Z"),
+    );
+    expect(risks[0].mtbfHours).toBe(10);
+    expect(risks[0].mtbfWarning).toBe(true);
+    expect(risks[0].risk).toBe("HIGH");
+  });
+
+  it("flags HIGH via recentRepairAlert + ≥3 failures without recurring problems", () => {
+    // 3 distinct problems, spaced so MTBF warning does NOT trigger.
+    const risks = buildMachineRisks(
+      [
+        wo({ machine: "M1", created_at: iso("2026-06-20T12:00:00Z"), description: "A" }),
+        wo({ machine: "M1", created_at: iso("2026-06-22T12:00:00Z"), description: "B" }),
+        wo({ machine: "M1", created_at: iso("2026-06-24T11:00:00Z"), description: "C" }),
+      ],
+      new Date("2026-06-24T12:00:00Z"),
+    );
+    expect(risks[0].recurringProblems).toEqual([]);
+    expect(risks[0].mtbfWarning).toBe(false);
+    expect(risks[0].recentRepairAlert).toBe(true);
+    expect(risks[0].failures30d).toBe(3);
+    expect(risks[0].risk).toBe("HIGH");
+  });
 });
+
