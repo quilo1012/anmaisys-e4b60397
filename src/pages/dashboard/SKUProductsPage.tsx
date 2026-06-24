@@ -26,7 +26,10 @@ const PAGE_SIZE = 50;
 
 function parseCSV(text: string): Partial<Sku>[] {
   const clean = text.replace(/^\uFEFF/, "");
-  const lines = clean.split(/\r?\n/).filter((l) => l.trim());
+  const lines = clean
+    .split(/\r?\n/)
+    .filter((l) => l.trim())
+    .filter((l, index) => index !== 0 || !/^sep\s*=\s*[;,\t]/i.test(l.trim()));
   if (lines.length === 0) return [];
   // Auto-detect delimiter from the first rows: ; \t , (whichever appears most)
   const sample = lines.slice(0, 20).join("\n");
