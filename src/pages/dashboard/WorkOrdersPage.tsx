@@ -347,32 +347,6 @@ export default function WorkOrdersPage() {
                   className="pl-9 h-9 bg-background"
                 />
               </div>
-              <div className="inline-flex items-center rounded-md border bg-background p-0.5 shadow-sm">
-                <Button
-                  variant={lineStoppedFilter === "all" ? "secondary" : "ghost"}
-                  size="sm"
-                  className="h-7 px-3 text-xs font-medium"
-                  onClick={() => setLineStoppedFilter("all")}
-                >
-                  All · {(workOrders ?? []).length}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setLineStoppedFilter("stopped")}
-                  className={`h-7 px-3 text-xs font-medium ${lineStoppedFilter === "stopped" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "text-destructive hover:bg-destructive/10 hover:text-destructive"}`}
-                >
-                  Stopped · {stoppedCount}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setLineStoppedFilter("running")}
-                  className={`h-7 px-3 text-xs font-medium ${lineStoppedFilter === "running" ? "bg-success text-success-foreground hover:bg-success/90" : "text-success hover:bg-success/10 hover:text-success"}`}
-                >
-                  Running · {runningCount}
-                </Button>
-              </div>
             </div>
 
             {/* Row 2 — View toggle + Date pills + Custom range */}
