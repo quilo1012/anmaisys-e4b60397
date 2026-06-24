@@ -274,11 +274,11 @@ function ManagerDashboardContent() {
           />
           <KpiCard
             label="Total Downtime (Selected Range)"
-            value={formatMinutes(kpis.totalDowntimeMin)}
+            value={formatMinutes(totalDowntimeMin)}
             icon={TrendingDown}
-            tone={kpis.totalDowntimeMin > 0 ? "red" : "muted"}
-            footer="sum of line downtime in period"
-            tooltip="Total Downtime: sum of all line stoppage minutes for finalized WOs within the selected period."
+            tone={totalDowntimeMin > 0 ? "red" : "muted"}
+            footer="parallel stoppages counted once"
+            tooltip="Total Downtime: wall-clock minutes any line was stopped within the selected period. Matches the Downtime page (parallel stoppages counted once)."
           />
         </div>
 
