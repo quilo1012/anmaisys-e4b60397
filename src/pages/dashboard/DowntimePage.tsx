@@ -71,7 +71,7 @@ export default function DowntimePage() {
   const [startDate, setStartDate] = useState<Date>(startOfDay(subDays(new Date(), 29)));
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [datePreset, setDatePreset] = useState<DateRangePreset>("30d");
-  const [historyPeriod, setHistoryPeriod] = useState<"today" | "week" | "month">("today");
+  
 
   // Form state
   const [formLine, setFormLine] = useState("");
@@ -142,19 +142,13 @@ export default function DowntimePage() {
     }
   };
 
-  // ── Downtime KPIs ─────────────────────────────────────────────
+  // ── Downtime KPIs (all follow top date range) ─────────────────
   const kpis = useMemo(() => {
-    const now = new Date();
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-    const monthStart = startOfMonth(now);
-
     const safeRecords = records || [];
-
-    // Shared reconciliation — same math as Shift Breakdown.
-    // Follows the page date filter so the KPI matches the records shown below.
     const rangeStartMs = startOfDay(startDate).getTime();
     const rangeEndMs = Math.min(endOfDay(endDate).getTime(), Date.now());
-    const nowMs = now.getTime();
+    const nowMs = Date.now();
+
     const totalRange = reconcileMinutes(
       [
         ...safeRecords.map((r) => ({ start: r.started_at, end: r.ended_at })),
@@ -169,14 +163,22 @@ export default function DowntimePage() {
     const woActive = woMetrics.filter(m => m.line_stopped_at && !m.line_resumed_at).length;
     const active = manualActive + woActive;
 
-    const weekRecords = safeRecords.filter(r => new Date(r.started_at) >= weekStart && r.ended_at);
-    const avgDuration = weekRecords.length
-      ? Math.round(weekRecords.reduce((s, r) => s + differenceInMinutes(new Date(r.ended_at!), new Date(r.started_at)), 0) / weekRecords.length)
+    // Average duration over the selected range (resolved records only)
+    const inRange = safeRecords.filter(r => {
+      const t = new Date(r.started_at).getTime();
+      return t >= rangeStartMs && t <= rangeEndMs && r.ended_at;
+    });
+    const avgDuration = inRange.length
+      ? Math.round(inRange.reduce((s, r) => s + differenceInMinutes(new Date(r.ended_at!), new Date(r.started_at)), 0) / inRange.length)
       : 0;
 
-    const monthRecords = safeRecords.filter(r => new Date(r.started_at) >= monthStart);
+    // Most affected line over the selected range
+    const rangeRecords = safeRecords.filter(r => {
+      const t = new Date(r.started_at).getTime();
+      return t >= rangeStartMs && t <= rangeEndMs;
+    });
     const lineCount: Record<string, number> = {};
-    monthRecords.forEach(r => { lineCount[r.line] = (lineCount[r.line] || 0) + 1; });
+    rangeRecords.forEach(r => { lineCount[r.line] = (lineCount[r.line] || 0) + 1; });
     const mostAffected = Object.entries(lineCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
 
     return { totalRange, active, avgDuration, mostAffected };
@@ -216,25 +218,13 @@ export default function DowntimePage() {
   }, [allWOs, startDate, endDate]);
 
   const machineHistory = useMemo(() => {
-    if (!allWOs) return [];
-    const now = new Date();
-    const todayStart = startOfDay(now);
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-    const monthStart = startOfMonth(now);
-
-    const machineMap: Record<string, { today: number; week: number; month: number; problems: Record<string, number> }> = {};
-
-    allWOs.forEach((wo) => {
+    const machineMap: Record<string, { count: number; problems: Record<string, number> }> = {};
+    filteredWOs.forEach((wo) => {
       if (!wo.machine) return;
-      const d = new Date(wo.created_at);
-      if (!machineMap[wo.machine]) machineMap[wo.machine] = { today: 0, week: 0, month: 0, problems: {} };
+      if (!machineMap[wo.machine]) machineMap[wo.machine] = { count: 0, problems: {} };
       const entry = machineMap[wo.machine];
-      if (d >= monthStart) {
-        entry.month++;
-        if (wo.description) entry.problems[wo.description] = (entry.problems[wo.description] || 0) + 1;
-      }
-      if (d >= weekStart) entry.week++;
-      if (d >= todayStart) entry.today++;
+      entry.count++;
+      if (wo.description) entry.problems[wo.description] = (entry.problems[wo.description] || 0) + 1;
     });
 
     return Object.entries(machineMap)
@@ -242,14 +232,14 @@ export default function DowntimePage() {
         const topProblem = Object.entries(data.problems).sort((a, b) => b[1] - a[1])[0];
         return {
           machine,
-          today: data.today, week: data.week, month: data.month,
+          count: data.count,
           topProblem: topProblem ? topProblem[0] : "—",
           topProblemCount: topProblem ? topProblem[1] : 0,
         };
       })
-      .sort((a, b) => b[historyPeriod] - a[historyPeriod])
-      .filter((m) => m[historyPeriod] > 0);
-  }, [allWOs, historyPeriod]);
+      .sort((a, b) => b.count - a.count)
+      .filter((m) => m.count > 0);
+  }, [filteredWOs]);
 
   const filteredRisks = useMemo(() => {
     if (!filteredWOs.length) return [];
@@ -472,7 +462,7 @@ export default function DowntimePage() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Duration (Week)</CardTitle>
+              <CardTitle className="text-sm font-medium">Avg Duration (Period)</CardTitle>
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -481,7 +471,7 @@ export default function DowntimePage() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Most Affected Line</CardTitle>
+              <CardTitle className="text-sm font-medium">Most Affected Line (Period)</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -683,16 +673,7 @@ export default function DowntimePage() {
         {/* Machine Problem History */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Machine Problem History</CardTitle>
-              <Tabs value={historyPeriod} onValueChange={(v) => setHistoryPeriod(v as "today" | "week" | "month")}>
-                <TabsList>
-                  <TabsTrigger value="today">Today</TabsTrigger>
-                  <TabsTrigger value="week">This Week</TabsTrigger>
-                  <TabsTrigger value="month">This Month</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
+            <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Machine Problem History</CardTitle>
           </CardHeader>
           <CardContent>
             {machineHistory.length === 0 ? (
@@ -703,9 +684,7 @@ export default function DowntimePage() {
                   <TableRow>
                     <TableHead>#</TableHead>
                     <TableHead>Machine</TableHead>
-                    <TableHead className="text-center">Today</TableHead>
-                    <TableHead className="text-center">Week</TableHead>
-                    <TableHead className="text-center">Month</TableHead>
+                    <TableHead className="text-center">Failures</TableHead>
                     <TableHead>Top Problem</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -714,9 +693,7 @@ export default function DowntimePage() {
                     <TableRow key={m.machine}>
                       <TableCell className="font-medium text-muted-foreground">{i + 1}</TableCell>
                       <TableCell className="font-medium">{m.machine}</TableCell>
-                      <TableCell className="text-center"><Badge variant={m.today > 0 ? "destructive" : "secondary"}>{m.today}</Badge></TableCell>
-                      <TableCell className="text-center"><Badge variant={m.week >= 3 ? "destructive" : "secondary"}>{m.week}</Badge></TableCell>
-                      <TableCell className="text-center"><Badge variant={m.month >= 5 ? "destructive" : "secondary"}>{m.month}</Badge></TableCell>
+                      <TableCell className="text-center"><Badge variant={m.count >= 5 ? "destructive" : "secondary"}>{m.count}</Badge></TableCell>
                       <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]" title={m.topProblem}>
                         {m.topProblem} {m.topProblemCount > 1 && <span className="text-xs">(×{m.topProblemCount})</span>}
                       </TableCell>
