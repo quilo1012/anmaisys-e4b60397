@@ -64,18 +64,23 @@ export function useShiftDowntime(dateISO: string) {
       // 1) Per-WO downtime events (new model)
       const { data: dtData, error: dtErr } = await (supabase as any)
         .from("downtime_events")
-        .select("*")
+        .select("*, work_order:work_orders(machine, line_at_time, line:lines(name))")
         .lt("stopped_at", nightEnd.toISOString())
         .or(`resumed_at.gte.${dayStart.toISOString()},resumed_at.is.null`)
         .order("stopped_at", { ascending: true });
       if (dtErr) throw dtErr;
-      const events = (dtData || []) as DowntimeEvent[];
+      const events = (dtData || []).map((event: any) => ({
+        ...event,
+        machine: event.work_order?.machine ?? null,
+        line_at_time: event.work_order?.line?.name || event.work_order?.line_at_time || null,
+        line_name: event.work_order?.line?.name || null,
+      })) as DowntimeEvent[];
       const woIdsWithEvents = new Set(events.map((e) => e.work_order_id));
 
       // 2) Fallback: legacy work_orders with line_stopped_at populated but no event row
       const { data: woData, error: woErr } = await (supabase as any)
         .from("work_orders")
-        .select("id, machine, line_at_time, line_stopped_at, line_stopped_by, line_resumed_at, line_resumed_by, created_at")
+        .select("id, machine, line_at_time, line_stopped_at, line_stopped_by, line_resumed_at, line_resumed_by, created_at, line:lines(name)")
         .not("line_stopped_at", "is", null)
         .lt("line_stopped_at", nightEnd.toISOString())
         .or(`line_resumed_at.gte.${dayStart.toISOString()},line_resumed_at.is.null`);
@@ -98,7 +103,8 @@ export function useShiftDowntime(dateISO: string) {
           created_at: w.created_at,
           // attach for label aggregation
           machine: w.machine,
-          line_at_time: w.line_at_time,
+          line_at_time: w.line?.name || w.line_at_time,
+          line_name: w.line?.name || null,
         } as any));
 
       return splitByShift([...events, ...synthetic], dateISO);
