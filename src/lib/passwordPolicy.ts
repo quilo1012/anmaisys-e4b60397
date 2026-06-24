@@ -39,7 +39,7 @@ export function checkPasswordStrength(pwd: string): PasswordCheckResult {
   if (/^(.)\1+$/.test(pwd)) {
     return { ok: false, reason: "Password cannot be a single repeated character." };
   }
-  if (/^(?:0123456789|1234567890|abcdefgh|qwertyui)/i.test(pwd)) {
+  if (/^(?:0123456789|1234567890|12345|23456|34567|45678|56789|abcdefgh|qwertyui)/i.test(pwd)) {
     return { ok: false, reason: "Avoid simple keyboard or number sequences." };
   }
   if (/(applied|nutrition|anmai|anmaisys).*(123|password|operator|tablet)/i.test(pwd)) {
