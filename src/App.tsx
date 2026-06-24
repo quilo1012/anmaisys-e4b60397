@@ -204,6 +204,14 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/dashboard/preventive"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "engineer"]}>
+                      <PreventiveMaintenancePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/dashboard/reliability"
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager"]}>
