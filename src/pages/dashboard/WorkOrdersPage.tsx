@@ -180,7 +180,11 @@ export default function WorkOrdersPage() {
       filtered = filtered.filter((w) => new Date(w.created_at) >= startOfMonth(now));
     } else {
       if (dateFrom) filtered = filtered.filter((w) => w.created_at >= dateFrom);
-      if (dateTo) filtered = filtered.filter((w) => w.created_at <= dateTo + "T23:59:59");
+      if (dateTo) {
+        const todayStr = format(now, "yyyy-MM-dd");
+        const cutoff = dateTo >= todayStr ? now.toISOString() : dateTo + "T23:59:59";
+        filtered = filtered.filter((w) => w.created_at <= cutoff);
+      }
     }
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
@@ -346,32 +350,6 @@ export default function WorkOrdersPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9 h-9 bg-background"
                 />
-              </div>
-              <div className="inline-flex items-center rounded-md border bg-background p-0.5 shadow-sm">
-                <Button
-                  variant={lineStoppedFilter === "all" ? "secondary" : "ghost"}
-                  size="sm"
-                  className="h-7 px-3 text-xs font-medium"
-                  onClick={() => setLineStoppedFilter("all")}
-                >
-                  All · {(workOrders ?? []).length}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setLineStoppedFilter("stopped")}
-                  className={`h-7 px-3 text-xs font-medium ${lineStoppedFilter === "stopped" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "text-destructive hover:bg-destructive/10 hover:text-destructive"}`}
-                >
-                  Stopped · {stoppedCount}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setLineStoppedFilter("running")}
-                  className={`h-7 px-3 text-xs font-medium ${lineStoppedFilter === "running" ? "bg-success text-success-foreground hover:bg-success/90" : "text-success hover:bg-success/10 hover:text-success"}`}
-                >
-                  Running · {runningCount}
-                </Button>
               </div>
             </div>
 
