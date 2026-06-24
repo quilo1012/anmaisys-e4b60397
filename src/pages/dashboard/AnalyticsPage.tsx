@@ -258,13 +258,13 @@ export default function AnalyticsPage() {
       const m = metricsById.get(wo.id);
       if (!m || typeof m.active_repair_sec !== "number") return;
       const repair = m.active_repair_sec / 60;
-      const key = wo.machine || "—";
+      const lineName = wo.line_id ? lineNameById.get(wo.line_id) : null;
+      const key = (wo.machine && wo.machine.trim()) || lineName || "Unassigned";
       if (!map[key]) map[key] = { day: 0, night: 0, lines: new Set() };
       const shift = getLondonShift(wo.line_stopped_at || wo.started_at || wo.created_at);
       if (shift === "day") map[key].day += repair;
       else if (shift === "night") map[key].night += repair;
       else map[key].day += repair; // fallback bucket
-      const lineName = wo.line_id ? lineNameById.get(wo.line_id) : null;
       if (lineName) map[key].lines.add(lineName);
     });
     return Object.entries(map)
