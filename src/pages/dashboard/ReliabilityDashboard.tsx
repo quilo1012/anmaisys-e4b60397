@@ -452,3 +452,79 @@ export default function ReliabilityDashboard() {
     </DashboardLayout>
   );
 }
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function FailureHeatmap({ workOrders }: { workOrders: Array<{ machine: string; created_at: string }> }) {
+  const { rows, max } = useMemo(() => {
+    const map: Record<string, number[]> = {};
+    workOrders.forEach((w) => {
+      if (!map[w.machine]) map[w.machine] = [0, 0, 0, 0, 0, 0, 0];
+      const d = new Date(w.created_at).getDay(); // 0=Sun..6=Sat
+      const idx = d === 0 ? 6 : d - 1; // Mon..Sun
+      map[w.machine][idx]++;
+    });
+    const rows = Object.entries(map)
+      .map(([machine, days]) => ({ machine, days, total: days.reduce((a, b) => a + b, 0) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 12);
+    const max = Math.max(1, ...rows.flatMap((r) => r.days));
+    return { rows, max };
+  }, [workOrders]);
+
+  const cellColor = (n: number) => {
+    if (n === 0) return "bg-muted/40 text-muted-foreground";
+    const ratio = n / max;
+    if (ratio >= 0.66) return "bg-red-500/90 text-white";
+    if (ratio >= 0.33) return "bg-amber-500/80 text-white";
+    return "bg-emerald-500/70 text-white";
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <TrendingUp className="h-4 w-4" /> Failure Heatmap — Machine × Weekday
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-muted-foreground text-sm text-center py-4">No data for selected period</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <div className="inline-grid gap-1" style={{ gridTemplateColumns: `minmax(140px,1fr) repeat(7, 44px) 60px` }}>
+              <div />
+              {WEEKDAYS.map((d) => (
+                <div key={d} className="text-[11px] font-medium text-center text-muted-foreground">{d}</div>
+              ))}
+              <div className="text-[11px] font-medium text-center text-muted-foreground">Total</div>
+              {rows.map((r) => (
+                <>
+                  <div key={`${r.machine}-name`} className="text-xs font-medium truncate pr-2 self-center" title={r.machine}>{r.machine}</div>
+                  {r.days.map((n, i) => (
+                    <div
+                      key={`${r.machine}-${i}`}
+                      className={cn("h-9 rounded flex items-center justify-center text-xs font-semibold", cellColor(n))}
+                      title={`${r.machine} — ${WEEKDAYS[i]}: ${n}`}
+                    >
+                      {n || ""}
+                    </div>
+                  ))}
+                  <div key={`${r.machine}-total`} className="h-9 rounded bg-secondary flex items-center justify-center text-xs font-bold">{r.total}</div>
+                </>
+              ))}
+            </div>
+            <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
+              <span>Legend:</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-muted/40 border" />0</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-500/70" />Low</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-amber-500/80" />Mid</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-red-500/90" />High</span>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
