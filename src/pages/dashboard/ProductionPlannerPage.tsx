@@ -66,6 +66,7 @@ export default function ProductionPlannerPage() {
   const [shift, setShift] = useState("DAY");
   const [line, setLine] = useState<string>("");
   const [leaderId, setLeaderId] = useState<string>("");
+  const [leaderName, setLeaderName] = useState<string>("");
   const [staffPlanned, setStaffPlanned] = useState(0);
   const [staffActual, setStaffActual] = useState(0);
   const [notes, setNotes] = useState("");
