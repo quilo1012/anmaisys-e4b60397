@@ -252,6 +252,7 @@ function SupplierForm({ onSubmit }: { onSubmit: (s: { name: string; contact_name
           disabled={!name.trim()}
           onClick={async () => {
             await onSubmit({ name: name.trim(), contact_name: contact || undefined, email: email || undefined, phone: phone || undefined });
+            void 0;
             setName(""); setContact(""); setEmail(""); setPhone("");
           }}
         >
