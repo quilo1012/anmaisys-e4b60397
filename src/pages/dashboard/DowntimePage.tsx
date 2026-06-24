@@ -71,7 +71,7 @@ export default function DowntimePage() {
   const [startDate, setStartDate] = useState<Date>(startOfDay(subDays(new Date(), 29)));
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [datePreset, setDatePreset] = useState<DateRangePreset>("30d");
-  const [historyPeriod, setHistoryPeriod] = useState<"today" | "week" | "month">("today");
+  
 
   // Form state
   const [formLine, setFormLine] = useState("");
