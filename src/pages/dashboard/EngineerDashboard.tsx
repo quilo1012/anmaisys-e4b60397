@@ -359,10 +359,20 @@ function EngineerDashboardContent() {
     const all = workOrders?.filter(
       (wo) => wo.status === "open" || ["received", "arrived", "in_progress"].includes(wo.status)
     ) || [];
-    if (focusMode && all.length > 0) {
-      return [all[all.length - 1]];
+    // Sort: open (unassigned) first, then by priority, then oldest first
+    const sorted = [...all].sort((a, b) => {
+      const aOpen = a.status === "open" ? 0 : 1;
+      const bOpen = b.status === "open" ? 0 : 1;
+      if (aOpen !== bOpen) return aOpen - bOpen;
+      const pa = PRIORITY_RANK[(a as any).priority] ?? 4;
+      const pb = PRIORITY_RANK[(b as any).priority] ?? 4;
+      if (pa !== pb) return pa - pb;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+    if (focusMode && sorted.length > 0) {
+      return [sorted[0]];
     }
-    return all;
+    return sorted;
   }, [workOrders, focusMode]);
 
   const suggestedEngineer = useMemo(() => {
