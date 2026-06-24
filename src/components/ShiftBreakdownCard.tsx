@@ -10,6 +10,7 @@ import {
   type ShiftType,
 } from "@/hooks/useShiftDowntime";
 import type { DowntimeEvent } from "@/hooks/useDowntimeEvents";
+import { reconcileMinutes } from "@/lib/downtimeReconcile";
 
 function toLondonISODate(d: Date): string {
   // YYYY-MM-DD in London local time
