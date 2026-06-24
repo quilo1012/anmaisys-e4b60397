@@ -18,6 +18,7 @@ export function useLineProblemDescriptions() {
       if (error) throw error;
       return (data || []) as LineProblemLink[];
     },
+    staleTime: 5 * 60_000,
   });
 }
 
