@@ -72,15 +72,21 @@ export default function ExecutiveDashboard() {
     }).length;
     const slaPercent = closedWOs.length ? Math.round((withinSLA / closedWOs.length) * 100) : 100;
 
-    // Total Line Downtime within selected period = SUM(line_downtime_sec) from v_wo_metrics (already range-filtered)
-    const lineDowntimeTodayMin = Math.round(
-      woMetrics.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / 60
+    // Total Line Downtime within selected period — aligned with Downtime page
+    // (wall-clock; parallel stoppages counted once).
+    const rangeStartMs = startOfDay(kpiRange.from).getTime();
+    const rangeEndMs = Math.min(endOfDay(kpiRange.to).getTime(), Date.now());
+    const lineDowntimeTodayMin = reconcileMinutes(
+      (downtimeRecords || []).map((r: any) => ({ start: r.started_at, end: r.ended_at })),
+      rangeStartMs,
+      rangeEndMs,
+      Date.now(),
     );
 
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
 
     return { openWOs, avgResponse, avgMTTR, slaPercent, lineDowntimeTodayMin, machinesAtRisk };
-  }, [workOrders, filteredWOs, machines, woMetrics]);
+  }, [workOrders, filteredWOs, machines, woMetrics, downtimeRecords, kpiRange]);
 
   // WOs per day across the selected period (defaults to last 7 days when range is empty).
   const wosPerDay = useMemo(() => {
