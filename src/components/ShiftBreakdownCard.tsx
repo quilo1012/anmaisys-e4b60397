@@ -171,18 +171,22 @@ export function ShiftBreakdownCard({ date: externalDate, onDateChange }: ShiftBr
               </Badge>
             )}
           </CardTitle>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => adjust(-1)} aria-label="Previous day">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm font-medium min-w-[160px] text-center">{labelDate}</span>
-            <Button variant="outline" size="sm" onClick={() => adjust(1)} aria-label="Next day">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setDate(new Date())}>
-              Today
-            </Button>
-          </div>
+          {externalDate === undefined ? (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => adjust(-1)} aria-label="Previous day">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm font-medium min-w-[160px] text-center">{labelDate}</span>
+              <Button variant="outline" size="sm" onClick={() => adjust(1)} aria-label="Next day">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setDate(new Date())}>
+                Today
+              </Button>
+            </div>
+          ) : (
+            <span className="text-sm font-medium">{labelDate}</span>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">
           Day/Night downtime per machine — Europe/London time. Total = wall-clock
