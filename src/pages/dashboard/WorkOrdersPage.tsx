@@ -24,7 +24,8 @@ import { format, subDays, startOfDay, endOfDay, startOfMonth, differenceInMinute
 import { exportWorkOrdersCsv } from "@/lib/exportCsv";
 import { useToast } from "@/hooks/use-toast";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
-import { generatePdfReport, authorizePdfGeneration } from "@/lib/generatePdfReport";
+// jsPDF is lazy-loaded inside the PDF button handler to keep it out of the initial bundle.
+import { authorizePdfGeneration } from "@/lib/generatePdfReport";
 import { FileText } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
