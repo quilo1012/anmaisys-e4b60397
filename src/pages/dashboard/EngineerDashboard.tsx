@@ -51,7 +51,51 @@ function LiveTimer({ startedAt }: { startedAt: string }) {
   const mins = differenceInMinutes(new Date(), new Date(startedAt));
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  return <span className="text-xs font-mono text-amber-700">⏱ {h}h {m}m</span>;
+  const overdue = mins > 60;
+  return (
+    <span className={`text-xs font-mono ${overdue ? "text-red-600 dark:text-red-400 font-bold" : "text-amber-700 dark:text-amber-400"}`}>
+      ⏱ {h}h {m}m
+    </span>
+  );
+}
+
+function WaitTimer({ createdAt }: { createdAt: string }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(timer);
+  }, []);
+  const mins = differenceInMinutes(new Date(), new Date(createdAt));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const urgent = mins > 30;
+  return (
+    <span
+      className={`text-xs font-mono ${urgent ? "text-red-600 dark:text-red-400 font-bold animate-pulse" : "text-muted-foreground"}`}
+      title="Time since this WO was created"
+    >
+      ⏳ waiting {h > 0 ? `${h}h ` : ""}{m}m
+    </span>
+  );
+}
+
+const PRIORITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+
+function PriorityBadge({ priority }: { priority?: string | null }) {
+  if (!priority || (priority !== "critical" && priority !== "high")) return null;
+  const isCritical = priority === "critical";
+  return (
+    <Badge
+      variant="outline"
+      className={
+        isCritical
+          ? "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40 font-bold"
+          : "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/40 font-bold"
+      }
+    >
+      {isCritical ? "Critical" : "High"}
+    </Badge>
+  );
 }
 
 function StaleBadge({ wo }: { wo: any }) {
@@ -315,10 +359,20 @@ function EngineerDashboardContent() {
     const all = workOrders?.filter(
       (wo) => wo.status === "open" || ["received", "arrived", "in_progress"].includes(wo.status)
     ) || [];
-    if (focusMode && all.length > 0) {
-      return [all[all.length - 1]];
+    // Sort: open (unassigned) first, then by priority, then oldest first
+    const sorted = [...all].sort((a, b) => {
+      const aOpen = a.status === "open" ? 0 : 1;
+      const bOpen = b.status === "open" ? 0 : 1;
+      if (aOpen !== bOpen) return aOpen - bOpen;
+      const pa = PRIORITY_RANK[(a as any).priority] ?? 4;
+      const pb = PRIORITY_RANK[(b as any).priority] ?? 4;
+      if (pa !== pb) return pa - pb;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+    if (focusMode && sorted.length > 0) {
+      return [sorted[0]];
     }
-    return all;
+    return sorted;
   }, [workOrders, focusMode]);
 
   const suggestedEngineer = useMemo(() => {
@@ -543,8 +597,10 @@ function EngineerDashboardContent() {
               </span>
               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
             </div>
-            <div className="flex gap-1.5 items-center">
+            <div className="flex gap-1.5 items-center flex-wrap">
+              <PriorityBadge priority={(wo as any).priority} />
               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
+              {wo.status === "open" && <WaitTimer createdAt={wo.created_at} />}
               {wo.status === "in_progress" && wo.started_at && <LiveTimer startedAt={wo.started_at} />}
               {/* Print button hidden for engineers (admin/manager only) */}
             </div>
@@ -714,32 +770,50 @@ function EngineerDashboardContent() {
 
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium">Completed</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Completed</CardTitle>
+              <div className="h-9 w-9 rounded-lg bg-green-500/15 flex items-center justify-center">
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
             </CardHeader>
-            <CardContent className="p-3 pt-0 md:p-6 md:pt-0"><div className="text-xl md:text-2xl font-bold">{kpis.totalCompleted}</div></CardContent>
+            <CardContent className="p-4 pt-0">
+              <div className="text-3xl font-bold tabular-nums">{kpis.totalCompleted}</div>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium">Avg Response</CardTitle>
-              <Timer className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Avg Response</CardTitle>
+              <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${kpis.avgResponse > 30 ? "bg-amber-500/15" : "bg-blue-500/15"}`}>
+                <Timer className={`h-5 w-5 ${kpis.avgResponse > 30 ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400"}`} />
+              </div>
             </CardHeader>
-            <CardContent className="p-3 pt-0 md:p-6 md:pt-0"><div className="text-xl md:text-2xl font-bold">{kpis.avgResponse}m</div></CardContent>
+            <CardContent className="p-4 pt-0">
+              <div className={`text-3xl font-bold tabular-nums ${kpis.avgResponse > 30 ? "text-amber-600 dark:text-amber-400" : ""}`}>
+                {kpis.avgResponse}m
+              </div>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium">Avg MTTR</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Avg MTTR</CardTitle>
+              <div className="h-9 w-9 rounded-lg bg-purple-500/15 flex items-center justify-center">
+                <Activity className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
             </CardHeader>
-            <CardContent className="p-3 pt-0 md:p-6 md:pt-0"><div className="text-xl md:text-2xl font-bold">{kpis.avgMTTR}m</div></CardContent>
+            <CardContent className="p-4 pt-0">
+              <div className="text-3xl font-bold tabular-nums">{kpis.avgMTTR}m</div>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium">Parts Used</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Parts Used</CardTitle>
+              <div className="h-9 w-9 rounded-lg bg-indigo-500/15 flex items-center justify-center">
+                <Package className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
             </CardHeader>
-            <CardContent className="p-3 pt-0 md:p-6 md:pt-0"><div className="text-xl md:text-2xl font-bold">{totalParts ?? 0}</div></CardContent>
+            <CardContent className="p-4 pt-0">
+              <div className="text-3xl font-bold tabular-nums">{totalParts ?? 0}</div>
+            </CardContent>
           </Card>
         </div>
 
@@ -793,7 +867,7 @@ function EngineerDashboardContent() {
                             <td className="p-2">{wo.machine}</td>
                             <td className="p-2 max-w-[200px] truncate">{wo.description}</td>
                             <td className="p-2 text-muted-foreground">{wo.engineer_name || "—"}</td>
-                            <td className="p-2 space-y-1"><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>{wo.status === "in_progress" && wo.started_at && <span className="ml-1"><LiveTimer startedAt={wo.started_at} /></span>}{((wo as any).line_stopped || (wo as any).line_resumed_at) && (<div className="mt-1"><LineStatusBanner lineStopped={(wo as any).line_stopped === true} lineStoppedAt={(wo as any).line_stopped_at} lineResumedAt={(wo as any).line_resumed_at} /></div>)}</td>
+                            <td className="p-2 space-y-1"><div className="flex items-center gap-1.5 flex-wrap"><PriorityBadge priority={(wo as any).priority} /><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>{wo.status === "open" && <WaitTimer createdAt={wo.created_at} />}{wo.status === "in_progress" && wo.started_at && <LiveTimer startedAt={wo.started_at} />}</div>{((wo as any).line_stopped || (wo as any).line_resumed_at) && (<div className="mt-1"><LineStatusBanner lineStopped={(wo as any).line_stopped === true} lineStoppedAt={(wo as any).line_stopped_at} lineResumedAt={(wo as any).line_resumed_at} /></div>)}</td>
                             <td className="p-2 text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</td>
                             <td className="p-2">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</td>
                             <td className="p-2">
