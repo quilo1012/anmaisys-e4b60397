@@ -396,6 +396,78 @@ export type Database = {
         }
         Relationships: []
       }
+      intouch_stop_code_map: {
+        Row: {
+          active: boolean
+          category: string | null
+          created_at: string
+          default_priority: string
+          id: string
+          label: string
+          line_hint: string | null
+          stop_code: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category?: string | null
+          created_at?: string
+          default_priority?: string
+          id?: string
+          label: string
+          line_hint?: string | null
+          stop_code: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string | null
+          created_at?: string
+          default_priority?: string
+          id?: string
+          label?: string
+          line_hint?: string | null
+          stop_code?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      intouch_webhook_logs: {
+        Row: {
+          created_at: string
+          created_wo_id: string | null
+          error_message: string | null
+          headers: Json | null
+          id: string
+          parsed_ok: boolean
+          payload: Json | null
+          received_at: string
+          source_ip: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_wo_id?: string | null
+          error_message?: string | null
+          headers?: Json | null
+          id?: string
+          parsed_ok?: boolean
+          payload?: Json | null
+          received_at?: string
+          source_ip?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_wo_id?: string | null
+          error_message?: string | null
+          headers?: Json | null
+          id?: string
+          parsed_ok?: boolean
+          payload?: Json | null
+          received_at?: string
+          source_ip?: string | null
+        }
+        Relationships: []
+      }
       line_problem_descriptions: {
         Row: {
           created_at: string
