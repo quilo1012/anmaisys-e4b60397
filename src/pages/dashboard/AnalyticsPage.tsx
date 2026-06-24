@@ -278,6 +278,16 @@ export default function AnalyticsPage() {
       .slice(0, 10);
   }, [allWOs, metricsById, lineNameById]);
 
+  const totalDowntimeMinutes = useMemo(() => {
+    if (!allWOs) return 0;
+    let total = 0;
+    allWOs.filter((w) => DONE_STATUSES.includes(w.status)).forEach((wo) => {
+      const m = metricsById.get(wo.id);
+      if (m && typeof m.active_repair_sec === "number") total += m.active_repair_sec / 60;
+    });
+    return Math.round(total);
+  }, [allWOs, metricsById]);
+
   // Most used machines (highest WO count)
   const mostUsedMachines = useMemo(() => {
     if (!allWOs) return [];
