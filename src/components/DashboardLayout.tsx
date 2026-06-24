@@ -15,7 +15,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import {
   AlertDialog,
@@ -70,6 +70,7 @@ const navItems: NavItem[] = [
   // Admin
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Admin" },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Admin" },
+  { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "Admin" },
 ];
 
 function useDarkMode() {

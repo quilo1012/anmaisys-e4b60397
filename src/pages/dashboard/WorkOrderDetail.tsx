@@ -73,9 +73,27 @@ function SignedPhoto({ storagePath, alt }: { storagePath: string; alt: string })
   useEffect(() => {
     getWOPhotoUrl(storagePath).then(setUrl);
   }, [storagePath]);
-  if (!url) return <div className="h-32 bg-muted rounded-lg animate-pulse" />;
-  return <img src={url} alt={alt} className="rounded-lg border w-full max-h-64 object-cover" />;
+  if (!url) return <div className="aspect-square bg-muted rounded-lg animate-pulse" />;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group relative block overflow-hidden rounded-lg border bg-muted print:break-inside-avoid"
+    >
+      <img
+        src={url}
+        alt={alt}
+        loading="lazy"
+        className="aspect-square w-full object-cover transition-transform duration-200 group-hover:scale-105"
+      />
+      <div className="pointer-events-none absolute inset-0 flex items-end justify-end bg-gradient-to-t from-black/60 via-transparent to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 print:hidden">
+        <span className="rounded bg-background/90 px-2 py-1 text-xs font-medium text-foreground">View full</span>
+      </div>
+    </a>
+  );
 }
+
 
 export default function WorkOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -537,32 +555,52 @@ export default function WorkOrderDetail() {
         </Card>
 
         {/* Photos */}
-        {woPhotos && woPhotos.length > 0 && (
-          <Card className="print:border print:border-black print:shadow-none print:rounded-none">
-            <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold flex items-center gap-2"><Camera className="h-4 w-4 print:hidden" /> Photos</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 print:grid-cols-2 print:gap-2">
-                {["before", "after"].map((type) => {
-                  const photos = woPhotos.filter((p) => p.photo_type === type);
-                  return (
-                    <div key={type}>
-                      <p className="text-sm font-medium mb-2 capitalize print:text-[8pt] print:font-bold">{type}</p>
-                      {photos.length ? (
-                        <div className="grid gap-2">
-                          {photos.map((p) => (
-                            <SignedPhoto key={p.id} storagePath={p.storage_path} alt={`${type} photo`} />
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground print:text-[7pt]">No {type} photo</p>
+        <Card className="print:border print:border-black print:shadow-none print:rounded-none">
+          <CardHeader className="print:pb-1 print:pt-2">
+            <CardTitle className="text-base print:text-sm print:font-bold flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <Camera className="h-4 w-4 print:hidden" /> Photos
+              </span>
+              {woPhotos && woPhotos.length > 0 && (
+                <span className="text-xs font-normal text-muted-foreground print:hidden">
+                  {woPhotos.length} photo{woPhotos.length === 1 ? "" : "s"}
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-2 print:grid-cols-2 print:gap-2">
+              {(["before", "after"] as const).map((type) => {
+                const photos = (woPhotos || []).filter((p) => p.photo_type === type);
+                return (
+                  <div key={type}>
+                    <p className="text-sm font-medium mb-2 capitalize print:text-[8pt] print:font-bold flex items-center justify-between">
+                      <span>{type}</span>
+                      {photos.length > 0 && (
+                        <span className="text-xs font-normal text-muted-foreground print:hidden">×{photos.length}</span>
                       )}
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                    </p>
+                    {photos.length ? (
+                      <div className={photos.length > 1 ? "grid grid-cols-2 gap-2" : "grid gap-2"}>
+                        {photos.map((p) => (
+                          <SignedPhoto key={p.id} storagePath={p.storage_path} alt={`${type} photo`} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex aspect-square items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/20 print:hidden">
+                        <div className="text-center text-muted-foreground">
+                          <Camera className="mx-auto h-8 w-8 opacity-40" />
+                          <p className="mt-2 text-xs">No {type} photo</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
 
         {/* Cost Breakdown - hidden in print, admin only */}
         {costBreakdown && costBreakdown.totalCost > 0 && (

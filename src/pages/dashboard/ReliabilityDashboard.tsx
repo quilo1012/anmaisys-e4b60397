@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -242,12 +242,30 @@ export default function ReliabilityDashboard() {
 
         {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-5">
-          <Card><CardContent className="p-4"><div className="text-2xl font-bold">{totalMachines}</div><p className="text-xs text-muted-foreground">Total Machines</p></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-2xl font-bold">{totalWOs}</div><p className="text-xs text-muted-foreground">WOs (Period)</p></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-2xl font-bold">{filteredRisks.filter((r) => r.risk === "HIGH").length}</div><p className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-red-500" />High Risk</p></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-2xl font-bold">{avgMTTR} min</div><p className="text-xs text-muted-foreground">Avg MTTR</p></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-2xl font-bold">{avgMTBF} hrs</div><p className="text-xs text-muted-foreground">Avg MTBF</p></CardContent></Card>
+          {[
+            { label: "Total Machines", value: totalMachines, icon: Cog, tint: "text-sky-500", bg: "bg-sky-500/10" },
+            { label: "WOs (Period)", value: totalWOs, icon: Activity, tint: "text-violet-500", bg: "bg-violet-500/10" },
+            { label: "High Risk", value: filteredRisks.filter((r) => r.risk === "HIGH").length, icon: AlertTriangle, tint: "text-red-500", bg: "bg-red-500/10" },
+            { label: "Avg MTTR", value: `${avgMTTR} min`, icon: Clock, tint: "text-amber-500", bg: "bg-amber-500/10" },
+            { label: "Avg MTBF", value: `${avgMTBF} hrs`, icon: TrendingUp, tint: "text-emerald-500", bg: "bg-emerald-500/10" },
+          ].map((k) => (
+            <Card key={k.label}>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className={cn("rounded-lg p-2", k.bg)}>
+                  <k.icon className={cn("h-5 w-5", k.tint)} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-2xl font-bold leading-tight truncate">{k.value}</div>
+                  <p className="text-xs text-muted-foreground">{k.label}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
+
+        {/* Failure Heatmap: Machine × Weekday */}
+        <FailureHeatmap workOrders={filteredWOs} />
+
 
         {/* Machine Problem History */}
         <Card>
@@ -434,3 +452,79 @@ export default function ReliabilityDashboard() {
     </DashboardLayout>
   );
 }
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function FailureHeatmap({ workOrders }: { workOrders: Array<{ machine: string; created_at: string }> }) {
+  const { rows, max } = useMemo(() => {
+    const map: Record<string, number[]> = {};
+    workOrders.forEach((w) => {
+      if (!map[w.machine]) map[w.machine] = [0, 0, 0, 0, 0, 0, 0];
+      const d = new Date(w.created_at).getDay(); // 0=Sun..6=Sat
+      const idx = d === 0 ? 6 : d - 1; // Mon..Sun
+      map[w.machine][idx]++;
+    });
+    const rows = Object.entries(map)
+      .map(([machine, days]) => ({ machine, days, total: days.reduce((a, b) => a + b, 0) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 12);
+    const max = Math.max(1, ...rows.flatMap((r) => r.days));
+    return { rows, max };
+  }, [workOrders]);
+
+  const cellColor = (n: number) => {
+    if (n === 0) return "bg-muted/40 text-muted-foreground";
+    const ratio = n / max;
+    if (ratio >= 0.66) return "bg-red-500/90 text-white";
+    if (ratio >= 0.33) return "bg-amber-500/80 text-white";
+    return "bg-emerald-500/70 text-white";
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <TrendingUp className="h-4 w-4" /> Failure Heatmap — Machine × Weekday
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-muted-foreground text-sm text-center py-4">No data for selected period</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <div className="inline-grid gap-1" style={{ gridTemplateColumns: `minmax(140px,1fr) repeat(7, 44px) 60px` }}>
+              <div />
+              {WEEKDAYS.map((d) => (
+                <div key={d} className="text-[11px] font-medium text-center text-muted-foreground">{d}</div>
+              ))}
+              <div className="text-[11px] font-medium text-center text-muted-foreground">Total</div>
+              {rows.map((r) => (
+                <Fragment key={r.machine}>
+                  <div className="text-xs font-medium truncate pr-2 self-center" title={r.machine}>{r.machine}</div>
+                  {r.days.map((n, i) => (
+                    <div
+                      key={i}
+                      className={cn("h-9 rounded flex items-center justify-center text-xs font-semibold", cellColor(n))}
+                      title={`${r.machine} — ${WEEKDAYS[i]}: ${n}`}
+                    >
+                      {n || ""}
+                    </div>
+                  ))}
+                  <div className="h-9 rounded bg-secondary flex items-center justify-center text-xs font-bold">{r.total}</div>
+                </Fragment>
+              ))}
+            </div>
+            <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
+              <span>Legend:</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-muted/40 border" />0</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-500/70" />Low</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-amber-500/80" />Mid</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-red-500/90" />High</span>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
