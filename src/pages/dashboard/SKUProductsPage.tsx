@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Trash2, Pencil, Upload, Search, Download } from "lucide-react";
 import { toast } from "sonner";
 
-interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; active: boolean }
+interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; weight: number | null; active: boolean }
 
 type SkuImportRow = {
   code: string;
