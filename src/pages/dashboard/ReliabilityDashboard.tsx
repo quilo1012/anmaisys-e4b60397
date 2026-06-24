@@ -242,12 +242,30 @@ export default function ReliabilityDashboard() {
 
         {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-5">
-          <Card><CardContent className="p-4"><div className="text-2xl font-bold">{totalMachines}</div><p className="text-xs text-muted-foreground">Total Machines</p></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-2xl font-bold">{totalWOs}</div><p className="text-xs text-muted-foreground">WOs (Period)</p></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-2xl font-bold">{filteredRisks.filter((r) => r.risk === "HIGH").length}</div><p className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-red-500" />High Risk</p></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-2xl font-bold">{avgMTTR} min</div><p className="text-xs text-muted-foreground">Avg MTTR</p></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-2xl font-bold">{avgMTBF} hrs</div><p className="text-xs text-muted-foreground">Avg MTBF</p></CardContent></Card>
+          {[
+            { label: "Total Machines", value: totalMachines, icon: Cog, tint: "text-sky-500", bg: "bg-sky-500/10" },
+            { label: "WOs (Period)", value: totalWOs, icon: Activity, tint: "text-violet-500", bg: "bg-violet-500/10" },
+            { label: "High Risk", value: filteredRisks.filter((r) => r.risk === "HIGH").length, icon: AlertTriangle, tint: "text-red-500", bg: "bg-red-500/10" },
+            { label: "Avg MTTR", value: `${avgMTTR} min`, icon: Clock, tint: "text-amber-500", bg: "bg-amber-500/10" },
+            { label: "Avg MTBF", value: `${avgMTBF} hrs`, icon: TrendingUp, tint: "text-emerald-500", bg: "bg-emerald-500/10" },
+          ].map((k) => (
+            <Card key={k.label}>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className={cn("rounded-lg p-2", k.bg)}>
+                  <k.icon className={cn("h-5 w-5", k.tint)} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-2xl font-bold leading-tight truncate">{k.value}</div>
+                  <p className="text-xs text-muted-foreground">{k.label}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
+
+        {/* Failure Heatmap: Machine × Weekday */}
+        <FailureHeatmap workOrders={filteredWOs} />
+
 
         {/* Machine Problem History */}
         <Card>
