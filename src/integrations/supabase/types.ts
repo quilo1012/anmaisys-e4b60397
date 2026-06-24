@@ -1088,6 +1088,131 @@ export type Database = {
         }
         Relationships: []
       }
+      production_items: {
+        Row: {
+          actual_qty: number
+          created_at: string
+          id: string
+          notes: string | null
+          planned_qty: number
+          session_id: string
+          sku_id: string
+          updated_at: string
+        }
+        Insert: {
+          actual_qty?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          planned_qty?: number
+          session_id: string
+          sku_id: string
+          updated_at?: string
+        }
+        Update: {
+          actual_qty?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          planned_qty?: number
+          session_id?: string
+          sku_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_items_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "production_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_items_sku_id_fkey"
+            columns: ["sku_id"]
+            isOneToOne: false
+            referencedRelation: "sku_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_sessions: {
+        Row: {
+          created_at: string
+          finished_at: string | null
+          id: string
+          line: string
+          notes: string | null
+          session_date: string
+          shift: string
+          started_at: string
+          started_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          line: string
+          notes?: string | null
+          session_date: string
+          shift: string
+          started_at?: string
+          started_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          line?: string
+          notes?: string | null
+          session_date?: string
+          shift?: string
+          started_at?: string
+          started_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      production_targets: {
+        Row: {
+          created_at: string
+          id: string
+          line: string
+          shift: string
+          sku_id: string
+          target_qty: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          line: string
+          shift: string
+          sku_id: string
+          target_qty?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          line?: string
+          shift?: string
+          sku_id?: string
+          target_qty?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_targets_sku_id_fkey"
+            columns: ["sku_id"]
+            isOneToOne: false
+            referencedRelation: "sku_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           category: string
@@ -1282,6 +1407,117 @@ export type Database = {
           p256dh?: string
           user_agent?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      quality_action_types: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quality_actions: {
+        Row: {
+          action_type_id: string
+          created_at: string
+          description: string | null
+          id: string
+          line: string | null
+          recorded_at: string
+          recorded_by: string | null
+          session_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          action_type_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          line?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          session_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action_type_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          line?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          session_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_actions_action_type_id_fkey"
+            columns: ["action_type_id"]
+            isOneToOne: false
+            referencedRelation: "quality_action_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quality_actions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "production_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sku_products: {
+        Row: {
+          active: boolean
+          category: string | null
+          code: string
+          created_at: string
+          id: string
+          name: string
+          target_per_hour: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          target_per_hour?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          target_per_hour?: number
+          updated_at?: string
         }
         Relationships: []
       }
