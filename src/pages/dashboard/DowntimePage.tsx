@@ -491,7 +491,7 @@ export default function DowntimePage() {
         </div>
 
         {/* Day / Night shift breakdown (Europe/London) */}
-        <ShiftBreakdownCard />
+        <ShiftBreakdownCard date={endDate} onDateChange={(d) => { setEndDate(d); setDatePreset("custom"); }} />
 
         {/* Reliability KPIs */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

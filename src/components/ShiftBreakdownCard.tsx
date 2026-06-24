@@ -129,8 +129,19 @@ function ShiftPanel({ shift, events, windowStart, windowEnd }: ShiftPanelProps) 
   );
 }
 
-export function ShiftBreakdownCard() {
-  const [date, setDate] = useState<Date>(new Date());
+interface ShiftBreakdownCardProps {
+  /** Optional controlled date. When provided, the card follows this date instead of its own state. */
+  date?: Date;
+  onDateChange?: (d: Date) => void;
+}
+
+export function ShiftBreakdownCard({ date: externalDate, onDateChange }: ShiftBreakdownCardProps = {}) {
+  const [internalDate, setInternalDate] = useState<Date>(new Date());
+  const date = externalDate ?? internalDate;
+  const setDate = (d: Date) => {
+    if (onDateChange) onDateChange(d);
+    if (externalDate === undefined) setInternalDate(d);
+  };
   const dateISO = toLondonISODate(date);
   const { data, isLoading } = useShiftDowntime(dateISO);
   const { dayStart, dayEnd, nightStart, nightEnd } = getShiftWindows(dateISO);
