@@ -145,22 +145,23 @@ export default function DowntimePage() {
   // ── Downtime KPIs ─────────────────────────────────────────────
   const kpis = useMemo(() => {
     const now = new Date();
-    const todayStart = startOfDay(now);
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const monthStart = startOfMonth(now);
 
     const safeRecords = records || [];
 
     // Shared reconciliation — same math as Shift Breakdown.
-    const dayStartMs = todayStart.getTime();
+    // Follows the page date filter so the KPI matches the records shown below.
+    const rangeStartMs = startOfDay(startDate).getTime();
+    const rangeEndMs = Math.min(endOfDay(endDate).getTime(), Date.now());
     const nowMs = now.getTime();
-    const totalToday = reconcileMinutes(
+    const totalRange = reconcileMinutes(
       [
         ...safeRecords.map((r) => ({ start: r.started_at, end: r.ended_at })),
         ...woMetrics.map((m) => ({ start: m.line_stopped_at, end: m.line_resumed_at })),
       ],
-      dayStartMs,
-      nowMs,
+      rangeStartMs,
+      rangeEndMs,
       nowMs,
     );
 
@@ -178,8 +179,9 @@ export default function DowntimePage() {
     monthRecords.forEach(r => { lineCount[r.line] = (lineCount[r.line] || 0) + 1; });
     const mostAffected = Object.entries(lineCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
 
-    return { totalToday, active, avgDuration, mostAffected };
-  }, [records, woMetrics]);
+    return { totalRange, active, avgDuration, mostAffected };
+  }, [records, woMetrics, startDate, endDate]);
+
 
   const filteredRecords = useMemo(() => {
     if (!records) return [];
