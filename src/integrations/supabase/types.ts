@@ -2305,6 +2305,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      import_sku_products: { Args: { _rows: Json }; Returns: Json }
       list_active_profile_names: {
         Args: never
         Returns: {
