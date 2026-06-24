@@ -1488,6 +1488,39 @@ export type Database = {
           },
         ]
       }
+      shift_report_settings: {
+        Row: {
+          day_enabled: boolean
+          extra_recipients: string[]
+          id: string
+          include_admins_managers: boolean
+          last_sent_day_at: string | null
+          last_sent_night_at: string | null
+          night_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          day_enabled?: boolean
+          extra_recipients?: string[]
+          id?: string
+          include_admins_managers?: boolean
+          last_sent_day_at?: string | null
+          last_sent_night_at?: string | null
+          night_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          day_enabled?: boolean
+          extra_recipients?: string[]
+          id?: string
+          include_admins_managers?: boolean
+          last_sent_day_at?: string | null
+          last_sent_night_at?: string | null
+          night_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sku_products: {
         Row: {
           active: boolean
