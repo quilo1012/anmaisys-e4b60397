@@ -579,13 +579,38 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-base">Machines with Most Downtime</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Machines with Most Downtime</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">Stacked by shift (Europe/London). Hover to see lines affected.</p>
+            </CardHeader>
             <CardContent>
               {!downtimeByMachine.length ? (
                 <EmptyChart />
               ) : (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={downtimeByMachine} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} /><Tooltip formatter={(v: number) => `${v} min`} /><Bar dataKey="minutes" fill="#ef4444" name="Downtime (min)" radius={[0, 4, 4, 0]} /></BarChart>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={downtimeByMachine} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" allowDecimals={false} />
+                    <YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} />
+                    <Tooltip
+                      content={({ active, payload }: any) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div className="rounded-md border bg-background p-2 text-xs shadow-md">
+                            <div className="font-medium mb-1">{d.machine}</div>
+                            <div>Day shift: {d.day} min</div>
+                            <div>Night shift: {d.night} min</div>
+                            <div className="font-medium mt-1">Total: {d.total} min</div>
+                            <div className="mt-1 text-muted-foreground">Lines: {d.lines}</div>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="day" stackId="s" fill="#f59e0b" name="Day shift (06–18)" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="night" stackId="s" fill="#6366f1" name="Night shift (18–06)" radius={[0, 4, 4, 0]} />
+                  </BarChart>
                 </ResponsiveContainer>
               )}
             </CardContent>
