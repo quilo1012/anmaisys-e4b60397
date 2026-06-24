@@ -112,6 +112,7 @@ export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOSt
     },
     enabled: !!user,
     refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 
   useEffect(() => {

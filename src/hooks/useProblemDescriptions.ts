@@ -22,6 +22,7 @@ export function useProblemDescriptions() {
       if (error) throw error;
       return data as ProblemDescription[];
     },
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -37,6 +38,7 @@ export function useActiveProblemDescriptions() {
       if (error) throw error;
       return data as ProblemDescription[];
     },
+    staleTime: 5 * 60_000,
   });
 }
 

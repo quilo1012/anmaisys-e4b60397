@@ -18,6 +18,7 @@ export function useLineProblemDescriptions() {
       if (error) throw error;
       return (data || []) as LineProblemLink[];
     },
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -52,6 +53,7 @@ export function useActiveProblemsForLine(lineId: string | null | undefined) {
       return (allProblems || []).filter((p: any) => allowed.has(p.id));
     },
     enabled: true,
+    staleTime: 5 * 60_000,
   });
 }
 

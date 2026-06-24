@@ -24,7 +24,8 @@ import { format, subDays, startOfDay, endOfDay, startOfMonth, differenceInMinute
 import { exportWorkOrdersCsv } from "@/lib/exportCsv";
 import { useToast } from "@/hooks/use-toast";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
-import { generatePdfReport, authorizePdfGeneration } from "@/lib/generatePdfReport";
+// jsPDF is lazy-loaded inside the PDF button handler to keep it out of the initial bundle.
+import { authorizePdfGeneration } from "@/lib/generatePdfReport";
 import { FileText } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
@@ -422,6 +423,7 @@ export default function WorkOrdersPage() {
                   const engPerf = engineerScores?.map((s) => ({ name: s.engineer_name || "Unknown", score: s.score, completed: 0 })) || [];
                   const openWOs = allWOs.filter((w) => isWoOpen(w.status)).length;
                   try {
+                    const { generatePdfReport } = await import("@/lib/generatePdfReport");
                     generatePdfReport({
                       workOrders: allWOs,
                       machineLineMap,

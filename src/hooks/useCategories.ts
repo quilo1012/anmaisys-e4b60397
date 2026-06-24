@@ -18,6 +18,7 @@ export function useCategories() {
       if (error) throw error;
       return data as ProductCategory[];
     },
+    staleTime: 5 * 60_000,
   });
 }
 

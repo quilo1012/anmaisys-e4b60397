@@ -67,6 +67,7 @@ export function useLines() {
       if (error) throw error;
       return data as Line[];
     },
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -89,6 +90,7 @@ export function useDistinctMachineValues() {
         locations: Array.from(locations).sort(),
       };
     },
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -103,6 +105,7 @@ export function useMachines() {
       if (error) throw error;
       return data as unknown as Machine[];
     },
+    staleTime: 5 * 60_000,
   });
 }
 
