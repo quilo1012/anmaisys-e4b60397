@@ -1,6 +1,7 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { TeamsSetupCard } from "@/components/TeamsSetupCard";
 import { WeeklyReportCard } from "@/components/WeeklyReportCard";
+import { ExcelExportCard } from "@/components/ExcelExportCard";
 import { Settings as SettingsIcon } from "lucide-react";
 
 export default function SettingsPage() {
