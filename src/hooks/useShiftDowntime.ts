@@ -61,14 +61,27 @@ export function useShiftDowntime(dateISO: string) {
     queryFn: async (): Promise<ShiftDowntimeData> => {
       const { dayStart, nightEnd } = getShiftWindows(dateISO);
 
-      // 1) Per-WO downtime events (new model)
-      const { data: dtData, error: dtErr } = await (supabase as any)
-        .from("downtime_events")
-        .select("*, work_order:work_orders(machine, line_at_time, line:lines!work_orders_line_id_fkey(name))")
-        .lt("stopped_at", nightEnd.toISOString())
-        .or(`resumed_at.gte.${dayStart.toISOString()},resumed_at.is.null`)
-        .order("stopped_at", { ascending: true });
-      if (dtErr) throw dtErr;
+      // 1) Per-WO downtime events (new model) + manual downtime records.
+      // Keep this source set aligned with useDowntime(), otherwise Shift Breakdown
+      // and Downtime Records can legitimately show different totals.
+      const [dtRes, manualRes] = await Promise.all([
+        (supabase as any)
+          .from("downtime_events")
+          .select("*, work_order:work_orders(machine, line_at_time, line:lines!work_orders_line_id_fkey(name))")
+          .lt("stopped_at", nightEnd.toISOString())
+          .or(`resumed_at.gte.${dayStart.toISOString()},resumed_at.is.null`)
+          .order("stopped_at", { ascending: true }),
+        (supabase as any)
+          .from("downtime")
+          .select("*")
+          .lt("started_at", nightEnd.toISOString())
+          .or(`ended_at.gte.${dayStart.toISOString()},ended_at.is.null`)
+          .order("started_at", { ascending: true }),
+      ]);
+      if (dtRes.error) throw dtRes.error;
+      if (manualRes.error) throw manualRes.error;
+
+      const dtData = dtRes.data || [];
       const events = (dtData || []).map((event: any) => ({
         ...event,
         machine: event.work_order?.machine ?? null,
@@ -76,6 +89,24 @@ export function useShiftDowntime(dateISO: string) {
         line_name: event.work_order?.line?.name || null,
       })) as DowntimeEvent[];
       const woIdsWithEvents = new Set(events.map((e) => e.work_order_id));
+
+      const manualEvents = (manualRes.data || []).map((r: any) => ({
+        id: `manual-${r.id}`,
+        work_order_id: r.work_order_id || `manual-${r.id}`,
+        stopped_at: r.started_at,
+        stopped_by: r.reported_by,
+        stopped_by_name: null,
+        stopped_reason: r.reason || null,
+        resumed_at: r.ended_at,
+        resumed_by: null,
+        resumed_by_name: null,
+        resumed_note: r.notes || null,
+        duration_minutes: null,
+        created_at: r.created_at,
+        machine: r.machine || null,
+        line_at_time: r.line || null,
+        line_name: r.line || null,
+      })) as DowntimeEvent[];
 
       // 2) Fallback: legacy work_orders with line_stopped_at populated but no event row
       const { data: woData, error: woErr } = await (supabase as any)
@@ -107,7 +138,7 @@ export function useShiftDowntime(dateISO: string) {
           line_name: w.line?.name || null,
         } as any));
 
-      return splitByShift([...events, ...synthetic], dateISO);
+      return splitByShift([...events, ...synthetic, ...manualEvents], dateISO);
     },
     refetchInterval: 30_000,
   });

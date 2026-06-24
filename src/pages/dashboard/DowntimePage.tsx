@@ -24,7 +24,6 @@ import { useDowntime, useCreateDowntime, useUpdateDowntime, useDeleteDowntime, t
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines, useLines } from "@/hooks/useMachines";
 import { useRecentMachineEvents } from "@/hooks/useMachineEvents";
-import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { type RiskLevel } from "@/hooks/usePredictiveAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -56,7 +55,6 @@ export default function DowntimePage() {
   const { data: machines } = useMachines();
   const { data: linesData } = useLines();
   const { data: machineEvents } = useRecentMachineEvents();
-  const { data: woMetrics = [] } = useAllWoMetrics();
   const createDowntime = useCreateDowntime();
   const updateDowntime = useUpdateDowntime();
   const deleteDowntime = useDeleteDowntime();
@@ -151,18 +149,13 @@ export default function DowntimePage() {
     const nowMs = Date.now();
 
     const totalRange = reconcileMinutes(
-      [
-        ...safeRecords.map((r) => ({ start: r.started_at, end: r.ended_at })),
-        ...woMetrics.map((m) => ({ start: m.line_stopped_at, end: m.line_resumed_at })),
-      ],
+      safeRecords.map((r) => ({ start: r.started_at, end: r.ended_at })),
       rangeStartMs,
       rangeEndMs,
       nowMs,
     );
 
-    const manualActive = safeRecords.filter(r => !r.ended_at).length;
-    const woActive = woMetrics.filter(m => m.line_stopped_at && !m.line_resumed_at).length;
-    const active = manualActive + woActive;
+    const active = safeRecords.filter(r => !r.ended_at).length;
 
     // Average duration over the selected range (resolved records only)
     const inRange = safeRecords.filter(r => {
@@ -183,7 +176,7 @@ export default function DowntimePage() {
     const mostAffected = Object.entries(lineCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
 
     return { totalRange, active, avgDuration, mostAffected };
-  }, [records, woMetrics, startDate, endDate]);
+  }, [records, startDate, endDate]);
 
 
   const filteredRecords = useMemo(() => {
