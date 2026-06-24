@@ -1,0 +1,42 @@
+name: downtimeReliability coverage
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run downtimeReliability tests with coverage
+        run: bunx vitest run src/lib/downtimeReliability.test.ts --coverage --coverage.reporter=text --coverage.reporter=html --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/downtimeReliability
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: downtime-reliability-coverage
+          path: coverage/downtimeReliability
+          retention-days: 30
+
+      - name: PR coverage summary
+        if: github.event_name == 'pull_request' && always()
+        run: |
+          echo "## downtimeReliability coverage" >> $GITHUB_STEP_SUMMARY
+          if [ -f coverage/downtimeReliability/coverage-summary.json ]; then
+            node -e "const s=require('./coverage/downtimeReliability/coverage-summary.json').total;console.log(['| Metric | % | Covered/Total |','|---|---|---|',['statements','branches','functions','lines'].map(k=>\`| \${k} | \${s[k].pct}% | \${s[k].covered}/\${s[k].total} |\`).join('\\n')].join('\\n'))" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "_No coverage summary produced._" >> $GITHUB_STEP_SUMMARY
+          fi
