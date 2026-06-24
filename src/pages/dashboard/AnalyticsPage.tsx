@@ -14,6 +14,8 @@ import { useMachines, useLines } from "@/hooks/useMachines";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
 import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { differenceInMinutes, format, subDays, startOfDay, endOfDay } from "date-fns";
+import { useDowntime } from "@/hooks/useDowntime";
+import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList } from "recharts";
@@ -279,15 +281,21 @@ export default function AnalyticsPage() {
       .slice(0, 10);
   }, [allWOs, metricsById, lineNameById]);
 
+  const { data: downtimeRecords } = useDowntime();
+
+  // Aligned with Downtime page (parallel stoppages counted once).
   const totalDowntimeMinutes = useMemo(() => {
-    if (!allWOs) return 0;
-    let total = 0;
-    allWOs.filter((w) => DONE_STATUSES.includes(w.status)).forEach((wo) => {
-      const m = metricsById.get(wo.id);
-      if (m && typeof m.active_repair_sec === "number") total += m.active_repair_sec / 60;
-    });
-    return Math.round(total);
-  }, [allWOs, metricsById]);
+    const recs = downtimeRecords || [];
+    const rangeStartMs = startOfDay(startDate).getTime();
+    const rangeEndMs = Math.min(endOfDay(endDate).getTime(), Date.now());
+    return reconcileMinutes(
+      recs.map((r) => ({ start: r.started_at, end: r.ended_at })),
+      rangeStartMs,
+      rangeEndMs,
+      Date.now(),
+    );
+  }, [downtimeRecords, startDate, endDate]);
+
 
   const mostAffectedLine = useMemo(() => {
     if (!allWOs) return null;
@@ -493,7 +501,7 @@ export default function AnalyticsPage() {
             <CardContent>
               <div className="text-2xl font-bold">{formatMinutes(totalDowntimeMinutes)}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {hasNoActivity ? "No activity in selected period" : "Sum of active repair time across completed WOs"}
+                {hasNoActivity ? "No activity in selected period" : "Wall-clock line stoppage (parallel stoppages counted once)"}
               </p>
             </CardContent>
           </Card>
