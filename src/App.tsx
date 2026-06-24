@@ -32,6 +32,10 @@ const IntouchIntegrationPage = lazy(() => import("./pages/dashboard/IntouchInteg
 const PreventiveMaintenancePage = lazy(() => import("./pages/dashboard/PreventiveMaintenancePage"));
 const SettingsPage = lazy(() => import("./pages/dashboard/SettingsPage"));
 const SuppliersPage = lazy(() => import("./pages/dashboard/SuppliersPage"));
+const ProductionPlannerPage = lazy(() => import("./pages/dashboard/ProductionPlannerPage"));
+const SKUProductsPage = lazy(() => import("./pages/dashboard/SKUProductsPage"));
+const ProductionPerformancePage = lazy(() => import("./pages/dashboard/ProductionPerformancePage"));
+const QualityActionsPage = lazy(() => import("./pages/dashboard/QualityActionsPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
