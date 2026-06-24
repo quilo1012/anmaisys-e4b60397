@@ -97,6 +97,7 @@ function ManagerDashboardContent() {
   const { data: products } = useProducts();
   const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("7d");
   const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("7d"));
+  const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
   const { data: downtimeRecords } = useDowntime();
   const { role } = useAuth();
   const navigate = useNavigate();
