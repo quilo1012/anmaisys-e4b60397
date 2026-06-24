@@ -223,10 +223,9 @@ export default function SKUProductsPage() {
               <DialogContent>
                 <DialogHeader><DialogTitle>{editing?.id ? "Edit SKU" : "New SKU"}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
-                  <div><Label>Code</Label><Input value={editing?.code ?? ""} onChange={(e) => setEditing({ ...editing, code: e.target.value })} /></div>
-                  <div><Label>Name</Label><Input value={editing?.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
-                  <div><Label>Category</Label><Input value={editing?.category ?? ""} onChange={(e) => setEditing({ ...editing, category: e.target.value })} /></div>
-                  <div><Label>Target / hour</Label><Input type="number" value={editing?.target_per_hour ?? ""} onChange={(e) => setEditing({ ...editing, target_per_hour: e.target.value ? +e.target.value : null })} /></div>
+                  <div><Label>SKU</Label><Input value={editing?.code ?? ""} onChange={(e) => setEditing({ ...editing, code: e.target.value })} /></div>
+                  <div><Label>Product</Label><Input value={editing?.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
+                  <div><Label>Weight</Label><Input type="number" step="0.001" value={editing?.weight ?? ""} onChange={(e) => setEditing({ ...editing, weight: e.target.value ? +e.target.value : null })} /></div>
                 </div>
                 <DialogFooter><Button onClick={() => editing && save.mutate(editing)} disabled={save.isPending || !editing?.code || !editing?.name}>Save</Button></DialogFooter>
               </DialogContent>
