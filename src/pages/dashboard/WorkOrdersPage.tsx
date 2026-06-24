@@ -29,23 +29,17 @@ import { FileText } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { WO_TERMINAL_STATUSES, isWoOpen } from "@/lib/woStatus";
+import { getWoStatusConfig } from "@/lib/woStatusConfig";
 
-const statusConfig: Record<string, { label: string; className: string }> = {
-  open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
-  received: { label: "Received", className: "bg-indigo-100 text-indigo-800 border-indigo-200" },
-  arrived: { label: "Arrived", className: "bg-purple-100 text-purple-800 border-purple-200" },
-  in_progress: { label: "In Progress", className: "bg-amber-100 text-amber-800 border-amber-200" },
-  finished: { label: "Finished", className: "bg-teal-100 text-teal-800 border-teal-200" },
-  closed: { label: "Closed", className: "bg-green-100 text-green-800 border-green-200" },
-  completed: { label: "Completed", className: "bg-green-100 text-green-800 border-green-200" },
-  force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
-};
+const statusConfig = new Proxy({} as Record<string, { label: string; className: string }>, {
+  get: (_t, key: string) => getWoStatusConfig(key),
+});
 
 const priorityConfig: Record<string, { label: string; className: string }> = {
-  low: { label: "Low", className: "bg-slate-100 text-slate-700" },
-  medium: { label: "Medium", className: "bg-blue-100 text-blue-700" },
-  high: { label: "High", className: "bg-orange-100 text-orange-700" },
-  critical: { label: "Critical", className: "bg-red-100 text-red-700" },
+  low: { label: "Low", className: "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30" },
+  medium: { label: "Medium", className: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" },
+  high: { label: "High", className: "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30" },
+  critical: { label: "Critical", className: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30" },
 };
 
 const ITEMS_PER_PAGE = 20;
