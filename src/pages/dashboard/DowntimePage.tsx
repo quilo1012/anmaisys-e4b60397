@@ -673,16 +673,7 @@ export default function DowntimePage() {
         {/* Machine Problem History */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Machine Problem History</CardTitle>
-              <Tabs value={historyPeriod} onValueChange={(v) => setHistoryPeriod(v as "today" | "week" | "month")}>
-                <TabsList>
-                  <TabsTrigger value="today">Today</TabsTrigger>
-                  <TabsTrigger value="week">This Week</TabsTrigger>
-                  <TabsTrigger value="month">This Month</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
+            <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Machine Problem History</CardTitle>
           </CardHeader>
           <CardContent>
             {machineHistory.length === 0 ? (
@@ -693,9 +684,7 @@ export default function DowntimePage() {
                   <TableRow>
                     <TableHead>#</TableHead>
                     <TableHead>Machine</TableHead>
-                    <TableHead className="text-center">Today</TableHead>
-                    <TableHead className="text-center">Week</TableHead>
-                    <TableHead className="text-center">Month</TableHead>
+                    <TableHead className="text-center">Failures</TableHead>
                     <TableHead>Top Problem</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -704,9 +693,7 @@ export default function DowntimePage() {
                     <TableRow key={m.machine}>
                       <TableCell className="font-medium text-muted-foreground">{i + 1}</TableCell>
                       <TableCell className="font-medium">{m.machine}</TableCell>
-                      <TableCell className="text-center"><Badge variant={m.today > 0 ? "destructive" : "secondary"}>{m.today}</Badge></TableCell>
-                      <TableCell className="text-center"><Badge variant={m.week >= 3 ? "destructive" : "secondary"}>{m.week}</Badge></TableCell>
-                      <TableCell className="text-center"><Badge variant={m.month >= 5 ? "destructive" : "secondary"}>{m.month}</Badge></TableCell>
+                      <TableCell className="text-center"><Badge variant={m.count >= 5 ? "destructive" : "secondary"}>{m.count}</Badge></TableCell>
                       <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]" title={m.topProblem}>
                         {m.topProblem} {m.topProblemCount > 1 && <span className="text-xs">(×{m.topProblemCount})</span>}
                       </TableCell>
