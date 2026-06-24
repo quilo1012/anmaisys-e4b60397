@@ -1653,6 +1653,42 @@ export type Database = {
         }
         Relationships: []
       }
+      teams_webhook_logs: {
+        Row: {
+          attempts: number
+          created_at: string
+          error_message: string | null
+          event: string
+          id: string
+          response_body: string | null
+          status_code: number | null
+          success: boolean
+          title: string | null
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          event: string
+          id?: string
+          response_body?: string | null
+          status_code?: number | null
+          success: boolean
+          title?: string | null
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          event?: string
+          id?: string
+          response_body?: string | null
+          status_code?: number | null
+          success?: boolean
+          title?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
