@@ -25,7 +25,7 @@ export function useDowntime() {
         supabase.from("downtime" as any).select("*").order("started_at", { ascending: false }),
         (supabase as any)
           .from("downtime_events")
-          .select("*, work_order:work_orders(wo_number, machine, line_at_time, line:lines(name))")
+          .select("*, work_order:work_orders(wo_number, machine, line_at_time, line:lines!work_orders_line_id_fkey(name))")
           .order("stopped_at", { ascending: false }),
       ]);
       if (manualError) throw manualError;
