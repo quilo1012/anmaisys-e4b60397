@@ -30,6 +30,7 @@ const ManageUsers = lazy(() => import("./pages/users/ManageUsers"));
 const DowntimePage = lazy(() => import("./pages/dashboard/DowntimePage"));
 const IntouchIntegrationPage = lazy(() => import("./pages/dashboard/IntouchIntegrationPage"));
 const PreventiveMaintenancePage = lazy(() => import("./pages/dashboard/PreventiveMaintenancePage"));
+const SettingsPage = lazy(() => import("./pages/dashboard/SettingsPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -248,6 +249,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin"]}>
                       <ManageUsers />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/settings"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <SettingsPage />
                     </ProtectedRoute>
                   }
                 />
