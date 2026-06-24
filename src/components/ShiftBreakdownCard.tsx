@@ -187,9 +187,11 @@ export function ShiftBreakdownCard() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Day/Night downtime per machine — Europe/London time. Current shift:{" "}
+          Day/Night downtime per machine — Europe/London time. Total = wall-clock
+          (parallel stoppages counted once). Current shift:{" "}
           <span className="font-semibold capitalize">{shift}</span>.
         </p>
+
       </CardHeader>
       <CardContent>
         {isLoading ? (
