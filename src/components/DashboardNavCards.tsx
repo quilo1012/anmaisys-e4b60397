@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   ClipboardList, Cog, Users, BarChart3, Briefcase, DollarSign,
   Monitor, Shield, Package, AlertCircle, Clock, LayoutDashboard,
-  Plus, Wrench, Radio,
+  Plus, Wrench, Radio, Truck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -84,6 +84,7 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
     { title: "Control Center", description: "Live operations display", url: "/dashboard/control-center", icon: Monitor, accent: OPS },
     { title: "Analytics", description: "Performance metrics and trends", url: "/dashboard/analytics", icon: BarChart3, accent: REPORTS },
     { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package, accent: ASSETS },
+    { title: "Suppliers", description: "Vendors and purchase orders", url: "/dashboard/suppliers", icon: Truck, accent: ASSETS },
     { title: "Problems", description: "Catalog of standard issues", url: "/dashboard/problems", icon: AlertCircle, accent: ASSETS },
   ];
   if (role === "admin") {
