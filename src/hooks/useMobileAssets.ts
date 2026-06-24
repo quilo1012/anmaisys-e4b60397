@@ -25,6 +25,7 @@ export function useMobileAssets() {
       if (error) throw error;
       return data as MobileAsset[];
     },
+    staleTime: 5 * 60_000,
   });
 }
 
