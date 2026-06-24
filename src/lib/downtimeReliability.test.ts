@@ -185,5 +185,20 @@ describe("buildMachineRisks", () => {
     expect(risks[0].failures30d).toBe(3);
     expect(risks[0].risk).toBe("HIGH");
   });
+
+  it("excludes WOs older than 7 days from the recurring-problem window", () => {
+    const risks = buildMachineRisks(
+      [
+        // Old WO outside the 7-day window — must NOT count toward recurrence
+        wo({ machine: "M1", created_at: iso("2026-06-10T10:00:00Z"), description: "Leak" }),
+        wo({ machine: "M1", created_at: iso("2026-06-23T10:00:00Z"), description: "Leak" }),
+        wo({ machine: "M1", created_at: iso("2026-06-24T10:00:00Z"), description: "Leak" }),
+      ],
+      new Date("2026-06-24T12:00:00Z"),
+    );
+    // Only 2 "Leak" entries fall within 7 days → not recurring
+    expect(risks[0].recurringProblems).toEqual([]);
+  });
 });
+
 
