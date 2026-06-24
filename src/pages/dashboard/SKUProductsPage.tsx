@@ -141,17 +141,23 @@ export default function SKUProductsPage() {
   });
 
   const handleImport = async (file: File) => {
+    if (!confirm("This will DELETE all existing SKUs and replace them with the new CSV. Continue?")) return;
     setImporting(true);
     try {
       const text = await file.text();
       const rows = parseCSV(text);
       if (!rows.length) { toast.error("No valid rows. Use CSV with SKU and Name/Description columns."); return; }
-      const BATCH = 500;
-      let ok = 0;
       const valid = rows
         .filter((r): r is SkuImportRow => !!r.code && !!r.name)
         .map((r) => ({ ...r, target_per_hour: r.target_per_hour ?? 0 }));
       if (!valid.length) { toast.error("No rows with SKU and Name found"); return; }
+
+      // Wipe previous SKUs first
+      const { error: delErr } = await supabase.from("sku_products").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      if (delErr) throw delErr;
+
+      const BATCH = 500;
+      let ok = 0;
       const importSkuProducts = supabase.rpc.bind(supabase) as unknown as (
         fn: "import_sku_products",
         args: { _rows: SkuImportRow[] },
@@ -163,7 +169,7 @@ export default function SKUProductsPage() {
         ok += data?.count ?? slice.length;
       }
       qc.invalidateQueries({ queryKey: ["sku_products_all"] });
-      toast.success(`Imported ${ok} SKUs from ${valid.length} valid rows`);
+      toast.success(`Replaced SKUs — imported ${ok} from ${valid.length} valid rows`);
     } catch (e) {
       const message = (e as Error).message || "CSV import failed";
       toast.error(message.includes("Forbidden") ? "Only Admin or Manager can import SKUs" : message);
