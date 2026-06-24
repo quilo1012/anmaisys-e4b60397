@@ -20,9 +20,9 @@ function parseCSV(text: string): Partial<Sku>[] {
   const clean = text.replace(/^\uFEFF/, "");
   const lines = clean.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length === 0) return [];
-  // Auto-detect delimiter from header line: ; \t , (whichever appears most)
-  const header = lines[0];
-  const counts = { ";": (header.match(/;/g) || []).length, "\t": (header.match(/\t/g) || []).length, ",": (header.match(/,/g) || []).length };
+  // Auto-detect delimiter from the first rows: ; \t , (whichever appears most)
+  const sample = lines.slice(0, 20).join("\n");
+  const counts = { ";": (sample.match(/;/g) || []).length, "\t": (sample.match(/\t/g) || []).length, ",": (sample.match(/,/g) || []).length };
   const delim = (Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]) as string;
   const parseLine = (l: string): string[] => {
     const out: string[] = []; let cur = ""; let q = false;
@@ -34,28 +34,47 @@ function parseCSV(text: string): Partial<Sku>[] {
     }
     out.push(cur); return out.map((s) => s.trim().replace(/^"|"$/g, ""));
   };
-  const headers = parseLine(lines[0]).map((h) => h.toLowerCase());
+  const normalize = (value: string) => value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+  const headers = parseLine(lines[0]).map(normalize);
   const idx = (names: string[]) => headers.findIndex((h) => names.includes(h));
-  const iCode = idx(["sku", "code", "codigo", "código"]);
-  const iName = idx(["name", "produto", "product", "nome"]);
+  const iCode = idx(["sku", "code", "codigo", "cod", "item"]);
+  const iName = idx(["name", "produto", "product", "nome", "descricao", "description", "designacao"]);
   const iCat = idx(["category", "categoria"]);
-  const iTph = idx(["target_per_hour", "target", "tph"]);
-  const seen = new Set<string>();
-  const out: Partial<Sku>[] = [];
-  for (let r = 1; r < lines.length; r++) {
+  const iTph = idx(["target_per_hour", "target", "tph", "target per hour", "objetivo"]);
+  const hasHeader = iCode >= 0 || iName >= 0;
+  const byCode = new Map<string, Partial<Sku>>();
+  const start = hasHeader ? 1 : 0;
+
+  for (let r = start; r < lines.length; r++) {
     const cols = parseLine(lines[r]);
-    const code = iCode >= 0 ? cols[iCode] : "";
-    if (!code || seen.has(code.toLowerCase())) continue;
-    seen.add(code.toLowerCase());
-    out.push({
+    let code = hasHeader && iCode >= 0 ? cols[iCode] : cols[0];
+    let name = hasHeader && iName >= 0 ? cols[iName] : cols[1];
+
+    // ANPlaner exports can contain duplicate code columns: SKU;SKU;Description.
+    if (code && name && normalize(code) === normalize(name) && cols[2]) name = cols[2];
+
+    code = (code ?? "").trim();
+    name = (name ?? "").trim();
+    if (!code) continue;
+
+    const targetValue = iTph >= 0 && cols[iTph] ? Number(String(cols[iTph]).replace(",", ".")) : null;
+    const row: Partial<Sku> = {
       code,
-      name: iName >= 0 ? cols[iName] : "",
+      name,
       category: iCat >= 0 ? cols[iCat] || null : null,
-      target_per_hour: iTph >= 0 && cols[iTph] ? Number(cols[iTph]) : null,
+      target_per_hour: Number.isFinite(targetValue) ? targetValue : 0,
       active: true,
-    });
+    };
+
+    const key = normalize(code);
+    const previous = byCode.get(key);
+    if (!previous || (!previous.name && row.name)) byCode.set(key, row);
   }
-  return out;
+  return Array.from(byCode.values()).filter((row) => row.code && row.name);
 }
 
 export default function SKUProductsPage() {
@@ -118,7 +137,10 @@ export default function SKUProductsPage() {
       if (!rows.length) { toast.error("No valid rows"); return; }
       const BATCH = 100;
       let ok = 0;
-      const valid = rows.filter((r): r is { code: string; name: string; category: string | null; target_per_hour: number | null; active: boolean } => !!r.code && !!r.name);
+      const valid = rows
+        .filter((r): r is { code: string; name: string; category: string | null; target_per_hour: number | null; active: boolean } => !!r.code && !!r.name)
+        .map((r) => ({ ...r, target_per_hour: r.target_per_hour ?? 0 }));
+      if (!valid.length) { toast.error("No rows with SKU and Name found"); return; }
       for (let i = 0; i < valid.length; i += BATCH) {
         const slice = valid.slice(i, i + BATCH);
         const { error } = await supabase.from("sku_products").upsert(slice, { onConflict: "code" });
@@ -153,7 +175,16 @@ export default function SKUProductsPage() {
               <Download className="h-4 w-4 mr-1" />Template CSV
             </Button>
             <label>
-              <input type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleImport(e.target.files[0])} />
+              <input
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) await handleImport(file);
+                  e.currentTarget.value = "";
+                }}
+              />
               <Button variant="outline" disabled={importing} asChild><span><Upload className="h-4 w-4 mr-1" />{importing ? "Importing..." : "Import CSV"}</span></Button>
             </label>
             <Dialog open={open} onOpenChange={setOpen}>
