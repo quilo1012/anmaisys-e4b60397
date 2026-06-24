@@ -113,8 +113,9 @@ export default function SKUProductsPage() {
       if (!rows.length) { toast.error("No valid rows"); return; }
       const BATCH = 100;
       let ok = 0;
-      for (let i = 0; i < rows.length; i += BATCH) {
-        const slice = rows.slice(i, i + BATCH);
+      const valid = rows.filter((r): r is { code: string; name: string; category: string | null; target_per_hour: number | null; active: boolean } => !!r.code && !!r.name);
+      for (let i = 0; i < valid.length; i += BATCH) {
+        const slice = valid.slice(i, i + BATCH);
         const { error } = await supabase.from("sku_products").upsert(slice, { onConflict: "code" });
         if (error) throw error;
         ok += slice.length;
