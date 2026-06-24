@@ -49,13 +49,14 @@ function parseCSV(text: string): Partial<Sku>[] {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "")
     .trim();
   const headers = parseLine(lines[0]).map(normalize);
   const idx = (names: string[]) => headers.findIndex((h) => names.includes(h));
-  const iCode = idx(["sku", "code", "codigo", "cod", "item", "product_code", "product code", "productcode"]);
-  const iName = idx(["name", "produto", "product", "nome", "descricao", "description", "designacao", "product_description", "product description", "productdescription"]);
-  const iCat = idx(["category", "categoria"]);
-  const iTph = idx(["target_per_hour", "target", "tph", "target per hour", "objetivo"]);
+  const iCode = idx(["sku", "code", "codigo", "cod", "item", "productcode", "itemcode", "artigo", "ref", "referencia"]);
+  const iName = idx(["name", "produto", "product", "nome", "descricao", "description", "designacao", "productdescription", "itemname", "itemdescription"]);
+  const iCat = idx(["category", "categoria", "familia", "family"]);
+  const iTph = idx(["targetperhour", "target", "tph", "objetivo"]);
   const hasHeader = iCode >= 0 || iName >= 0;
   const byCode = new Map<string, Partial<Sku>>();
   const start = hasHeader ? 1 : 0;
