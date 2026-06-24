@@ -152,7 +152,7 @@ export default function SKUProductsPage() {
         .filter((r): r is SkuImportRow => !!r.code && !!r.name)
         .map((r) => ({ ...r, target_per_hour: r.target_per_hour ?? 0 }));
       if (!valid.length) { toast.error("No rows with SKU and Name found"); return; }
-      const importSkuProducts = supabase.rpc as unknown as (
+      const importSkuProducts = supabase.rpc.bind(supabase) as unknown as (
         fn: "import_sku_products",
         args: { _rows: SkuImportRow[] },
       ) => Promise<{ data: { count?: number } | null; error: { message: string } | null }>;
