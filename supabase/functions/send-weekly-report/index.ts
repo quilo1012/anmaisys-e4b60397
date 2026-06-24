@@ -129,12 +129,12 @@ Deno.serve(async (req) => {
 
       <h2 style="font-size:14px;margin:18px 0 8px">Top 5 Problem Machines</h2>
       ${topMachines.length ? `<table width="100%" style="border-collapse:collapse;font-size:13px">
-        ${topMachines.map(([m, c]) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${m}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right"><b>${c}</b></td></tr>`).join("")}
+        ${topMachines.map(([m, c]) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${escHtml(m)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right"><b>${c}</b></td></tr>`).join("")}
       </table>` : `<p style="color:#64748b;font-size:13px">No work orders recorded.</p>`}
 
       <h2 style="font-size:14px;margin:18px 0 8px">Preventive Maintenance Due (next 7 days)</h2>
       ${(pms && pms.length) ? `<table width="100%" style="border-collapse:collapse;font-size:13px">
-        ${pms.map((p: any) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${p.name}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;color:#b45309">${new Date(p.next_due_at).toLocaleDateString("en-GB")}</td></tr>`).join("")}
+        ${pms.map((p: any) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${escHtml(p.name)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;color:#b45309">${new Date(p.next_due_at).toLocaleDateString("en-GB")}</td></tr>`).join("")}
       </table>` : `<p style="color:#64748b;font-size:13px">No PMs due this week.</p>`}
     </div>
     <div style="background:#f8fafc;padding:14px 24px;font-size:11px;color:#64748b;text-align:center">
