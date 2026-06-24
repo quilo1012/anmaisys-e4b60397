@@ -1,0 +1,1 @@
+ALTER TABLE public.sku_products ADD COLUMN IF NOT EXISTS weight numeric;

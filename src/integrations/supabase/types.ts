@@ -1570,6 +1570,7 @@ export type Database = {
           name: string
           target_per_hour: number
           updated_at: string
+          weight: number | null
         }
         Insert: {
           active?: boolean
@@ -1580,6 +1581,7 @@ export type Database = {
           name: string
           target_per_hour?: number
           updated_at?: string
+          weight?: number | null
         }
         Update: {
           active?: boolean
@@ -1590,6 +1592,7 @@ export type Database = {
           name?: string
           target_per_hour?: number
           updated_at?: string
+          weight?: number | null
         }
         Relationships: []
       }

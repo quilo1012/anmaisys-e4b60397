@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Trash2, Pencil, Upload, Search, Download } from "lucide-react";
 import { toast } from "sonner";
 
-interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; active: boolean }
+interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; weight: number | null; active: boolean }
 
 type SkuImportRow = {
   code: string;
@@ -117,7 +117,7 @@ export default function SKUProductsPage() {
     mutationFn: async (sku: Partial<Sku>) => {
       const payload = {
         code: sku.code ?? "", name: sku.name ?? "", category: sku.category ?? null,
-        target_per_hour: sku.target_per_hour ?? null, active: sku.active ?? true,
+        target_per_hour: sku.target_per_hour ?? null, weight: sku.weight ?? null, active: sku.active ?? true,
       };
       if (!payload.code || !payload.name) throw new Error("Code and Name required");
       if (sku.id) {
@@ -223,10 +223,9 @@ export default function SKUProductsPage() {
               <DialogContent>
                 <DialogHeader><DialogTitle>{editing?.id ? "Edit SKU" : "New SKU"}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
-                  <div><Label>Code</Label><Input value={editing?.code ?? ""} onChange={(e) => setEditing({ ...editing, code: e.target.value })} /></div>
-                  <div><Label>Name</Label><Input value={editing?.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
-                  <div><Label>Category</Label><Input value={editing?.category ?? ""} onChange={(e) => setEditing({ ...editing, category: e.target.value })} /></div>
-                  <div><Label>Target / hour</Label><Input type="number" value={editing?.target_per_hour ?? ""} onChange={(e) => setEditing({ ...editing, target_per_hour: e.target.value ? +e.target.value : null })} /></div>
+                  <div><Label>SKU</Label><Input value={editing?.code ?? ""} onChange={(e) => setEditing({ ...editing, code: e.target.value })} /></div>
+                  <div><Label>Product</Label><Input value={editing?.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
+                  <div><Label>Weight</Label><Input type="number" step="0.001" value={editing?.weight ?? ""} onChange={(e) => setEditing({ ...editing, weight: e.target.value ? +e.target.value : null })} /></div>
                 </div>
                 <DialogFooter><Button onClick={() => editing && save.mutate(editing)} disabled={save.isPending || !editing?.code || !editing?.name}>Save</Button></DialogFooter>
               </DialogContent>
@@ -243,16 +242,15 @@ export default function SKUProductsPage() {
           </CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Name</TableHead><TableHead>Category</TableHead><TableHead>TPH</TableHead><TableHead>Active</TableHead><TableHead /></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Weight</TableHead><TableHead>Active</TableHead><TableHead /></TableRow></TableHeader>
               <TableBody>
-                {isLoading && <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>}
-                {!isLoading && pageRows.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No SKUs</TableCell></TableRow>}
+                {isLoading && <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow>}
+                {!isLoading && pageRows.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No SKUs</TableCell></TableRow>}
                 {pageRows.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell className="font-mono">{p.code}</TableCell>
                     <TableCell>{p.name}</TableCell>
-                    <TableCell>{p.category ?? "—"}</TableCell>
-                    <TableCell>{p.target_per_hour ?? "—"}</TableCell>
+                    <TableCell>{p.weight ?? "—"}</TableCell>
                     <TableCell>{p.active ? <Badge>Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => { setEditing(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
