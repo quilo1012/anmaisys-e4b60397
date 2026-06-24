@@ -242,16 +242,15 @@ export default function SKUProductsPage() {
           </CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Name</TableHead><TableHead>Category</TableHead><TableHead>TPH</TableHead><TableHead>Active</TableHead><TableHead /></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Weight</TableHead><TableHead>Active</TableHead><TableHead /></TableRow></TableHeader>
               <TableBody>
-                {isLoading && <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>}
-                {!isLoading && pageRows.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No SKUs</TableCell></TableRow>}
+                {isLoading && <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow>}
+                {!isLoading && pageRows.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No SKUs</TableCell></TableRow>}
                 {pageRows.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell className="font-mono">{p.code}</TableCell>
                     <TableCell>{p.name}</TableCell>
-                    <TableCell>{p.category ?? "—"}</TableCell>
-                    <TableCell>{p.target_per_hour ?? "—"}</TableCell>
+                    <TableCell>{p.weight ?? "—"}</TableCell>
                     <TableCell>{p.active ? <Badge>Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => { setEditing(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
