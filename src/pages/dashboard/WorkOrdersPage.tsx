@@ -180,7 +180,11 @@ export default function WorkOrdersPage() {
       filtered = filtered.filter((w) => new Date(w.created_at) >= startOfMonth(now));
     } else {
       if (dateFrom) filtered = filtered.filter((w) => w.created_at >= dateFrom);
-      if (dateTo) filtered = filtered.filter((w) => w.created_at <= dateTo + "T23:59:59");
+      if (dateTo) {
+        const todayStr = format(now, "yyyy-MM-dd");
+        const cutoff = dateTo >= todayStr ? now.toISOString() : dateTo + "T23:59:59";
+        filtered = filtered.filter((w) => w.created_at <= cutoff);
+      }
     }
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
