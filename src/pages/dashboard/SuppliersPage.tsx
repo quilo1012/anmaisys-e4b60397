@@ -177,7 +177,7 @@ export default function SuppliersPage() {
           </TabsContent>
 
           <TabsContent value="suppliers" className="space-y-4">
-            <SupplierForm onSubmit={(s) => supplierM.create.mutateAsync(s).then(() => toast.success("Supplier added"))} />
+            <SupplierForm onSubmit={async (s) => { await supplierM.create.mutateAsync(s); toast.success("Supplier added"); }} />
             <Card>
               <CardHeader>
                 <CardTitle>Suppliers</CardTitle>
