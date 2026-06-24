@@ -53,6 +53,7 @@ export function useActiveProblemsForLine(lineId: string | null | undefined) {
       return (allProblems || []).filter((p: any) => allowed.has(p.id));
     },
     enabled: true,
+    staleTime: 5 * 60_000,
   });
 }
 
