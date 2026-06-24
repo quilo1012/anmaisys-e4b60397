@@ -179,7 +179,7 @@ export default function SKUProductsPage() {
             <Button
               variant="outline"
               onClick={() => {
-                const csv = "sku;name;category;target_per_hour\nSKU-001;Example Product;Beverages;1200\nSKU-002;Another Product;;\n";
+                const csv = "SKU;SKU;Descrição\nBFHYDRATDS;BFHYDRATDS;BODYFUEL HYDRATION DRINK\nBFENERGYDS;BFENERGYDS;BODYFUEL ENERGY DRINK\n";
                 const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
                 const a = document.createElement("a");
                 a.href = URL.createObjectURL(blob);
