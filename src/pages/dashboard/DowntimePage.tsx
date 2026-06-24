@@ -19,6 +19,7 @@ import {
   TrendingUp, CalendarIcon, ChevronDown, History, Cog,
 } from "lucide-react";
 import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
+import { DateRangeFilter, type DateRangePreset, getPresetRange } from "@/components/DateRangeFilter";
 import { useDowntime, useCreateDowntime, useUpdateDowntime, useDeleteDowntime, type DowntimeRecord } from "@/hooks/useDowntime";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines, useLines } from "@/hooks/useMachines";
@@ -66,8 +67,9 @@ export default function DowntimePage() {
   const [filterLine, setFilterLine] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [startDate, setStartDate] = useState<Date>(startOfDay(subDays(new Date(), 30)));
+  const [startDate, setStartDate] = useState<Date>(startOfDay(subDays(new Date(), 29)));
   const [endDate, setEndDate] = useState<Date>(new Date());
+  const [datePreset, setDatePreset] = useState<DateRangePreset>("30d");
   const [historyPeriod, setHistoryPeriod] = useState<"today" | "week" | "month">("today");
 
   // Form state
@@ -431,27 +433,17 @@ export default function DowntimePage() {
             <p className="text-muted-foreground">Production stoppages, MTBF/MTTR & machine risk intelligence</p>
           </div>
           <div className="flex items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1">
-                  <CalendarIcon className="h-4 w-4" />
-                  {format(startDate, "dd/MM")} – {format(endDate, "dd/MM")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 z-50 bg-popover" align="end">
-                <Calendar
-                  mode="range"
-                  selected={{ from: startDate, to: endDate }}
-                  onSelect={(range) => {
-                    if (range?.from) setStartDate(startOfDay(range.from));
-                    if (range?.to) setEndDate(endOfDay(range.to));
-                  }}
-                  numberOfMonths={2}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
+            <DateRangeFilter
+              value={{ from: startDate, to: endDate }}
+              preset={datePreset}
+              onChange={(range, preset) => {
+                setDatePreset(preset);
+                const r = preset === "all" ? getPresetRange("30d") : range;
+                if (r.from) setStartDate(startOfDay(r.from));
+                if (r.to) setEndDate(endOfDay(r.to));
+              }}
+            />
+
             <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={openCreate}>
               <Plus className="h-4 w-4 mr-2" /> Register Downtime
             </Button>
