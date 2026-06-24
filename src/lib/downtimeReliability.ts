@@ -103,15 +103,12 @@ export function buildMachineRisks(
         mtbfHours = Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
       }
 
-      const lastFailureDate = sorted[sorted.length - 1]?.created_at;
-      const hoursSinceLast = lastFailureDate
-        ? (now.getTime() - new Date(lastFailureDate).getTime()) / 3600000
-        : null;
-      const mtbfWarning =
-        mtbfHours !== null && hoursSinceLast !== null && hoursSinceLast >= mtbfHours * 0.8;
-      const recentRepairAlert = lastFailureDate
-        ? (now.getTime() - new Date(lastFailureDate).getTime()) / 86400000 < 5
-        : false;
+      // sorted is guaranteed non-empty (each machineMap entry was created from a WO)
+      const lastFailureDate = sorted[sorted.length - 1].created_at;
+      const hoursSinceLast = (now.getTime() - new Date(lastFailureDate).getTime()) / 3600000;
+      const mtbfWarning = mtbfHours !== null && hoursSinceLast >= mtbfHours * 0.8;
+      const recentRepairAlert =
+        (now.getTime() - new Date(lastFailureDate).getTime()) / 86400000 < 5;
 
       const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
       const recentWOs = wos.filter((w) => new Date(w.created_at) >= sevenDaysAgo);
