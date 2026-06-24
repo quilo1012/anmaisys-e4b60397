@@ -597,8 +597,10 @@ function EngineerDashboardContent() {
               </span>
               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
             </div>
-            <div className="flex gap-1.5 items-center">
+            <div className="flex gap-1.5 items-center flex-wrap">
+              <PriorityBadge priority={(wo as any).priority} />
               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
+              {wo.status === "open" && <WaitTimer createdAt={wo.created_at} />}
               {wo.status === "in_progress" && wo.started_at && <LiveTimer startedAt={wo.started_at} />}
               {/* Print button hidden for engineers (admin/manager only) */}
             </div>
