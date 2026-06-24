@@ -768,32 +768,50 @@ function EngineerDashboardContent() {
 
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium">Completed</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Completed</CardTitle>
+              <div className="h-9 w-9 rounded-lg bg-green-500/15 flex items-center justify-center">
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
             </CardHeader>
-            <CardContent className="p-3 pt-0 md:p-6 md:pt-0"><div className="text-xl md:text-2xl font-bold">{kpis.totalCompleted}</div></CardContent>
+            <CardContent className="p-4 pt-0">
+              <div className="text-3xl font-bold tabular-nums">{kpis.totalCompleted}</div>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium">Avg Response</CardTitle>
-              <Timer className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Avg Response</CardTitle>
+              <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${kpis.avgResponse > 30 ? "bg-amber-500/15" : "bg-blue-500/15"}`}>
+                <Timer className={`h-5 w-5 ${kpis.avgResponse > 30 ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400"}`} />
+              </div>
             </CardHeader>
-            <CardContent className="p-3 pt-0 md:p-6 md:pt-0"><div className="text-xl md:text-2xl font-bold">{kpis.avgResponse}m</div></CardContent>
+            <CardContent className="p-4 pt-0">
+              <div className={`text-3xl font-bold tabular-nums ${kpis.avgResponse > 30 ? "text-amber-600 dark:text-amber-400" : ""}`}>
+                {kpis.avgResponse}m
+              </div>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium">Avg MTTR</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Avg MTTR</CardTitle>
+              <div className="h-9 w-9 rounded-lg bg-purple-500/15 flex items-center justify-center">
+                <Activity className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
             </CardHeader>
-            <CardContent className="p-3 pt-0 md:p-6 md:pt-0"><div className="text-xl md:text-2xl font-bold">{kpis.avgMTTR}m</div></CardContent>
+            <CardContent className="p-4 pt-0">
+              <div className="text-3xl font-bold tabular-nums">{kpis.avgMTTR}m</div>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium">Parts Used</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Parts Used</CardTitle>
+              <div className="h-9 w-9 rounded-lg bg-indigo-500/15 flex items-center justify-center">
+                <Package className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
             </CardHeader>
-            <CardContent className="p-3 pt-0 md:p-6 md:pt-0"><div className="text-xl md:text-2xl font-bold">{totalParts ?? 0}</div></CardContent>
+            <CardContent className="p-4 pt-0">
+              <div className="text-3xl font-bold tabular-nums">{totalParts ?? 0}</div>
+            </CardContent>
           </Card>
         </div>
 
