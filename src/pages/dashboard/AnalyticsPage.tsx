@@ -265,7 +265,6 @@ export default function AnalyticsPage() {
       if (shift === "day") map[key].day += repair;
       else if (shift === "night") map[key].night += repair;
       else map[key].day += repair; // fallback bucket
-      const lineName = wo.line_id ? lineNameById.get(wo.line_id) : null;
       if (lineName) map[key].lines.add(lineName);
     });
     return Object.entries(map)
