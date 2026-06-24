@@ -240,12 +240,13 @@ export default function DowntimePage() {
     const machineMap: Record<string, { today: number; week: number; month: number; problems: Record<string, number> }> = {};
 
     allWOs.forEach((wo) => {
+      if (!wo.machine) return;
       const d = new Date(wo.created_at);
       if (!machineMap[wo.machine]) machineMap[wo.machine] = { today: 0, week: 0, month: 0, problems: {} };
       const entry = machineMap[wo.machine];
       if (d >= monthStart) {
         entry.month++;
-        entry.problems[wo.description] = (entry.problems[wo.description] || 0) + 1;
+        if (wo.description) entry.problems[wo.description] = (entry.problems[wo.description] || 0) + 1;
       }
       if (d >= weekStart) entry.week++;
       if (d >= todayStart) entry.today++;
