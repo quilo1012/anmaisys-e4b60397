@@ -140,7 +140,7 @@ export default function ProductionPlannerPage() {
       id: existingId ?? undefined,
       session_date: date, shift, line,
       leader_id: leaderId || null,
-      leader_name: leader?.name ?? null,
+      leader_name: leader?.name ?? (leaderName.trim() || null),
       staff_planned: staffPlanned, staff_actual: staffActual,
       notes: notes || null,
     });
