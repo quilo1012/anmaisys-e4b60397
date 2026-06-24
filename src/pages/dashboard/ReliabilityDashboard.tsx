@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -499,19 +499,19 @@ function FailureHeatmap({ workOrders }: { workOrders: Array<{ machine: string; c
               ))}
               <div className="text-[11px] font-medium text-center text-muted-foreground">Total</div>
               {rows.map((r) => (
-                <>
-                  <div key={`${r.machine}-name`} className="text-xs font-medium truncate pr-2 self-center" title={r.machine}>{r.machine}</div>
+                <Fragment key={r.machine}>
+                  <div className="text-xs font-medium truncate pr-2 self-center" title={r.machine}>{r.machine}</div>
                   {r.days.map((n, i) => (
                     <div
-                      key={`${r.machine}-${i}`}
+                      key={i}
                       className={cn("h-9 rounded flex items-center justify-center text-xs font-semibold", cellColor(n))}
                       title={`${r.machine} — ${WEEKDAYS[i]}: ${n}`}
                     >
                       {n || ""}
                     </div>
                   ))}
-                  <div key={`${r.machine}-total`} className="h-9 rounded bg-secondary flex items-center justify-center text-xs font-bold">{r.total}</div>
-                </>
+                  <div className="h-9 rounded bg-secondary flex items-center justify-center text-xs font-bold">{r.total}</div>
+                </Fragment>
               ))}
             </div>
             <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
