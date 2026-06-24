@@ -75,10 +75,8 @@ Deno.serve(async (req) => {
     }
     const { recipient } = parsed.data;
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+
+
 
     const since = new Date(Date.now() - 7 * 86400000).toISOString();
 
