@@ -64,10 +64,15 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
             <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/10">
               <Tablet className="h-8 w-8 text-amber-500" />
             </div>
-            <CardTitle className="text-2xl">Tablet account not configured</CardTitle>
+            <CardTitle className="text-2xl">
+              {account ? "No lines assigned to this account" : "Tablet account not configured"}
+            </CardTitle>
             <CardDescription className="mt-2 text-base">
-              This login is not bound to any production line. Ask a manager or admin to
-              configure it in <span className="font-semibold">Manage Users → Tablet Accounts</span>.
+              {account ? (
+                <>The account <span className="font-semibold">"{account.label}"</span> exists but has no production lines. Ask a manager to assign at least one line in <span className="font-semibold">Manage Users → Tablet Accounts</span>.</>
+              ) : (
+                <>Signed in as <span className="font-semibold">{user?.email ?? "this user"}</span>, but this login is not bound to any production line. Ask a manager or admin to configure it in <span className="font-semibold">Manage Users → Tablet Accounts</span>.</>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
