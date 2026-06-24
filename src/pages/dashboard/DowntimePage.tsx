@@ -34,6 +34,7 @@ import {
 } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 import { useNavigate } from "react-router-dom";
+import { reconcileMinutes } from "@/lib/downtimeReconcile";
 
 const CATEGORIES = ["Mechanical", "Electrical", "Machine", "Maintenance", "Filler", "Other"] as const;
 const LINES = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"] as const;
@@ -150,36 +151,18 @@ export default function DowntimePage() {
 
     const safeRecords = records || [];
 
-    // Build all downtime intervals today (manual + WO), clipped to [todayStart, now],
-    // then union them so parallel stoppages are counted only once (matches Shift Breakdown).
+    // Shared reconciliation — same math as Shift Breakdown.
     const dayStartMs = todayStart.getTime();
     const nowMs = now.getTime();
-    const intervals: Array<[number, number]> = [];
-
-    safeRecords.forEach((r) => {
-      const s = new Date(r.started_at).getTime();
-      const e = r.ended_at ? new Date(r.ended_at).getTime() : nowMs;
-      const cs = Math.max(s, dayStartMs);
-      const ce = Math.min(e, nowMs);
-      if (ce > cs) intervals.push([cs, ce]);
-    });
-    woMetrics.forEach((m) => {
-      if (!m.line_stopped_at) return;
-      const s = new Date(m.line_stopped_at).getTime();
-      const e = m.line_resumed_at ? new Date(m.line_resumed_at).getTime() : nowMs;
-      const cs = Math.max(s, dayStartMs);
-      const ce = Math.min(e, nowMs);
-      if (ce > cs) intervals.push([cs, ce]);
-    });
-
-    intervals.sort((a, b) => a[0] - b[0]);
-    let unionMs = 0, curS = 0, curE = 0;
-    for (const [s, e] of intervals) {
-      if (s > curE) { unionMs += curE - curS; curS = s; curE = e; }
-      else if (e > curE) curE = e;
-    }
-    unionMs += curE - curS;
-    const totalToday = Math.round(unionMs / 60_000);
+    const totalToday = reconcileMinutes(
+      [
+        ...safeRecords.map((r) => ({ start: r.started_at, end: r.ended_at })),
+        ...woMetrics.map((m) => ({ start: m.line_stopped_at, end: m.line_resumed_at })),
+      ],
+      dayStartMs,
+      nowMs,
+      nowMs,
+    );
 
     const manualActive = safeRecords.filter(r => !r.ended_at).length;
     const woActive = woMetrics.filter(m => m.line_stopped_at && !m.line_resumed_at).length;
