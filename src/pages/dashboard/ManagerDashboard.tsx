@@ -198,28 +198,28 @@ function ManagerDashboardContent() {
             value={openCount}
             icon={ClipboardList}
             tone="blue"
-            tooltip="Open Work Orders: ordens criadas que ainda não foram aceites por um engenheiro. Indica o backlog atual a aguardar resposta."
+            tooltip="Open Work Orders: orders created that have not yet been accepted by an engineer. Shows the current backlog awaiting response."
           />
           <KpiCard
             label="In Progress"
             value={inProgressCount}
             icon={LayoutDashboard}
             tone="amber"
-            tooltip="In Progress: ordens já aceites por um engenheiro e em execução (recebidas, em deslocação ou em reparação)."
+            tooltip="In Progress: orders already accepted by an engineer and being worked on (received, traveling, or under repair)."
           />
           <KpiCard
             label="Finished Today"
             value={completedToday}
             icon={ClipboardList}
             tone="green"
-            tooltip="Finished Today: número de ordens concluídas (finished/closed/completed) no dia de hoje. Indicador de produtividade diária."
+            tooltip="Finished Today: number of orders completed (finished/closed/completed) today. Daily productivity indicator."
           />
           <KpiCard
             label="Low Stock"
             value={lowStockCount}
             icon={AlertTriangle}
             tone={lowStockCount > 0 ? "red" : "muted"}
-            tooltip="Low Stock: número de produtos cuja quantidade em armazém está igual ou abaixo do stock mínimo definido. Requer reposição."
+            tooltip="Low Stock: number of products whose on-hand quantity is at or below the defined minimum. Restocking required."
             highlight={lowStockCount > 0}
           />
 
@@ -229,7 +229,7 @@ function ManagerDashboardContent() {
             icon={Clock}
             tone="muted"
             footer="created → accepted (SLA metric)"
-            tooltip="Avg Response Time: tempo médio desde a criação da WO até ser aceite pelo engenheiro. Métrica-chave de SLA — quanto menor, melhor a capacidade de resposta da equipa."
+            tooltip="Avg Response Time: average time from WO creation until it is accepted by the engineer. Key SLA metric — the lower, the better the team's responsiveness."
           />
           <KpiCard
             label="Avg Active Repair"
@@ -237,7 +237,7 @@ function ManagerDashboardContent() {
             icon={Wrench}
             tone="muted"
             footer="MTTR — pauses excluded"
-            tooltip="Avg Active Repair (MTTR): tempo médio efetivo de reparação, do início do trabalho até à conclusão, excluindo pausas. Mede a eficiência técnica do engenheiro."
+            tooltip="Avg Active Repair (MTTR): average effective repair time, from work start to completion, excluding pauses. Measures engineer technical efficiency."
           />
           <KpiCard
             label="Avg Line Downtime"
@@ -245,7 +245,7 @@ function ManagerDashboardContent() {
             icon={PowerOff}
             tone="muted"
             footer="business impact (line stopped → resumed)"
-            tooltip="Avg Line Downtime: tempo médio em que a linha de produção esteve parada (linha parada → linha retomada). Mede o impacto real no negócio em minutos perdidos."
+            tooltip="Avg Line Downtime: average time a production line was stopped (line stopped → line resumed). Measures real business impact in minutes lost."
           />
           <KpiCard
             label="Parts Used Today"
@@ -253,7 +253,8 @@ function ManagerDashboardContent() {
             icon={Package}
             tone="muted"
             footer="total parts consumed today"
-            tooltip="Parts Used Today: total de peças/produtos consumidos em reparações durante o dia de hoje. Útil para acompanhamento de consumo e custos."
+            tooltip="Parts Used Today: total parts/products consumed in repairs during today. Useful for consumption and cost tracking."
+
           />
         </div>
 
