@@ -916,6 +916,130 @@ export type Database = {
         }
         Relationships: []
       }
+      pm_executions: {
+        Row: {
+          checklist_state: Json
+          created_at: string
+          done_at: string
+          done_by: string | null
+          done_by_name: string | null
+          id: string
+          notes: string | null
+          schedule_id: string
+        }
+        Insert: {
+          checklist_state?: Json
+          created_at?: string
+          done_at?: string
+          done_by?: string | null
+          done_by_name?: string | null
+          id?: string
+          notes?: string | null
+          schedule_id: string
+        }
+        Update: {
+          checklist_state?: Json
+          created_at?: string
+          done_at?: string
+          done_by?: string | null
+          done_by_name?: string | null
+          id?: string
+          notes?: string | null
+          schedule_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pm_executions_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "pm_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pm_schedules: {
+        Row: {
+          active: boolean
+          assigned_engineer_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          interval_days: number
+          last_done_at: string | null
+          machine: string
+          next_due_at: string | null
+          priority: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          assigned_engineer_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          interval_days: number
+          last_done_at?: string | null
+          machine: string
+          next_due_at?: string | null
+          priority?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          assigned_engineer_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          interval_days?: number
+          last_done_at?: string | null
+          machine?: string
+          next_due_at?: string | null
+          priority?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pm_tasks: {
+        Row: {
+          created_at: string
+          id: string
+          required: boolean
+          schedule_id: string
+          sort_order: number
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          required?: boolean
+          schedule_id: string
+          sort_order?: number
+          title: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          required?: boolean
+          schedule_id?: string
+          sort_order?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pm_tasks_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "pm_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       problem_descriptions: {
         Row: {
           active: boolean | null
