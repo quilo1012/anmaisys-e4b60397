@@ -5,7 +5,9 @@ import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines } from "@/hooks/useMachines";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
 import { useAllWoMetrics } from "@/hooks/useWoMetrics";
-import { differenceInMinutes, subDays, format, startOfDay } from "date-fns";
+import { differenceInMinutes, subDays, format, startOfDay, endOfDay } from "date-fns";
+import { useDowntime } from "@/hooks/useDowntime";
+import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { Button } from "@/components/ui/button";
 import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Timer, Activity, Trophy, TrendingUp, BarChart3 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
@@ -19,6 +21,7 @@ export default function ExecutiveDashboard() {
   const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("7d");
   const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("7d"));
   const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
+  const { data: downtimeRecords = [] } = useDowntime();
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const toggleFullscreen = useCallback(() => {
@@ -69,15 +72,21 @@ export default function ExecutiveDashboard() {
     }).length;
     const slaPercent = closedWOs.length ? Math.round((withinSLA / closedWOs.length) * 100) : 100;
 
-    // Total Line Downtime within selected period = SUM(line_downtime_sec) from v_wo_metrics (already range-filtered)
-    const lineDowntimeTodayMin = Math.round(
-      woMetrics.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / 60
+    // Total Line Downtime within selected period — aligned with Downtime page
+    // (wall-clock; parallel stoppages counted once).
+    const rangeStartMs = startOfDay(kpiRange.from).getTime();
+    const rangeEndMs = Math.min(endOfDay(kpiRange.to).getTime(), Date.now());
+    const lineDowntimeTodayMin = reconcileMinutes(
+      (downtimeRecords || []).map((r: any) => ({ start: r.started_at, end: r.ended_at })),
+      rangeStartMs,
+      rangeEndMs,
+      Date.now(),
     );
 
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
 
     return { openWOs, avgResponse, avgMTTR, slaPercent, lineDowntimeTodayMin, machinesAtRisk };
-  }, [workOrders, filteredWOs, machines, woMetrics]);
+  }, [workOrders, filteredWOs, machines, woMetrics, downtimeRecords, kpiRange]);
 
   // WOs per day across the selected period (defaults to last 7 days when range is empty).
   const wosPerDay = useMemo(() => {
