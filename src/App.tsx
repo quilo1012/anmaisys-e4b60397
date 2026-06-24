@@ -273,6 +273,38 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/dashboard/planner"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <ProductionPlannerPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/sku-products"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <SKUProductsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/production-performance"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <ProductionPerformancePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/quality"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <QualityActionsPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/" element={<SessionRedirect />} />
                 <Route path="*" element={<SessionRedirect />} />
               </Routes>
