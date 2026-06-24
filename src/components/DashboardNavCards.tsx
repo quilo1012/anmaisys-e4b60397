@@ -80,6 +80,7 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
     { title: "Work Orders", description: "Manage all maintenance work orders", url: "/dashboard/work-orders", icon: ClipboardList, badge: openWOs, accent: OPS },
     { title: "Machines", description: "View and manage equipment", url: "/dashboard/machines", icon: Cog, badge: machinesCount, accent: ASSETS },
     { title: "Downtime", description: "Track production line stoppages", url: "/dashboard/downtime", icon: Clock, accent: OPS },
+    { title: "Preventive Maintenance", description: "Recurring schedules and checklists", url: "/dashboard/preventive", icon: Wrench, accent: ASSETS },
     { title: "Control Center", description: "Live operations display", url: "/dashboard/control-center", icon: Monitor, accent: OPS },
     { title: "Analytics", description: "Performance metrics and trends", url: "/dashboard/analytics", icon: BarChart3, accent: REPORTS },
     { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package, accent: ASSETS },
@@ -112,6 +113,7 @@ export function OperatorNavCards({ myOpenWOs }: { myOpenWOs?: number }) {
 export function EngineerNavCards({ assignedCount, stockLow }: { assignedCount?: number; stockLow?: number }) {
   const cards: NavCard[] = [
     { title: "My Tasks", description: "View assigned work orders", url: "/dashboard/engineer", icon: Wrench, badge: assignedCount, accent: "bg-blue-500/15 text-blue-600" },
+    { title: "Preventive Maintenance", description: "Recurring schedules and checklists", url: "/dashboard/preventive", icon: Wrench, accent: ASSETS },
     { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package, badge: stockLow, accent: "bg-amber-500/15 text-amber-600" },
   ];
   return <DashboardNavCards cards={cards} />;

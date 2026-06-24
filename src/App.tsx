@@ -29,6 +29,7 @@ const ReliabilityDashboard = lazy(() => import("./pages/dashboard/ReliabilityDas
 const ManageUsers = lazy(() => import("./pages/users/ManageUsers"));
 const DowntimePage = lazy(() => import("./pages/dashboard/DowntimePage"));
 const IntouchIntegrationPage = lazy(() => import("./pages/dashboard/IntouchIntegrationPage"));
+const PreventiveMaintenancePage = lazy(() => import("./pages/dashboard/PreventiveMaintenancePage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -199,6 +200,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin"]}>
                       <IntouchIntegrationPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/preventive"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "engineer"]}>
+                      <PreventiveMaintenancePage />
                     </ProtectedRoute>
                   }
                 />
