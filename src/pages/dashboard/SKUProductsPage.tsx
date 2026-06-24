@@ -20,15 +20,19 @@ function parseCSV(text: string): Partial<Sku>[] {
   const clean = text.replace(/^\uFEFF/, "");
   const lines = clean.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length === 0) return [];
+  // Auto-detect delimiter from header line: ; \t , (whichever appears most)
+  const header = lines[0];
+  const counts = { ";": (header.match(/;/g) || []).length, "\t": (header.match(/\t/g) || []).length, ",": (header.match(/,/g) || []).length };
+  const delim = (Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]) as string;
   const parseLine = (l: string): string[] => {
     const out: string[] = []; let cur = ""; let q = false;
     for (let i = 0; i < l.length; i++) {
       const c = l[i];
       if (c === '"') { if (q && l[i + 1] === '"') { cur += '"'; i++; } else q = !q; }
-      else if (c === "," && !q) { out.push(cur); cur = ""; }
+      else if (c === delim && !q) { out.push(cur); cur = ""; }
       else cur += c;
     }
-    out.push(cur); return out.map((s) => s.trim());
+    out.push(cur); return out.map((s) => s.trim().replace(/^"|"$/g, ""));
   };
   const headers = parseLine(lines[0]).map((h) => h.toLowerCase());
   const idx = (names: string[]) => headers.findIndex((h) => names.includes(h));
