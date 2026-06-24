@@ -109,9 +109,30 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Build log function bound to the admin client created earlier.
+  const logAttempt = async (entry: {
+    event: string;
+    title: string | null;
+    success: boolean;
+    status_code: number | null;
+    attempts: number;
+    error_message: string | null;
+    response_body: string | null;
+  }) => {
+    try {
+      await admin.from("teams_webhook_logs").insert(entry);
+    } catch (err) {
+      console.error("teams_webhook_logs insert failed:", err);
+    }
+  };
+
   try {
     const webhook = Deno.env.get("TEAMS_WEBHOOK_URL");
     if (!webhook) {
+      await logAttempt({
+        event: "config", title: null, success: false, status_code: null,
+        attempts: 0, error_message: "TEAMS_WEBHOOK_URL not configured", response_body: null,
+      });
       return new Response(
         JSON.stringify({ error: "TEAMS_WEBHOOK_URL secret is not configured" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -128,29 +149,80 @@ Deno.serve(async (req) => {
     }
 
     const card = buildCard(parsed.data);
-    const tRes = await fetch(webhook, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(card),
-    });
-    const text = await tRes.text();
+    const cardBody = JSON.stringify(card);
 
-    if (!tRes.ok) {
-      console.error("Teams webhook error:", tRes.status, text.slice(0, 500));
-      return new Response(
-        JSON.stringify({ error: "teams_webhook_failed", status: tRes.status, body: text.slice(0, 500), fallback: true }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    // Retry with exponential backoff: 0ms, 500ms, 1500ms (max 3 attempts).
+    const maxAttempts = 3;
+    const backoffMs = [0, 500, 1500];
+    let lastStatus: number | null = null;
+    let lastText = "";
+    let lastError: string | null = null;
+    let attempt = 0;
+
+    for (attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (backoffMs[attempt - 1] > 0) {
+        await new Promise((r) => setTimeout(r, backoffMs[attempt - 1]));
+      }
+      try {
+        const tRes = await fetch(webhook, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: cardBody,
+        });
+        lastStatus = tRes.status;
+        lastText = (await tRes.text()).slice(0, 500);
+        if (tRes.ok) {
+          await logAttempt({
+            event: parsed.data.event,
+            title: parsed.data.title,
+            success: true,
+            status_code: tRes.status,
+            attempts: attempt,
+            error_message: null,
+            response_body: lastText || null,
+          });
+          return new Response(JSON.stringify({ success: true, attempts: attempt }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        // Retry only on 5xx / 429; bail immediately on other client errors.
+        if (tRes.status < 500 && tRes.status !== 429) break;
+        lastError = `HTTP ${tRes.status}`;
+      } catch (err) {
+        lastError = (err as Error).message;
+      }
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    console.error("Teams webhook failed after retries:", lastStatus, lastError, lastText);
+    await logAttempt({
+      event: parsed.data.event,
+      title: parsed.data.title,
+      success: false,
+      status_code: lastStatus,
+      attempts: Math.min(attempt, maxAttempts),
+      error_message: lastError ?? `HTTP ${lastStatus}`,
+      response_body: lastText || null,
     });
+    return new Response(
+      JSON.stringify({
+        error: "teams_webhook_failed",
+        status: lastStatus,
+        attempts: Math.min(attempt, maxAttempts),
+        body: lastText,
+        fallback: true,
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (e) {
     console.error("notify-teams error:", e);
+    await logAttempt({
+      event: "exception", title: null, success: false, status_code: null,
+      attempts: 0, error_message: (e as Error).message, response_body: null,
+    });
     return new Response(
       JSON.stringify({ error: (e as Error).message, fallback: true }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
+
