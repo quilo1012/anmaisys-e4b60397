@@ -150,23 +150,36 @@ export default function DowntimePage() {
 
     const safeRecords = records || [];
 
-    // Manual downtime records started today
-    const todayRecords = safeRecords.filter(r => new Date(r.started_at) >= todayStart);
-    const manualTodayMin = todayRecords.reduce((sum, r) => {
-      const end = r.ended_at ? new Date(r.ended_at) : now;
-      return sum + differenceInMinutes(end, new Date(r.started_at));
-    }, 0);
+    // Build all downtime intervals today (manual + WO), clipped to [todayStart, now],
+    // then union them so parallel stoppages are counted only once (matches Shift Breakdown).
+    const dayStartMs = todayStart.getTime();
+    const nowMs = now.getTime();
+    const intervals: Array<[number, number]> = [];
 
-    // WO line-stops today (single source of truth: v_wo_metrics)
-    const woTodayMin = woMetrics
-      .filter(m => m.line_stopped_at && new Date(m.line_stopped_at) >= todayStart)
-      .reduce((sum, m) => {
-        if (m.line_downtime_sec != null) return sum + Math.round(m.line_downtime_sec / 60);
-        // open stop: count from line_stopped_at until now
-        return sum + differenceInMinutes(now, new Date(m.line_stopped_at!));
-      }, 0);
+    safeRecords.forEach((r) => {
+      const s = new Date(r.started_at).getTime();
+      const e = r.ended_at ? new Date(r.ended_at).getTime() : nowMs;
+      const cs = Math.max(s, dayStartMs);
+      const ce = Math.min(e, nowMs);
+      if (ce > cs) intervals.push([cs, ce]);
+    });
+    woMetrics.forEach((m) => {
+      if (!m.line_stopped_at) return;
+      const s = new Date(m.line_stopped_at).getTime();
+      const e = m.line_resumed_at ? new Date(m.line_resumed_at).getTime() : nowMs;
+      const cs = Math.max(s, dayStartMs);
+      const ce = Math.min(e, nowMs);
+      if (ce > cs) intervals.push([cs, ce]);
+    });
 
-    const totalToday = manualTodayMin + woTodayMin;
+    intervals.sort((a, b) => a[0] - b[0]);
+    let unionMs = 0, curS = 0, curE = 0;
+    for (const [s, e] of intervals) {
+      if (s > curE) { unionMs += curE - curS; curS = s; curE = e; }
+      else if (e > curE) curE = e;
+    }
+    unionMs += curE - curS;
+    const totalToday = Math.round(unionMs / 60_000);
 
     const manualActive = safeRecords.filter(r => !r.ended_at).length;
     const woActive = woMetrics.filter(m => m.line_stopped_at && !m.line_resumed_at).length;
@@ -227,12 +240,13 @@ export default function DowntimePage() {
     const machineMap: Record<string, { today: number; week: number; month: number; problems: Record<string, number> }> = {};
 
     allWOs.forEach((wo) => {
+      if (!wo.machine) return;
       const d = new Date(wo.created_at);
       if (!machineMap[wo.machine]) machineMap[wo.machine] = { today: 0, week: 0, month: 0, problems: {} };
       const entry = machineMap[wo.machine];
       if (d >= monthStart) {
         entry.month++;
-        entry.problems[wo.description] = (entry.problems[wo.description] || 0) + 1;
+        if (wo.description) entry.problems[wo.description] = (entry.problems[wo.description] || 0) + 1;
       }
       if (d >= weekStart) entry.week++;
       if (d >= todayStart) entry.today++;
