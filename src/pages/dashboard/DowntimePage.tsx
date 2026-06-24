@@ -218,25 +218,13 @@ export default function DowntimePage() {
   }, [allWOs, startDate, endDate]);
 
   const machineHistory = useMemo(() => {
-    if (!allWOs) return [];
-    const now = new Date();
-    const todayStart = startOfDay(now);
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-    const monthStart = startOfMonth(now);
-
-    const machineMap: Record<string, { today: number; week: number; month: number; problems: Record<string, number> }> = {};
-
-    allWOs.forEach((wo) => {
+    const machineMap: Record<string, { count: number; problems: Record<string, number> }> = {};
+    filteredWOs.forEach((wo) => {
       if (!wo.machine) return;
-      const d = new Date(wo.created_at);
-      if (!machineMap[wo.machine]) machineMap[wo.machine] = { today: 0, week: 0, month: 0, problems: {} };
+      if (!machineMap[wo.machine]) machineMap[wo.machine] = { count: 0, problems: {} };
       const entry = machineMap[wo.machine];
-      if (d >= monthStart) {
-        entry.month++;
-        if (wo.description) entry.problems[wo.description] = (entry.problems[wo.description] || 0) + 1;
-      }
-      if (d >= weekStart) entry.week++;
-      if (d >= todayStart) entry.today++;
+      entry.count++;
+      if (wo.description) entry.problems[wo.description] = (entry.problems[wo.description] || 0) + 1;
     });
 
     return Object.entries(machineMap)
@@ -244,14 +232,14 @@ export default function DowntimePage() {
         const topProblem = Object.entries(data.problems).sort((a, b) => b[1] - a[1])[0];
         return {
           machine,
-          today: data.today, week: data.week, month: data.month,
+          count: data.count,
           topProblem: topProblem ? topProblem[0] : "—",
           topProblemCount: topProblem ? topProblem[1] : 0,
         };
       })
-      .sort((a, b) => b[historyPeriod] - a[historyPeriod])
-      .filter((m) => m[historyPeriod] > 0);
-  }, [allWOs, historyPeriod]);
+      .sort((a, b) => b.count - a.count)
+      .filter((m) => m.count > 0);
+  }, [filteredWOs]);
 
   const filteredRisks = useMemo(() => {
     if (!filteredWOs.length) return [];
