@@ -36,6 +36,9 @@ const ProductionPlannerPage = lazy(() => import("./pages/dashboard/ProductionPla
 const SKUProductsPage = lazy(() => import("./pages/dashboard/SKUProductsPage"));
 const ProductionPerformancePage = lazy(() => import("./pages/dashboard/ProductionPerformancePage"));
 const QualityActionsPage = lazy(() => import("./pages/dashboard/QualityActionsPage"));
+const ShiftHistoryPage = lazy(() => import("./pages/dashboard/ShiftHistoryPage"));
+const WeeklyProductionReportPage = lazy(() => import("./pages/dashboard/WeeklyProductionReportPage"));
+const LeaderQualityBoardPage = lazy(() => import("./pages/dashboard/LeaderQualityBoardPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -302,6 +305,30 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager"]}>
                       <QualityActionsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/shift-history"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <ShiftHistoryPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/weekly-production"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <WeeklyProductionReportPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/leader-quality"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <LeaderQualityBoardPage />
                     </ProtectedRoute>
                   }
                 />

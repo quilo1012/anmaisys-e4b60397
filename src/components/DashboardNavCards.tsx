@@ -6,6 +6,7 @@ import {
   ClipboardList, Cog, Users, BarChart3, Briefcase, DollarSign,
   Monitor, Shield, Package, AlertCircle, Clock, LayoutDashboard,
   Plus, Wrench, Radio, Truck, CalendarRange, Boxes, Gauge, CheckSquare,
+  History, FileBarChart, Trophy,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -81,6 +82,9 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
     { title: "Production Planner", description: "Daily shift planning by line", url: "/dashboard/planner", icon: CalendarRange, accent: OPS },
     { title: "Production OEE", description: "Performance, RAG and leaderboard", url: "/dashboard/production-performance", icon: Gauge, accent: REPORTS },
     { title: "Quality Actions", description: "Log and track quality issues", url: "/dashboard/quality", icon: CheckSquare, accent: OPS },
+    { title: "Leader Quality Board", description: "Leaderboard and alerts", url: "/dashboard/leader-quality", icon: Trophy, accent: REPORTS },
+    { title: "Shift History", description: "Browse and edit past shifts", url: "/dashboard/shift-history", icon: History, accent: REPORTS },
+    { title: "Weekly Production", description: "Weekly report per line, printable", url: "/dashboard/weekly-production", icon: FileBarChart, accent: REPORTS },
     { title: "SKU Products", description: "Catalog and CSV import", url: "/dashboard/sku-products", icon: Boxes, accent: ASSETS },
     { title: "Machines", description: "View and manage equipment", url: "/dashboard/machines", icon: Cog, badge: machinesCount, accent: ASSETS },
     { title: "Downtime", description: "Track production line stoppages", url: "/dashboard/downtime", icon: Clock, accent: OPS },
