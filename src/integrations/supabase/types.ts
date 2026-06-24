@@ -1374,7 +1374,7 @@ export type Database = {
           mobile_asset_id: string | null
           notes: string | null
           notified_engineers: string[] | null
-          operator_id: string
+          operator_id: string | null
           operator_signature_name: string | null
           pause_reason: string
           paused_at: string | null
@@ -1419,7 +1419,7 @@ export type Database = {
           mobile_asset_id?: string | null
           notes?: string | null
           notified_engineers?: string[] | null
-          operator_id: string
+          operator_id?: string | null
           operator_signature_name?: string | null
           pause_reason?: string
           paused_at?: string | null
@@ -1464,7 +1464,7 @@ export type Database = {
           mobile_asset_id?: string | null
           notes?: string | null
           notified_engineers?: string[] | null
-          operator_id?: string
+          operator_id?: string | null
           operator_signature_name?: string | null
           pause_reason?: string
           paused_at?: string | null
