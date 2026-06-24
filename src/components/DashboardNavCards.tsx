@@ -113,6 +113,7 @@ export function OperatorNavCards({ myOpenWOs }: { myOpenWOs?: number }) {
 export function EngineerNavCards({ assignedCount, stockLow }: { assignedCount?: number; stockLow?: number }) {
   const cards: NavCard[] = [
     { title: "My Tasks", description: "View assigned work orders", url: "/dashboard/engineer", icon: Wrench, badge: assignedCount, accent: "bg-blue-500/15 text-blue-600" },
+    { title: "Preventive Maintenance", description: "Recurring schedules and checklists", url: "/dashboard/preventive", icon: Wrench, accent: ASSETS },
     { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package, badge: stockLow, accent: "bg-amber-500/15 text-amber-600" },
   ];
   return <DashboardNavCards cards={cards} />;
