@@ -226,17 +226,57 @@ export default function AnalyticsPage() {
     return Math.round((noParts.length / done.length) * 100);
   }, [allWOs, partsCountData]);
 
+  // Map line_id -> line name
+  const lineNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    (linesData ?? []).forEach((l: any) => m.set(l.id, l.name));
+    return m;
+  }, [linesData]);
+
+  // Determine shift (day=06:00–18:00 Europe/London, else night) from an ISO timestamp
+  const getLondonShift = (iso: string | null | undefined): "day" | "night" | null => {
+    if (!iso) return null;
+    try {
+      const hourStr = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/London",
+        hour: "2-digit",
+        hour12: false,
+      }).format(new Date(iso));
+      const h = parseInt(hourStr, 10);
+      if (Number.isNaN(h)) return null;
+      return h >= 6 && h < 18 ? "day" : "night";
+    } catch {
+      return null;
+    }
+  };
+
   const downtimeByMachine = useMemo(() => {
     if (!allWOs) return [];
-    const map: Record<string, number> = {};
-    allWOs.filter((w) => DONE_STATUSES.includes(w.status)).forEach((wo) => {
+    const map: Record<string, { day: number; night: number; lines: Set<string> }> = {};
+    allWOs.filter((w) => DONE_STATUSES.includes(w.status)).forEach((wo: any) => {
       const m = metricsById.get(wo.id);
       if (!m || typeof m.active_repair_sec !== "number") return;
       const repair = m.active_repair_sec / 60;
-      map[wo.machine] = (map[wo.machine] || 0) + repair;
+      const key = wo.machine || "—";
+      if (!map[key]) map[key] = { day: 0, night: 0, lines: new Set() };
+      const shift = getLondonShift(wo.line_stopped_at || wo.started_at || wo.created_at);
+      if (shift === "day") map[key].day += repair;
+      else if (shift === "night") map[key].night += repair;
+      else map[key].day += repair; // fallback bucket
+      const lineName = wo.line_id ? lineNameById.get(wo.line_id) : null;
+      if (lineName) map[key].lines.add(lineName);
     });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([machine, minutes]) => ({ machine, minutes: Math.round(minutes) }));
-  }, [allWOs, metricsById]);
+    return Object.entries(map)
+      .map(([machine, v]) => ({
+        machine,
+        day: Math.round(v.day),
+        night: Math.round(v.night),
+        total: Math.round(v.day + v.night),
+        lines: Array.from(v.lines).sort().join(", ") || "—",
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+  }, [allWOs, metricsById, lineNameById]);
 
   // Most used machines (highest WO count)
   const mostUsedMachines = useMemo(() => {
