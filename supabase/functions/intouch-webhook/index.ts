@@ -46,9 +46,9 @@ Deno.serve(async (req) => {
     payload = { _raw: raw };
   }
 
-  // Optional shared-secret check via header.
+  // Require a configured shared secret; reject if missing or mismatched.
   const sig = headersObj["x-intouch-signature"] ?? headersObj["x-webhook-secret"] ?? "";
-  const authOk = !WEBHOOK_SECRET || sig === WEBHOOK_SECRET;
+  const authOk = Boolean(WEBHOOK_SECRET) && sig === WEBHOOK_SECRET;
 
   let createdWoId: string | null = null;
   let errorMessage: string | null = parseError;

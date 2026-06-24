@@ -15,6 +15,15 @@ function fmtMin(m: number) {
   return h ? `${h}h ${r}m` : `${r}m`;
 }
 
+function escHtml(s: unknown): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /* ---------- London time helpers ---------- */
 function getLondonOffsetMinutes(at: Date): number {
   const dtf = new Intl.DateTimeFormat("en-GB", {
@@ -99,6 +108,39 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // Auth: allow cron with service-role bearer, or authenticated admin/manager.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const isService = bearer && bearer === serviceKey;
+    if (!isService) {
+      if (!bearer) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const authClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(bearer);
+      if (claimsErr || !claimsData?.claims?.sub) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: roles } = await supabase
+        .from("user_roles").select("role").eq("user_id", claimsData.claims.sub);
+      const allowed = (roles ?? []).some((r: any) => ["admin", "manager"].includes(r.role));
+      if (!allowed) {
+        return new Response(JSON.stringify({ error: "forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
 
     // Pick the date: if cron runs at end of shift, the just-ended shift is for "today" London date.
     // For night shift triggered at 06:00, the night belongs to the PREVIOUS London day.
@@ -250,17 +292,17 @@ Deno.serve(async (req) => {
       <h2 style="font-size:14px;margin:18px 0 8px">Downtime per Line</h2>
       ${byLine.length ? `<table width="100%" style="border-collapse:collapse;font-size:13px">
         <thead><tr><th align="left" style="padding:6px 8px;border-bottom:2px solid #cbd5e1">Line</th><th align="right" style="padding:6px 8px;border-bottom:2px solid #cbd5e1">Stopped</th></tr></thead>
-        ${byLine.map((l) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${l.line}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right"><b>${fmtMin(l.mins)}</b></td></tr>`).join("")}
+        ${byLine.map((l) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${escHtml(l.line)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right"><b>${fmtMin(l.mins)}</b></td></tr>`).join("")}
       </table>` : `<p style="color:#64748b;font-size:13px">No line stoppages recorded.</p>`}
 
       <h2 style="font-size:14px;margin:18px 0 8px">Top Recurring Problems</h2>
       ${topProblems.length ? `<table width="100%" style="border-collapse:collapse;font-size:13px">
-        ${topProblems.map(([p, c]) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${p}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right"><b>${c}x</b></td></tr>`).join("")}
+        ${topProblems.map(([p, c]) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${escHtml(p)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right"><b>${c}x</b></td></tr>`).join("")}
       </table>` : `<p style="color:#64748b;font-size:13px">No problems reported.</p>`}
 
       <h2 style="font-size:14px;margin:18px 0 8px">Top Machines (by WO count)</h2>
       ${topMachines.length ? `<table width="100%" style="border-collapse:collapse;font-size:13px">
-        ${topMachines.map(([m, c]) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${m}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right"><b>${c}</b></td></tr>`).join("")}
+        ${topMachines.map(([m, c]) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${escHtml(m)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right"><b>${c}</b></td></tr>`).join("")}
       </table>` : `<p style="color:#64748b;font-size:13px">No machine activity.</p>`}
     </div>
     <div style="background:#f8fafc;padding:14px 24px;font-size:11px;color:#64748b;text-align:center">

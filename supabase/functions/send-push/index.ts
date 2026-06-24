@@ -14,6 +14,25 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Require authenticated admin/manager caller.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const authClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(authHeader.replace("Bearer ", ""));
+    if (claimsErr || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY");
     const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY");
     const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:admin@example.com";
@@ -23,6 +42,10 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    const { data: roles } = await supabase
+      .from("user_roles").select("role").eq("user_id", claimsData.claims.sub);
+    const isStaff = (roles ?? []).some((r: any) => ["admin", "manager"].includes(r.role));
+
     const body = await req.json();
     const userIds: string[] = body.user_ids || (body.user_id ? [body.user_id] : []);
     if (!userIds.length) {
@@ -31,6 +54,15 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    // Non-staff callers may only target themselves.
+    if (!isStaff && userIds.some((id) => id !== claimsData.claims.sub)) {
+      return new Response(JSON.stringify({ error: "forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
+
 
     // Always write in-app notification (bell), even if push isn't configured
     const { error: notifErr } = await supabase.from("notifications").insert(

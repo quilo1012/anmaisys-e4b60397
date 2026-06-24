@@ -13,6 +13,15 @@ function fmtMin(m: number) {
   return h ? `${h}h ${r}m` : `${r}m`;
 }
 
+function escHtml(s: unknown): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -25,6 +34,37 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Require authenticated admin/manager caller.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const authClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(authHeader.replace("Bearer ", ""));
+    if (claimsErr || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data: roles } = await supabase
+      .from("user_roles").select("role").eq("user_id", claimsData.claims.sub);
+    const allowed = (roles ?? []).some((r: any) => ["admin", "manager"].includes(r.role));
+    if (!allowed) {
+      return new Response(JSON.stringify({ error: "forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const json = await req.json().catch(() => ({}));
     const parsed = BodySchema.safeParse(json);
     if (!parsed.success) {
@@ -35,10 +75,8 @@ Deno.serve(async (req) => {
     }
     const { recipient } = parsed.data;
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+
+
 
     const since = new Date(Date.now() - 7 * 86400000).toISOString();
 
@@ -91,12 +129,12 @@ Deno.serve(async (req) => {
 
       <h2 style="font-size:14px;margin:18px 0 8px">Top 5 Problem Machines</h2>
       ${topMachines.length ? `<table width="100%" style="border-collapse:collapse;font-size:13px">
-        ${topMachines.map(([m, c]) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${m}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right"><b>${c}</b></td></tr>`).join("")}
+        ${topMachines.map(([m, c]) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${escHtml(m)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right"><b>${c}</b></td></tr>`).join("")}
       </table>` : `<p style="color:#64748b;font-size:13px">No work orders recorded.</p>`}
 
       <h2 style="font-size:14px;margin:18px 0 8px">Preventive Maintenance Due (next 7 days)</h2>
       ${(pms && pms.length) ? `<table width="100%" style="border-collapse:collapse;font-size:13px">
-        ${pms.map((p: any) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${p.name}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;color:#b45309">${new Date(p.next_due_at).toLocaleDateString("en-GB")}</td></tr>`).join("")}
+        ${pms.map((p: any) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0">${escHtml(p.name)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;color:#b45309">${new Date(p.next_due_at).toLocaleDateString("en-GB")}</td></tr>`).join("")}
       </table>` : `<p style="color:#64748b;font-size:13px">No PMs due this week.</p>`}
     </div>
     <div style="background:#f8fafc;padding:14px 24px;font-size:11px;color:#64748b;text-align:center">
