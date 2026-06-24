@@ -23,6 +23,30 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
   const { data: accounts, isLoading: accountsLoading } = useOperatorAccounts();
   const { data: lines, isLoading: linesLoading } = useLines();
 
+  const toastedRef = useRef<string | null>(null);
+
+  const account = accounts?.find((a) => a.user_id === user?.id) ?? null;
+  const allowedIds = account?.line_ids ?? [];
+  const isBlocked = !accountsLoading && !linesLoading && (!account || allowedIds.length === 0);
+
+  useEffect(() => {
+    if (!isBlocked || !user?.id) return;
+    const key = user.id + (account ? ":no-lines" : ":no-account");
+    if (toastedRef.current === key) return;
+    toastedRef.current = key;
+    if (!account) {
+      toast.error("No tablet account linked to this login", {
+        description: `Signed in as ${user.email ?? "this user"}, but no operator/line binding was found. Ask an admin to configure it.`,
+        duration: 8000,
+      });
+    } else {
+      toast.warning("Tablet account has no lines assigned", {
+        description: `"${account.label}" is configured but has zero production lines. Ask a manager to assign at least one line.`,
+        duration: 8000,
+      });
+    }
+  }, [isBlocked, account, user?.id, user?.email]);
+
   if (accountsLoading || linesLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -31,11 +55,8 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  const account = accounts?.find((a) => a.user_id === user?.id) ?? null;
-  const allowedIds = account?.line_ids ?? [];
-
   // No account or unbound — block everything.
-  if (!account || allowedIds.length === 0) {
+  if (isBlocked) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-lg border-2 border-amber-500/40">
