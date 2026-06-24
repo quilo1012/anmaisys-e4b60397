@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Pencil, Upload, Search } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, Search, Download } from "lucide-react";
 import { toast } from "sonner";
 
 interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; active: boolean }
