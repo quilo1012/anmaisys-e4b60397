@@ -15,6 +15,15 @@ function fmtMin(m: number) {
   return h ? `${h}h ${r}m` : `${r}m`;
 }
 
+function escHtml(s: unknown): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /* ---------- London time helpers ---------- */
 function getLondonOffsetMinutes(at: Date): number {
   const dtf = new Intl.DateTimeFormat("en-GB", {
@@ -99,6 +108,39 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // Auth: allow cron with service-role bearer, or authenticated admin/manager.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const isService = bearer && bearer === serviceKey;
+    if (!isService) {
+      if (!bearer) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const authClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(bearer);
+      if (claimsErr || !claimsData?.claims?.sub) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: roles } = await supabase
+        .from("user_roles").select("role").eq("user_id", claimsData.claims.sub);
+      const allowed = (roles ?? []).some((r: any) => ["admin", "manager"].includes(r.role));
+      if (!allowed) {
+        return new Response(JSON.stringify({ error: "forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
 
     // Pick the date: if cron runs at end of shift, the just-ended shift is for "today" London date.
     // For night shift triggered at 06:00, the night belongs to the PREVIOUS London day.
