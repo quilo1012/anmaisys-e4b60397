@@ -35,6 +35,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 import { useNavigate } from "react-router-dom";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
+import { filterWOsByRange, buildMachineHistory, buildMachineRisks } from "@/lib/downtimeReliability";
 
 const CATEGORIES = ["Mechanical", "Electrical", "Machine", "Maintenance", "Filler", "Other"] as const;
 const LINES = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"] as const;
@@ -208,85 +209,14 @@ export default function DowntimePage() {
   };
 
   // ── Reliability section (WO-based) ────────────────────────────
-  const filteredWOs = useMemo(() => {
-    if (!allWOs) return [];
-    return allWOs.filter((wo) => {
-      const d = new Date(wo.created_at);
-      if (d < startDate || d > endOfDay(endDate)) return false;
-      return true;
-    });
-  }, [allWOs, startDate, endDate]);
+  const filteredWOs = useMemo(
+    () => filterWOsByRange(allWOs, startDate, endDate),
+    [allWOs, startDate, endDate],
+  );
 
-  const machineHistory = useMemo(() => {
-    const machineMap: Record<string, { count: number; problems: Record<string, number> }> = {};
-    filteredWOs.forEach((wo) => {
-      if (!wo.machine) return;
-      if (!machineMap[wo.machine]) machineMap[wo.machine] = { count: 0, problems: {} };
-      const entry = machineMap[wo.machine];
-      entry.count++;
-      if (wo.description) entry.problems[wo.description] = (entry.problems[wo.description] || 0) + 1;
-    });
+  const machineHistory = useMemo(() => buildMachineHistory(filteredWOs), [filteredWOs]);
 
-    return Object.entries(machineMap)
-      .map(([machine, data]) => {
-        const topProblem = Object.entries(data.problems).sort((a, b) => b[1] - a[1])[0];
-        return {
-          machine,
-          count: data.count,
-          topProblem: topProblem ? topProblem[0] : "—",
-          topProblemCount: topProblem ? topProblem[1] : 0,
-        };
-      })
-      .sort((a, b) => b.count - a.count)
-      .filter((m) => m.count > 0);
-  }, [filteredWOs]);
-
-  const filteredRisks = useMemo(() => {
-    if (!filteredWOs.length) return [];
-    const now = new Date();
-    const machineMap: Record<string, typeof filteredWOs> = {};
-    filteredWOs.forEach((wo) => {
-      if (!machineMap[wo.machine]) machineMap[wo.machine] = [];
-      machineMap[wo.machine].push(wo);
-    });
-
-    return Object.entries(machineMap).map(([machine, wos]) => {
-      const failures = wos.length;
-      const sorted = [...wos].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-      let mtbfHours: number | null = null;
-      if (sorted.length >= 2) {
-        const gaps: number[] = [];
-        for (let i = 1; i < sorted.length; i++) {
-          gaps.push((new Date(sorted[i].created_at).getTime() - new Date(sorted[i - 1].created_at).getTime()) / 3600000);
-        }
-        mtbfHours = Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
-      }
-
-      const lastFailureDate = sorted[sorted.length - 1]?.created_at;
-      const hoursSinceLast = lastFailureDate ? (now.getTime() - new Date(lastFailureDate).getTime()) / 3600000 : null;
-      const mtbfWarning = mtbfHours !== null && hoursSinceLast !== null && hoursSinceLast >= mtbfHours * 0.8;
-      const recentRepairAlert = lastFailureDate ? (now.getTime() - new Date(lastFailureDate).getTime()) / 86400000 < 5 : false;
-
-      const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
-      const recentWOs = wos.filter((w) => new Date(w.created_at) >= sevenDaysAgo);
-      const problemCounts: Record<string, number> = {};
-      recentWOs.forEach((w) => { problemCounts[w.description] = (problemCounts[w.description] || 0) + 1; });
-      const recurringProblems = Object.entries(problemCounts).filter(([, c]) => c >= 3).map(([p]) => p);
-
-      let risk: RiskLevel = "LOW";
-      if (recurringProblems.length > 0 || (recentRepairAlert && failures >= 3) || mtbfWarning) risk = "HIGH";
-      else if (failures >= 2 || recentRepairAlert) risk = "MEDIUM";
-
-      return {
-        machine, risk, failures30d: failures, mtbfHours, mtbfWarning, recentRepairAlert, recurringProblems,
-        lastFailure: lastFailureDate || null,
-      };
-    }).sort((a, b) => {
-      const order: Record<RiskLevel, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
-      return (order[a.risk] - order[b.risk]) || (b.failures30d - a.failures30d);
-    });
-  }, [filteredWOs]);
+  const filteredRisks = useMemo(() => buildMachineRisks(filteredWOs), [filteredWOs]);
 
   const avgMTTR = useMemo(() => {
     const finished = filteredWOs.filter((w) => w.started_at && w.finished_at);
