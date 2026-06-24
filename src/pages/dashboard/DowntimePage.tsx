@@ -571,7 +571,62 @@ export default function DowntimePage() {
                 <p className="text-muted-foreground font-medium">No downtime records found</p>
               </div>
             ) : (
-              <Table>
+              <>
+                {/* Mobile cards */}
+                <div className="md:hidden space-y-3">
+                  {filteredRecords.map(r => {
+                    const active = !r.ended_at;
+                    return (
+                      <div key={r.id} className={`rounded-lg border p-3 space-y-2 ${active ? "border-destructive/50 bg-destructive/5" : "bg-card"}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className={`font-semibold truncate ${r.line === "— (line deleted)" ? "italic text-muted-foreground" : ""}`}>{r.line}</p>
+                            <p className="text-xs text-muted-foreground">{r.machine || "—"}</p>
+                          </div>
+                          {active ? (
+                            <Badge className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800">Active</Badge>
+                          ) : (
+                            <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800">Resolved</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm line-clamp-2">{r.reason}</p>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <Badge variant="outline">{r.category}</Badge>
+                          <span>{format(new Date(r.started_at), "dd/MM HH:mm")}</span>
+                          <span className="font-mono">{getDuration(r)}</span>
+                        </div>
+                        {r.source === "wo_event" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-11 w-full touch-manipulation"
+                            onClick={() => r.work_order_id && navigate(`/dashboard/wo/${r.work_order_id}`)}
+                            disabled={!r.work_order_id}
+                          >
+                            Open WO
+                          </Button>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" className="h-10 flex-1 touch-manipulation" onClick={() => openEdit(r)}>
+                              <Pencil className="h-4 w-4 mr-1" /> Edit
+                            </Button>
+                            {active && (
+                              <Button size="sm" variant="outline" className="h-10 flex-1 text-green-600 touch-manipulation" onClick={() => handleResolve(r.id)}>
+                                <CheckCircle className="h-4 w-4 mr-1" /> Resolve
+                              </Button>
+                            )}
+                            <Button size="sm" variant="outline" className="h-10 text-destructive touch-manipulation" onClick={() => setDeleteId(r.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop table */}
+                <Table className="hidden md:table">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Line</TableHead>
@@ -595,9 +650,9 @@ export default function DowntimePage() {
                       <TableCell className="font-mono text-sm">{getDuration(r)}</TableCell>
                       <TableCell>
                         {r.ended_at ? (
-                          <Badge className="bg-green-100 text-green-800 border-green-200">Resolved</Badge>
+                          <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800">Resolved</Badge>
                         ) : (
-                          <Badge className="bg-red-100 text-red-800 border-red-200">Active</Badge>
+                          <Badge className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800">Active</Badge>
                         )}
                       </TableCell>
                       <TableCell>
@@ -628,6 +683,7 @@ export default function DowntimePage() {
                   ))}
                 </TableBody>
               </Table>
+              </>
             )}
           </CardContent>
         </Card>
