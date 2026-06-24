@@ -433,27 +433,17 @@ export default function DowntimePage() {
             <p className="text-muted-foreground">Production stoppages, MTBF/MTTR & machine risk intelligence</p>
           </div>
           <div className="flex items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1">
-                  <CalendarIcon className="h-4 w-4" />
-                  {format(startDate, "dd/MM")} – {format(endDate, "dd/MM")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 z-50 bg-popover" align="end">
-                <Calendar
-                  mode="range"
-                  selected={{ from: startDate, to: endDate }}
-                  onSelect={(range) => {
-                    if (range?.from) setStartDate(startOfDay(range.from));
-                    if (range?.to) setEndDate(endOfDay(range.to));
-                  }}
-                  numberOfMonths={2}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
+            <DateRangeFilter
+              value={{ from: startDate, to: endDate }}
+              preset={datePreset}
+              onChange={(range, preset) => {
+                setDatePreset(preset);
+                const r = preset === "all" ? getPresetRange("30d") : range;
+                if (r.from) setStartDate(startOfDay(r.from));
+                if (r.to) setEndDate(endOfDay(r.to));
+              }}
+            />
+
             <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={openCreate}>
               <Plus className="h-4 w-4 mr-2" /> Register Downtime
             </Button>
