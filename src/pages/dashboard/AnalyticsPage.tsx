@@ -57,6 +57,7 @@ export default function AnalyticsPage() {
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: machines, isLoading: machinesLoading } = useMachines();
+  const { data: linesData } = useLines();
   const { data: engineerScores, isLoading: scoresLoading } = useEngineerScores();
   const { data: woMetricsRange, isLoading: metricsLoading } = useAllWoMetrics({ from: startDate, to: endDate });
 
