@@ -173,8 +173,14 @@ export default function SKUProductsPage() {
   return (
     <DashboardLayout>
       <div className="p-4 md:p-6 space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-bold">SKU Products</h1>
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">SKU Products</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Upload CSV File — required columns: <code>product_code</code> (or SKU) and <code>product_description</code> (or name).
+              Accepts various header formats (SKU, Codigo, Code, Name, Description, etc.).
+            </p>
+          </div>
           <div className="flex gap-2">
             <Button
               variant="outline"
