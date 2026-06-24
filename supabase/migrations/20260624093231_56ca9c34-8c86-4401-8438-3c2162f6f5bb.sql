@@ -1,0 +1,1 @@
+ALTER TABLE public.work_orders ALTER COLUMN operator_id DROP NOT NULL;
