@@ -24,6 +24,7 @@ export default function SettingsPage() {
         <section className="space-y-3">
           <h3 className="text-lg font-semibold">Reports</h3>
           <WeeklyReportCard />
+          <ExcelExportCard />
         </section>
       </div>
     </DashboardLayout>
