@@ -1,8 +1,9 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import { Loader2, Tablet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 import { useOperatorAccounts } from "@/hooks/useOperatorAccounts";
 import { useLines } from "@/hooks/useMachines";
 import { DeviceLineProvider, useDeviceLineCtx, AllowedLine } from "@/contexts/DeviceLineContext";
@@ -22,6 +23,30 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
   const { data: accounts, isLoading: accountsLoading } = useOperatorAccounts();
   const { data: lines, isLoading: linesLoading } = useLines();
 
+  const toastedRef = useRef<string | null>(null);
+
+  const account = accounts?.find((a) => a.user_id === user?.id) ?? null;
+  const allowedIds = account?.line_ids ?? [];
+  const isBlocked = !accountsLoading && !linesLoading && (!account || allowedIds.length === 0);
+
+  useEffect(() => {
+    if (!isBlocked || !user?.id) return;
+    const key = user.id + (account ? ":no-lines" : ":no-account");
+    if (toastedRef.current === key) return;
+    toastedRef.current = key;
+    if (!account) {
+      toast.error("No tablet account linked to this login", {
+        description: `Signed in as ${user.email ?? "this user"}, but no operator/line binding was found. Ask an admin to configure it.`,
+        duration: 8000,
+      });
+    } else {
+      toast.warning("Tablet account has no lines assigned", {
+        description: `"${account.label}" is configured but has zero production lines. Ask a manager to assign at least one line.`,
+        duration: 8000,
+      });
+    }
+  }, [isBlocked, account, user?.id, user?.email]);
+
   if (accountsLoading || linesLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -30,11 +55,8 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  const account = accounts?.find((a) => a.user_id === user?.id) ?? null;
-  const allowedIds = account?.line_ids ?? [];
-
   // No account or unbound — block everything.
-  if (!account || allowedIds.length === 0) {
+  if (isBlocked) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-lg border-2 border-amber-500/40">
@@ -42,10 +64,15 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
             <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/10">
               <Tablet className="h-8 w-8 text-amber-500" />
             </div>
-            <CardTitle className="text-2xl">Tablet account not configured</CardTitle>
+            <CardTitle className="text-2xl">
+              {account ? "No lines assigned to this account" : "Tablet account not configured"}
+            </CardTitle>
             <CardDescription className="mt-2 text-base">
-              This login is not bound to any production line. Ask a manager or admin to
-              configure it in <span className="font-semibold">Manage Users → Tablet Accounts</span>.
+              {account ? (
+                <>The account <span className="font-semibold">"{account.label}"</span> exists but has no production lines. Ask a manager to assign at least one line in <span className="font-semibold">Manage Users → Tablet Accounts</span>.</>
+              ) : (
+                <>Signed in as <span className="font-semibold">{user?.email ?? "this user"}</span>, but this login is not bound to any production line. Ask a manager or admin to configure it in <span className="font-semibold">Manage Users → Tablet Accounts</span>.</>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
