@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Pencil, Upload, Search } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, Search, Download } from "lucide-react";
 import { toast } from "sonner";
 
 interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; active: boolean }
@@ -138,6 +138,20 @@ export default function SKUProductsPage() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold">SKU Products</h1>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                const csv = "sku;name;category;target_per_hour\nSKU-001;Example Product;Beverages;1200\nSKU-002;Another Product;;\n";
+                const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = "sku_products_template.csv";
+                a.click();
+                URL.revokeObjectURL(a.href);
+              }}
+            >
+              <Download className="h-4 w-4 mr-1" />Template CSV
+            </Button>
             <label>
               <input type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleImport(e.target.files[0])} />
               <Button variant="outline" disabled={importing} asChild><span><Upload className="h-4 w-4 mr-1" />{importing ? "Importing..." : "Import CSV"}</span></Button>
