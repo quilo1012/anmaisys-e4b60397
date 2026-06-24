@@ -81,9 +81,10 @@ export default function SKUProductsPage() {
   const save = useMutation({
     mutationFn: async (sku: Partial<Sku>) => {
       const payload = {
-        code: sku.code, name: sku.name, category: sku.category ?? null,
+        code: sku.code ?? "", name: sku.name ?? "", category: sku.category ?? null,
         target_per_hour: sku.target_per_hour ?? null, active: sku.active ?? true,
       };
+      if (!payload.code || !payload.name) throw new Error("Code and Name required");
       if (sku.id) {
         const { error } = await supabase.from("sku_products").update(payload).eq("id", sku.id);
         if (error) throw error;
