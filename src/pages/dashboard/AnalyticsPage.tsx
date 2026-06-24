@@ -289,6 +289,20 @@ export default function AnalyticsPage() {
     return Math.round(total);
   }, [allWOs, metricsById]);
 
+  const mostAffectedLine = useMemo(() => {
+    if (!allWOs) return null;
+    const map: Record<string, number> = {};
+    allWOs.filter((w) => DONE_STATUSES.includes(w.status)).forEach((wo: any) => {
+      const m = metricsById.get(wo.id);
+      if (!m || typeof m.active_repair_sec !== "number") return;
+      const name = (wo.line_id && lineNameById.get(wo.line_id)) || "Unassigned";
+      map[name] = (map[name] || 0) + m.active_repair_sec / 60;
+    });
+    const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+    if (!sorted.length) return null;
+    return { name: sorted[0][0], minutes: Math.round(sorted[0][1]) };
+  }, [allWOs, metricsById, lineNameById]);
+
   // Most used machines (highest WO count)
   const mostUsedMachines = useMemo(() => {
     if (!allWOs) return [];
@@ -365,6 +379,18 @@ export default function AnalyticsPage() {
               <h2 className="text-lg font-bold">ANALYTICS REPORT</h2>
               <p className="text-sm">Period: {format(startDate, "dd/MM/yyyy")} — {format(endDate, "dd/MM/yyyy")}</p>
               <p className="text-xs text-muted-foreground">Printed: {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
+            <div className="border rounded p-2">
+              <p className="text-xs uppercase text-muted-foreground">Total Downtime (Period)</p>
+              <p className="text-base font-bold">{formatMinutes(totalDowntimeMinutes)}</p>
+            </div>
+            <div className="border rounded p-2">
+              <p className="text-xs uppercase text-muted-foreground">Most Affected Line</p>
+              <p className="text-base font-bold">
+                {mostAffectedLine ? `${mostAffectedLine.name} — ${formatMinutes(mostAffectedLine.minutes)}` : "—"}
+              </p>
             </div>
           </div>
         </div>
