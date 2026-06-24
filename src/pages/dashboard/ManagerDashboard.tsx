@@ -6,7 +6,9 @@ import { formatMinutes } from "@/lib/formatDuration";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { useAllWoMetrics } from "@/hooks/useWoMetrics";
-import { differenceInMinutes } from "date-fns";
+import { useDowntime } from "@/hooks/useDowntime";
+import { reconcileMinutes } from "@/lib/downtimeReconcile";
+import { differenceInMinutes, startOfDay, endOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { useNavigate, Navigate } from "react-router-dom";
@@ -96,6 +98,7 @@ function ManagerDashboardContent() {
   const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("7d");
   const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("7d"));
   const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
+  const { data: downtimeRecords } = useDowntime();
   const { role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -135,12 +138,21 @@ function ManagerDashboardContent() {
       ? Math.round(downM.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / downM.length / 60)
       : 0;
 
-    const totalDowntimeMin = Math.round(
-      finalized.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / 60
-    );
-
-    return { avgResponse, avgActiveRepair, avgLineDowntime, totalDowntimeMin };
+    return { avgResponse, avgActiveRepair, avgLineDowntime };
   }, [woMetrics]);
+
+  // Total downtime aligned with the Downtime page (parallel stoppages counted once).
+  const totalDowntimeMin = useMemo(() => {
+    const recs = downtimeRecords || [];
+    const rangeStartMs = startOfDay(kpiRange.from).getTime();
+    const rangeEndMs = Math.min(endOfDay(kpiRange.to).getTime(), Date.now());
+    return reconcileMinutes(
+      recs.map((r) => ({ start: r.started_at, end: r.ended_at })),
+      rangeStartMs,
+      rangeEndMs,
+      Date.now(),
+    );
+  }, [downtimeRecords, kpiRange]);
 
   const handleChangePin = async () => {
     if (newPin.length < 4) {
@@ -262,11 +274,11 @@ function ManagerDashboardContent() {
           />
           <KpiCard
             label="Total Downtime (Selected Range)"
-            value={formatMinutes(kpis.totalDowntimeMin)}
+            value={formatMinutes(totalDowntimeMin)}
             icon={TrendingDown}
-            tone={kpis.totalDowntimeMin > 0 ? "red" : "muted"}
-            footer="sum of line downtime in period"
-            tooltip="Total Downtime: sum of all line stoppage minutes for finalized WOs within the selected period."
+            tone={totalDowntimeMin > 0 ? "red" : "muted"}
+            footer="parallel stoppages counted once"
+            tooltip="Total Downtime: wall-clock minutes any line was stopped within the selected period. Matches the Downtime page (parallel stoppages counted once)."
           />
         </div>
 
