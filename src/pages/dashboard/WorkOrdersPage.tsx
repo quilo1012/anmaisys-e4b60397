@@ -423,6 +423,7 @@ export default function WorkOrdersPage() {
                   const engPerf = engineerScores?.map((s) => ({ name: s.engineer_name || "Unknown", score: s.score, completed: 0 })) || [];
                   const openWOs = allWOs.filter((w) => isWoOpen(w.status)).length;
                   try {
+                    const { generatePdfReport } = await import("@/lib/generatePdfReport");
                     generatePdfReport({
                       workOrders: allWOs,
                       machineLineMap,
