@@ -21,6 +21,7 @@ export default function ExecutiveDashboard() {
   const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("7d");
   const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("7d"));
   const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
+  const { data: downtimeRecords = [] } = useDowntime();
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const toggleFullscreen = useCallback(() => {
