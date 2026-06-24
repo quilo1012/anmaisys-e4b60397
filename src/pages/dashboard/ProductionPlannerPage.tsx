@@ -66,6 +66,7 @@ export default function ProductionPlannerPage() {
   const [shift, setShift] = useState("DAY");
   const [line, setLine] = useState<string>("");
   const [leaderId, setLeaderId] = useState<string>("");
+  const [leaderName, setLeaderName] = useState<string>("");
   const [staffPlanned, setStaffPlanned] = useState(0);
   const [staffActual, setStaffActual] = useState(0);
   const [notes, setNotes] = useState("");
@@ -97,11 +98,12 @@ export default function ProductionPlannerPage() {
   useEffect(() => {
     if (existing) {
       setLeaderId(existing.leader_id ?? "");
+      setLeaderName(existing.leader_name ?? "");
       setStaffPlanned(existing.staff_planned ?? 0);
       setStaffActual(existing.staff_actual ?? 0);
       setNotes(existing.notes ?? "");
     } else {
-      setLeaderId(""); setStaffPlanned(0); setStaffActual(0); setNotes("");
+      setLeaderId(""); setLeaderName(""); setStaffPlanned(0); setStaffActual(0); setNotes("");
     }
   }, [existing]);
 
@@ -138,7 +140,7 @@ export default function ProductionPlannerPage() {
       id: existingId ?? undefined,
       session_date: date, shift, line,
       leader_id: leaderId || null,
-      leader_name: leader?.name ?? null,
+      leader_name: leader?.name ?? (leaderName.trim() || null),
       staff_planned: staffPlanned, staff_actual: staffActual,
       notes: notes || null,
     });
@@ -225,10 +227,19 @@ export default function ProductionPlannerPage() {
               </div>
               <div>
                 <Label>Line Leader</Label>
-                <Select value={leaderId} onValueChange={setLeaderId} disabled={locked}>
-                  <SelectTrigger><SelectValue placeholder="Pick leader" /></SelectTrigger>
-                  <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
-                </Select>
+                {leaders.length > 0 ? (
+                  <Select value={leaderId} onValueChange={setLeaderId} disabled={locked}>
+                    <SelectTrigger><SelectValue placeholder="Pick leader" /></SelectTrigger>
+                    <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={leaderName}
+                    onChange={(e) => setLeaderName(e.target.value)}
+                    placeholder="Type leader name"
+                    disabled={locked}
+                  />
+                )}
               </div>
             </div>
           </CardContent>
