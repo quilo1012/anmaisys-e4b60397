@@ -16,7 +16,7 @@ import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { differenceInMinutes, format, subDays, startOfDay, endOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList } from "recharts";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -665,8 +665,13 @@ export default function AnalyticsPage() {
                       }}
                     />
                     <Legend />
-                    <Bar dataKey="day" stackId="s" fill="#f59e0b" name="Day shift (06–18)" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="night" stackId="s" fill="#6366f1" name="Night shift (18–06)" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="day" stackId="s" fill="#f59e0b" name="Day shift (06–18)" radius={[0, 0, 0, 0]}>
+                      <LabelList dataKey="day" position="center" fill="#fff" fontSize={11} formatter={(v: number) => (v > 0 ? `${v}m` : "")} />
+                    </Bar>
+                    <Bar dataKey="night" stackId="s" fill="#6366f1" name="Night shift (18–06)" radius={[0, 4, 4, 0]}>
+                      <LabelList dataKey="night" position="center" fill="#fff" fontSize={11} formatter={(v: number) => (v > 0 ? `${v}m` : "")} />
+                      <LabelList dataKey="lines" position="right" fill="hsl(var(--foreground))" fontSize={10} formatter={(v: string) => (v && v !== "—" ? v : "")} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
