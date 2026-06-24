@@ -10,7 +10,7 @@ import {
   type ShiftType,
 } from "@/hooks/useShiftDowntime";
 import type { DowntimeEvent } from "@/hooks/useDowntimeEvents";
-import { reconcileMinutes } from "@/lib/downtimeReconcile";
+import { reconcileMinutes, reconcileByKey } from "@/lib/downtimeReconcile";
 
 function toLondonISODate(d: Date): string {
   // YYYY-MM-DD in London local time
@@ -39,18 +39,21 @@ function ShiftPanel({ shift, events, windowStart, windowEnd }: ShiftPanelProps) 
   // Aggregate per asset/line. Do not use stopped_reason as the row label: it is
   // the problem text (e.g. "Again"), not the machine/line that is down.
   const rows = useMemo(() => {
-    const byKey: Record<string, { label: string; minutes: number; ongoing: boolean }> = {};
-    events.forEach((e) => {
+    const stops = events.map((e) => {
       const machine = (e.machine ?? "").toString().trim();
       const line = (e.line_name ?? e.line_at_time ?? "").toString().trim();
-      const key = machine || line || "Unassigned machine";
-      const min = eventMinutesInWindow(e, windowStart, windowEnd);
-      if (min <= 0) return;
-      if (!byKey[key]) byKey[key] = { label: key, minutes: 0, ongoing: false };
-      byKey[key].minutes += min;
-      if (!e.resumed_at) byKey[key].ongoing = true;
+      return {
+        start: e.stopped_at,
+        end: e.resumed_at,
+        _key: machine || line || "Unassigned machine",
+      };
     });
-    return Object.values(byKey).sort((a, b) => b.minutes - a.minutes);
+    return reconcileByKey(
+      stops,
+      (s) => (s as any)._key,
+      windowStart.getTime(),
+      windowEnd.getTime(),
+    ).map((r) => ({ label: r.key, minutes: r.minutes, ongoing: r.ongoing }));
   }, [events, windowStart, windowEnd]);
 
   // Wall-clock total via shared reconciler (same math as DowntimePage KPI).
