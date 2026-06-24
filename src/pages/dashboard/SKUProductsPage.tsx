@@ -14,6 +14,14 @@ import { toast } from "sonner";
 
 interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; active: boolean }
 
+type SkuImportRow = {
+  code: string;
+  name: string;
+  category: string | null;
+  target_per_hour: number;
+  active: boolean;
+};
+
 const PAGE_SIZE = 50;
 
 function parseCSV(text: string): Partial<Sku>[] {
@@ -134,23 +142,28 @@ export default function SKUProductsPage() {
     try {
       const text = await file.text();
       const rows = parseCSV(text);
-      if (!rows.length) { toast.error("No valid rows"); return; }
-      const BATCH = 100;
+      if (!rows.length) { toast.error("No valid rows. Use CSV with SKU and Name/Description columns."); return; }
+      const BATCH = 500;
       let ok = 0;
       const valid = rows
-        .filter((r): r is { code: string; name: string; category: string | null; target_per_hour: number | null; active: boolean } => !!r.code && !!r.name)
+        .filter((r): r is SkuImportRow => !!r.code && !!r.name)
         .map((r) => ({ ...r, target_per_hour: r.target_per_hour ?? 0 }));
       if (!valid.length) { toast.error("No rows with SKU and Name found"); return; }
+      const importSkuProducts = supabase.rpc as unknown as (
+        fn: "import_sku_products",
+        args: { _rows: SkuImportRow[] },
+      ) => Promise<{ data: { count?: number } | null; error: { message: string } | null }>;
       for (let i = 0; i < valid.length; i += BATCH) {
         const slice = valid.slice(i, i + BATCH);
-        const { error } = await supabase.from("sku_products").upsert(slice, { onConflict: "code" });
+        const { data, error } = await importSkuProducts("import_sku_products", { _rows: slice });
         if (error) throw error;
-        ok += slice.length;
+        ok += data?.count ?? slice.length;
       }
       qc.invalidateQueries({ queryKey: ["sku_products_all"] });
-      toast.success(`Imported ${ok} SKUs`);
+      toast.success(`Imported ${ok} SKUs from ${valid.length} valid rows`);
     } catch (e) {
-      toast.error((e as Error).message);
+      const message = (e as Error).message || "CSV import failed";
+      toast.error(message.includes("Forbidden") ? "Only Admin or Manager can import SKUs" : message);
     } finally { setImporting(false); }
   };
 
