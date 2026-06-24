@@ -259,7 +259,14 @@ function ManagerDashboardContent() {
             tone="muted"
             footer="total parts consumed today"
             tooltip="Parts Used Today: total parts/products consumed in repairs during today. Useful for consumption and cost tracking."
-
+          />
+          <KpiCard
+            label="Total Downtime (Selected Range)"
+            value={formatMinutes(kpis.totalDowntimeMin)}
+            icon={TrendingDown}
+            tone={kpis.totalDowntimeMin > 0 ? "red" : "muted"}
+            footer="sum of line downtime in period"
+            tooltip="Total Downtime: sum of all line stoppage minutes for finalized WOs within the selected period."
           />
         </div>
 
