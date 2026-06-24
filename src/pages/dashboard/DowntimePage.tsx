@@ -455,6 +455,22 @@ export default function DowntimePage() {
           </div>
         </div>
 
+        {debugMode && (
+          <Card className="border-amber-500/50 bg-amber-500/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-mono">🐞 Debug — Hook outputs</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs font-mono space-y-1">
+              <div>Range: <b>{format(startDate, "dd/MM/yy HH:mm")}</b> → <b>{format(endDate, "dd/MM/yy HH:mm")}</b></div>
+              <div>allWOs (raw): <b>{allWOs?.length ?? 0}</b></div>
+              <div>filteredWOs (in range): <b>{filteredWOs.length}</b></div>
+              <div>machineHistory rows: <b>{machineHistory.length}</b> → {machineHistory.map(m => `${m.machine}(${m.count})`).join(", ") || "—"}</div>
+              <div>filteredRisks rows: <b>{filteredRisks.length}</b> → {filteredRisks.map(r => `${r.machine}[${r.risk}/${r.failures30d}]`).join(", ") || "—"}</div>
+              <div className="text-muted-foreground pt-1">Full payload logged to console as <code>[DowntimeDebug]</code>.</div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Top KPIs: Downtime focused */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
