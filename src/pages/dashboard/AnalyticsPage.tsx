@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatMinutes } from "@/lib/formatDuration";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
@@ -278,6 +279,16 @@ export default function AnalyticsPage() {
       .slice(0, 10);
   }, [allWOs, metricsById, lineNameById]);
 
+  const totalDowntimeMinutes = useMemo(() => {
+    if (!allWOs) return 0;
+    let total = 0;
+    allWOs.filter((w) => DONE_STATUSES.includes(w.status)).forEach((wo) => {
+      const m = metricsById.get(wo.id);
+      if (m && typeof m.active_repair_sec === "number") total += m.active_repair_sec / 60;
+    });
+    return Math.round(total);
+  }, [allWOs, metricsById]);
+
   // Most used machines (highest WO count)
   const mostUsedMachines = useMemo(() => {
     if (!allWOs) return [];
@@ -442,6 +453,21 @@ export default function AnalyticsPage() {
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg MTBF</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{kpis.avgMTBF > 60 ? `${Math.round(kpis.avgMTBF / 60)}h` : `${kpis.avgMTBF} min`}</div><p className="text-xs text-muted-foreground">{hasNoActivity ? "No activity in selected period" : "Mean Time Between Failures"}</p></CardContent></Card>
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">SLA Compliance</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-2xl font-bold ${slaCompliance.rate < 80 ? "text-destructive" : "text-green-600"}`}>{slaCompliance.rate}%</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
         </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Downtime (Selected Range)</CardTitle>
+              <TrendingDown className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatMinutes(totalDowntimeMinutes)}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {hasNoActivity ? "No activity in selected period" : "Sum of active repair time across completed WOs"}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
 
         {/* Charts */}
         <div className="grid gap-6 md:grid-cols-2">
