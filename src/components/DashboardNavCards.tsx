@@ -78,6 +78,10 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
   const { role } = useAuth();
   const cards: NavCard[] = [
     { title: "Work Orders", description: "Manage all maintenance work orders", url: "/dashboard/work-orders", icon: ClipboardList, badge: openWOs, accent: OPS },
+    { title: "Production Planner", description: "Daily shift planning by line", url: "/dashboard/planner", icon: CalendarRange, accent: OPS },
+    { title: "Production OEE", description: "Performance, RAG and leaderboard", url: "/dashboard/production-performance", icon: Gauge, accent: REPORTS },
+    { title: "Quality Actions", description: "Log and track quality issues", url: "/dashboard/quality", icon: CheckSquare, accent: OPS },
+    { title: "SKU Products", description: "Catalog and CSV import", url: "/dashboard/sku-products", icon: Boxes, accent: ASSETS },
     { title: "Machines", description: "View and manage equipment", url: "/dashboard/machines", icon: Cog, badge: machinesCount, accent: ASSETS },
     { title: "Downtime", description: "Track production line stoppages", url: "/dashboard/downtime", icon: Clock, accent: OPS },
     { title: "Preventive Maintenance", description: "Recurring schedules and checklists", url: "/dashboard/preventive", icon: Wrench, accent: ASSETS },
