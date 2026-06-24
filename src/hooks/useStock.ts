@@ -40,6 +40,7 @@ export function useProducts() {
       if (error) throw error;
       return data as Product[];
     },
+    staleTime: 2 * 60_000,
   });
 
   useEffect(() => {
