@@ -1097,6 +1097,7 @@ export type Database = {
           planned_qty: number
           session_id: string
           sku_id: string
+          target_qty: number | null
           updated_at: string
         }
         Insert: {
@@ -1107,6 +1108,7 @@ export type Database = {
           planned_qty?: number
           session_id: string
           sku_id: string
+          target_qty?: number | null
           updated_at?: string
         }
         Update: {
@@ -1117,6 +1119,7 @@ export type Database = {
           planned_qty?: number
           session_id?: string
           sku_id?: string
+          target_qty?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -1141,10 +1144,17 @@ export type Database = {
           created_at: string
           finished_at: string | null
           id: string
+          leader_id: string | null
+          leader_name: string | null
           line: string
+          locked: boolean
+          locked_at: string | null
+          locked_by: string | null
           notes: string | null
           session_date: string
           shift: string
+          staff_actual: number | null
+          staff_planned: number | null
           started_at: string
           started_by: string | null
           updated_at: string
@@ -1153,10 +1163,17 @@ export type Database = {
           created_at?: string
           finished_at?: string | null
           id?: string
+          leader_id?: string | null
+          leader_name?: string | null
           line: string
+          locked?: boolean
+          locked_at?: string | null
+          locked_by?: string | null
           notes?: string | null
           session_date: string
           shift: string
+          staff_actual?: number | null
+          staff_planned?: number | null
           started_at?: string
           started_by?: string | null
           updated_at?: string
@@ -1165,10 +1182,17 @@ export type Database = {
           created_at?: string
           finished_at?: string | null
           id?: string
+          leader_id?: string | null
+          leader_name?: string | null
           line?: string
+          locked?: boolean
+          locked_at?: string | null
+          locked_by?: string | null
           notes?: string | null
           session_date?: string
           shift?: string
+          staff_actual?: number | null
+          staff_planned?: number | null
           started_at?: string
           started_by?: string | null
           updated_at?: string
@@ -1417,6 +1441,7 @@ export type Database = {
           created_at: string
           id: string
           label: string
+          points: number
           updated_at: string
         }
         Insert: {
@@ -1425,6 +1450,7 @@ export type Database = {
           created_at?: string
           id?: string
           label: string
+          points?: number
           updated_at?: string
         }
         Update: {
@@ -1433,6 +1459,7 @@ export type Database = {
           created_at?: string
           id?: string
           label?: string
+          points?: number
           updated_at?: string
         }
         Relationships: []
@@ -1443,10 +1470,14 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          leader_id: string | null
+          leader_name: string | null
           line: string | null
+          points: number | null
           recorded_at: string
           recorded_by: string | null
           session_id: string | null
+          shift: string | null
           updated_at: string
         }
         Insert: {
@@ -1454,10 +1485,14 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          leader_id?: string | null
+          leader_name?: string | null
           line?: string | null
+          points?: number | null
           recorded_at?: string
           recorded_by?: string | null
           session_id?: string | null
+          shift?: string | null
           updated_at?: string
         }
         Update: {
@@ -1465,10 +1500,14 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          leader_id?: string | null
+          leader_name?: string | null
           line?: string | null
+          points?: number | null
           recorded_at?: string
           recorded_by?: string | null
           session_id?: string | null
+          shift?: string | null
           updated_at?: string
         }
         Relationships: [
