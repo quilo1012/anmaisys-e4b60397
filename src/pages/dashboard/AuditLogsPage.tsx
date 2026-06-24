@@ -101,7 +101,44 @@ export default function AuditLogsPage() {
                 <p className="text-muted-foreground text-sm mt-1">Activity will appear here as actions are performed.</p>
               </div>
             ) : (
-              <Table>
+              <>
+                {/* Mobile cards */}
+                <div className="md:hidden space-y-3">
+                  {logs.map((log) => {
+                    const d: any = log.details || {};
+                    const machine = d.machine || d.after?.machine || d.before?.machine || d.wo_machine;
+                    const hasBA = log.details?.before || log.details?.after;
+                    return (
+                      <div key={log.id} className="rounded-lg border bg-card p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-muted-foreground">{format(new Date(log.created_at), "dd/MM/yyyy HH:mm:ss")}</p>
+                          <p className="text-xs font-mono text-muted-foreground">{log.entity_id ? log.entity_id.slice(0, 8) : "—"}</p>
+                        </div>
+                        <p className="font-medium text-sm">{log.user_name}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge variant="outline">{log.action}</Badge>
+                          <Badge variant="secondary">{log.entity_type}</Badge>
+                          {machine && <Badge variant="outline">{machine}</Badge>}
+                        </div>
+                        {(hasBA || Object.keys(log.details || {}).length) ? (
+                          <div className="rounded bg-muted/50 p-2 text-xs space-y-1">
+                            {hasBA ? (
+                              <>
+                                {log.details.before && <div><span className="text-destructive font-medium">Before:</span> {typeof log.details.before === "object" ? JSON.stringify(log.details.before) : String(log.details.before)}</div>}
+                                {log.details.after && <div><span className="text-green-600 dark:text-green-400 font-medium">After:</span> {typeof log.details.after === "object" ? JSON.stringify(log.details.after) : String(log.details.after)}</div>}
+                              </>
+                            ) : (
+                              <div className="text-muted-foreground break-all">{JSON.stringify(log.details)}</div>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop table */}
+                <Table className="hidden md:table">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
@@ -128,9 +165,9 @@ export default function AuditLogsPage() {
                       <TableCell className="font-mono text-xs">{log.entity_id ? log.entity_id.slice(0, 8) + "..." : "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground max-w-[300px]">
                         {log.details?.before || log.details?.after ? (
-                          <div className="space-y-0.5">
+                          <div className="space-y-0.5 rounded bg-muted/50 p-2">
                             {log.details.before && <div><span className="text-destructive font-medium">Before:</span> {typeof log.details.before === "object" ? JSON.stringify(log.details.before) : String(log.details.before)}</div>}
-                            {log.details.after && <div><span className="text-green-600 font-medium">After:</span> {typeof log.details.after === "object" ? JSON.stringify(log.details.after) : String(log.details.after)}</div>}
+                            {log.details.after && <div><span className="text-green-600 dark:text-green-400 font-medium">After:</span> {typeof log.details.after === "object" ? JSON.stringify(log.details.after) : String(log.details.after)}</div>}
                           </div>
                         ) : Object.keys(log.details || {}).length ? JSON.stringify(log.details) : "—"}
                       </TableCell>
@@ -139,6 +176,7 @@ export default function AuditLogsPage() {
                   })}
                 </TableBody>
               </Table>
+              </>
             )}
 
             {/* Pagination footer */}

@@ -504,7 +504,48 @@ export default function MachinesPage() {
             ) : !filteredMachines.length ? (
               <p className="text-muted-foreground text-center py-8">No machines match "{search}".</p>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                {/* Mobile cards */}
+                <div className="md:hidden space-y-3">
+                  {pagedMachines.map((m) => (
+                    <div key={m.id} className="rounded-lg border bg-card p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold truncate">{m.name}</p>
+                          <p className="text-xs text-muted-foreground">{m.machine_type || "—"}</p>
+                        </div>
+                        {statusBadge(m.status)}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        {m.line && <Badge variant="outline">{m.line}</Badge>}
+                        <SideBadge side={m.side} />
+                        {m.current_location && (
+                          <Badge variant="outline" className="gap-1">
+                            <MapPin className="h-3 w-3" />{m.current_location}
+                          </Badge>
+                        )}
+                        {m.code && <span className="font-mono text-muted-foreground">{m.code}</span>}
+                        {!m.machine_type && (
+                          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Incomplete</Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 pt-1">
+                        <Button size="sm" variant="outline" className="h-11 touch-manipulation" onClick={() => navigate(`/dashboard/machines/${encodeURIComponent(m.name)}/history`)}>
+                          <History className="h-4 w-4 mr-1" /> History
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-11 touch-manipulation" onClick={() => openEdit(m)}>
+                          <Pencil className="h-4 w-4 mr-1" /> Edit
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-11 touch-manipulation" onClick={() => setQrMachine(m)}>
+                          <QrCode className="h-4 w-4 mr-1" /> QR
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden md:block overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -621,6 +662,7 @@ export default function MachinesPage() {
                   </TableBody>
                 </Table>
               </div>
+              </>
             )}
             {filteredMachines.length > 0 && (
               <div className="flex items-center justify-between gap-3 pt-4 flex-wrap">

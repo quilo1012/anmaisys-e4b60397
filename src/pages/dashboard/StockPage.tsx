@@ -170,7 +170,51 @@ export default function StockPage() {
             ) : !products?.length ? (
               <p className="text-muted-foreground text-center py-8">No products in stock yet.</p>
             ) : (
-              <Table>
+              <>
+                {/* Mobile cards */}
+                <div className="md:hidden space-y-3">
+                  {products.map((p) => {
+                    const isLow = p.quantity <= p.min_stock;
+                    return (
+                      <div key={p.id} className={`rounded-lg border p-3 space-y-2 ${isLow ? "border-destructive/50 bg-destructive/5" : "bg-card"}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold truncate">{p.name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{p.code}{p.line ? ` · ${p.line}` : ""}</p>
+                          </div>
+                          {isLow ? (
+                            <Badge variant="destructive">Low</Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800">OK</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-end justify-between gap-2">
+                          <div>
+                            <p className={`text-3xl font-bold ${isLow ? "text-destructive" : ""}`}>{p.quantity}</p>
+                            <p className="text-xs text-muted-foreground">Min: {p.min_stock}</p>
+                          </div>
+                          <div className="text-right space-y-1">
+                            <Badge variant="outline" className="capitalize">{p.category}</Badge>
+                            {isManager && <p className="text-sm font-medium">£{(p.price || 0).toFixed(2)}</p>}
+                          </div>
+                        </div>
+                        {isManager && (
+                          <div className="flex gap-2 pt-1">
+                            <Button size="sm" variant="outline" className="h-10 flex-1 touch-manipulation" onClick={() => openEdit(p)}>
+                              <Pencil className="h-4 w-4 mr-1" /> Edit
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-10 flex-1 text-destructive touch-manipulation" onClick={() => setDeleteId(p.id)}>
+                              <Trash2 className="h-4 w-4 mr-1" /> Delete
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop table */}
+                <Table className="hidden md:table">
                 <TableHeader>
                  <TableRow>
                      <TableHead>Name</TableHead>
@@ -200,7 +244,7 @@ export default function StockPage() {
                           {isLow ? (
                             <Badge variant="destructive">Low</Badge>
                           ) : (
-                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">OK</Badge>
+                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800">OK</Badge>
                           )}
                         </TableCell>
                         {isManager && (
@@ -216,6 +260,7 @@ export default function StockPage() {
                   })}
                 </TableBody>
               </Table>
+              </>
             )}
           </CardContent>
         </Card>
