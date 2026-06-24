@@ -26,6 +26,7 @@ export function usePublicTabletAccounts() {
       if (error) throw error;
       return (data ?? []) as PublicTabletAccount[];
     },
+    staleTime: 2 * 60_000,
   });
 }
 
@@ -40,6 +41,7 @@ export function useOperatorAccounts() {
       if (error) throw error;
       return (data ?? []) as OperatorLineAccount[];
     },
+    staleTime: 2 * 60_000,
   });
 }
 
