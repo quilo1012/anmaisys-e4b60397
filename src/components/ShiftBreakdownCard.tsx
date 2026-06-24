@@ -36,11 +36,14 @@ interface ShiftPanelProps {
 }
 
 function ShiftPanel({ shift, events, windowStart, windowEnd }: ShiftPanelProps) {
-  // Aggregate per machine/line (use stopped_reason fallback when no machine name on event)
+  // Aggregate per asset/line. Do not use stopped_reason as the row label: it is
+  // the problem text (e.g. "Again"), not the machine/line that is down.
   const rows = useMemo(() => {
     const byKey: Record<string, { label: string; minutes: number; ongoing: boolean }> = {};
     events.forEach((e) => {
-      const key = (e as any).machine || (e as any).line_at_time || e.stopped_reason || "—";
+      const machine = (e.machine ?? "").toString().trim();
+      const line = (e.line_name ?? e.line_at_time ?? "").toString().trim();
+      const key = machine || line || "Unassigned machine";
       const min = eventMinutesInWindow(e, windowStart, windowEnd);
       if (min <= 0) return;
       if (!byKey[key]) byKey[key] = { label: key, minutes: 0, ongoing: false };

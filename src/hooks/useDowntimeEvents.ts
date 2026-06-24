@@ -7,6 +7,9 @@ import { logAuditEvent } from "@/hooks/useAuditLogs";
 export interface DowntimeEvent {
   id: string;
   work_order_id: string;
+  machine?: string | null;
+  line_at_time?: string | null;
+  line_name?: string | null;
   stopped_at: string;
   stopped_by: string | null;
   stopped_by_name: string | null;
