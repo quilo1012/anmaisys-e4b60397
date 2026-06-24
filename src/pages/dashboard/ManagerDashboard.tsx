@@ -135,7 +135,11 @@ function ManagerDashboardContent() {
       ? Math.round(downM.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / downM.length / 60)
       : 0;
 
-    return { avgResponse, avgActiveRepair, avgLineDowntime };
+    const totalDowntimeMin = Math.round(
+      finalized.reduce((s, m) => s + (m.line_downtime_sec || 0), 0) / 60
+    );
+
+    return { avgResponse, avgActiveRepair, avgLineDowntime, totalDowntimeMin };
   }, [woMetrics]);
 
   const handleChangePin = async () => {
