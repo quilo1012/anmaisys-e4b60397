@@ -101,9 +101,10 @@ Deno.serve(async (req) => {
     const text = await tRes.text();
 
     if (!tRes.ok) {
+      console.error("Teams webhook error:", tRes.status, text.slice(0, 500));
       return new Response(
-        JSON.stringify({ error: "teams_webhook_failed", status: tRes.status, body: text.slice(0, 500) }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({ error: "teams_webhook_failed", status: tRes.status, body: text.slice(0, 500), fallback: true }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -111,9 +112,10 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
+    console.error("notify-teams error:", e);
     return new Response(
-      JSON.stringify({ error: (e as Error).message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify({ error: (e as Error).message, fallback: true }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
