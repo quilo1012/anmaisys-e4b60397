@@ -21,17 +21,27 @@ export function useDowntime() {
   return useQuery({
     queryKey: ["downtime"],
     queryFn: async () => {
-      const [{ data: manualData, error: manualError }, { data: eventData, error: eventError }] = await Promise.all([
+      const [
+        { data: manualData, error: manualError },
+        { data: eventData, error: eventError },
+        { data: woData, error: woError },
+      ] = await Promise.all([
         supabase.from("downtime" as any).select("*").order("started_at", { ascending: false }),
         (supabase as any)
           .from("downtime_events")
           .select("*, work_order:work_orders(wo_number, machine, line_at_time, line:lines!work_orders_line_id_fkey(name))")
           .order("stopped_at", { ascending: false }),
+        (supabase as any)
+          .from("work_orders")
+          .select("id, machine, line_at_time, line_stopped_at, line_stopped_by, line_resumed_at, line_resumed_by, created_at, description, line:lines!work_orders_line_id_fkey(name)")
+          .not("line_stopped_at", "is", null)
+          .order("line_stopped_at", { ascending: false }),
       ]);
       if (manualError) throw manualError;
       if (eventError) throw eventError;
+      if (woError) throw woError;
 
-      const prettifyLineManual = (raw: unknown): string => {
+      const prettifyLine = (raw: unknown): string => {
         const v = (raw ?? "").toString().trim();
         if (!v) return "— (line deleted)";
         if (/^removed$/i.test(v)) return "— (line deleted)";
@@ -40,23 +50,12 @@ export function useDowntime() {
 
       const manualRecords = (manualData || []).map((r: any) => ({
         ...r,
-        line: prettifyLineManual(r.line),
+        line: prettifyLine(r.line),
         source: "manual" as const,
       })) as DowntimeRecord[];
 
-      // Map legacy/placeholder values to a friendly label so deleted lines
-      // are not surfaced as the literal token "Removed".
-      const prettifyLine = (raw: unknown): string => {
-        const v = (raw ?? "").toString().trim();
-        if (!v) return "— (line deleted)";
-        if (/^removed$/i.test(v)) return "— (line deleted)";
-        return v;
-      };
-
       const eventRecords = (eventData || []).map((event: any) => {
         const wo = event.work_order;
-        // Prefer the live line name, fall back to the snapshot taken at WO
-        // creation, and finally to a friendly "deleted" placeholder.
         const liveName = wo?.line?.name as string | undefined;
         const snapshot = wo?.line_at_time as string | undefined;
         return {
@@ -76,7 +75,30 @@ export function useDowntime() {
         } as DowntimeRecord;
       });
 
-      return [...eventRecords, ...manualRecords].sort(
+      // Fallback: WOs that have line_stopped_at populated but no event row.
+      // The downtime_events trigger isn't always firing — surface the WO row
+      // directly so today's stoppages still appear in Downtime Records.
+      const woIdsWithEvents = new Set(
+        (eventData || []).map((e: any) => e.work_order_id),
+      );
+      const woRecords: DowntimeRecord[] = (woData || [])
+        .filter((w: any) => !woIdsWithEvents.has(w.id))
+        .map((w: any) => ({
+          id: `wo-${w.id}`,
+          source: "wo_event" as const,
+          line: w.line?.name?.trim() || prettifyLine(w.line_at_time),
+          machine: w.machine || null,
+          reason: w.description || "Line stopped",
+          category: "Machine",
+          started_at: w.line_stopped_at,
+          ended_at: w.line_resumed_at,
+          reported_by: w.line_stopped_by,
+          work_order_id: w.id,
+          notes: null,
+          created_at: w.created_at,
+        }));
+
+      return [...eventRecords, ...woRecords, ...manualRecords].sort(
         (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime(),
       );
     },
