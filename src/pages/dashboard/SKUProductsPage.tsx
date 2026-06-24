@@ -52,8 +52,8 @@ function parseCSV(text: string): Partial<Sku>[] {
     .trim();
   const headers = parseLine(lines[0]).map(normalize);
   const idx = (names: string[]) => headers.findIndex((h) => names.includes(h));
-  const iCode = idx(["sku", "code", "codigo", "cod", "item"]);
-  const iName = idx(["name", "produto", "product", "nome", "descricao", "description", "designacao"]);
+  const iCode = idx(["sku", "code", "codigo", "cod", "item", "product_code", "product code", "productcode"]);
+  const iName = idx(["name", "produto", "product", "nome", "descricao", "description", "designacao", "product_description", "product description", "productdescription"]);
   const iCat = idx(["category", "categoria"]);
   const iTph = idx(["target_per_hour", "target", "tph", "target per hour", "objetivo"]);
   const hasHeader = iCode >= 0 || iName >= 0;
