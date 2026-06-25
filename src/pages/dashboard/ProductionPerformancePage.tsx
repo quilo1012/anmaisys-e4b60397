@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronLeft, ChevronRight, Medal } from "lucide-react";
 import { format, parseISO, addDays, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
+import { CircularProgress } from "@/components/ui/circular-progress";
+import { Badge } from "@/components/ui/badge";
 
 type Period = "day" | "week" | "month";
 
