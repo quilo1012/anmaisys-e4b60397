@@ -44,19 +44,32 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
     const line = raw.trim();
     if (!line) continue;
 
-    const mMachine = line.match(/^Machine:\s*(.+?)(?:,|$)/i)
-      ?? line.match(/^"?Machine:\s*(.+?)"?\s*$/i);
-    if (mMachine) {
-      const name = mMachine[1].trim().replace(/\s*-\s*/g, " ").replace(/\s+/g, " ");
-      current = { line: name, items: [] };
-      sections.push(current);
-      header = null;
-      continue;
+    const cols = splitCsv(line);
+    const lower = cols.map((c) => c.toLowerCase());
+
+    // Detect "Machine:" either inline ("Machine: Filler Line 1") or as its own
+    // cell with the name in the next non-empty cell (xlsx-converted rows).
+    const machineCellIdx = lower.findIndex((c) => /^machine\s*:?\s*$/.test(c) || /^machine\s*:/.test(c));
+    if (machineCellIdx !== -1) {
+      let name = "";
+      const inline = cols[machineCellIdx].match(/^machine\s*:\s*(.+)$/i);
+      if (inline && inline[1].trim()) {
+        name = inline[1].trim();
+      } else {
+        for (let i = machineCellIdx + 1; i < cols.length; i++) {
+          if (cols[i] && cols[i].trim()) { name = cols[i].trim(); break; }
+        }
+      }
+      if (name) {
+        name = name.replace(/\s*-\s*/g, " ").replace(/\s+/g, " ");
+        current = { line: name, items: [] };
+        sections.push(current);
+        header = null;
+        continue;
+      }
     }
 
     if (!current) continue;
-    const cols = splitCsv(line);
-    const lower = cols.map((c) => c.toLowerCase());
 
     if (!header && lower.some((c) => c.includes("part code")) && lower.some((c) => c.includes("order quantity"))) {
       header = cols;

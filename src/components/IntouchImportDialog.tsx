@@ -165,7 +165,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   };
 
   const setLeader = (sectionLine: string, value: string) => {
-    if (value.startsWith("__id:")) {
+    if (value === "__none") {
+      setLeaderByLine((p) => ({ ...p, [sectionLine]: { name: "" } }));
+    } else if (value.startsWith("__id:")) {
       const id = value.slice(5);
       const l = leaders.find((x) => x.id === id);
       setLeaderByLine((p) => ({ ...p, [sectionLine]: { id, name: l?.name ?? "" } }));
@@ -287,7 +289,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
             <Accordion type="multiple" className="w-full">
               {resolved.map((sec) => {
                 const lead = leaderByLine[sec.line] ?? { name: "" };
-                const selectValue = lead.id ? `__id:${lead.id}` : "";
+                const selectValue = lead.id ? `__id:${lead.id}` : "__none";
                 return (
                   <AccordionItem key={sec.line} value={sec.line}>
                     <AccordionTrigger className="hover:no-underline">
