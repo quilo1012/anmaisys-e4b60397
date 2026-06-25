@@ -353,33 +353,22 @@ export default function WorkOrdersPage() {
               </div>
             </div>
 
-            {/* Row 2 — View toggle + Date pills + Custom range */}
+            {/* Row 2 — View toggle + Unified date range + Shift */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="inline-flex items-center rounded-md border bg-background p-0.5 shadow-sm">
                   <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("table")} className="h-7 w-8 p-0"><List className="h-4 w-4" /></Button>
                   <Button variant={viewMode === "board" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("board")} className="h-7 w-8 p-0"><LayoutGrid className="h-4 w-4" /></Button>
                 </div>
-                <div className="inline-flex items-center rounded-md border bg-background p-0.5 shadow-sm">
-                  {([["today", "Today"], ["yesterday", "Yesterday"], ["7days", "7D"], ["month", "Month"], ["all", "All"]] as const).map(([key, label]) => (
-                    <Button
-                      key={key}
-                      variant={dateQuickFilter === key ? "secondary" : "ghost"}
-                      size="sm"
-                      className="h-7 px-3 text-xs font-medium"
-                      onClick={() => { setDateQuickFilter(key); setDateFrom(""); setDateTo(""); }}
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateQuickFilter(""); }} className="w-[125px] sm:w-[140px] h-9 bg-background" />
-                  <span className="text-xs text-muted-foreground">→</span>
-                  <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateQuickFilter(""); }} className="w-[125px] sm:w-[140px] h-9 bg-background" />
-                </div>
+                <DateRangeFilter
+                  value={drRange}
+                  preset={drPreset}
+                  onChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
+                  storageKey="work-orders"
+                />
                 <ShiftFilter value={shiftFilter} onChange={setShiftFilter} />
               </div>
+
 
               <div className="inline-flex items-center gap-1 rounded-md border bg-background p-0.5 shadow-sm">
                 <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
