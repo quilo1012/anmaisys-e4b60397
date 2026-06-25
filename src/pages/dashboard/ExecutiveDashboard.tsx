@@ -9,6 +9,7 @@ import { differenceInMinutes, subDays, format, startOfDay, endOfDay } from "date
 import { useDowntime } from "@/hooks/useDowntime";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Timer, Activity, Trophy, TrendingUp, BarChart3 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { countOpenWOs } from "@/lib/woStatus";
