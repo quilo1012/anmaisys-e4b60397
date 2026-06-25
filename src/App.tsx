@@ -63,12 +63,14 @@ const PageLoader = () => (
   </div>
 );
 
-const roleDashMap = {
+const roleDashMap: Record<string, string> = {
   admin: "/dashboard/manager",
   manager: "/dashboard/manager",
+  maintenance_manager: "/dashboard/manager",
   engineer: "/dashboard/engineer",
   operator: "/dashboard/operator",
-} as const;
+  viewer: "/dashboard/manager",
+};
 
 const SessionRedirect = () => {
   const { session, role, loading } = useAuth();
