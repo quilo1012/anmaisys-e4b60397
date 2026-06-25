@@ -30,7 +30,7 @@ export function useCanActOnLine(lineId: string | null | undefined) {
   const { user, role } = useAuth();
   const { data: lineIds } = useOperatorLineIds();
   if (!user) return false;
-  if (role === "admin" || role === "manager" || role === "engineer") return true;
+  if (role === "admin" || (role === "manager" || role === "maintenance_manager") || role === "engineer") return true;
   if (role === "operator") {
     if (!lineId) return false;
     return (lineIds || []).includes(lineId);

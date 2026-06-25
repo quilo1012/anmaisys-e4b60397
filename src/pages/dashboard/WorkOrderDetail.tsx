@@ -240,7 +240,7 @@ export default function WorkOrderDetail() {
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
           <div className="flex gap-2">
-            {(role === "admin" || role === "manager") && (
+            {(role === "admin" || (role === "manager" || role === "maintenance_manager")) && (
               <>
                 <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
                   <Printer className="h-4 w-4" /> Print

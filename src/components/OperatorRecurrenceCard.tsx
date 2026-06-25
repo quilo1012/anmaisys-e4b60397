@@ -108,7 +108,7 @@ export function OperatorRecurrenceCard({ wo }: Props) {
   // Admins, managers, or any operator (backend RPC enforces same-line check
   // via operator_line_accounts so cross-shift tablets on the same line work).
   const canReport =
-    !!user && (role === "admin" || role === "manager" || role === "operator");
+    !!user && (role === "admin" || (role === "manager" || role === "maintenance_manager") || role === "operator");
 
   if (!canReport) return null;
   if (!["finished", "closed", "completed"].includes(wo.status)) return null;

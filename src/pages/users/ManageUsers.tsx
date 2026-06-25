@@ -464,7 +464,7 @@ export default function ManageUsers() {
                 {users.map((user) => {
                   const RoleIcon = user.role ? roleIcons[user.role] : Shield;
                   const isCurrentUser = user.id === currentUser?.id;
-                  const managerBlockedTarget = currentRole === "manager" && (user.role === "manager" || user.role === "admin");
+                  const managerBlockedTarget = currentRole === "manager" && (user.(role === "manager" || role === "maintenance_manager") || user.role === "admin");
                   return (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.name}</TableCell>
@@ -474,7 +474,7 @@ export default function ManageUsers() {
                           <RoleIcon className="h-4 w-4" />
                           <Badge variant="outline" className={
                             user.role === "admin" ? "bg-red-100 text-red-800 border-red-200" :
-                            user.role === "manager" ? "bg-purple-100 text-purple-800 border-purple-200" :
+                            user.(role === "manager" || role === "maintenance_manager") ? "bg-purple-100 text-purple-800 border-purple-200" :
                             user.role === "maintenance_manager" ? "bg-indigo-100 text-indigo-800 border-indigo-200" :
                             user.role === "engineer" ? "bg-blue-100 text-blue-800 border-blue-200" :
                             "bg-gray-100 text-gray-800 border-gray-200"

@@ -118,7 +118,7 @@ export function LineDowntimeControl({
 
   const canControl = useMemo(() => {
     if (!user) return false;
-    if (role === "admin" || role === "manager") return true;
+    if (role === "admin" || (role === "manager" || role === "maintenance_manager")) return true;
     if (role === "engineer") return true;
     if (role === "operator") {
       if (operatorId === user.id) return true;
