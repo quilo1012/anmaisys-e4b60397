@@ -386,6 +386,7 @@ export default function WorkOrdersPage() {
                   <span className="text-xs text-muted-foreground">→</span>
                   <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateQuickFilter(""); }} className="w-[125px] sm:w-[140px] h-9 bg-background" />
                 </div>
+                <ShiftFilter value={shiftFilter} onChange={setShiftFilter} />
               </div>
 
               <div className="inline-flex items-center gap-1 rounded-md border bg-background p-0.5 shadow-sm">
