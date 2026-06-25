@@ -1,7 +1,8 @@
 // Intouch i4 webhook receiver.
 // Logs every incoming payload (raw) so the real format can be inspected on the
-// first call from the device. If the payload can be mapped to a known shape,
-// creates a downtime_event + work_order automatically.
+// first call from the device. Operational stops (requires_wo = false) skip WO
+// creation and instead trigger PM opportunity notifications when there are
+// pending preventive-maintenance tasks for the affected machine/line.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
@@ -27,6 +28,91 @@ function pick(obj: any, keys: string[]): any {
   return undefined;
 }
 
+async function notifyPmOpportunity(opts: {
+  machineName: string | null;
+  lineName: string | null;
+  stopLabel: string;
+}) {
+  const { machineName, lineName, stopLabel } = opts;
+  if (!machineName && !lineName) return { sent: false, reason: "no_target" };
+
+  // Find PM schedules due in the next 7 days for this machine (or any machine
+  // on this line when only the line name is available).
+  const horizon = new Date(Date.now() + 7 * 86_400_000).toISOString();
+  let query = admin
+    .from("pm_schedules")
+    .select("id, machine, title, next_due_at, priority")
+    .eq("active", true)
+    .lte("next_due_at", horizon);
+
+  if (machineName) query = query.eq("machine", machineName);
+
+  const { data: schedules, error } = await query;
+  if (error) throw error;
+  const pending = schedules ?? [];
+  if (!pending.length) return { sent: false, reason: "no_pending_pm" };
+
+  const now = Date.now();
+  const overdue = pending.filter((s) => new Date(s.next_due_at!).getTime() < now);
+  const upcoming = pending.filter((s) => new Date(s.next_due_at!).getTime() >= now);
+
+  // Build push payload
+  const target = machineName ?? lineName ?? "Machine";
+  const title = `🔧 PM Opportunity — ${target}`;
+  const bodyLines: string[] = [
+    `${stopLabel}. ${pending.length} PM task${pending.length > 1 ? "s" : ""} can be done now.`,
+  ];
+  for (const s of overdue.slice(0, 3)) bodyLines.push(`⚠️ OVERDUE: ${s.title}`);
+  for (const s of upcoming.slice(0, 3)) {
+    const d = new Date(s.next_due_at!);
+    bodyLines.push(`📅 Due ${d.getUTCDate().toString().padStart(2, "0")}/${(d.getUTCMonth() + 1).toString().padStart(2, "0")}: ${s.title}`);
+  }
+  const priority = overdue.length > 0 ? "high" : "medium";
+
+  // Engineer user IDs
+  const { data: engRoles } = await admin
+    .from("user_roles").select("user_id").eq("role", "engineer");
+  const userIds = (engRoles ?? []).map((r: any) => r.user_id);
+
+  if (userIds.length) {
+    await admin.from("notifications").insert(
+      userIds.map((uid: string) => ({
+        user_id: uid,
+        title,
+        body: bodyLines.join("\n"),
+        priority,
+        action_url: "/dashboard/preventive",
+      })),
+    );
+  }
+
+  // Teams card (best-effort)
+  const teamsUrl = Deno.env.get("TEAMS_WEBHOOK_URL");
+  if (teamsUrl) {
+    try {
+      await fetch(teamsUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          "@type": "MessageCard",
+          "@context": "https://schema.org/extensions",
+          themeColor: overdue.length ? "FFA500" : "1978E5",
+          summary: title,
+          title,
+          text: bodyLines.join("  \n"),
+          potentialAction: [{
+            "@type": "OpenUri",
+            name: "Open Preventive Maintenance",
+            targets: [{ os: "default", uri: `${SUPABASE_URL.replace(/\.supabase\.co.*$/, "")}/dashboard/preventive` }],
+          }],
+        }),
+      });
+    } catch (_) { /* ignore */ }
+  }
+
+  return { sent: true, total: pending.length, overdue: overdue.length };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -35,7 +121,6 @@ Deno.serve(async (req) => {
   const headersObj: Record<string, string> = {};
   req.headers.forEach((v, k) => { headersObj[k] = v; });
 
-  // Read body as text first so we can still log if JSON parse fails.
   const raw = await req.text();
   let payload: any = null;
   let parseError: string | null = null;
@@ -46,24 +131,22 @@ Deno.serve(async (req) => {
     payload = { _raw: raw };
   }
 
-  // Require a configured shared secret; reject if missing or mismatched.
   const sig = headersObj["x-intouch-signature"] ?? headersObj["x-webhook-secret"] ?? "";
   const authOk = Boolean(WEBHOOK_SECRET) && sig === WEBHOOK_SECRET;
 
   let createdWoId: string | null = null;
   let errorMessage: string | null = parseError;
   let parsedOk = false;
+  let pmInfo: any = null;
 
   if (authOk && !parseError) {
     try {
-      // Try to extract fields from common Intouch payload shapes.
       const stopCode = String(pick(payload, ["stop_code", "stopCode", "code", "reason_code"]) ?? "").trim();
       const lineName = pick(payload, ["line", "line_name", "lineName", "production_line"]);
       const machineName = pick(payload, ["machine", "machine_name", "asset", "equipment"]);
       const description = pick(payload, ["description", "reason", "message", "comment"]);
       const eventType = String(pick(payload, ["event", "event_type", "type", "status"]) ?? "").toLowerCase();
 
-      // Stop-code lookup (optional).
       let mapped: any = null;
       if (stopCode) {
         const { data } = await admin
@@ -75,23 +158,28 @@ Deno.serve(async (req) => {
         mapped = data;
       }
 
-      // Resolve line_id when a line name is provided.
       let lineId: string | null = null;
       if (lineName || mapped?.line_hint) {
         const lookupName = String(lineName ?? mapped?.line_hint);
         const { data: line } = await admin
-          .from("lines")
-          .select("id")
-          .ilike("name", lookupName)
-          .maybeSingle();
+          .from("lines").select("id").ilike("name", lookupName).maybeSingle();
         lineId = line?.id ?? null;
       }
 
-      // Only create a WO on "stop"/"down" events.
       const isStop = !eventType
         || ["stop", "stopped", "down", "downtime", "alarm", "fault"].includes(eventType);
 
-      if (isStop) {
+      // Operational stops (requires_wo=false) → PM opportunity path, no WO.
+      const requiresWo = mapped ? mapped.requires_wo !== false : true;
+
+      if (isStop && !requiresWo) {
+        const stopLabel = mapped?.label ?? description ?? stopCode ?? "Operational stop";
+        pmInfo = await notifyPmOpportunity({
+          machineName: machineName ?? null,
+          lineName: lineName ?? mapped?.line_hint ?? null,
+          stopLabel: String(stopLabel),
+        });
+      } else if (isStop) {
         const label = mapped?.label ?? description ?? stopCode ?? "Intouch i4 alert";
         const priority = (mapped?.default_priority ?? "medium") as string;
 
@@ -130,7 +218,6 @@ Deno.serve(async (req) => {
     errorMessage = "invalid_signature";
   }
 
-  // Always log.
   await admin.from("intouch_webhook_logs").insert({
     source_ip: headersObj["x-forwarded-for"] ?? headersObj["cf-connecting-ip"] ?? null,
     headers: headersObj,
@@ -142,7 +229,7 @@ Deno.serve(async (req) => {
 
   const status = !authOk ? 401 : parsedOk ? 200 : 202;
   return new Response(
-    JSON.stringify({ ok: parsedOk, wo_id: createdWoId, error: errorMessage }),
+    JSON.stringify({ ok: parsedOk, wo_id: createdWoId, pm: pmInfo, error: errorMessage }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status },
   );
 });
