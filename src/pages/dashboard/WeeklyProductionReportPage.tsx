@@ -26,17 +26,16 @@ export default function WeeklyProductionReportPage() {
   const from = format(weekStart, "yyyy-MM-dd");
   const to = format(weekEnd, "yyyy-MM-dd");
 
-  // Auto-pick first line
-  const activeLine = line || lines[0]?.name || "";
+  // "" means all lines
+  const activeLine = line;
 
   const { data: rows = [] } = useQuery({
     queryKey: ["weekly_report", from, to, activeLine, shift],
-    enabled: !!activeLine,
     queryFn: async () => {
       let q = supabase.from("production_sessions")
         .select("id, session_date, shift, line, production_items(sku_id, target_qty, planned_qty, actual_qty)")
-        .gte("session_date", from).lte("session_date", to)
-        .eq("line", activeLine);
+        .gte("session_date", from).lte("session_date", to);
+      if (activeLine) q = q.eq("line", activeLine);
       if (shift !== "all") q = q.eq("shift", shift);
       const { data, error } = await q;
       if (error) throw error;
@@ -82,9 +81,12 @@ export default function WeeklyProductionReportPage() {
             <Button variant="outline" size="icon" onClick={() => setAnchor(addWeeks(anchor, -1))}><ChevronLeft className="h-4 w-4" /></Button>
             <div className="text-sm font-medium px-3">{format(weekStart, "dd MMM")} – {format(weekEnd, "dd MMM yyyy")}</div>
             <Button variant="outline" size="icon" onClick={() => setAnchor(addWeeks(anchor, 1))}><ChevronRight className="h-4 w-4" /></Button>
-            <Select value={activeLine} onValueChange={setLine}>
+            <Select value={line || "__all__"} onValueChange={(v) => setLine(v === "__all__" ? "" : v)}>
               <SelectTrigger className="w-40"><SelectValue placeholder="Line" /></SelectTrigger>
-              <SelectContent>{lines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+              <SelectContent>
+                <SelectItem value="__all__">All lines</SelectItem>
+                {lines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}
+              </SelectContent>
             </Select>
             <Select value={shift} onValueChange={(v) => setShift(v as "all" | "DAY" | "NIGHT")}>
               <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
