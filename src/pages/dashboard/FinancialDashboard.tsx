@@ -4,10 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { DollarSign, TrendingUp, Factory, Wrench, ShieldAlert, CalendarIcon } from "lucide-react";
+import { DollarSign, TrendingUp, Factory, Wrench, ShieldAlert } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useProducts } from "@/hooks/useStock";
@@ -15,9 +12,9 @@ import { useMachines } from "@/hooks/useMachines";
 import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { differenceInMinutes, startOfDay, endOfDay, subDays, format } from "date-fns";
+import { differenceInMinutes, startOfDay, endOfDay, subDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { cn } from "@/lib/utils";
+import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
 
 type PeriodPreset = "7d" | "30d" | "90d" | "custom";
 
@@ -61,18 +58,10 @@ function FinancialDashboardContent() {
   const { data: products } = useProducts();
   const { data: machines } = useMachines();
 
-  const [period, setPeriod] = useState<PeriodPreset>("30d");
-  const [startDate, setStartDate] = useState<Date>(startOfDay(subDays(new Date(), 30)));
-  const [endDate, setEndDate] = useState<Date>(endOfDay(new Date()));
-
-  const handlePeriodChange = (val: PeriodPreset) => {
-    setPeriod(val);
-    if (val !== "custom") {
-      const days = val === "7d" ? 7 : val === "30d" ? 30 : 90;
-      setStartDate(startOfDay(subDays(new Date(), days)));
-      setEndDate(endOfDay(new Date()));
-    }
-  };
+  const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
+  const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
+  const startDate = drRange.from ?? startOfDay(subDays(new Date(), 30));
+  const endDate = drRange.to ?? endOfDay(new Date());
 
   // Fetch all parts_used with product price
   const { data: allPartsUsed } = useQuery({
@@ -200,38 +189,12 @@ function FinancialDashboardContent() {
             <p className="text-muted-foreground">Cost tracking and financial analysis</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Select value={period} onValueChange={(v) => handlePeriodChange(v as PeriodPreset)}>
-              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7d">Last 7 days</SelectItem>
-                <SelectItem value="30d">Last 30 days</SelectItem>
-                <SelectItem value="90d">Last 90 days</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
-              </SelectContent>
-            </Select>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("w-[140px] justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(startDate, "dd/MM/yyyy")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={startDate} onSelect={(d) => { if (d) { setStartDate(startOfDay(d)); setPeriod("custom"); } }} initialFocus className="p-3 pointer-events-auto" />
-              </PopoverContent>
-            </Popover>
-            <span className="text-muted-foreground text-sm">to</span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("w-[140px] justify-start text-left font-normal", !endDate && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(endDate, "dd/MM/yyyy")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={endDate} onSelect={(d) => { if (d) { setEndDate(endOfDay(d)); setPeriod("custom"); } }} initialFocus className="p-3 pointer-events-auto" />
-              </PopoverContent>
-            </Popover>
+            <DateRangeFilter
+              value={drRange}
+              preset={drPreset}
+              onChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
+              storageKey="financial-dashboard"
+            />
           </div>
         </div>
 

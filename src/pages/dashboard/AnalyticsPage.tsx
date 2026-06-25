@@ -3,11 +3,8 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, BarChart3, Trophy, Award, TrendingUp, TrendingDown, Printer, FileText, CalendarIcon } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, BarChart3, Trophy, Award, TrendingUp, TrendingDown, Printer, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
@@ -19,11 +16,11 @@ import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList } from "recharts";
-import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMinutes } from "@/lib/formatDuration";
+import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
@@ -38,23 +35,13 @@ const EmptyChart = () => (
   </div>
 );
 
-type PeriodPreset = "7d" | "30d" | "90d" | "custom";
-
 export default function AnalyticsPage() {
   const { role } = useAuth();
   const { toast } = useToast();
-  const [period, setPeriod] = useState<PeriodPreset>("30d");
-  const [startDate, setStartDate] = useState<Date>(startOfDay(subDays(new Date(), 30)));
-  const [endDate, setEndDate] = useState<Date>(endOfDay(new Date()));
-
-  const handlePeriodChange = (val: PeriodPreset) => {
-    setPeriod(val);
-    if (val !== "custom") {
-      const days = val === "7d" ? 7 : val === "30d" ? 30 : 90;
-      setStartDate(startOfDay(subDays(new Date(), days)));
-      setEndDate(endOfDay(new Date()));
-    }
-  };
+  const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
+  const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
+  const startDate = drRange.from ?? startOfDay(subDays(new Date(), 30));
+  const endDate = drRange.to ?? endOfDay(new Date());
 
   const { data: rawWOs, isLoading: woLoading } = useWorkOrders();
   const { data: partsToday } = useTotalPartsUsedToday();
@@ -428,38 +415,12 @@ export default function AnalyticsPage() {
 
         {/* Date Range Filters */}
         <div className="flex items-center gap-3 flex-wrap print:hidden">
-          <Select value={period} onValueChange={(v) => handlePeriodChange(v as PeriodPreset)}>
-            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7d">Last 7 days</SelectItem>
-              <SelectItem value="30d">Last 30 days</SelectItem>
-              <SelectItem value="90d">Last 90 days</SelectItem>
-              <SelectItem value="custom">Custom</SelectItem>
-            </SelectContent>
-          </Select>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className={cn("w-[140px] justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(startDate, "dd/MM/yyyy")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={startDate} onSelect={(d) => { if (d) { setStartDate(startOfDay(d)); setPeriod("custom"); } }} initialFocus className="p-3 pointer-events-auto" />
-            </PopoverContent>
-          </Popover>
-          <span className="text-muted-foreground text-sm">to</span>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className={cn("w-[140px] justify-start text-left font-normal", !endDate && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(endDate, "dd/MM/yyyy")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={endDate} onSelect={(d) => { if (d) { setEndDate(endOfDay(d)); setPeriod("custom"); } }} initialFocus className="p-3 pointer-events-auto" />
-            </PopoverContent>
-          </Popover>
+          <DateRangeFilter
+            value={drRange}
+            preset={drPreset}
+            onChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
+            storageKey="analytics-page"
+          />
           <Badge variant="secondary" className="text-xs">{allWOs?.length ?? 0} WOs in range</Badge>
         </div>
 
