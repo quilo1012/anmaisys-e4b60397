@@ -67,9 +67,9 @@ export default function DowntimePage() {
   const [filterLine, setFilterLine] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [startDate, setStartDate] = useState<Date>(startOfDay(subDays(new Date(), 29)));
+  const [startDate, setStartDate] = useState<Date>(startOfDay(new Date()));
   const [endDate, setEndDate] = useState<Date>(new Date());
-  const [datePreset, setDatePreset] = useState<DateRangePreset>("30d");
+  const [datePreset, setDatePreset] = useState<DateRangePreset>("today");
   
 
   // Form state
