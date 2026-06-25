@@ -61,6 +61,7 @@ export default function WorkOrdersPage() {
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [currentPage, setCurrentPage] = useState(1);
   const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
+  const [shiftFilter, setShiftFilter] = useState<"ALL" | "DAY" | "NIGHT">("ALL");
   const [lineFilter, setLineFilter] = useState<string>("all");
 
   useEffect(() => {
@@ -194,6 +195,13 @@ export default function WorkOrdersPage() {
     } else if (lineStoppedFilter === "running") {
       filtered = filtered.filter((w: any) => !w.line_stopped || !!w.line_resumed_at);
     }
+    if (shiftFilter !== "ALL") {
+      filtered = filtered.filter((w) => {
+        const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Europe/London" }).format(new Date(w.created_at)));
+        const isDay = h >= 6 && h < 18;
+        return shiftFilter === "DAY" ? isDay : !isDay;
+      });
+    }
     if (statusFilter === "stale") {
       filtered = filtered.filter((w) => w.status === "in_progress" && w.started_at && differenceInMinutes(now, new Date(w.started_at)) > 4320);
     }
@@ -225,7 +233,7 @@ export default function WorkOrdersPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return filtered;
-  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, lineFilter, lineStoppedFilter, searchTerm, lineNameMap, machineLineMap]);
+  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, lineFilter, lineStoppedFilter, searchTerm, lineNameMap, machineLineMap, shiftFilter, statusFilter]);
 
   const stoppedCount = useMemo(
     () => (workOrders ?? []).filter((w: any) => w.line_stopped === true && !w.line_resumed_at).length,
