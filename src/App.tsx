@@ -340,6 +340,30 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/dashboard/rag-weekly"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                      <RAGWeeklyPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/intouch-settings"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <IntouchSettingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/intouch-machines"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <IntouchMachineMapPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/" element={<SessionRedirect />} />
                 <Route path="*" element={<SessionRedirect />} />
               </Routes>
