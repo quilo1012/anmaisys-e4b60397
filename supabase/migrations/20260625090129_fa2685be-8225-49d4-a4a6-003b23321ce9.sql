@@ -1,0 +1,1 @@
+UPDATE public.user_roles SET role = 'manager'::public.app_role WHERE role = 'maintenance_manager'::public.app_role;
