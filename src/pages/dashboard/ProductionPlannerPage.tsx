@@ -101,6 +101,7 @@ export default function ProductionPlannerPage() {
   const queryClient = useQueryClient();
   const isManager = role === "admin" || (role === "manager" || role === "maintenance_manager");
   const [importOpen, setImportOpen] = useState(false);
+  const [intouchOpen, setIntouchOpen] = useState(false);
 
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [shift, setShift] = useState("DAY");
