@@ -115,7 +115,7 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
     visible = visible.concat([
       { title: "Executive", description: "Executive KPI dashboard", url: "/dashboard/executive", icon: Briefcase, accent: REPORTS },
       { title: "Financial", description: "Cost and financial overview", url: "/dashboard/financial", icon: DollarSign, accent: REPORTS },
-      { title: "Intouch i4", description: "Webhook integration and stop codes", url: "/dashboard/intouch", icon: Radio, accent: ADMIN },
+      
       { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN },
       { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield, accent: ADMIN },
     ]);
