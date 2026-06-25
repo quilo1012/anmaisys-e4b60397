@@ -182,11 +182,21 @@ export default function ExecutiveDashboard() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3 print:hidden">
           <span className="text-sm font-medium text-muted-foreground">KPI period filter</span>
-          <DateRangeFilter
-            value={kpiRange}
-            preset={kpiPreset}
-            onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <DateRangeFilter
+              value={kpiRange}
+              preset={kpiPreset}
+              onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
+            />
+            <Select value={shiftFilter} onValueChange={(v) => setShiftFilter(v as "ALL" | "DAY" | "NIGHT")}>
+              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All shifts</SelectItem>
+                <SelectItem value="DAY">Day (06–18)</SelectItem>
+                <SelectItem value="NIGHT">Night (18–06)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* KPI Grid */}
