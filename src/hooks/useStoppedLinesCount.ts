@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
  */
 export function useStoppedLinesCount() {
   const { role, user } = useAuth();
-  const enabled = !!user && (role === "engineer" || role === "manager" || role === "admin");
+  const enabled = !!user && (role === "engineer" || (role === "manager" || role === "maintenance_manager") || role === "admin");
 
   const query = useQuery({
     queryKey: ["stopped_lines_count"],

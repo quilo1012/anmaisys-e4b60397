@@ -161,7 +161,7 @@ export function NotificationPanel() {
           if (wo.engineer_notified_acknowledged_at) return;
           // Engineers/admins receive the critical full-screen modal via useWOAlerts —
           // skip duplicate panel entries for them. Only managers see new-WO panel toasts.
-          if (role === "manager") {
+          if ((role === "manager" || role === "maintenance_manager")) {
             const priority = PRIORITY_FROM_WO[wo.priority] || "medium";
             addNotification({
               type: "new_wo",
@@ -178,7 +178,7 @@ export function NotificationPanel() {
       // Status/assignment/line-stopped notifications are no longer surfaced via the panel.
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "products" }, (payload) => {
         const product = payload.new as any;
-        if ((role === "admin" || role === "manager") && product.quantity <= product.min_stock) {
+        if ((role === "admin" || (role === "manager" || role === "maintenance_manager")) && product.quantity <= product.min_stock) {
           addNotification({
             type: "low_stock",
             title: "Low Stock Alert",

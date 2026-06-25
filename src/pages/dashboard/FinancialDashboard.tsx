@@ -36,7 +36,7 @@ export default function FinancialDashboard() {
       </DashboardLayout>
     );
   }
-  if (role !== "admin" && role !== "manager") {
+  if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
     return (
       <DashboardLayout>
         <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">

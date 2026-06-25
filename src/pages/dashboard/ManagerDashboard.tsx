@@ -84,7 +84,7 @@ export default function ManagerDashboard() {
   }
   // ProtectedRoute already enforces role access; if role is missing transiently, just wait
   if (!role) return null;
-  if (role !== "admin" && role !== "manager") {
+  if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
     return null;
   }
 

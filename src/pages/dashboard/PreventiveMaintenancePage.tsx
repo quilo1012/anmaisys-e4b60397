@@ -41,7 +41,7 @@ const statusStyle: Record<PmStatus, { label: string; chip: string; ring: string 
 export default function PreventiveMaintenancePage() {
   const { role } = useAuth();
   const { toast } = useToast();
-  const canManage = role === "admin" || role === "manager";
+  const canManage = role === "admin" || (role === "manager" || role === "maintenance_manager");
 
   const { data: schedules, isLoading } = usePmSchedules();
   const { data: machines } = useMachines();

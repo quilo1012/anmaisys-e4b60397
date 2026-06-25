@@ -415,7 +415,7 @@ export default function AnalyticsPage() {
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => {
-              if (role !== "admin" && role !== "manager") {
+              if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
                 toast({ title: "Cannot print", description: "You don't have permission to print reports.", variant: "destructive" });
                 return;
               }

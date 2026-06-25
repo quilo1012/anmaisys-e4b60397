@@ -55,20 +55,20 @@ const navItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Operations" },
   { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"], group: "Operations" },
   { title: "My Tasks", url: "/dashboard/engineer?focus=tasks", icon: Briefcase, roles: ["engineer"], group: "Operations" },
-  { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager"], group: "Operations" },
-  { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager"], group: "Operations" },
-  { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager"], group: "Operations" },
-  { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager"], group: "Operations" },
+  { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
+  { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
+  { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
+  { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
   // Assets
-  { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager"], group: "Assets" },
-  { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager"], group: "Assets" },
-  { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "engineer"], group: "Assets" },
+  { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager", "maintenance_manager"], group: "Assets" },
+  { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager", "maintenance_manager"], group: "Assets" },
+  { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "maintenance_manager", "engineer"], group: "Assets" },
   // Reports
-  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager"], group: "Reports" },
-  { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin", "manager"], group: "Reports" },
+  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "maintenance_manager"], group: "Reports" },
+  { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin", "manager", "maintenance_manager"], group: "Reports" },
   { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin"], group: "Reports" },
   // Admin
-  { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Admin" },
+  { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager", "maintenance_manager"], group: "Admin" },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Admin" },
   { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "Admin" },
 ];
@@ -222,7 +222,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   }, [location.pathname]);
 
   const filteredItems = navItems.filter((item) => role && item.roles.includes(role));
-  const showStoppedBadge = stoppedLinesCount > 0 && (role === "engineer" || role === "manager" || role === "admin");
+  const showStoppedBadge = stoppedLinesCount > 0 && (role === "engineer" || (role === "manager" || role === "maintenance_manager") || role === "admin");
   const stoppedTarget = role === "engineer" ? "/dashboard/engineer" : "/dashboard/work-orders";
 
   // Sidebar opens by default on desktop/tablet (≥ md breakpoint). On phones
@@ -303,7 +303,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   {currentPageTitle}
                 </h1>
               )}
-              {(role === "admin" || role === "manager") && (
+              {(role === "admin" || (role === "manager" || role === "maintenance_manager")) && (
                 <div className="ml-1 sm:ml-2 hidden md:block">
                   <OnlineEngineersPanel />
                 </div>

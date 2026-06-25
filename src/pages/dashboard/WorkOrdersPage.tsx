@@ -60,11 +60,11 @@ export default function WorkOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [currentPage, setCurrentPage] = useState(1);
-  const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "admin" || role === "manager" ? "all" : "today"));
+  const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "admin" || (role === "manager" || role === "maintenance_manager") ? "all" : "today"));
   const [lineFilter, setLineFilter] = useState<string>("all");
 
   useEffect(() => {
-    if (role === "admin" || role === "manager") {
+    if (role === "admin" || (role === "manager" || role === "maintenance_manager")) {
       setDateQuickFilter("all");
     }
   }, [role]);
@@ -387,7 +387,7 @@ export default function WorkOrdersPage() {
                 <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={async () => {
                   if (!filteredWOs) return;
                   // Client-side defense-in-depth: block before any network call.
-                  if (role !== "admin" && role !== "manager") {
+                  if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
                     toast({ title: "Cannot generate PDF", description: "You don't have permission to generate this report.", variant: "destructive" });
                     return;
                   }
@@ -417,7 +417,7 @@ export default function WorkOrdersPage() {
                   <FileText className="h-3.5 w-3.5 mr-1" /> PDF
                 </Button>
                 <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs no-print" onClick={() => {
-                  if (role !== "admin" && role !== "manager") {
+                  if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
                     toast({ title: "Cannot print", description: "You don't have permission to print reports.", variant: "destructive" });
                     return;
                   }
@@ -553,7 +553,7 @@ export default function WorkOrdersPage() {
                                 {closeWO.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />} Close
                               </Button>
                             )}
-                            {canForceClose && (role === "admin" || role === "manager") && (
+                            {canForceClose && (role === "admin" || (role === "manager" || role === "maintenance_manager")) && (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button size="sm" variant="destructive" className="h-10 flex-1 touch-manipulation" disabled={forceClose.isPending}>
@@ -630,7 +630,7 @@ export default function WorkOrdersPage() {
                           {isCol("parts") && <TableCell className="no-print">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>}
                           {isCol("actions") && <TableCell className="no-print">
                             <div className="flex gap-1">
-                              {(role === "admin" || role === "manager") && (
+                              {(role === "admin" || (role === "manager" || role === "maintenance_manager")) && (
                                 <Button size="icon" variant="ghost" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
                               )}
                               <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
@@ -642,7 +642,7 @@ export default function WorkOrdersPage() {
                                   {closeWO.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle className="h-3 w-3 mr-1" />} Close
                                 </Button>
                               )}
-                              {canForceClose && (role === "admin" || role === "manager") && (
+                              {canForceClose && (role === "admin" || (role === "manager" || role === "maintenance_manager")) && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
                                     <Button size="sm" variant="destructive" disabled={forceClose.isPending}>

@@ -30,7 +30,7 @@ export default function StockPage() {
   const addCategory = useAddCategory();
   const deleteCategory = useDeleteCategory();
   const { toast } = useToast();
-  const isManager = role === "admin" || role === "manager";
+  const isManager = role === "admin" || (role === "manager" || role === "maintenance_manager");
   const queryClient = useQueryClient();
   const { data: adjustmentHistory } = useStockAdjustmentHistory(10);
 

@@ -60,7 +60,7 @@ function SkuCombobox({
 
 export default function ProductionPlannerPage() {
   const { role } = useAuth();
-  const isManager = role === "admin" || role === "manager";
+  const isManager = role === "admin" || (role === "manager" || role === "maintenance_manager");
 
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [shift, setShift] = useState("DAY");
