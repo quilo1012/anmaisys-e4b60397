@@ -15,11 +15,12 @@ import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Ch
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { parseIntouchWorkToList, findSectionForLine } from "@/lib/intouchWorkToList";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import {
-  useLines, useLeaders, useSkuProducts, useSessionsRange, useSession, useSessionItems,
+  useLines, useSkuProducts, useSessionsRange, useSession, useSessionItems,
   useUpsertSession, useSaveItems, useToggleSessionLock,
 } from "@/hooks/useProductionPlanner";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO, addDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
