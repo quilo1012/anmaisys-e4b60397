@@ -205,6 +205,7 @@ function ManagerDashboardContent() {
             value={kpiRange}
             preset={kpiPreset}
             onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
+            storageKey="manager-dashboard"
           />
         </div>
 
