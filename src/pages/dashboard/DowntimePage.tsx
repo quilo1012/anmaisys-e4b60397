@@ -364,6 +364,7 @@ export default function DowntimePage() {
             <DateRangeFilter
               value={{ from: startDate, to: endDate }}
               preset={datePreset}
+              storageKey="downtime-page"
               onChange={(range, preset) => {
                 setDatePreset(preset);
                 const r = preset === "all" ? getPresetRange("30d") : range;
