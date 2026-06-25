@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ChevronDown, ChevronRight, Download, Lock, Unlock, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Lock, Unlock, Pencil, Printer, Trash2 } from "lucide-react";
+import { printSessionReport } from "@/lib/sessionPrintReport";
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
@@ -226,6 +227,23 @@ export default function ShiftHistoryPage() {
                       <span className="text-muted-foreground">{actual} / {target}</span>
                       <span className={`font-bold ${eff >= 100 ? "text-green-500" : eff >= 80 ? "text-amber-500" : "text-red-500"}`}>{eff.toFixed(0)}%</span>
                       <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(s); }}><Pencil className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" title="Print report" onClick={(e) => {
+                        e.stopPropagation();
+                        printSessionReport({
+                          session_date: s.session_date, shift: s.shift, line: s.line,
+                          leader_name: s.leader_name, staff_planned: s.staff_planned, staff_actual: s.staff_actual,
+                          notes: s.notes,
+                          items: s.production_items.map((i) => {
+                            const sku = skuMap.get(i.sku_id);
+                            return {
+                              code: sku?.code ?? "?",
+                              name: sku?.name ?? "Unknown",
+                              target: Number(i.target_qty ?? i.planned_qty ?? 0),
+                              actual: Number(i.actual_qty ?? 0),
+                            };
+                          }),
+                        });
+                      }}><Printer className="h-3 w-3" /></Button>
                       <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); lockMut.mutate({ id: s.id, lock: !s.locked }); }}>
                         {s.locked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
                       </Button>
