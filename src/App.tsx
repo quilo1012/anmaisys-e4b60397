@@ -41,6 +41,9 @@ const QualityActionsPage = lazy(() => import("./pages/dashboard/QualityActionsPa
 const ShiftHistoryPage = lazy(() => import("./pages/dashboard/ShiftHistoryPage"));
 const WeeklyProductionReportPage = lazy(() => import("./pages/dashboard/WeeklyProductionReportPage"));
 const LeaderQualityBoardPage = lazy(() => import("./pages/dashboard/LeaderQualityBoardPage"));
+const RAGWeeklyPage = lazy(() => import("./pages/dashboard/RAGWeeklyPage"));
+const IntouchSettingsPage = lazy(() => import("./pages/dashboard/IntouchSettingsPage"));
+const IntouchMachineMapPage = lazy(() => import("./pages/dashboard/IntouchMachineMapPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
