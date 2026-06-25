@@ -28,8 +28,9 @@ Deno.serve(async (req) => {
     const callerId = claimsData.claims.sub as string;
     const { data: isAdmin } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "admin" });
     const { data: isManager } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "manager" });
+    const { data: isMaintMgr } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "maintenance_manager" });
 
-    if (!isAdmin && !isManager) throw new Error("Only managers and admins can view engineers");
+    if (!isAdmin && !isManager && !isMaintMgr) throw new Error("Only managers and admins can view engineers");
 
     const { data, error } = await supabaseAdmin
       .from("engineers_safe")
