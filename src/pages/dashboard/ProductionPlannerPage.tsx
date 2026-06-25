@@ -140,24 +140,36 @@ export default function ProductionPlannerPage() {
   const save = async () => {
     if (!line) return alert("Pick a production line");
     const leader = leaders.find((l) => l.id === leaderId);
-    const session = await upsertSession.mutateAsync({
-      id: existingId ?? undefined,
-      session_date: date, shift, line,
-      leader_id: leaderId || null,
-      leader_name: leader?.name ?? (leaderName.trim() || null),
-      staff_planned: staffPlanned, staff_actual: staffActual,
-      notes: notes || null,
-    });
-    await saveItems.mutateAsync({
-      session_id: session.id,
-      items: rows.filter((r) => r.sku_id).map((r) => ({
-        sku_id: r.sku_id,
-        target_qty: r.target_qty || 0,
-        planned_qty: r.target_qty || 0,
-        actual_qty: r.actual_qty || 0,
-        notes: null,
-      })),
-    });
+    try {
+      const session = await upsertSession.mutateAsync({
+        id: existingId ?? undefined,
+        session_date: date, shift, line,
+        leader_id: leaderId || null,
+        leader_name: leader?.name ?? (leaderName.trim() || null),
+        staff_planned: staffPlanned, staff_actual: staffActual,
+        notes: notes || null,
+      });
+      await saveItems.mutateAsync({
+        session_id: session.id,
+        items: rows.filter((r) => r.sku_id).map((r) => ({
+          sku_id: r.sku_id,
+          target_qty: r.target_qty || 0,
+          planned_qty: r.target_qty || 0,
+          actual_qty: r.actual_qty || 0,
+          notes: null,
+        })),
+      });
+    } catch (err: any) {
+      const code = err?.code ?? "";
+      const msg = String(err?.message ?? "");
+      if (code === "23505") {
+        alert("A session already exists for this line, date and shift. It has been updated.");
+      } else if (code === "42P01" || msg.includes("does not exist")) {
+        alert("Database tables not found. Please apply migrations.");
+      } else {
+        alert(`Could not save session: ${msg || "unknown error"}`);
+      }
+    }
   };
 
   const loadSession = (id: string) => {
