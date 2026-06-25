@@ -32,6 +32,7 @@ import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { WO_TERMINAL_STATUSES, isWoOpen } from "@/lib/woStatus";
 import { getWoStatusConfig } from "@/lib/woStatusConfig";
 import { ShiftFilter } from "@/components/ShiftFilter";
+import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
 
 const statusConfig = new Proxy({} as Record<string, { label: string; className: string }>, {
   get: (_t, key: string) => getWoStatusConfig(key),
