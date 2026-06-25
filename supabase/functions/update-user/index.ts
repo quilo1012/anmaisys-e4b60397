@@ -15,7 +15,7 @@ const corsHeaders = {
 const updateUserSchema = z.object({
   userId: z.string().uuid("Invalid user ID"),
   name: z.string().trim().min(1).max(100).optional(),
-  role: z.enum(["admin", "manager", "engineer", "operator"]).optional(),
+  role: z.enum(["admin", "manager", "maintenance_manager", "engineer", "operator"]).optional(),
   shift: z.string().max(50).optional(),
   active: z.boolean().optional(),
   email: z.preprocess(
