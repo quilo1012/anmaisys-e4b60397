@@ -145,9 +145,11 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     setLoading(true);
     try {
       const text = await readFileAsCsv(f);
+      console.log("[iTouching] first 30 lines:\n" + text.split(/\r?\n/).slice(0, 30).join("\n"));
       const parsed = parseIntouchWorkToList(text);
       if (parsed.length === 0) {
-        toast.error("No Work To List sections detected in this file");
+        console.warn("[iTouching] parser returned 0 sections. Full text length:", text.length);
+        toast.error("No Work To List sections detected. Open browser console and share the [iTouching] log.");
         return;
       }
       setSections(parsed);
