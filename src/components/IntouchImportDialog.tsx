@@ -59,29 +59,18 @@ async function readFileAsCsv(file: File): Promise<string> {
   if (name.endsWith(".csv") || name.endsWith(".txt")) {
     return await file.text();
   }
-  // XLSX/XLS via exceljs
-  const ExcelJS = (await import("exceljs")).default;
-  const wb = new ExcelJS.Workbook();
   const buf = await file.arrayBuffer();
-  await wb.xlsx.load(buf);
+  const XLSX = await import("xlsx");
+  const wb = XLSX.read(buf, { type: "array", cellDates: false, raw: false });
   const lines: string[] = [];
-  wb.eachSheet((sheet) => {
-    sheet.eachRow({ includeEmpty: false }, (row) => {
-      const cells: string[] = [];
-      const max = row.cellCount;
-      for (let i = 1; i <= max; i++) {
-        const v = row.getCell(i).value as unknown;
-        let s = "";
-        if (v == null) s = "";
-        else if (typeof v === "object" && v !== null && "text" in (v as any)) s = String((v as any).text ?? "");
-        else if (typeof v === "object" && v !== null && "result" in (v as any)) s = String((v as any).result ?? "");
-        else s = String(v);
-        s = s.replace(/"/g, '""');
-        cells.push(`"${s}"`);
-      }
-      lines.push(cells.join(","));
+  for (const sheetName of wb.SheetNames) {
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "", raw: false, blankrows: false });
+    rows.forEach((row) => {
+      const cells = row.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`);
+      if (cells.some((c) => c !== '""')) lines.push(cells.join(","));
     });
-  });
+  }
   return lines.join("\n");
 }
 
