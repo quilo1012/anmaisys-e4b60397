@@ -171,23 +171,13 @@ export default function WorkOrdersPage() {
     if (!workOrders) return [];
     let filtered = workOrders;
     const now = new Date();
-    if (dateQuickFilter === "today") {
-      const start = startOfDay(now); const end = endOfDay(now);
-      filtered = filtered.filter((w) => { const d = new Date(w.created_at); return d >= start && d <= end; });
-    } else if (dateQuickFilter === "yesterday") {
-      const start = startOfDay(subDays(now, 1)); const end = endOfDay(subDays(now, 1));
-      filtered = filtered.filter((w) => { const d = new Date(w.created_at); return d >= start && d <= end; });
-    } else if (dateQuickFilter === "7days") {
-      filtered = filtered.filter((w) => new Date(w.created_at) >= startOfDay(subDays(now, 6)));
-    } else if (dateQuickFilter === "month") {
-      filtered = filtered.filter((w) => new Date(w.created_at) >= startOfMonth(now));
-    } else {
-      if (dateFrom) filtered = filtered.filter((w) => w.created_at >= dateFrom);
-      if (dateTo) {
-        const todayStr = format(now, "yyyy-MM-dd");
-        const cutoff = dateTo >= todayStr ? now.toISOString() : dateTo + "T23:59:59";
-        filtered = filtered.filter((w) => w.created_at <= cutoff);
-      }
+    if (drRange.from) {
+      const fromMs = drRange.from.getTime();
+      filtered = filtered.filter((w) => new Date(w.created_at).getTime() >= fromMs);
+    }
+    if (drRange.to) {
+      const toMs = drRange.to.getTime();
+      filtered = filtered.filter((w) => new Date(w.created_at).getTime() <= toMs);
     }
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
