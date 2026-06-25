@@ -1,4 +1,5 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/microsoft_sharepoint';
 
@@ -155,10 +156,28 @@ Deno.serve(async (req) => {
       return json({ error: 'SharePoint connection not configured' }, 500);
     }
 
-    // Auth: any signed-in user
-    const auth = req.headers.get('Authorization');
-    if (!auth) {
+    // Auth: validate JWT and require admin/manager role
+    const auth = req.headers.get('Authorization') ?? '';
+    if (!auth.startsWith('Bearer ')) {
       return json({ error: 'unauthorized' }, 401);
+    }
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+    const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: auth } },
+    });
+    const token = auth.replace('Bearer ', '');
+    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+    const userId = claimsData?.claims?.sub;
+    if (claimsErr || !userId) {
+      return json({ error: 'unauthorized' }, 401);
+    }
+    const adminClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const { data: roles } = await adminClient
+      .from('user_roles').select('role').eq('user_id', userId);
+    const allowed = (roles ?? []).some((r: { role: string }) => ['admin', 'manager'].includes(r.role));
+    if (!allowed) {
+      return json({ error: 'forbidden' }, 403);
     }
 
     const { shareUrl } = await req.json();

@@ -47,8 +47,8 @@ Deno.serve(async (req) => {
 
     // Check target user's role — managers can only delete operators and engineers
     const { data: targetRole } = await supabaseAdmin.rpc("get_user_role", { _user_id: userId });
-    if (isManager && !isAdmin && (targetRole === "manager" || targetRole === "admin")) {
-      throw new Error("Managers cannot delete Manager or Admin users");
+    if (isManager && !isAdmin && ["manager", "admin", "maintenance_manager"].includes(targetRole ?? "")) {
+      throw new Error("Managers cannot delete Manager, Maintenance Manager or Admin users");
     }
 
     // Nullify FK references in work_orders and parts_used before deleting
