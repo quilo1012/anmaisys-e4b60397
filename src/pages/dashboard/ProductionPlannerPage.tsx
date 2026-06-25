@@ -81,7 +81,9 @@ export default function ProductionPlannerPage() {
   const [historyLine, setHistoryLine] = useState<string>("__all__");
 
   const { data: lines = [] } = useLines();
-  const { data: leaders = [] } = useLeaders();
+  const { data: leaders = [] } = useLineLeaders(shift);
+  const addLeader = useAddLineLeader();
+  const [newLeader, setNewLeader] = useState("");
   const { data: skus = [] } = useSkuProducts();
 
   const fromDate = format(subDays(new Date(), 30), "yyyy-MM-dd");
