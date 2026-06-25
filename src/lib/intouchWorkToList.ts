@@ -198,10 +198,17 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
     const preferred = qtyCandidates.find((x) => x.index > codeIdx) ?? qtyCandidates[0];
     if (!preferred) continue;
     const section = current ?? ensureSection(sections, lineName || "Imported Plan");
+    const description = cols.find((cell, index) => (
+      index !== codeIdx
+      && index !== preferred.index
+      && cell.trim() !== section.line
+      && cell.length > 3
+      && /[a-z]/i.test(cell)
+    ));
     section.items.push({
       sku_code: cleanCode(cols[codeIdx]),
       qty: preferred.qty,
-      description: cols.find((cell, index) => index !== codeIdx && index !== preferred.index && cell.length > 3 && /[a-z]/i.test(cell)),
+      description,
     });
   }
 
