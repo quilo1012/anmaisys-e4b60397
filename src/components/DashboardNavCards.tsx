@@ -118,7 +118,7 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
       { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN },
       { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield, accent: ADMIN },
     ]);
-  } else if ((role === "manager" || role === "maintenance_manager") || role === "maintenance_manager") {
+  } else if (role === "manager" || role === "maintenance_manager") {
     visible = visible.concat([
       { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN },
     ]);
