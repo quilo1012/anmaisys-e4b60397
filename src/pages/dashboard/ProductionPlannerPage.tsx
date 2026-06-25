@@ -357,19 +357,30 @@ export default function ProductionPlannerPage() {
                 </Popover>
               </div>
               <div>
-                <Label>Line Leader</Label>
-                {leaders.length > 0 ? (
-                  <Select value={leaderId} onValueChange={setLeaderId} disabled={locked}>
-                    <SelectTrigger><SelectValue placeholder="Pick leader" /></SelectTrigger>
+                <Label>Line Leader ({shift})</Label>
+                <div className="flex gap-2">
+                  <Select value={leaderId} onValueChange={(v) => { setLeaderId(v); const l = leaders.find((x) => x.id === v); setLeaderName(l?.name ?? ""); }} disabled={locked}>
+                    <SelectTrigger><SelectValue placeholder={leaders.length ? "Pick leader" : "No leaders yet"} /></SelectTrigger>
                     <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
                   </Select>
-                ) : (
-                  <Input
-                    value={leaderName}
-                    onChange={(e) => setLeaderName(e.target.value)}
-                    placeholder="Type leader name"
-                    disabled={locked}
-                  />
+                </div>
+                {isManager && (
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      value={newLeader}
+                      onChange={(e) => setNewLeader(e.target.value)}
+                      placeholder={`New ${shift} leader name`}
+                      disabled={locked}
+                    />
+                    <Button
+                      type="button" size="sm" variant="outline" disabled={locked || !newLeader.trim()}
+                      onClick={async () => {
+                        const created = await addLeader.mutateAsync({ name: newLeader, shift });
+                        setNewLeader(""); setLeaderId(created.id); setLeaderName(created.name);
+                        toast.success("Leader added");
+                      }}
+                    >Add</Button>
+                  </div>
                 )}
               </div>
             </div>
