@@ -95,20 +95,35 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
     { title: "Suppliers", description: "Vendors and purchase orders", url: "/dashboard/suppliers", icon: Truck, accent: ASSETS },
     { title: "Problems", description: "Catalog of standard issues", url: "/dashboard/problems", icon: AlertCircle, accent: ASSETS },
   ];
+
+  // Maintenance Manager: no access to production/quality modules
+  const productionOnlyUrls = new Set([
+    "/dashboard/planner",
+    "/dashboard/production-performance",
+    "/dashboard/quality",
+    "/dashboard/leader-quality",
+    "/dashboard/shift-history",
+    "/dashboard/weekly-production",
+    "/dashboard/sku-products",
+  ]);
+  let visible = role === "maintenance_manager"
+    ? cards.filter((c) => !productionOnlyUrls.has(c.url))
+    : cards;
+
   if (role === "admin") {
-    cards.push(
+    visible = visible.concat([
       { title: "Executive", description: "Executive KPI dashboard", url: "/dashboard/executive", icon: Briefcase, accent: REPORTS },
       { title: "Financial", description: "Cost and financial overview", url: "/dashboard/financial", icon: DollarSign, accent: REPORTS },
       { title: "Intouch i4", description: "Webhook integration and stop codes", url: "/dashboard/intouch", icon: Radio, accent: ADMIN },
       { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN },
       { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield, accent: ADMIN },
-    );
-  } else if (role === "manager") {
-    cards.push(
+    ]);
+  } else if (role === "manager" || role === "maintenance_manager") {
+    visible = visible.concat([
       { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN },
-    );
+    ]);
   }
-  return <DashboardNavCards cards={cards} />;
+  return <DashboardNavCards cards={visible} />;
 }
 
 export function OperatorNavCards({ myOpenWOs }: { myOpenWOs?: number }) {
