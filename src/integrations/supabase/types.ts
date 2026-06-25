@@ -396,6 +396,59 @@ export type Database = {
         }
         Relationships: []
       }
+      intouch_machine_map: {
+        Row: {
+          active: boolean
+          created_at: string
+          intouch_machine_id: string
+          intouch_machine_name: string | null
+          last_downtime_code: string | null
+          last_seen_at: string | null
+          last_status: number | null
+          line_id: string | null
+          machine_name: string | null
+          prod_dt_code: string | null
+          prod_dt_started_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          intouch_machine_id: string
+          intouch_machine_name?: string | null
+          last_downtime_code?: string | null
+          last_seen_at?: string | null
+          last_status?: number | null
+          line_id?: string | null
+          machine_name?: string | null
+          prod_dt_code?: string | null
+          prod_dt_started_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          intouch_machine_id?: string
+          intouch_machine_name?: string | null
+          last_downtime_code?: string | null
+          last_seen_at?: string | null
+          last_status?: number | null
+          line_id?: string | null
+          machine_name?: string | null
+          prod_dt_code?: string | null
+          prod_dt_started_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intouch_machine_map_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       intouch_stop_code_map: {
         Row: {
           active: boolean
@@ -539,6 +592,7 @@ export type Database = {
       }
       lines: {
         Row: {
+          active: boolean
           created_at: string
           display_order: number
           has_sides: boolean
@@ -546,6 +600,7 @@ export type Database = {
           name: string
         }
         Insert: {
+          active?: boolean
           created_at?: string
           display_order?: number
           has_sides?: boolean
@@ -553,6 +608,7 @@ export type Database = {
           name: string
         }
         Update: {
+          active?: boolean
           created_at?: string
           display_order?: number
           has_sides?: boolean
@@ -1611,6 +1667,54 @@ export type Database = {
           },
         ]
       }
+      rag_weekly_entries: {
+        Row: {
+          actual_qty: number
+          created_at: string
+          created_by: string | null
+          downtime_min: number
+          entry_date: string
+          id: string
+          line: string
+          notes: string | null
+          plan_qty: number
+          shift: string
+          updated_at: string
+          upm_actual: number
+          upm_target: number
+        }
+        Insert: {
+          actual_qty?: number
+          created_at?: string
+          created_by?: string | null
+          downtime_min?: number
+          entry_date: string
+          id?: string
+          line: string
+          notes?: string | null
+          plan_qty?: number
+          shift: string
+          updated_at?: string
+          upm_actual?: number
+          upm_target?: number
+        }
+        Update: {
+          actual_qty?: number
+          created_at?: string
+          created_by?: string | null
+          downtime_min?: number
+          entry_date?: string
+          id?: string
+          line?: string
+          notes?: string | null
+          plan_qty?: number
+          shift?: string
+          updated_at?: string
+          upm_actual?: number
+          upm_target?: number
+        }
+        Relationships: []
+      }
       shift_report_settings: {
         Row: {
           day_enabled: boolean
@@ -2041,6 +2145,8 @@ export type Database = {
           engineer_notified_acknowledged_at: string | null
           finished_at: string | null
           id: string
+          intouch_downtime_code: string | null
+          intouch_machine_id: string | null
           line_at_time: string | null
           line_id: string | null
           line_resumed_at: string | null
@@ -2086,6 +2192,8 @@ export type Database = {
           engineer_notified_acknowledged_at?: string | null
           finished_at?: string | null
           id?: string
+          intouch_downtime_code?: string | null
+          intouch_machine_id?: string | null
           line_at_time?: string | null
           line_id?: string | null
           line_resumed_at?: string | null
@@ -2131,6 +2239,8 @@ export type Database = {
           engineer_notified_acknowledged_at?: string | null
           finished_at?: string | null
           id?: string
+          intouch_downtime_code?: string | null
+          intouch_machine_id?: string | null
           line_at_time?: string | null
           line_id?: string | null
           line_resumed_at?: string | null
