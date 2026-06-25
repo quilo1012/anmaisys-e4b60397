@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload, Download } from "lucide-react";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -175,6 +175,23 @@ export default function ProductionPlannerPage() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold">Production Planner</h1>
           <div className="flex items-center gap-2">
+            {isManager && (
+              <Button variant="outline" size="sm" onClick={() => {
+                const headers = ["Date","Assembly Number","Work Centre","Product Code","Product Description","Weight","QTY","Start Time","Finish Time","Shift"];
+                const sample = [
+                  ["25/06/2026","ASM-0001","Line 1","SKU-001","Sample Product A","0.500","1200","06:00","14:00","DAY"],
+                  ["25/06/2026","ASM-0002","Line 2","SKU-002","Sample Product B","0.750","850","18:00","02:00","NIGHT"],
+                ];
+                const csv = [headers, ...sample].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+                const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = `production-template-${format(new Date(), "yyyy-MM-dd")}.csv`;
+                a.click(); URL.revokeObjectURL(url);
+              }}>
+                <Download className="h-4 w-4 mr-1" />Export Template
+              </Button>
+            )}
             {isManager && (
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                 <Upload className="h-4 w-4 mr-1" />Import Production
