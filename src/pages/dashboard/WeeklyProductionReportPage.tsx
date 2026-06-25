@@ -81,9 +81,12 @@ export default function WeeklyProductionReportPage() {
             <Button variant="outline" size="icon" onClick={() => setAnchor(addWeeks(anchor, -1))}><ChevronLeft className="h-4 w-4" /></Button>
             <div className="text-sm font-medium px-3">{format(weekStart, "dd MMM")} – {format(weekEnd, "dd MMM yyyy")}</div>
             <Button variant="outline" size="icon" onClick={() => setAnchor(addWeeks(anchor, 1))}><ChevronRight className="h-4 w-4" /></Button>
-            <Select value={activeLine} onValueChange={setLine}>
+            <Select value={line || "__all__"} onValueChange={(v) => setLine(v === "__all__" ? "" : v)}>
               <SelectTrigger className="w-40"><SelectValue placeholder="Line" /></SelectTrigger>
-              <SelectContent>{lines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+              <SelectContent>
+                <SelectItem value="__all__">All lines</SelectItem>
+                {lines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}
+              </SelectContent>
             </Select>
             <Select value={shift} onValueChange={(v) => setShift(v as "all" | "DAY" | "NIGHT")}>
               <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
