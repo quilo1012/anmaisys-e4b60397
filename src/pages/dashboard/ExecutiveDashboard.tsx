@@ -14,6 +14,7 @@ import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Timer, Ac
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { countOpenWOs } from "@/lib/woStatus";
 import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
+import { ShiftFilter } from "@/components/ShiftFilter";
 
 export default function ExecutiveDashboard() {
   const { data: workOrders = [] } = useWorkOrders();
@@ -189,14 +190,7 @@ export default function ExecutiveDashboard() {
               onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
               storageKey="executive-dashboard"
             />
-            <Select value={shiftFilter} onValueChange={(v) => setShiftFilter(v as "ALL" | "DAY" | "NIGHT")}>
-              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All shifts</SelectItem>
-                <SelectItem value="DAY">Day (06–18)</SelectItem>
-                <SelectItem value="NIGHT">Night (18–06)</SelectItem>
-              </SelectContent>
-            </Select>
+            <ShiftFilter value={shiftFilter} onChange={setShiftFilter} />
           </div>
         </div>
 
