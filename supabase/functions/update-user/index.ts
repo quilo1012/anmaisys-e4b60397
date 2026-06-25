@@ -82,15 +82,15 @@ Deno.serve(async (req) => {
 
     const { data: targetRole } = await supabaseAdmin.rpc("get_user_role", { _user_id: userId });
 
-    if (isManager && !isAdmin && (targetRole === "admin" || targetRole === "manager")) {
-      throw new Error("Managers cannot modify Manager or Admin users");
+    if (isManager && !isAdmin && (targetRole === "admin" || targetRole === "manager" || targetRole === "maintenance_manager")) {
+      throw new Error("Managers cannot modify Admin, Manager or Maintenance Manager users");
     }
 
     if (isManager && !isAdmin && role && role !== "engineer" && role !== "operator") {
       throw new Error("Managers can only assign Engineer or Operator roles");
     }
 
-    if (role === "admin" && !isAdmin) throw new Error("Only admins can assign the Admin role");
+    if ((role === "admin" || role === "maintenance_manager") && !isAdmin) throw new Error("Only admins can assign Admin or Maintenance Manager roles");
     if (labor_rate !== undefined && !isAdmin) {
       throw new Error("Only admins can modify labor rates");
     }
