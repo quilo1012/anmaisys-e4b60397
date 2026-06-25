@@ -36,13 +36,25 @@ export default function ExecutiveDashboard() {
     }
   }, []);
 
-  // Work orders filtered by the selected KPI period (by created_at).
+  // Hour in Europe/London for shift detection (DAY = 06-18, NIGHT otherwise)
+  const londonHour = (iso: string) => {
+    const parts = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Europe/London" }).formatToParts(new Date(iso));
+    return parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
+  };
+  const inShift = useCallback((iso: string) => {
+    if (shiftFilter === "ALL") return true;
+    const h = londonHour(iso);
+    const isDay = h >= 6 && h < 18;
+    return shiftFilter === "DAY" ? isDay : !isDay;
+  }, [shiftFilter]);
+
+  // Work orders filtered by the selected KPI period (by created_at) and shift.
   const inRange = useCallback((iso: string) => {
     const d = new Date(iso);
     if (kpiRange.from && d < kpiRange.from) return false;
     if (kpiRange.to && d > kpiRange.to) return false;
-    return true;
-  }, [kpiRange.from, kpiRange.to]);
+    return inShift(iso);
+  }, [kpiRange.from, kpiRange.to, inShift]);
 
   const filteredWOs = useMemo(
     () => workOrders.filter((w) => inRange(w.created_at)),
