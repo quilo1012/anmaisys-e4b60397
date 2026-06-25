@@ -397,7 +397,7 @@ export default function WorkOrdersPage() {
                       machineLineMap,
                       engineerRanking: engPerf,
                       kpis: { avgResponse: 0, avgMTTR: 0, totalWOs: allWOs.length, openWOs, slaRate: 0 },
-                      dateRange: dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? dateQuickFilter : "All records",
+                      dateRange: drPreset === "custom" ? `${drRange.from ? format(drRange.from, "yyyy-MM-dd") : "…"} to ${drRange.to ? format(drRange.to, "yyyy-MM-dd") : "…"}` : drPreset !== "all" ? drPreset : "All records",
                       callerRole: role,
                     });
                   } catch (err: any) {
