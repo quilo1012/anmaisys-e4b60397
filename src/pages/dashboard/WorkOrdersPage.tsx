@@ -32,6 +32,7 @@ import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { WO_TERMINAL_STATUSES, isWoOpen } from "@/lib/woStatus";
 import { getWoStatusConfig } from "@/lib/woStatusConfig";
 import { ShiftFilter } from "@/components/ShiftFilter";
+import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
 
 const statusConfig = new Proxy({} as Record<string, { label: string; className: string }>, {
   get: (_t, key: string) => getWoStatusConfig(key),
@@ -52,8 +53,8 @@ export default function WorkOrdersPage() {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("today"));
+  const [drPreset, setDrPreset] = useState<DateRangePreset>("today");
   const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get("status") || "all");
   
   const [problemFilter, setProblemFilter] = useState<string>("all");
@@ -61,13 +62,13 @@ export default function WorkOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [currentPage, setCurrentPage] = useState(1);
-  const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const [shiftFilter, setShiftFilter] = useState<"ALL" | "DAY" | "NIGHT">("ALL");
   const [lineFilter, setLineFilter] = useState<string>("all");
 
   useEffect(() => {
     if (role === "admin" || (role === "manager" || role === "maintenance_manager")) {
-      setDateQuickFilter("all");
+      setDrPreset("all");
+      setDrRange(getPresetRange("all"));
     }
   }, [role]);
   const [lineStoppedFilter, setLineStoppedFilter] = useState<"all" | "stopped" | "running">("all");
@@ -170,23 +171,13 @@ export default function WorkOrdersPage() {
     if (!workOrders) return [];
     let filtered = workOrders;
     const now = new Date();
-    if (dateQuickFilter === "today") {
-      const start = startOfDay(now); const end = endOfDay(now);
-      filtered = filtered.filter((w) => { const d = new Date(w.created_at); return d >= start && d <= end; });
-    } else if (dateQuickFilter === "yesterday") {
-      const start = startOfDay(subDays(now, 1)); const end = endOfDay(subDays(now, 1));
-      filtered = filtered.filter((w) => { const d = new Date(w.created_at); return d >= start && d <= end; });
-    } else if (dateQuickFilter === "7days") {
-      filtered = filtered.filter((w) => new Date(w.created_at) >= startOfDay(subDays(now, 6)));
-    } else if (dateQuickFilter === "month") {
-      filtered = filtered.filter((w) => new Date(w.created_at) >= startOfMonth(now));
-    } else {
-      if (dateFrom) filtered = filtered.filter((w) => w.created_at >= dateFrom);
-      if (dateTo) {
-        const todayStr = format(now, "yyyy-MM-dd");
-        const cutoff = dateTo >= todayStr ? now.toISOString() : dateTo + "T23:59:59";
-        filtered = filtered.filter((w) => w.created_at <= cutoff);
-      }
+    if (drRange.from) {
+      const fromMs = drRange.from.getTime();
+      filtered = filtered.filter((w) => new Date(w.created_at).getTime() >= fromMs);
+    }
+    if (drRange.to) {
+      const toMs = drRange.to.getTime();
+      filtered = filtered.filter((w) => new Date(w.created_at).getTime() <= toMs);
     }
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
@@ -234,7 +225,7 @@ export default function WorkOrdersPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return filtered;
-  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, lineFilter, lineStoppedFilter, searchTerm, lineNameMap, machineLineMap, shiftFilter, statusFilter]);
+  }, [workOrders, drRange, problemFilter, machineFilter, lineFilter, lineStoppedFilter, searchTerm, lineNameMap, machineLineMap, shiftFilter, statusFilter]);
 
   const stoppedCount = useMemo(
     () => (workOrders ?? []).filter((w: any) => w.line_stopped === true && !w.line_resumed_at).length,
@@ -251,7 +242,7 @@ export default function WorkOrdersPage() {
     return filteredWOs.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredWOs, currentPage]);
 
-  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, lineFilter, searchTerm, dateQuickFilter, dateFrom, dateTo]);
+  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, lineFilter, searchTerm, drRange]);
 
   // Keep URL in sync with status filter so deep-links from dashboards work
   useEffect(() => {
@@ -362,33 +353,22 @@ export default function WorkOrdersPage() {
               </div>
             </div>
 
-            {/* Row 2 — View toggle + Date pills + Custom range */}
+            {/* Row 2 — View toggle + Unified date range + Shift */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="inline-flex items-center rounded-md border bg-background p-0.5 shadow-sm">
                   <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("table")} className="h-7 w-8 p-0"><List className="h-4 w-4" /></Button>
                   <Button variant={viewMode === "board" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("board")} className="h-7 w-8 p-0"><LayoutGrid className="h-4 w-4" /></Button>
                 </div>
-                <div className="inline-flex items-center rounded-md border bg-background p-0.5 shadow-sm">
-                  {([["today", "Today"], ["yesterday", "Yesterday"], ["7days", "7D"], ["month", "Month"], ["all", "All"]] as const).map(([key, label]) => (
-                    <Button
-                      key={key}
-                      variant={dateQuickFilter === key ? "secondary" : "ghost"}
-                      size="sm"
-                      className="h-7 px-3 text-xs font-medium"
-                      onClick={() => { setDateQuickFilter(key); setDateFrom(""); setDateTo(""); }}
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateQuickFilter(""); }} className="w-[125px] sm:w-[140px] h-9 bg-background" />
-                  <span className="text-xs text-muted-foreground">→</span>
-                  <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateQuickFilter(""); }} className="w-[125px] sm:w-[140px] h-9 bg-background" />
-                </div>
+                <DateRangeFilter
+                  value={drRange}
+                  preset={drPreset}
+                  onChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
+                  storageKey="work-orders"
+                />
                 <ShiftFilter value={shiftFilter} onChange={setShiftFilter} />
               </div>
+
 
               <div className="inline-flex items-center gap-1 rounded-md border bg-background p-0.5 shadow-sm">
                 <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
@@ -417,7 +397,7 @@ export default function WorkOrdersPage() {
                       machineLineMap,
                       engineerRanking: engPerf,
                       kpis: { avgResponse: 0, avgMTTR: 0, totalWOs: allWOs.length, openWOs, slaRate: 0 },
-                      dateRange: dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? dateQuickFilter : "All records",
+                      dateRange: drPreset === "custom" ? `${drRange.from ? format(drRange.from, "yyyy-MM-dd") : "…"} to ${drRange.to ? format(drRange.to, "yyyy-MM-dd") : "…"}` : drPreset !== "all" ? drPreset : "All records",
                       callerRole: role,
                     });
                   } catch (err: any) {
@@ -496,7 +476,7 @@ export default function WorkOrdersPage() {
             <div className="print-header hidden print:block">
               <h1 style={{ fontSize: "16pt", fontWeight: "bold" }}>AN Maintenance — Work Orders Report</h1>
               <p style={{ fontSize: "10pt", color: "#666" }}>
-                {dateFrom && dateTo ? `Period: ${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? `Filter: ${dateQuickFilter}` : "All records"}
+                {drPreset === "custom" ? `Period: ${drRange.from ? format(drRange.from, "yyyy-MM-dd") : "…"} to ${drRange.to ? format(drRange.to, "yyyy-MM-dd") : "…"}` : drPreset !== "all" ? `Filter: ${drPreset}` : "All records"}
                 {lineFilter !== "all" ? ` | Line: ${lineFilter}` : ""}
                 {statusFilter !== "all" ? ` | Status: ${statusFilter}` : ""}
                 {machineFilter !== "all" ? ` | Machine: ${machineFilter}` : ""}
