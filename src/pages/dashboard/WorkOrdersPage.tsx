@@ -242,7 +242,7 @@ export default function WorkOrdersPage() {
     return filteredWOs.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredWOs, currentPage]);
 
-  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, lineFilter, searchTerm, dateQuickFilter, dateFrom, dateTo]);
+  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, lineFilter, searchTerm, drRange]);
 
   // Keep URL in sync with status filter so deep-links from dashboards work
   useEffect(() => {
