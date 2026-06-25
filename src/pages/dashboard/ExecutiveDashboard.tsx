@@ -14,6 +14,7 @@ import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Timer, Ac
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { countOpenWOs } from "@/lib/woStatus";
 import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
+import { ShiftFilter } from "@/components/ShiftFilter";
 
 export default function ExecutiveDashboard() {
   const { data: workOrders = [] } = useWorkOrders();
