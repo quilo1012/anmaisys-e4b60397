@@ -18,8 +18,8 @@ export default function ExecutiveDashboard() {
   const { data: workOrders = [] } = useWorkOrders();
   const { data: machines = [] } = useMachines();
   const { data: engineerScores = [] } = useEngineerScores();
-  const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("7d");
-  const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("7d"));
+  const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("today");
+  const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("today"));
   const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
   const { data: downtimeRecords = [] } = useDowntime();
   const [isFullscreen, setIsFullscreen] = useState(false);
