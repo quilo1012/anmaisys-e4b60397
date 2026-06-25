@@ -83,11 +83,28 @@ export function ImportProductionDialog({ open, onOpenChange, onImported }: {
 
   const handleFile = async (file: File) => {
     setFileName(file.name);
-    const text = await file.text();
-    const sep = detectSeparator(text);
-    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-    if (lines.length < 2) { toast.error("Empty file"); return; }
-    const header = lines[0].split(sep).map((c) => c.replace(/^"|"$/g, ""));
+    const isExcel = /\.(xlsx|xls|xlsm)$/i.test(file.name);
+
+    let header: string[] = [];
+    let dataRows: string[][] = [];
+
+    if (isExcel) {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: false });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, raw: false, defval: "" });
+      if (aoa.length < 2) { toast.error("Empty file"); return; }
+      header = (aoa[0] as any[]).map((c) => String(c ?? "").trim());
+      dataRows = (aoa.slice(1) as any[][]).map((r) => r.map((c) => String(c ?? "").trim()));
+    } else {
+      const text = await file.text();
+      const sep = detectSeparator(text);
+      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (lines.length < 2) { toast.error("Empty file"); return; }
+      header = lines[0].split(sep).map((c) => c.replace(/^"|"$/g, "").trim());
+      dataRows = lines.slice(1).map((l) => l.split(sep).map((c) => c.replace(/^"|"$/g, "").trim()));
+    }
+
     const dateIdx = findCol(header, ["date", "data"]);
     const timeIdx = findCol(header, ["start time", "time", "hora"]);
     const lineIdx = findCol(header, ["work centre", "work center", "line", "linha"]);
@@ -100,8 +117,7 @@ export function ImportProductionDialog({ open, onOpenChange, onImported }: {
     }
 
     const parsed: ParsedRow[] = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(sep).map((c) => c.replace(/^"|"$/g, "").trim());
+    for (const cols of dataRows) {
       const date = parseDate(cols[dateIdx] ?? "");
       const line = cols[lineIdx] ?? "";
       const sku_code = cols[codeIdx] ?? "";
