@@ -187,6 +187,7 @@ export default function ExecutiveDashboard() {
               value={kpiRange}
               preset={kpiPreset}
               onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
+              storageKey="executive-dashboard"
             />
             <Select value={shiftFilter} onValueChange={(v) => setShiftFilter(v as "ALL" | "DAY" | "NIGHT")}>
               <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
