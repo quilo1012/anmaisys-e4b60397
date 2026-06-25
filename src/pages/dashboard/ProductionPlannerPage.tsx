@@ -27,6 +27,39 @@ import { cn } from "@/lib/utils";
 
 type Row = { sku_id: string; sku_name: string; target_qty: number; actual_qty: number };
 
+function useLineLeaders(shift: string) {
+  return useQuery({
+    queryKey: ["line_leaders", shift],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("line_leaders")
+        .select("id, name, shift")
+        .eq("active", true)
+        .in("shift", [shift, "BOTH"])
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string; shift: string }[];
+    },
+  });
+}
+
+function useAddLineLeader() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { name: string; shift: string }) => {
+      const { data, error } = await supabase
+        .from("line_leaders")
+        .insert({ name: input.name.trim(), shift: input.shift })
+        .select("id, name, shift")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["line_leaders"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 function SkuCombobox({
   value, onPick, skus, disabled,
 }: { value: string; onPick: (id: string, name: string) => void; skus: { id: string; code: string; name: string }[]; disabled?: boolean }) {
