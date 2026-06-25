@@ -1088,6 +1088,57 @@ export type Database = {
         }
         Relationships: []
       }
+      production_downtimes: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          duration_minutes: number
+          ended_at: string | null
+          id: string
+          leader_name: string | null
+          line: string
+          notes: string | null
+          occurred_date: string
+          reason: string | null
+          shift: string
+          started_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          created_by?: string | null
+          duration_minutes: number
+          ended_at?: string | null
+          id?: string
+          leader_name?: string | null
+          line: string
+          notes?: string | null
+          occurred_date?: string
+          reason?: string | null
+          shift: string
+          started_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          duration_minutes?: number
+          ended_at?: string | null
+          id?: string
+          leader_name?: string | null
+          line?: string
+          notes?: string | null
+          occurred_date?: string
+          reason?: string | null
+          shift?: string
+          started_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       production_items: {
         Row: {
           actual_qty: number

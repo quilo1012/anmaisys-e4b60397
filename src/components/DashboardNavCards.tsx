@@ -88,6 +88,7 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
     { title: "SKU Products", description: "Catalog and CSV import", url: "/dashboard/sku-products", icon: Boxes, accent: ASSETS },
     { title: "Machines", description: "View and manage equipment", url: "/dashboard/machines", icon: Cog, badge: machinesCount, accent: ASSETS },
     { title: "Downtime", description: "Track production line stoppages", url: "/dashboard/downtime", icon: Clock, accent: OPS },
+    { title: "Production Downtime", description: "Production-side stoppages (changeover, material…)", url: "/dashboard/production-downtime", icon: Clock, accent: OPS },
     { title: "Preventive Maintenance", description: "Recurring schedules and checklists", url: "/dashboard/preventive", icon: Wrench, accent: ASSETS },
     { title: "Control Center", description: "Live operations display", url: "/dashboard/control-center", icon: Monitor, accent: OPS },
     { title: "Analytics", description: "Performance metrics and trends", url: "/dashboard/analytics", icon: BarChart3, accent: REPORTS },
