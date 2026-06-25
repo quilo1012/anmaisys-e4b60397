@@ -11,7 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload } from "lucide-react";
+import { ImportProductionDialog } from "@/components/ImportProductionDialog";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useLines, useLeaders, useSkuProducts, useSessionsRange, useSession, useSessionItems,
   useUpsertSession, useSaveItems, useToggleSessionLock,
@@ -60,7 +62,9 @@ function SkuCombobox({
 
 export default function ProductionPlannerPage() {
   const { role } = useAuth();
+  const queryClient = useQueryClient();
   const isManager = role === "admin" || (role === "manager" || role === "maintenance_manager");
+  const [importOpen, setImportOpen] = useState(false);
 
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [shift, setShift] = useState("DAY");
@@ -170,12 +174,28 @@ export default function ProductionPlannerPage() {
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold">Production Planner</h1>
-          {existingId && isManager && (
-            <Button variant="outline" size="sm" onClick={() => toggleLock.mutate({ id: existingId, lock: !locked })}>
-              {locked ? <><Unlock className="h-4 w-4 mr-1" />Unlock</> : <><Lock className="h-4 w-4 mr-1" />Lock</>}
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {isManager && (
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4 mr-1" />Import Production
+              </Button>
+            )}
+            {existingId && isManager && (
+              <Button variant="outline" size="sm" onClick={() => toggleLock.mutate({ id: existingId, lock: !locked })}>
+                {locked ? <><Unlock className="h-4 w-4 mr-1" />Unlock</> : <><Lock className="h-4 w-4 mr-1" />Lock</>}
+              </Button>
+            )}
+          </div>
         </div>
+        <ImportProductionDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onImported={() => {
+            queryClient.invalidateQueries({ queryKey: ["planner-sessions"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-session"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-items"] });
+          }}
+        />
 
         {/* Shift Information — horizontal row */}
         <Card>
