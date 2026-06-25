@@ -60,7 +60,7 @@ export default function WorkOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [currentPage, setCurrentPage] = useState(1);
-  const [dateQuickFilter, setDateQuickFilter] = useState<string>(() => (role === "admin" || (role === "manager" || role === "maintenance_manager") ? "all" : "today"));
+  const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const [lineFilter, setLineFilter] = useState<string>("all");
 
   useEffect(() => {
