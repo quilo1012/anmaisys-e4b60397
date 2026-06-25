@@ -26,17 +26,16 @@ export default function WeeklyProductionReportPage() {
   const from = format(weekStart, "yyyy-MM-dd");
   const to = format(weekEnd, "yyyy-MM-dd");
 
-  // Auto-pick first line
-  const activeLine = line || lines[0]?.name || "";
+  // "" means all lines
+  const activeLine = line;
 
   const { data: rows = [] } = useQuery({
     queryKey: ["weekly_report", from, to, activeLine, shift],
-    enabled: !!activeLine,
     queryFn: async () => {
       let q = supabase.from("production_sessions")
         .select("id, session_date, shift, line, production_items(sku_id, target_qty, planned_qty, actual_qty)")
-        .gte("session_date", from).lte("session_date", to)
-        .eq("line", activeLine);
+        .gte("session_date", from).lte("session_date", to);
+      if (activeLine) q = q.eq("line", activeLine);
       if (shift !== "all") q = q.eq("shift", shift);
       const { data, error } = await q;
       if (error) throw error;
