@@ -30,7 +30,18 @@ Deno.serve(async (req) => {
     const { data: isManager } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "manager" });
     const { data: isMaintMgr } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "maintenance_manager" });
 
-    if (!isAdmin && !isManager && !isMaintMgr) throw new Error("Only managers and admins can view engineers");
+    if (!isAdmin && !isManager && !isMaintMgr) {
+      const role = (await supabaseAdmin.rpc("get_user_role", { _user_id: callerId })).data ?? "none";
+      await supabaseAdmin.from("audit_logs").insert({
+        user_id: callerId,
+        user_name: (claimsData.claims as { email?: string }).email ?? "Unknown",
+        action: "list_engineers_denied",
+        entity_type: "edge_function",
+        entity_id: "list-engineers",
+        details: { role, reason: "insufficient_role" },
+      });
+      throw new Error("Only managers and admins can view engineers");
+    }
 
     const { data, error } = await supabaseAdmin
       .from("engineers_safe")
