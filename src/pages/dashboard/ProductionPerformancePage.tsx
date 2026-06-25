@@ -122,18 +122,53 @@ export default function ProductionPerformancePage() {
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
-          {byLine.length === 0 && <Card><CardContent className="p-4 text-muted-foreground">No data</CardContent></Card>}
-          {byLine.map((l) => (
-            <Card key={l.line} className={`border-l-4 ${ragColor(l.eff)}`}>
-              <CardContent className="p-4">
-                <div className="text-sm font-semibold">{l.line}</div>
-                <div className="text-xs text-muted-foreground">{l.leader ?? "—"}</div>
-                <div className="text-2xl font-bold mt-1">{l.eff.toFixed(0)}%</div>
-                <div className="text-xs text-muted-foreground">{l.actual} / {l.target}</div>
+        {/* Overall OEE Panel */}
+        {(() => {
+          const totalTarget = byLine.reduce((a, l) => a + l.target, 0);
+          const totalActual = byLine.reduce((a, l) => a + l.actual, 0);
+          const overall = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
+          return (
+            <Card>
+              <CardContent className="p-6 flex items-center gap-6 flex-wrap">
+                <CircularProgress value={overall} size={120} strokeWidth={10} sublabel="Overall" />
+                <div className="flex-1 min-w-[200px]">
+                  <div className="text-xs uppercase text-muted-foreground">Overall Performance</div>
+                  <div className="text-2xl font-bold">{totalActual.toLocaleString()} / {totalTarget.toLocaleString()}</div>
+                  <div className="text-sm text-muted-foreground">{byLine.length} {byLine.length === 1 ? "line" : "lines"} · {sessions.length} sessions</div>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Badge className="bg-green-500/15 text-green-600 dark:text-green-400 border border-green-500/40">≥100% Green</Badge>
+                  <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/40">≥80% Amber</Badge>
+                  <Badge className="bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/40">&lt;80% Red</Badge>
+                </div>
               </CardContent>
             </Card>
-          ))}
+          );
+        })()}
+
+        {/* Line status cards */}
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {byLine.length === 0 && <Card><CardContent className="p-4 text-muted-foreground">No data</CardContent></Card>}
+          {byLine.map((l) => {
+            const headerBg = l.eff >= 100 ? "bg-green-500/15" : l.eff >= 80 ? "bg-amber-500/15" : "bg-red-500/15";
+            const headerText = l.eff >= 100 ? "text-green-600 dark:text-green-400" : l.eff >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
+            return (
+              <Card key={l.line} className={`overflow-hidden border-l-4 ${ragColor(l.eff)}`}>
+                <div className={`${headerBg} ${headerText} px-4 py-2 flex items-center justify-between`}>
+                  <div className="font-semibold">{l.line}</div>
+                  <div className="text-xs">{l.leader ?? "—"}</div>
+                </div>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <CircularProgress value={l.eff} size={88} strokeWidth={8} />
+                  <div className="flex-1 text-sm space-y-0.5">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Target</span><span className="font-medium">{l.target.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Actual</span><span className="font-medium">{l.actual.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Gap</span><span className={`font-medium ${l.actual - l.target >= 0 ? "text-green-500" : "text-red-500"}`}>{(l.actual - l.target).toLocaleString()}</span></div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         <Card>
