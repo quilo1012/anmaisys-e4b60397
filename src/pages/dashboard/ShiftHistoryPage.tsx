@@ -15,6 +15,7 @@ import { ChevronDown, ChevronRight, Download, Lock, Unlock, Pencil, Trash2 } fro
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 
 interface SessionRow {
   id: string; session_date: string; shift: string; line: string;
@@ -60,6 +61,27 @@ export default function ShiftHistoryPage() {
     (fLeader === "__all__" || s.leader_name === fLeader) &&
     (fSku === "__all__" || s.production_items.some((i) => i.sku_id === fSku))
   ), [sessions, fLine, fShift, fLeader, fSku]);
+
+  const trendData = useMemo(() => {
+    const byDate = new Map<string, { date: string; DAY: number[]; NIGHT: number[] }>();
+    for (const s of filtered) {
+      const target = s.production_items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
+      const actual = s.production_items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
+      if (target <= 0) continue;
+      const eff = (actual / target) * 100;
+      const row = byDate.get(s.session_date) ?? { date: s.session_date, DAY: [], NIGHT: [] };
+      if (s.shift === "DAY") row.DAY.push(eff);
+      else if (s.shift === "NIGHT") row.NIGHT.push(eff);
+      byDate.set(s.session_date, row);
+    }
+    return Array.from(byDate.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((r) => ({
+        date: r.date,
+        DAY: r.DAY.length ? +(r.DAY.reduce((a, b) => a + b, 0) / r.DAY.length).toFixed(1) : null,
+        NIGHT: r.NIGHT.length ? +(r.NIGHT.reduce((a, b) => a + b, 0) / r.NIGHT.length).toFixed(1) : null,
+      }));
+  }, [filtered]);
 
   const toggle = (id: string) => {
     const n = new Set(expanded);
@@ -160,6 +182,26 @@ export default function ShiftHistoryPage() {
             </div>
           </CardContent>
         </Card>
+
+        {trendData.length >= 2 && (
+          <Card>
+            <CardHeader className="py-3"><CardTitle className="text-sm">Performance trend — DAY vs NIGHT</CardTitle></CardHeader>
+            <CardContent className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} domain={[0, (dataMax: number) => Math.max(120, dataMax)]} unit="%" />
+                  <Tooltip formatter={(v: number) => `${v}%`} />
+                  <Legend />
+                  <ReferenceLine y={100} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
+                  <Line type="monotone" dataKey="DAY" stroke="#3b82f6" strokeWidth={2} connectNulls />
+                  <Line type="monotone" dataKey="NIGHT" stroke="#a855f7" strokeWidth={2} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="space-y-2">
           {filtered.length === 0 && <Card><CardContent className="p-6 text-muted-foreground text-center">No sessions</CardContent></Card>}
