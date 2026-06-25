@@ -13,7 +13,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Progress } from "@/components/ui/progress";
 import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload, Download, FileInput } from "lucide-react";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
-import { parseIntouchWorkToList, findSectionForLine } from "@/lib/intouchWorkToList";
+import { IntouchImportDialog } from "@/components/IntouchImportDialog";
 import { toast } from "sonner";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import {
