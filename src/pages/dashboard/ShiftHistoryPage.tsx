@@ -15,6 +15,7 @@ import { ChevronDown, ChevronRight, Download, Lock, Unlock, Pencil, Trash2 } fro
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 
 interface SessionRow {
   id: string; session_date: string; shift: string; line: string;
