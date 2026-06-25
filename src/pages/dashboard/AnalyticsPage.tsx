@@ -3,11 +3,8 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, BarChart3, Trophy, Award, TrendingUp, TrendingDown, Printer, FileText, CalendarIcon } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, BarChart3, Trophy, Award, TrendingUp, TrendingDown, Printer, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
@@ -19,11 +16,11 @@ import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList } from "recharts";
-import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMinutes } from "@/lib/formatDuration";
+import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
@@ -38,23 +35,13 @@ const EmptyChart = () => (
   </div>
 );
 
-type PeriodPreset = "7d" | "30d" | "90d" | "custom";
-
 export default function AnalyticsPage() {
   const { role } = useAuth();
   const { toast } = useToast();
-  const [period, setPeriod] = useState<PeriodPreset>("30d");
-  const [startDate, setStartDate] = useState<Date>(startOfDay(subDays(new Date(), 30)));
-  const [endDate, setEndDate] = useState<Date>(endOfDay(new Date()));
-
-  const handlePeriodChange = (val: PeriodPreset) => {
-    setPeriod(val);
-    if (val !== "custom") {
-      const days = val === "7d" ? 7 : val === "30d" ? 30 : 90;
-      setStartDate(startOfDay(subDays(new Date(), days)));
-      setEndDate(endOfDay(new Date()));
-    }
-  };
+  const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
+  const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
+  const startDate = drRange.from ?? startOfDay(subDays(new Date(), 30));
+  const endDate = drRange.to ?? endOfDay(new Date());
 
   const { data: rawWOs, isLoading: woLoading } = useWorkOrders();
   const { data: partsToday } = useTotalPartsUsedToday();
