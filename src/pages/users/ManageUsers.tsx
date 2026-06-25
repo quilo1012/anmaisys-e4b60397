@@ -464,7 +464,7 @@ export default function ManageUsers() {
                 {users.map((user) => {
                   const RoleIcon = user.role ? roleIcons[user.role] : Shield;
                   const isCurrentUser = user.id === currentUser?.id;
-                  const managerBlockedTarget = currentRole === "manager" && (user.(role === "manager" || role === "maintenance_manager") || user.role === "admin");
+                  const managerBlockedTarget = (currentRole === "manager" || currentRole === "maintenance_manager") && (user.role === "manager" || user.role === "maintenance_manager" || user.role === "admin");
                   return (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.name}</TableCell>
