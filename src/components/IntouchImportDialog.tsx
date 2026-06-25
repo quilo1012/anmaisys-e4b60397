@@ -66,6 +66,10 @@ async function readFileAsCsv(file: File): Promise<string> {
   for (const sheetName of wb.SheetNames) {
     const sheet = wb.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "", raw: false, blankrows: false });
+    if (rows.length === 0) continue;
+    // Inject a synthetic Machine marker using the sheet name so files without
+    // explicit "Machine:" markers still produce a section per sheet.
+    lines.push(`"Machine:","${sheetName.replace(/"/g, '""')}"`);
     rows.forEach((row) => {
       const cells = row.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`);
       if (cells.some((c) => c !== '""')) lines.push(cells.join(","));
