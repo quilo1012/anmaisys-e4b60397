@@ -10,6 +10,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Skeleton } from "@/components/ui/skeleton";
 import Login from "./pages/Login";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const OperatorDashboard = lazy(() => import("./pages/dashboard/OperatorDashboard"));
 const EngineerDashboard = lazy(() => import("./pages/dashboard/EngineerDashboard"));
@@ -100,6 +101,7 @@ const App = () => (
         <AuthProvider>
           <LanguageProvider>
           <CriticalAlertProvider>
+            <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -347,6 +349,7 @@ const App = () => (
                 <Route path="*" element={<SessionRedirect />} />
               </Routes>
             </Suspense>
+            </ErrorBoundary>
           </CriticalAlertProvider>
           </LanguageProvider>
         </AuthProvider>
