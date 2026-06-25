@@ -211,11 +211,11 @@ export function ImportProductionDialog({ open, onOpenChange, onImported }: {
 
         <div className="space-y-4">
           <div>
-            <Label>CSV file (exported from Intouch or ERP)</Label>
-            <Input type="file" accept=".csv,.txt,.tsv" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+            <Label>CSV or Excel file (exported from Intouch or ERP)</Label>
+            <Input type="file" accept=".csv,.txt,.tsv,.xlsx,.xls,.xlsm" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             <p className="text-xs text-muted-foreground mt-1">
               Required columns: <b>Date</b>, <b>Work Centre</b>, <b>Product Code</b>, <b>Qty</b>. Optional: <b>Start Time</b> for shift detection.
-              Auto-detects separator (, ; \t |) and European dates (dd/mm/yyyy).
+              Supports .csv, .xlsx, .xls. Auto-detects separator and European dates (dd/mm/yyyy).
             </p>
           </div>
 
