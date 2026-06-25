@@ -47,16 +47,19 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
     const cols = splitCsv(line);
     const lower = cols.map((c) => c.toLowerCase());
 
-    // Detect "Machine:" either inline ("Machine: Filler Line 1") or as its own
-    // cell with the name in the next non-empty cell (xlsx-converted rows).
-    const machineCellIdx = lower.findIndex((c) => /^machine\s*:?\s*$/.test(c) || /^machine\s*:/.test(c));
-    if (machineCellIdx !== -1) {
+    // Section marker: accept Machine / Line / Production Line / Asset / Area / Resource
+    // Either inline ("Machine: Filler Line 1") or as its own cell with the name in the
+    // next non-empty cell (xlsx-converted rows often look like: "Machine:","Filler Line 1").
+    const markerRe = /^(machine|line|production\s*line|asset|area|resource|work\s*centre|work\s*center)\s*:?\s*$/;
+    const inlineRe = /^(machine|line|production\s*line|asset|area|resource|work\s*centre|work\s*center)\s*:\s*(.+)$/i;
+    const markerIdx = lower.findIndex((c) => markerRe.test(c) || inlineRe.test(c));
+    if (markerIdx !== -1) {
       let name = "";
-      const inline = cols[machineCellIdx].match(/^machine\s*:\s*(.+)$/i);
-      if (inline && inline[1].trim()) {
-        name = inline[1].trim();
+      const inline = cols[markerIdx].match(inlineRe);
+      if (inline && inline[2].trim()) {
+        name = inline[2].trim();
       } else {
-        for (let i = machineCellIdx + 1; i < cols.length; i++) {
+        for (let i = markerIdx + 1; i < cols.length; i++) {
           if (cols[i] && cols[i].trim()) { name = cols[i].trim(); break; }
         }
       }
@@ -69,17 +72,22 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
       }
     }
 
-    if (!current) continue;
-
-    if (!header && lower.some((c) => c.includes("part code")) && lower.some((c) => c.includes("order quantity"))) {
+    // Header row — if found before any section marker, start a default section
+    // so files without explicit machine markers still import.
+    if (!header && lower.some((c) => c.includes("part code") || c === "code" || c.includes("product code") || c.includes("item code"))
+                 && lower.some((c) => c.includes("order quantity") || c.includes("quantity") || c.includes("qty"))) {
+      if (!current) {
+        current = { line: "Imported Plan", items: [] };
+        sections.push(current);
+      }
       header = cols;
-      idxCode = lower.findIndex((c) => c.includes("part code"));
-      idxQty = lower.findIndex((c) => c.includes("order quantity"));
-      idxDesc = lower.findIndex((c) => c.includes("description"));
+      idxCode = lower.findIndex((c) => c.includes("part code") || c === "code" || c.includes("product code") || c.includes("item code"));
+      idxQty = lower.findIndex((c) => c.includes("order quantity") || c.includes("quantity") || c.includes("qty"));
+      idxDesc = lower.findIndex((c) => c.includes("description") || c.includes("product name") || c.includes("item name"));
       continue;
     }
 
-    if (!header || idxCode === -1 || idxQty === -1) continue;
+    if (!current || !header || idxCode === -1 || idxQty === -1) continue;
     const code = cleanCode(cols[idxCode] ?? "");
     const qty = Number(String(cols[idxQty] ?? "0").replace(/[, ]/g, ""));
     if (!code || !qty || isNaN(qty)) continue;
