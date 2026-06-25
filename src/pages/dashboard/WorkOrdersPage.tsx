@@ -476,7 +476,7 @@ export default function WorkOrdersPage() {
             <div className="print-header hidden print:block">
               <h1 style={{ fontSize: "16pt", fontWeight: "bold" }}>AN Maintenance — Work Orders Report</h1>
               <p style={{ fontSize: "10pt", color: "#666" }}>
-                {dateFrom && dateTo ? `Period: ${dateFrom} to ${dateTo}` : dateQuickFilter !== "all" ? `Filter: ${dateQuickFilter}` : "All records"}
+                {drPreset === "custom" ? `Period: ${drRange.from ? format(drRange.from, "yyyy-MM-dd") : "…"} to ${drRange.to ? format(drRange.to, "yyyy-MM-dd") : "…"}` : drPreset !== "all" ? `Filter: ${drPreset}` : "All records"}
                 {lineFilter !== "all" ? ` | Line: ${lineFilter}` : ""}
                 {statusFilter !== "all" ? ` | Status: ${statusFilter}` : ""}
                 {machineFilter !== "all" ? ` | Machine: ${machineFilter}` : ""}
