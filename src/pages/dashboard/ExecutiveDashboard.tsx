@@ -66,7 +66,8 @@ export default function ExecutiveDashboard() {
     const openWOs = countOpenWOs(workOrders);
 
     // Avg Response Time = AVG(response_time_sec) from v_wo_metrics (exclude force_closed which skew the average)
-    const respMetrics = woMetrics.filter((m) => m.response_time_sec !== null && (m as any).status !== "force_closed");
+    const shiftMetrics = woMetrics.filter((m: any) => !m.created_at || inShift(m.created_at));
+    const respMetrics = shiftMetrics.filter((m) => m.response_time_sec !== null && (m as any).status !== "force_closed");
     const avgResponse = respMetrics.length
       ? Math.round(respMetrics.reduce((s, m) => s + (m.response_time_sec || 0), 0) / respMetrics.length / 60)
       : 0;
