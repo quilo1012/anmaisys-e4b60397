@@ -269,6 +269,16 @@ export default function ProductionPlannerPage() {
             queryClient.invalidateQueries({ queryKey: ["planner-items"] });
           }}
         />
+        <IntouchImportDialog
+          open={intouchOpen}
+          onOpenChange={setIntouchOpen}
+          defaultDate={date}
+          defaultShift={shift as "DAY" | "NIGHT"}
+          onImported={() => {
+            queryClient.invalidateQueries({ queryKey: ["production_sessions"] });
+            queryClient.invalidateQueries({ queryKey: ["production_items"] });
+          }}
+        />
 
         {/* Shift Information — horizontal row */}
         <Card>
