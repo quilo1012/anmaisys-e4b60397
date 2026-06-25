@@ -227,6 +227,23 @@ export default function ShiftHistoryPage() {
                       <span className="text-muted-foreground">{actual} / {target}</span>
                       <span className={`font-bold ${eff >= 100 ? "text-green-500" : eff >= 80 ? "text-amber-500" : "text-red-500"}`}>{eff.toFixed(0)}%</span>
                       <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(s); }}><Pencil className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" title="Print report" onClick={(e) => {
+                        e.stopPropagation();
+                        printSessionReport({
+                          session_date: s.session_date, shift: s.shift, line: s.line,
+                          leader_name: s.leader_name, staff_planned: s.staff_planned, staff_actual: s.staff_actual,
+                          notes: s.notes,
+                          items: s.production_items.map((i) => {
+                            const sku = skuMap.get(i.sku_id);
+                            return {
+                              code: sku?.code ?? "?",
+                              name: sku?.name ?? "Unknown",
+                              target: Number(i.target_qty ?? i.planned_qty ?? 0),
+                              actual: Number(i.actual_qty ?? 0),
+                            };
+                          }),
+                        });
+                      }}><Printer className="h-3 w-3" /></Button>
                       <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); lockMut.mutate({ id: s.id, lock: !s.locked }); }}>
                         {s.locked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
                       </Button>
