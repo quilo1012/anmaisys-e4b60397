@@ -73,7 +73,7 @@ export default function ExecutiveDashboard() {
       : 0;
 
     // Avg Active Repair (MTTR) = AVG(active_repair_sec) from v_wo_metrics (exclude force_closed)
-    const repairMetrics = woMetrics.filter((m) => m.active_repair_sec !== null && m.active_repair_sec > 0 && (m as any).status !== "force_closed");
+    const repairMetrics = shiftMetrics.filter((m) => m.active_repair_sec !== null && m.active_repair_sec > 0 && (m as any).status !== "force_closed");
     const avgMTTR = repairMetrics.length
       ? Math.round(repairMetrics.reduce((s, m) => s + (m.active_repair_sec || 0), 0) / repairMetrics.length / 60)
       : 0;
