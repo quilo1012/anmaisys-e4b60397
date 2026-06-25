@@ -11,8 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload, Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload, Download, FileInput } from "lucide-react";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
+import { parseIntouchWorkToList, findSectionForLine } from "@/lib/intouchWorkToList";
+import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useLines, useLeaders, useSkuProducts, useSessionsRange, useSession, useSessionItems,
