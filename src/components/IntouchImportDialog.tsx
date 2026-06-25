@@ -10,7 +10,7 @@ import { Upload, FileSpreadsheet, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { parseIntouchWorkToList, type WorkToListSection } from "@/lib/intouchWorkToList";
+import { parseIntouchCsvRows, parseIntouchWorkToList, type WorkToListSection } from "@/lib/intouchWorkToList";
 import { useLines, useSkuProducts, useUpsertSession, useSaveItems } from "@/hooks/useProductionPlanner";
 import { format } from "date-fns";
 
@@ -98,6 +98,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   const [shift, setShift] = useState<"DAY" | "NIGHT">(defaultShift);
   const [sections, setSections] = useState<WorkToListSection[]>([]);
   const [leaderByLine, setLeaderByLine] = useState<Record<string, { id?: string; name: string }>>({});
+  const [parsePreview, setParsePreview] = useState<string[][]>([]);
 
   const { data: lines = [] } = useLines();
   const { data: skus = [] } = useSkuProducts();
@@ -136,6 +137,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   const reset = () => {
     setSections([]);
     setLeaderByLine({});
+    setParsePreview([]);
   };
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,11 +147,12 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     setLoading(true);
     try {
       const text = await readFileAsCsv(f);
-      console.log("[iTouching] first 30 lines:\n" + text.split(/\r?\n/).slice(0, 30).join("\n"));
+      const previewRows = parseIntouchCsvRows(text).slice(0, 12).map((row) => row.slice(0, 8));
+      setParsePreview(previewRows);
+      console.log("[iTouching] first rows", previewRows);
       const parsed = parseIntouchWorkToList(text);
       if (parsed.length === 0) {
-        console.warn("[iTouching] parser returned 0 sections. Full text length:", text.length);
-        toast.error("No Work To List sections detected. Open browser console and share the [iTouching] log.");
+        toast.error("No valid iTouching products found. Check the preview below and confirm the file has SKU/code and quantity columns.");
         return;
       }
       setSections(parsed);
@@ -284,8 +287,30 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
 
         <div className="flex-1 overflow-y-auto -mx-1 px-1">
           {resolved.length === 0 ? (
-            <div className="text-center text-sm text-muted-foreground py-12 border rounded-md">
-              No file loaded. Upload an iTouching export to see lines and SKUs grouped here.
+            <div className="text-sm text-muted-foreground py-8 border rounded-md px-4 space-y-4">
+              <div className="text-center">
+                No file loaded. Upload an iTouching export to see lines and SKUs grouped here.
+              </div>
+              {parsePreview.length > 0 && (
+                <div className="text-left space-y-2">
+                  <div className="font-medium text-foreground">File preview</div>
+                  <div className="overflow-x-auto rounded-md border bg-muted/20">
+                    <table className="w-full text-xs">
+                      <tbody>
+                        {parsePreview.map((row, rowIdx) => (
+                          <tr key={rowIdx} className="border-t first:border-t-0">
+                            {row.map((cell, cellIdx) => (
+                              <td key={cellIdx} className="px-2 py-1 max-w-[180px] truncate border-r last:border-r-0">
+                                {cell || "—"}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <Accordion type="multiple" className="w-full">
