@@ -115,7 +115,7 @@ function LiveClock() {
 }
 
 function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
-  const groups = ["Operations", "Assets", "Reports", "Admin"];
+  const groups = ["Operations", "Assets", "Production", "Reports", "Admin"];
   const grouped = groups.map((g) => ({
     label: g,
     items: filteredItems.filter((i) => i.group === g),
