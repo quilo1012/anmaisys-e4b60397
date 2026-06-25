@@ -53,8 +53,8 @@ export default function WorkOrdersPage() {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("today"));
+  const [drPreset, setDrPreset] = useState<DateRangePreset>("today");
   const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get("status") || "all");
   
   const [problemFilter, setProblemFilter] = useState<string>("all");
@@ -62,13 +62,13 @@ export default function WorkOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [currentPage, setCurrentPage] = useState(1);
-  const [dateQuickFilter, setDateQuickFilter] = useState<string>("today");
   const [shiftFilter, setShiftFilter] = useState<"ALL" | "DAY" | "NIGHT">("ALL");
   const [lineFilter, setLineFilter] = useState<string>("all");
 
   useEffect(() => {
     if (role === "admin" || (role === "manager" || role === "maintenance_manager")) {
-      setDateQuickFilter("all");
+      setDrPreset("all");
+      setDrRange(getPresetRange("all"));
     }
   }, [role]);
   const [lineStoppedFilter, setLineStoppedFilter] = useState<"all" | "stopped" | "running">("all");
