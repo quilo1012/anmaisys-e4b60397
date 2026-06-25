@@ -9,7 +9,7 @@
 export type WorkToListRow = { sku_code: string; qty: number; description?: string };
 export type WorkToListSection = { line: string; items: WorkToListRow[] };
 
-function splitCsv(line: string): string[] {
+export function splitIntouchCsvLine(line: string): string[] {
   const out: string[] = [];
   let cur = ""; let inQ = false;
   for (let i = 0; i < line.length; i++) {
@@ -25,35 +25,124 @@ function splitCsv(line: string): string[] {
   return out.map((c) => c.trim());
 }
 
+export function parseIntouchCsvRows(text: string): string[][] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => splitIntouchCsvLine(line).map((cell) => cell.trim()))
+    .filter((row) => row.some(Boolean));
+}
+
 function cleanCode(raw: string): string {
-  return raw.trim().replace(/-B\d+$/i, "").toUpperCase();
+  return raw.trim().replace(/^['"]+|['"]+$/g, "").replace(/-B\d+$/i, "").toUpperCase();
 }
 
 function cleanDesc(raw: string): string {
   return raw.replace(/\[HS CODE:[^\]]*\]/gi, "").trim();
 }
 
+function norm(raw: string): string {
+  return raw.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function numberFromCell(raw: string): number {
+  const cleaned = String(raw ?? "")
+    .replace(/[^\d,.-]/g, "")
+    .replace(/,(?=\d{3}(\D|$))/g, "")
+    .replace(/\s/g, "");
+  const normalized = cleaned.includes(",") && !cleaned.includes(".") ? cleaned.replace(",", ".") : cleaned;
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function isCodeHeader(cell: string): boolean {
+  const n = norm(cell);
+  return [
+    "partcode", "productcode", "itemcode", "stockcode", "skucode", "sku", "code",
+    "material", "materialcode", "fgcode", "fgitem", "itemno", "itemnumber", "product",
+    "productid", "article", "articleno", "finishedgood", "finishedgoods",
+  ].some((alias) => n === alias || n.includes(alias));
+}
+
+function isQtyHeader(cell: string): boolean {
+  const n = norm(cell);
+  return [
+    "orderquantity", "orderqty", "ordqty", "quantity", "qty", "plannedqty", "planqty",
+    "targetqty", "targetquantity", "requiredqty", "reqqty", "demand", "balance", "units",
+    "totalqty", "scheduledqty", "productionqty",
+  ].some((alias) => n === alias || n.includes(alias));
+}
+
+function isDescHeader(cell: string): boolean {
+  const n = norm(cell);
+  return ["description", "productname", "itemname", "name", "desc", "partdescription", "materialdescription"].some(
+    (alias) => n === alias || n.includes(alias),
+  );
+}
+
+function getLineNameFromRow(cols: string[]): string {
+  const markerLabels = [
+    "machine", "line", "productionline", "asset", "area", "resource", "workcentre", "workcenter",
+    "workcentRE", "workstation", "linha", "equipment", "plantline",
+  ].map(norm);
+  for (let i = 0; i < cols.length; i++) {
+    const cell = cols[i]?.trim() ?? "";
+    if (!cell) continue;
+    const inline = cell.match(/^(machine|line|production\s*line|asset|area|resource|work\s*centre|work\s*center|workstation|linha|equipment|plant\s*line)\s*[:=-]\s*(.+)$/i);
+    if (inline?.[2]?.trim()) return inline[2].trim();
+    const normalized = norm(cell);
+    if (markerLabels.includes(normalized)) {
+      const next = cols.slice(i + 1).find((c) => c?.trim());
+      if (next) return next.trim();
+    }
+  }
+  const descriptive = cols.find((cell) => /\b(line|filler|depal|pallet|mixer|robot|machine|can|glass|pet)\b/i.test(cell) && !isCodeHeader(cell));
+  return descriptive?.trim() ?? "";
+}
+
+function looksLikeSku(value: string): boolean {
+  const v = cleanCode(value);
+  if (v.length < 3 || v.length > 40) return false;
+  if (/^(WO|ORDER|ORD|LINE|MACHINE|SHIFT|DATE|START|END|TIME)\b/i.test(v)) return false;
+  if (/^\d+$/.test(v)) return false;
+  if (/^\d{1,2}[:/]\d{1,2}/.test(v)) return false;
+  return /[A-Z]/.test(v) && /[A-Z0-9]/.test(v) && /^[A-Z0-9._/-]+$/.test(v);
+}
+
+function findHeaderIndexes(cols: string[]) {
+  const idxCode = cols.findIndex(isCodeHeader);
+  const idxQty = cols.findIndex(isQtyHeader);
+  const idxDesc = cols.findIndex(isDescHeader);
+  return { idxCode, idxQty, idxDesc, found: idxCode !== -1 && idxQty !== -1 };
+}
+
+function ensureSection(sections: WorkToListSection[], line: string): WorkToListSection {
+  const cleanLine = (line || "Imported Plan").replace(/\s*[-–—]\s*/g, " ").replace(/\s+/g, " ").trim() || "Imported Plan";
+  let section = sections.find((s) => norm(s.line) === norm(cleanLine));
+  if (!section) {
+    section = { line: cleanLine, items: [] };
+    sections.push(section);
+  }
+  return section;
+}
+
 export function parseIntouchWorkToList(text: string): WorkToListSection[] {
-  const lines = text.split(/\r?\n/);
+  const rows = parseIntouchCsvRows(text);
   const sections: WorkToListSection[] = [];
   let current: WorkToListSection | null = null;
   let header: string[] | null = null;
   let idxCode = -1, idxQty = -1, idxDesc = -1;
 
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) continue;
-
-    const cols = splitCsv(line);
+  for (const cols of rows) {
     const lower = cols.map((c) => c.toLowerCase());
 
     // Section marker: accept Machine / Line / Production Line / Asset / Area / Resource
     // Either inline ("Machine: Filler Line 1") or as its own cell with the name in the
     // next non-empty cell (xlsx-converted rows often look like: "Machine:","Filler Line 1").
-    const markerRe = /^(machine|line|production\s*line|asset|area|resource|work\s*centre|work\s*center)\s*:?\s*$/;
-    const inlineRe = /^(machine|line|production\s*line|asset|area|resource|work\s*centre|work\s*center)\s*:\s*(.+)$/i;
+    const markerRe = /^(machine|line|production\s*line|asset|area|resource|work\s*centre|work\s*center|workstation|linha|equipment|plant\s*line)\s*:?\s*$/;
+    const inlineRe = /^(machine|line|production\s*line|asset|area|resource|work\s*centre|work\s*center|workstation|linha|equipment|plant\s*line)\s*[:=-]\s*(.+)$/i;
     const markerIdx = lower.findIndex((c) => markerRe.test(c) || inlineRe.test(c));
-    if (markerIdx !== -1) {
+    const possibleHeader = findHeaderIndexes(cols);
+    if (markerIdx !== -1 && !possibleHeader.found) {
       let name = "";
       const inline = cols[markerIdx].match(inlineRe);
       if (inline && inline[2].trim()) {
@@ -64,9 +153,7 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
         }
       }
       if (name) {
-        name = name.replace(/\s*-\s*/g, " ").replace(/\s+/g, " ");
-        current = { line: name, items: [] };
-        sections.push(current);
+        current = ensureSection(sections, name);
         header = null;
         continue;
       }
@@ -74,27 +161,54 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
 
     // Header row — if found before any section marker, start a default section
     // so files without explicit machine markers still import.
-    if (!header && lower.some((c) => c.includes("part code") || c === "code" || c.includes("product code") || c.includes("item code"))
-                 && lower.some((c) => c.includes("order quantity") || c.includes("quantity") || c.includes("qty"))) {
+    const headerIndexes = findHeaderIndexes(cols);
+    if (headerIndexes.found) {
       if (!current) {
-        current = { line: "Imported Plan", items: [] };
-        sections.push(current);
+        current = ensureSection(sections, "Imported Plan");
       }
       header = cols;
-      idxCode = lower.findIndex((c) => c.includes("part code") || c === "code" || c.includes("product code") || c.includes("item code"));
-      idxQty = lower.findIndex((c) => c.includes("order quantity") || c.includes("quantity") || c.includes("qty"));
-      idxDesc = lower.findIndex((c) => c.includes("description") || c.includes("product name") || c.includes("item name"));
+      idxCode = headerIndexes.idxCode;
+      idxQty = headerIndexes.idxQty;
+      idxDesc = headerIndexes.idxDesc;
       continue;
     }
 
-    if (!current || !header || idxCode === -1 || idxQty === -1) continue;
-    const code = cleanCode(cols[idxCode] ?? "");
-    const qty = Number(String(cols[idxQty] ?? "0").replace(/[, ]/g, ""));
-    if (!code || !qty || isNaN(qty)) continue;
-    current.items.push({
-      sku_code: code,
-      qty,
-      description: idxDesc !== -1 ? cleanDesc(cols[idxDesc] ?? "") : undefined,
+    if (header && idxCode !== -1 && idxQty !== -1) {
+      if (!current) current = ensureSection(sections, "Imported Plan");
+      const code = cleanCode(cols[idxCode] ?? "");
+      const qty = numberFromCell(cols[idxQty] ?? "0");
+      if (!code || !qty || isNaN(qty)) continue;
+      current.items.push({
+        sku_code: code,
+        qty,
+        description: idxDesc !== -1 ? cleanDesc(cols[idxDesc] ?? "") : undefined,
+      });
+      continue;
+    }
+
+    // Last-resort parser for iTouching variants with no obvious headers:
+    // detect a SKU-like token and the nearest numeric quantity on the same row.
+    const lineName = getLineNameFromRow(cols);
+    if (lineName && !looksLikeSku(lineName)) current = ensureSection(sections, lineName);
+    const codeIdx = cols.findIndex(looksLikeSku);
+    if (codeIdx === -1) continue;
+    const qtyCandidates = cols
+      .map((cell, index) => ({ index, qty: numberFromCell(cell) }))
+      .filter((x) => x.index !== codeIdx && x.qty > 0 && Number.isFinite(x.qty));
+    const preferred = qtyCandidates.find((x) => x.index > codeIdx) ?? qtyCandidates[0];
+    if (!preferred) continue;
+    const section = current ?? ensureSection(sections, lineName || "Imported Plan");
+    const description = cols.find((cell, index) => (
+      index !== codeIdx
+      && index !== preferred.index
+      && cell.trim() !== section.line
+      && cell.length > 3
+      && /[a-z]/i.test(cell)
+    ));
+    section.items.push({
+      sku_code: cleanCode(cols[codeIdx]),
+      qty: preferred.qty,
+      description,
     });
   }
 
