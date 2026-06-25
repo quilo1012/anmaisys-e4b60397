@@ -475,6 +475,7 @@ export default function ManageUsers() {
                           <Badge variant="outline" className={
                             user.role === "admin" ? "bg-red-100 text-red-800 border-red-200" :
                             user.role === "manager" ? "bg-purple-100 text-purple-800 border-purple-200" :
+                            user.role === "maintenance_manager" ? "bg-indigo-100 text-indigo-800 border-indigo-200" :
                             user.role === "engineer" ? "bg-blue-100 text-blue-800 border-blue-200" :
                             "bg-gray-100 text-gray-800 border-gray-200"
                           }>
