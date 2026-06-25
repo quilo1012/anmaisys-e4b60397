@@ -258,6 +258,40 @@ export default function ProductionPerformancePage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Top 10 SKUs by Production</CardTitle></CardHeader>
+          <CardContent style={{ height: 360 }}>
+            {topSkus.length === 0 ? <div className="text-muted-foreground">No data</div> : (
+              <ResponsiveContainer>
+                <BarChart data={topSkus} layout="vertical" margin={{ left: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="label" width={100} />
+                  <Tooltip formatter={(v: number, _n, p) => [`${v.toLocaleString()} units`, p.payload.name || p.payload.label]} />
+                  <Bar dataKey="actual" fill="hsl(var(--primary))" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Production by Leader</CardTitle></CardHeader>
+          <CardContent style={{ height: 320 }}>
+            {byLeader.length === 0 ? <div className="text-muted-foreground">No data</div> : (
+              <ResponsiveContainer>
+                <BarChart data={byLeader}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="leader" />
+                  <YAxis />
+                  <Tooltip formatter={(v: number) => [`${v.toLocaleString()} units`, "Production"]} />
+                  <Bar dataKey="actual" fill="hsl(var(--primary))" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
