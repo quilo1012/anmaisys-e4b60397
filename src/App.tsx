@@ -121,7 +121,7 @@ const App = () => (
                 <Route
                   path="/dashboard/manager"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <ManagerDashboard />
                     </ProtectedRoute>
                   }
@@ -129,7 +129,7 @@ const App = () => (
                 <Route
                   path="/dashboard/analytics"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <AnalyticsPage />
                     </ProtectedRoute>
                   }
@@ -137,7 +137,7 @@ const App = () => (
                 <Route
                   path="/dashboard/financial"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <FinancialDashboard />
                     </ProtectedRoute>
                   }
@@ -145,7 +145,7 @@ const App = () => (
                 <Route
                   path="/dashboard/work-orders"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <WorkOrdersPage />
                     </ProtectedRoute>
                   }
@@ -153,7 +153,7 @@ const App = () => (
                 <Route
                   path="/dashboard/machines"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <MachinesPage />
                     </ProtectedRoute>
                   }
@@ -161,7 +161,7 @@ const App = () => (
                 <Route
                   path="/dashboard/problems"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <ProblemsPage />
                     </ProtectedRoute>
                   }
@@ -169,7 +169,7 @@ const App = () => (
                 <Route
                   path="/dashboard/control-center"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <ControlCenterPage />
                     </ProtectedRoute>
                   }
@@ -177,7 +177,7 @@ const App = () => (
                 <Route
                   path="/dashboard/machines/:name/history"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <MachineHistoryPage />
                     </ProtectedRoute>
                   }
@@ -201,7 +201,7 @@ const App = () => (
                 <Route
                   path="/dashboard/downtime"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <DowntimePage />
                     </ProtectedRoute>
                   }
@@ -217,7 +217,7 @@ const App = () => (
                 <Route
                   path="/dashboard/preventive"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "engineer"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "engineer", "maintenance_manager"]}>
                       <PreventiveMaintenancePage />
                     </ProtectedRoute>
                   }
@@ -225,7 +225,7 @@ const App = () => (
                 <Route
                   path="/dashboard/reliability"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <ReliabilityDashboard />
                     </ProtectedRoute>
                   }
@@ -233,7 +233,7 @@ const App = () => (
                 <Route
                   path="/dashboard/wo/:id"
                   element={
-                    <ProtectedRoute allowedRoles={["operator", "engineer", "admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["operator", "engineer", "admin", "manager", "maintenance_manager"]}>
                       <WorkOrderDetail />
                     </ProtectedRoute>
                   }
@@ -241,7 +241,7 @@ const App = () => (
                 <Route
                   path="/dashboard/stock"
                   element={
-                    <ProtectedRoute allowedRoles={["engineer", "admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["engineer", "admin", "manager", "maintenance_manager"]}>
                       <StockPage />
                     </ProtectedRoute>
                   }
@@ -249,7 +249,7 @@ const App = () => (
                 <Route
                   path="/users/manage"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <ManageUsers />
                     </ProtectedRoute>
                   }
@@ -273,7 +273,7 @@ const App = () => (
                 <Route
                   path="/dashboard/suppliers"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <SuppliersPage />
                     </ProtectedRoute>
                   }
