@@ -62,6 +62,27 @@ export default function ShiftHistoryPage() {
     (fSku === "__all__" || s.production_items.some((i) => i.sku_id === fSku))
   ), [sessions, fLine, fShift, fLeader, fSku]);
 
+  const trendData = useMemo(() => {
+    const byDate = new Map<string, { date: string; DAY: number[]; NIGHT: number[] }>();
+    for (const s of filtered) {
+      const target = s.production_items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
+      const actual = s.production_items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
+      if (target <= 0) continue;
+      const eff = (actual / target) * 100;
+      const row = byDate.get(s.session_date) ?? { date: s.session_date, DAY: [], NIGHT: [] };
+      if (s.shift === "DAY") row.DAY.push(eff);
+      else if (s.shift === "NIGHT") row.NIGHT.push(eff);
+      byDate.set(s.session_date, row);
+    }
+    return Array.from(byDate.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((r) => ({
+        date: r.date,
+        DAY: r.DAY.length ? +(r.DAY.reduce((a, b) => a + b, 0) / r.DAY.length).toFixed(1) : null,
+        NIGHT: r.NIGHT.length ? +(r.NIGHT.reduce((a, b) => a + b, 0) / r.NIGHT.length).toFixed(1) : null,
+      }));
+  }, [filtered]);
+
   const toggle = (id: string) => {
     const n = new Set(expanded);
     n.has(id) ? n.delete(id) : n.add(id);
