@@ -211,6 +211,50 @@ export default function ProductionPlannerPage() {
                 <Upload className="h-4 w-4 mr-1" />Import Production
               </Button>
             )}
+            {isManager && (
+              <>
+                <input
+                  id="intouch-plan-file"
+                  type="file"
+                  accept=".csv,.txt"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    if (!line) { toast.error("Pick a production line first"); return; }
+                    const text = await f.text();
+                    const sections = parseIntouchWorkToList(text);
+                    if (sections.length === 0) { toast.error("No Work To List sections found"); return; }
+                    const section = findSectionForLine(sections, line);
+                    if (!section) {
+                      toast.error(`No section for "${line}". Found: ${sections.map((s) => s.line).join(", ")}`);
+                      return;
+                    }
+                    const newRows: Row[] = [];
+                    let unknown = 0;
+                    for (const it of section.items) {
+                      const sku = skus.find((s) => s.code.toUpperCase() === it.sku_code);
+                      if (!sku) { unknown++; continue; }
+                      newRows.push({ sku_id: sku.id, sku_name: sku.name, target_qty: it.qty, actual_qty: 0 });
+                    }
+                    if (newRows.length === 0) {
+                      toast.error(`No matching SKUs in catalog (${unknown} unknown). Import SKU Products first.`);
+                      return;
+                    }
+                    setRows(newRows);
+                    toast.success(`Loaded ${newRows.length} SKUs as targets${unknown ? ` · ${unknown} unknown skipped` : ""}`);
+                  }}
+                />
+                <Button
+                  variant="outline" size="sm" disabled={locked}
+                  onClick={() => document.getElementById("intouch-plan-file")?.click()}
+                  title="Import Intouch Work To List as targets for this line"
+                >
+                  <FileInput className="h-4 w-4 mr-1" />Import Plan (Intouch)
+                </Button>
+              </>
+            )}
             {existingId && isManager && (
               <Button variant="outline" size="sm" onClick={() => toggleLock.mutate({ id: existingId, lock: !locked })}>
                 {locked ? <><Unlock className="h-4 w-4 mr-1" />Unlock</> : <><Lock className="h-4 w-4 mr-1" />Lock</>}
