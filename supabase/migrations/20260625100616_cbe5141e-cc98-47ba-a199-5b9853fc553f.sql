@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.verify_engineer_pin(uuid, text) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.set_engineer_pin_standalone(uuid, text) FROM PUBLIC, anon, authenticated;
