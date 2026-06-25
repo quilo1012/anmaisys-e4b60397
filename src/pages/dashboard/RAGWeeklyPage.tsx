@@ -165,22 +165,22 @@ export default function RAGWeeklyPage() {
     queryFn: async () => {
       const [woRes, manRes] = await Promise.all([
         supabase.from("work_orders")
-          .select("wo_number, machine, description, line_at_time, line_stopped_at, line_resumed_at")
-          .not("line_stopped_at", "is", null)
-          .gte("line_stopped_at", padStartIso).lte("line_stopped_at", padEndIso),
+          .select("wo_number, machine, description, line_at_time, line_stopped_at, line_resumed_at, created_at, finished_at")
+          .or(`and(line_stopped_at.gte.${padStartIso},line_stopped_at.lte.${padEndIso}),and(line_stopped_at.is.null,created_at.gte.${padStartIso},created_at.lte.${padEndIso})`),
         (supabase as any).from("downtime")
           .select("line, machine, reason, started_at, ended_at")
           .gte("started_at", padStartIso).lte("started_at", padEndIso),
       ]);
       const wo = ((woRes.data ?? []) as any[]).map((r) => ({
         line: r.line_at_time as string | null,
-        start: r.line_stopped_at as string,
-        end: r.line_resumed_at as string | null,
+        start: (r.line_stopped_at ?? r.created_at) as string,
+        end: (r.line_resumed_at ?? r.finished_at) as string | null,
         source: "WO" as const,
         ref: r.wo_number as string | null,
         machine: r.machine as string | null,
         reason: r.description as string | null,
       }));
+
       const man = ((manRes.data ?? []) as any[]).map((r) => ({
         line: r.line as string | null,
         start: r.started_at as string,
