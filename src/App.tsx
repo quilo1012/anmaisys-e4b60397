@@ -29,7 +29,7 @@ const ExecutiveDashboard = lazy(() => import("./pages/dashboard/ExecutiveDashboa
 const ReliabilityDashboard = lazy(() => import("./pages/dashboard/ReliabilityDashboard"));
 const ManageUsers = lazy(() => import("./pages/users/ManageUsers"));
 const DowntimePage = lazy(() => import("./pages/dashboard/DowntimePage"));
-const IntouchIntegrationPage = lazy(() => import("./pages/dashboard/IntouchIntegrationPage"));
+
 const PreventiveMaintenancePage = lazy(() => import("./pages/dashboard/PreventiveMaintenancePage"));
 const SettingsPage = lazy(() => import("./pages/dashboard/SettingsPage"));
 const SuppliersPage = lazy(() => import("./pages/dashboard/SuppliersPage"));
@@ -206,14 +206,6 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <DowntimePage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard/intouch"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin"]}>
-                      <IntouchIntegrationPage />
                     </ProtectedRoute>
                   }
                 />
