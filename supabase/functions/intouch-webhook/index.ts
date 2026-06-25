@@ -183,10 +183,31 @@ Deno.serve(async (req) => {
         const label = mapped?.label ?? description ?? stopCode ?? "Intouch i4 alert";
         const priority = (mapped?.default_priority ?? "medium") as string;
 
+        // Resolve current Line Leader (by line + current London shift) for requester_name
+        const resolvedLineName = lineName ?? mapped?.line_hint ?? null;
+        let requesterName = "Intouch i4";
+        if (resolvedLineName) {
+          const londonHour = Number(
+            new Date().toLocaleString("en-GB", {
+              timeZone: "Europe/London", hour12: false, hour: "2-digit",
+            }).slice(0, 2)
+          );
+          const shift = londonHour >= 6 && londonHour < 18 ? "DAY" : "NIGHT";
+          const { data: leader } = await admin
+            .from("line_leaders")
+            .select("name")
+            .ilike("line", String(resolvedLineName))
+            .eq("shift", shift)
+            .eq("active", true)
+            .maybeSingle();
+          if (leader?.name) requesterName = `${leader.name} (${resolvedLineName})`;
+          else requesterName = `${resolvedLineName} Leader`;
+        }
+
         const { data: wo, error: woErr } = await admin
           .from("work_orders")
           .insert({
-            requester_name: "Intouch i4",
+            requester_name: requesterName,
             machine: machineName ?? null,
             line_id: lineId,
             description: String(label),
@@ -206,9 +227,10 @@ Deno.serve(async (req) => {
           work_order_id: wo.id,
           stopped_at: new Date().toISOString(),
           stopped_reason: String(label),
-          stopped_by_name: "Intouch i4",
+          stopped_by_name: requesterName,
         });
       }
+
 
       parsedOk = true;
     } catch (e) {
