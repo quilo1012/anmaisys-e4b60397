@@ -15,7 +15,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, TimerOff } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import {
   AlertDialog,
@@ -63,6 +63,15 @@ const navItems: NavItem[] = [
   { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager", "maintenance_manager"], group: "Assets" },
   { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager", "maintenance_manager"], group: "Assets" },
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "maintenance_manager", "engineer"], group: "Assets" },
+  // Production
+  { title: "Planner", url: "/dashboard/planner", icon: Factory, roles: ["admin", "manager"], group: "Production" },
+  { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager"], group: "Production" },
+  { title: "Shift History", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager"], group: "Production" },
+  { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production" },
+  { title: "Weekly Report", url: "/dashboard/weekly-production", icon: FileBarChart, roles: ["admin", "manager"], group: "Production" },
+  { title: "Quality Actions", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager"], group: "Production" },
+  { title: "Leader Quality", url: "/dashboard/leader-quality", icon: Trophy, roles: ["admin", "manager"], group: "Production" },
+  { title: "Prod. Downtime", url: "/dashboard/production-downtime", icon: TimerOff, roles: ["admin", "manager"], group: "Production" },
   // Reports
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "maintenance_manager"], group: "Reports" },
   { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin", "manager", "maintenance_manager"], group: "Reports" },
@@ -106,7 +115,7 @@ function LiveClock() {
 }
 
 function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
-  const groups = ["Operations", "Assets", "Reports", "Admin"];
+  const groups = ["Operations", "Assets", "Production", "Reports", "Admin"];
   const grouped = groups.map((g) => ({
     label: g,
     items: filteredItems.filter((i) => i.group === g),
