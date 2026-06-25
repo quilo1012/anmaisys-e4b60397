@@ -210,14 +210,6 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/dashboard/intouch"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin"]}>
-                      <IntouchIntegrationPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
                   path="/dashboard/preventive"
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "engineer", "maintenance_manager"]}>
