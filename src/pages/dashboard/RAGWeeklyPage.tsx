@@ -1,0 +1,1496 @@
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChevronLeft, ChevronRight, Download, Upload, RefreshCw, Target, AlertOctagon, BarChart3, Printer, FileSpreadsheet, CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { format, startOfWeek, addDays, addWeeks, getISOWeek, startOfMonth, endOfMonth, isSameMonth } from "date-fns";
+import { Link } from "react-router-dom";
+import { RAGImportDialog } from "@/components/RAGImportDialog";
+import { ManageLinesDialog } from "@/components/ManageLinesDialog";
+import { SharePointImportDialog } from "@/components/SharePointImportDialog";
+import { CloudDownload } from "lucide-react";
+import { Settings2 } from "lucide-react";
+import { downloadRagTemplate } from "@/lib/ragTemplateExport";
+import { useRole } from "@/hooks/useRole";
+import { useIsFetching } from "@tanstack/react-query";
+import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
+import { reconcileMinutes } from "@/lib/downtimeReconcile";
+
+/** Compute UTC ms for a London-local time on a given date. */
+function londonUtcMs(dateStr: string, hour: number): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const utc = Date.UTC(y, m - 1, d, hour);
+  const local = new Date(utc).toLocaleString("en-GB", {
+    timeZone: "Europe/London", hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  });
+  const mm = local.match(/(\d{2})\/(\d{2})\/(\d{4}),\s*(\d{2}):(\d{2})/);
+  const localHour = mm ? Number(mm[4]) : hour;
+  return utc + (hour - localHour) * 3600_000;
+}
+function londonShiftWindow(dateStr: string, shift: "DAY" | "NIGHT"): [number, number] {
+  if (shift === "DAY") return [londonUtcMs(dateStr, 6), londonUtcMs(dateStr, 18)];
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  const nextStr = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
+  return [londonUtcMs(dateStr, 18), londonUtcMs(nextStr, 6)];
+}
+
+type Shift = "DAY" | "NIGHT";
+
+interface Entry {
+  id: string;
+  entry_date: string;
+  line: string;
+  shift: Shift;
+  plan_qty: number;
+  actual_qty: number;
+  upm_target: number;
+  upm_actual: number;
+  downtime_min: number;
+  notes: string | null;
+}
+
+interface StopDetail {
+  line: string;
+  start: string;
+  end: string | null;
+  source: "WO" | "Manual";
+  ref: string | null;
+  machine: string | null;
+  reason: string | null;
+}
+
+interface ClampedStop extends StopDetail {
+  clampedStart: string;
+  clampedEnd: string;
+  minutes: number;
+  ongoing: boolean;
+}
+
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function ragColor(actual: number, plan: number): string {
+  if (!plan) return "";
+  const pct = (actual / plan) * 100;
+  if (pct >= 95) return "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium";
+  if (pct >= 80) return "bg-amber-500/20 text-amber-700 dark:text-amber-300 font-medium";
+  return "bg-red-500/20 text-red-700 dark:text-red-300 font-medium";
+}
+
+export default function RAGWeeklyPage() {
+  const qc = useQueryClient();
+  const { is: isRole } = useRole();
+  const isAdmin = isRole("admin");
+  const [weekStart, setWeekStart] = useState<Date>(() =>
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+  const [editing, setEditing] = useState<{
+    date: string; line: string; shift: Shift; entry?: Entry;
+  } | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [manageLinesOpen, setManageLinesOpen] = useState(false);
+  const [sharePointOpen, setSharePointOpen] = useState(false);
+
+  const weekDates = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    [weekStart],
+  );
+  const weekStartStr = format(weekStart, "yyyy-MM-dd");
+  const weekEndStr = format(addDays(weekStart, 6), "yyyy-MM-dd");
+
+  const { data: lines = [] } = useQuery({
+    queryKey: ["rag-lines"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("lines").select("name,active").order("name");
+      if (error) throw error;
+      const EXCLUDED = ["sealer", "printer ink"];
+      return (data ?? [])
+        .filter((r: { active?: boolean | null }) => r.active !== false)
+        .map((r: { name: string }) => r.name)
+        .filter((n) => !EXCLUDED.includes(n.trim().toLowerCase()))
+        .sort((a, b) => {
+          const rank = (n: string): [number, number] => {
+            const s = n.toLowerCase();
+            const m = s.match(/line\s*0*(\d+)/);
+            if (m) return [0, Number(m[1])];
+            if (s.includes("capsule") || s.includes("tablet")) return [1, 0];
+            if (s.includes("gel")) return [2, 0];
+            return [3, 0];
+          };
+          const [ra, na] = rank(a);
+          const [rb, nb] = rank(b);
+          return ra !== rb ? ra - rb : na !== nb ? na - nb : a.localeCompare(b);
+        });
+    },
+  });
+
+  const { data: entries = [] } = useQuery({
+    queryKey: ["rag-week", weekStartStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rag_weekly_entries")
+        .select("*")
+        .gte("entry_date", weekStartStr)
+        .lte("entry_date", weekEndStr);
+      if (error) throw error;
+      return (data ?? []) as Entry[];
+    },
+  });
+
+  const entryMap = useMemo(() => {
+    const map = new Map<string, Entry>();
+    for (const e of entries) map.set(`${e.entry_date}|${e.line}|${e.shift}`, e);
+    return map;
+  }, [entries]);
+
+  // Auto downtime per (date|line|shift) from work orders + manual downtime.
+  const padStartIso = new Date(weekStart.getTime() - 24 * 3600_000).toISOString();
+  const padEndIso = addDays(weekStart, 8).toISOString();
+  const { data: lineStops = [] } = useQuery({
+    queryKey: ["rag-week-line-stops", weekStartStr],
+    queryFn: async () => {
+      const [woRes, manRes] = await Promise.all([
+        supabase.from("work_orders")
+          .select("wo_number, machine, description, line_at_time, line_stopped_at, line_resumed_at")
+          .not("line_stopped_at", "is", null)
+          .gte("line_stopped_at", padStartIso).lte("line_stopped_at", padEndIso),
+        (supabase as any).from("downtime")
+          .select("line, machine, reason, started_at, ended_at")
+          .gte("started_at", padStartIso).lte("started_at", padEndIso),
+      ]);
+      const wo = ((woRes.data ?? []) as any[]).map((r) => ({
+        line: r.line_at_time as string | null,
+        start: r.line_stopped_at as string,
+        end: r.line_resumed_at as string | null,
+        source: "WO" as const,
+        ref: r.wo_number as string | null,
+        machine: r.machine as string | null,
+        reason: r.description as string | null,
+      }));
+      const man = ((manRes.data ?? []) as any[]).map((r) => ({
+        line: r.line as string | null,
+        start: r.started_at as string,
+        end: r.ended_at as string | null,
+        source: "Manual" as const,
+        ref: null as string | null,
+        machine: r.machine as string | null,
+        reason: r.reason as string | null,
+      }));
+      return [...wo, ...man].filter((s) => s.line && s.start) as StopDetail[];
+    },
+  });
+
+  const { autoDtMap, autoDtBreakdown } = useMemo(() => {
+    const byLine = new Map<string, StopDetail[]>();
+    for (const s of lineStops) {
+      const arr = byLine.get(s.line) ?? [];
+      arr.push(s);
+      byLine.set(s.line, arr);
+    }
+    const out = new Map<string, number>();
+    const breakdown = new Map<string, ClampedStop[]>();
+    const now = Date.now();
+    for (const line of lines) {
+      const stops = byLine.get(line) ?? [];
+      if (!stops.length) continue;
+      for (const d of weekDates) {
+        const ds = format(d, "yyyy-MM-dd");
+        for (const shift of ["DAY", "NIGHT"] as Shift[]) {
+          const [ws, we] = londonShiftWindow(ds, shift);
+          const mins = reconcileMinutes(stops, ws, we);
+          if (mins > 0) out.set(`${ds}|${line}|${shift}`, mins);
+          const clamped: ClampedStop[] = [];
+          for (const s of stops) {
+            const sMs = new Date(s.start).getTime();
+            const eMs = s.end ? new Date(s.end).getTime() : now;
+            const cs = Math.max(sMs, ws);
+            const ce = Math.min(eMs, we);
+            if (ce > cs) {
+              clamped.push({
+                ...s,
+                clampedStart: new Date(cs).toISOString(),
+                clampedEnd: new Date(ce).toISOString(),
+                minutes: Math.round((ce - cs) / 60_000),
+                ongoing: !s.end,
+              });
+            }
+          }
+          if (clamped.length) {
+            clamped.sort((a, b) => a.clampedStart.localeCompare(b.clampedStart));
+            breakdown.set(`${ds}|${line}|${shift}`, clamped);
+          }
+        }
+      }
+    }
+    return { autoDtMap: out, autoDtBreakdown: breakdown };
+  }, [lineStops, lines, weekDates]);
+
+  const upsertMutation = useMutation({
+    mutationFn: async (payload: Omit<Entry, "id">) => {
+      const { error } = await supabase
+        .from("rag_weekly_entries")
+        .upsert(payload, { onConflict: "entry_date,line,shift" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+      toast.success("Saved");
+      setEditing(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const exportXlsx = async () => {
+    const XLSX = await import("xlsx");
+    const headers = ["Date", "Line", "Shift", "Plan", "Actual", "Variance %", "UPM Target", "UPM Actual", "Downtime (min)", "Notes"];
+    const rows = entries.map((e) => [
+      e.entry_date, e.line, e.shift, e.plan_qty, e.actual_qty,
+      e.plan_qty ? Number((((e.actual_qty - e.plan_qty) / e.plan_qty) * 100).toFixed(1)) : "",
+      e.upm_target, e.upm_actual, e.downtime_min, e.notes ?? "",
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Week ${getISOWeek(weekStart)}`);
+    XLSX.writeFile(wb, `rag-week-${weekStartStr}.xlsx`);
+  };
+
+  const exportLayoutTemplate = async () => {
+    const XLSX = await import("xlsx");
+    const dates = Array.from({ length: 7 }, (_, i) => format(addDays(weekStart, i), "dd/MM/yyyy"));
+    const aoa: (string | number)[][] = [];
+    aoa.push([`RAG Weekly Template · Week ${getISOWeek(weekStart)} · ${format(weekStart, "dd MMM yyyy")}`]);
+    aoa.push([]);
+    const dayNightHeader = ["", ...dates.flatMap((d) => [d, ""])];
+    const subHeader = ["", ...dates.flatMap(() => ["Day", "Night"])];
+    for (const line of lines) {
+      aoa.push([line]);
+      aoa.push(dayNightHeader);
+      aoa.push(subHeader);
+      aoa.push(["Plan", ...dates.flatMap(() => ["", ""])]);
+      aoa.push(["Actual", ...dates.flatMap(() => ["", ""])]);
+      aoa.push(["Downtime", ...dates.flatMap(() => ["", ""])]);
+      aoa.push([]);
+    }
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{ wch: 18 }, ...Array(14).fill({ wch: 10 })];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "RAG Template");
+    XLSX.writeFile(wb, `rag-template-${weekStartStr}.xlsx`);
+  };
+
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const XLSX = await import("xlsx");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+      const norm = (s: string) => s.toString().trim().toLowerCase();
+      const payload = rows
+        .map((r) => {
+          const get = (k: string) => {
+            const key = Object.keys(r).find((kk) => norm(kk) === norm(k));
+            return key ? r[key] : undefined;
+          };
+          const rawDate = get("Date");
+          let entry_date = "";
+          if (rawDate instanceof Date) entry_date = format(rawDate, "yyyy-MM-dd");
+          else if (rawDate) entry_date = String(rawDate).slice(0, 10);
+          const shiftRaw = String(get("Shift") ?? "").trim().toUpperCase();
+          const shift: Shift = shiftRaw.startsWith("N") ? "NIGHT" : "DAY";
+          return {
+            entry_date,
+            line: String(get("Line") ?? "").trim(),
+            shift,
+            plan_qty: Number(get("Plan")) || 0,
+            actual_qty: Number(get("Actual")) || 0,
+            upm_target: Number(get("UPM Target")) || 0,
+            upm_actual: Number(get("UPM Actual")) || 0,
+            downtime_min: Number(get("Downtime (min)") ?? get("Downtime")) || 0,
+            notes: String(get("Notes") ?? "") || null,
+          };
+        })
+        .filter((r) => r.entry_date && r.line);
+      if (!payload.length) throw new Error("No valid rows found");
+      const { error } = await supabase
+        .from("rag_weekly_entries")
+        .upsert(payload, { onConflict: "entry_date,line,shift" });
+      if (error) throw error;
+      return payload.length;
+    },
+    onSuccess: (n) => {
+      qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+      toast.success(`Imported ${n} rows`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // RAG block-layout importer (lines as blocks; Plan/Actual/Downtime rows × Mon-Sun × Day/Night/Total)
+  const importLayoutMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const XLSX = await import("xlsx");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+
+      const inWeek = (d: string) => d >= weekStartStr && d <= weekEndStr;
+      const toDate = (v: unknown): string | null => {
+        if (v === null || v === undefined || v === "") return null;
+        if (v instanceof Date && !isNaN(v.getTime())) {
+          const s = format(v, "yyyy-MM-dd");
+          return inWeek(s) ? s : null;
+        }
+        const s = String(v).trim();
+        // strict dd/mm/yyyy or dd-mm-yyyy (year >= 2020)
+        const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+        if (m) {
+          const [, d, mo, y] = m;
+          const yyyy = y.length === 2 ? `20${y}` : y;
+          if (Number(yyyy) < 2020) return null;
+          const out = `${yyyy}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+          return inWeek(out) ? out : null;
+        }
+        // Excel serial number
+        const n = Number(s);
+        if (!isNaN(n) && n > 40000 && n < 80000) {
+          const out = format(new Date(Math.round((n - 25569) * 86400 * 1000)), "yyyy-MM-dd");
+          return inWeek(out) ? out : null;
+        }
+        return null;
+      };
+      const num = (v: unknown) => {
+        const raw = String(v ?? "").trim();
+        const n = Number(raw.replace(/[, ]/g, ""));
+        return isNaN(n) ? 0 : n;
+      };
+      const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
+      const clean = (v: unknown) => norm(v).replace(/[^a-z0-9]+/g, " ").trim();
+      const knownLines = lines;
+      const selectedWeekDates = weekDates.map((d) => format(d, "yyyy-MM-dd"));
+
+      const agg = new Map<string, { plan: number; actual: number; downtime: number }>();
+      const bump = (date: string, line: string, shift: Shift, patch: Partial<{ plan: number; actual: number; downtime: number }>) => {
+        const k = `${date}|${line}|${shift}`;
+        const ex = agg.get(k) ?? { plan: 0, actual: 0, downtime: 0 };
+        // Replace with the largest non-zero value seen (avoids double-counting
+        // when the sheet repeats Plan/Actual/Downtime in summary/total rows).
+        agg.set(k, {
+          plan: Math.max(ex.plan, patch.plan ?? 0),
+          actual: Math.max(ex.actual, patch.actual ?? 0),
+          downtime: Math.max(ex.downtime, patch.downtime ?? 0),
+        });
+      };
+
+
+      let debugSample: unknown[][] = [];
+      let blocksFound = 0;
+      let metricRowsFound = 0;
+
+      for (const sheetName of wb.SheetNames) {
+        const ws = wb.Sheets[sheetName];
+        const aoa = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "", raw: false });
+        if (!debugSample.length) debugSample = aoa.slice(0, 20) as unknown[][];
+
+        let currentLine: string | null = null;
+        let currentDates: string[] = [];
+        let currentCols: number[] = [];
+        let currentDayNightCols: { day: number; night: number }[] = [];
+
+        const hasMetricNear = (startRow: number) => {
+          for (let rr = startRow + 1; rr <= Math.min(aoa.length - 1, startRow + 8); rr++) {
+            const label = clean((aoa[rr] ?? []).slice(0, 8).join(" "));
+            if (/\b(plan|planned|target|actual|produced|downtime|down time|dt)\b/.test(label)) return true;
+          }
+          return false;
+        };
+
+        const aliasMap: Record<string, string> = {
+          "tablet": "Capsules & Tablets",
+          "tablets": "Capsules & Tablets",
+          "tablet line": "Capsules & Tablets",
+          "tablets line": "Capsules & Tablets",
+          "capsule": "Capsules & Tablets",
+          "capsules": "Capsules & Tablets",
+          "capsule line": "Capsules & Tablets",
+          "capsules line": "Capsules & Tablets",
+          "caps tabs": "Capsules & Tablets",
+          "c t": "Capsules & Tablets",
+          "gel": "Gel Line",
+          "gel line": "Gel Line",
+        };
+        const findLineMatch = (text: string): string | null => {
+          const t = clean(text);
+          if (!t) return null;
+          if (aliasMap[t] && knownLines.includes(aliasMap[t])) return aliasMap[t];
+          // exact
+          for (const l of knownLines) if (clean(l) === t) return l;
+          // substring (either direction)
+          for (const l of knownLines) {
+            const ll = clean(l);
+            if (ll.length >= 3 && (t.includes(ll) || ll.includes(t))) return l;
+          }
+          // token-overlap fallback (handles "Capsules & Tablets" vs "capsules and tablets",
+          // "Caps & Tabs", "C & T", "Gel", etc.)
+          const stop = new Set(["line", "linha", "ln", "and", "the", "of", "de", "da", "do"]);
+          const tTokens = new Set(t.split(" ").filter((w) => w.length >= 3 && !stop.has(w)));
+          const tAbbrev = t.replace(/\s+/g, "");
+          for (const l of knownLines) {
+            const ll = clean(l);
+            const lTokens = ll.split(" ").filter((w) => w.length >= 3 && !stop.has(w));
+            if (lTokens.length === 0) continue;
+            const hits = lTokens.filter((w) => tTokens.has(w)).length;
+            if (hits >= Math.min(1, lTokens.length) && (hits / lTokens.length) >= 0.5) return l;
+            // abbreviation match: "c t" / "ct" against "capsules tablets"
+            const initials = lTokens.map((w) => w[0]).join("");
+            if (initials.length >= 2 && (tAbbrev === initials || t.split(" ").join("") === initials)) return l;
+          }
+          // fallback when database line labels differ from Excel labels (ex: "Line 1 - Filler")
+          const lineToken = t.match(/\b(?:line|linha|ln|l)\s*0*(\d{1,2})\b/);
+          if (lineToken) {
+            const n = Number(lineToken[1]);
+            const dbMatch = knownLines.find((l) => new RegExp(`\\b0*${n}\\b`).test(clean(l)));
+            return dbMatch ?? `Line ${n}`;
+          }
+          return null;
+        };
+
+        const updateHeaderFromRows = (rowIndex: number) => {
+          const candidates: { col: number; date: string }[] = [];
+          for (let rr = Math.max(0, rowIndex - 3); rr <= Math.min(aoa.length - 1, rowIndex + 3); rr++) {
+            const row = aoa[rr] ?? [];
+            for (let c = 0; c < row.length; c++) {
+              const d = toDate(row[c]);
+              if (d) candidates.push({ col: c, date: d });
+            }
+          }
+          if (candidates.length >= 5) {
+            const seen = new Set<string>();
+            const uniq: { col: number; date: string }[] = [];
+            for (const d of candidates.sort((a, b) => a.col - b.col)) {
+              if (!seen.has(d.date)) { seen.add(d.date); uniq.push(d); }
+            }
+            currentDates = uniq.slice(0, 7).map((u) => u.date);
+            currentCols = uniq.slice(0, 7).map((u) => u.col);
+            currentDayNightCols = currentCols.map((col) => ({ day: col, night: col + 1 }));
+            return true;
+          }
+
+          for (let rr = Math.max(0, rowIndex - 3); rr <= Math.min(aoa.length - 1, rowIndex + 3); rr++) {
+            const row = aoa[rr] ?? [];
+            const dayCols = new Map<string, number>();
+            for (let c = 0; c < row.length; c++) {
+              const label = clean(row[c]);
+              const weekday = label.match(/^(mon|monday|seg|segunda|tue|tuesday|ter|terca|terça|wed|wednesday|qua|quarta|thu|thursday|qui|quinta|fri|friday|sex|sexta|sat|saturday|sab|sábado|sun|sunday|dom|domingo)$/)?.[1];
+              if (weekday && !dayCols.has(weekday.slice(0, 3))) dayCols.set(weekday.slice(0, 3), c);
+            }
+            const ordered = ["mon", "seg", "tue", "ter", "wed", "qua", "thu", "qui", "fri", "sex", "sat", "sab", "sun", "dom"]
+              .map((d) => dayCols.get(d))
+              .filter((c): c is number => typeof c === "number");
+            const uniqueOrdered = [...new Set(ordered)];
+            if (uniqueOrdered.length >= 5) {
+              currentDates = selectedWeekDates;
+              currentCols = uniqueOrdered.slice(0, 7);
+              currentDayNightCols = currentCols.map((col) => ({ day: col, night: col + 1 }));
+              return true;
+            }
+          }
+
+          return false;
+        };
+
+        for (let r = 0; r < aoa.length; r++) {
+          const row = aoa[r] ?? [];
+
+          // line label detection across first 10 cells, partial match + line-number fallback
+          for (let c = 0; c < Math.min(10, row.length); c++) {
+            const cell = norm(row[c]);
+            if (!cell || cell.length < 3) continue;
+            const match = findLineMatch(cell);
+            if (match && hasMetricNear(r)) {
+              currentLine = match;
+              currentDates = []; currentCols = []; currentDayNightCols = [];
+              updateHeaderFromRows(r);
+              blocksFound++;
+              break;
+            }
+          }
+
+          // date row detection
+          const dc: { col: number; date: string }[] = [];
+          for (let c = 1; c < row.length; c++) {
+            const d = toDate(row[c]);
+            if (d) dc.push({ col: c, date: d });
+          }
+          if (dc.length >= 5) {
+            const seen = new Set<string>();
+            const uniq: { col: number; date: string }[] = [];
+            for (const d of dc) if (!seen.has(d.date)) { seen.add(d.date); uniq.push(d); }
+            currentDates = uniq.slice(0, 7).map((u) => u.date);
+            currentCols = uniq.slice(0, 7).map((u) => u.col);
+            currentDayNightCols = currentCols.map((col) => ({ day: col, night: col + 1 }));
+            continue;
+          }
+
+          if (currentLine && !currentDates.length) updateHeaderFromRows(r);
+          if (!currentLine || !currentDates.length) continue;
+
+          const label = clean(row.slice(0, 8).join(" "));
+          // Skip summary/derived rows so they don't double-count
+          if (/\b(total|variance|var|upm|percent|percentage)\b/.test(label) || label.includes("%")) continue;
+          let metric: "plan" | "actual" | "downtime" | null = null;
+          if (/\b(downtime|down time|dt|paragem|parada)\b/.test(label)) metric = "downtime";
+          else if (/\b(actual|produced|production)\b/.test(label)) metric = "actual";
+          else if (/\b(plan|planned|target)\b/.test(label)) metric = "plan";
+          if (!metric) continue;
+
+          metricRowsFound++;
+
+          for (let i = 0; i < currentDates.length; i++) {
+            const date = currentDates[i];
+            const cols = currentDayNightCols[i] ?? { day: currentCols[i], night: currentCols[i] + 1 };
+            const dayVal = num(row[cols.day]);
+            const nightVal = num(row[cols.night]);
+            const patchDay = metric === "plan" ? { plan: dayVal } : metric === "actual" ? { actual: dayVal } : { downtime: dayVal };
+            const patchNight = metric === "plan" ? { plan: nightVal } : metric === "actual" ? { actual: nightVal } : { downtime: nightVal };
+            bump(date, currentLine, "DAY", patchDay);
+            bump(date, currentLine, "NIGHT", patchNight);
+          }
+        }
+      }
+
+      console.log("[RAG Import] known lines:", knownLines);
+      console.log("[RAG Import] blocks found:", blocksFound, "metric rows:", metricRowsFound);
+      console.log("[RAG Import] first 20 rows sample:", debugSample);
+
+
+      const payload: Omit<Entry, "id">[] = [];
+      for (const [k, v] of agg) {
+        if (!v.plan && !v.actual && !v.downtime) continue;
+        const [entry_date, line, shift] = k.split("|");
+        payload.push({
+          entry_date, line, shift: shift as Shift,
+          plan_qty: v.plan, actual_qty: v.actual,
+          upm_target: 0, upm_actual: 0,
+          downtime_min: v.downtime, notes: null,
+        });
+      }
+      if (!payload.length) throw new Error("No RAG blocks detected. Check that line names match and dates are present.");
+
+      const BATCH = 500;
+      let count = 0;
+      for (let i = 0; i < payload.length; i += BATCH) {
+        const slice = payload.slice(i, i + BATCH);
+        const { error } = await supabase
+          .from("rag_weekly_entries")
+          .upsert(slice, { onConflict: "entry_date,line,shift" });
+        if (error) throw error;
+        count += slice.length;
+      }
+      return count;
+    },
+    onSuccess: (n) => {
+      qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+      toast.success(`Imported ${n} RAG cells`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      // 1. Plan/Actual from production sessions
+      const { data: sessions, error: sErr } = await supabase
+        .from("production_sessions")
+        .select("line, session_date, shift, production_items(planned_qty, actual_qty, target_qty)")
+        .gte("session_date", weekStartStr)
+        .lte("session_date", weekEndStr);
+      if (sErr) throw sErr;
+
+      // 2. Downtime from work_orders + events
+      const { data: linesRows } = await supabase.from("lines").select("id, name");
+      const lineMap = new Map((linesRows ?? []).map((l: { id: string; name: string }) => [l.id, l.name]));
+      const { data: events, error: eErr } = await supabase
+        .from("downtime_events")
+        .select("stopped_at, duration_minutes, work_orders(line_id)")
+        .gte("stopped_at", `${weekStartStr}T00:00:00Z`)
+        .lte("stopped_at", `${weekEndStr}T23:59:59Z`)
+        .not("resumed_at", "is", null);
+      if (eErr) throw eErr;
+
+      const agg = new Map<string, { plan: number; actual: number; downtime: number }>();
+      const bump = (k: string, patch: Partial<{ plan: number; actual: number; downtime: number }>) => {
+        const ex = agg.get(k) ?? { plan: 0, actual: 0, downtime: 0 };
+        agg.set(k, {
+          plan: ex.plan + (patch.plan ?? 0),
+          actual: ex.actual + (patch.actual ?? 0),
+          downtime: ex.downtime + (patch.downtime ?? 0),
+        });
+      };
+
+      for (const s of sessions ?? []) {
+        const items = (s as { production_items?: { planned_qty: number; actual_qty: number; target_qty: number | null }[] }).production_items ?? [];
+        const plan = items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
+        const actual = items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
+        bump(`${s.session_date}|${s.line}|${s.shift}`, { plan, actual });
+      }
+
+      for (const ev of events ?? []) {
+        const wo = (ev as { work_orders?: { line_id: string | null } | null }).work_orders;
+        const lineName = wo?.line_id ? lineMap.get(wo.line_id) : null;
+        if (!lineName) continue;
+        const dt = new Date(ev.stopped_at as string);
+        const londonHour = (dt.getUTCHours() + 1) % 24; // BST
+        const shift: Shift = londonHour >= 6 && londonHour < 18 ? "DAY" : "NIGHT";
+        const dateStr = format(dt, "yyyy-MM-dd");
+        bump(`${dateStr}|${lineName}|${shift}`, { downtime: Number(ev.duration_minutes ?? 0) });
+      }
+
+      const rows: Omit<Entry, "id">[] = [];
+      for (const [key, v] of agg) {
+        const [entry_date, line, shift] = key.split("|");
+        const existing = entryMap.get(key);
+        rows.push({
+          entry_date,
+          line,
+          shift: shift as Shift,
+          plan_qty: v.plan || existing?.plan_qty || 0,
+          actual_qty: v.actual || existing?.actual_qty || 0,
+          upm_target: existing?.upm_target ?? 0,
+          upm_actual: existing?.upm_actual ?? 0,
+          downtime_min: v.downtime || existing?.downtime_min || 0,
+          notes: existing?.notes ?? null,
+        });
+      }
+      if (!rows.length) return 0;
+      const { error } = await supabase
+        .from("rag_weekly_entries")
+        .upsert(rows, { onConflict: "entry_date,line,shift" });
+      if (error) throw error;
+      return rows.length;
+    },
+    onSuccess: (n) => {
+      qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+      toast.success(`Synced ${n} cells from Planner & Downtime`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const onPickFile = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".xlsx,.xls,.csv";
+    input.onchange = () => {
+      const f = input.files?.[0];
+      if (f) importMutation.mutate(f);
+    };
+    input.click();
+  };
+
+
+  const weekNumber = getISOWeek(weekStart);
+  const monthAnchor = startOfMonth(weekStart);
+  const monthWeeks = useMemo(() => {
+    const first = startOfWeek(monthAnchor, { weekStartsOn: 1 });
+    const last = endOfMonth(monthAnchor);
+    const out: Date[] = [];
+    let cur = first;
+    while (cur <= last) { out.push(cur); cur = addWeeks(cur, 1); }
+    return out;
+  }, [monthAnchor]);
+
+  const ragFetching = useIsFetching({ queryKey: ["rag-week", weekStartStr] });
+
+  return (
+    <DashboardLayout>
+      <div className="p-3 md:p-6 space-y-4">
+        <Card className="border-l-4 border-l-primary border-primary/20 shadow-md bg-gradient-to-br from-background to-muted/30">
+          <CardHeader className="flex flex-col gap-3 p-3 md:p-6">
+            <div className="flex flex-row items-center justify-between gap-2 flex-wrap">
+              <CardTitle className="flex items-center gap-2 text-sm md:text-base">
+                <Button size="icon" variant="outline" onClick={() => setWeekStart(addWeeks(weekStart, -1))}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="px-1 md:px-2">Wk {weekNumber} · {format(weekStart, "dd MMM")} – {format(addDays(weekStart, 6), "dd MMM yyyy")}</span>
+                <Button size="icon" variant="outline" onClick={() => setWeekStart(addWeeks(weekStart, 1))}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </CardTitle>
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center">
+                <SyncStatusIndicator
+                  isSyncing={
+                    ragFetching > 0 ||
+                    upsertMutation.isPending ||
+                    importMutation.isPending ||
+                    importLayoutMutation.isPending ||
+                    syncMutation.isPending
+                  }
+                  error={
+                    upsertMutation.error ||
+                    importMutation.error ||
+                    importLayoutMutation.error ||
+                    syncMutation.error
+                  }
+                />
+
+                <Button variant="outline" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>This week</Button>
+                <Button variant="default" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
+                  <RefreshCw className={`h-4 w-4 mr-1 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+                  {syncMutation.isPending ? "Syncing..." : "Sync from system"}
+                </Button>
+                <Button
+                  onClick={() => setImportOpen(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <FileSpreadsheet className="h-4 w-4 mr-1" />Import Excel
+                </Button>
+                <Button
+                  onClick={() => setSharePointOpen(true)}
+                  className="bg-sky-600 hover:bg-sky-700 text-white"
+                >
+                  <CloudDownload className="h-4 w-4 mr-1" />Import from SharePoint
+                </Button>
+                <Button variant="outline" onClick={onPickFile} disabled={importMutation.isPending}>
+                  <Upload className="h-4 w-4 mr-1" />{importMutation.isPending ? "Importing..." : "Re-import (update numbers)"}
+                </Button>
+                {isAdmin && (
+                  <Button
+                    onClick={() => downloadRagTemplate(weekStart, lines).catch((e) => toast.error(e.message))}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <Download className="h-4 w-4 mr-1" />Download Template
+                  </Button>
+                )}
+                {isAdmin && (
+                  <Button variant="outline" onClick={() => setManageLinesOpen(true)}>
+                    <Settings2 className="h-4 w-4 mr-1" />Manage Lines
+                  </Button>
+                )}
+                <Button variant="outline" onClick={exportXlsx}><Download className="h-4 w-4 mr-1" />Download current (XLSX)</Button>
+                <Button variant="outline" onClick={() => window.print()} className="print:hidden">
+                  <Printer className="h-4 w-4 mr-1" />Print
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap border-t pt-3">
+              <Button size="icon" variant="ghost" onClick={() => setWeekStart(startOfWeek(addDays(monthAnchor, -1), { weekStartsOn: 1 }))}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm font-medium min-w-[110px] text-center">{format(monthAnchor, "MMMM yyyy")}</span>
+              <Button size="icon" variant="ghost" onClick={() => setWeekStart(startOfWeek(addDays(endOfMonth(monthAnchor), 1), { weekStartsOn: 1 }))}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="ml-1">
+                    <CalendarIcon className="h-4 w-4 mr-1" />
+                    {format(weekStart, "dd MMM")} – {format(addDays(weekStart, 6), "dd MMM yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={weekStart}
+                    onSelect={(d) => d && setWeekStart(startOfWeek(d, { weekStartsOn: 1 }))}
+                    weekStartsOn={1}
+                    showWeekNumber
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              <div className="flex flex-wrap gap-1 ml-2">
+                {monthWeeks.map((w) => {
+                  const active = format(w, "yyyy-MM-dd") === weekStartStr;
+                  const inMonth = isSameMonth(w, monthAnchor) || isSameMonth(addDays(w, 6), monthAnchor);
+                  return (
+                    <Button
+                      key={w.toISOString()}
+                      size="sm"
+                      variant={active ? "default" : "outline"}
+                      className={!inMonth ? "opacity-50" : ""}
+                      onClick={() => setWeekStart(w)}
+                    >
+                      W{getISOWeek(w)} · {format(w, "dd/MM")}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+
+        <DayNightTotalSummary
+          lines={lines}
+          weekDates={weekDates}
+          entryMap={entryMap}
+          autoDtMap={autoDtMap}
+          autoDtBreakdown={autoDtBreakdown}
+          isAdmin={isAdmin}
+          onSave={(payload) => upsertMutation.mutate(payload)}
+          onOpenFull={(date, line, shift) => {
+            const e = entryMap.get(`${date}|${line}|${shift}`);
+            setEditing({ date, line, shift, entry: e });
+          }}
+        />
+
+
+
+
+
+
+
+
+        {entries.some((e) => e.notes) && (
+          <Card>
+            <CardHeader><CardTitle>Notes</CardTitle></CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {entries.filter((e) => e.notes).map((e) => (
+                <div key={e.id} className="border-l-2 border-primary/40 pl-3">
+                  <div className="text-xs text-muted-foreground">
+                    {e.entry_date} · {e.line} · {e.shift}
+                  </div>
+                  <div>{e.notes}</div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {editing && (
+        <EditDialog
+          key={`${editing.date}-${editing.line}-${editing.shift}`}
+          editing={editing}
+          onClose={() => setEditing(null)}
+          onSave={(payload) => upsertMutation.mutate(payload)}
+          saving={upsertMutation.isPending}
+        />
+      )}
+
+      <RAGImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        knownLines={lines}
+        weekStart={weekStart}
+        weekDates={weekDates}
+      />
+      <ManageLinesDialog open={manageLinesOpen} onOpenChange={setManageLinesOpen} />
+      <SharePointImportDialog
+        open={sharePointOpen}
+        onOpenChange={setSharePointOpen}
+        knownLines={lines}
+        weekStart={weekStart}
+        weekDates={weekDates}
+      />
+    </DashboardLayout>
+  );
+}
+
+function InlineCell({
+  entry, date, line, shift, onSave, onOpenFull,
+}: {
+  entry?: Entry;
+  date: string;
+  line: string;
+  shift: Shift;
+  onSave: (payload: Omit<Entry, "id">) => void;
+  onOpenFull: () => void;
+}) {
+  const [plan, setPlan] = useState<string>(entry?.plan_qty?.toString() ?? "");
+  const [actual, setActual] = useState<string>(entry?.actual_qty?.toString() ?? "");
+  const [dt, setDt] = useState<string>(entry?.downtime_min?.toString() ?? "");
+
+  useEffect(() => {
+    setPlan(entry?.plan_qty?.toString() ?? "");
+    setActual(entry?.actual_qty?.toString() ?? "");
+    setDt(entry?.downtime_min?.toString() ?? "");
+  }, [entry?.id, entry?.plan_qty, entry?.actual_qty, entry?.downtime_min]);
+
+  const commit = (next: { plan?: string; actual?: string; dt?: string }) => {
+    const p = Number(next.plan ?? plan) || 0;
+    const a = Number(next.actual ?? actual) || 0;
+    const d = Number(next.dt ?? dt) || 0;
+    if (
+      p === (entry?.plan_qty ?? 0) &&
+      a === (entry?.actual_qty ?? 0) &&
+      d === (entry?.downtime_min ?? 0)
+    ) return;
+    onSave({
+      entry_date: date,
+      line,
+      shift,
+      plan_qty: p,
+      actual_qty: a,
+      upm_target: entry?.upm_target ?? 0,
+      upm_actual: entry?.upm_actual ?? 0,
+      downtime_min: d,
+      notes: entry?.notes ?? null,
+    });
+  };
+
+  const inputCls = "h-6 w-14 px-1 text-center text-[11px] bg-background/60 border rounded";
+
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <input
+        className={`${inputCls} font-semibold`}
+        type="number"
+        value={actual}
+        placeholder="Act"
+        onChange={(e) => setActual(e.target.value)}
+        onBlur={() => commit({ actual })}
+        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+      />
+      <input
+        className={`${inputCls} opacity-80`}
+        type="number"
+        value={plan}
+        placeholder="Plan"
+        onChange={(e) => setPlan(e.target.value)}
+        onBlur={() => commit({ plan })}
+        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+      />
+      <input
+        className={`${inputCls} text-red-600 dark:text-red-400`}
+        type="number"
+        value={dt}
+        placeholder="DT"
+        onChange={(e) => setDt(e.target.value)}
+        onBlur={() => commit({ dt })}
+        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+      />
+      <button
+        type="button"
+        onClick={onOpenFull}
+        className="text-[10px] text-muted-foreground hover:text-foreground underline"
+      >
+        more…
+      </button>
+    </div>
+  );
+}
+
+function EditDialog({
+  editing, onClose, onSave, saving,
+}: {
+  editing: { date: string; line: string; shift: Shift; entry?: Entry };
+  onClose: () => void;
+  onSave: (e: Omit<Entry, "id">) => void;
+  saving: boolean;
+}) {
+  const [plan, setPlan] = useState(editing.entry?.plan_qty ?? 0);
+  const [actual, setActual] = useState(editing.entry?.actual_qty ?? 0);
+  const [upmT, setUpmT] = useState(editing.entry?.upm_target ?? 0);
+  const [upmA, setUpmA] = useState(editing.entry?.upm_actual ?? 0);
+  const [dt, setDt] = useState(editing.entry?.downtime_min ?? 0);
+  const [shift, setShift] = useState<Shift>(editing.shift);
+  const [notes, setNotes] = useState(editing.entry?.notes ?? "");
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{editing.line} · {editing.date}</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <div>
+            <Label>Shift</Label>
+            <Select value={shift} onValueChange={(v) => setShift(v as Shift)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="DAY">Day</SelectItem>
+                <SelectItem value="NIGHT">Night</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Plan</Label><Input type="number" value={plan} onChange={(e) => setPlan(Number(e.target.value))} /></div>
+            <div><Label>Actual <span className="text-xs text-muted-foreground">(auto from tablet, admin can override)</span></Label><Input type="number" value={actual} onChange={(e) => setActual(Number(e.target.value) || 0)} /></div>
+            <div><Label>UPM Target</Label><Input type="number" value={upmT} onChange={(e) => setUpmT(Number(e.target.value))} /></div>
+            <div><Label>UPM Actual</Label><Input type="number" value={upmA} onChange={(e) => setUpmA(Number(e.target.value))} /></div>
+            <div className="col-span-2"><Label>Downtime (min)</Label><Input type="number" value={dt} onChange={(e) => setDt(Number(e.target.value))} /></div>
+          </div>
+          <div>
+            <Label>Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+          </div>
+          {plan > 0 && (
+            <div className="text-sm text-muted-foreground">
+              Variance: <span className="font-medium">{((actual / plan) * 100).toFixed(1)}%</span>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            disabled={saving}
+            onClick={() => onSave({
+              entry_date: editing.date,
+              line: editing.line,
+              shift,
+              plan_qty: plan,
+              actual_qty: actual,
+              upm_target: upmT,
+              upm_actual: upmA,
+              downtime_min: dt,
+              notes: notes || null,
+            })}
+          >{saving ? "Saving..." : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Day / Night / Total summary table (mirrors leadership layout)
+// Columns: per weekday × {Day | Night | Total}
+// Rows per line: Plan / Actual / Variance % / UPM / Downtime (h:mm)
+// Plus a grand-total "All Lines" block at the bottom.
+// ─────────────────────────────────────────────────────────────
+function DayNightTotalSummary({
+  lines,
+  weekDates,
+  entryMap,
+  autoDtMap,
+  autoDtBreakdown,
+  isAdmin = false,
+  onSave,
+  onOpenFull,
+}: {
+  lines: string[];
+  weekDates: Date[];
+  entryMap: Map<string, Entry>;
+  autoDtMap?: Map<string, number>;
+  autoDtBreakdown?: Map<string, ClampedStop[]>;
+  isAdmin?: boolean;
+  onSave?: (payload: Omit<Entry, "id">) => void;
+  onOpenFull?: (date: string, line: string, shift: Shift) => void;
+}) {
+
+  const weekKey = weekDates.length ? format(weekDates[0], "yyyy-MM-dd") : "none";
+  const storageKey = `rag-week-excluded:${weekKey}`;
+  const [excludedDates, setExcludedDates] = useState<Set<string>>(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(storageKey) : null;
+      return raw ? new Set<string>(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      setExcludedDates(raw ? new Set<string>(JSON.parse(raw)) : new Set());
+    } catch {
+      setExcludedDates(new Set());
+    }
+  }, [storageKey]);
+  const persist = (next: Set<string>) => {
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(Array.from(next)));
+    } catch {
+      /* ignore */
+    }
+  };
+  const toggleKey = (key: string) =>
+    setExcludedDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      persist(next);
+      return next;
+    });
+  const toggleDate = (label: string, ds: string) => toggleKey(`${label}|${ds}`);
+  const toggleShift = (label: string, ds: string, shift: Shift) => toggleKey(`${label}|${ds}|${shift}`);
+  const isDateExcluded = (label: string, ds: string) => excludedDates.has(`${label}|${ds}`);
+  const isShiftExcluded = (label: string, ds: string, shift: Shift) =>
+    excludedDates.has(`${label}|${ds}`) || excludedDates.has(`${label}|${ds}|${shift}`);
+
+  if (!lines.length) return null;
+
+
+
+  const fmtHm = (min: number) => {
+    if (!min || min <= 0) return "—";
+    const h = Math.floor(min / 60);
+    const m = Math.round(min % 60);
+    return `${h}:${m.toString().padStart(2, "0")}`;
+  };
+  const pct = (a: number, p: number) => (p > 0 ? `${Math.round(((a - p) / p) * 100)}%` : "—");
+  const pctClass = (a: number, p: number) => {
+    if (!p) return "text-muted-foreground";
+    const r = (a / p) * 100;
+    if (r >= 95) return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold rounded px-1.5";
+    if (r >= 80) return "bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold rounded px-1.5";
+    return "bg-red-500/15 text-red-700 dark:text-red-300 font-semibold rounded px-1.5";
+  };
+
+  type Cell = { plan: number; actual: number; dt: number; upm: number };
+  const empty: Cell = { plan: 0, actual: 0, dt: 0, upm: 0 };
+
+  const getCell = (dateStr: string, line: string, shift: Shift): Cell => {
+    const e = entryMap.get(`${dateStr}|${line}|${shift}`);
+    const auto = autoDtMap?.get(`${dateStr}|${line}|${shift}`) ?? 0;
+    const dt = auto > 0 ? auto : (e?.downtime_min || 0);
+    if (!e) return { ...empty, dt };
+    return {
+      plan: e.plan_qty || 0,
+      actual: e.actual_qty || 0,
+      dt,
+      upm: e.upm_actual || 0,
+    };
+  };
+
+  const sumCells = (cells: Cell[]): Cell => {
+    const upms = cells.map((c) => c.upm).filter((v) => v > 0);
+    return {
+      plan: cells.reduce((s, c) => s + c.plan, 0),
+      actual: cells.reduce((s, c) => s + c.actual, 0),
+      dt: cells.reduce((s, c) => s + c.dt, 0),
+      upm: upms.length ? upms.reduce((s, v) => s + v, 0) / upms.length : 0,
+    };
+  };
+
+  const Block = ({ label, lineFilter }: { label: string; lineFilter: string[] }) => {
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const scroll = (dx: number) => scrollRef.current?.scrollBy({ left: dx, behavior: "smooth" });
+
+    const buildCol = (dateStr: string, shift: Shift | "TOTAL"): Cell => {
+      if (shift === "TOTAL") {
+        return sumCells(lineFilter.flatMap((l) => [getCell(dateStr, l, "DAY"), getCell(dateStr, l, "NIGHT")]));
+      }
+      return sumCells(lineFilter.map((l) => getCell(dateStr, l, shift)));
+    };
+
+    const weekTotal = (shift: Shift | "TOTAL"): Cell => {
+      const cells: Cell[] = [];
+      for (const d of weekDates) {
+        const ds = format(d, "yyyy-MM-dd");
+        if (isDateExcluded(label, ds)) continue;
+        if (shift === "TOTAL") {
+          const inc: Cell[] = [];
+          if (!isShiftExcluded(label, ds, "DAY")) inc.push(buildCol(ds, "DAY"));
+          if (!isShiftExcluded(label, ds, "NIGHT")) inc.push(buildCol(ds, "NIGHT"));
+          cells.push(sumCells(inc));
+        } else {
+          if (isShiftExcluded(label, ds, shift)) continue;
+          cells.push(buildCol(ds, shift));
+        }
+      }
+      return sumCells(cells);
+    };
+
+
+
+    const rows: { key: string; label: string; render: (c: Cell) => React.ReactNode; bold?: boolean }[] = [
+      { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString() : "—" },
+      { key: "actual", label: "Actual", render: (c) => c.actual ? c.actual.toLocaleString() : "—", bold: true },
+      {
+        key: "var",
+        label: "Variance %",
+        render: (c) => <span className={pctClass(c.actual, c.plan)}>{pct(c.actual, c.plan)}</span>,
+      },
+      { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : "—") },
+      {
+        key: "dt",
+        label: "Downtime (auto)",
+        render: (c) => <span className={c.dt > 0 ? "text-red-600 dark:text-red-400" : ""}>{fmtHm(c.dt)}</span>,
+      },
+    ];
+
+    return (
+      <div key={label} className="mb-6">
+        <div className="flex items-center justify-between mb-1 gap-2">
+          <div className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">{label}</div>
+          <div className="flex gap-1 md:hidden">
+            <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => scroll(-220)} aria-label="Scroll left">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => scroll(220)} aria-label="Scroll right">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        <div ref={scrollRef} className="overflow-x-auto -mx-2 px-2 scroll-smooth border rounded-md shadow-sm">
+          <table className="text-xs border-collapse min-w-[1000px] w-full tabular-nums">
+            <thead className="sticky top-0 z-30 bg-background shadow-[0_2px_0_0_hsl(var(--border))]">
+              <tr className="border-b bg-background">
+                <th className="text-left p-1.5 sticky left-0 bg-background z-30 min-w-[100px]" />
+                {weekDates.map((d, i) => {
+                  const ds = format(d, "yyyy-MM-dd");
+                  const excluded = isDateExcluded(label, ds);
+                  return (
+                    <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap bg-background ${excluded ? "opacity-40" : ""}`}>
+                      <div className="flex items-center justify-center gap-1">
+                        <span>{DAY_LABELS[i]}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleDate(label, ds)}
+                          title={excluded ? "Include in week total" : "Exclude from week total"}
+                          className={`text-[9px] px-1.5 py-0.5 rounded border font-bold leading-none ${excluded ? "bg-muted text-muted-foreground border-muted-foreground/30" : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"}`}
+                        >
+                          {excluded ? "OFF" : "ON"}
+                        </button>
+                      </div>
+                      <div className="text-muted-foreground font-normal">{format(d, "dd-MMM-yy")}</div>
+                    </th>
+                  );
+                })}
+
+                <th colSpan={3} className="text-center p-1.5 border-l whitespace-nowrap bg-primary/10 font-semibold">
+                  <div>Week Total</div>
+                  <div className="text-muted-foreground font-normal">All Days</div>
+                </th>
+              </tr>
+              <tr className="border-b bg-muted/40">
+                <th className="sticky left-0 bg-muted/40 z-30" />
+                {weekDates.map((d, i) => {
+                  const ds = format(d, "yyyy-MM-dd");
+                  const dayOff = isShiftExcluded(label, ds, "DAY");
+                  const nightOff = isShiftExcluded(label, ds, "NIGHT");
+                  const Btn = ({ off, onClick }: { off: boolean; onClick: () => void }) => (
+                    <button
+                      type="button"
+                      onClick={onClick}
+                      title={off ? "Include shift" : "Exclude shift"}
+                      className={`ml-1 text-[8px] px-1 py-0 rounded border font-bold leading-none align-middle ${off ? "bg-muted text-muted-foreground border-muted-foreground/30" : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"}`}
+                    >
+                      {off ? "off" : "on"}
+                    </button>
+                  );
+                  return (
+                    <Fragment key={i}>
+                      <th className={`text-right p-1 border-l text-amber-600 dark:text-amber-400 font-medium bg-muted/40 min-w-[60px] ${dayOff ? "opacity-50" : ""}`}>
+                        Day<Btn off={dayOff} onClick={() => toggleShift(label, ds, "DAY")} />
+                      </th>
+                      <th className={`text-right p-1 text-blue-600 dark:text-blue-400 font-medium bg-muted/40 min-w-[60px] ${nightOff ? "opacity-50" : ""}`}>
+                        Night<Btn off={nightOff} onClick={() => toggleShift(label, ds, "NIGHT")} />
+                      </th>
+                      <th className="text-right p-1 font-semibold bg-muted/60 min-w-[60px]">Total</th>
+                    </Fragment>
+                  );
+                })}
+                <th className="text-right p-1 border-l text-amber-600 dark:text-amber-400 font-medium bg-primary/10 min-w-[64px]">Day</th>
+                <th className="text-right p-1 text-blue-600 dark:text-blue-400 font-medium bg-primary/10 min-w-[64px]">Night</th>
+                <th className="text-right p-1 font-bold bg-primary/15 min-w-[64px]">Total</th>
+              </tr>
+
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const wtDay = weekTotal("DAY");
+                const wtNight = weekTotal("NIGHT");
+                const wtTot = weekTotal("TOTAL");
+                const cls = `p-1.5 text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
+                const editable = isAdmin && lineFilter.length === 1 && ["plan", "actual"].includes(row.key);
+                const lineName = lineFilter[0];
+                const renderEdit = (ds: string, shift: Shift) => {
+                  const existing = entryMap.get(`${ds}|${lineName}|${shift}`);
+                  const current =
+                    row.key === "plan" ? (existing?.plan_qty ?? 0)
+                    : row.key === "actual" ? (existing?.actual_qty ?? 0)
+                    : (existing?.downtime_min ?? 0);
+                  return (
+                    <SummaryInlineInput
+                      value={current}
+                      onCommit={(v) => {
+                        if (!onSave) return;
+                        const base = existing ?? {
+                          entry_date: ds,
+                          line: lineName,
+                          shift,
+                          plan_qty: 0,
+                          actual_qty: 0,
+                          upm_target: 0,
+                          upm_actual: 0,
+                          downtime_min: 0,
+                          notes: null,
+                        };
+                        const payload: Omit<Entry, "id"> = {
+                          entry_date: base.entry_date,
+                          line: base.line,
+                          shift: base.shift,
+                          plan_qty: row.key === "plan" ? v : base.plan_qty,
+                          actual_qty: row.key === "actual" ? v : base.actual_qty,
+                          upm_target: base.upm_target,
+                          upm_actual: base.upm_actual,
+                          downtime_min: row.key === "dt" ? v : base.downtime_min,
+                          notes: base.notes,
+                        };
+                        onSave(payload);
+                      }}
+                      onOpen={() => onOpenFull?.(ds, lineName, shift)}
+                    />
+                  );
+                };
+                const isDt = row.key === "dt";
+                const wrapDt = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
+                  if (!isDt || lineFilter.length !== 1) return cellEl;
+                  const details = autoDtBreakdown?.get(`${ds}|${lineFilter[0]}|${shift}`) ?? [];
+                  if (!details.length) return cellEl;
+                  return <DowntimeBreakdownPopover trigger={cellEl} stops={details} dateStr={ds} shift={shift} line={lineFilter[0]} />;
+                };
+                return (
+                  <tr key={row.key} className="border-b hover:bg-muted/20">
+                    <td className="p-1.5 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-[11px] tracking-wide text-muted-foreground">{row.label}</td>
+                    {weekDates.map((d, i) => {
+                      const ds = format(d, "yyyy-MM-dd");
+                      const dayDim = isShiftExcluded(label, ds, "DAY") ? "opacity-40" : "";
+                      const nightDim = isShiftExcluded(label, ds, "NIGHT") ? "opacity-40" : "";
+                      const totalDim = isDateExcluded(label, ds) ? "opacity-40" : "";
+                      return (
+                        <Fragment key={i}>
+                          <td className={`${cls} border-l ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapDt(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
+                          <td className={`${cls} ${nightDim}`}>{editable ? renderEdit(ds, "NIGHT") : wrapDt(ds, "NIGHT", row.render(buildCol(ds, "NIGHT")))}</td>
+                          <td className={`${cls} bg-muted/40 ${totalDim}`}>{row.render(buildCol(ds, "TOTAL"))}</td>
+                        </Fragment>
+                      );
+                    })}
+
+
+                    <td className={`${cls} border-l bg-primary/5`}>{row.render(wtDay)}</td>
+                    <td className={`${cls} bg-primary/5`}>{row.render(wtNight)}</td>
+                    <td className={`${cls} bg-primary/15 font-bold`}>{row.render(wtTot)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+
+
+
+  return (
+    <Card className="border-l-4 border-l-amber-500 shadow-md">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base uppercase tracking-wider text-muted-foreground">Day / Night / Total Summary</CardTitle>
+      </CardHeader>
+      <CardContent>
+
+        {lines.map((line) => <Block key={line} label={line} lineFilter={[line]} />)}
+        <Block label="All Lines" lineFilter={lines} />
+
+      </CardContent>
+    </Card>
+  );
+}
+
+function SummaryInlineInput({
+  value,
+  onCommit,
+  onOpen,
+}: {
+  value: number;
+  onCommit: (v: number) => void;
+  onOpen?: () => void;
+}) {
+  const [v, setV] = useState<string>(value ? String(value) : "");
+  useEffect(() => {
+    setV(value ? String(value) : "");
+  }, [value]);
+  const commit = () => {
+    const n = Number(v.replace(/[, ]/g, ""));
+    const next = isNaN(n) ? 0 : n;
+    if (next !== value) onCommit(next);
+  };
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={v}
+      placeholder="—"
+      onChange={(e) => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") setV(value ? String(value) : "");
+      }}
+      onDoubleClick={() => onOpen?.()}
+      className="w-full bg-transparent text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-primary/50 rounded px-1"
+      title="Double-click to open full editor"
+    />
+  );
+}
+
+function DowntimeBreakdownPopover({
+  trigger, stops, dateStr, shift, line,
+}: {
+  trigger: React.ReactNode;
+  stops: ClampedStop[];
+  dateStr: string;
+  shift: Shift;
+  line: string;
+}) {
+  const fmtTs = (iso: string) =>
+    new Date(iso).toLocaleString("en-GB", {
+      timeZone: "Europe/London",
+      day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+    });
+  const totalMin = stops.reduce((s, x) => s + x.minutes, 0);
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" className="w-full text-right cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2">
+          {trigger}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[420px] max-w-[92vw] p-0">
+        <div className="px-3 py-2 border-b bg-muted/40">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{line} · {shift} · {dateStr}</div>
+          <div className="text-sm font-semibold">{stops.length} stop{stops.length === 1 ? "" : "s"} · {totalMin}m total</div>
+        </div>
+        <div className="max-h-[320px] overflow-y-auto">
+          <table className="w-full text-xs tabular-nums">
+            <thead className="sticky top-0 bg-background border-b">
+              <tr className="text-left">
+                <th className="px-2 py-1.5 font-medium">Ref</th>
+                <th className="px-2 py-1.5 font-medium">Start</th>
+                <th className="px-2 py-1.5 font-medium">End</th>
+                <th className="px-2 py-1.5 font-medium text-right">Min</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stops.map((s, i) => (
+                <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
+                  <td className="px-2 py-1.5">
+                    <div className="font-mono text-[11px]">{s.ref ?? s.source}</div>
+                    {(s.machine || s.reason) && (
+                      <div className="text-[10px] text-muted-foreground truncate max-w-[160px]" title={s.reason ?? ""}>
+                        {[s.machine, s.reason].filter(Boolean).join(" — ")}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 font-mono text-[11px]">{fmtTs(s.clampedStart)}</td>
+                  <td className="px-2 py-1.5 font-mono text-[11px]">
+                    {s.ongoing ? <span className="text-red-600 font-semibold">ongoing</span> : fmtTs(s.clampedEnd)}
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-semibold">{s.minutes}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+

@@ -41,6 +41,9 @@ const QualityActionsPage = lazy(() => import("./pages/dashboard/QualityActionsPa
 const ShiftHistoryPage = lazy(() => import("./pages/dashboard/ShiftHistoryPage"));
 const WeeklyProductionReportPage = lazy(() => import("./pages/dashboard/WeeklyProductionReportPage"));
 const LeaderQualityBoardPage = lazy(() => import("./pages/dashboard/LeaderQualityBoardPage"));
+const RAGWeeklyPage = lazy(() => import("./pages/dashboard/RAGWeeklyPage"));
+const IntouchSettingsPage = lazy(() => import("./pages/dashboard/IntouchSettingsPage"));
+const IntouchMachineMapPage = lazy(() => import("./pages/dashboard/IntouchMachineMapPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -334,6 +337,30 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager"]}>
                       <LeaderQualityBoardPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/rag-weekly"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                      <RAGWeeklyPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/intouch-settings"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <IntouchSettingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/intouch-machines"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <IntouchMachineMapPage />
                     </ProtectedRoute>
                   }
                 />
