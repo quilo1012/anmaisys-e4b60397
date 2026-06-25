@@ -415,38 +415,12 @@ export default function AnalyticsPage() {
 
         {/* Date Range Filters */}
         <div className="flex items-center gap-3 flex-wrap print:hidden">
-          <Select value={period} onValueChange={(v) => handlePeriodChange(v as PeriodPreset)}>
-            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7d">Last 7 days</SelectItem>
-              <SelectItem value="30d">Last 30 days</SelectItem>
-              <SelectItem value="90d">Last 90 days</SelectItem>
-              <SelectItem value="custom">Custom</SelectItem>
-            </SelectContent>
-          </Select>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className={cn("w-[140px] justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(startDate, "dd/MM/yyyy")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={startDate} onSelect={(d) => { if (d) { setStartDate(startOfDay(d)); setPeriod("custom"); } }} initialFocus className="p-3 pointer-events-auto" />
-            </PopoverContent>
-          </Popover>
-          <span className="text-muted-foreground text-sm">to</span>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className={cn("w-[140px] justify-start text-left font-normal", !endDate && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(endDate, "dd/MM/yyyy")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={endDate} onSelect={(d) => { if (d) { setEndDate(endOfDay(d)); setPeriod("custom"); } }} initialFocus className="p-3 pointer-events-auto" />
-            </PopoverContent>
-          </Popover>
+          <DateRangeFilter
+            value={drRange}
+            preset={drPreset}
+            onChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
+            storageKey="analytics-page"
+          />
           <Badge variant="secondary" className="text-xs">{allWOs?.length ?? 0} WOs in range</Badge>
         </div>
 
