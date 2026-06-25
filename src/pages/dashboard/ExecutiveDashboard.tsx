@@ -21,6 +21,7 @@ export default function ExecutiveDashboard() {
   const { data: engineerScores = [] } = useEngineerScores();
   const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("today");
   const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("today"));
+  const [shiftFilter, setShiftFilter] = useState<"ALL" | "DAY" | "NIGHT">("ALL");
   const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
   const { data: downtimeRecords = [] } = useDowntime();
   const [isFullscreen, setIsFullscreen] = useState(false);
