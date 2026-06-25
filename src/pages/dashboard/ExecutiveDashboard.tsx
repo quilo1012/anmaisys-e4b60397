@@ -92,7 +92,7 @@ export default function ExecutiveDashboard() {
     const rangeStartMs = startOfDay(kpiRange.from).getTime();
     const rangeEndMs = Math.min(endOfDay(kpiRange.to).getTime(), Date.now());
     const lineDowntimeTodayMin = reconcileMinutes(
-      (downtimeRecords || []).map((r: any) => ({ start: r.started_at, end: r.ended_at })),
+      (downtimeRecords || []).filter((r: any) => inShift(r.started_at)).map((r: any) => ({ start: r.started_at, end: r.ended_at })),
       rangeStartMs,
       rangeEndMs,
       Date.now(),
@@ -101,7 +101,7 @@ export default function ExecutiveDashboard() {
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
 
     return { openWOs, avgResponse, avgMTTR, slaPercent, lineDowntimeTodayMin, machinesAtRisk };
-  }, [workOrders, filteredWOs, machines, woMetrics, downtimeRecords, kpiRange]);
+  }, [workOrders, filteredWOs, machines, woMetrics, downtimeRecords, kpiRange, inShift]);
 
   // WOs per day across the selected period (defaults to last 7 days when range is empty).
   const wosPerDay = useMemo(() => {
