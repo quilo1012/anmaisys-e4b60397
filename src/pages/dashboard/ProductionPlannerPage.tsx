@@ -174,12 +174,28 @@ export default function ProductionPlannerPage() {
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold">Production Planner</h1>
-          {existingId && isManager && (
-            <Button variant="outline" size="sm" onClick={() => toggleLock.mutate({ id: existingId, lock: !locked })}>
-              {locked ? <><Unlock className="h-4 w-4 mr-1" />Unlock</> : <><Lock className="h-4 w-4 mr-1" />Lock</>}
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {isManager && (
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4 mr-1" />Import Production
+              </Button>
+            )}
+            {existingId && isManager && (
+              <Button variant="outline" size="sm" onClick={() => toggleLock.mutate({ id: existingId, lock: !locked })}>
+                {locked ? <><Unlock className="h-4 w-4 mr-1" />Unlock</> : <><Lock className="h-4 w-4 mr-1" />Lock</>}
+              </Button>
+            )}
+          </div>
         </div>
+        <ImportProductionDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onImported={() => {
+            queryClient.invalidateQueries({ queryKey: ["planner-sessions"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-session"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-items"] });
+          }}
+        />
 
         {/* Shift Information — horizontal row */}
         <Card>
