@@ -9,6 +9,7 @@ import { differenceInMinutes, subDays, format, startOfDay, endOfDay } from "date
 import { useDowntime } from "@/hooks/useDowntime";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Timer, Activity, Trophy, TrendingUp, BarChart3 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { countOpenWOs } from "@/lib/woStatus";
@@ -20,6 +21,7 @@ export default function ExecutiveDashboard() {
   const { data: engineerScores = [] } = useEngineerScores();
   const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("today");
   const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("today"));
+  const [shiftFilter, setShiftFilter] = useState<"ALL" | "DAY" | "NIGHT">("ALL");
   const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
   const { data: downtimeRecords = [] } = useDowntime();
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -34,13 +36,25 @@ export default function ExecutiveDashboard() {
     }
   }, []);
 
-  // Work orders filtered by the selected KPI period (by created_at).
+  // Hour in Europe/London for shift detection (DAY = 06-18, NIGHT otherwise)
+  const londonHour = (iso: string) => {
+    const parts = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Europe/London" }).formatToParts(new Date(iso));
+    return parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
+  };
+  const inShift = useCallback((iso: string) => {
+    if (shiftFilter === "ALL") return true;
+    const h = londonHour(iso);
+    const isDay = h >= 6 && h < 18;
+    return shiftFilter === "DAY" ? isDay : !isDay;
+  }, [shiftFilter]);
+
+  // Work orders filtered by the selected KPI period (by created_at) and shift.
   const inRange = useCallback((iso: string) => {
     const d = new Date(iso);
     if (kpiRange.from && d < kpiRange.from) return false;
     if (kpiRange.to && d > kpiRange.to) return false;
-    return true;
-  }, [kpiRange.from, kpiRange.to]);
+    return inShift(iso);
+  }, [kpiRange.from, kpiRange.to, inShift]);
 
   const filteredWOs = useMemo(
     () => workOrders.filter((w) => inRange(w.created_at)),
@@ -52,13 +66,14 @@ export default function ExecutiveDashboard() {
     const openWOs = countOpenWOs(workOrders);
 
     // Avg Response Time = AVG(response_time_sec) from v_wo_metrics (exclude force_closed which skew the average)
-    const respMetrics = woMetrics.filter((m) => m.response_time_sec !== null && (m as any).status !== "force_closed");
+    const shiftMetrics = woMetrics.filter((m: any) => !m.created_at || inShift(m.created_at));
+    const respMetrics = shiftMetrics.filter((m) => m.response_time_sec !== null && (m as any).status !== "force_closed");
     const avgResponse = respMetrics.length
       ? Math.round(respMetrics.reduce((s, m) => s + (m.response_time_sec || 0), 0) / respMetrics.length / 60)
       : 0;
 
     // Avg Active Repair (MTTR) = AVG(active_repair_sec) from v_wo_metrics (exclude force_closed)
-    const repairMetrics = woMetrics.filter((m) => m.active_repair_sec !== null && m.active_repair_sec > 0 && (m as any).status !== "force_closed");
+    const repairMetrics = shiftMetrics.filter((m) => m.active_repair_sec !== null && m.active_repair_sec > 0 && (m as any).status !== "force_closed");
     const avgMTTR = repairMetrics.length
       ? Math.round(repairMetrics.reduce((s, m) => s + (m.active_repair_sec || 0), 0) / repairMetrics.length / 60)
       : 0;
@@ -77,7 +92,7 @@ export default function ExecutiveDashboard() {
     const rangeStartMs = startOfDay(kpiRange.from).getTime();
     const rangeEndMs = Math.min(endOfDay(kpiRange.to).getTime(), Date.now());
     const lineDowntimeTodayMin = reconcileMinutes(
-      (downtimeRecords || []).map((r: any) => ({ start: r.started_at, end: r.ended_at })),
+      (downtimeRecords || []).filter((r: any) => inShift(r.started_at)).map((r: any) => ({ start: r.started_at, end: r.ended_at })),
       rangeStartMs,
       rangeEndMs,
       Date.now(),
@@ -86,7 +101,7 @@ export default function ExecutiveDashboard() {
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
 
     return { openWOs, avgResponse, avgMTTR, slaPercent, lineDowntimeTodayMin, machinesAtRisk };
-  }, [workOrders, filteredWOs, machines, woMetrics, downtimeRecords, kpiRange]);
+  }, [workOrders, filteredWOs, machines, woMetrics, downtimeRecords, kpiRange, inShift]);
 
   // WOs per day across the selected period (defaults to last 7 days when range is empty).
   const wosPerDay = useMemo(() => {
@@ -167,11 +182,21 @@ export default function ExecutiveDashboard() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3 print:hidden">
           <span className="text-sm font-medium text-muted-foreground">KPI period filter</span>
-          <DateRangeFilter
-            value={kpiRange}
-            preset={kpiPreset}
-            onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <DateRangeFilter
+              value={kpiRange}
+              preset={kpiPreset}
+              onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
+            />
+            <Select value={shiftFilter} onValueChange={(v) => setShiftFilter(v as "ALL" | "DAY" | "NIGHT")}>
+              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All shifts</SelectItem>
+                <SelectItem value="DAY">Day (06–18)</SelectItem>
+                <SelectItem value="NIGHT">Night (18–06)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* KPI Grid */}
