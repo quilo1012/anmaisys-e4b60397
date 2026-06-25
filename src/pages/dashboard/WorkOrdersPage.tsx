@@ -225,7 +225,7 @@ export default function WorkOrdersPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return filtered;
-  }, [workOrders, dateQuickFilter, dateFrom, dateTo, problemFilter, machineFilter, lineFilter, lineStoppedFilter, searchTerm, lineNameMap, machineLineMap, shiftFilter, statusFilter]);
+  }, [workOrders, drRange, problemFilter, machineFilter, lineFilter, lineStoppedFilter, searchTerm, lineNameMap, machineLineMap, shiftFilter, statusFilter]);
 
   const stoppedCount = useMemo(
     () => (workOrders ?? []).filter((w: any) => w.line_stopped === true && !w.line_resumed_at).length,
