@@ -2442,7 +2442,13 @@ export type Database = {
       wo_total_pause_seconds: { Args: { _wo_id: string }; Returns: number }
     }
     Enums: {
-      app_role: "admin" | "engineer" | "operator" | "manager" | "viewer"
+      app_role:
+        | "admin"
+        | "engineer"
+        | "operator"
+        | "manager"
+        | "viewer"
+        | "maintenance_manager"
       machine_category: "line_fixed" | "line_mobile" | "support"
       mobile_asset_type: "printer" | "bag_sealer"
       po_status: "draft" | "sent" | "received" | "cancelled"
@@ -2582,7 +2588,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "engineer", "operator", "manager", "viewer"],
+      app_role: [
+        "admin",
+        "engineer",
+        "operator",
+        "manager",
+        "viewer",
+        "maintenance_manager",
+      ],
       machine_category: ["line_fixed", "line_mobile", "support"],
       mobile_asset_type: ["printer", "bag_sealer"],
       po_status: ["draft", "sent", "received", "cancelled"],

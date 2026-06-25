@@ -39,7 +39,7 @@ export type Action =
   | "system.clear"
   | "system.settings";
 
-const ALL: Role[] = ["admin", "manager", "engineer", "operator", "viewer"];
+const ALL: Role[] = ["admin", "manager", "maintenance_manager", "engineer", "operator", "viewer"];
 
 /**
  * Permission matrix — single source of truth.
@@ -47,38 +47,38 @@ const ALL: Role[] = ["admin", "manager", "engineer", "operator", "viewer"];
  */
 const MATRIX: Record<Action, Role[]> = {
   // Work Orders
-  "wo.view": ["admin", "manager", "engineer", "operator", "viewer"],
-  "wo.create": ["admin", "manager", "operator"],
-  "wo.update": ["admin", "manager", "engineer"],
+  "wo.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "viewer"],
+  "wo.create": ["admin", "manager", "maintenance_manager", "operator"],
+  "wo.update": ["admin", "manager", "maintenance_manager", "engineer"],
   "wo.delete": ["admin"], // manager loses delete in Phase 5
-  "wo.close": ["admin", "manager", "engineer"],
+  "wo.close": ["admin", "manager", "maintenance_manager", "engineer"],
   "wo.force": ["admin"],
-  "wo.print": ["admin", "manager"],
+  "wo.print": ["admin", "manager", "maintenance_manager"],
 
   // Downtime
   "downtime.view": ALL,
-  "downtime.manage": ["admin", "manager", "engineer"],
+  "downtime.manage": ["admin", "manager", "maintenance_manager", "engineer"],
 
   // Machines
-  "machines.view": ["admin", "manager", "engineer", "operator", "viewer"],
-  "machines.manage": ["admin", "manager"],
+  "machines.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "viewer"],
+  "machines.manage": ["admin", "manager", "maintenance_manager"],
 
   // Problems
-  "problems.view": ["admin", "manager", "engineer", "operator", "viewer"],
-  "problems.manage": ["admin", "manager"],
+  "problems.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "viewer"],
+  "problems.manage": ["admin", "manager", "maintenance_manager"],
 
   // Stock
-  "stock.view": ["admin", "manager", "engineer"],
-  "stock.manage": ["admin", "manager"],
+  "stock.view": ["admin", "manager", "maintenance_manager", "engineer"],
+  "stock.manage": ["admin", "manager", "maintenance_manager"],
   "stock.pricing": ["admin"],
 
   // Users / Audit
-  "users.view": ["admin", "manager"],
-  "users.manage": ["admin", "manager"],
-  "audit.view": ["admin", "manager"],
+  "users.view": ["admin", "manager", "maintenance_manager"],
+  "users.manage": ["admin", "manager", "maintenance_manager"],
+  "audit.view": ["admin", "manager", "maintenance_manager"],
 
   // Reports
-  "reports.analytics": ["admin", "manager"],
+  "reports.analytics": ["admin", "manager", "maintenance_manager"],
   "reports.financial": ["admin"],
   "reports.executive": ["admin"],
 

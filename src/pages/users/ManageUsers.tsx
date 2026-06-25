@@ -31,10 +31,11 @@ interface Engineer {
   created_at: string;
 }
 
-const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", engineer: "Engineer", operator: "Operator", viewer: "Viewer" };
+const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", maintenance_manager: "Maintenance Manager", engineer: "Engineer", operator: "Operator", viewer: "Viewer" };
 const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = {
   admin: Shield,
   manager: Shield,
+  maintenance_manager: WrenchIcon,
   engineer: WrenchIcon,
   operator: HardHat,
   viewer: Shield,
@@ -433,6 +434,7 @@ export default function ManageUsers() {
                       {currentRole === "admin" && <SelectItem value="operator">Operator</SelectItem>}
                       <SelectItem value="engineer">Engineer</SelectItem>
                       {currentRole === "admin" && <SelectItem value="manager">Manager</SelectItem>}
+                      {currentRole === "admin" && <SelectItem value="maintenance_manager">Maintenance Manager</SelectItem>}
                       {currentRole === "admin" && <SelectItem value="admin">Admin</SelectItem>}
                     </SelectContent>
                   </Select>
@@ -473,6 +475,7 @@ export default function ManageUsers() {
                           <Badge variant="outline" className={
                             user.role === "admin" ? "bg-red-100 text-red-800 border-red-200" :
                             user.role === "manager" ? "bg-purple-100 text-purple-800 border-purple-200" :
+                            user.role === "maintenance_manager" ? "bg-indigo-100 text-indigo-800 border-indigo-200" :
                             user.role === "engineer" ? "bg-blue-100 text-blue-800 border-blue-200" :
                             "bg-gray-100 text-gray-800 border-gray-200"
                           }>
@@ -671,6 +674,7 @@ export default function ManageUsers() {
                     <SelectItem value="operator">Operator</SelectItem>
                     <SelectItem value="engineer">Engineer</SelectItem>
                     {currentRole === "admin" && <SelectItem value="manager">Manager</SelectItem>}
+                    {currentRole === "admin" && <SelectItem value="maintenance_manager">Maintenance Manager</SelectItem>}
                     {currentRole === "admin" && <SelectItem value="admin">Admin</SelectItem>}
                   </SelectContent>
                 </Select>
