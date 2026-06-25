@@ -471,6 +471,36 @@ export type Database = {
         }
         Relationships: []
       }
+      line_leaders: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          line: string | null
+          name: string
+          shift: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          line?: string | null
+          name: string
+          shift: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          line?: string | null
+          name?: string
+          shift?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       line_problem_descriptions: {
         Row: {
           created_at: string

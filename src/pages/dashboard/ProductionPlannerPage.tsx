@@ -15,16 +15,50 @@ import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Ch
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { parseIntouchWorkToList, findSectionForLine } from "@/lib/intouchWorkToList";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import {
-  useLines, useLeaders, useSkuProducts, useSessionsRange, useSession, useSessionItems,
+  useLines, useSkuProducts, useSessionsRange, useSession, useSessionItems,
   useUpsertSession, useSaveItems, useToggleSessionLock,
 } from "@/hooks/useProductionPlanner";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO, addDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 
 type Row = { sku_id: string; sku_name: string; target_qty: number; actual_qty: number };
+
+function useLineLeaders(shift: string) {
+  return useQuery({
+    queryKey: ["line_leaders", shift],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("line_leaders")
+        .select("id, name, shift")
+        .eq("active", true)
+        .in("shift", [shift, "BOTH"])
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string; shift: string }[];
+    },
+  });
+}
+
+function useAddLineLeader() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { name: string; shift: string }) => {
+      const { data, error } = await supabase
+        .from("line_leaders")
+        .insert({ name: input.name.trim(), shift: input.shift })
+        .select("id, name, shift")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["line_leaders"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
 
 function SkuCombobox({
   value, onPick, skus, disabled,
@@ -80,7 +114,9 @@ export default function ProductionPlannerPage() {
   const [historyLine, setHistoryLine] = useState<string>("__all__");
 
   const { data: lines = [] } = useLines();
-  const { data: leaders = [] } = useLeaders();
+  const { data: leaders = [] } = useLineLeaders(shift);
+  const addLeader = useAddLineLeader();
+  const [newLeader, setNewLeader] = useState("");
   const { data: skus = [] } = useSkuProducts();
 
   const fromDate = format(subDays(new Date(), 30), "yyyy-MM-dd");
@@ -321,19 +357,30 @@ export default function ProductionPlannerPage() {
                 </Popover>
               </div>
               <div>
-                <Label>Line Leader</Label>
-                {leaders.length > 0 ? (
-                  <Select value={leaderId} onValueChange={setLeaderId} disabled={locked}>
-                    <SelectTrigger><SelectValue placeholder="Pick leader" /></SelectTrigger>
+                <Label>Line Leader ({shift})</Label>
+                <div className="flex gap-2">
+                  <Select value={leaderId} onValueChange={(v) => { setLeaderId(v); const l = leaders.find((x) => x.id === v); setLeaderName(l?.name ?? ""); }} disabled={locked}>
+                    <SelectTrigger><SelectValue placeholder={leaders.length ? "Pick leader" : "No leaders yet"} /></SelectTrigger>
                     <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
                   </Select>
-                ) : (
-                  <Input
-                    value={leaderName}
-                    onChange={(e) => setLeaderName(e.target.value)}
-                    placeholder="Type leader name"
-                    disabled={locked}
-                  />
+                </div>
+                {isManager && (
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      value={newLeader}
+                      onChange={(e) => setNewLeader(e.target.value)}
+                      placeholder={`New ${shift} leader name`}
+                      disabled={locked}
+                    />
+                    <Button
+                      type="button" size="sm" variant="outline" disabled={locked || !newLeader.trim()}
+                      onClick={async () => {
+                        const created = await addLeader.mutateAsync({ name: newLeader, shift });
+                        setNewLeader(""); setLeaderId(created.id); setLeaderName(created.name);
+                        toast.success("Leader added");
+                      }}
+                    >Add</Button>
+                  </div>
                 )}
               </div>
             </div>
