@@ -204,19 +204,14 @@ export default function IntouchSettingsPage() {
       const details: any[] = [];
       let matched = 0, saved = 0, skipped = 0;
 
-      const applyUpdate = async (row: typeof dbList[number], name: string, guid: string) => {
+      // Collect planned updates and flush as a single batched upsert.
+      const pending = new Map<string, { row: typeof dbList[number]; name: string; guid: string }>();
+      const queue = (row: typeof dbList[number], name: string, guid: string) => {
         if ((row.code || "").trim().toLowerCase() === guid.toLowerCase()) {
           details.push({ intouch: name, matched: row.name, guid, status: "already" });
           return;
         }
-        const { error: updErr } = await (supabase as any)
-          .from("machines").update({ code: guid }).eq("id", row.id);
-        if (updErr) {
-          details.push({ intouch: name, matched: row.name, guid, status: "error", reason: updErr.message });
-        } else {
-          saved++;
-          details.push({ intouch: name, matched: row.name, guid, status: "saved" });
-        }
+        pending.set(row.id, { row, name, guid });
       };
 
       for (const m of machines) {
@@ -235,14 +230,13 @@ export default function IntouchSettingsPage() {
           const targets = dbList.filter((r) => alias.dbPatterns.some((p) => p.test(r.name || "")));
           if (targets.length > 0) {
             matched++;
-            for (const row of targets) await applyUpdate(row, name, guid);
+            for (const row of targets) queue(row, name, guid);
           } else {
             skipped++;
             details.push({ intouch: name, guid, status: "skipped", reason: "alias matched but no DB machine found" });
           }
           continue;
         }
-
 
         // 2) Fallback to fuzzy similarity (lowered threshold)
         let best: { row: typeof dbList[number]; score: number } | null = null;
@@ -256,7 +250,27 @@ export default function IntouchSettingsPage() {
           continue;
         }
         matched++;
-        await applyUpdate(best.row, name, guid);
+        queue(best.row, name, guid);
+      }
+
+      if (pending.size > 0) {
+        const payload = Array.from(pending.values()).map(({ row, guid }) => ({
+          id: row.id,
+          name: row.name,
+          code: guid,
+        }));
+        const { error: upErr } = await (supabase as any)
+          .from("machines").upsert(payload, { onConflict: "id" });
+        if (upErr) {
+          for (const { row, name, guid } of pending.values()) {
+            details.push({ intouch: name, matched: row.name, guid, status: "error", reason: upErr.message });
+          }
+        } else {
+          for (const { row, name, guid } of pending.values()) {
+            saved++;
+            details.push({ intouch: name, matched: row.name, guid, status: "saved" });
+          }
+        }
       }
 
       setAutoMapResult({ matched, saved, skipped, total: machines.length, details });

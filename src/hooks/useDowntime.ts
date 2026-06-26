@@ -21,20 +21,24 @@ export function useDowntime() {
   return useQuery({
     queryKey: ["downtime"],
     queryFn: async () => {
+      // Cap history at last 90 days — table grows indefinitely otherwise.
+      const since = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
       const [
         { data: manualData, error: manualError },
         { data: eventData, error: eventError },
         { data: woData, error: woError },
       ] = await Promise.all([
-        supabase.from("downtime" as any).select("*").order("started_at", { ascending: false }),
+        supabase.from("downtime" as any).select("*").gte("started_at", since).order("started_at", { ascending: false }),
         (supabase as any)
           .from("downtime_events")
           .select("*, work_order:work_orders(wo_number, machine, line_at_time, line:lines!work_orders_line_id_fkey(name))")
+          .gte("stopped_at", since)
           .order("stopped_at", { ascending: false }),
         (supabase as any)
           .from("work_orders")
           .select("id, machine, line_at_time, line_stopped_at, line_stopped_by, line_resumed_at, line_resumed_by, created_at, description, line:lines!work_orders_line_id_fkey(name)")
           .not("line_stopped_at", "is", null)
+          .gte("line_stopped_at", since)
           .order("line_stopped_at", { ascending: false }),
       ]);
       if (manualError) throw manualError;

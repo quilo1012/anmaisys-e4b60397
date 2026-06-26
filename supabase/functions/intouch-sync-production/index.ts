@@ -35,13 +35,27 @@ async function it(path: string, init?: RequestInit) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
-// London BST shift windows: DAY 06:00→18:00, NIGHT 18:00→06:00(+1) local.
-// Server time is UTC; convert with the offset for the supplied date.
-// Simple approach: build local string and let JS parse with explicit +01:00
-// (BST). This matches the cron schedules already in use for closing shifts.
+// London shift windows: DAY 06:00→18:00, NIGHT 18:00→06:00(+1) Europe/London.
+// Dynamically compute the UTC offset (BST/GMT) for the supplied date so the
+// window stays correct across DST transitions.
+function londonOffsetMs(instant: Date): number {
+  const dtf = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const p = Object.fromEntries(
+    dtf.formatToParts(instant).filter((x) => x.type !== "literal").map((x) => [x.type, x.value]),
+  ) as Record<string, string>;
+  const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+  return asUtc - instant.getTime();
+}
 function shiftWindow(date: string, shift: "DAY" | "NIGHT") {
-  const startLocal = shift === "DAY" ? `${date}T06:00:00+01:00` : `${date}T18:00:00+01:00`;
-  const start = new Date(startLocal);
+  const hour = shift === "DAY" ? 6 : 18;
+  const naiveUtc = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00Z`);
+  const offset = londonOffsetMs(naiveUtc);
+  const start = new Date(naiveUtc.getTime() - offset);
   const end = new Date(start.getTime() + 12 * 3600 * 1000);
   return { start, end };
 }
