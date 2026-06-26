@@ -242,9 +242,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <SidebarProvider defaultOpen={defaultSidebarOpen}>
+      <SidebarProvider defaultOpen={defaultSidebarOpen} style={{ "--sidebar-width": "13rem", "--sidebar-width-icon": "3rem" } as React.CSSProperties}>
         <div className="flex h-screen w-full overflow-hidden">
-          <Sidebar collapsible="offcanvas" className="border-r border-sidebar-border print:hidden">
+          <Sidebar collapsible="icon" className="border-r border-sidebar-border print:hidden">
+
             <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-1">
               <img
                 src={appliedLogo}
