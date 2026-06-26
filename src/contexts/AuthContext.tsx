@@ -12,10 +12,12 @@ interface AuthContextType {
   role: AppRole | null;
   profile: Omit<Database["public"]["Tables"]["profiles"]["Row"], "labor_rate"> | null;
   loading: boolean;
+  authError: string | null;
   /** True while a background silent re-login is being attempted (shared tablet
    *  refresh-token revocation recovery). ProtectedRoute uses this to avoid
    *  bouncing the user to /login during the recovery window. */
   silentReLoginInFlight: boolean;
+  retryAuth: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -25,7 +27,9 @@ const AuthContext = createContext<AuthContextType>({
   role: null,
   profile: null,
   loading: true,
+  authError: null,
   silentReLoginInFlight: false,
+  retryAuth: async () => {},
   signOut: async () => {},
 });
 
@@ -38,14 +42,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Omit<Database["public"]["Tables"]["profiles"]["Row"], "labor_rate"> | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [roleLoading, setRoleLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [silentReLoginInFlight, setSilentReLoginInFlight] = useState(false);
   const currentUserIdRef = useRef<string | null>(null);
+  const roleRef = useRef<AppRole | null>(null);
 
   const explicitSignOutRef = useRef(false);
   const reLoginInFlightRef = useRef(false);
 
   const TABLET_CRED_KEY = "an_tablet_cred";
   const DEACTIVATED_UNTIL_KEY = "an_account_deactivated_until";
+
+  useEffect(() => {
+    roleRef.current = role;
+  }, [role]);
 
   /** Race a promise against a hard timeout so a stalled silent re-login can
    *  never keep the boot spinner up indefinitely. */
@@ -133,15 +143,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = async (userId: string) => {
     setRoleLoading(true);
+    setAuthError(null);
     try {
-      const [profileRes, roleRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, name, email, shift, active, ui_preferences, last_seen_at, created_at, updated_at")
-          .eq("id", userId)
-          .single(),
-        supabase.rpc("get_user_role", { _user_id: userId }),
-      ]);
+      const result = await withTimeout(
+        Promise.all([
+          supabase
+            .from("profiles")
+            .select("id, name, email, shift, active, ui_preferences, last_seen_at, created_at, updated_at")
+            .eq("id", userId)
+            .single(),
+          supabase.rpc("get_user_role", { _user_id: userId }),
+        ]),
+        12_000,
+        null,
+      );
+
+      if (!result) {
+        throw new Error("The backend is taking too long to load your access permissions.");
+      }
+
+      const [profileRes, roleRes] = result;
+      if (profileRes.error) throw profileRes.error;
+      if (roleRes.error) throw roleRes.error;
+
       if (profileRes.data) {
         // If account is deactivated, immediately sign out and bail
         if (profileRes.data.active === false) {
@@ -150,9 +174,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setProfile(profileRes.data);
       }
-      if (roleRes.data) setRole(roleRes.data);
-    } catch {
+      if (roleRes.data) {
+        setRole(roleRes.data);
+        setAuthError(null);
+      } else {
+        throw new Error("No access role is assigned to this account.");
+      }
+    } catch (error) {
       // keep existing role/profile on error
+      if (!roleRef.current) {
+        const message = error instanceof Error ? error.message : "Unable to load your access permissions.";
+        setAuthError(message);
+      }
     } finally {
       setRoleLoading(false);
     }
@@ -167,11 +200,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setRole(null);
       setProfile(null);
+      setAuthError(null);
     };
 
     const syncSessionUser = (newSession: Session) => {
       setSession(newSession);
       setUser(newSession.user);
+      setAuthError(null);
       const isNewUser = currentUserIdRef.current !== newSession.user.id;
       if (isNewUser) {
         currentUserIdRef.current = newSession.user.id;
@@ -181,13 +216,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initializeAuth = async () => {
       // Try to get the current session first
-      let { data: { session: currentSession } } = await supabase.auth.getSession();
+      let currentSession: Session | null = null;
+      try {
+        const sessionResult = await withTimeout(supabase.auth.getSession(), 10_000, null);
+        currentSession = sessionResult?.data?.session ?? null;
+      } catch {
+        currentSession = null;
+      }
 
       // If no session but tokens may exist (failed refresh), attempt explicit refresh
       // This handles transient refresh-token failures across tabs/devices without logging out
       if (!currentSession) {
         try {
-          const { data: refreshed } = await supabase.auth.refreshSession();
+          const refreshedResult = await withTimeout(supabase.auth.refreshSession(), 10_000, null);
+          const refreshed = refreshedResult?.data;
           if (refreshed?.session) currentSession = refreshed.session;
         } catch {
           // Refresh failed (no token at all) — user is genuinely logged out
@@ -343,13 +385,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setRole(null);
     setProfile(null);
+    setAuthError(null);
+  };
+
+  const retryAuth = async () => {
+    setAuthError(null);
+    const activeUserId = currentUserIdRef.current || user?.id;
+    if (activeUserId) {
+      await fetchUserData(activeUserId);
+      return;
+    }
+
+    try {
+      const sessionResult = await withTimeout(supabase.auth.getSession(), 10_000, null);
+      const currentSession = sessionResult?.data?.session;
+      if (currentSession?.user) {
+        setSession(currentSession);
+        setUser(currentSession.user);
+        currentUserIdRef.current = currentSession.user.id;
+        await fetchUserData(currentSession.user.id);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to reconnect to the backend.";
+      setAuthError(message);
+    }
   };
 
   // Loading is only true on initial boot, never during token refreshes
   const loading = !isReady || (!!session && !role && roleLoading);
 
   return (
-    <AuthContext.Provider value={{ session, user, role, profile, loading, silentReLoginInFlight, signOut }}>
+    <AuthContext.Provider value={{ session, user, role, profile, loading, authError, silentReLoginInFlight, retryAuth, signOut }}>
       {children}
     </AuthContext.Provider>
   );
