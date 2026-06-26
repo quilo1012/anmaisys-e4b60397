@@ -20,6 +20,8 @@ export default function IntouchSettingsPage() {
   const [testResult, setTestResult] = useState<null | { ok: boolean; msg: string }>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<null | { ok: boolean; msg: string }>(null);
+  const [probing, setProbing] = useState(false);
+  const [probeResult, setProbeResult] = useState<any>(null);
 
   const [syncDisabled, setSyncDisabled] = useState<boolean>(false);
   const [togglingFlag, setTogglingFlag] = useState(false);
@@ -98,6 +100,22 @@ export default function IntouchSettingsPage() {
       setTestResult({ ok: true, msg: `OK · ${JSON.stringify(data ?? {}).slice(0, 120)}` });
     }
   };
+
+  const probeToken = async () => {
+    setProbing(true);
+    setProbeResult(null);
+    const { data, error } = await invokeFunction<any>("intouch-token-check", {});
+    setProbing(false);
+    if (error) {
+      setProbeResult({ error: error.message || "Probe failed" });
+      toast.error("Probe failed");
+    } else {
+      setProbeResult(data);
+      toast.success("Probe complete");
+    }
+  };
+
+
 
 
   return (
@@ -217,6 +235,43 @@ export default function IntouchSettingsPage() {
                   <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 )}
                 <span className="break-all">{syncResult.msg}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" /> Token mode check
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Probes the iTouching API with the configured token and shows the raw response so you can tell if it is a test/sandbox or production key.
+            </p>
+            <Button onClick={probeToken} disabled={probing} variant="outline">
+              {probing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plug className="h-4 w-4 mr-2" />}
+              Check token mode
+            </Button>
+            {probeResult && (
+              <div className="space-y-2">
+                {probeResult.detection && (
+                  <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+                    <div><strong>Detected mode:</strong> {probeResult.detection.mode}</div>
+                    {probeResult.detection.hits?.length > 0 && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Keywords found: {probeResult.detection.hits.join(", ")}
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground mt-1">
+                      URL: <code>{probeResult.intouch_url}</code> · Token: <code>{probeResult.token}</code>
+                    </div>
+                  </div>
+                )}
+                <pre className="text-xs bg-muted/40 border border-border rounded-md p-3 overflow-auto max-h-96">
+{JSON.stringify(probeResult, null, 2)}
+                </pre>
               </div>
             )}
           </CardContent>
