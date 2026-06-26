@@ -175,6 +175,9 @@ export default function RAGWeeklyPage() {
           .select("line, machine, reason, started_at, ended_at")
           .gte("started_at", padStartIso).lte("started_at", padEndIso),
       ]);
+      if (woRes.error) throw woRes.error;
+      if ((manRes as any).error) throw (manRes as any).error;
+
       const wo = ((woRes.data ?? []) as any[]).map((r) => {
         const mapped = mapWoToStop(r);
         return {
