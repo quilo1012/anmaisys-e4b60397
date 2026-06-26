@@ -1485,10 +1485,12 @@ function SummaryInlineInput({
   onOpen?: () => void;
 }) {
   const [v, setV] = useState<string>(value ? String(value) : "");
+  const focusedRef = useRef(false);
   useEffect(() => {
-    setV(value ? String(value) : "");
+    if (!focusedRef.current) setV(value ? String(value) : "");
   }, [value]);
   const commit = () => {
+    focusedRef.current = false;
     const n = Number(v.replace(/[, ]/g, ""));
     const next = isNaN(n) ? 0 : n;
     if (next !== value) onCommit(next);
@@ -1499,11 +1501,12 @@ function SummaryInlineInput({
       inputMode="numeric"
       value={v}
       placeholder="—"
+      onFocus={() => { focusedRef.current = true; }}
       onChange={(e) => setV(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-        if (e.key === "Escape") setV(value ? String(value) : "");
+        if (e.key === "Escape") { focusedRef.current = false; setV(value ? String(value) : ""); }
       }}
       onDoubleClick={() => onOpen?.()}
       className="w-full bg-transparent text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-primary/50 rounded px-1"
