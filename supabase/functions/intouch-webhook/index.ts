@@ -229,7 +229,29 @@ Deno.serve(async (req) => {
           stopped_reason: String(label),
           stopped_by_name: requesterName,
         });
+
+        // Notify all engineers (in-app bell + push handled by their subscriptions)
+        try {
+          const { data: engRoles } = await admin
+            .from("user_roles").select("user_id").eq("role", "engineer");
+          const userIds = (engRoles ?? []).map((r: any) => r.user_id);
+          if (userIds.length) {
+            const title = `🚨 New WO — ${machineName ?? resolvedLineName ?? "Line"}`;
+            const body = `${label}${resolvedLineName ? `\nLine: ${resolvedLineName}` : ""}\nAuto-created from iTouching`;
+            await admin.from("notifications").insert(
+              userIds.map((uid: string) => ({
+                user_id: uid,
+                wo_id: wo.id,
+                title,
+                body,
+                priority: priority === "critical" ? "high" : priority,
+                action_url: `/dashboard/work-orders/${wo.id}`,
+              })),
+            );
+          }
+        } catch (_) { /* best-effort */ }
       }
+
 
 
       parsedOk = true;
