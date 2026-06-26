@@ -1309,7 +1309,7 @@ function DayNightTotalSummary({
                   const ds = format(d, "yyyy-MM-dd");
                   const excluded = isDateExcluded(label, ds);
                   return (
-                    <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap bg-background ${excluded ? "opacity-40" : ""}`}>
+                    <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap ${excluded ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-background"}`}>
                       <div className="flex items-center justify-center gap-1">
                         <span>{DAY_LABELS[i]}</span>
                         <button
@@ -1349,10 +1349,10 @@ function DayNightTotalSummary({
                   );
                   return (
                     <Fragment key={i}>
-                      <th className={`text-right p-1 border-l text-amber-600 dark:text-amber-400 font-medium bg-muted/40 min-w-[60px] ${dayOff ? "opacity-50" : ""}`}>
+                      <th className={`text-right p-1 border-l font-medium min-w-[60px] ${dayOff ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40 text-amber-600 dark:text-amber-400"}`}>
                         Day<Btn off={dayOff} onClick={() => toggleShift(label, ds, "DAY")} />
                       </th>
-                      <th className={`text-right p-1 text-blue-600 dark:text-blue-400 font-medium bg-muted/40 min-w-[60px] ${nightOff ? "opacity-50" : ""}`}>
+                      <th className={`text-right p-1 font-medium min-w-[60px] ${nightOff ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40 text-blue-600 dark:text-blue-400"}`}>
                         Night<Btn off={nightOff} onClick={() => toggleShift(label, ds, "NIGHT")} />
                       </th>
                       <th className="text-right p-1 font-semibold bg-muted/60 min-w-[60px]">Total</th>
@@ -1424,14 +1424,14 @@ function DayNightTotalSummary({
                     <td className="p-1.5 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-[11px] tracking-wide text-muted-foreground">{row.label}</td>
                     {weekDates.map((d, i) => {
                       const ds = format(d, "yyyy-MM-dd");
-                      const dayDim = isShiftExcluded(label, ds, "DAY") ? "opacity-40" : "";
-                      const nightDim = isShiftExcluded(label, ds, "NIGHT") ? "opacity-40" : "";
-                      const totalDim = isDateExcluded(label, ds) ? "opacity-40" : "";
+                      const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-slate-900 text-slate-500 dark:bg-black" : "";
+                      const nightDim = isShiftExcluded(label, ds, "NIGHT") ? "bg-slate-900 text-slate-500 dark:bg-black" : "";
+                      const totalDim = isDateExcluded(label, ds) ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40";
                       return (
                         <Fragment key={i}>
                           <td className={`${cls} border-l ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapDt(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
                           <td className={`${cls} ${nightDim}`}>{editable ? renderEdit(ds, "NIGHT") : wrapDt(ds, "NIGHT", row.render(buildCol(ds, "NIGHT")))}</td>
-                          <td className={`${cls} bg-muted/40 ${totalDim}`}>{row.render(buildCol(ds, "TOTAL"))}</td>
+                          <td className={`${cls} ${totalDim}`}>{row.render(buildCol(ds, "TOTAL"))}</td>
                         </Fragment>
                       );
                     })}
