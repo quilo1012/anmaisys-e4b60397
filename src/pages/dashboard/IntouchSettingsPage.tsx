@@ -403,6 +403,12 @@ export default function IntouchSettingsPage() {
                 Load machines
               </Button>
               {machines && machines.length > 0 && (
+                <Button onClick={autoMapMachines} disabled={autoMapping} variant="secondary">
+                  {autoMapping ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plug className="h-4 w-4 mr-2" />}
+                  Auto-map all machines
+                </Button>
+              )}
+              {machines && machines.length > 0 && (
                 <div className="relative flex-1">
                   <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -414,6 +420,26 @@ export default function IntouchSettingsPage() {
                 </div>
               )}
             </div>
+            {autoMapResult && (
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-2">
+                <div className="font-medium">
+                  Auto-map summary: {autoMapResult.saved} saved · {autoMapResult.matched - autoMapResult.saved} already mapped · {autoMapResult.skipped} skipped · {autoMapResult.total} total
+                </div>
+                <div className="max-h-48 overflow-auto text-xs font-mono space-y-1">
+                  {autoMapResult.details.map((d, i) => (
+                    <div key={i} className={
+                      d.status === "saved" ? "text-green-600 dark:text-green-400" :
+                      d.status === "already" ? "text-muted-foreground" :
+                      d.status === "error" ? "text-red-600 dark:text-red-400" :
+                      "text-amber-600 dark:text-amber-400"
+                    }>
+                      [{d.status}] {d.intouch}{d.matched ? ` → ${d.matched}` : ""}{d.reason ? ` (${d.reason})` : ""}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {machineErr && (
               <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
