@@ -46,6 +46,7 @@ const LeaderQualityBoardPage = lazy(() => import("./pages/dashboard/LeaderQualit
 const RAGWeeklyPage = lazy(() => import("./pages/dashboard/RAGWeeklyPage"));
 const IntouchSettingsPage = lazy(() => import("./pages/dashboard/IntouchSettingsPage"));
 const LineProductionScreen = lazy(() => import("./pages/dashboard/LineProductionScreen"));
+const LineDisplayScreen = lazy(() => import("./pages/dashboard/LineDisplayScreen"));
 const IntouchMachineMapPage = lazy(() => import("./pages/dashboard/IntouchMachineMapPage"));
 const IntouchStopCodesPage = lazy(() => import("./pages/dashboard/IntouchStopCodesPage"));
 
@@ -388,6 +389,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]}>
                       <LineProductionScreen />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/line-display"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]}>
+                      <LineDisplayScreen />
                     </ProtectedRoute>
                   }
                 />

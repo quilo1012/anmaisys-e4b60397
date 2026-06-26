@@ -1425,6 +1425,7 @@ export type Database = {
           labor_rate: number
           last_seen_at: string | null
           name: string
+          production_line: string | null
           shift: string | null
           ui_preferences: Json
           updated_at: string
@@ -1437,6 +1438,7 @@ export type Database = {
           labor_rate?: number
           last_seen_at?: string | null
           name: string
+          production_line?: string | null
           shift?: string | null
           ui_preferences?: Json
           updated_at?: string
@@ -1449,6 +1451,7 @@ export type Database = {
           labor_rate?: number
           last_seen_at?: string | null
           name?: string
+          production_line?: string | null
           shift?: string | null
           ui_preferences?: Json
           updated_at?: string
