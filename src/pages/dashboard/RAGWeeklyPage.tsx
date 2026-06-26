@@ -248,6 +248,25 @@ export default function RAGWeeklyPage() {
     return { autoDtMap: out, autoDtBreakdown: breakdown };
   }, [lineStops, lines, weekDates]);
 
+  // Inconsistency detector: a single WO contributing minutes to multiple (date|line|shift) cells
+  // is legitimate when a stop overlaps the 06:00/18:00 boundary, but is flagged so reviewers
+  // can confirm there's no double-allocation bug.
+  const inconsistencies = useMemo(() => {
+    const byRef = new Map<string, { ref: string; line: string; cells: { key: string; minutes: number }[]; total: number }>();
+    for (const [key, items] of autoDtBreakdown.entries()) {
+      for (const it of items) {
+        if (!it.ref || it.source !== "WO") continue;
+        const id = `${it.ref}`;
+        const cur = byRef.get(id) ?? { ref: id, line: it.line ?? "", cells: [], total: 0 };
+        cur.cells.push({ key, minutes: it.minutes });
+        cur.total += it.minutes;
+        byRef.set(id, cur);
+      }
+    }
+    return Array.from(byRef.values()).filter((r) => r.cells.length > 1);
+  }, [autoDtBreakdown]);
+
+
   const upsertMutation = useMutation({
     mutationFn: async (payload: Omit<Entry, "id">) => {
       const { error } = await supabase
@@ -839,6 +858,37 @@ export default function RAGWeeklyPage() {
             </div>
           </CardHeader>
         </Card>
+        {inconsistencies.length > 0 && (
+          <Card className="border-amber-500/50 bg-amber-500/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-base">
+                <AlertOctagon className="h-4 w-4" />
+                Downtime consistency check — {inconsistencies.length} WO(s) span multiple shifts
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs space-y-1">
+              <p className="text-muted-foreground">
+                The following Work Orders contribute minutes to more than one (date · line · shift) cell.
+                Splitting across the 06:00/18:00 boundary is expected; review to confirm no double-counting.
+              </p>
+              <div className="max-h-40 overflow-auto mt-2 space-y-1">
+                {inconsistencies.slice(0, 25).map((r) => (
+                  <div key={r.ref} className="flex flex-wrap gap-2 items-center border-l-2 border-amber-500/60 pl-2 py-0.5">
+                    <span className="font-mono font-semibold">WO #{r.ref}</span>
+                    <span className="text-muted-foreground">{r.line}</span>
+                    <span className="text-muted-foreground">· total {r.total} min across {r.cells.length} shifts:</span>
+                    {r.cells.map((c) => (
+                      <span key={c.key} className="px-1.5 py-0.5 rounded bg-amber-500/15">
+                        {c.key.split("|")[0]} {c.key.split("|")[2]} ({c.minutes}m)
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
 
         <DayNightTotalSummary
           lines={lines}
