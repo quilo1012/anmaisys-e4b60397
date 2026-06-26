@@ -56,8 +56,13 @@ export default function IntouchSettingsPage() {
 
   const toggleSync = async (disabled: boolean) => {
     setTogglingFlag(true);
-    const { data: row } = await (supabase as any)
+    const { data: row, error: rowErr } = await (supabase as any)
       .from("system_settings").select("id").limit(1).maybeSingle();
+    if (rowErr) {
+      toast.error(`Failed to read settings: ${rowErr.message}`);
+      setTogglingFlag(false);
+      return;
+    }
     if (!row?.id) {
       toast.error("system_settings row missing");
       setTogglingFlag(false);
