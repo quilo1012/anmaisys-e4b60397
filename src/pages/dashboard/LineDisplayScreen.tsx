@@ -105,7 +105,7 @@ export default function LineDisplayScreen() {
         .select("*")
         .eq("entry_date", date)
         .eq("line", line!)
-        .eq("shift", shift)
+        .eq("shift", shiftDb)
         .maybeSingle();
       if (error) throw error;
       return data as RagEntry | null;
