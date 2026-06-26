@@ -425,6 +425,16 @@ Deno.serve(async (req) => {
         continue;
       }
       results.opened_wos.push({ machine: m.machine_name ?? m.intouch_machine_name ?? "?", wo: String(wo.wo_number) });
+      const { data: ln } = await admin.from("lines").select("name").eq("id", m.line_id).maybeSingle();
+      await notifyEngineersNewWO({
+        woId: wo.id,
+        woNumber: wo.wo_number,
+        machine: m.machine_name ?? m.intouch_machine_name ?? null,
+        line: ln?.name ?? null,
+        description: label,
+        priority,
+      });
+
     }
 
     // 3. Sync current running SKU per line into the Production Planner.
