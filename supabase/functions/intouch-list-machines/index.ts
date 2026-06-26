@@ -33,12 +33,43 @@ Deno.serve(async (req) => {
       });
     }
 
-    const res = await fetch(`${INTOUCH_URL}/api/Machine`, {
-      headers: { Authorization: `Bearer ${INTOUCH_TOKEN}` },
-    });
-    const body = await res.text();
-    if (!res.ok) throw new Error(`iTouching ${res.status}: ${body.slice(0, 200)}`);
-    return new Response(body, {
+    // Try a few endpoints — iTouching deployments differ.
+    const candidates = ["/api/Machine", "/api/GetMachineList", "/api/Machines"];
+    let raw: any = null;
+    let usedPath = "";
+    let lastErr = "";
+    for (const path of candidates) {
+      const res = await fetch(`${INTOUCH_URL}${path}`, {
+        headers: { Authorization: `Bearer ${INTOUCH_TOKEN}`, Accept: "application/json" },
+      });
+      const txt = await res.text();
+      if (!res.ok) { lastErr = `${path} → ${res.status}: ${txt.slice(0, 200)}`; continue; }
+      try { raw = JSON.parse(txt); usedPath = path; break; }
+      catch { lastErr = `${path}: invalid JSON`; }
+    }
+    if (raw == null) throw new Error(`iTouching: no endpoint returned JSON. ${lastErr}`);
+
+    // The payload may be an array, or wrapped (e.g. { Machines: [...] } / { data: [...] }).
+    const list: any[] = Array.isArray(raw)
+      ? raw
+      : (raw.Machines ?? raw.machines ?? raw.data ?? raw.Items ?? raw.items ?? raw.Result ?? raw.result ?? []);
+
+    const pick = (o: any, keys: string[]) => {
+      for (const k of keys) {
+        const v = o?.[k];
+        if (v !== undefined && v !== null && String(v).trim() !== "") return String(v);
+      }
+      return "";
+    };
+
+    const machines = list.map((m) => ({
+      guid: pick(m, ["MachineID", "MachineId", "MachineGuid", "MachineGUID", "Guid", "GUID", "Id", "ID", "id"]),
+      name: pick(m, ["MachineName", "Name", "name", "Description", "description"]),
+      line: pick(m, ["LineName", "Line", "line", "GroupName", "Group", "Area"]),
+      raw: m,
+    })).filter((m) => m.guid || m.name);
+
+    return new Response(JSON.stringify({ machines, source: usedPath, count: machines.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
