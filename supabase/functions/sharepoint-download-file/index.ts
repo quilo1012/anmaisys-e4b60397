@@ -189,7 +189,10 @@ Deno.serve(async (req) => {
     try {
       const parsedUrl = new URL(normalizedUrl);
       if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('invalid protocol');
-    } catch (_) {
+    } catch (err) {
+      console.error("[sharepoint-download-file] invalid shareUrl rejected", {
+        error: (err as Error)?.message ?? String(err),
+      });
       return json({ error: 'Invalid SharePoint URL. Paste the full file link copied from SharePoint/Excel.' }, 400);
     }
 
