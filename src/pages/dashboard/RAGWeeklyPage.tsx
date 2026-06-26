@@ -166,7 +166,9 @@ export default function RAGWeeklyPage() {
       const [woRes, manRes] = await Promise.all([
         supabase.from("work_orders")
           .select("wo_number, status, machine, description, line_at_time, line_stopped_at, line_resumed_at, created_at, finished_at, closed_at")
-          .or(`and(line_stopped_at.gte.${padStartIso},line_stopped_at.lte.${padEndIso}),and(line_stopped_at.is.null,created_at.gte.${padStartIso},created_at.lte.${padEndIso})`),
+          .not("line_stopped_at", "is", null)
+          .gte("line_stopped_at", padStartIso)
+          .lte("line_stopped_at", padEndIso),
         (supabase as any).from("downtime")
           .select("line, machine, reason, started_at, ended_at")
           .gte("started_at", padStartIso).lte("started_at", padEndIso),
@@ -174,13 +176,13 @@ export default function RAGWeeklyPage() {
       const TERMINAL = new Set(["finished", "cancelled", "canceled", "force_closed", "closed"]);
       const wo = ((woRes.data ?? []) as any[]).map((r) => {
         const isTerminal = TERMINAL.has(String(r.status ?? "").toLowerCase());
-        // For terminal WOs missing an explicit resume/finish timestamp, fall back to
-        // closed_at / finished_at so they don't get treated as "ongoing" (which would
-        // inflate the downtime to cover every shift up to now).
-        const end = r.line_resumed_at ?? r.finished_at ?? r.closed_at ?? (isTerminal ? r.created_at : null);
+        // For terminal WOs missing an explicit resume timestamp, fall back to
+        // finished_at / closed_at so they don't get treated as "ongoing"
+        // (which would inflate downtime to cover every shift up to now).
+        const end = r.line_resumed_at ?? r.finished_at ?? r.closed_at ?? (isTerminal ? r.line_stopped_at : null);
         return {
           line: r.line_at_time as string | null,
-          start: (r.line_stopped_at ?? r.created_at) as string,
+          start: r.line_stopped_at as string,
           end: end as string | null,
           source: "WO" as const,
           ref: r.wo_number as string | null,
@@ -188,6 +190,7 @@ export default function RAGWeeklyPage() {
           reason: r.description as string | null,
         };
       });
+
 
 
       const man = ((manRes.data ?? []) as any[]).map((r) => ({
