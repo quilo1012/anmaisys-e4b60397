@@ -209,6 +209,38 @@ Deno.serve(async (req) => {
     }
     results.polled = mapped.length;
 
+    // ── Auto-reset stuck baselines ──
+    // If a machine has a saved last_downtime_code but no longer has any open WO,
+    // the previous stop has been resolved. Clear the baseline so the next time
+    // the operator selects the same stop code it is treated as a NEW transition
+    // (otherwise the poll skips it as "baseline/no new stop").
+    {
+      const candidates = mapped.filter((m) => m.last_downtime_code);
+      if (candidates.length) {
+        const candIds = candidates.map((m) => m.intouch_machine_id);
+        const { data: openWos } = await admin
+          .from("work_orders")
+          .select("intouch_machine_id")
+          .in("intouch_machine_id", candIds)
+          .in("status", ["open", "received", "arrived", "in_progress"]);
+        const stillOpen = new Set((openWos ?? []).map((w) => w.intouch_machine_id));
+        const toReset = candidates.filter((m) => !stillOpen.has(m.intouch_machine_id));
+        if (toReset.length) {
+          await admin
+            .from("intouch_machine_map")
+            .update({ last_downtime_code: null, last_status: 1, updated_at: new Date().toISOString() })
+            .in("intouch_machine_id", toReset.map((m) => m.intouch_machine_id));
+          // Reflect locally so the per-machine loop below sees the fresh baseline.
+          for (const m of toReset) {
+            m.last_downtime_code = null;
+            m.last_status = 1;
+          }
+        }
+      }
+    }
+
+
+
     // 2. Batch status call
     const ids = mapped.map((m) => m.intouch_machine_id);
     const statuses: Array<{ MachineID: string; Status: number; DowntimeCode?: string | null }> =
