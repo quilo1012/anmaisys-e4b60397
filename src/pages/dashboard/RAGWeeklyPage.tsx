@@ -1009,8 +1009,9 @@ function InlineCell({
         type="number"
         value={actual}
         placeholder="Act"
+        onFocus={() => { focusedRef.current = "actual"; }}
         onChange={(e) => setActual(e.target.value)}
-        onBlur={() => commit({ actual })}
+        onBlur={() => { focusedRef.current = null; commit({ actual }); }}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
       />
       <input
@@ -1018,8 +1019,9 @@ function InlineCell({
         type="number"
         value={plan}
         placeholder="Plan"
+        onFocus={() => { focusedRef.current = "plan"; }}
         onChange={(e) => setPlan(e.target.value)}
-        onBlur={() => commit({ plan })}
+        onBlur={() => { focusedRef.current = null; commit({ plan }); }}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
       />
       <input
@@ -1027,10 +1029,12 @@ function InlineCell({
         type="number"
         value={dt}
         placeholder="DT"
+        onFocus={() => { focusedRef.current = "dt"; }}
         onChange={(e) => setDt(e.target.value)}
-        onBlur={() => commit({ dt })}
+        onBlur={() => { focusedRef.current = null; commit({ dt }); }}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
       />
+
       <button
         type="button"
         onClick={onOpenFull}
