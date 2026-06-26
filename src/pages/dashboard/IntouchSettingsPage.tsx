@@ -193,11 +193,10 @@ export default function IntouchSettingsPage() {
               <Switch
                 id="sync-disabled"
                 checked={syncDisabled}
-                onCheckedChange={(v) => {
-                  setSyncDisabled(v);
-                  toast.success(v ? "Sync disabled" : "Sync enabled");
-                }}
+                disabled={togglingFlag}
+                onCheckedChange={toggleSync}
               />
+
             </div>
             <Button onClick={syncNow} disabled={syncing || syncDisabled}>
               {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
