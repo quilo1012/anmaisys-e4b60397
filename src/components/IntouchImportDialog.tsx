@@ -162,6 +162,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       setParsePreview(previewRows);
       console.log("[iTouching] first rows", previewRows);
       const parsed = parseIntouchWorkToList(text);
+      console.log("[iTouching] sections detected:", parsed.map((s) => ({ line: s.line, skus: s.items.length, qty: s.items.reduce((a, i) => a + i.qty, 0) })));
       if (parsed.length === 0) {
         toast.error("No valid iTouching products found. Check the preview below and confirm the file has SKU/code and quantity columns.");
         return;
