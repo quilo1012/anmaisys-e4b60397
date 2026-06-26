@@ -969,11 +969,13 @@ function InlineCell({
   const [plan, setPlan] = useState<string>(entry?.plan_qty?.toString() ?? "");
   const [actual, setActual] = useState<string>(entry?.actual_qty?.toString() ?? "");
   const [dt, setDt] = useState<string>(entry?.downtime_min?.toString() ?? "");
+  const focusedRef = useRef<"plan" | "actual" | "dt" | null>(null);
 
   useEffect(() => {
-    setPlan(entry?.plan_qty?.toString() ?? "");
-    setActual(entry?.actual_qty?.toString() ?? "");
-    setDt(entry?.downtime_min?.toString() ?? "");
+    // Skip the field currently being edited so realtime refetch doesn't blur/overwrite the user's typing.
+    if (focusedRef.current !== "plan") setPlan(entry?.plan_qty?.toString() ?? "");
+    if (focusedRef.current !== "actual") setActual(entry?.actual_qty?.toString() ?? "");
+    if (focusedRef.current !== "dt") setDt(entry?.downtime_min?.toString() ?? "");
   }, [entry?.id, entry?.plan_qty, entry?.actual_qty, entry?.downtime_min]);
 
   const commit = (next: { plan?: string; actual?: string; dt?: string }) => {
@@ -1007,8 +1009,9 @@ function InlineCell({
         type="number"
         value={actual}
         placeholder="Act"
+        onFocus={() => { focusedRef.current = "actual"; }}
         onChange={(e) => setActual(e.target.value)}
-        onBlur={() => commit({ actual })}
+        onBlur={() => { focusedRef.current = null; commit({ actual }); }}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
       />
       <input
@@ -1016,8 +1019,9 @@ function InlineCell({
         type="number"
         value={plan}
         placeholder="Plan"
+        onFocus={() => { focusedRef.current = "plan"; }}
         onChange={(e) => setPlan(e.target.value)}
-        onBlur={() => commit({ plan })}
+        onBlur={() => { focusedRef.current = null; commit({ plan }); }}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
       />
       <input
@@ -1025,10 +1029,12 @@ function InlineCell({
         type="number"
         value={dt}
         placeholder="DT"
+        onFocus={() => { focusedRef.current = "dt"; }}
         onChange={(e) => setDt(e.target.value)}
-        onBlur={() => commit({ dt })}
+        onBlur={() => { focusedRef.current = null; commit({ dt }); }}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
       />
+
       <button
         type="button"
         onClick={onOpenFull}
@@ -1479,10 +1485,12 @@ function SummaryInlineInput({
   onOpen?: () => void;
 }) {
   const [v, setV] = useState<string>(value ? String(value) : "");
+  const focusedRef = useRef(false);
   useEffect(() => {
-    setV(value ? String(value) : "");
+    if (!focusedRef.current) setV(value ? String(value) : "");
   }, [value]);
   const commit = () => {
+    focusedRef.current = false;
     const n = Number(v.replace(/[, ]/g, ""));
     const next = isNaN(n) ? 0 : n;
     if (next !== value) onCommit(next);
@@ -1493,11 +1501,12 @@ function SummaryInlineInput({
       inputMode="numeric"
       value={v}
       placeholder="—"
+      onFocus={() => { focusedRef.current = true; }}
       onChange={(e) => setV(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-        if (e.key === "Escape") setV(value ? String(value) : "");
+        if (e.key === "Escape") { focusedRef.current = false; setV(value ? String(value) : ""); }
       }}
       onDoubleClick={() => onOpen?.()}
       className="w-full bg-transparent text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-primary/50 rounded px-1"
