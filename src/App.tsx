@@ -407,6 +407,14 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/dashboard/intouch-stop-codes"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <IntouchStopCodesPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/" element={<SessionRedirect />} />
                 <Route path="*" element={<SessionRedirect />} />
               </Routes>
