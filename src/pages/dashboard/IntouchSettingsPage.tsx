@@ -39,14 +39,20 @@ export default function IntouchSettingsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("system_settings")
         .select("id, intouch_sync_enabled")
         .limit(1)
         .maybeSingle();
+      if (error) {
+        console.error("[IntouchSettings] failed to load system_settings", error);
+        toast.error(`Failed to load iTouching settings: ${error.message}`);
+        return;
+      }
       if (data) setSyncDisabled(data.intouch_sync_enabled === false);
     })();
   }, []);
+
 
   const toggleSync = async (disabled: boolean) => {
     setTogglingFlag(true);
