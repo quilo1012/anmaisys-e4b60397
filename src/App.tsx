@@ -163,11 +163,12 @@ const App = () => (
                 <Route
                   path="/dashboard/manager"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager", "viewer"]}>
                       <ManagerDashboard />
                     </ProtectedRoute>
                   }
                 />
+
                 <Route
                   path="/dashboard/analytics"
                   element={
