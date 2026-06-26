@@ -1324,7 +1324,7 @@ function DayNightTotalSummary({
                       type="button"
                       onClick={onClick}
                       title={off ? "Include shift" : "Exclude shift"}
-                      className={`ml-1 text-[8px] px-1 py-0 rounded border font-bold leading-none align-middle ${off ? "bg-muted text-muted-foreground border-muted-foreground/30" : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"}`}
+                      className={`ml-1 text-[8px] px-1 py-0 rounded border font-bold leading-none align-middle ${off ? "bg-slate-800 text-slate-300 border-slate-700 dark:bg-slate-950 dark:text-slate-500 dark:border-slate-800" : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"}`}
                     >
                       {off ? "off" : "on"}
                     </button>
