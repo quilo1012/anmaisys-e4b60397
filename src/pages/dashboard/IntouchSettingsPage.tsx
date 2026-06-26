@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, CheckCircle2, AlertCircle, Loader2, Plug, RefreshCw } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Copy, CheckCircle2, AlertCircle, Loader2, Plug, RefreshCw, PowerOff } from "lucide-react";
 import { toast } from "sonner";
 import { invokeFunction } from "@/lib/invokeFunction";
+
+const SYNC_DISABLED_KEY = "intouch_sync_disabled";
 
 const PROJECT_REF = (import.meta.env.VITE_SUPABASE_URL || "")
   .replace("https://", "")
