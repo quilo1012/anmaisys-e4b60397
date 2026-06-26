@@ -1424,14 +1424,14 @@ function DayNightTotalSummary({
                     <td className="p-1.5 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-[11px] tracking-wide text-muted-foreground">{row.label}</td>
                     {weekDates.map((d, i) => {
                       const ds = format(d, "yyyy-MM-dd");
-                      const dayDim = isShiftExcluded(label, ds, "DAY") ? "opacity-40" : "";
-                      const nightDim = isShiftExcluded(label, ds, "NIGHT") ? "opacity-40" : "";
-                      const totalDim = isDateExcluded(label, ds) ? "opacity-40" : "";
+                      const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-slate-900 text-slate-500 dark:bg-black" : "";
+                      const nightDim = isShiftExcluded(label, ds, "NIGHT") ? "bg-slate-900 text-slate-500 dark:bg-black" : "";
+                      const totalDim = isDateExcluded(label, ds) ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40";
                       return (
                         <Fragment key={i}>
                           <td className={`${cls} border-l ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapDt(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
                           <td className={`${cls} ${nightDim}`}>{editable ? renderEdit(ds, "NIGHT") : wrapDt(ds, "NIGHT", row.render(buildCol(ds, "NIGHT")))}</td>
-                          <td className={`${cls} bg-muted/40 ${totalDim}`}>{row.render(buildCol(ds, "TOTAL"))}</td>
+                          <td className={`${cls} ${totalDim}`}>{row.render(buildCol(ds, "TOTAL"))}</td>
                         </Fragment>
                       );
                     })}
