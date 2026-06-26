@@ -28,6 +28,7 @@ import { useRole } from "@/hooks/useRole";
 import { useIsFetching } from "@tanstack/react-query";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
+import { mapWoToStop } from "@/lib/ragDowntime";
 
 /** Compute UTC ms for a London-local time on a given date. */
 function londonUtcMs(dateStr: string, hour: number): number {
