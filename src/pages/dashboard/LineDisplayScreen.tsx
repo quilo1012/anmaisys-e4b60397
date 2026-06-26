@@ -61,6 +61,7 @@ export default function LineDisplayScreen() {
   }, []);
 
   const shift = getShift(now);
+  const shiftDb = shift.toUpperCase(); // rag_weekly_entries stores DAY/NIGHT
   const date = todayISO();
 
   const { data: profile } = useQuery({
@@ -104,7 +105,7 @@ export default function LineDisplayScreen() {
         .select("*")
         .eq("entry_date", date)
         .eq("line", line!)
-        .eq("shift", shift)
+        .eq("shift", shiftDb)
         .maybeSingle();
       if (error) throw error;
       return data as RagEntry | null;
@@ -120,7 +121,7 @@ export default function LineDisplayScreen() {
         .select("id")
         .eq("session_date", date)
         .eq("line", line!)
-        .eq("shift", shift);
+        .eq("shift", shiftDb);
       if (e1) throw e1;
       const ids = (sessions ?? []).map((s: any) => s.id);
       if (!ids.length) return [] as ProductionItem[];
