@@ -112,15 +112,33 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     return m;
   }, [lines]);
 
+  const matchLine = (sectionLine: string): string | undefined => {
+    const norm = normalizeLine(sectionLine);
+    const exact = lineByNorm.get(norm);
+    if (exact) return exact;
+    // substring match (e.g. "Line 2 - Filler" → "Line 2")
+    for (const [k, v] of lineByNorm) {
+      if (norm.includes(k) || k.includes(norm)) return v;
+    }
+    // fallback: match by trailing number (e.g. "Filler 2" → "Line 2")
+    const num = sectionLine.match(/(\d+)\s*$/)?.[1];
+    if (num) {
+      const byNum = lines.find((l) => new RegExp(`(^|\\D)${num}(\\D|$)`).test(l.name));
+      if (byNum) return byNum.name;
+    }
+    return undefined;
+  };
+
   const resolved = useMemo(() => sections.map((sec) => {
-    const matched = lineByNorm.get(normalizeLine(sec.line));
+    const matched = matchLine(sec.line);
     const items = sec.items.map((it) => {
       const sku = skuByCode.get(it.sku_code.toUpperCase());
       return { ...it, sku_id: sku?.id, sku_name: sku?.name };
     });
     const unknown = items.filter((i) => !i.sku_id).length;
     return { ...sec, matched_line: matched, items, unknown };
-  }), [sections, lineByNorm, skuByCode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [sections, lineByNorm, skuByCode, lines]);
 
   const totalProducts = resolved.reduce((a, s) => a + s.items.filter((i) => i.sku_id).length, 0);
   const totalLines = resolved.length;
