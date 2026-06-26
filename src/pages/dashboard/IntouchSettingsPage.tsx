@@ -457,14 +457,14 @@ export default function IntouchSettingsPage() {
                   .filter((m: any) => {
                     if (!machineFilter) return true;
                     const q = machineFilter.toLowerCase();
-                    const name = (m.Name ?? m.MachineName ?? m.name ?? "").toString().toLowerCase();
-                    const guid = (m.MachineGuid ?? m.Guid ?? m.Id ?? m.id ?? "").toString().toLowerCase();
+                    const name = (m.name ?? m.Name ?? m.MachineName ?? "").toString().toLowerCase();
+                    const guid = (m.guid ?? m.MachineID ?? m.MachineId ?? m.MachineGuid ?? m.MachineGUID ?? m.Guid ?? m.GUID ?? m.Id ?? m.ID ?? m.id ?? "").toString().toLowerCase();
                     return name.includes(q) || guid.includes(q);
                   })
                   .map((m: any, i: number) => {
-                    const name = m.Name ?? m.MachineName ?? m.name ?? "(unnamed)";
-                    const guid = m.MachineGuid ?? m.Guid ?? m.Id ?? m.id ?? "";
-                    const line = m.LineName ?? m.Line ?? m.line ?? "";
+                    const name = m.name ?? m.Name ?? m.MachineName ?? "(unnamed)";
+                    const guid = m.guid ?? m.MachineID ?? m.MachineId ?? m.MachineGuid ?? m.MachineGUID ?? m.Guid ?? m.GUID ?? m.Id ?? m.ID ?? m.id ?? "";
+                    const line = m.line ?? m.LineName ?? m.Line ?? "";
                     return (
                       <div key={guid || i} className="flex items-center gap-2 p-2 text-sm hover:bg-muted/40">
                         <div className="flex-1 min-w-0">
