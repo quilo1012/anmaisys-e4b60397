@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload, Download, FileInput } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload, Download, FileInput, Sparkles } from "lucide-react";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { IntouchImportDialog } from "@/components/IntouchImportDialog";
 import { toast } from "sonner";
@@ -251,6 +251,29 @@ export default function ProductionPlannerPage() {
             {isManager && (
               <Button variant="default" size="sm" onClick={() => setIntouchOpen(true)}>
                 <FileInput className="h-4 w-4 mr-1" />Import iTouching
+              </Button>
+            )}
+            {isManager && (
+              <Button
+                variant="default"
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+                onClick={async () => {
+                  try {
+                    const { data, error } = await supabase.functions.invoke("calculate-shift-targets", {
+                      body: { date, shift, line: line || undefined, overwrite: false },
+                    });
+                    if (error) throw error;
+                    toast.success(`Auto Targets: ${data?.items_updated ?? 0} SKU(s) updated`);
+                    queryClient.invalidateQueries({ queryKey: ["planner-items"] });
+                    queryClient.invalidateQueries({ queryKey: ["planner-session"] });
+                    queryClient.invalidateQueries({ queryKey: ["planner-sessions"] });
+                  } catch (e: any) {
+                    toast.error(`Auto Targets failed: ${e?.message ?? "unknown"}`);
+                  }
+                }}
+              >
+                <Sparkles className="h-4 w-4 mr-1" />Auto Targets
               </Button>
             )}
             {existingId && isManager && (
