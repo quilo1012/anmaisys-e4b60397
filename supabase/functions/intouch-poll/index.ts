@@ -354,9 +354,22 @@ Deno.serve(async (req) => {
       }
 
       const cameFromHealthy = hadPreviousSnapshot && previousStatus != null && HEALTHY_STATUS.has(previousStatus);
-      if (!cameFromHealthy) {
+      // Also treat as a new stop when the operator switches the stop code
+      // (e.g. from a production-side code to a maintenance code) without the
+      // machine ever returning to a healthy status in between.
+      const switchedStopCode = hadPreviousSnapshot && !!previousCodeKey && previousCodeKey !== codeKey;
+      const cameFromProdDowntime = wasTrackingProd; // had prod-side downtime open
+      if (!cameFromHealthy && !switchedStopCode && !cameFromProdDowntime) {
         results.skipped.push(`${m.intouch_machine_name} (${codeName} baseline/no new stop)`);
         continue;
+      }
+
+      // If we were tracking a prod-side downtime, close it now — maintenance takes over.
+      if (wasTrackingProd) {
+        try { await closeProdDowntime(now); } catch (e) { results.errors.push(`prod-dt handover ${m.intouch_machine_name}: ${(e as Error).message}`); }
+        await admin.from("intouch_machine_map")
+          .update({ prod_dt_started_at: null, prod_dt_code: null })
+          .eq("intouch_machine_id", s.MachineID);
       }
 
 
