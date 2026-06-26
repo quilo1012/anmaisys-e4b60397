@@ -191,8 +191,9 @@ export default function ProductionPerformancePage() {
 
         {/* Line status cards */}
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {byLine.length === 0 && <Card><CardContent className="p-4 text-muted-foreground">No data</CardContent></Card>}
-          {byLine.map((l) => {
+          {sortedByLine.length === 0 && <Card><CardContent className="p-4 text-muted-foreground">No data</CardContent></Card>}
+          {sortedByLine.map((l) => {
+
             const headerBg = l.eff >= 100 ? "bg-green-500/15" : l.eff >= 80 ? "bg-amber-500/15" : "bg-red-500/15";
             const headerText = l.eff >= 100 ? "text-green-600 dark:text-green-400" : l.eff >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
             return (
