@@ -240,6 +240,43 @@ export default function IntouchSettingsPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" /> Token mode check
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Probes the iTouching API with the configured token and shows the raw response so you can tell if it is a test/sandbox or production key.
+            </p>
+            <Button onClick={probeToken} disabled={probing} variant="outline">
+              {probing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plug className="h-4 w-4 mr-2" />}
+              Check token mode
+            </Button>
+            {probeResult && (
+              <div className="space-y-2">
+                {probeResult.detection && (
+                  <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+                    <div><strong>Detected mode:</strong> {probeResult.detection.mode}</div>
+                    {probeResult.detection.hits?.length > 0 && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Keywords found: {probeResult.detection.hits.join(", ")}
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground mt-1">
+                      URL: <code>{probeResult.intouch_url}</code> · Token: <code>{probeResult.token}</code>
+                    </div>
+                  </div>
+                )}
+                <pre className="text-xs bg-muted/40 border border-border rounded-md p-3 overflow-auto max-h-96">
+{JSON.stringify(probeResult, null, 2)}
+                </pre>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
       </div>
     </DashboardLayout>
   );
