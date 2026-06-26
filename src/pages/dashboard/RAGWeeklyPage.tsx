@@ -248,6 +248,25 @@ export default function RAGWeeklyPage() {
     return { autoDtMap: out, autoDtBreakdown: breakdown };
   }, [lineStops, lines, weekDates]);
 
+  // Inconsistency detector: a single WO contributing minutes to multiple (date|line|shift) cells
+  // is legitimate when a stop overlaps the 06:00/18:00 boundary, but is flagged so reviewers
+  // can confirm there's no double-allocation bug.
+  const inconsistencies = useMemo(() => {
+    const byRef = new Map<string, { ref: string; line: string; cells: { key: string; minutes: number }[]; total: number }>();
+    for (const [key, items] of autoDtBreakdown.entries()) {
+      for (const it of items) {
+        if (!it.ref || it.source !== "WO") continue;
+        const id = `${it.ref}`;
+        const cur = byRef.get(id) ?? { ref: id, line: it.line ?? "", cells: [], total: 0 };
+        cur.cells.push({ key, minutes: it.minutes });
+        cur.total += it.minutes;
+        byRef.set(id, cur);
+      }
+    }
+    return Array.from(byRef.values()).filter((r) => r.cells.length > 1);
+  }, [autoDtBreakdown]);
+
+
   const upsertMutation = useMutation({
     mutationFn: async (payload: Omit<Entry, "id">) => {
       const { error } = await supabase
