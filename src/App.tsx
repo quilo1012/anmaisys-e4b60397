@@ -11,6 +11,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Skeleton } from "@/components/ui/skeleton";
 import Login from "./pages/Login";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Button } from "@/components/ui/button";
+import { RefreshCw, WifiOff } from "lucide-react";
 
 const OperatorDashboard = lazy(() => import("./pages/dashboard/OperatorDashboard"));
 const EngineerDashboard = lazy(() => import("./pages/dashboard/EngineerDashboard"));
@@ -78,7 +80,7 @@ const roleDashMap: Record<string, string> = {
 };
 
 const SessionRedirect = () => {
-  const { session, role, loading } = useAuth();
+  const { session, role, loading, authError, retryAuth, signOut } = useAuth();
 
   if (loading) {
     return <PageLoader />;
@@ -86,6 +88,37 @@ const SessionRedirect = () => {
 
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (authError && !role) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <div className="w-full max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">
+          <WifiOff className="mx-auto h-10 w-10 text-warning" />
+          <h1 className="mt-4 text-xl font-semibold text-foreground">Backend connection is slow</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Your session is active, but the system could not load your dashboard permissions yet.
+          </p>
+          <p className="mt-3 rounded-md bg-muted p-3 text-xs text-muted-foreground break-words">
+            {authError}
+          </p>
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <Button onClick={() => void retryAuth()} className="gap-2">
+              <RefreshCw className="h-4 w-4" /> Retry
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                await signOut();
+                window.location.replace("/login");
+              }}
+            >
+              Back to login
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!role) {
