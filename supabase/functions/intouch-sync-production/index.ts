@@ -46,6 +46,38 @@ function shiftWindow(date: string, shift: "DAY" | "NIGHT") {
   return { start, end };
 }
 
+function londonDateString(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+function currentLondonShift() {
+  const now = new Date();
+  const londonHour = Number(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    hour12: false,
+  }).format(now));
+
+  if (londonHour >= 6 && londonHour < 18) {
+    return { session_date: londonDateString(now), shift: "DAY" as const };
+  }
+
+  if (londonHour >= 18) {
+    return { session_date: londonDateString(now), shift: "NIGHT" as const };
+  }
+
+  const previousLondonDay = new Date(now);
+  previousLondonDay.setUTCDate(previousLondonDay.getUTCDate() - 1);
+  return { session_date: londonDateString(previousLondonDay), shift: "NIGHT" as const };
+}
+
 function overlapMs(a1: Date, a2: Date, b1: Date, b2: Date) {
   return Math.max(0, Math.min(a2.getTime(), b2.getTime()) - Math.max(a1.getTime(), b1.getTime()));
 }
@@ -90,7 +122,8 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     // Cron auto-derives: morning closes previous NIGHT (yesterday's date in London),
-    // evening closes today's DAY shift.
+    // evening closes today's DAY shift. Manual `force:true` sync derives the
+    // currently active London shift so the Settings button works without inputs.
     let session_date: string = body.session_date;
     let shift: "DAY" | "NIGHT" = body.shift;
     if (isCron && (!session_date || !shift)) {
@@ -104,6 +137,11 @@ Deno.serve(async (req) => {
         session_date = londonNow.toISOString().slice(0, 10);
         shift = "DAY";
       }
+    }
+    if (!isCron && body.force === true && (!session_date || !shift)) {
+      const current = currentLondonShift();
+      session_date = current.session_date;
+      shift = current.shift;
     }
     if (!session_date || !["DAY", "NIGHT"].includes(shift)) {
       return new Response(JSON.stringify({ error: "session_date and shift (DAY|NIGHT) required" }), {
@@ -249,9 +287,11 @@ Deno.serve(async (req) => {
         actual_preserved: rows.reduce((s, r) => s + r.actual_qty, 0),
       });
     }
-
+    const syncedLines = results.filter((r) => !r.skipped).length;
+    const syncedSkus = results.reduce((sum, r) => sum + Number(r.skus ?? 0), 0);
 
     return new Response(JSON.stringify({ ok: true, session_date, shift,
+      summary: `${syncedLines} lines · ${syncedSkus} SKUs`,
       window: { start: startISO, end: endISO }, results }, null, 2), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
