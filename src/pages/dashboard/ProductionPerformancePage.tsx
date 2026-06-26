@@ -201,7 +201,8 @@ export default function ProductionPerformancePage() {
             );
           })}
         </div>
-
+      </div>
     </DashboardLayout>
+
   );
 }
