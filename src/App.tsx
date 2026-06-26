@@ -45,6 +45,7 @@ const WeeklyProductionReportPage = lazy(() => import("./pages/dashboard/WeeklyPr
 const LeaderQualityBoardPage = lazy(() => import("./pages/dashboard/LeaderQualityBoardPage"));
 const RAGWeeklyPage = lazy(() => import("./pages/dashboard/RAGWeeklyPage"));
 const IntouchSettingsPage = lazy(() => import("./pages/dashboard/IntouchSettingsPage"));
+const LineProductionScreen = lazy(() => import("./pages/dashboard/LineProductionScreen"));
 const IntouchMachineMapPage = lazy(() => import("./pages/dashboard/IntouchMachineMapPage"));
 
 const queryClient = new QueryClient({
