@@ -969,11 +969,13 @@ function InlineCell({
   const [plan, setPlan] = useState<string>(entry?.plan_qty?.toString() ?? "");
   const [actual, setActual] = useState<string>(entry?.actual_qty?.toString() ?? "");
   const [dt, setDt] = useState<string>(entry?.downtime_min?.toString() ?? "");
+  const focusedRef = useRef<"plan" | "actual" | "dt" | null>(null);
 
   useEffect(() => {
-    setPlan(entry?.plan_qty?.toString() ?? "");
-    setActual(entry?.actual_qty?.toString() ?? "");
-    setDt(entry?.downtime_min?.toString() ?? "");
+    // Skip the field currently being edited so realtime refetch doesn't blur/overwrite the user's typing.
+    if (focusedRef.current !== "plan") setPlan(entry?.plan_qty?.toString() ?? "");
+    if (focusedRef.current !== "actual") setActual(entry?.actual_qty?.toString() ?? "");
+    if (focusedRef.current !== "dt") setDt(entry?.downtime_min?.toString() ?? "");
   }, [entry?.id, entry?.plan_qty, entry?.actual_qty, entry?.downtime_min]);
 
   const commit = (next: { plan?: string; actual?: string; dt?: string }) => {
