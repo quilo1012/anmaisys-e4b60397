@@ -46,6 +46,7 @@ const LeaderQualityBoardPage = lazy(() => import("./pages/dashboard/LeaderQualit
 const RAGWeeklyPage = lazy(() => import("./pages/dashboard/RAGWeeklyPage"));
 const IntouchSettingsPage = lazy(() => import("./pages/dashboard/IntouchSettingsPage"));
 const LineProductionScreen = lazy(() => import("./pages/dashboard/LineProductionScreen"));
+const LineDisplayScreen = lazy(() => import("./pages/dashboard/LineDisplayScreen"));
 const IntouchMachineMapPage = lazy(() => import("./pages/dashboard/IntouchMachineMapPage"));
 const IntouchStopCodesPage = lazy(() => import("./pages/dashboard/IntouchStopCodesPage"));
 
