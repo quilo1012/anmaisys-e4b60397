@@ -42,7 +42,7 @@ const ProductionDowntimePage = lazy(() => import("./pages/dashboard/ProductionDo
 const QualityActionsPage = lazy(() => import("./pages/dashboard/QualityActionsPage"));
 const ShiftHistoryPage = lazy(() => import("./pages/dashboard/ShiftHistoryPage"));
 const WeeklyProductionReportPage = lazy(() => import("./pages/dashboard/WeeklyProductionReportPage"));
-const LeaderQualityBoardPage = lazy(() => import("./pages/dashboard/LeaderQualityBoardPage"));
+
 const RAGWeeklyPage = lazy(() => import("./pages/dashboard/RAGWeeklyPage"));
 const IntouchSettingsPage = lazy(() => import("./pages/dashboard/IntouchSettingsPage"));
 const LineProductionScreen = lazy(() => import("./pages/dashboard/LineProductionScreen"));
@@ -365,14 +365,6 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager"]}>
                       <WeeklyProductionReportPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard/leader-quality"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
-                      <LeaderQualityBoardPage />
                     </ProtectedRoute>
                   }
                 />
