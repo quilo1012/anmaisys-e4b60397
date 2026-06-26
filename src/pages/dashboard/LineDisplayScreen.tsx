@@ -121,7 +121,7 @@ export default function LineDisplayScreen() {
         .select("id")
         .eq("session_date", date)
         .eq("line", line!)
-        .eq("shift", shift);
+        .eq("shift", shiftDb);
       if (e1) throw e1;
       const ids = (sessions ?? []).map((s: any) => s.id);
       if (!ids.length) return [] as ProductionItem[];
