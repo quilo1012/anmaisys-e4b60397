@@ -122,9 +122,21 @@ export default function ProductionPerformancePage() {
     return Array.from(map.values()).map((x) => ({ ...x, eff: x.target > 0 ? (x.actual / x.target) * 100 : 0 })).sort((a, b) => b.eff - a.eff).slice(0, 10);
   }, [sessions]);
 
+  const lineRank = (name: string) => {
+    const n = (name ?? "").toLowerCase();
+    const m = n.match(/line\s*(\d+)/);
+    if (m) return parseInt(m[1], 10);
+    if (n.includes("capsule")) return 100;
+    if (n.includes("gel")) return 200;
+    return 999;
+  };
+  const sortedByLine = useMemo(() => [...byLine].sort((a, b) => lineRank(a.line) - lineRank(b.line) || a.line.localeCompare(b.line)), [byLine]);
+  const sortedLines = useMemo(() => [...lines].sort((a, b) => lineRank(a.name) - lineRank(b.name) || a.name.localeCompare(b.name)), [lines]);
+
   const ragColor = (e: number) => e >= 100 ? "border-green-500" : e >= 80 ? "border-amber-500" : "border-red-500";
   const ragFill = (e: number) => e >= 100 ? "hsl(142 76% 36%)" : e >= 80 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)";
   const medal = (i: number) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
+
 
   return (
     <DashboardLayout>
@@ -147,7 +159,7 @@ export default function ProductionPerformancePage() {
               <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">All lines</SelectItem>
-                {lines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
+                {sortedLines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -179,8 +191,9 @@ export default function ProductionPerformancePage() {
 
         {/* Line status cards */}
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {byLine.length === 0 && <Card><CardContent className="p-4 text-muted-foreground">No data</CardContent></Card>}
-          {byLine.map((l) => {
+          {sortedByLine.length === 0 && <Card><CardContent className="p-4 text-muted-foreground">No data</CardContent></Card>}
+          {sortedByLine.map((l) => {
+
             const headerBg = l.eff >= 100 ? "bg-green-500/15" : l.eff >= 80 ? "bg-amber-500/15" : "bg-red-500/15";
             const headerText = l.eff >= 100 ? "text-green-600 dark:text-green-400" : l.eff >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
             return (
