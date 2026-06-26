@@ -184,6 +184,24 @@ async function notifyEngineersNewWO(opts: {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  // Auth: this function is only callable by the pg_cron job or an admin.
+  // pg_cron sends the CRON_SECRET via the x-cron-secret header (or as a Bearer
+  // token). Reject anything else.
+  const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
+  const cronTriggerToken = Deno.env.get("CRON_TRIGGER_TOKEN") ?? "";
+  const providedHeader = req.headers.get("x-cron-secret") ?? "";
+  const auth = req.headers.get("authorization") ?? "";
+  const bearer = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7) : "";
+  const allowed =
+    (cronSecret && (providedHeader === cronSecret || bearer === cronSecret)) ||
+    (cronTriggerToken && (providedHeader === cronTriggerToken || bearer === cronTriggerToken));
+  if (!allowed) {
+    return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const results = {
     polled: 0,
     opened_wos: [] as Array<{ machine: string; wo: string }>,
@@ -195,6 +213,7 @@ Deno.serve(async (req) => {
     if (!INTOUCH_URL || !INTOUCH_TOKEN) {
       throw new Error("Missing INTOUCH_API_URL or INTOUCH_API_TOKEN");
     }
+
 
     // 1. Active machines mapped to our system
     const { data: mapped, error: mErr } = await admin
