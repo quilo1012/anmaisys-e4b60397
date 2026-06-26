@@ -1309,7 +1309,7 @@ function DayNightTotalSummary({
                   const ds = format(d, "yyyy-MM-dd");
                   const excluded = isDateExcluded(label, ds);
                   return (
-                    <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap bg-background ${excluded ? "opacity-40" : ""}`}>
+                    <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap ${excluded ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-background"}`}>
                       <div className="flex items-center justify-center gap-1">
                         <span>{DAY_LABELS[i]}</span>
                         <button
