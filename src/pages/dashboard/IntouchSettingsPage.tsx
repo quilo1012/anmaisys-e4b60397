@@ -154,7 +154,23 @@ export default function IntouchSettingsPage() {
             <p className="text-sm text-muted-foreground">
               Force sync of the current shift production from iTouching (Plan / SKU / Actual). Runs the same job as the 06:30 / 18:30 cron.
             </p>
-            <Button onClick={syncNow} disabled={syncing}>
+            <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 p-3">
+              <div className="flex items-center gap-2">
+                <PowerOff className="h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="sync-disabled" className="text-sm font-medium">
+                  Disable current-shift sync
+                </Label>
+              </div>
+              <Switch
+                id="sync-disabled"
+                checked={syncDisabled}
+                onCheckedChange={(v) => {
+                  setSyncDisabled(v);
+                  toast.success(v ? "Sync disabled" : "Sync enabled");
+                }}
+              />
+            </div>
+            <Button onClick={syncNow} disabled={syncing || syncDisabled}>
               {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Sync current shift
             </Button>
