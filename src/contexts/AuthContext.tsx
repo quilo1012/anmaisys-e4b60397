@@ -59,10 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /** Race a promise against a hard timeout so a stalled silent re-login can
    *  never keep the boot spinner up indefinitely. */
-  const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+  const withTimeout = <T, F = T>(p: Promise<T>, ms: number, fallback: F): Promise<T | F> =>
     Promise.race([
       p,
-      new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+      new Promise<F>((resolve) => setTimeout(() => resolve(fallback), ms)),
     ]);
 
 
