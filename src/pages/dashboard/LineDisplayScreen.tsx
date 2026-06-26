@@ -61,6 +61,7 @@ export default function LineDisplayScreen() {
   }, []);
 
   const shift = getShift(now);
+  const shiftDb = shift.toUpperCase(); // rag_weekly_entries stores DAY/NIGHT
   const date = todayISO();
 
   const { data: profile } = useQuery({
