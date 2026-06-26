@@ -3,7 +3,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, CheckCircle2, AlertCircle, Loader2, Plug } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Loader2, Plug, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { invokeFunction } from "@/lib/invokeFunction";
 
@@ -15,6 +15,23 @@ const WEBHOOK_URL = `https://${PROJECT_REF}.functions.supabase.co/intouch-webhoo
 export default function IntouchSettingsPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<null | { ok: boolean; msg: string }>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<null | { ok: boolean; msg: string }>(null);
+
+  const syncNow = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    const { data, error } = await invokeFunction<any>("intouch-sync-production", { force: true });
+    setSyncing(false);
+    if (error) {
+      setSyncResult({ ok: false, msg: error.message || "Sync failed" });
+      toast.error("Sync failed");
+    } else {
+      const summary = data?.summary || data?.message || JSON.stringify(data ?? {}).slice(0, 160);
+      setSyncResult({ ok: true, msg: `Synced · ${summary}` });
+      toast.success("Sync complete");
+    }
+  };
 
   const copy = async (text: string) => {
     try {
@@ -106,6 +123,40 @@ export default function IntouchSettingsPage() {
                   <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 )}
                 <span className="break-all">{testResult.msg}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" /> Sync now
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Force sync of the current shift production from iTouching (Plan / SKU / Actual). Runs the same job as the 06:30 / 18:30 cron.
+            </p>
+            <Button onClick={syncNow} disabled={syncing}>
+              {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Sync current shift
+            </Button>
+            {syncResult && (
+              <div
+                className={
+                  "flex items-start gap-2 rounded-md border p-3 text-sm " +
+                  (syncResult.ok
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                    : "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300")
+                }
+              >
+                {syncResult.ok ? (
+                  <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                )}
+                <span className="break-all">{syncResult.msg}</span>
               </div>
             )}
           </CardContent>
