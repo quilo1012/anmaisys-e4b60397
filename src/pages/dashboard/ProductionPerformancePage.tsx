@@ -159,7 +159,7 @@ export default function ProductionPerformancePage() {
               <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">All lines</SelectItem>
-                {lines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
+                {sortedLines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
