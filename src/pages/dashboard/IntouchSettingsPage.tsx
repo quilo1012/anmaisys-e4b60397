@@ -101,6 +101,22 @@ export default function IntouchSettingsPage() {
     }
   };
 
+  const probeToken = async () => {
+    setProbing(true);
+    setProbeResult(null);
+    const { data, error } = await invokeFunction<any>("intouch-token-check", {});
+    setProbing(false);
+    if (error) {
+      setProbeResult({ error: error.message || "Probe failed" });
+      toast.error("Probe failed");
+    } else {
+      setProbeResult(data);
+      toast.success("Probe complete");
+    }
+  };
+
+
+
 
   return (
     <DashboardLayout>
