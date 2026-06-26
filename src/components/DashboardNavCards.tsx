@@ -120,6 +120,7 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
       { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield, accent: ADMIN },
       { title: "iTouching Settings", description: "Integration and Sync now", url: "/dashboard/intouch-settings", icon: Radar, accent: ADMIN },
       { title: "iTouching Machines", description: "Map iTouching machines to lines", url: "/dashboard/intouch-machines", icon: Radio, accent: ADMIN },
+      { title: "iTouching Stop Codes", description: "Map stop codes to WO type, priority, line", url: "/dashboard/intouch-stop-codes", icon: Radar, accent: ADMIN },
     ]);
   } else if (role === "manager" || role === "maintenance_manager") {
     visible = visible.concat([
