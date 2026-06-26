@@ -22,7 +22,19 @@ export default function IntouchSettingsPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<null | { ok: boolean; msg: string }>(null);
 
+  const [syncDisabled, setSyncDisabled] = useState<boolean>(
+    () => localStorage.getItem(SYNC_DISABLED_KEY) === "1",
+  );
+
+  useEffect(() => {
+    localStorage.setItem(SYNC_DISABLED_KEY, syncDisabled ? "1" : "0");
+  }, [syncDisabled]);
+
   const syncNow = async () => {
+    if (syncDisabled) {
+      toast.error("Sync is disabled. Enable it first.");
+      return;
+    }
     setSyncing(true);
     setSyncResult(null);
     const { data, error } = await invokeFunction<any>("intouch-sync-production", { force: true });
