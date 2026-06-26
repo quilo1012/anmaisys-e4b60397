@@ -259,14 +259,19 @@ Deno.serve(async (req) => {
 
       const currentStatus = parseStatus(s.Status);
       const previousStatus = parseStatus(m.last_status);
-      const codeKey = normalizeStopCode(s.DowntimeCode);
+      const currentIsHealthy = currentStatus != null && HEALTHY_STATUS.has(currentStatus);
+      const currentDowntimeCode = currentIsHealthy ? null : (s.DowntimeCode ?? null);
+      const codeKey = normalizeStopCode(currentDowntimeCode);
       const previousCodeKey = normalizeStopCode(m.last_downtime_code);
       const hadPreviousSnapshot = Boolean(m.last_seen_at);
 
       // Persist last-seen status before deciding, so first poll becomes a safe baseline.
+      // When the machine is healthy, clear any stale downtime code. A previous
+      // reset that left status=running but kept a stop code must not count as a
+      // real running → stopped transition later.
       await admin.from("intouch_machine_map").update({
         last_status: currentStatus,
-        last_downtime_code: s.DowntimeCode ?? null,
+        last_downtime_code: currentDowntimeCode,
         last_seen_at: now,
         updated_at: now,
       }).eq("intouch_machine_id", s.MachineID);
@@ -276,7 +281,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const isDown = !HEALTHY_STATUS.has(currentStatus) && !!codeKey;
+      const isDown = !currentIsHealthy && !!codeKey;
       const codeName = uuidToName.get(codeKey) ?? codeKey;
       const mapped_code = codeLookup.get(codeKey);
       const prevMappedCode = m.prod_dt_code ? codeLookup.get(normalizeStopCode(m.prod_dt_code)) : null;
@@ -355,18 +360,34 @@ Deno.serve(async (req) => {
       const label = mapped_code?.label ?? `iTouching stop ${codeName}`;
       const priority = (mapped_code?.default_priority ?? "medium") as string;
 
-      // Look up RECENT open WO for this machine. If one exists, never create
-      // another order for the same stopped machine during this window.
+      // Look up an active WO for this machine. If one exists, never create
+      // another order for the same stopped machine. Check both the iTouching
+      // GUID and legacy machine names because older WOs may not have the GUID.
       const recentCutoff = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
-      const { data: existing } = await admin
+      const activeStatuses = ["open", "received", "arrived", "in_progress"];
+      const machineNames = Array.from(new Set([m.machine_name, m.intouch_machine_name].filter(Boolean))) as string[];
+
+      let { data: existing } = await admin
         .from("work_orders")
         .select("id, wo_number, intouch_downtime_code, notes")
         .eq("intouch_machine_id", s.MachineID)
-        .in("status", ["open", "received", "arrived", "in_progress"])
-        .gte("created_at", recentCutoff)
+        .in("status", activeStatuses)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      if (!existing && machineNames.length) {
+        const legacy = await admin
+          .from("work_orders")
+          .select("id, wo_number, intouch_downtime_code, notes")
+          .in("machine", machineNames)
+          .in("status", activeStatuses)
+          .gte("created_at", recentCutoff)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        existing = legacy.data;
+      }
 
       if (existing) {
         if (normalizeStopCode(existing.intouch_downtime_code) !== codeKey) {
@@ -383,10 +404,15 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const cameFromHealthy = hadPreviousSnapshot && previousStatus != null && HEALTHY_STATUS.has(previousStatus);
+      const cameFromHealthy = hadPreviousSnapshot
+        && previousStatus != null
+        && HEALTHY_STATUS.has(previousStatus)
+        && !previousCodeKey;
       // Never synthesize a running baseline while the machine is still stopped.
       // A new WO is created only on a real transition observed by the poll:
-      // previous iTouching status was running/healthy, current status is stopped.
+      // previous iTouching status was running/healthy with no active stop code,
+      // current status is stopped. This prevents delete → recreate loops when
+      // the line remains stopped or when a bad reset left a stale stop code.
       if (!cameFromHealthy) {
         results.skipped.push(`${m.intouch_machine_name} (${codeName} baseline/no new stop)`);
         continue;
