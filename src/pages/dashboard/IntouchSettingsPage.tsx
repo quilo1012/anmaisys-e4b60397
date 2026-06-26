@@ -120,7 +120,21 @@ export default function IntouchSettingsPage() {
     }
   };
 
-
+  const loadMachines = async () => {
+    setLoadingMachines(true);
+    setMachineErr(null);
+    const { data, error } = await invokeFunction<any>("intouch-list-machines", {});
+    setLoadingMachines(false);
+    if (error) {
+      setMachineErr(error.message || "Failed to load machines");
+      toast.error("Failed to load machines");
+      return;
+    }
+    // API may return array directly or wrapped under .Machines / .data
+    const list = Array.isArray(data) ? data : (data?.Machines ?? data?.data ?? data?.value ?? []);
+    setMachines(Array.isArray(list) ? list : []);
+    toast.success(`${Array.isArray(list) ? list.length : 0} machines loaded`);
+  };
 
 
   return (
