@@ -118,6 +118,8 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
       
       { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN },
       { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield, accent: ADMIN },
+      { title: "iTouching Settings", description: "Integration and Sync now", url: "/dashboard/intouch-settings", icon: Radar, accent: ADMIN },
+      { title: "iTouching Machines", description: "Map iTouching machines to lines", url: "/dashboard/intouch-machines", icon: Radio, accent: ADMIN },
     ]);
   } else if (role === "manager" || role === "maintenance_manager") {
     visible = visible.concat([
