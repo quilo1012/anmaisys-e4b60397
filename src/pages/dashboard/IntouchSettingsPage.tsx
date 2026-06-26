@@ -217,16 +217,21 @@ export default function IntouchSettingsPage() {
           continue;
         }
 
-        // 1) Try alias map (supports one-to-many)
+        // 1) Try alias map (supports one-to-many). Alias is EXCLUSIVE — if it matches by name,
+        // we never fall through to fuzzy (prevents e.g. "Tablet Line" matching "Line 5A").
         const alias = ALIASES.find((a) => a.intouch.test(name));
         if (alias) {
           const targets = dbList.filter((r) => alias.dbPatterns.some((p) => p.test(r.name || "")));
           if (targets.length > 0) {
             matched++;
             for (const row of targets) await applyUpdate(row, name, guid);
-            continue;
+          } else {
+            skipped++;
+            details.push({ intouch: name, guid, status: "skipped", reason: "alias matched but no DB machine found" });
           }
+          continue;
         }
+
 
         // 2) Fallback to fuzzy similarity (lowered threshold)
         let best: { row: typeof dbList[number]; score: number } | null = null;
