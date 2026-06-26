@@ -369,14 +369,6 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/dashboard/leader-quality"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
-                      <LeaderQualityBoardPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
                   path="/dashboard/rag-weekly"
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
