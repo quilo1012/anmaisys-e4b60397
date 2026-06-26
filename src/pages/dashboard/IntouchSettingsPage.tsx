@@ -27,6 +27,12 @@ export default function IntouchSettingsPage() {
   const [loadingMachines, setLoadingMachines] = useState(false);
   const [machineErr, setMachineErr] = useState<string | null>(null);
   const [machineFilter, setMachineFilter] = useState("");
+  const [autoMapping, setAutoMapping] = useState(false);
+  const [autoMapResult, setAutoMapResult] = useState<null | {
+    matched: number; saved: number; skipped: number; total: number;
+    details: { intouch: string; matched?: string; guid: string; status: "saved" | "skipped" | "already" | "error"; reason?: string }[];
+  }>(null);
+
 
   const [syncDisabled, setSyncDisabled] = useState<boolean>(false);
   const [togglingFlag, setTogglingFlag] = useState(false);
@@ -135,6 +141,90 @@ export default function IntouchSettingsPage() {
     setMachines(Array.isArray(list) ? list : []);
     toast.success(`${Array.isArray(list) ? list.length : 0} machines loaded`);
   };
+
+  const normalize = (s: string) =>
+    s.toLowerCase()
+      .replace(/[_\-\/]+/g, " ")
+      .replace(/[^a-z0-9 ]+/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const tokens = (s: string) => new Set(normalize(s).split(" ").filter(Boolean));
+
+  const similarity = (a: string, b: string) => {
+    const na = normalize(a), nb = normalize(b);
+    if (!na || !nb) return 0;
+    if (na === nb) return 1;
+    const ta = tokens(a), tb = tokens(b);
+    const inter = [...ta].filter((t) => tb.has(t)).length;
+    const union = new Set([...ta, ...tb]).size;
+    const jaccard = union ? inter / union : 0;
+    const contains = na.includes(nb) || nb.includes(na) ? 0.85 : 0;
+    return Math.max(jaccard, contains);
+  };
+
+  const autoMapMachines = async () => {
+    if (!machines || machines.length === 0) {
+      toast.error("Load iTouching machines first");
+      return;
+    }
+    setAutoMapping(true);
+    setAutoMapResult(null);
+    try {
+      const { data: dbMachines, error } = await (supabase as any)
+        .from("machines")
+        .select("id, name, code");
+      if (error) throw error;
+      const dbList: { id: string; name: string; code: string | null }[] = dbMachines || [];
+
+      const details: any[] = [];
+      let matched = 0, saved = 0, skipped = 0;
+
+      for (const m of machines) {
+        const name: string = (m.Name ?? m.MachineName ?? m.name ?? "").toString();
+        const guid: string = (m.MachineGuid ?? m.Guid ?? m.Id ?? m.id ?? "").toString();
+        if (!name || !guid) {
+          skipped++;
+          details.push({ intouch: name || "(unnamed)", guid, status: "skipped", reason: "missing name/guid" });
+          continue;
+        }
+        let best: { row: typeof dbList[number]; score: number } | null = null;
+        for (const row of dbList) {
+          const score = similarity(name, row.name || "");
+          if (!best || score > best.score) best = { row, score };
+        }
+        if (!best || best.score < 0.5) {
+          skipped++;
+          details.push({ intouch: name, guid, status: "skipped", reason: "no match" });
+          continue;
+        }
+        matched++;
+        if ((best.row.code || "").trim().toLowerCase() === guid.toLowerCase()) {
+          details.push({ intouch: name, matched: best.row.name, guid, status: "already" });
+          continue;
+        }
+        const { error: updErr } = await (supabase as any)
+          .from("machines")
+          .update({ code: guid })
+          .eq("id", best.row.id);
+        if (updErr) {
+          details.push({ intouch: name, matched: best.row.name, guid, status: "error", reason: updErr.message });
+        } else {
+          saved++;
+          details.push({ intouch: name, matched: best.row.name, guid, status: "saved" });
+        }
+      }
+
+      setAutoMapResult({ matched, saved, skipped, total: machines.length, details });
+      toast.success(`Auto-map: ${saved} saved, ${matched - saved} already set, ${skipped} skipped`);
+    } catch (e: any) {
+      toast.error(e.message || "Auto-map failed");
+    } finally {
+      setAutoMapping(false);
+    }
+  };
+
+
 
 
   return (
@@ -313,6 +403,12 @@ export default function IntouchSettingsPage() {
                 Load machines
               </Button>
               {machines && machines.length > 0 && (
+                <Button onClick={autoMapMachines} disabled={autoMapping} variant="secondary">
+                  {autoMapping ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plug className="h-4 w-4 mr-2" />}
+                  Auto-map all machines
+                </Button>
+              )}
+              {machines && machines.length > 0 && (
                 <div className="relative flex-1">
                   <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -324,6 +420,26 @@ export default function IntouchSettingsPage() {
                 </div>
               )}
             </div>
+            {autoMapResult && (
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-2">
+                <div className="font-medium">
+                  Auto-map summary: {autoMapResult.saved} saved · {autoMapResult.matched - autoMapResult.saved} already mapped · {autoMapResult.skipped} skipped · {autoMapResult.total} total
+                </div>
+                <div className="max-h-48 overflow-auto text-xs font-mono space-y-1">
+                  {autoMapResult.details.map((d, i) => (
+                    <div key={i} className={
+                      d.status === "saved" ? "text-green-600 dark:text-green-400" :
+                      d.status === "already" ? "text-muted-foreground" :
+                      d.status === "error" ? "text-red-600 dark:text-red-400" :
+                      "text-amber-600 dark:text-amber-400"
+                    }>
+                      [{d.status}] {d.intouch}{d.matched ? ` → ${d.matched}` : ""}{d.reason ? ` (${d.reason})` : ""}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {machineErr && (
               <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
