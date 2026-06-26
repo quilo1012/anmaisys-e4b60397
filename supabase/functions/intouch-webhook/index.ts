@@ -253,7 +253,13 @@ Deno.serve(async (req) => {
               })),
             );
           }
-        } catch (_) { /* best-effort */ }
+        } catch (err) {
+          console.error("[intouch-webhook] best-effort engineer notification failed", {
+            wo_id: wo?.id,
+            wo_number: wo?.wo_number,
+            error: (err as Error)?.message ?? String(err),
+          });
+        }
       }
 
 
