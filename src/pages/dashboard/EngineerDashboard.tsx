@@ -827,8 +827,9 @@ function EngineerDashboardContent() {
             ) : !activeWOs?.length ? (
               <p className="text-muted-foreground text-center py-8">No open work orders right now.</p>
             ) : isMobile ? (
-              <div className="space-y-3">
+              <div className="space-y-4 md:space-y-5">
                 {activeWOs.map((wo) => <MobileWOCard key={wo.id} wo={wo} />)}
+
               </div>
             ) : (
               <div className="overflow-x-auto">
