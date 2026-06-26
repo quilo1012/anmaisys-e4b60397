@@ -67,13 +67,29 @@ export default function LineDisplayScreen() {
     queryKey: ["profile-line", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // 1) Try profiles.production_line (explicit string match with rag_weekly_entries.line)
+      const { data: prof } = await supabase
         .from("profiles")
         .select("name, production_line")
         .eq("id", user!.id)
         .maybeSingle();
-      if (error) throw error;
-      return data as { name: string; production_line: string | null } | null;
+      if (prof?.production_line) {
+        return { name: prof.name, production_line: prof.production_line as string };
+      }
+      // 2) Fallback: resolve via operator_line_accounts.line_ids[0] -> lines.name
+      const { data: ola } = await supabase
+        .from("operator_line_accounts")
+        .select("line_ids")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      const firstLineId = (ola?.line_ids ?? [])[0];
+      if (!firstLineId) return { name: prof?.name ?? "", production_line: null };
+      const { data: ln } = await supabase
+        .from("lines")
+        .select("name")
+        .eq("id", firstLineId)
+        .maybeSingle();
+      return { name: prof?.name ?? "", production_line: (ln?.name ?? null) as string | null };
     },
   });
 
