@@ -3,7 +3,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, CheckCircle2, AlertCircle, Loader2, Plug } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Loader2, Plug, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { invokeFunction } from "@/lib/invokeFunction";
 
