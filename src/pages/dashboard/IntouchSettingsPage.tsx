@@ -142,6 +142,90 @@ export default function IntouchSettingsPage() {
     toast.success(`${Array.isArray(list) ? list.length : 0} machines loaded`);
   };
 
+  const normalize = (s: string) =>
+    s.toLowerCase()
+      .replace(/[_\-\/]+/g, " ")
+      .replace(/[^a-z0-9 ]+/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const tokens = (s: string) => new Set(normalize(s).split(" ").filter(Boolean));
+
+  const similarity = (a: string, b: string) => {
+    const na = normalize(a), nb = normalize(b);
+    if (!na || !nb) return 0;
+    if (na === nb) return 1;
+    const ta = tokens(a), tb = tokens(b);
+    const inter = [...ta].filter((t) => tb.has(t)).length;
+    const union = new Set([...ta, ...tb]).size;
+    const jaccard = union ? inter / union : 0;
+    const contains = na.includes(nb) || nb.includes(na) ? 0.85 : 0;
+    return Math.max(jaccard, contains);
+  };
+
+  const autoMapMachines = async () => {
+    if (!machines || machines.length === 0) {
+      toast.error("Load iTouching machines first");
+      return;
+    }
+    setAutoMapping(true);
+    setAutoMapResult(null);
+    try {
+      const { data: dbMachines, error } = await (supabase as any)
+        .from("machines")
+        .select("id, name, code");
+      if (error) throw error;
+      const dbList: { id: string; name: string; code: string | null }[] = dbMachines || [];
+
+      const details: any[] = [];
+      let matched = 0, saved = 0, skipped = 0;
+
+      for (const m of machines) {
+        const name: string = (m.Name ?? m.MachineName ?? m.name ?? "").toString();
+        const guid: string = (m.MachineGuid ?? m.Guid ?? m.Id ?? m.id ?? "").toString();
+        if (!name || !guid) {
+          skipped++;
+          details.push({ intouch: name || "(unnamed)", guid, status: "skipped", reason: "missing name/guid" });
+          continue;
+        }
+        let best: { row: typeof dbList[number]; score: number } | null = null;
+        for (const row of dbList) {
+          const score = similarity(name, row.name || "");
+          if (!best || score > best.score) best = { row, score };
+        }
+        if (!best || best.score < 0.5) {
+          skipped++;
+          details.push({ intouch: name, guid, status: "skipped", reason: "no match" });
+          continue;
+        }
+        matched++;
+        if ((best.row.code || "").trim().toLowerCase() === guid.toLowerCase()) {
+          details.push({ intouch: name, matched: best.row.name, guid, status: "already" });
+          continue;
+        }
+        const { error: updErr } = await (supabase as any)
+          .from("machines")
+          .update({ code: guid })
+          .eq("id", best.row.id);
+        if (updErr) {
+          details.push({ intouch: name, matched: best.row.name, guid, status: "error", reason: updErr.message });
+        } else {
+          saved++;
+          details.push({ intouch: name, matched: best.row.name, guid, status: "saved" });
+        }
+      }
+
+      setAutoMapResult({ matched, saved, skipped, total: machines.length, details });
+      toast.success(`Auto-map: ${saved} saved, ${matched - saved} already set, ${skipped} skipped`);
+    } catch (e: any) {
+      toast.error(e.message || "Auto-map failed");
+    } finally {
+      setAutoMapping(false);
+    }
+  };
+
+
+
 
   return (
     <DashboardLayout>
