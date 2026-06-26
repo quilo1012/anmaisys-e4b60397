@@ -393,6 +393,14 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/dashboard/line-display"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]}>
+                      <LineDisplayScreen />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/dashboard/intouch-settings"
                   element={
                     <ProtectedRoute allowedRoles={["admin"]}>
