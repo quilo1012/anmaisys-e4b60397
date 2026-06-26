@@ -110,10 +110,10 @@ export default function LineDisplayScreen() {
       if (!ids.length) return [] as ProductionItem[];
       const { data, error } = await supabase
         .from("production_items")
-        .select("id, sku_code, sku_name, planned_qty, actual_qty")
+        .select("id, planned_qty, actual_qty, sku:sku_products(code, name)")
         .in("session_id", ids);
       if (error) throw error;
-      return (data ?? []) as ProductionItem[];
+      return (data ?? []) as unknown as ProductionItem[];
     },
   });
 
