@@ -136,8 +136,10 @@ export default function IntouchSettingsPage() {
       toast.error("Failed to load machines");
       return;
     }
-    // API may return array directly or wrapped under .Machines / .data
-    const list = Array.isArray(data) ? data : (data?.Machines ?? data?.data ?? data?.value ?? []);
+    // Normalized: { machines: [{ guid, name, line, raw }] }. Fallback to legacy shapes.
+    const list = Array.isArray(data?.machines)
+      ? data.machines
+      : Array.isArray(data) ? data : (data?.Machines ?? data?.data ?? data?.value ?? []);
     setMachines(Array.isArray(list) ? list : []);
     toast.success(`${Array.isArray(list) ? list.length : 0} machines loaded`);
   };
@@ -181,8 +183,8 @@ export default function IntouchSettingsPage() {
       let matched = 0, saved = 0, skipped = 0;
 
       for (const m of machines) {
-        const name: string = (m.Name ?? m.MachineName ?? m.name ?? "").toString();
-        const guid: string = (m.MachineGuid ?? m.Guid ?? m.Id ?? m.id ?? "").toString();
+        const name: string = (m.name ?? m.Name ?? m.MachineName ?? "").toString();
+        const guid: string = (m.guid ?? m.MachineID ?? m.MachineId ?? m.MachineGuid ?? m.MachineGUID ?? m.Guid ?? m.GUID ?? m.Id ?? m.ID ?? m.id ?? "").toString();
         if (!name || !guid) {
           skipped++;
           details.push({ intouch: name || "(unnamed)", guid, status: "skipped", reason: "missing name/guid" });
@@ -455,14 +457,14 @@ export default function IntouchSettingsPage() {
                   .filter((m: any) => {
                     if (!machineFilter) return true;
                     const q = machineFilter.toLowerCase();
-                    const name = (m.Name ?? m.MachineName ?? m.name ?? "").toString().toLowerCase();
-                    const guid = (m.MachineGuid ?? m.Guid ?? m.Id ?? m.id ?? "").toString().toLowerCase();
+                    const name = (m.name ?? m.Name ?? m.MachineName ?? "").toString().toLowerCase();
+                    const guid = (m.guid ?? m.MachineID ?? m.MachineId ?? m.MachineGuid ?? m.MachineGUID ?? m.Guid ?? m.GUID ?? m.Id ?? m.ID ?? m.id ?? "").toString().toLowerCase();
                     return name.includes(q) || guid.includes(q);
                   })
                   .map((m: any, i: number) => {
-                    const name = m.Name ?? m.MachineName ?? m.name ?? "(unnamed)";
-                    const guid = m.MachineGuid ?? m.Guid ?? m.Id ?? m.id ?? "";
-                    const line = m.LineName ?? m.Line ?? m.line ?? "";
+                    const name = m.name ?? m.Name ?? m.MachineName ?? "(unnamed)";
+                    const guid = m.guid ?? m.MachineID ?? m.MachineId ?? m.MachineGuid ?? m.MachineGUID ?? m.Guid ?? m.GUID ?? m.Id ?? m.ID ?? m.id ?? "";
+                    const line = m.line ?? m.LineName ?? m.Line ?? "";
                     return (
                       <div key={guid || i} className="flex items-center gap-2 p-2 text-sm hover:bg-muted/40">
                         <div className="flex-1 min-w-0">
