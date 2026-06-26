@@ -1227,7 +1227,7 @@ function DayNightTotalSummary({
   const getCell = (dateStr: string, line: string, shift: Shift): Cell => {
     const e = entryMap.get(`${dateStr}|${line}|${shift}`);
     const auto = autoDtMap?.get(`${dateStr}|${line}|${shift}`) ?? 0;
-    const dt = auto > 0 ? auto : (e?.downtime_min || 0);
+    const dt = auto > 0 ? auto : (Number(e?.downtime_min) || 0);
     if (!e) return { ...empty, dt };
     return {
       plan: Number(e.plan_qty) || 0,
