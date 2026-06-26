@@ -45,6 +45,7 @@ const WeeklyProductionReportPage = lazy(() => import("./pages/dashboard/WeeklyPr
 const LeaderQualityBoardPage = lazy(() => import("./pages/dashboard/LeaderQualityBoardPage"));
 const RAGWeeklyPage = lazy(() => import("./pages/dashboard/RAGWeeklyPage"));
 const IntouchSettingsPage = lazy(() => import("./pages/dashboard/IntouchSettingsPage"));
+const LineProductionScreen = lazy(() => import("./pages/dashboard/LineProductionScreen"));
 const IntouchMachineMapPage = lazy(() => import("./pages/dashboard/IntouchMachineMapPage"));
 
 const queryClient = new QueryClient({
@@ -378,6 +379,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <RAGWeeklyPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/line-production"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]}>
+                      <LineProductionScreen />
                     </ProtectedRoute>
                   }
                 />
