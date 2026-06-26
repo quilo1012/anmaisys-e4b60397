@@ -122,9 +122,21 @@ export default function ProductionPerformancePage() {
     return Array.from(map.values()).map((x) => ({ ...x, eff: x.target > 0 ? (x.actual / x.target) * 100 : 0 })).sort((a, b) => b.eff - a.eff).slice(0, 10);
   }, [sessions]);
 
+  const lineRank = (name: string) => {
+    const n = (name ?? "").toLowerCase();
+    const m = n.match(/line\s*(\d+)/);
+    if (m) return parseInt(m[1], 10);
+    if (n.includes("capsule")) return 100;
+    if (n.includes("gel")) return 200;
+    return 999;
+  };
+  const sortedByLine = useMemo(() => [...byLine].sort((a, b) => lineRank(a.line) - lineRank(b.line) || a.line.localeCompare(b.line)), [byLine]);
+  const sortedLines = useMemo(() => [...lines].sort((a, b) => lineRank(a.name) - lineRank(b.name) || a.name.localeCompare(b.name)), [lines]);
+
   const ragColor = (e: number) => e >= 100 ? "border-green-500" : e >= 80 ? "border-amber-500" : "border-red-500";
   const ragFill = (e: number) => e >= 100 ? "hsl(142 76% 36%)" : e >= 80 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)";
   const medal = (i: number) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
+
 
   return (
     <DashboardLayout>
