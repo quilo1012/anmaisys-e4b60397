@@ -27,6 +27,12 @@ export default function IntouchSettingsPage() {
   const [loadingMachines, setLoadingMachines] = useState(false);
   const [machineErr, setMachineErr] = useState<string | null>(null);
   const [machineFilter, setMachineFilter] = useState("");
+  const [autoMapping, setAutoMapping] = useState(false);
+  const [autoMapResult, setAutoMapResult] = useState<null | {
+    matched: number; saved: number; skipped: number; total: number;
+    details: { intouch: string; matched?: string; guid: string; status: "saved" | "skipped" | "already" | "error"; reason?: string }[];
+  }>(null);
+
 
   const [syncDisabled, setSyncDisabled] = useState<boolean>(false);
   const [togglingFlag, setTogglingFlag] = useState(false);
