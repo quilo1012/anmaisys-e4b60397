@@ -581,8 +581,8 @@ function EngineerDashboardContent() {
     }
 
     return (
-      <Card className={`${isOpen ? "border-destructive bg-destructive/5 animate-pulse" : ""}`}>
-        <CardContent className="p-4 space-y-3">
+      <Card className={`shadow-md ${isOpen ? "border-destructive bg-destructive/5 animate-pulse" : ""}`}>
+        <CardContent className="p-5 md:p-6 space-y-4">
           {/* Line status banner — top of every card */}
           <LineStatusBanner
             lineStopped={(wo as any).line_stopped === true}
@@ -590,9 +590,9 @@ function EngineerDashboardContent() {
             lineResumedAt={(wo as any).line_resumed_at}
             machine={wo.machine}
           />
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
-              <span className="font-mono font-bold text-lg cursor-pointer hover:underline truncate" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+              <span className="font-mono font-bold text-xl md:text-2xl cursor-pointer hover:underline truncate" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
                 WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
               </span>
               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
@@ -602,19 +602,19 @@ function EngineerDashboardContent() {
               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
               {wo.status === "open" && <WaitTimer createdAt={wo.created_at} />}
               {wo.status === "in_progress" && wo.started_at && <LiveTimer startedAt={wo.started_at} />}
-              {/* Print button hidden for engineers (admin/manager only) */}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div><span className="text-muted-foreground">Machine:</span><p className="font-medium">{wo.machine}</p></div>
-            <div><span className="text-muted-foreground">Requester:</span><p className="font-medium">{wo.requester_name}</p></div>
-            <div><span className="text-muted-foreground">Created:</span><p className="font-medium">{format(new Date(wo.created_at), "dd/MM HH:mm")}</p></div>
+          <div className="grid grid-cols-2 gap-3 text-base">
+            <div><span className="text-xs text-muted-foreground uppercase tracking-wide">Machine</span><p className="font-semibold">{wo.machine}</p></div>
+            <div><span className="text-xs text-muted-foreground uppercase tracking-wide">Requester</span><p className="font-semibold">{wo.requester_name}</p></div>
+            <div><span className="text-xs text-muted-foreground uppercase tracking-wide">Created</span><p className="font-semibold">{format(new Date(wo.created_at), "dd/MM HH:mm")}</p></div>
             <div><StaleBadge wo={wo} /></div>
             {wo.engineer_name && (
-              <div className="col-span-2"><span className="text-muted-foreground">Engineer:</span><p className="font-medium">{wo.engineer_name}</p></div>
+              <div className="col-span-2"><span className="text-xs text-muted-foreground uppercase tracking-wide">Engineer</span><p className="font-semibold">{wo.engineer_name}</p></div>
             )}
           </div>
-          <p className="text-sm text-muted-foreground truncate">{wo.description}</p>
+          <p className="text-sm md:text-base text-foreground/80 leading-relaxed border-l-2 border-muted pl-3">{wo.description}</p>
+
 
           {/* Multi-cycle line stop/resume control */}
           {(isInProgress || wo.status === "open") && (
