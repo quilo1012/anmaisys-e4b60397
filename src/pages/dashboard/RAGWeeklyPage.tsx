@@ -1349,10 +1349,10 @@ function DayNightTotalSummary({
                   );
                   return (
                     <Fragment key={i}>
-                      <th className={`text-right p-1 border-l text-amber-600 dark:text-amber-400 font-medium bg-muted/40 min-w-[60px] ${dayOff ? "opacity-50" : ""}`}>
+                      <th className={`text-right p-1 border-l font-medium min-w-[60px] ${dayOff ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40 text-amber-600 dark:text-amber-400"}`}>
                         Day<Btn off={dayOff} onClick={() => toggleShift(label, ds, "DAY")} />
                       </th>
-                      <th className={`text-right p-1 text-blue-600 dark:text-blue-400 font-medium bg-muted/40 min-w-[60px] ${nightOff ? "opacity-50" : ""}`}>
+                      <th className={`text-right p-1 font-medium min-w-[60px] ${nightOff ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40 text-blue-600 dark:text-blue-400"}`}>
                         Night<Btn off={nightOff} onClick={() => toggleShift(label, ds, "NIGHT")} />
                       </th>
                       <th className="text-right p-1 font-semibold bg-muted/60 min-w-[60px]">Total</th>
