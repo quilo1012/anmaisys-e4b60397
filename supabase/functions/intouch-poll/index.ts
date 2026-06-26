@@ -187,15 +187,42 @@ Deno.serve(async (req) => {
   // Auth: this function is only callable by the pg_cron job or an admin.
   // pg_cron sends the CRON_SECRET via the x-cron-secret header (or as a Bearer
   // token). Reject anything else.
-  const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
-  const cronTriggerToken = Deno.env.get("CRON_TRIGGER_TOKEN") ?? "";
-  const providedHeader = req.headers.get("x-cron-secret") ?? "";
+  //
+  // Hardening rules:
+  //   - Both env secrets must be NON-EMPTY strings. An empty/missing secret
+  //     must NEVER allow a request through (no silent open mode).
+  //   - Header comparison uses constant-time-equivalent strict equality on
+  //     trimmed values. A blank/empty incoming header is always rejected.
+  //   - On any rejection we emit a structured warn log (without ever logging
+  //     the secret value) so missing/invalid attempts are observable.
+  const cronSecret = (Deno.env.get("CRON_SECRET") ?? "").trim();
+  const cronTriggerToken = (Deno.env.get("CRON_TRIGGER_TOKEN") ?? "").trim();
+
+  if (!cronSecret && !cronTriggerToken) {
+    console.error("[intouch-poll][auth] CRON_SECRET/CRON_TRIGGER_TOKEN are not configured; refusing all requests.");
+    return new Response(JSON.stringify({ ok: false, error: "server_misconfigured" }), {
+      status: 503,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const providedHeader = (req.headers.get("x-cron-secret") ?? "").trim();
   const auth = req.headers.get("authorization") ?? "";
-  const bearer = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7) : "";
-  const allowed =
-    (cronSecret && (providedHeader === cronSecret || bearer === cronSecret)) ||
-    (cronTriggerToken && (providedHeader === cronTriggerToken || bearer === cronTriggerToken));
+  const bearer = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
+  const presented = providedHeader || bearer;
+
+  const matches = (expected: string) =>
+    expected.length > 0 && presented.length > 0 && presented === expected;
+
+  const allowed = matches(cronSecret) || matches(cronTriggerToken);
+
   if (!allowed) {
+    console.warn("[intouch-poll][auth] unauthorized call", {
+      hasXCronSecretHeader: providedHeader.length > 0,
+      hasBearer: bearer.length > 0,
+      ua: req.headers.get("user-agent") ?? null,
+      from: req.headers.get("x-forwarded-for") ?? null,
+    });
     return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
