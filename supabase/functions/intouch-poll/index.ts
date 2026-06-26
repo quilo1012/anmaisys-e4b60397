@@ -383,35 +383,17 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Catch-up path: if the deployed poll missed the original transition
-      // while the machine was already down, create one WO for the current
-      // continuous stop as long as this exact iTouching machine/code has not
-      // already generated a WO recently. This prevents a silent baseline from
-      // blocking maintenance forever, while still avoiding duplicates on every
-      // poll tick.
-      const recentSameCodeCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data: recentSameCodeWo } = await admin
-        .from("work_orders")
-        .select("id, wo_number, status")
-        .eq("intouch_machine_id", s.MachineID)
-        .ilike("intouch_downtime_code", String(s.DowntimeCode))
-        .gte("created_at", recentSameCodeCutoff)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
       const cameFromHealthy = hadPreviousSnapshot && previousStatus != null && HEALTHY_STATUS.has(previousStatus);
       // Also treat as a new stop when the operator switches the stop code
       // (e.g. from a production-side code to a maintenance code) without the
       // machine ever returning to a healthy status in between.
       const switchedStopCode = hadPreviousSnapshot && !!previousCodeKey && previousCodeKey !== codeKey;
       const cameFromProdDowntime = wasTrackingProd; // had prod-side downtime open
-      const catchUpMissedStop = hadPreviousSnapshot
-        && previousStatus != null
-        && !HEALTHY_STATUS.has(previousStatus)
-        && previousCodeKey === codeKey
-        && !recentSameCodeWo;
-      if (!cameFromHealthy && !switchedStopCode && !cameFromProdDowntime && !catchUpMissedStop) {
+      // NOTE: catch-up path removed — it was re-creating a WO every time the
+      // previous one was finished/closed while the machine status was still
+      // "down" on the same code. New WOs now require an actual transition:
+      // healthy → down, a stop-code switch, or handover from a prod downtime.
+      if (!cameFromHealthy && !switchedStopCode && !cameFromProdDowntime) {
         results.skipped.push(`${m.intouch_machine_name} (${codeName} baseline/no new stop)`);
         continue;
       }
