@@ -136,8 +136,10 @@ export default function IntouchSettingsPage() {
       toast.error("Failed to load machines");
       return;
     }
-    // API may return array directly or wrapped under .Machines / .data
-    const list = Array.isArray(data) ? data : (data?.Machines ?? data?.data ?? data?.value ?? []);
+    // Normalized: { machines: [{ guid, name, line, raw }] }. Fallback to legacy shapes.
+    const list = Array.isArray(data?.machines)
+      ? data.machines
+      : Array.isArray(data) ? data : (data?.Machines ?? data?.data ?? data?.value ?? []);
     setMachines(Array.isArray(list) ? list : []);
     toast.success(`${Array.isArray(list) ? list.length : 0} machines loaded`);
   };
