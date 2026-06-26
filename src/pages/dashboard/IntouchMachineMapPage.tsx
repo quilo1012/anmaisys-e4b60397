@@ -92,6 +92,7 @@ export default function IntouchMachineMapPage() {
       const opened = data?.opened_wos?.length ?? 0;
       toast.success(`Poll done — polled ${data?.polled ?? 0} machines, opened ${opened} WO(s)`);
     } catch (e: any) {
+      console.error("[IntouchMachineMap] intouch-poll invoke failed", { error: e?.message ?? e });
       toast.error(e.message ?? "Poll failed");
     } finally {
       setPolling(false);
