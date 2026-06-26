@@ -94,6 +94,19 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
 
+    // Master switch: when disabled, skip all sync (cron + manual).
+    const { data: settings } = await admin
+      .from("system_settings")
+      .select("intouch_sync_enabled")
+      .limit(1)
+      .maybeSingle();
+    if (settings && settings.intouch_sync_enabled === false) {
+      return new Response(
+        JSON.stringify({ success: false, skipped: true, reason: "intouch_sync_disabled" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     if (!isCron) {
       // Auth: admin or manager only (validate JWT via getClaims — works with signing keys)
       const authHeader = req.headers.get("Authorization") ?? "";

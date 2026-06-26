@@ -1825,18 +1825,21 @@ export type Database = {
           admin_pin: string
           created_at: string
           id: string
+          intouch_sync_enabled: boolean
           updated_at: string
         }
         Insert: {
           admin_pin?: string
           created_at?: string
           id?: string
+          intouch_sync_enabled?: boolean
           updated_at?: string
         }
         Update: {
           admin_pin?: string
           created_at?: string
           id?: string
+          intouch_sync_enabled?: boolean
           updated_at?: string
         }
         Relationships: []
