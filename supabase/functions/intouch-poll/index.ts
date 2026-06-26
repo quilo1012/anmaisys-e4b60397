@@ -441,14 +441,11 @@ Deno.serve(async (req) => {
 
     }
 
-    // 3. Sync current running SKU per line into the Production Planner.
-    //    We DO NOT touch target_qty or actual_qty here — RAG Weekly owns the
-    //    plan, the leader on the tablet owns the actual.
-    try {
-      await syncRunningSkus(mapped);
-    } catch (e) {
-      results.errors.push(`sku sync: ${(e as Error).message}`);
-    }
+    // 3. SKU sync removed — SKUs come exclusively from manual
+    //    "Import iTouching (Work To List)" in the Planner page.
+    //    intouch-poll only opens Work Orders on stop codes; it must never
+    //    create production_sessions / production_items / sku_products.
+
 
 
     console.log("intouch-poll result", JSON.stringify(results));
