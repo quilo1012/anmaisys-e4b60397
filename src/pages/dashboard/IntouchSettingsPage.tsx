@@ -23,6 +23,11 @@ export default function IntouchSettingsPage() {
   const [probing, setProbing] = useState(false);
   const [probeResult, setProbeResult] = useState<any>(null);
 
+  const [machines, setMachines] = useState<any[] | null>(null);
+  const [loadingMachines, setLoadingMachines] = useState(false);
+  const [machineErr, setMachineErr] = useState<string | null>(null);
+  const [machineFilter, setMachineFilter] = useState("");
+
   const [syncDisabled, setSyncDisabled] = useState<boolean>(false);
   const [togglingFlag, setTogglingFlag] = useState(false);
 
