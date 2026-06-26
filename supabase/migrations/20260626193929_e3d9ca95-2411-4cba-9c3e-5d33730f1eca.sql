@@ -1,0 +1,1 @@
+UPDATE public.intouch_machine_map SET last_downtime_code = NULL, last_status = 1 WHERE intouch_machine_name IN ('Filler Line 1','Filler Line 2','Filler Line 3','Filler Line 4','Filler Line 5','Filler Line 6','GEL Line','Tablet Line');
