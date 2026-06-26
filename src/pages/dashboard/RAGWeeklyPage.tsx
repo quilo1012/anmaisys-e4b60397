@@ -206,6 +206,14 @@ export default function RAGWeeklyPage() {
     },
   });
 
+  useEffect(() => {
+    if (lineStopsError) {
+      toast.error(`Failed to load downtime: ${(lineStopsError as Error).message}`);
+    }
+  }, [lineStopsError]);
+
+
+
   const { autoDtMap, autoDtBreakdown } = useMemo(() => {
     const byLine = new Map<string, StopDetail[]>();
     for (const s of lineStops) {
