@@ -102,7 +102,7 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
     "/dashboard/planner",
     "/dashboard/production-performance",
     "/dashboard/quality",
-    "/dashboard/leader-quality",
+    
     "/dashboard/shift-history",
     "/dashboard/weekly-production",
     "/dashboard/sku-products",
