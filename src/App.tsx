@@ -38,6 +38,7 @@ const SuppliersPage = lazy(() => import("./pages/dashboard/SuppliersPage"));
 const ProductionPlannerPage = lazy(() => import("./pages/dashboard/ProductionPlannerPage"));
 const SKUProductsPage = lazy(() => import("./pages/dashboard/SKUProductsPage"));
 const ProductionPerformancePage = lazy(() => import("./pages/dashboard/ProductionPerformancePage"));
+const SKUEfficiencyPage = lazy(() => import("./pages/dashboard/SKUEfficiencyPage"));
 const ProductionDowntimePage = lazy(() => import("./pages/dashboard/ProductionDowntimePage"));
 const QualityActionsPage = lazy(() => import("./pages/dashboard/QualityActionsPage"));
 const ShiftHistoryPage = lazy(() => import("./pages/dashboard/ShiftHistoryPage"));
