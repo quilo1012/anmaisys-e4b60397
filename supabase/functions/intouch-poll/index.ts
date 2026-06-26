@@ -418,7 +418,7 @@ Deno.serve(async (req) => {
           status: "open",
           intouch_machine_id: s.MachineID,
           intouch_downtime_code: s.DowntimeCode,
-          notes: `[Auto-created from iTouching poll${catchUpMissedStop ? " — catch-up" : ""}]\nMachine: ${m.intouch_machine_name}\nStatus: ${s.Status}\nDowntime code: ${s.DowntimeCode}`,
+          notes: `[Auto-created from iTouching poll]\nMachine: ${m.intouch_machine_name}\nStatus: ${s.Status}\nDowntime code: ${s.DowntimeCode}`,
           line_stopped: true,
           line_stopped_at: now,
         })
