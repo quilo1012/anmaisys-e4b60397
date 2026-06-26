@@ -184,12 +184,19 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
     }
 
     if (header && idxCode !== -1 && idxQty !== -1) {
-      const rowLine = idxLine !== -1 ? getLineNameFromRow([cols[idxLine] ?? ""]) : "";
+      // When the header declares a line/machine column, trust the cell value as the
+      // section name (don't filter it through keyword heuristics — that drops valid
+      // values like "Filler Line 2", "L2", numeric ids, etc.). Fall back to the
+      // previous section only when the cell is blank (merged xlsx cells).
+      let rowLine = "";
+      if (idxLine !== -1) {
+        const raw = (cols[idxLine] ?? "").trim();
+        rowLine = raw || (current?.line ?? "");
+      }
       const section = rowLine ? ensureSection(sections, rowLine) : (current ?? ensureSection(sections, "Imported Plan"));
       current = section;
       const code = cleanCode(cols[idxCode] ?? "");
       const qty = numberFromCell(cols[idxQty] ?? "0");
-      if ((!code || !qty || isNaN(qty)) && rowLine) continue;
       if (!code || !qty || isNaN(qty)) continue;
       section.items.push({
         sku_code: code,
