@@ -165,6 +165,16 @@ export default function IntouchSettingsPage() {
     return Math.max(jaccard, contains);
   };
 
+  // Manual alias map: iTouching name (normalized) -> list of DB machine name patterns to match
+  // Supports one-to-many (e.g. Filler Line 5 -> Line 5A + Line 5B share the same GUID)
+  const ALIASES: { intouch: RegExp; dbPatterns: RegExp[] }[] = [
+    { intouch: /tablet/i, dbPatterns: [/tablet/i] },
+    { intouch: /filler.*5|line\s*5/i, dbPatterns: [/line\s*5a/i, /line\s*5b/i, /filler.*5/i] },
+    { intouch: /filler.*6|line\s*6/i, dbPatterns: [/line\s*6a/i, /line\s*6b/i, /filler.*6/i] },
+    { intouch: /gel/i, dbPatterns: [/gel/i] },
+    { intouch: /unscheduled/i, dbPatterns: [/unscheduled/i] },
+  ];
+
   const autoMapMachines = async () => {
     if (!machines || machines.length === 0) {
       toast.error("Load iTouching machines first");
@@ -182,6 +192,21 @@ export default function IntouchSettingsPage() {
       const details: any[] = [];
       let matched = 0, saved = 0, skipped = 0;
 
+      const applyUpdate = async (row: typeof dbList[number], name: string, guid: string) => {
+        if ((row.code || "").trim().toLowerCase() === guid.toLowerCase()) {
+          details.push({ intouch: name, matched: row.name, guid, status: "already" });
+          return;
+        }
+        const { error: updErr } = await (supabase as any)
+          .from("machines").update({ code: guid }).eq("id", row.id);
+        if (updErr) {
+          details.push({ intouch: name, matched: row.name, guid, status: "error", reason: updErr.message });
+        } else {
+          saved++;
+          details.push({ intouch: name, matched: row.name, guid, status: "saved" });
+        }
+      };
+
       for (const m of machines) {
         const name: string = (m.name ?? m.Name ?? m.MachineName ?? "").toString();
         const guid: string = (m.guid ?? m.MachineID ?? m.MachineId ?? m.MachineGuid ?? m.MachineGUID ?? m.Guid ?? m.GUID ?? m.Id ?? m.ID ?? m.id ?? "").toString();
@@ -190,37 +215,38 @@ export default function IntouchSettingsPage() {
           details.push({ intouch: name || "(unnamed)", guid, status: "skipped", reason: "missing name/guid" });
           continue;
         }
+
+        // 1) Try alias map (supports one-to-many)
+        const alias = ALIASES.find((a) => a.intouch.test(name));
+        if (alias) {
+          const targets = dbList.filter((r) => alias.dbPatterns.some((p) => p.test(r.name || "")));
+          if (targets.length > 0) {
+            matched++;
+            for (const row of targets) await applyUpdate(row, name, guid);
+            continue;
+          }
+        }
+
+        // 2) Fallback to fuzzy similarity (lowered threshold)
         let best: { row: typeof dbList[number]; score: number } | null = null;
         for (const row of dbList) {
           const score = similarity(name, row.name || "");
           if (!best || score > best.score) best = { row, score };
         }
-        if (!best || best.score < 0.5) {
+        if (!best || best.score < 0.3) {
           skipped++;
-          details.push({ intouch: name, guid, status: "skipped", reason: "no match" });
+          details.push({ intouch: name, guid, status: "skipped", reason: `no match (best ${best?.score.toFixed(2) ?? "0"})` });
           continue;
         }
         matched++;
-        if ((best.row.code || "").trim().toLowerCase() === guid.toLowerCase()) {
-          details.push({ intouch: name, matched: best.row.name, guid, status: "already" });
-          continue;
-        }
-        const { error: updErr } = await (supabase as any)
-          .from("machines")
-          .update({ code: guid })
-          .eq("id", best.row.id);
-        if (updErr) {
-          details.push({ intouch: name, matched: best.row.name, guid, status: "error", reason: updErr.message });
-        } else {
-          saved++;
-          details.push({ intouch: name, matched: best.row.name, guid, status: "saved" });
-        }
+        await applyUpdate(best.row, name, guid);
       }
 
       setAutoMapResult({ matched, saved, skipped, total: machines.length, details });
-      toast.success(`Auto-map: ${saved} saved, ${matched - saved} already set, ${skipped} skipped`);
+      toast.success(`Auto-map: ${saved} saved, ${skipped} skipped`);
     } catch (e: any) {
       toast.error(e.message || "Auto-map failed");
+
     } finally {
       setAutoMapping(false);
     }
