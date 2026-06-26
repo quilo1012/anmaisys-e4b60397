@@ -209,38 +209,6 @@ Deno.serve(async (req) => {
     }
     results.polled = mapped.length;
 
-    // ── Auto-reset stuck baselines ──
-    // If a machine has a saved last_downtime_code but no longer has any open WO,
-    // the previous stop has been resolved. Clear the baseline so the next time
-    // the operator selects the same stop code it is treated as a NEW transition
-    // (otherwise the poll skips it as "baseline/no new stop").
-    {
-      const candidates = mapped.filter((m) => m.last_downtime_code);
-      if (candidates.length) {
-        const candIds = candidates.map((m) => m.intouch_machine_id);
-        const { data: openWos } = await admin
-          .from("work_orders")
-          .select("intouch_machine_id")
-          .in("intouch_machine_id", candIds)
-          .in("status", ["open", "received", "arrived", "in_progress"]);
-        const stillOpen = new Set((openWos ?? []).map((w) => w.intouch_machine_id));
-        const toReset = candidates.filter((m) => !stillOpen.has(m.intouch_machine_id));
-        if (toReset.length) {
-          await admin
-            .from("intouch_machine_map")
-            .update({ last_downtime_code: null, last_status: 1, updated_at: new Date().toISOString() })
-            .in("intouch_machine_id", toReset.map((m) => m.intouch_machine_id));
-          // Reflect locally so the per-machine loop below sees the fresh baseline.
-          for (const m of toReset) {
-            m.last_downtime_code = null;
-            m.last_status = 1;
-          }
-        }
-      }
-    }
-
-
-
     // 2. Batch status call
     const ids = mapped.map((m) => m.intouch_machine_id);
     const statuses: Array<{ MachineID: string; Status: number; DowntimeCode?: string | null }> =
@@ -387,14 +355,14 @@ Deno.serve(async (req) => {
       const label = mapped_code?.label ?? `iTouching stop ${codeName}`;
       const priority = (mapped_code?.default_priority ?? "medium") as string;
 
-      // Look up RECENT open WO for this machine. Old stuck WOs (>2h, never
-      // resumed) must not block a new stop from creating a fresh WO.
-      const recentCutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      // Look up RECENT open WO for this machine. If one exists, never create
+      // another order for the same stopped machine during this window.
+      const recentCutoff = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
       const { data: existing } = await admin
         .from("work_orders")
         .select("id, wo_number, intouch_downtime_code, notes")
         .eq("intouch_machine_id", s.MachineID)
-        .in("status", ["open", "received", "arrived"])
+        .in("status", ["open", "received", "arrived", "in_progress"])
         .gte("created_at", recentCutoff)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -416,16 +384,10 @@ Deno.serve(async (req) => {
       }
 
       const cameFromHealthy = hadPreviousSnapshot && previousStatus != null && HEALTHY_STATUS.has(previousStatus);
-      // Also treat as a new stop when the operator switches the stop code
-      // (e.g. from a production-side code to a maintenance code) without the
-      // machine ever returning to a healthy status in between.
-      const switchedStopCode = hadPreviousSnapshot && !!previousCodeKey && previousCodeKey !== codeKey;
-      const cameFromProdDowntime = wasTrackingProd; // had prod-side downtime open
-      // NOTE: catch-up path removed — it was re-creating a WO every time the
-      // previous one was finished/closed while the machine status was still
-      // "down" on the same code. New WOs now require an actual transition:
-      // healthy → down, a stop-code switch, or handover from a prod downtime.
-      if (!cameFromHealthy && !switchedStopCode && !cameFromProdDowntime) {
+      // Never synthesize a running baseline while the machine is still stopped.
+      // A new WO is created only on a real transition observed by the poll:
+      // previous iTouching status was running/healthy, current status is stopped.
+      if (!cameFromHealthy) {
         results.skipped.push(`${m.intouch_machine_name} (${codeName} baseline/no new stop)`);
         continue;
       }
