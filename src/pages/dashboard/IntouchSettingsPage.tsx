@@ -128,6 +128,40 @@ export default function IntouchSettingsPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" /> Sync now
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Force sync of the current shift production from iTouching (Plan / SKU / Actual). Runs the same job as the 06:30 / 18:30 cron.
+            </p>
+            <Button onClick={syncNow} disabled={syncing}>
+              {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Sync current shift
+            </Button>
+            {syncResult && (
+              <div
+                className={
+                  "flex items-start gap-2 rounded-md border p-3 text-sm " +
+                  (syncResult.ok
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                    : "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300")
+                }
+              >
+                {syncResult.ok ? (
+                  <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                )}
+                <span className="break-all">{syncResult.msg}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
       </div>
     </DashboardLayout>
   );
