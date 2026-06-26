@@ -253,6 +253,29 @@ export default function ProductionPlannerPage() {
                 <FileInput className="h-4 w-4 mr-1" />Import iTouching
               </Button>
             )}
+            {isManager && (
+              <Button
+                variant="default"
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+                onClick={async () => {
+                  try {
+                    const { data, error } = await supabase.functions.invoke("calculate-shift-targets", {
+                      body: { date, shift, line: line || undefined, overwrite: false },
+                    });
+                    if (error) throw error;
+                    toast.success(`Auto Targets: ${data?.items_updated ?? 0} SKU(s) updated`);
+                    queryClient.invalidateQueries({ queryKey: ["planner-items"] });
+                    queryClient.invalidateQueries({ queryKey: ["planner-session"] });
+                    queryClient.invalidateQueries({ queryKey: ["planner-sessions"] });
+                  } catch (e: any) {
+                    toast.error(`Auto Targets failed: ${e?.message ?? "unknown"}`);
+                  }
+                }}
+              >
+                <Sparkles className="h-4 w-4 mr-1" />Auto Targets
+              </Button>
+            )}
             {existingId && isManager && (
               <Button variant="outline" size="sm" onClick={() => toggleLock.mutate({ id: existingId, lock: !locked })}>
                 {locked ? <><Unlock className="h-4 w-4 mr-1" />Unlock</> : <><Lock className="h-4 w-4 mr-1" />Lock</>}
