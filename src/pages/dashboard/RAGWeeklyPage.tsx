@@ -28,6 +28,7 @@ import { useRole } from "@/hooks/useRole";
 import { useIsFetching } from "@tanstack/react-query";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
+import { mapWoToStop } from "@/lib/ragDowntime";
 
 /** Compute UTC ms for a London-local time on a given date. */
 function londonUtcMs(dateStr: string, hour: number): number {
@@ -173,17 +174,12 @@ export default function RAGWeeklyPage() {
           .select("line, machine, reason, started_at, ended_at")
           .gte("started_at", padStartIso).lte("started_at", padEndIso),
       ]);
-      const TERMINAL = new Set(["finished", "cancelled", "canceled", "force_closed", "closed"]);
       const wo = ((woRes.data ?? []) as any[]).map((r) => {
-        const isTerminal = TERMINAL.has(String(r.status ?? "").toLowerCase());
-        // For terminal WOs missing an explicit resume timestamp, fall back to
-        // finished_at / closed_at so they don't get treated as "ongoing"
-        // (which would inflate downtime to cover every shift up to now).
-        const end = r.line_resumed_at ?? r.finished_at ?? r.closed_at ?? (isTerminal ? r.line_stopped_at : null);
+        const mapped = mapWoToStop(r);
         return {
-          line: r.line_at_time as string | null,
-          start: r.line_stopped_at as string,
-          end: end as string | null,
+          line: mapped?.line ?? (r.line_at_time as string | null),
+          start: (mapped?.start ?? r.line_stopped_at) as string,
+          end: (mapped?.end ?? null) as string | null,
           source: "WO" as const,
           ref: r.wo_number as string | null,
           machine: r.machine as string | null,
