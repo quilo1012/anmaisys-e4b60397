@@ -18,10 +18,9 @@ type RagEntry = {
 
 type ProductionItem = {
   id: string;
-  sku_code: string | null;
-  sku_name: string | null;
   planned_qty: number | null;
   actual_qty: number | null;
+  sku: { code: string | null; name: string | null } | null;
 };
 
 function todayISO() {
