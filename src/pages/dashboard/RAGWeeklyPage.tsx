@@ -1138,44 +1138,62 @@ function DayNightTotalSummary({
   onOpenFull?: (date: string, line: string, shift: Shift) => void;
 }) {
 
-  const weekKey = weekDates.length ? format(weekDates[0], "yyyy-MM-dd") : "none";
-  const storageKey = `rag-week-excluded:${weekKey}`;
-  const [excludedDates, setExcludedDates] = useState<Set<string>>(() => {
-    try {
-      const raw = typeof window !== "undefined" ? window.localStorage.getItem(storageKey) : null;
-      return raw ? new Set<string>(JSON.parse(raw)) : new Set();
-    } catch {
-      return new Set();
-    }
+  const qcExcl = useQueryClient();
+  const fromDate = weekDates.length ? format(weekDates[0], "yyyy-MM-dd") : null;
+  const toDate = weekDates.length ? format(weekDates[weekDates.length - 1], "yyyy-MM-dd") : null;
+
+  const { data: exclusionRows = [] } = useQuery({
+    queryKey: ["rag-exclusions", fromDate, toDate],
+    enabled: !!fromDate && !!toDate,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rag_week_exclusions")
+        .select("entry_date,line,shift")
+        .gte("entry_date", fromDate!)
+        .lte("entry_date", toDate!);
+      if (error) throw error;
+      return (data ?? []) as { entry_date: string; line: string; shift: "DAY" | "NIGHT" | "ALL" }[];
+    },
   });
+
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(storageKey);
-      setExcludedDates(raw ? new Set<string>(JSON.parse(raw)) : new Set());
-    } catch {
-      setExcludedDates(new Set());
+    if (!fromDate || !toDate) return;
+    const ch = supabase
+      .channel(`rag-exclusions-${fromDate}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "rag_week_exclusions" }, () => {
+        qcExcl.invalidateQueries({ queryKey: ["rag-exclusions", fromDate, toDate] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [fromDate, toDate, qcExcl]);
+
+  const excludedDates = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of exclusionRows) {
+      s.add(r.shift === "ALL" ? `${r.line}|${r.entry_date}` : `${r.line}|${r.entry_date}|${r.shift}`);
     }
-  }, [storageKey]);
-  const persist = (next: Set<string>) => {
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(Array.from(next)));
-    } catch {
-      /* ignore */
+    return s;
+  }, [exclusionRows]);
+
+  const toggleExclusion = async (line: string, ds: string, shift: "DAY" | "NIGHT" | "ALL") => {
+    const exists = exclusionRows.some(r => r.line === line && r.entry_date === ds && r.shift === shift);
+    if (exists) {
+      const { error } = await supabase.from("rag_week_exclusions").delete()
+        .eq("line", line).eq("entry_date", ds).eq("shift", shift);
+      if (error) { toast.error(error.message); return; }
+    } else {
+      const { error } = await supabase.from("rag_week_exclusions")
+        .insert({ line, entry_date: ds, shift });
+      if (error) { toast.error(error.message); return; }
     }
+    qcExcl.invalidateQueries({ queryKey: ["rag-exclusions", fromDate, toDate] });
   };
-  const toggleKey = (key: string) =>
-    setExcludedDates((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      persist(next);
-      return next;
-    });
-  const toggleDate = (label: string, ds: string) => toggleKey(`${label}|${ds}`);
-  const toggleShift = (label: string, ds: string, shift: Shift) => toggleKey(`${label}|${ds}|${shift}`);
+  const toggleDate = (label: string, ds: string) => toggleExclusion(label, ds, "ALL");
+  const toggleShift = (label: string, ds: string, shift: Shift) => toggleExclusion(label, ds, shift);
   const isDateExcluded = (label: string, ds: string) => excludedDates.has(`${label}|${ds}`);
   const isShiftExcluded = (label: string, ds: string, shift: Shift) =>
     excludedDates.has(`${label}|${ds}`) || excludedDates.has(`${label}|${ds}|${shift}`);
+
 
   if (!lines.length) return null;
 

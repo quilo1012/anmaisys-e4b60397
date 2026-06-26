@@ -1667,6 +1667,33 @@ export type Database = {
           },
         ]
       }
+      rag_week_exclusions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          entry_date: string
+          id: string
+          line: string
+          shift: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          entry_date: string
+          id?: string
+          line: string
+          shift: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          entry_date?: string
+          id?: string
+          line?: string
+          shift?: string
+        }
+        Relationships: []
+      }
       rag_weekly_entries: {
         Row: {
           actual_qty: number
