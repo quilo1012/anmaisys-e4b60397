@@ -162,7 +162,7 @@ export default function RAGWeeklyPage() {
   // Auto downtime per (date|line|shift) from work orders + manual downtime.
   const padStartIso = new Date(weekStart.getTime() - 24 * 3600_000).toISOString();
   const padEndIso = addDays(weekStart, 8).toISOString();
-  const { data: lineStops = [] } = useQuery({
+  const { data: lineStops = [], error: lineStopsError } = useQuery({
     queryKey: ["rag-week-line-stops", weekStartStr],
     queryFn: async () => {
       const [woRes, manRes] = await Promise.all([
