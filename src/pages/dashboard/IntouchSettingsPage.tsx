@@ -183,8 +183,8 @@ export default function IntouchSettingsPage() {
       let matched = 0, saved = 0, skipped = 0;
 
       for (const m of machines) {
-        const name: string = (m.Name ?? m.MachineName ?? m.name ?? "").toString();
-        const guid: string = (m.MachineGuid ?? m.Guid ?? m.Id ?? m.id ?? "").toString();
+        const name: string = (m.name ?? m.Name ?? m.MachineName ?? "").toString();
+        const guid: string = (m.guid ?? m.MachineID ?? m.MachineId ?? m.MachineGuid ?? m.MachineGUID ?? m.Guid ?? m.GUID ?? m.Id ?? m.ID ?? m.id ?? "").toString();
         if (!name || !guid) {
           skipped++;
           details.push({ intouch: name || "(unnamed)", guid, status: "skipped", reason: "missing name/guid" });
