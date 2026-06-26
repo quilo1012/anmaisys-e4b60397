@@ -8,8 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Copy, CheckCircle2, AlertCircle, Loader2, Plug, RefreshCw, PowerOff } from "lucide-react";
 import { toast } from "sonner";
 import { invokeFunction } from "@/lib/invokeFunction";
-
-const SYNC_DISABLED_KEY = "intouch_sync_disabled";
+import { supabase } from "@/integrations/supabase/client";
 
 const PROJECT_REF = (import.meta.env.VITE_SUPABASE_URL || "")
   .replace("https://", "")
@@ -22,13 +21,41 @@ export default function IntouchSettingsPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<null | { ok: boolean; msg: string }>(null);
 
-  const [syncDisabled, setSyncDisabled] = useState<boolean>(
-    () => localStorage.getItem(SYNC_DISABLED_KEY) === "1",
-  );
+  const [syncDisabled, setSyncDisabled] = useState<boolean>(false);
+  const [togglingFlag, setTogglingFlag] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(SYNC_DISABLED_KEY, syncDisabled ? "1" : "0");
-  }, [syncDisabled]);
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("system_settings")
+        .select("id, intouch_sync_enabled")
+        .limit(1)
+        .maybeSingle();
+      if (data) setSyncDisabled(data.intouch_sync_enabled === false);
+    })();
+  }, []);
+
+  const toggleSync = async (disabled: boolean) => {
+    setTogglingFlag(true);
+    const { data: row } = await (supabase as any)
+      .from("system_settings").select("id").limit(1).maybeSingle();
+    if (!row?.id) {
+      toast.error("system_settings row missing");
+      setTogglingFlag(false);
+      return;
+    }
+    const { error } = await (supabase as any)
+      .from("system_settings")
+      .update({ intouch_sync_enabled: !disabled })
+      .eq("id", row.id);
+    setTogglingFlag(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSyncDisabled(disabled);
+    toast.success(disabled ? "Sync disabled (cron + manual)" : "Sync enabled");
+  };
 
   const syncNow = async () => {
     if (syncDisabled) {
@@ -42,6 +69,8 @@ export default function IntouchSettingsPage() {
     if (error) {
       setSyncResult({ ok: false, msg: error.message || "Sync failed" });
       toast.error("Sync failed");
+    } else if (data?.skipped) {
+      setSyncResult({ ok: false, msg: "Sync disabled in settings" });
     } else {
       const summary = data?.summary || data?.message || JSON.stringify(data ?? {}).slice(0, 160);
       setSyncResult({ ok: true, msg: `Synced · ${summary}` });
