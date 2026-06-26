@@ -168,12 +168,13 @@ export default function IntouchSettingsPage() {
   // Manual alias map: iTouching name (normalized) -> list of DB machine name patterns to match
   // Supports one-to-many (e.g. Filler Line 5 -> Line 5A + Line 5B share the same GUID)
   const ALIASES: { intouch: RegExp; dbPatterns: RegExp[] }[] = [
-    { intouch: /tablet/i, dbPatterns: [/tablet/i] },
-    { intouch: /filler.*5|line\s*5/i, dbPatterns: [/line\s*5a/i, /line\s*5b/i, /filler.*5/i] },
-    { intouch: /filler.*6|line\s*6/i, dbPatterns: [/line\s*6a/i, /line\s*6b/i, /filler.*6/i] },
-    { intouch: /gel/i, dbPatterns: [/gel/i] },
+    { intouch: /tablet/i, dbPatterns: [/^tablet/i] },
+    { intouch: /filler.*5|^line\s*5/i, dbPatterns: [/^line\s*5a$/i, /^line\s*5b$/i] },
+    { intouch: /filler.*6|^line\s*6/i, dbPatterns: [/^line\s*6a$/i, /^line\s*6b$/i] },
+    { intouch: /gel/i, dbPatterns: [/gel\s*packing/i] },
     { intouch: /unscheduled/i, dbPatterns: [/unscheduled/i] },
   ];
+
 
   const autoMapMachines = async () => {
     if (!machines || machines.length === 0) {
