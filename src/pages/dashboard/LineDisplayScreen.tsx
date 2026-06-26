@@ -227,7 +227,7 @@ export default function LineDisplayScreen() {
                 <li key={it.id} className="bg-slate-800 rounded-xl p-4">
                   <div className="flex justify-between text-lg mb-2">
                     <span className="font-semibold">
-                      {it.sku_code ?? "—"} <span className="text-slate-400 font-normal">{it.sku_name ?? ""}</span>
+                      {it.sku?.code ?? "—"} <span className="text-slate-400 font-normal">{it.sku?.name ?? ""}</span>
                     </span>
                     <span className="font-mono">
                       {a.toLocaleString()} / {p.toLocaleString()}
