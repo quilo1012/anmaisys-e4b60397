@@ -168,12 +168,13 @@ export default function IntouchSettingsPage() {
   // Manual alias map: iTouching name (normalized) -> list of DB machine name patterns to match
   // Supports one-to-many (e.g. Filler Line 5 -> Line 5A + Line 5B share the same GUID)
   const ALIASES: { intouch: RegExp; dbPatterns: RegExp[] }[] = [
-    { intouch: /tablet/i, dbPatterns: [/tablet/i] },
-    { intouch: /filler.*5|line\s*5/i, dbPatterns: [/line\s*5a/i, /line\s*5b/i, /filler.*5/i] },
-    { intouch: /filler.*6|line\s*6/i, dbPatterns: [/line\s*6a/i, /line\s*6b/i, /filler.*6/i] },
-    { intouch: /gel/i, dbPatterns: [/gel/i] },
+    { intouch: /tablet/i, dbPatterns: [/^tablet/i] },
+    { intouch: /filler.*5|^line\s*5/i, dbPatterns: [/^line\s*5a$/i, /^line\s*5b$/i] },
+    { intouch: /filler.*6|^line\s*6/i, dbPatterns: [/^line\s*6a$/i, /^line\s*6b$/i] },
+    { intouch: /gel/i, dbPatterns: [/gel\s*packing/i] },
     { intouch: /unscheduled/i, dbPatterns: [/unscheduled/i] },
   ];
+
 
   const autoMapMachines = async () => {
     if (!machines || machines.length === 0) {
@@ -216,16 +217,21 @@ export default function IntouchSettingsPage() {
           continue;
         }
 
-        // 1) Try alias map (supports one-to-many)
+        // 1) Try alias map (supports one-to-many). Alias is EXCLUSIVE — if it matches by name,
+        // we never fall through to fuzzy (prevents e.g. "Tablet Line" matching "Line 5A").
         const alias = ALIASES.find((a) => a.intouch.test(name));
         if (alias) {
           const targets = dbList.filter((r) => alias.dbPatterns.some((p) => p.test(r.name || "")));
           if (targets.length > 0) {
             matched++;
             for (const row of targets) await applyUpdate(row, name, guid);
-            continue;
+          } else {
+            skipped++;
+            details.push({ intouch: name, guid, status: "skipped", reason: "alias matched but no DB machine found" });
           }
+          continue;
         }
+
 
         // 2) Fallback to fuzzy similarity (lowered threshold)
         let best: { row: typeof dbList[number]; score: number } | null = null;
