@@ -162,7 +162,7 @@ export default function RAGWeeklyPage() {
   // Auto downtime per (date|line|shift) from work orders + manual downtime.
   const padStartIso = new Date(weekStart.getTime() - 24 * 3600_000).toISOString();
   const padEndIso = addDays(weekStart, 8).toISOString();
-  const { data: lineStops = [] } = useQuery({
+  const { data: lineStops = [], error: lineStopsError } = useQuery({
     queryKey: ["rag-week-line-stops", weekStartStr],
     queryFn: async () => {
       const [woRes, manRes] = await Promise.all([
@@ -175,6 +175,9 @@ export default function RAGWeeklyPage() {
           .select("line, machine, reason, started_at, ended_at")
           .gte("started_at", padStartIso).lte("started_at", padEndIso),
       ]);
+      if (woRes.error) throw woRes.error;
+      if ((manRes as any).error) throw (manRes as any).error;
+
       const wo = ((woRes.data ?? []) as any[]).map((r) => {
         const mapped = mapWoToStop(r);
         return {
@@ -202,6 +205,14 @@ export default function RAGWeeklyPage() {
       return [...wo, ...man].filter((s) => s.line && s.start) as StopDetail[];
     },
   });
+
+  useEffect(() => {
+    if (lineStopsError) {
+      toast.error(`Failed to load downtime: ${(lineStopsError as Error).message}`);
+    }
+  }, [lineStopsError]);
+
+
 
   const { autoDtMap, autoDtBreakdown } = useMemo(() => {
     const byLine = new Map<string, StopDetail[]>();
