@@ -20,6 +20,8 @@ export default function IntouchSettingsPage() {
   const [testResult, setTestResult] = useState<null | { ok: boolean; msg: string }>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<null | { ok: boolean; msg: string }>(null);
+  const [probing, setProbing] = useState(false);
+  const [probeResult, setProbeResult] = useState<any>(null);
 
   const [syncDisabled, setSyncDisabled] = useState<boolean>(false);
   const [togglingFlag, setTogglingFlag] = useState(false);
