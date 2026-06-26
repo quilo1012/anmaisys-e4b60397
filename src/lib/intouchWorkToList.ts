@@ -79,6 +79,14 @@ function isDescHeader(cell: string): boolean {
   );
 }
 
+function isLineHeader(cell: string): boolean {
+  const n = norm(cell);
+  return [
+    "machine", "machinename", "line", "linename", "productionline", "asset", "area", "resource",
+    "workcentre", "workcenter", "workstation", "linha", "equipment", "plantline", "filler",
+  ].some((alias) => n === alias || n.includes(alias));
+}
+
 function getLineNameFromRow(cols: string[]): string {
   const markerLabels = [
     "machine", "line", "productionline", "asset", "area", "resource", "workcentre", "workcenter",
@@ -112,7 +120,8 @@ function findHeaderIndexes(cols: string[]) {
   const idxCode = cols.findIndex(isCodeHeader);
   const idxQty = cols.findIndex(isQtyHeader);
   const idxDesc = cols.findIndex(isDescHeader);
-  return { idxCode, idxQty, idxDesc, found: idxCode !== -1 && idxQty !== -1 };
+  const idxLine = cols.findIndex(isLineHeader);
+  return { idxCode, idxQty, idxDesc, idxLine, found: idxCode !== -1 && idxQty !== -1 };
 }
 
 function ensureSection(sections: WorkToListSection[], line: string): WorkToListSection {
@@ -130,7 +139,7 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
   const sections: WorkToListSection[] = [];
   let current: WorkToListSection | null = null;
   let header: string[] | null = null;
-  let idxCode = -1, idxQty = -1, idxDesc = -1;
+  let idxCode = -1, idxQty = -1, idxDesc = -1, idxLine = -1;
 
   for (const cols of rows) {
     const lower = cols.map((c) => c.toLowerCase());
@@ -170,15 +179,19 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
       idxCode = headerIndexes.idxCode;
       idxQty = headerIndexes.idxQty;
       idxDesc = headerIndexes.idxDesc;
+      idxLine = headerIndexes.idxLine;
       continue;
     }
 
     if (header && idxCode !== -1 && idxQty !== -1) {
-      if (!current) current = ensureSection(sections, "Imported Plan");
+      const rowLine = idxLine !== -1 ? getLineNameFromRow([cols[idxLine] ?? ""]) : "";
+      const section = rowLine ? ensureSection(sections, rowLine) : (current ?? ensureSection(sections, "Imported Plan"));
+      current = section;
       const code = cleanCode(cols[idxCode] ?? "");
       const qty = numberFromCell(cols[idxQty] ?? "0");
+      if ((!code || !qty || isNaN(qty)) && rowLine) continue;
       if (!code || !qty || isNaN(qty)) continue;
-      current.items.push({
+      section.items.push({
         sku_code: code,
         qty,
         description: idxDesc !== -1 ? cleanDesc(cols[idxDesc] ?? "") : undefined,
