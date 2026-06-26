@@ -258,18 +258,24 @@ export default function Login() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_70%,hsl(222_55%_4%/0.7)_100%)]" />
 
       {/* ── Center card ─────────────────────────────────── */}
-      <main className="relative z-10 flex min-h-[calc(100vh-5rem)] items-center justify-center px-4 py-10 sm:px-6">
-        <div className="w-full max-w-[440px]">
-          <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(214_100%_55%)] opacity-20 blur-[140px]" />
+      <main className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
+        <div className="w-full max-w-[480px]">
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[460px] w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(214_100%_55%)] opacity-20 blur-[140px]" />
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-8 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] backdrop-blur-2xl sm:p-10">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] backdrop-blur-2xl sm:p-10">
             {/* Brand */}
-            <div className="mb-6 flex flex-col items-center text-center">
+            <div className="mb-7 flex flex-col items-center text-center">
               <img
                 src={appliedLogo}
                 alt="Applied Nutrition"
-                className="mb-4 w-full h-auto object-contain"
+                className="mb-5 w-3/4 max-w-[260px] h-auto object-contain"
               />
+              <h1 className="text-lg font-semibold tracking-tight text-white/90">
+                Maintenance Platform
+              </h1>
+              <p className="mt-1 text-xs text-white/45">
+                Sign in to continue
+              </p>
             </div>
 
             {/* Mode toggle — only when there's at least one operator account */}
