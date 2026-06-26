@@ -1,6 +1,6 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { TeamsSetupCard } from "@/components/TeamsSetupCard";
-import { WeeklyReportCard } from "@/components/WeeklyReportCard";
+import { DailyRagReportCard } from "@/components/DailyRagReportCard";
 
 import { ExcelExportCard } from "@/components/ExcelExportCard";
 import { Settings as SettingsIcon } from "lucide-react";
@@ -25,7 +25,7 @@ export default function SettingsPage() {
         <section className="space-y-3">
           <h3 className="text-lg font-semibold">Reports</h3>
           
-          <WeeklyReportCard />
+          <DailyRagReportCard />
           <ExcelExportCard />
         </section>
       </div>
