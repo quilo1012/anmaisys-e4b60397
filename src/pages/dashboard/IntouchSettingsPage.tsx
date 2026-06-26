@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, CheckCircle2, AlertCircle, Loader2, Plug, RefreshCw } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Copy, CheckCircle2, AlertCircle, Loader2, Plug, RefreshCw, PowerOff } from "lucide-react";
 import { toast } from "sonner";
 import { invokeFunction } from "@/lib/invokeFunction";
+
+const SYNC_DISABLED_KEY = "intouch_sync_disabled";
 
 const PROJECT_REF = (import.meta.env.VITE_SUPABASE_URL || "")
   .replace("https://", "")
@@ -18,7 +22,19 @@ export default function IntouchSettingsPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<null | { ok: boolean; msg: string }>(null);
 
+  const [syncDisabled, setSyncDisabled] = useState<boolean>(
+    () => localStorage.getItem(SYNC_DISABLED_KEY) === "1",
+  );
+
+  useEffect(() => {
+    localStorage.setItem(SYNC_DISABLED_KEY, syncDisabled ? "1" : "0");
+  }, [syncDisabled]);
+
   const syncNow = async () => {
+    if (syncDisabled) {
+      toast.error("Sync is disabled. Enable it first.");
+      return;
+    }
     setSyncing(true);
     setSyncResult(null);
     const { data, error } = await invokeFunction<any>("intouch-sync-production", { force: true });
@@ -138,7 +154,23 @@ export default function IntouchSettingsPage() {
             <p className="text-sm text-muted-foreground">
               Force sync of the current shift production from iTouching (Plan / SKU / Actual). Runs the same job as the 06:30 / 18:30 cron.
             </p>
-            <Button onClick={syncNow} disabled={syncing}>
+            <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 p-3">
+              <div className="flex items-center gap-2">
+                <PowerOff className="h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="sync-disabled" className="text-sm font-medium">
+                  Disable current-shift sync
+                </Label>
+              </div>
+              <Switch
+                id="sync-disabled"
+                checked={syncDisabled}
+                onCheckedChange={(v) => {
+                  setSyncDisabled(v);
+                  toast.success(v ? "Sync disabled" : "Sync enabled");
+                }}
+              />
+            </div>
+            <Button onClick={syncNow} disabled={syncing || syncDisabled}>
               {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Sync current shift
             </Button>
