@@ -345,25 +345,25 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Only create/update WOs for codes explicitly mapped with requires_wo = true.
-      if (!mapped_code || mapped_code.requires_wo !== true) {
-        results.skipped.push(`${m.intouch_machine_name} (${codeName} not flagged for WO)`);
+      // If the code has no mapping yet, still open a WO (don't drop the stop).
+      // Only skip when an admin explicitly marked requires_wo = false.
+      if (mapped_code && mapped_code.requires_wo === false) {
+        results.skipped.push(`${m.intouch_machine_name} (${codeName} flagged production-only)`);
         continue;
       }
 
-      const label = mapped_code.label ?? `iTouching stop ${codeName}`;
-      const priority = (mapped_code.default_priority ?? "medium") as string;
+      const label = mapped_code?.label ?? `iTouching stop ${codeName}`;
+      const priority = (mapped_code?.default_priority ?? "medium") as string;
 
-      // Look up ANY open WO for this machine from iTouching (not filtered by
-      // code). If the operator changes the stop code on iTouching while the
-      // line is still down, update the existing WO instead of skipping it
-      // (which left stale descriptions like "Mechanical Stop" while iTouching
-      // already showed "Blender Fault").
+      // Look up RECENT open WO for this machine. Old stuck WOs (>2h, never
+      // resumed) must not block a new stop from creating a fresh WO.
+      const recentCutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
       const { data: existing } = await admin
         .from("work_orders")
         .select("id, wo_number, intouch_downtime_code, notes")
         .eq("intouch_machine_id", s.MachineID)
-        .in("status", ["open", "received", "arrived", "in_progress"])
+        .in("status", ["open", "received", "arrived"])
+        .gte("created_at", recentCutoff)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
