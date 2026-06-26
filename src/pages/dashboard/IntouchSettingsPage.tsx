@@ -296,6 +296,77 @@ export default function IntouchSettingsPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <List className="h-5 w-5" /> iTouching Machines (GUIDs)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Fetches all machines from iTouching. Copy each GUID and paste it into the matching
+              machine's <strong>Code</strong> field on the Machines page so the integration can map them.
+            </p>
+            <div className="flex gap-2">
+              <Button onClick={loadMachines} disabled={loadingMachines}>
+                {loadingMachines ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <List className="h-4 w-4 mr-2" />}
+                Load machines
+              </Button>
+              {machines && machines.length > 0 && (
+                <div className="relative flex-1">
+                  <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Filter by name or GUID…"
+                    value={machineFilter}
+                    onChange={(e) => setMachineFilter(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+              )}
+            </div>
+            {machineErr && (
+              <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span className="break-all">{machineErr}</span>
+              </div>
+            )}
+            {machines && (
+              <div className="rounded-md border border-border divide-y divide-border max-h-[480px] overflow-auto">
+                {machines.length === 0 && (
+                  <div className="p-3 text-sm text-muted-foreground">No machines returned.</div>
+                )}
+                {machines
+                  .filter((m: any) => {
+                    if (!machineFilter) return true;
+                    const q = machineFilter.toLowerCase();
+                    const name = (m.Name ?? m.MachineName ?? m.name ?? "").toString().toLowerCase();
+                    const guid = (m.MachineGuid ?? m.Guid ?? m.Id ?? m.id ?? "").toString().toLowerCase();
+                    return name.includes(q) || guid.includes(q);
+                  })
+                  .map((m: any, i: number) => {
+                    const name = m.Name ?? m.MachineName ?? m.name ?? "(unnamed)";
+                    const guid = m.MachineGuid ?? m.Guid ?? m.Id ?? m.id ?? "";
+                    const line = m.LineName ?? m.Line ?? m.line ?? "";
+                    return (
+                      <div key={guid || i} className="flex items-center gap-2 p-2 text-sm hover:bg-muted/40">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{name}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {line && <span className="mr-2">[{line}]</span>}
+                            <code className="font-mono">{guid}</code>
+                          </div>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => copy(String(guid))}>
+                          <Copy className="h-3 w-3 mr-1" /> GUID
+                        </Button>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
       </div>
     </DashboardLayout>
   );
