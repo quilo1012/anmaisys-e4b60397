@@ -15,7 +15,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, TimerOff } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, TimerOff, Calculator } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import {
   AlertDialog,
@@ -69,6 +69,7 @@ const navItems: NavItem[] = [
   { title: "Shift History", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager"], group: "Production" },
   { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production" },
   { title: "SKU Efficiency", url: "/dashboard/sku-efficiency", icon: Trophy, roles: ["admin", "manager"], group: "Production" },
+  { title: "Forecast", url: "/dashboard/forecast", icon: Calculator, roles: ["admin", "manager"], group: "Production" },
   { title: "Weekly Report", url: "/dashboard/weekly-production", icon: FileBarChart, roles: ["admin", "manager"], group: "Production" },
   { title: "Quality Actions", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager"], group: "Production" },
   

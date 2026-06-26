@@ -39,6 +39,7 @@ const ProductionPlannerPage = lazy(() => import("./pages/dashboard/ProductionPla
 const SKUProductsPage = lazy(() => import("./pages/dashboard/SKUProductsPage"));
 const ProductionPerformancePage = lazy(() => import("./pages/dashboard/ProductionPerformancePage"));
 const SKUEfficiencyPage = lazy(() => import("./pages/dashboard/SKUEfficiencyPage"));
+const ProductionForecastPage = lazy(() => import("./pages/dashboard/ProductionForecastPage"));
 const ProductionDowntimePage = lazy(() => import("./pages/dashboard/ProductionDowntimePage"));
 const QualityActionsPage = lazy(() => import("./pages/dashboard/QualityActionsPage"));
 const ShiftHistoryPage = lazy(() => import("./pages/dashboard/ShiftHistoryPage"));
@@ -351,6 +352,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "engineer", "operator", "maintenance_manager"]}>
                       <ProductionDowntimePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/forecast"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <ProductionForecastPage />
                     </ProtectedRoute>
                   }
                 />
