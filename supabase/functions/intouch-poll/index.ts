@@ -149,6 +149,36 @@ async function syncRunningSkus(
   }
 }
 
+async function notifyEngineersNewWO(opts: {
+  woId: string;
+  woNumber: number;
+  machine: string | null;
+  line: string | null;
+  description: string;
+  priority: string;
+}) {
+  try {
+    const { data: engRoles } = await admin
+      .from("user_roles").select("user_id").eq("role", "engineer");
+    const userIds = (engRoles ?? []).map((r: any) => r.user_id);
+    if (!userIds.length) return;
+    const title = `🚨 New WO #${opts.woNumber} — ${opts.machine ?? opts.line ?? "Line"}`;
+    const body = `${opts.description}${opts.line ? `\nLine: ${opts.line}` : ""}\nAuto-created from iTouching`;
+    await admin.from("notifications").insert(
+      userIds.map((uid: string) => ({
+        user_id: uid,
+        wo_id: opts.woId,
+        title,
+        body,
+        priority: opts.priority === "critical" ? "high" : opts.priority,
+        action_url: `/dashboard/work-orders/${opts.woId}`,
+      })),
+    );
+  } catch (_) { /* best-effort */ }
+}
+
+
+
 
 
 Deno.serve(async (req) => {
