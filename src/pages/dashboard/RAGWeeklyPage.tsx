@@ -86,9 +86,10 @@ const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function ragColor(actual: number, plan: number): string {
   if (!plan) return "";
+  // Strict: green only when meeting/exceeding the plan (delta >= 0).
+  if (actual >= plan) return "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium";
   const pct = (actual / plan) * 100;
-  if (pct >= 95) return "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium";
-  if (pct >= 80) return "bg-amber-500/20 text-amber-700 dark:text-amber-300 font-medium";
+  if (pct >= 90) return "bg-amber-500/20 text-amber-700 dark:text-amber-300 font-medium";
   return "bg-red-500/20 text-red-700 dark:text-red-300 font-medium";
 }
 
