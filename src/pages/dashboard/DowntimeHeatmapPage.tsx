@@ -100,8 +100,12 @@ export default function DowntimeHeatmapPage() {
       const line = r.line || "—";
       const start = new Date(r.started_at).getTime();
       const end = r.ended_at ? new Date(r.ended_at).getTime() : Date.now();
-      const minutes = Math.max(0, Math.round((end - start) / 60000));
+      // Filter by selected range (overlap with [fromMs, now])
+      if (end < fromMs) continue;
+      const clampedStart = Math.max(start, fromMs);
+      const minutes = Math.max(0, Math.round((end - clampedStart) / 60000));
       if (minutes <= 0) continue;
+
       const { dayIdx, hour } = londonParts(new Date(start));
       const shift = shiftOf(hour);
       const key = `${dayIdx}-${shift}`;
@@ -154,7 +158,7 @@ export default function DowntimeHeatmapPage() {
     }
 
     return { matrix: perLine, lines, lineTotals, dayShiftTotals, insights, grandMax };
-  }, [records]);
+  }, [records, fromMs]);
 
   return (
     <DashboardLayout>
