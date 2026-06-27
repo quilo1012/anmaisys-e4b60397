@@ -56,8 +56,8 @@ export default function IntouchSettingsPage() {
     try {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("sku_code, sku_name, created_at, updated_at, production_sessions!inner(line)")
-        .not("sku_code", "is", null)
+        .select("sku_id, created_at, updated_at, production_sessions!inner(line), sku_products(code)")
+        .not("sku_id", "is", null)
         .order("updated_at", { ascending: false })
         .limit(10000);
       if (error) throw error;
@@ -68,7 +68,7 @@ export default function IntouchSettingsPage() {
       const allSkus = new Set<string>();
       for (const r of rows) {
         const line = String(r.production_sessions?.line ?? "—");
-        const code = String(r.sku_code ?? "").trim();
+        const code = String(r.sku_products?.code ?? r.sku_id ?? "").trim();
         if (!code) continue;
         allSkus.add(code.toLowerCase());
         if (!lineMap.has(line)) lineMap.set(line, new Set());
