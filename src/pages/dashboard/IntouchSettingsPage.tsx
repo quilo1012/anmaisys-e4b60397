@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Copy, CheckCircle2, AlertCircle, Loader2, Plug, RefreshCw, PowerOff, List, Search } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Loader2, Plug, RefreshCw, PowerOff, List, Search, Package, Download } from "lucide-react";
 import { toast } from "sonner";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { supabase } from "@/integrations/supabase/client";
