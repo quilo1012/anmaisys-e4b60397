@@ -60,21 +60,40 @@ async function readFileAsCsv(file: File): Promise<string> {
     return await file.text();
   }
   const buf = await file.arrayBuffer();
-  const XLSX = await import("xlsx");
-  const wb = XLSX.read(buf, { type: "array", cellDates: false, raw: false });
+  const ExcelJS = (await import("exceljs")).default ?? (await import("exceljs"));
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
   const lines: string[] = [];
-  for (const sheetName of wb.SheetNames) {
-    const sheet = wb.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "", raw: false, blankrows: false });
-    if (rows.length === 0) continue;
-    // Inject a synthetic Machine marker using the sheet name so files without
-    // explicit "Machine:" markers still produce a section per sheet.
-    lines.push(`"Machine:","${sheetName.replace(/"/g, '""')}"`);
-    rows.forEach((row) => {
-      const cells = row.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`);
-      if (cells.some((c) => c !== '""')) lines.push(cells.join(","));
+  const esc = (v: unknown) => {
+    let s = "";
+    if (v == null) s = "";
+    else if (typeof v === "object") {
+      const anyV = v as { text?: string; result?: unknown; richText?: { text: string }[] };
+      if (Array.isArray(anyV.richText)) s = anyV.richText.map((r) => r.text).join("");
+      else if (anyV.text != null) s = String(anyV.text);
+      else if (anyV.result != null) s = String(anyV.result);
+      else s = String(v);
+    } else s = String(v);
+    return `"${s.replace(/"/g, '""')}"`;
+  };
+  wb.eachSheet((sheet) => {
+    let hasAny = false;
+    const buffer: string[] = [];
+    sheet.eachRow({ includeEmpty: false }, (row) => {
+      const cells: string[] = [];
+      const max = row.cellCount || 0;
+      for (let c = 1; c <= max; c++) {
+        cells.push(esc(row.getCell(c).value));
+      }
+      if (cells.some((c) => c !== '""')) {
+        buffer.push(cells.join(","));
+        hasAny = true;
+      }
     });
-  }
+    if (!hasAny) return;
+    lines.push(`"Machine:","${sheet.name.replace(/"/g, '""')}"`);
+    lines.push(...buffer);
+  });
   return lines.join("\n");
 }
 
