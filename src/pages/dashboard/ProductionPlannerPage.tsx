@@ -127,7 +127,7 @@ export default function ProductionPlannerPage() {
       });
       if (syncError) throw syncError;
       if (syncData?.skipped) {
-        toast.error(syncData.reason === "intouch_sync_disabled"
+        toast.error(syncData.reason === "intouch_sync_disabled" || syncData.reason === "intouch_current_shift_sync_disabled"
           ? "iTouching SKU sync is disabled in Settings. Enable it first."
           : `iTouching sync skipped: ${syncData.reason ?? "unknown"}`);
       } else {
