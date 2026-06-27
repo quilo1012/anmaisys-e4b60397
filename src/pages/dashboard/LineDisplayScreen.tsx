@@ -61,6 +61,10 @@ export default function LineDisplayScreen() {
 
   const qc = useQueryClient();
   const [now, setNow] = useState(new Date());
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
