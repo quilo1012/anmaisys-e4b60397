@@ -1277,6 +1277,7 @@ export type Database = {
           id: string
           notes: string | null
           planned_qty: number
+          scrap_qty: number
           session_id: string
           sku_id: string | null
           target_qty: number | null
@@ -1288,6 +1289,7 @@ export type Database = {
           id?: string
           notes?: string | null
           planned_qty?: number
+          scrap_qty?: number
           session_id: string
           sku_id?: string | null
           target_qty?: number | null
@@ -1299,6 +1301,7 @@ export type Database = {
           id?: string
           notes?: string | null
           planned_qty?: number
+          scrap_qty?: number
           session_id?: string
           sku_id?: string | null
           target_qty?: number | null
@@ -1324,6 +1327,7 @@ export type Database = {
       production_sessions: {
         Row: {
           created_at: string
+          down_time_min: number | null
           finished_at: string | null
           id: string
           leader_id: string | null
@@ -1332,7 +1336,10 @@ export type Database = {
           locked: boolean
           locked_at: string | null
           locked_by: string | null
+          metrics_synced_at: string | null
           notes: string | null
+          oee_pct: number | null
+          run_time_min: number | null
           session_date: string
           shift: string
           staff_actual: number | null
@@ -1343,6 +1350,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          down_time_min?: number | null
           finished_at?: string | null
           id?: string
           leader_id?: string | null
@@ -1351,7 +1359,10 @@ export type Database = {
           locked?: boolean
           locked_at?: string | null
           locked_by?: string | null
+          metrics_synced_at?: string | null
           notes?: string | null
+          oee_pct?: number | null
+          run_time_min?: number | null
           session_date: string
           shift: string
           staff_actual?: number | null
@@ -1362,6 +1373,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          down_time_min?: number | null
           finished_at?: string | null
           id?: string
           leader_id?: string | null
@@ -1370,7 +1382,10 @@ export type Database = {
           locked?: boolean
           locked_at?: string | null
           locked_by?: string | null
+          metrics_synced_at?: string | null
           notes?: string | null
+          oee_pct?: number | null
+          run_time_min?: number | null
           session_date?: string
           shift?: string
           staff_actual?: number | null
