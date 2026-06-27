@@ -1,4 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://esm.sh/zod@3.23.8";
+
+const BodySchema = z.object({
+  pin: z.string().min(4).max(6).regex(/^\d+$/, "PIN must contain only digits"),
+}).strict();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
