@@ -1,5 +1,10 @@
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { z } from "https://esm.sh/zod@3.23.8";
+
+const BodySchema = z.object({
+  to: z.string().email().max(255).optional(),
+}).strict();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
