@@ -64,11 +64,6 @@ Deno.serve(async (req) => {
   const userId = userData.user.id;
 
   // Parse + validate body.
-  let body: { action?: unknown; entity_type?: unknown; entity_id?: unknown; details?: unknown };
-  try {
-    body = await req.json();
-  } catch {
-  // Parse + validate body.
   let rawBody: unknown;
   try {
     rawBody = await req.json();
