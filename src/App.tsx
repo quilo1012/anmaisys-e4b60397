@@ -43,7 +43,7 @@ const ProductionForecastPage = lazy(() => import("./pages/dashboard/ProductionFo
 const ProductionDowntimePage = lazy(() => import("./pages/dashboard/ProductionDowntimePage"));
 const QualityActionsPage = lazy(() => import("./pages/dashboard/QualityActionsPage"));
 const ShiftHistoryPage = lazy(() => import("./pages/dashboard/ShiftHistoryPage"));
-const WeeklyProductionReportPage = lazy(() => import("./pages/dashboard/WeeklyProductionReportPage"));
+
 
 const RAGWeeklyPage = lazy(() => import("./pages/dashboard/RAGWeeklyPage"));
 const IntouchSettingsPage = lazy(() => import("./pages/dashboard/IntouchSettingsPage"));
@@ -381,14 +381,6 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager"]}>
                       <ShiftHistoryPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard/weekly-production"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
-                      <WeeklyProductionReportPage />
                     </ProtectedRoute>
                   }
                 />

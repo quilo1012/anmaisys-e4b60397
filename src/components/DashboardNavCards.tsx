@@ -84,7 +84,7 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
     { title: "Quality Actions", description: "Log and track quality issues", url: "/dashboard/quality", icon: CheckSquare, accent: OPS },
     
     { title: "Shift History", description: "Browse and edit past shifts", url: "/dashboard/shift-history", icon: History, accent: REPORTS },
-    { title: "Weekly Production", description: "Weekly report per line, printable", url: "/dashboard/weekly-production", icon: FileBarChart, accent: REPORTS },
+    
     { title: "SKU Products", description: "Catalog and CSV import", url: "/dashboard/sku-products", icon: Boxes, accent: ASSETS },
     { title: "Machines", description: "View and manage equipment", url: "/dashboard/machines", icon: Cog, badge: machinesCount, accent: ASSETS },
     { title: "Downtime", description: "Track production line stoppages", url: "/dashboard/downtime", icon: Clock, accent: OPS },
@@ -104,7 +104,7 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
     "/dashboard/quality",
     
     "/dashboard/shift-history",
-    "/dashboard/weekly-production",
+    
     "/dashboard/sku-products",
   ]);
   let visible = role === "maintenance_manager"
