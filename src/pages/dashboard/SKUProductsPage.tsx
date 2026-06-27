@@ -244,7 +244,7 @@ export default function SKUProductsPage() {
             <label>
               <input
                 type="file"
-                accept=".csv"
+                accept=".xlsx,.csv"
                 className="hidden"
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
@@ -252,7 +252,7 @@ export default function SKUProductsPage() {
                   e.currentTarget.value = "";
                 }}
               />
-              <Button variant="outline" disabled={importing} asChild><span><Upload className="h-4 w-4 mr-1" />{importing ? "Importing..." : "Import CSV"}</span></Button>
+              <Button variant="outline" disabled={importing} asChild><span><Upload className="h-4 w-4 mr-1" />{importing ? "Importing..." : "Import XLSX"}</span></Button>
             </label>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
