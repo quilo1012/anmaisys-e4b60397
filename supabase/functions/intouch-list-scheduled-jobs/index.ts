@@ -43,9 +43,18 @@ const num = (v: unknown) => {
   return Number.isFinite(n) ? n : 0;
 };
 const pick = (o: any, ks: string[]) => {
+  if (!o || typeof o !== "object") return undefined;
   for (const k of ks) { const v = o?.[k]; if (v != null && String(v).trim() !== "") return v; }
+  const lower = new Map(Object.keys(o).map((k) => [k.toLowerCase(), k]));
+  for (const k of ks) {
+    const real = lower.get(k.toLowerCase());
+    const v = real ? o[real] : undefined;
+    if (v != null && String(v).trim() !== "") return v;
+  }
   return undefined;
 };
+const machineKey = (v: unknown) => String(v ?? "").trim().replace(/[{}]/g, "").toLowerCase();
+const authValue = INTOUCH_TOKEN.match(/^bearer\s+/i) ? INTOUCH_TOKEN : `Bearer ${INTOUCH_TOKEN}`;
 function walk(v: unknown, cb: (o: any) => void) {
   if (!v || typeof v !== "object") return;
   if (Array.isArray(v)) { for (const x of v) walk(x, cb); return; }
@@ -57,7 +66,7 @@ async function itFetch(path: string, init?: RequestInit): Promise<{ data: unknow
     const r = await fetch(`${INTOUCH_URL}${path}`, {
       ...(init ?? {}),
       headers: {
-        Authorization: `Bearer ${INTOUCH_TOKEN}`,
+        Authorization: authValue,
         Accept: "application/json",
         "Content-Type": "application/json",
         ...(init?.headers ?? {}),
@@ -70,35 +79,91 @@ async function itFetch(path: string, init?: RequestInit): Promise<{ data: unknow
   } catch (e) { return { data: null, status: 0, ok: false, bytes: 0, err: (e as Error).message }; }
 }
 
+async function discoverSchedulePaths() {
+  const defaults = [
+    "/api/ScheduleReports/ScheduleJobs/Machine",
+    "/api/ScheduleReports/ScheduledJobs/Machine",
+    "/api/ScheduleReports/Jobs/Machine",
+    "/api/ScheduleReports/JobSchedule/Machine",
+    "/api/ScheduleReports/ProductionSchedule/Machine",
+    "/api/ScheduleReports/WorkToList/Machine",
+    "/api/ScheduleReports/MaterialRequirements/Machine",
+    "/api/ScheduleReports/MaterialRequirementsByMachine",
+    "/api/Reports/ScheduleJobs/Machine",
+    "/api/Reports/ScheduledJobs/Machine",
+    "/api/Reports/ProductionSchedule/Machine",
+    "/api/Reports/MaterialRequirements/Machine",
+    "/api/GetScheduledJobs",
+    "/api/GetJobSchedule",
+    "/api/GetWorkToList",
+    "/api/GetJobsScheduledDuringPeriod",
+    "/api/GetJobsRanDuringPeriod",
+    "/api/GetJobsRan",
+    "/api/JobChange",
+  ];
+  const docs1 = await itFetch("/swagger/docs/v1", { method: "GET" });
+  const docs2 = docs1.data ? docs1 : await itFetch("/swagger/v1/swagger.json", { method: "GET" });
+  const docs3 = docs2.data ? docs2 : await itFetch("/swagger.json", { method: "GET" });
+  const discovered = (docs3.data as any)?.paths && typeof (docs3.data as any).paths === "object"
+    ? Object.keys((docs3.data as any).paths).filter((p) => {
+      const n = p.toLowerCase();
+      return (n.includes("schedule") || n.includes("job") || n.includes("worktolist") || n.includes("material"))
+        && !n.includes("stop") && !n.includes("login");
+    })
+    : [];
+  return Array.from(new Set([...discovered, ...defaults])).slice(0, 40);
+}
+
+function fillPath(path: string, machineId: string) {
+  return path.replace(/\{\s*(MachineGUID|MachineGuid|MachineID|MachineId|machineId|id|ID)\s*\}/g, encodeURIComponent(machineId));
+}
+
+function queryVariants(path: string, machineId: string | null, startISO: string, endISO: string) {
+  const base = machineId ? fillPath(path, machineId) : path;
+  const machineParams = machineId
+    ? [`MachineGUID=${encodeURIComponent(machineId)}`, `MachineID=${encodeURIComponent(machineId)}`, `MachineGuid=${encodeURIComponent(machineId)}`, `machineId=${encodeURIComponent(machineId)}`]
+    : [""];
+  const dateParams = [
+    `StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+    `startTime=${encodeURIComponent(startISO)}&endTime=${encodeURIComponent(endISO)}`,
+    `From=${encodeURIComponent(startISO)}&To=${encodeURIComponent(endISO)}`,
+    `FromDate=${encodeURIComponent(startISO)}&ToDate=${encodeURIComponent(endISO)}`,
+    `StartDate=${encodeURIComponent(startISO)}&EndDate=${encodeURIComponent(endISO)}`,
+  ];
+  const out: string[] = [];
+  for (const mp of machineParams) for (const dp of dateParams) out.push(`${base}?${[mp, dp].filter(Boolean).join("&")}`);
+  return Array.from(new Set(out));
+}
+
 type Row = { code: string; description: string; qty: number };
 function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNames: Set<string>): Row[] {
   const out: Row[] = [];
   const same = (v: unknown) => {
     const s = String(v ?? "").trim();
     if (!s) return true;
-    return allowedIds.has(s) || allowedNames.has(s.toLowerCase());
+    return allowedIds.has(machineKey(s)) || allowedNames.has(s.toLowerCase());
   };
   walk(raw, (obj) => {
     const wos = obj?.WorksOrders ?? obj?.WorkOrders ?? obj?.worksOrders;
-    const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
     if (!Array.isArray(wos)) return;
     if (!same(mref)) return;
     for (const wo of wos) {
-      const code = cleanCode(pick(wo, ["PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "OrderNumber"]));
+      const code = cleanCode(pick(wo, ["PartCode", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "OrderNumber", "WorkOrderNo", "JobProductCode", "ProductID", "ProductId", "Code"]));
       if (!code || code.length < 2) continue;
-      const description = String(pick(wo, ["LongDescription", "ProductDescription", "PartDescription", "Description", "Name"]) ?? code).trim();
-      const qty = num(pick(wo, ["OrderQuantity", "RequiredQuantity", "RequiredQty", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "Balance"])) || 1;
+      const description = String(pick(wo, ["LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
+      const qty = num(pick(wo, ["OrderQuantity", "OrderQty", "RequiredQuantity", "RequiredQty", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "ScheduledQty", "TargetQty", "Balance", "Demand", "Units"])) || 1;
       out.push({ code, description, qty });
     }
   });
   if (out.length === 0) {
     walk(raw, (obj) => {
-      const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+      const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
       if (!same(mref)) return;
-      const code = cleanCode(pick(obj, ["PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "FGCode", "MaterialCode", "Product", "Code"]));
+      const code = cleanCode(pick(obj, ["PartCode", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "FGCode", "FinishedGood", "MaterialCode", "Product", "ProductID", "ProductId", "JobProductCode", "OrderNumber", "WorkOrderNo", "Code"]));
       if (!code || code.length < 3 || /^(LINE|MACHINE|DATE|SHIFT|START|END|STATUS)$/i.test(code)) return;
-      const qty = num(pick(obj, ["OrderQuantity", "RequiredQuantity", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "TargetQty", "ScheduledQty", "Balance", "Demand"])) || 1;
-      const description = String(pick(obj, ["LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "Name"]) ?? code).trim();
+      const qty = num(pick(obj, ["OrderQuantity", "OrderQty", "RequiredQuantity", "RequiredQty", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "TargetQty", "ScheduledQty", "Balance", "Demand", "Units"])) || 1;
+      const description = String(pick(obj, ["LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
       out.push({ code, description, qty });
     });
   }
@@ -143,42 +208,62 @@ Deno.serve(async (req) => {
       byLine.set(m.line_id!, arr);
     }
 
-    // Build list of mapped machine GUIDs — iTouching period endpoints
-    // expect this array in the POST body (not an empty array).
+    // Build list of mapped machine GUIDs — iTouching period endpoints expect
+    // mapped machines in the request, and deployments vary between array body,
+    // object body, query string, and per-machine report endpoints.
     const ids = (maps ?? []).map((m: any) => m.intouch_machine_id).filter(Boolean);
     const idsBody = JSON.stringify(ids);
+    const objectBodies = [
+      { Idents: ids },
+      { MachineGUIDs: ids, StartTime: startISO, EndTime: endISO },
+      { MachineIDs: ids, StartTime: startISO, EndTime: endISO },
+      { machines: ids, startTime: startISO, endTime: endISO },
+    ];
 
-    // Try every known scheduled-jobs / material-requirements endpoint.
     const payloads: unknown[] = [];
     const debug: Array<{ path: string; method: string; status: number; ok: boolean; bytes: number; sample: unknown; err?: string }> = [];
-    const attempts: Array<{ path: string; method: "GET" | "POST"; body?: string }> = [
-      { path: `/api/GetRunningJobs`, method: "GET" },
-      { path: `/api/GetJobsRan?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "POST", body: idsBody },
-      { path: `/api/GetJobsRanDuringPeriod?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "POST", body: idsBody },
-      { path: `/api/GetJobsScheduledDuringPeriod?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "POST", body: idsBody },
-      { path: `/api/JobChange?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "POST", body: idsBody },
-      { path: `/api/ScheduleReports/MaterialRequirements/Machine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
-      { path: `/api/ScheduleReports/MaterialRequirementsByMachine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
-      { path: `/api/GetScheduledJobs?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
-      { path: `/api/GetJobSchedule?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
-      { path: `/api/GetWorkToList?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
-    ];
-    for (const a of attempts) {
-      const init: RequestInit = a.method === "GET" ? { method: "GET" } : { method: "POST", body: a.body ?? idsBody };
-      const r = await itFetch(a.path, init);
+    const pushDebug = (path: string, method: string, r: { data: unknown; status: number; ok: boolean; bytes: number; err?: string }) => {
       let sample: unknown = null;
       if (r.data) { try { sample = JSON.parse(JSON.stringify(r.data).slice(0, 800)); } catch { sample = null; } }
-      debug.push({ path: a.path.split("?")[0], method: a.method, status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
+      if (debug.length < 120) debug.push({ path: path.split("?")[0], method, status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
       if (r.data) payloads.push(r.data);
-    }
+    };
 
-    // Per-machine GET for Material Requirements (this is the variant that works in intouch-sync-production).
-    for (const m of ids) {
-      const path = `/api/ScheduleReports/MaterialRequirements/Machine?MachineGUID=${encodeURIComponent(m)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`;
-      const r = await itFetch(path, { method: "GET" });
-      if (r.data) payloads.push(r.data);
-      if (!r.ok && debug.length < 60) {
-        debug.push({ path: "/api/ScheduleReports/MaterialRequirements/Machine?MachineGUID=…", method: "GET", status: r.status, ok: r.ok, bytes: r.bytes, sample: null, err: r.err });
+    // Current running jobs is often the only endpoint that exposes the active schedule.
+    const running = await itFetch("/api/GetRunningJobs", { method: "GET" });
+    pushDebug("/api/GetRunningJobs", "GET", running);
+
+    const paths = await discoverSchedulePaths();
+    for (const path of paths) {
+      const hasMachinePlaceholder = /\{\s*(MachineGUID|MachineGuid|MachineID|MachineId|machineId|id|ID)\s*\}/.test(path);
+      const perMachineOnly = hasMachinePlaceholder || /\/Machine\b/i.test(path) || /getscheduledjobs/i.test(path);
+      if (perMachineOnly) {
+        const firstId = ids[0];
+        if (!firstId) continue;
+        let winningTemplate: string | null = null;
+        for (const q of queryVariants(path, firstId, startISO, endISO)) {
+          const r = await itFetch(q, { method: "GET" });
+          pushDebug(q.replace(firstId, "…"), "GET", r);
+          if (r.ok && r.bytes > 2) {
+            winningTemplate = q;
+            break;
+          }
+        }
+        if (!winningTemplate) continue;
+        for (const machineId of ids.slice(1)) {
+          const q = winningTemplate.replace(firstId, machineId);
+          const r = await itFetch(q, { method: "GET" });
+          pushDebug(q.replace(machineId, "…"), "GET", r);
+        }
+      } else {
+        const getPath = `${path}?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`;
+        pushDebug(getPath, "GET", await itFetch(getPath, { method: "GET" }));
+        pushDebug(path, "POST[]", await itFetch(path, { method: "POST", body: idsBody }));
+        for (const body of objectBodies) {
+          const r = await itFetch(path, { method: "POST", body: JSON.stringify(body) });
+          pushDebug(path, "POST{}", r);
+          if (r.ok && r.bytes > 2) break;
+        }
       }
     }
 
@@ -191,7 +276,7 @@ Deno.serve(async (req) => {
       });
     }
     if (jobIds.size > 0) {
-      const r = await itFetch(`/api/GetJobs`, { method: "POST", body: JSON.stringify(Array.from(jobIds)) });
+      const r = await itFetch(`/api/GetJobs`, { method: "POST", body: JSON.stringify({ Idents: Array.from(jobIds) }) });
       let sample: unknown = null;
       if (r.data) { try { sample = JSON.parse(JSON.stringify(r.data).slice(0, 800)); } catch { sample = null; } }
       debug.push({ path: "/api/GetJobs (hydrated)", method: "POST", status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
@@ -202,7 +287,7 @@ Deno.serve(async (req) => {
     const machineKeysSeen = new Set<string>();
     for (const p of payloads) {
       walk(p, (obj) => {
-        const v = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+        const v = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
         if (v != null) {
           const s = String(v).trim();
           if (s) machineKeysSeen.add(s);
@@ -214,7 +299,7 @@ Deno.serve(async (req) => {
     for (const [line_id, machines] of byLine) {
       const line = lineName.get(line_id);
       if (!line) continue;
-      const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+      const allowedIds = new Set(machines.map((m) => machineKey(m.id)).filter(Boolean));
       const allowedNames = new Set(machines.map((m) => (m.name ?? "").toLowerCase()).filter(Boolean));
       const merged = new Map<string, Row>();
       for (const p of payloads) {
@@ -235,6 +320,7 @@ Deno.serve(async (req) => {
     const debugBlock = {
       endpoints: debug,
       mapped_machines: (maps ?? []).length,
+      mapped_machine_ids: ids.map((id: string) => `${id.slice(0, 8)}…`),
       machine_keys_seen: Array.from(machineKeysSeen).slice(0, 200),
     };
 
