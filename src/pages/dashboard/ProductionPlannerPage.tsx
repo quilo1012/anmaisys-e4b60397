@@ -151,8 +151,13 @@ export default function ProductionPlannerPage() {
   }, [existing]);
 
   useEffect(() => {
-    if (existingItems.length) {
-      setRows(existingItems.map((i) => {
+    // Only hydrate rows from a loaded existing session; never wipe local
+    // edits when there is no session yet (otherwise "Add Product" would be
+    // reset on the next render because default-destructured arrays produce
+    // a new reference every time).
+    if (!existingId) return;
+    setRows(
+      existingItems.map((i) => {
         const sku = skus.find((s) => s.id === i.sku_id);
         return {
           sku_id: i.sku_id,
@@ -160,11 +165,15 @@ export default function ProductionPlannerPage() {
           target_qty: Number(i.target_qty ?? i.planned_qty ?? 0),
           actual_qty: Number(i.actual_qty ?? 0),
         };
-      }));
-    } else {
-      setRows([]);
-    }
-  }, [existingItems, skus]);
+      }),
+    );
+  }, [existingId, existingItems, skus]);
+
+  // Clear rows when the user switches to a date/shift/line combo with no session.
+  useEffect(() => {
+    if (!existingId) setRows([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, shift, line]);
 
   const locked = existing?.locked ?? false;
   const totalTarget = rows.reduce((a, r) => a + (r.target_qty || 0), 0);
