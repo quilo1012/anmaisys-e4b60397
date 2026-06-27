@@ -245,8 +245,10 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       setSections(parsed);
       // pre-fill leader from active list (first available leader for shift)
       const init: Record<string, { id?: string; name: string }> = {};
-      for (const s of parsed) init[s.line] = { name: "" };
+      const inc: Record<string, boolean> = {};
+      for (const s of parsed) { init[s.line] = { name: "" }; inc[s.line] = true; }
       setLeaderByLine(init);
+      setIncludedLines(inc);
       toast.success(`Detected ${parsed.length} line${parsed.length > 1 ? "s" : ""}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not read file";
