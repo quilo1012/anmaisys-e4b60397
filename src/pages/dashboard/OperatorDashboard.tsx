@@ -225,15 +225,6 @@ function OperatorDashboardContent() {
           <h2 className="text-2xl font-bold">Operator Panel</h2>
           <p className="text-muted-foreground">Open a maintenance request</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard/line-display")}
-            className="inline-flex items-center gap-2 h-9 px-3 rounded-md border bg-card hover:bg-accent text-xs font-medium text-muted-foreground"
-          >
-            View target
-          </button>
-        </div>
       </div>
 
       {/* Compact state toggle — Line Stopped vs Line Running */}
