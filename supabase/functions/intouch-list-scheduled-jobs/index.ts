@@ -283,20 +283,28 @@ Deno.serve(async (req) => {
       if (!line) continue;
       const allowedIds = new Set(machines.map((m) => machineKey(m.id)).filter(Boolean));
       const allowedNames = new Set(machines.map((m) => (m.name ?? "").toLowerCase()).filter(Boolean));
-      const merged = new Map<string, Row>();
+      const merged = new Map<string, Row & { sources: Set<string> }>();
       for (const p of payloads) {
-        for (const r of extractRowsForMachine(p, allowedIds, allowedNames)) {
+        for (const r of extractRowsForMachine(p.data, allowedIds, allowedNames)) {
           const cur = merged.get(r.code);
-          if (!cur) merged.set(r.code, r);
-          else merged.set(r.code, { code: r.code, description: cur.description || r.description, qty: Math.max(cur.qty, r.qty) });
+          if (!cur) merged.set(r.code, { ...r, sources: new Set([p.source]) });
+          else {
+            cur.description = cur.description || r.description;
+            cur.qty = Math.max(cur.qty, r.qty);
+            cur.sources.add(p.source);
+          }
         }
       }
       if (merged.size > 0) {
         sections.push({
           line,
-          items: Array.from(merged.values()).map((r) => ({ sku_code: r.code, description: r.description, qty: r.qty })),
+          items: Array.from(merged.values()).map((r) => ({
+            sku_code: r.code, description: r.description, qty: r.qty,
+            sources: Array.from(r.sources),
+          })),
         });
       }
+
     }
 
     const debugBlock = {
