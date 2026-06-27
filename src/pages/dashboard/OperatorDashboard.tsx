@@ -220,10 +220,20 @@ function OperatorDashboardContent() {
 
   return (
     <div className="space-y-6 max-w-6xl xl:max-w-7xl mx-auto">
-      <div>
-        <h2 className="text-2xl font-bold">Operator Panel</h2>
-        <p className="text-muted-foreground">Create and track your work orders</p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold">Operator Panel</h2>
+          <p className="text-muted-foreground">Create and track your work orders</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate("/dashboard/line-hub")}
+          className="inline-flex items-center gap-2 h-11 px-4 rounded-md border bg-card hover:bg-accent text-sm font-medium"
+        >
+          ← Back to Hub
+        </button>
       </div>
+
 
       <OperatorNavCards myOpenWOs={countOpenWOs(workOrders)} />
 
