@@ -85,11 +85,14 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // Build the allowed-line list (id + name) from the lines table.
-  const allowedLines: AllowedLine[] = allowedIds.map((id) => {
-    const name = lines?.find((l) => l.id === id)?.name ?? "Unknown line";
-    return { id, name };
-  });
+  // Build the allowed-line list (id + name). Skip ids that don't resolve to a
+  // real line (stale bindings) so the operator never sees "Unknown line".
+  const allowedLines: AllowedLine[] = allowedIds
+    .map((id) => {
+      const found = lines?.find((l) => l.id === id);
+      return found ? { id, name: found.name } : null;
+    })
+    .filter((x): x is AllowedLine => x !== null);
 
   return (
     <DeviceLineProvider
