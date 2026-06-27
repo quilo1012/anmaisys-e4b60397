@@ -52,6 +52,7 @@ const LineDisplayScreen = lazy(() => import("./pages/dashboard/LineDisplayScreen
 const IntouchMachineMapPage = lazy(() => import("./pages/dashboard/IntouchMachineMapPage"));
 const IntouchStopCodesPage = lazy(() => import("./pages/dashboard/IntouchStopCodesPage"));
 const DowntimeHeatmapPage = lazy(() => import("./pages/dashboard/DowntimeHeatmapPage"));
+const PMIntelligencePage = lazy(() => import("./pages/dashboard/PMIntelligencePage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -441,6 +442,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <DowntimeHeatmapPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/pm-intelligence"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                      <PMIntelligencePage />
                     </ProtectedRoute>
                   }
                 />
