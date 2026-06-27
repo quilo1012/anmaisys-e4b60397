@@ -174,8 +174,50 @@ function extractSkuRows(raw: unknown, source: string, machines: MachineRef[]): S
   return rows;
 }
 
-// Extract { code -> produced_qty } from any raw iTouching payload (running/ran jobs).
-function extractActualsByCode(raw: unknown, machines: MachineRef[]): Map<string, number> {
+// Extract { code -> scrap_qty } from any raw iTouching payload.
+function extractScrapByCode(raw: unknown, machines: MachineRef[]): Map<string, number> {
+  const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+  const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
+  const out = new Map<string, number>();
+  walkObjects(raw, (obj) => {
+    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
+    const code = cleanCode(pick(obj, ["PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "OrderNumber"]));
+    if (!code || code.length < 2) return;
+    const scrap = num(pick(obj, [
+      "Scrap", "ScrapQty", "ScrapQuantity", "ScrapCount", "Reject", "RejectQty", "Rejected", "Bad", "BadQty", "BadCount", "Waste",
+    ]));
+    if (scrap <= 0) return;
+    out.set(code, Math.max(out.get(code) ?? 0, scrap));
+  });
+  return out;
+}
+
+// Extract aggregate run/down/oee per machine from any iTouching shift payload.
+function extractShiftMetrics(raw: unknown, machines: MachineRef[]) {
+  const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+  const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
+  let runMin = 0, downMin = 0, oeeSum = 0, oeeN = 0;
+  walkObjects(raw, (obj) => {
+    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
+    const r = num(pick(obj, ["RunTime", "RunTimeMin", "RunTimeMinutes", "Running", "RunningMin", "UpTime", "UpTimeMin"]));
+    const d = num(pick(obj, ["DownTime", "DownTimeMin", "DownTimeMinutes", "Downtime", "DowntimeMin", "StoppedTime", "StoppedMin"]));
+    const o = num(pick(obj, ["OEE", "Oee", "OEEPct", "OeePct", "OEE_Percent", "OverallEquipmentEffectiveness"]));
+    if (r > 0) runMin += r;
+    if (d > 0) downMin += d;
+    if (o > 0) { oeeSum += o; oeeN += 1; }
+  });
+  // Normalise OEE to a 0-100 scale when iTouching returns 0-1.
+  let oee: number | null = null;
+  if (oeeN > 0) {
+    const avg = oeeSum / oeeN;
+    oee = avg <= 1 ? Math.round(avg * 1000) / 10 : Math.round(avg * 10) / 10;
+  }
+  return { runMin, downMin, oee };
+}
+
+
   const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const out = new Map<string, number>();
