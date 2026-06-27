@@ -14,24 +14,31 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
-    const userClient = createClient(SUPABASE_URL, ANON, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
-    const { data: { user } } = await userClient.auth.getUser();
-    if (!user) {
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const authClient = createClient(SUPABASE_URL, ANON, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(token);
+    const userId = claimsData?.claims?.sub as string | undefined;
+    if (claimsErr || !userId) {
+      return new Response(JSON.stringify({ error: "invalid_token" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const admin = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
-    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", user.id);
+    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", userId);
     const ok = (roles ?? []).some((r) => ["admin", "manager"].includes(r.role));
     if (!ok) {
       return new Response(JSON.stringify({ error: "forbidden" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     // Try a few endpoints — iTouching deployments differ.
     const candidates = ["/api/Machine", "/api/GetMachineList", "/api/Machines"];
