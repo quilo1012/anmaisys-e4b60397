@@ -1485,12 +1485,33 @@ function DayNightTotalSummary({
                   );
                 };
                 const isDt = row.key === "dt";
+                const isPlan = row.key === "plan";
                 const wrapDt = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
                   if (!isDt || lineFilter.length !== 1) return cellEl;
-                  const details = autoDtBreakdown?.get(`${ds}|${lineFilter[0]}|${shift}`) ?? [];
+                  const key = `${ds}|${lineFilter[0]}|${shift}`;
+                  const details = autoDtBreakdown?.get(key) ?? [];
                   if (!details.length) return cellEl;
-                  return <DowntimeBreakdownPopover trigger={cellEl} stops={details} dateStr={ds} shift={shift} line={lineFilter[0]} />;
+                  const scrap = cellScrapMap?.get(key) ?? 0;
+                  return <DowntimeBreakdownPopover trigger={cellEl} stops={details} dateStr={ds} shift={shift} line={lineFilter[0]} totalScrap={scrap} />;
                 };
+                const wrapPlan = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
+                  if (!isPlan || lineFilter.length !== 1) return cellEl;
+                  const key = `${ds}|${lineFilter[0]}|${shift}`;
+                  const e = entryMap.get(key);
+                  const itemSum = cellItemTargetMap?.get(key) ?? 0;
+                  const plan = Number(e?.plan_qty ?? 0);
+                  if (!plan || !itemSum) return cellEl;
+                  const diff = Math.abs(plan - itemSum);
+                  if (diff === 0) return cellEl;
+                  return (
+                    <span className="inline-flex items-center gap-1" title={`Plan ${plan} ≠ sum of SKU targets ${itemSum} (Δ${diff})`}>
+                      {cellEl}
+                      <span className="text-amber-500 text-[10px] leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
+                    </span>
+                  );
+                };
+                const wrapCell = (ds: string, shift: Shift, cellEl: React.ReactNode) =>
+                  isDt ? wrapDt(ds, shift, cellEl) : isPlan ? wrapPlan(ds, shift, cellEl) : cellEl;
                 return (
                   <tr key={row.key} className="border-b hover:bg-muted/20">
                     <td className="p-1.5 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-[11px] tracking-wide text-muted-foreground">{row.label}</td>
@@ -1501,11 +1522,12 @@ function DayNightTotalSummary({
                       const totalDim = isDateExcluded(label, ds) ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40";
                       return (
                         <Fragment key={i}>
-                          <td className={`${cls} border-l ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapDt(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
-                          <td className={`${cls} ${nightDim}`}>{editable ? renderEdit(ds, "NIGHT") : wrapDt(ds, "NIGHT", row.render(buildCol(ds, "NIGHT")))}</td>
+                          <td className={`${cls} border-l ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapCell(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
+                          <td className={`${cls} ${nightDim}`}>{editable ? renderEdit(ds, "NIGHT") : wrapCell(ds, "NIGHT", row.render(buildCol(ds, "NIGHT")))}</td>
                           <td className={`${cls} ${totalDim}`}>{row.render(buildCol(ds, "TOTAL"))}</td>
                         </Fragment>
                       );
+
                     })}
 
 
