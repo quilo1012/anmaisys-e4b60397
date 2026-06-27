@@ -15,7 +15,7 @@ const Index = () => {
     }
     if (role === "admin" || (role === "manager" || role === "maintenance_manager")) navigate("/dashboard/manager", { replace: true });
     else if (role === "engineer") navigate("/dashboard/engineer", { replace: true });
-    else if (role === "operator") navigate("/dashboard/line-display", { replace: true });
+    else if (role === "operator") navigate("/dashboard/line-hub", { replace: true });
     else navigate("/login", { replace: true });
   }, [loading, user, role, navigate]);
 
