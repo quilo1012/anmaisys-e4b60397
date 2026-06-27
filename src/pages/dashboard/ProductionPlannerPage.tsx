@@ -235,6 +235,22 @@ export default function ProductionPlannerPage() {
           notes: null,
         })),
       });
+
+      // Auto-sync Total Target into RAG Weekly for this line+date+shift
+      const totalPlan = rows.reduce((a, r) => a + (Number(r.target_qty) || 0), 0);
+      const shiftKey = shift.toUpperCase() === "NIGHT" ? "NIGHT" : "DAY";
+      const { error: ragErr } = await supabase
+        .from("rag_weekly_entries")
+        .upsert(
+          { entry_date: date, line, shift: shiftKey, plan_qty: totalPlan },
+          { onConflict: "entry_date,line,shift", ignoreDuplicates: false }
+        );
+      if (ragErr) {
+        toast.error(`Saved session, but RAG sync failed: ${ragErr.message}`);
+      } else {
+        toast.success(`Session saved. RAG target updated to ${totalPlan.toLocaleString()}.`);
+      }
+
     } catch (err: any) {
       const code = err?.code ?? "";
       const msg = String(err?.message ?? "");
