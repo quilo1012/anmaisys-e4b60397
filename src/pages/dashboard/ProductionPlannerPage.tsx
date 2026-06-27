@@ -119,20 +119,41 @@ export default function ProductionPlannerPage() {
   const syncLinesForDate = async () => {
     setSyncingLines(true);
     try {
-      const { data, error } = await supabase
+      // 1. Lines scheduled in Work-To-List for this date
+      const { data: sessions, error: sErr } = await supabase
         .from("production_sessions")
         .select("line")
         .eq("session_date", date);
-      if (error) throw error;
-      const distinct = Array.from(
-        new Set((data ?? []).map((r: { line: string }) => (r.line ?? "").trim()).filter(Boolean))
-      ).sort();
+      if (sErr) throw sErr;
+      const scheduled = new Set(
+        (sessions ?? [])
+          .map((r: { line: string }) => (r.line ?? "").trim())
+          .filter(Boolean),
+      );
+
+      // 2. Lines that have at least one ACTIVE mapped machine in iTouching
+      const { data: maps, error: mErr } = await supabase
+        .from("intouch_machine_map")
+        .select("line_id, active, lines:line_id(name)")
+        .eq("active", true);
+      if (mErr) throw mErr;
+      const activeLineNames = new Set(
+        (maps ?? [])
+          .map((m: any) => (m.lines?.name ?? "").trim())
+          .filter(Boolean),
+      );
+
+      // 3. Intersection: scheduled AND has active machine
+      const distinct = Array.from(scheduled)
+        .filter((l) => activeLineNames.has(l))
+        .sort();
+
       if (distinct.length === 0) {
         setSyncedLines(null);
-        toast("No lines found for this date");
+        toast("No active machines scheduled for this date");
       } else {
         setSyncedLines(distinct);
-        toast.success(`Found ${distinct.length} line(s) for ${date}`);
+        toast.success(`Found ${distinct.length} active line(s) for ${date}`);
         if (line && !distinct.includes(line)) setLine("");
       }
     } catch (e: any) {
@@ -141,6 +162,7 @@ export default function ProductionPlannerPage() {
       setSyncingLines(false);
     }
   };
+
 
   const { data: lines = [] } = useLines();
   const { data: leaders = [] } = useLineLeaders(shift);
