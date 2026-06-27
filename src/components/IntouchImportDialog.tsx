@@ -217,6 +217,31 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       setLoading(false);
     }
   };
+  const pullFromIntouch = async () => {
+    setPulling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("intouch-list-scheduled-jobs", {
+        body: { session_date: date, shift },
+      });
+      if (error) throw error;
+      const secs = ((data as any)?.sections ?? []) as WorkToListSection[];
+      if (secs.length === 0) {
+        toast.error("iTouching returned no scheduled jobs for that date/shift. Map your machines in iTouching Settings or upload the file instead.");
+        return;
+      }
+      setSections(secs);
+      const init: Record<string, { id?: string; name: string }> = {};
+      for (const s of secs) init[s.line] = { name: "" };
+      setLeaderByLine(init);
+      setParsePreview([]);
+      toast.success(`Pulled ${(data as any)?.total_skus ?? 0} SKUs across ${secs.length} line${secs.length > 1 ? "s" : ""}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not pull from iTouching");
+    } finally {
+      setPulling(false);
+    }
+  };
+
 
   const setLeader = (sectionLine: string, value: string) => {
     if (value === "__none") {
