@@ -52,21 +52,20 @@ export default function ProductionPerformancePage() {
   const skuMap = useMemo(() => new Map(skus.map((s) => [s.id, s])), [skus]);
 
   const { data: ragTargets = [] } = useQuery({
-    queryKey: ["rag_targets_perf", range.from, range.to, shift, lineFilter],
+    queryKey: ["rag_targets_perf", range.from, range.to, lineFilter],
     queryFn: async () => {
       let q = supabase.from("rag_weekly_entries")
-        .select("entry_date, shift, line, plan_qty")
+        .select("entry_date, line, plan_qty")
         .gte("entry_date", range.from).lte("entry_date", range.to);
-      if (shift !== "all") q = q.eq("shift", shift);
       if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
       const { data } = await q;
-      return (data ?? []) as { entry_date: string; shift: string; line: string; plan_qty: number | null }[];
+      return (data ?? []) as { entry_date: string; line: string; plan_qty: number | null }[];
     },
   });
   const ragTargetMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of ragTargets) {
-      const k = `${r.entry_date}|${r.shift}|${r.line}`;
+      const k = `${r.entry_date}|${r.line}`;
       m.set(k, (m.get(k) ?? 0) + Number(r.plan_qty ?? 0));
     }
     return m;
@@ -84,7 +83,7 @@ export default function ProductionPerformancePage() {
       if (error) throw error;
       return (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null }[] }) => {
         const items = s.production_items ?? [];
-        const ragTarget = ragTargetMap.get(`${s.session_date}|${s.shift}|${s.line}`);
+        const ragTarget = ragTargetMap.get(`${s.session_date}|${s.line}`);
         const target = ragTarget && ragTarget > 0
           ? ragTarget
           : items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
