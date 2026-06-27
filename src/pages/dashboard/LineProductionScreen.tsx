@@ -29,12 +29,32 @@ import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 type Shift = "DAY" | "NIGHT";
 
 function currentShift(): Shift {
-  const h = new Date().getHours();
+  const h = londonNow().hour;
   return h >= 6 && h < 18 ? "DAY" : "NIGHT";
 }
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+function londonNow(date = new Date()): { ymd: string; hour: number } {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return { ymd: `${get("year")}-${get("month")}-${get("day")}`, hour: Number(get("hour")) };
+}
+
+function previousDate(ymd: string): string {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function sessionDateForShift(shift: Shift, date = new Date()): string {
+  const london = londonNow(date);
+  return shift === "NIGHT" && london.hour < 6 ? previousDate(london.ymd) : london.ymd;
 }
 
 function ragColor(pct: number): string {
@@ -63,6 +83,7 @@ export default function LineProductionScreen() {
   const [editing, setEditing] = useState<ItemRow | null>(null);
   const [pad, setPad] = useState<string>("");
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const activeSessionDate = useMemo(() => sessionDateForShift(shift, now), [shift, now]);
 
   useEffect(() => {
     const onFs = () => setIsFullscreen(!!document.fullscreenElement);
@@ -106,13 +127,13 @@ export default function LineProductionScreen() {
 
   const sessionQ = useQuery({
     enabled: !!line,
-    queryKey: ["lps-session", line, shift, todayISO()],
+    queryKey: ["lps-session", line, shift, activeSessionDate],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_sessions")
         .select("id, leader_name, locked, notes")
         .eq("line", line)
-        .eq("session_date", todayISO())
+        .eq("session_date", activeSessionDate)
         .eq("shift", shift)
         .maybeSingle();
       if (error) throw error;
@@ -145,12 +166,12 @@ export default function LineProductionScreen() {
   // RAG Weekly plan for this line/shift/today — drives the displayed target
   const ragPlanQ = useQuery({
     enabled: !!line,
-    queryKey: ["lps-rag-plan", line, shift, todayISO()],
+    queryKey: ["lps-rag-plan", line, shift, activeSessionDate],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("rag_weekly_entries")
         .select("plan_qty")
-        .eq("entry_date", todayISO())
+        .eq("entry_date", activeSessionDate)
         .eq("line", line)
         .eq("shift", shift)
         .maybeSingle();
@@ -172,8 +193,8 @@ export default function LineProductionScreen() {
             qc.invalidateQueries({ queryKey: ["lps-rag-plan"] });
             return;
           }
-          if (row.entry_date === todayISO() && row.line === line && row.shift === shift) {
-            qc.invalidateQueries({ queryKey: ["lps-rag-plan", line, shift, todayISO()] });
+          if (row.entry_date === activeSessionDate && row.line === line && row.shift === shift) {
+            qc.invalidateQueries({ queryKey: ["lps-rag-plan", line, shift, activeSessionDate] });
             qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
             toast.info("Target updated from RAG Weekly");
           }
@@ -183,7 +204,7 @@ export default function LineProductionScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [qc, line, shift, sessionQ.data?.id]);
+  }, [qc, line, shift, activeSessionDate, sessionQ.data?.id]);
 
   const rawItems = itemsQ.data || [];
   const items = useMemo(() => {
@@ -236,7 +257,7 @@ export default function LineProductionScreen() {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["lps-session", line, shift, todayISO()] });
+      qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
       toast.success("Observations saved");
     },
     onError: (e: any) => toast.error(e.message || "Failed to save observations"),
@@ -302,6 +323,9 @@ export default function LineProductionScreen() {
               </Button>
             ))}
           </div>
+          <Badge variant="outline" className="h-10 px-3 text-sm">
+            {activeSessionDate}
+          </Badge>
           <div className="ml-auto flex items-center gap-3">
             <SyncStatusIndicator
               isSyncing={itemsQ.isFetching || ragPlanQ.isFetching || sessionQ.isFetching || updateActual.isPending}
