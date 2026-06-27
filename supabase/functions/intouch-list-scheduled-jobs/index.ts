@@ -214,6 +214,7 @@ Deno.serve(async (req) => {
     const ids = (maps ?? []).map((m: any) => m.intouch_machine_id).filter(Boolean);
     const idsBody = JSON.stringify(ids);
     const objectBodies = [
+      { Idents: ids },
       { MachineGUIDs: ids, StartTime: startISO, EndTime: endISO },
       { MachineIDs: ids, StartTime: startISO, EndTime: endISO },
       { machines: ids, startTime: startISO, endTime: endISO },
@@ -235,7 +236,7 @@ Deno.serve(async (req) => {
     const paths = await discoverSchedulePaths();
     for (const path of paths) {
       const hasMachinePlaceholder = /\{\s*(MachineGUID|MachineGuid|MachineID|MachineId|machineId|id|ID)\s*\}/.test(path);
-      const perMachineOnly = hasMachinePlaceholder || /\/Machine\b/i.test(path);
+      const perMachineOnly = hasMachinePlaceholder || /\/Machine\b/i.test(path) || /getscheduledjobs/i.test(path);
       if (perMachineOnly) {
         const firstId = ids[0];
         if (!firstId) continue;
@@ -275,7 +276,7 @@ Deno.serve(async (req) => {
       });
     }
     if (jobIds.size > 0) {
-      const r = await itFetch(`/api/GetJobs`, { method: "POST", body: JSON.stringify(Array.from(jobIds)) });
+      const r = await itFetch(`/api/GetJobs`, { method: "POST", body: JSON.stringify({ Idents: Array.from(jobIds) }) });
       let sample: unknown = null;
       if (r.data) { try { sample = JSON.parse(JSON.stringify(r.data).slice(0, 800)); } catch { sample = null; } }
       debug.push({ path: "/api/GetJobs (hydrated)", method: "POST", status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
