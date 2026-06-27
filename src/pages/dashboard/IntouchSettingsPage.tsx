@@ -704,6 +704,9 @@ export default function IntouchSettingsPage() {
           </CardContent>
         </Card>
 
+        <SyncRunsCard />
+
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -781,3 +784,112 @@ export default function IntouchSettingsPage() {
     </DashboardLayout>
   );
 }
+
+interface SyncRun {
+  id: string;
+  status: "running" | "success" | "error";
+  trigger_source: string | null;
+  error_message: string | null;
+  details: Record<string, unknown> | null;
+  started_at: string;
+  finished_at: string | null;
+}
+
+function SyncRunsCard() {
+  const [runs, setRuns] = useState<SyncRun[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("intouch_sync_runs" as never)
+        .select("id, status, trigger_source, error_message, details, started_at, finished_at")
+        .eq("function_name", "intouch-sync-production")
+        .order("started_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      setRuns((data as unknown as SyncRun[]) ?? []);
+      setErr(null);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const lastSuccess = runs?.find((r) => r.status === "success");
+  const lastError = runs?.find((r) => r.status === "error");
+  const isStaleError =
+    lastError && (!lastSuccess || new Date(lastError.started_at) > new Date(lastSuccess.started_at));
+  const fmt = (iso?: string | null) =>
+    iso ? new Date(iso).toLocaleString("en-GB", { timeZone: "Europe/London" }) : "—";
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">
+          {isStaleError ? <AlertCircle className="h-5 w-5 text-red-500" /> : <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
+          Production Sync Status
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap gap-3">
+          <div className="rounded-md border p-3 flex-1 min-w-[180px]">
+            <div className="text-xs text-muted-foreground">Last success</div>
+            <div className="text-sm font-medium">{fmt(lastSuccess?.finished_at ?? lastSuccess?.started_at)}</div>
+            {lastSuccess?.details ? (
+              <div className="text-[11px] text-muted-foreground mt-1">
+                {String((lastSuccess.details as any).synced_lines ?? 0)} lines ·{" "}
+                {String((lastSuccess.details as any).synced_skus ?? 0)} SKUs
+              </div>
+            ) : null}
+          </div>
+          <div className={`rounded-md border p-3 flex-1 min-w-[180px] ${isStaleError ? "border-red-500/50 bg-red-500/5" : ""}`}>
+            <div className="text-xs text-muted-foreground">Last error</div>
+            <div className="text-sm font-medium">{fmt(lastError?.started_at)}</div>
+            {lastError?.error_message && (
+              <div className="text-[11px] text-red-500 mt-1 break-words">{lastError.error_message}</div>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={load} disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Refresh
+          </Button>
+          {err && <span className="text-xs text-red-500">{err}</span>}
+        </div>
+        <div className="rounded-md border divide-y max-h-72 overflow-auto">
+          <div className="grid grid-cols-[110px_70px_1fr_180px] px-3 py-2 text-xs font-medium bg-muted/40">
+            <div>Status</div><div>Source</div><div>Detail / Error</div><div className="text-right">Started</div>
+          </div>
+          {(runs ?? []).length === 0 && (
+            <div className="p-3 text-sm text-muted-foreground">No runs recorded yet.</div>
+          )}
+          {(runs ?? []).map((r) => (
+            <div key={r.id} className="grid grid-cols-[110px_70px_1fr_180px] px-3 py-2 text-xs items-center">
+              <div className={
+                r.status === "success" ? "text-emerald-500 font-medium" :
+                r.status === "error" ? "text-red-500 font-medium" : "text-muted-foreground"
+              }>{r.status}</div>
+              <div className="text-muted-foreground">{r.trigger_source ?? "—"}</div>
+              <div className="truncate" title={r.error_message ?? JSON.stringify(r.details ?? {})}>
+                {r.error_message ?? (r.details ? `${(r.details as any).synced_lines ?? 0}L · ${(r.details as any).synced_skus ?? 0} SKUs` : "—")}
+              </div>
+              <div className="text-right font-mono text-[11px]">{fmt(r.started_at)}</div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+

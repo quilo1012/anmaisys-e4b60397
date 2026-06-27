@@ -73,6 +73,7 @@ interface StopDetail {
   ref: string | null;
   machine: string | null;
   reason: string | null;
+  status?: string | null;
 }
 
 interface ClampedStop extends StopDetail {
@@ -81,6 +82,7 @@ interface ClampedStop extends StopDetail {
   minutes: number;
   ongoing: boolean;
 }
+
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -204,8 +206,10 @@ export default function RAGWeeklyPage() {
           ref: r.wo_number as string | null,
           machine: r.machine as string | null,
           reason: r.description as string | null,
+          status: r.status as string | null,
         };
       });
+
 
 
 
@@ -222,11 +226,37 @@ export default function RAGWeeklyPage() {
     },
   });
 
-  useEffect(() => {
-    if (lineStopsError) {
-      toast.error(`Failed to load downtime: ${(lineStopsError as Error).message}`);
+  // Items by week — drives scrap impact in popover + rounding mismatch detection.
+  const weekStartIso = weekStartStr;
+  const weekEndIso = format(addDays(weekStart, 6), "yyyy-MM-dd");
+  const { data: weekItems = [] } = useQuery({
+    queryKey: ["rag-week-items", weekStartStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("production_sessions")
+        .select("session_date, line, shift, production_items(planned_qty, target_qty, scrap_qty)")
+        .gte("session_date", weekStartIso)
+        .lte("session_date", weekEndIso);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        session_date: string; line: string; shift: "DAY" | "NIGHT";
+        production_items?: { planned_qty: number | null; target_qty: number | null; scrap_qty: number | null }[];
+      }>;
+    },
+  });
+
+  const { cellScrapMap, cellItemTargetMap } = useMemo(() => {
+    const scrap = new Map<string, number>();
+    const tgt = new Map<string, number>();
+    for (const s of weekItems) {
+      const k = `${s.session_date}|${s.line}|${s.shift}`;
+      const items = s.production_items ?? [];
+      scrap.set(k, items.reduce((a, i) => a + Number(i.scrap_qty ?? 0), 0));
+      tgt.set(k, items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0));
     }
-  }, [lineStopsError]);
+    return { cellScrapMap: scrap, cellItemTargetMap: tgt };
+  }, [weekItems]);
+
 
 
 
@@ -923,6 +953,8 @@ export default function RAGWeeklyPage() {
           entryMap={entryMap}
           autoDtMap={autoDtMap}
           autoDtBreakdown={autoDtBreakdown}
+          cellScrapMap={cellScrapMap}
+          cellItemTargetMap={cellItemTargetMap}
           isAdmin={isAdmin}
           onSave={(payload) => upsertMutation.mutate(payload)}
           onOpenFull={(date, line, shift) => {
@@ -930,6 +962,7 @@ export default function RAGWeeklyPage() {
             setEditing({ date, line, shift, entry: e });
           }}
         />
+
 
 
 
@@ -1158,6 +1191,8 @@ function DayNightTotalSummary({
   entryMap,
   autoDtMap,
   autoDtBreakdown,
+  cellScrapMap,
+  cellItemTargetMap,
   isAdmin = false,
   onSave,
   onOpenFull,
@@ -1167,10 +1202,13 @@ function DayNightTotalSummary({
   entryMap: Map<string, Entry>;
   autoDtMap?: Map<string, number>;
   autoDtBreakdown?: Map<string, ClampedStop[]>;
+  cellScrapMap?: Map<string, number>;
+  cellItemTargetMap?: Map<string, number>;
   isAdmin?: boolean;
   onSave?: (payload: Omit<Entry, "id">) => void;
   onOpenFull?: (date: string, line: string, shift: Shift) => void;
 }) {
+
 
   const qcExcl = useQueryClient();
   const fromDate = weekDates.length ? format(weekDates[0], "yyyy-MM-dd") : null;
@@ -1447,12 +1485,33 @@ function DayNightTotalSummary({
                   );
                 };
                 const isDt = row.key === "dt";
+                const isPlan = row.key === "plan";
                 const wrapDt = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
                   if (!isDt || lineFilter.length !== 1) return cellEl;
-                  const details = autoDtBreakdown?.get(`${ds}|${lineFilter[0]}|${shift}`) ?? [];
+                  const key = `${ds}|${lineFilter[0]}|${shift}`;
+                  const details = autoDtBreakdown?.get(key) ?? [];
                   if (!details.length) return cellEl;
-                  return <DowntimeBreakdownPopover trigger={cellEl} stops={details} dateStr={ds} shift={shift} line={lineFilter[0]} />;
+                  const scrap = cellScrapMap?.get(key) ?? 0;
+                  return <DowntimeBreakdownPopover trigger={cellEl} stops={details} dateStr={ds} shift={shift} line={lineFilter[0]} totalScrap={scrap} />;
                 };
+                const wrapPlan = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
+                  if (!isPlan || lineFilter.length !== 1) return cellEl;
+                  const key = `${ds}|${lineFilter[0]}|${shift}`;
+                  const e = entryMap.get(key);
+                  const itemSum = cellItemTargetMap?.get(key) ?? 0;
+                  const plan = Number(e?.plan_qty ?? 0);
+                  if (!plan || !itemSum) return cellEl;
+                  const diff = Math.abs(plan - itemSum);
+                  if (diff === 0) return cellEl;
+                  return (
+                    <span className="inline-flex items-center gap-1" title={`Plan ${plan} ≠ sum of SKU targets ${itemSum} (Δ${diff})`}>
+                      {cellEl}
+                      <span className="text-amber-500 text-[10px] leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
+                    </span>
+                  );
+                };
+                const wrapCell = (ds: string, shift: Shift, cellEl: React.ReactNode) =>
+                  isDt ? wrapDt(ds, shift, cellEl) : isPlan ? wrapPlan(ds, shift, cellEl) : cellEl;
                 return (
                   <tr key={row.key} className="border-b hover:bg-muted/20">
                     <td className="p-1.5 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-[11px] tracking-wide text-muted-foreground">{row.label}</td>
@@ -1463,11 +1522,12 @@ function DayNightTotalSummary({
                       const totalDim = isDateExcluded(label, ds) ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40";
                       return (
                         <Fragment key={i}>
-                          <td className={`${cls} border-l ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapDt(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
-                          <td className={`${cls} ${nightDim}`}>{editable ? renderEdit(ds, "NIGHT") : wrapDt(ds, "NIGHT", row.render(buildCol(ds, "NIGHT")))}</td>
+                          <td className={`${cls} border-l ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapCell(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
+                          <td className={`${cls} ${nightDim}`}>{editable ? renderEdit(ds, "NIGHT") : wrapCell(ds, "NIGHT", row.render(buildCol(ds, "NIGHT")))}</td>
                           <td className={`${cls} ${totalDim}`}>{row.render(buildCol(ds, "TOTAL"))}</td>
                         </Fragment>
                       );
+
                     })}
 
 
@@ -1544,13 +1604,14 @@ function SummaryInlineInput({
 }
 
 function DowntimeBreakdownPopover({
-  trigger, stops, dateStr, shift, line,
+  trigger, stops, dateStr, shift, line, totalScrap = 0,
 }: {
   trigger: React.ReactNode;
   stops: ClampedStop[];
   dateStr: string;
   shift: Shift;
   line: string;
+  totalScrap?: number;
 }) {
   const fmtTs = (iso: string) =>
     new Date(iso).toLocaleString("en-GB", {
@@ -1558,6 +1619,16 @@ function DowntimeBreakdownPopover({
       day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
     });
   const totalMin = stops.reduce((s, x) => s + x.minutes, 0);
+  const statusBadge = (st?: string | null) => {
+    if (!st) return null;
+    const s = String(st).toLowerCase();
+    const tone =
+      ["finished","closed","completed","force_closed"].includes(s) ? "bg-emerald-500/15 text-emerald-500" :
+      ["in_progress","arrived","received"].includes(s) ? "bg-blue-500/15 text-blue-500" :
+      s === "open" ? "bg-red-500/15 text-red-500" :
+      "bg-muted text-muted-foreground";
+    return <span className={`ml-1 inline-block px-1 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${tone}`}>{s.replace("_"," ")}</span>;
+  };
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -1565,11 +1636,16 @@ function DowntimeBreakdownPopover({
           {trigger}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[420px] max-w-[92vw] p-0">
+      <PopoverContent align="end" className="w-[440px] max-w-[92vw] p-0">
         <div className="px-3 py-2 border-b bg-muted/40">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{line} · {shift} · {dateStr}</div>
-          <div className="text-sm font-semibold">{stops.length} stop{stops.length === 1 ? "" : "s"} · {totalMin}m total</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm font-semibold">{stops.length} stop{stops.length === 1 ? "" : "s"} · {totalMin}m total</div>
+            {totalScrap > 0 && <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">Scrap: {totalScrap.toLocaleString()}</div>}
+          </div>
+          <a href="/dashboard/work-orders" className="text-[11px] text-primary hover:underline">Open Work Orders →</a>
         </div>
+
         <div className="max-h-[320px] overflow-y-auto">
           <table className="w-full text-xs tabular-nums">
             <thead className="sticky top-0 bg-background border-b">
@@ -1596,12 +1672,14 @@ function DowntimeBreakdownPopover({
                     ) : (
                       <div className="font-mono text-[11px]">{woLabel}</div>
                     )}
+                    {statusBadge(s.status)}
                     {(s.machine || s.reason) && (
-                      <div className="text-[10px] text-muted-foreground truncate max-w-[160px]" title={s.reason ?? ""}>
+                      <div className="text-[10px] text-muted-foreground truncate max-w-[180px]" title={s.reason ?? ""}>
                         {[s.machine, s.reason].filter(Boolean).join(" — ")}
                       </div>
                     )}
                   </td>
+
                   <td className="px-2 py-1.5 font-mono text-[11px]">{fmtTs(s.clampedStart)}</td>
                   <td className="px-2 py-1.5 font-mono text-[11px]">
                     {s.ongoing ? <span className="text-red-600 font-semibold">ongoing</span> : fmtTs(s.clampedEnd)}
