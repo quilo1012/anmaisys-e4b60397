@@ -69,11 +69,13 @@ interface StopDetail {
   line: string;
   start: string;
   end: string | null;
-  source: "WO" | "Manual";
+  source: "WO" | "Manual" | "Prod";
   ref: string | null;
   machine: string | null;
   reason: string | null;
   status?: string | null;
+  kind: "MAINT" | "QUALITY";
+  category?: string | null;
 }
 
 interface ClampedStop extends StopDetail {
