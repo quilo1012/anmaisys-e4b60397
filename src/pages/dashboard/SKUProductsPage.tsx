@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Trash2, Pencil, Upload, Search, Download } from "lucide-react";
 import { toast } from "sonner";
+import ExcelJS from "exceljs";
 
 interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; weight: number | null; active: boolean }
 
