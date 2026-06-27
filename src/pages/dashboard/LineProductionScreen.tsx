@@ -206,25 +206,18 @@ export default function LineProductionScreen() {
     };
   }, [qc, line, shift, activeSessionDate, sessionQ.data?.id]);
 
-  const rawItems = itemsQ.data || [];
-  const items = useMemo(() => {
-    const ragTotal = ragPlanQ.data || 0;
-    if (ragTotal <= 0 || rawItems.length === 0) return rawItems;
-    const base = Math.floor(ragTotal / rawItems.length);
-    const rem = ragTotal - base * rawItems.length;
-    return rawItems.map((i, idx) => ({
-      ...i,
-      target_qty: base + (idx < rem ? 1 : 0),
-    }));
-  }, [rawItems, ragPlanQ.data]);
+  const items = itemsQ.data || [];
 
   const totals = useMemo(() => {
-    const target = items.reduce((s, i) => s + (i.target_qty || 0), 0);
+    const ragTotal = ragPlanQ.data || 0;
+    const skuTarget = items.reduce((s, i) => s + (i.target_qty || 0), 0);
+    // Prefer RAG Weekly plan as the source of truth for the shift target.
+    const target = ragTotal > 0 ? ragTotal : skuTarget;
     const actual = items.reduce((s, i) => s + (i.actual_qty || 0), 0);
     const remaining = Math.max(0, target - actual);
     const pct = target > 0 ? (actual / target) * 100 : 0;
     return { target, actual, remaining, pct };
-  }, [items]);
+  }, [items, ragPlanQ.data]);
 
   const updateActual = useMutation({
     mutationFn: async ({ id, value }: { id: string; value: number }) => {
