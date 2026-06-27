@@ -1608,7 +1608,8 @@ function DowntimeBreakdownPopover({
                   </td>
                   <td className="px-2 py-1.5 text-right font-semibold">{s.minutes}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
