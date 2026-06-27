@@ -208,8 +208,8 @@ export default function IntouchSettingsPage() {
     try {
       const today = new Date().toISOString().slice(0, 10);
       // 1) Schedule jobs calendar (today, both shifts)
-      for (const shift of ["day", "night"] as const) {
-        const { data, error } = await invokeFunction<any>("intouch-list-scheduled-jobs", { date: today, shift });
+      for (const shift of ["DAY", "NIGHT"] as const) {
+        const { data, error } = await invokeFunction<any>("intouch-list-scheduled-jobs", { session_date: today, shift });
         if (error) errors.push(`schedule ${shift}: ${error.message}`);
         else summary.push(`${shift}:${data?.items?.length ?? data?.count ?? 0} jobs`);
       }
