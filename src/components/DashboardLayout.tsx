@@ -310,7 +310,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             </div>
           </Sidebar>
 
-          <main className="flex-1 flex flex-col overflow-hidden">
+          <main className="flex-1 flex flex-col overflow-hidden min-w-0">
             <header className="h-14 border-b bg-card flex items-center px-2 sm:px-4 gap-2 sm:gap-3 print:hidden">
               <SidebarTrigger aria-label="Toggle menu" className="shrink-0" />
               {currentPageTitle && (
