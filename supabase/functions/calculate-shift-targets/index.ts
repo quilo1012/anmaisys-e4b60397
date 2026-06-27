@@ -70,12 +70,19 @@ Deno.serve(async (req) => {
     });
   }
 
-  let body: any = {};
-  try { body = req.method === "POST" ? await req.json() : {}; } catch { /* empty */ }
+  let rawBody: unknown = {};
+  try { rawBody = req.method === "POST" ? await req.json() : {}; } catch { /* empty */ }
+  const parsed = BodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return new Response(JSON.stringify({ ok: false, error: parsed.error.flatten().fieldErrors }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const body = parsed.data;
 
   const def = currentShiftLondon();
   const date: string = body.date ?? def.date;
-  const shift: "DAY" | "NIGHT" = (body.shift ?? def.shift) as any;
+  const shift: "DAY" | "NIGHT" = body.shift ?? def.shift;
   const lineFilter: string | null = body.line ?? null;
   const overwrite: boolean = !!body.overwrite;
 
