@@ -35,11 +35,19 @@ function shiftWindow(date: string, shift: "DAY" | "NIGHT") {
   return { start, end };
 }
 
+// Preserve batch suffix like "-B2" — iTouching shows it on the Part Code.
 const cleanCode = (v: unknown) => String(v ?? "").trim()
-  .replace(/^['"]+|['"]+$/g, "").replace(/-B\d+$/i, "").toUpperCase();
+  .replace(/^['"]+|['"]+$/g, "").toUpperCase();
 const num = (v: unknown) => {
-  const c = String(v ?? "").replace(/[^\d,.-]/g, "").replace(/,(?=\d{3}(\D|$))/g, "");
-  const n = Number(c.includes(",") && !c.includes(".") ? c.replace(",", ".") : c);
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  let c = String(v ?? "").replace(/[^\d,.-]/g, "");
+  // European thousands separator: "6.666" or "1.234.567" → strip dots.
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(c)) c = c.replace(/\./g, "").replace(",", ".");
+  // US thousands separator: "6,666" or "1,234,567(.xx)" → strip commas.
+  else if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(c)) c = c.replace(/,/g, "");
+  // Lone comma decimal: "6,5" → "6.5".
+  else if (c.includes(",") && !c.includes(".")) c = c.replace(",", ".");
+  const n = Number(c);
   return Number.isFinite(n) ? n : 0;
 };
 const pick = (o: any, ks: string[]) => {
