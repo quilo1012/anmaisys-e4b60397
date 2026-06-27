@@ -678,6 +678,21 @@ export default function IntouchSettingsPage() {
                   </strong>
                 </div>
               )}
+              <div className="flex items-center gap-2 ml-auto">
+                {diagError ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-red-500">
+                    <AlertCircle className="h-3.5 w-3.5" /> {diagError.slice(0, 80)}
+                  </span>
+                ) : diagRefreshedAt ? (
+                  <span className="text-xs text-muted-foreground">
+                    Updated {diagRefreshedAt.toLocaleTimeString("en-GB", { timeZone: "Europe/London" })}
+                  </span>
+                ) : null}
+                <Label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <Switch checked={diagAuto} onCheckedChange={setDiagAuto} />
+                  Auto 30s
+                </Label>
+              </div>
             </div>
             {diag && (
               <>
