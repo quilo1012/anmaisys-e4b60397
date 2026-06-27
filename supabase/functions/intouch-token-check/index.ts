@@ -8,6 +8,9 @@ const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const INTOUCH_URL = (Deno.env.get("INTOUCH_API_URL") ?? "").replace(/\/+$/, "");
 const INTOUCH_TOKEN = Deno.env.get("INTOUCH_API_TOKEN") ?? "";
+const INTOUCH_AUTH_HEADER = /^bearer\s+/i.test(INTOUCH_TOKEN.trim())
+  ? INTOUCH_TOKEN.trim()
+  : `Bearer ${INTOUCH_TOKEN.trim()}`;
 
 function maskToken(t: string) {
   if (!t) return "(empty)";
@@ -30,7 +33,7 @@ async function probe(path: string) {
   const started = Date.now();
   try {
     const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${INTOUCH_TOKEN}`, Accept: "application/json" },
+      headers: { Authorization: INTOUCH_AUTH_HEADER, Accept: "application/json" },
     });
     const text = await res.text();
     return {
@@ -52,18 +55,23 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const userClient = createClient(SUPABASE_URL, ANON, {
-      global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
-      auth: { persistSession: false },
-    });
-    const { data: { user } } = await userClient.auth.getUser();
-    if (!user) {
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const userClient = createClient(SUPABASE_URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: claims, error: cErr } = await userClient.auth.getClaims(token);
+    const userId = claims?.claims?.sub as string | undefined;
+    if (cErr || !userId) {
+      return new Response(JSON.stringify({ error: "invalid_token" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const admin = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
-    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", user.id);
+    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", userId);
     const ok = (roles ?? []).some((r) => ["admin", "manager"].includes(r.role));
     if (!ok) {
       return new Response(JSON.stringify({ error: "forbidden" }), {
