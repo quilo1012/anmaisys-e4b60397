@@ -113,6 +113,34 @@ export default function ProductionPlannerPage() {
   const [notes, setNotes] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
   const [historyLine, setHistoryLine] = useState<string>("__all__");
+  const [syncedLines, setSyncedLines] = useState<string[] | null>(null);
+  const [syncingLines, setSyncingLines] = useState(false);
+
+  const syncLinesForDate = async () => {
+    setSyncingLines(true);
+    try {
+      const { data, error } = await supabase
+        .from("production_sessions")
+        .select("line")
+        .eq("session_date", date);
+      if (error) throw error;
+      const distinct = Array.from(
+        new Set((data ?? []).map((r: { line: string }) => (r.line ?? "").trim()).filter(Boolean))
+      ).sort();
+      if (distinct.length === 0) {
+        setSyncedLines(null);
+        toast("No lines found for this date");
+      } else {
+        setSyncedLines(distinct);
+        toast.success(`Found ${distinct.length} line(s) for ${date}`);
+        if (line && !distinct.includes(line)) setLine("");
+      }
+    } catch (e: any) {
+      toast.error(`Sync failed: ${e?.message ?? "unknown"}`);
+    } finally {
+      setSyncingLines(false);
+    }
+  };
 
   const { data: lines = [] } = useLines();
   const { data: leaders = [] } = useLineLeaders(shift);
