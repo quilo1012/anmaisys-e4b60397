@@ -7,6 +7,14 @@
 // Body: { date?: "YYYY-MM-DD", shift?: "DAY"|"NIGHT", line?: string, overwrite?: boolean }
 // Defaults: current London shift, all lines, only items where target_qty is null/0.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "https://esm.sh/zod@3.23.8";
+
+const BodySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  shift: z.enum(["DAY", "NIGHT"]).optional(),
+  line: z.string().max(100).nullable().optional(),
+  overwrite: z.boolean().optional(),
+}).strict();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
