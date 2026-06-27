@@ -19,7 +19,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Delete, Clock, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -109,7 +110,7 @@ export default function LineProductionScreen() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_sessions")
-        .select("id, leader_name, locked")
+        .select("id, leader_name, locked, notes")
         .eq("line", line)
         .eq("session_date", todayISO())
         .eq("shift", shift)
@@ -217,6 +218,28 @@ export default function LineProductionScreen() {
       toast.success("Saved");
     },
     onError: (e: any) => toast.error(e.message || "Failed to save"),
+  });
+
+  // Per-shift observations (notes on production_sessions)
+  const [notes, setNotes] = useState<string>("");
+  useEffect(() => {
+    setNotes(sessionQ.data?.notes ?? "");
+  }, [sessionQ.data?.id, sessionQ.data?.notes]);
+
+  const saveNotes = useMutation({
+    mutationFn: async (value: string) => {
+      if (!sessionQ.data?.id) throw new Error("No session");
+      const { error } = await (supabase as any)
+        .from("production_sessions")
+        .update({ notes: value })
+        .eq("id", sessionQ.data.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lps-session", line, shift, todayISO()] });
+      toast.success("Observations saved");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save observations"),
   });
 
   const openEditor = (row: ItemRow) => {
@@ -426,6 +449,35 @@ export default function LineProductionScreen() {
               );
             })}
           </div>
+
+          {/* Shift observations */}
+          <Card className="mt-4">
+            <CardContent className="p-4 md:p-6 space-y-3">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-muted-foreground" />
+                <span className="text-base font-semibold">Shift observations</span>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  Downtime, problems, notes for this shift
+                </span>
+              </div>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="E.g. Filler 2 stopped 14:20–14:55 (sensor), changeover SKU-123→SKU-456 at 16:00…"
+                className="min-h-[120px] text-base"
+              />
+              <div className="flex justify-end">
+                <Button
+                  className="h-12 px-6"
+                  onClick={() => saveNotes.mutate(notes)}
+                  disabled={saveNotes.isPending || notes === (sessionQ.data?.notes ?? "")}
+                >
+                  <Save className="h-5 w-5 mr-2" />
+                  Save observations
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </>
       )}
 
