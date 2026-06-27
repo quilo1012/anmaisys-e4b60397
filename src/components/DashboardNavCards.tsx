@@ -83,7 +83,7 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
     { title: "Production OEE", description: "Performance, RAG and leaderboard", url: "/dashboard/production-performance", icon: Gauge, accent: REPORTS },
     { title: "Quality Actions", description: "Log and track quality issues", url: "/dashboard/quality", icon: CheckSquare, accent: OPS },
     
-    { title: "Shift History", description: "Browse and edit past shifts", url: "/dashboard/shift-history", icon: History, accent: REPORTS },
+    { title: "Production Control", description: "Browse production by date, line and SKU", url: "/dashboard/shift-history", icon: History, accent: REPORTS },
     
     { title: "SKU Products", description: "Catalog and CSV import", url: "/dashboard/sku-products", icon: Boxes, accent: ASSETS },
     { title: "Machines", description: "View and manage equipment", url: "/dashboard/machines", icon: Cog, badge: machinesCount, accent: ASSETS },
