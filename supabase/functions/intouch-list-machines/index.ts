@@ -41,20 +41,25 @@ Deno.serve(async (req) => {
 
 
     // Try a few endpoints — iTouching deployments differ.
-    const candidates = ["/api/Machine", "/api/GetMachineList", "/api/Machines"];
+    const candidates = ["/api/GetMachineList", "/api/Machine"];
     let raw: any = null;
     let usedPath = "";
-    let lastErr = "";
+    const errs: string[] = [];
     for (const path of candidates) {
-      const res = await fetch(`${INTOUCH_URL}${path}`, {
-        headers: { Authorization: `Bearer ${INTOUCH_TOKEN}`, Accept: "application/json" },
-      });
-      const txt = await res.text();
-      if (!res.ok) { lastErr = `${path} → ${res.status}: ${txt.slice(0, 200)}`; continue; }
-      try { raw = JSON.parse(txt); usedPath = path; break; }
-      catch { lastErr = `${path}: invalid JSON`; }
+      try {
+        const res = await fetch(`${INTOUCH_URL}${path}`, {
+          headers: { Authorization: `Bearer ${INTOUCH_TOKEN}`, Accept: "application/json" },
+        });
+        const txt = await res.text();
+        if (!res.ok) { errs.push(`${path} → ${res.status}: ${txt.slice(0, 160)}`); continue; }
+        try { raw = JSON.parse(txt); usedPath = path; break; }
+        catch { errs.push(`${path}: invalid JSON (${txt.slice(0, 120)})`); }
+      } catch (e) {
+        errs.push(`${path}: ${(e as Error).message}`);
+      }
     }
-    if (raw == null) throw new Error(`iTouching: no endpoint returned JSON. ${lastErr}`);
+    if (raw == null) throw new Error(`iTouching: no endpoint returned JSON. ${errs.join(" | ")}`);
+
 
     // The payload may be an array, or wrapped (e.g. { Machines: [...] } / { data: [...] }).
     const list: any[] = Array.isArray(raw)
