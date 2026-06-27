@@ -238,9 +238,12 @@ export default function SKUProductsPage() {
   const downloadTemplate = async () => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("SKUs");
-    ws.addRow(["SKU", "Description", "Category", "TargetPerHour"]);
-    ws.addRow(["BFHYDRATDS", "BODYFUEL HYDRATION DRINK", "Drinks", 3000]);
-    ws.addRow(["BFENERGYDS", "BODYFUEL ENERGY DRINK", "Drinks", 2800]);
+    ws.addRow([
+      "UIPart Number","Description","Part Weight","Material","Machine","Cavities","Tool Number",
+      "Standard Cycle Time","Standard Setup Time","Stopped Cycle","Slow Cycle","Fast Cycle","Very Fast Cycle",
+    ]);
+    ws.addRow(["BFHYDRATDS","BODYFUEL HYDRATION DRINK",12.5,"PET","Filler 1",8,"T-001",3.6,30,5,4,3,2.5]);
+    ws.addRow(["BFENERGYDS","BODYFUEL ENERGY DRINK",12.0,"PET","Filler 2",8,"T-002",3.8,30,5,4,3,2.5]);
     ws.getRow(1).font = { bold: true };
     ws.columns.forEach((c) => { c.width = 24; });
     const buf = await wb.xlsx.writeBuffer();
