@@ -116,6 +116,10 @@ export default function LineProductionScreen() {
     if (line) localStorage.setItem(LS_LINE_KEY, line);
   }, [line]);
 
+  useEffect(() => {
+    localStorage.setItem(LS_TABLET_KEY, tabletId);
+  }, [tabletId]);
+
   const linesQ = useQuery({
     queryKey: ["lps-lines"],
     queryFn: async () => {
