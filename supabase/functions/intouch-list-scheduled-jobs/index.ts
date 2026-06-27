@@ -208,42 +208,51 @@ Deno.serve(async (req) => {
       byLine.set(m.line_id!, arr);
     }
 
-    // Build list of mapped machine GUIDs — iTouching period endpoints
-    // expect this array in the POST body (not an empty array).
+    // Build list of mapped machine GUIDs — iTouching period endpoints expect
+    // mapped machines in the request, and deployments vary between array body,
+    // object body, query string, and per-machine report endpoints.
     const ids = (maps ?? []).map((m: any) => m.intouch_machine_id).filter(Boolean);
     const idsBody = JSON.stringify(ids);
+    const objectBodies = [
+      { MachineGUIDs: ids, StartTime: startISO, EndTime: endISO },
+      { MachineIDs: ids, StartTime: startISO, EndTime: endISO },
+      { machines: ids, startTime: startISO, endTime: endISO },
+    ];
 
-    // Try every known scheduled-jobs / material-requirements endpoint.
     const payloads: unknown[] = [];
     const debug: Array<{ path: string; method: string; status: number; ok: boolean; bytes: number; sample: unknown; err?: string }> = [];
-    const attempts: Array<{ path: string; method: "GET" | "POST"; body?: string }> = [
-      { path: `/api/GetRunningJobs`, method: "GET" },
-      { path: `/api/GetJobsRan?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "POST", body: idsBody },
-      { path: `/api/GetJobsRanDuringPeriod?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "POST", body: idsBody },
-      { path: `/api/GetJobsScheduledDuringPeriod?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "POST", body: idsBody },
-      { path: `/api/JobChange?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "POST", body: idsBody },
-      { path: `/api/ScheduleReports/MaterialRequirements/Machine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
-      { path: `/api/ScheduleReports/MaterialRequirementsByMachine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
-      { path: `/api/GetScheduledJobs?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
-      { path: `/api/GetJobSchedule?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
-      { path: `/api/GetWorkToList?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
-    ];
-    for (const a of attempts) {
-      const init: RequestInit = a.method === "GET" ? { method: "GET" } : { method: "POST", body: a.body ?? idsBody };
-      const r = await itFetch(a.path, init);
+    const pushDebug = (path: string, method: string, r: { data: unknown; status: number; ok: boolean; bytes: number; err?: string }) => {
       let sample: unknown = null;
       if (r.data) { try { sample = JSON.parse(JSON.stringify(r.data).slice(0, 800)); } catch { sample = null; } }
-      debug.push({ path: a.path.split("?")[0], method: a.method, status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
+      if (debug.length < 120) debug.push({ path: path.split("?")[0], method, status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
       if (r.data) payloads.push(r.data);
-    }
+    };
 
-    // Per-machine GET for Material Requirements (this is the variant that works in intouch-sync-production).
-    for (const m of ids) {
-      const path = `/api/ScheduleReports/MaterialRequirements/Machine?MachineGUID=${encodeURIComponent(m)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`;
-      const r = await itFetch(path, { method: "GET" });
-      if (r.data) payloads.push(r.data);
-      if (!r.ok && debug.length < 60) {
-        debug.push({ path: "/api/ScheduleReports/MaterialRequirements/Machine?MachineGUID=…", method: "GET", status: r.status, ok: r.ok, bytes: r.bytes, sample: null, err: r.err });
+    // Current running jobs is often the only endpoint that exposes the active schedule.
+    const running = await itFetch("/api/GetRunningJobs", { method: "GET" });
+    pushDebug("/api/GetRunningJobs", "GET", running);
+
+    const paths = await discoverSchedulePaths();
+    for (const path of paths) {
+      const hasMachinePlaceholder = /\{\s*(MachineGUID|MachineGuid|MachineID|MachineId|machineId|id|ID)\s*\}/.test(path);
+      const perMachineOnly = hasMachinePlaceholder || /\/Machine\b/i.test(path);
+      if (perMachineOnly) {
+        for (const machineId of ids) {
+          for (const q of queryVariants(path, machineId, startISO, endISO)) {
+            const r = await itFetch(q, { method: "GET" });
+            pushDebug(q.replace(machineId, "…"), "GET", r);
+            if (r.ok && r.bytes > 2) break;
+          }
+        }
+      } else {
+        const getPath = `${path}?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`;
+        pushDebug(getPath, "GET", await itFetch(getPath, { method: "GET" }));
+        pushDebug(path, "POST[]", await itFetch(path, { method: "POST", body: idsBody }));
+        for (const body of objectBodies) {
+          const r = await itFetch(path, { method: "POST", body: JSON.stringify(body) });
+          pushDebug(path, "POST{}", r);
+          if (r.ok && r.bytes > 2) break;
+        }
       }
     }
 
