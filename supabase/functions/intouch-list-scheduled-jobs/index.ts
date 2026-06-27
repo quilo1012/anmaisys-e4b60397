@@ -144,28 +144,41 @@ Deno.serve(async (req) => {
     }
 
     // Try every known scheduled-jobs / material-requirements endpoint.
-
     const payloads: unknown[] = [];
-    const debug: Array<{ path: string; ok: boolean; bytes: number; sample: unknown }> = [];
-    const paths = [
-      `/api/ScheduleReports/MaterialRequirements/Machine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
-      `/api/ScheduleReports/MaterialRequirementsByMachine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
-      `/api/GetScheduledJobs?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
-      `/api/GetJobSchedule?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
-      `/api/GetWorkToList?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
-      `/api/GetJobs`,
-      `/api/GetRunningJobs`,
+    const debug: Array<{ path: string; method: string; status: number; ok: boolean; bytes: number; sample: unknown; err?: string }> = [];
+    const attempts: Array<{ path: string; method: "GET" | "POST"; body?: string }> = [
+      { path: `/api/ScheduleReports/MaterialRequirements/Machine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
+      { path: `/api/ScheduleReports/MaterialRequirementsByMachine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
+      { path: `/api/GetScheduledJobs?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
+      { path: `/api/GetJobSchedule?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
+      { path: `/api/GetWorkToList?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "GET" },
+      { path: `/api/GetJobsRanDuringPeriod?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "POST", body: JSON.stringify([]) },
+      { path: `/api/GetJobsScheduledDuringPeriod?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, method: "POST", body: JSON.stringify([]) },
+      { path: `/api/GetRunningJobs`, method: "GET" },
     ];
-    for (const p of paths) {
-      const init: RequestInit = p.includes("GetJobs") && !p.includes("?") ? { method: "GET" } : { method: "POST", body: JSON.stringify([]) };
-      const r = await itFetch(p, init);
-      const bytes = r ? JSON.stringify(r).length : 0;
+    for (const a of attempts) {
+      const init: RequestInit = a.method === "GET" ? { method: "GET" } : { method: "POST", body: a.body ?? "[]" };
+      const r = await itFetch(a.path, init);
       let sample: unknown = null;
-      if (r) {
-        try { sample = JSON.parse(JSON.stringify(r).slice(0, 800)); } catch { sample = null; }
-      }
-      debug.push({ path: p.split("?")[0], ok: !!r, bytes, sample });
-      if (r) payloads.push(r);
+      if (r.data) { try { sample = JSON.parse(JSON.stringify(r.data).slice(0, 800)); } catch { sample = null; } }
+      debug.push({ path: a.path.split("?")[0], method: a.method, status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
+      if (r.data) payloads.push(r.data);
+    }
+
+    // Hydrate: if any running-jobs payload contains JobIDs, POST them to /api/GetJobs for full records.
+    const jobIds = new Set<string>();
+    for (const p of payloads) {
+      walk(p, (o) => {
+        const jid = String(pick(o, ["JobID", "JobId", "JobGUID", "JobGuid"]) ?? "").trim();
+        if (jid && jid.length >= 8) jobIds.add(jid);
+      });
+    }
+    if (jobIds.size > 0) {
+      const r = await itFetch(`/api/GetJobs`, { method: "POST", body: JSON.stringify(Array.from(jobIds)) });
+      let sample: unknown = null;
+      if (r.data) { try { sample = JSON.parse(JSON.stringify(r.data).slice(0, 800)); } catch { sample = null; } }
+      debug.push({ path: "/api/GetJobs (hydrated)", method: "POST", status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
+      if (r.data) payloads.push(r.data);
     }
 
     // Collect all machine identifier keys seen in payloads (for GUID mismatch diagnostics).
