@@ -141,29 +141,29 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
   const same = (v: unknown) => {
     const s = String(v ?? "").trim();
     if (!s) return true;
-    return allowedIds.has(s) || allowedNames.has(s.toLowerCase());
+    return allowedIds.has(machineKey(s)) || allowedNames.has(s.toLowerCase());
   };
   walk(raw, (obj) => {
     const wos = obj?.WorksOrders ?? obj?.WorkOrders ?? obj?.worksOrders;
-    const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
     if (!Array.isArray(wos)) return;
     if (!same(mref)) return;
     for (const wo of wos) {
-      const code = cleanCode(pick(wo, ["PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "OrderNumber"]));
+      const code = cleanCode(pick(wo, ["PartCode", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "OrderNumber", "WorkOrderNo", "JobProductCode", "ProductID", "ProductId", "Code"]));
       if (!code || code.length < 2) continue;
-      const description = String(pick(wo, ["LongDescription", "ProductDescription", "PartDescription", "Description", "Name"]) ?? code).trim();
-      const qty = num(pick(wo, ["OrderQuantity", "RequiredQuantity", "RequiredQty", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "Balance"])) || 1;
+      const description = String(pick(wo, ["LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
+      const qty = num(pick(wo, ["OrderQuantity", "OrderQty", "RequiredQuantity", "RequiredQty", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "ScheduledQty", "TargetQty", "Balance", "Demand", "Units"])) || 1;
       out.push({ code, description, qty });
     }
   });
   if (out.length === 0) {
     walk(raw, (obj) => {
-      const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+      const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
       if (!same(mref)) return;
-      const code = cleanCode(pick(obj, ["PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "FGCode", "MaterialCode", "Product", "Code"]));
+      const code = cleanCode(pick(obj, ["PartCode", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "FGCode", "FinishedGood", "MaterialCode", "Product", "ProductID", "ProductId", "JobProductCode", "OrderNumber", "WorkOrderNo", "Code"]));
       if (!code || code.length < 3 || /^(LINE|MACHINE|DATE|SHIFT|START|END|STATUS)$/i.test(code)) return;
-      const qty = num(pick(obj, ["OrderQuantity", "RequiredQuantity", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "TargetQty", "ScheduledQty", "Balance", "Demand"])) || 1;
-      const description = String(pick(obj, ["LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "Name"]) ?? code).trim();
+      const qty = num(pick(obj, ["OrderQuantity", "OrderQty", "RequiredQuantity", "RequiredQty", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "TargetQty", "ScheduledQty", "Balance", "Demand", "Units"])) || 1;
+      const description = String(pick(obj, ["LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
       out.push({ code, description, qty });
     });
   }
