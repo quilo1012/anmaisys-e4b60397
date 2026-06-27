@@ -33,6 +33,14 @@ export default function IntouchSettingsPage() {
     details: { intouch: string; matched?: string; guid: string; status: "saved" | "skipped" | "already" | "error"; reason?: string }[];
   }>(null);
 
+  const [products, setProducts] = useState<any[] | null>(null);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [productsErr, setProductsErr] = useState<string | null>(null);
+  const [productFilter, setProductFilter] = useState("");
+  const [importingProducts, setImportingProducts] = useState(false);
+  const [productSource, setProductSource] = useState<string>("");
+
+
 
   const [syncDisabled, setSyncDisabled] = useState<boolean>(false);
   const [togglingFlag, setTogglingFlag] = useState(false);
