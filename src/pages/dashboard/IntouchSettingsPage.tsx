@@ -592,7 +592,80 @@ export default function IntouchSettingsPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Package className="h-5 w-5" /> iTouching Products / SKUs
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Pulls the full product catalogue from iTouching. Review the list and click
+              <strong> Import all into SKUs</strong> to upsert them into the system's SKU database
+              (used by the Production Planner and Line Display).
+            </p>
+            <div className="flex gap-2 flex-wrap">
+              <Button onClick={loadProducts} disabled={loadingProducts}>
+                {loadingProducts ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Package className="h-4 w-4 mr-2" />}
+                Load products
+              </Button>
+              {products && products.length > 0 && (
+                <Button onClick={importProducts} disabled={importingProducts} variant="secondary">
+                  {importingProducts ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                  Import all {products.length} into SKUs
+                </Button>
+              )}
+              {products && products.length > 0 && (
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Filter by code or name…"
+                    value={productFilter}
+                    onChange={(e) => setProductFilter(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+              )}
+            </div>
+            {productSource && (
+              <div className="text-xs text-muted-foreground">Source endpoint: <code>{productSource}</code></div>
+            )}
+            {productsErr && (
+              <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span className="break-all">{productsErr}</span>
+              </div>
+            )}
+            {products && (
+              <div className="rounded-md border border-border divide-y divide-border max-h-[480px] overflow-auto">
+                {products.length === 0 && (
+                  <div className="p-3 text-sm text-muted-foreground">No products returned.</div>
+                )}
+                {products
+                  .filter((p: any) => {
+                    if (!productFilter) return true;
+                    const q = productFilter.toLowerCase();
+                    return (p.code || "").toLowerCase().includes(q) || (p.name || "").toLowerCase().includes(q);
+                  })
+                  .map((p: any, i: number) => (
+                    <div key={p.code || i} className="flex items-center gap-2 p-2 text-sm hover:bg-muted/40">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{p.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          <code className="font-mono mr-2">{p.code}</code>
+                          {p.category && <span className="mr-2">[{p.category}]</span>}
+                          {p.target_per_hour > 0 && <span>· {p.target_per_hour}/h</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
       </div>
+
     </DashboardLayout>
   );
 }
