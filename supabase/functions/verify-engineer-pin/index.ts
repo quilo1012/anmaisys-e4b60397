@@ -39,22 +39,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body = await req.json();
-    const pin = body?.pin;
-
-    if (!pin || typeof pin !== "string" || pin.length < 4 || pin.length > 6) {
-      return new Response(JSON.stringify({ error: "PIN must be 4-6 digits" }), {
+    const rawBody = await req.json().catch(() => ({}));
+    const parsedBody = BodySchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return new Response(JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    if (!/^\d+$/.test(pin)) {
-      return new Response(JSON.stringify({ error: "PIN must contain only digits" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const pin = parsedBody.data.pin;
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
