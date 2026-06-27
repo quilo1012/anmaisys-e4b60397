@@ -800,7 +800,7 @@ function SyncRunsCard() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = async (opts: { showToast?: boolean } = {}) => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -810,10 +810,14 @@ function SyncRunsCard() {
         .order("started_at", { ascending: false })
         .limit(20);
       if (error) throw error;
-      setRuns((data as unknown as SyncRun[]) ?? []);
+      const rows = (data as unknown as SyncRun[]) ?? [];
+      setRuns(rows);
       setErr(null);
+      if (opts.showToast) toast.success(rows.length ? `Loaded ${rows.length} run(s)` : "No sync runs logged yet");
     } catch (e) {
-      setErr((e as Error).message);
+      const msg = (e as Error).message;
+      setErr(msg);
+      if (opts.showToast) toast.error(msg);
     } finally {
       setLoading(false);
     }
