@@ -213,14 +213,16 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [sections, lineByNorm, skuByCode, lines]);
 
-  const totalProducts = resolved.reduce((a, s) => a + s.items.length, 0);
-  const totalLines = resolved.length;
+  const activeSections = useMemo(() => resolved.filter((s) => includedLines[s.line] !== false), [resolved, includedLines]);
+  const totalProducts = activeSections.reduce((a, s) => a + s.items.length, 0);
+  const totalLines = activeSections.length;
   const canImport = totalProducts > 0
-    && resolved.every((s) => s.matched_line && (leaderByLine[s.line]?.name?.trim()?.length ?? 0) > 0);
+    && activeSections.every((s) => s.matched_line && (leaderByLine[s.line]?.name?.trim()?.length ?? 0) > 0);
 
   const reset = () => {
     setSections([]);
     setLeaderByLine({});
+    setIncludedLines({});
     setParsePreview([]);
   };
 
