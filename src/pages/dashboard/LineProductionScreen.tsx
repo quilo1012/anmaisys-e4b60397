@@ -73,11 +73,15 @@ interface ItemRow {
 }
 
 const LS_LINE_KEY = "lps:line";
+const LS_TABLET_KEY = "lps:tablet_id";
+const EDIT_TABLET_ID = "1"; // only this tablet can edit actuals/observations
 
 export default function LineProductionScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [line, setLine] = useState<string>(() => localStorage.getItem(LS_LINE_KEY) || "");
+  const [tabletId, setTabletId] = useState<string>(() => localStorage.getItem(LS_TABLET_KEY) || "");
+  const canEdit = tabletId === EDIT_TABLET_ID;
   const [shift, setShift] = useState<Shift>(currentShift());
   const [now, setNow] = useState<Date>(new Date());
   const [editing, setEditing] = useState<ItemRow | null>(null);
