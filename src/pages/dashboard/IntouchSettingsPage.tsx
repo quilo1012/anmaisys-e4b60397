@@ -666,7 +666,7 @@ export default function IntouchSettingsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={loadDiag} disabled={loadingDiag} size="sm" variant="outline">
+              <Button onClick={() => loadDiag()} disabled={loadingDiag} size="sm" variant="outline">
                 {loadingDiag ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Refresh
               </Button>
