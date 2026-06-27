@@ -449,7 +449,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
         createdSkus = inserted?.length ?? 0;
       }
 
-      for (const sec of resolved) {
+      for (const sec of activeSections) {
         if (!sec.matched_line) continue;
         const lead = leaderByLine[sec.line];
         const session = await upsertSession.mutateAsync({
