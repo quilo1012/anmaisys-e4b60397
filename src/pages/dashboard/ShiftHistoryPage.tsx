@@ -226,114 +226,79 @@ export default function ShiftHistoryPage() {
           </Card>
         )}
 
-        <div className="space-y-2">
-          {filtered.length === 0 && <Card><CardContent className="p-6 text-muted-foreground text-center">No sessions</CardContent></Card>}
-          {filtered.map((s) => {
-            const target = s.production_items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
-            const actual = s.production_items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
-            const eff = target > 0 ? (actual / target) * 100 : 0;
-            const isOpen = expanded.has(s.id);
-            return (
-              <Card key={s.id}>
-                <CardHeader className="cursor-pointer py-3" onClick={() => toggle(s.id)}>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                      <span className="font-semibold">{s.session_date}</span>
-                      <Badge variant="outline">{s.shift}</Badge>
-                      <Badge>{s.line}</Badge>
-                      <span className="text-sm text-muted-foreground">{s.leader_name ?? "—"}</span>
-                      {s.locked && <Badge variant="secondary"><Lock className="h-3 w-3 mr-1" />Locked</Badge>}
-                    </div>
-                    <div className="flex items-center gap-3 text-sm">
-                      <span className="text-muted-foreground">{actual} / {target}</span>
-                      <span className={`font-bold ${eff >= 100 ? "text-green-500" : eff >= 80 ? "text-amber-500" : "text-red-500"}`}>{eff.toFixed(0)}%</span>
-                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(s); }}><Pencil className="h-3 w-3" /></Button>
-                      <Button size="sm" variant="ghost" title="Print report" onClick={(e) => {
-                        e.stopPropagation();
-                        printSessionReport({
-                          session_date: s.session_date, shift: s.shift, line: s.line,
-                          leader_name: s.leader_name, staff_planned: s.staff_planned, staff_actual: s.staff_actual,
-                          notes: s.notes,
-                          items: s.production_items.map((i) => {
-                            const sku = skuMap.get(i.sku_id);
-                            return {
-                              code: sku?.code ?? "?",
-                              name: sku?.name ?? "Unknown",
-                              target: Number(i.target_qty ?? i.planned_qty ?? 0),
-                              actual: Number(i.actual_qty ?? 0),
-                            };
-                          }),
-                        });
-                      }}><Printer className="h-3 w-3" /></Button>
-                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); lockMut.mutate({ id: s.id, lock: !s.locked }); }}>
-                        {s.locked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setDeleting(s.id); }}><Trash2 className="h-3 w-3 text-destructive" /></Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                {isOpen && (
-                  <CardContent className="pt-0">
-                    {s.notes && <p className="text-sm text-muted-foreground mb-3 italic">"{s.notes}"</p>}
-                    {s.production_items.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No SKUs recorded</p>
-                    ) : (
-                      <div className="border rounded-md divide-y">
-                        {s.production_items.map((i, idx) => {
-                          const sku = skuMap.get(i.sku_id);
-                          const t = Number(i.target_qty ?? i.planned_qty ?? 0);
-                          const a = Number(i.actual_qty ?? 0);
-                          const e = t > 0 ? (a / t) * 100 : 0;
-                          return (
-                            <div key={i.id ?? idx} className="flex items-center justify-between p-2 text-sm">
-                              <div>
-                                <span className="font-mono text-xs mr-2">{sku?.code ?? "?"}</span>
-                                <span>{sku?.name ?? "Unknown"}</span>
-                              </div>
-                              <div className="flex items-center gap-4">
-                                <span className="text-muted-foreground">{a} / {t}</span>
-                                <span className={`font-semibold w-12 text-right ${e >= 100 ? "text-green-500" : e >= 80 ? "text-amber-500" : "text-red-500"}`}>{e.toFixed(0)}%</span>
-                                {!s.locked && i.id && (
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => {
-                                      setEditingItem({ id: i.id, code: sku?.code ?? "?", target: t, actual: a });
-                                      setEditActual(String(a));
-                                    }}
-                                    title="Edit actual quantity"
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                {!s.locked && i.id && (
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => {
-                                      if (window.confirm(`Remove ${sku?.code ?? "this SKU"} from this session?`)) {
-                                        delItemMut.mutate(i.id);
-                                      }
-                                    }}
-                                    title="Delete SKU"
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                )}
-                              </div>
-
+        <Card>
+          <CardContent className="p-0 overflow-x-auto">
+            {filtered.length === 0 ? (
+              <div className="p-6 text-muted-foreground text-center">No sessions</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-xs uppercase">
+                  <tr>
+                    <th className="text-left p-2">Date</th>
+                    <th className="text-left p-2">Shift</th>
+                    <th className="text-left p-2">Filler Line</th>
+                    <th className="text-left p-2">SKU</th>
+                    <th className="text-left p-2">Product Code</th>
+                    <th className="text-right p-2">Weight</th>
+                    <th className="text-right p-2">Bag</th>
+                    <th className="text-right p-2">Tubs</th>
+                    <th className="text-right p-2 w-32">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filtered.flatMap((s) =>
+                    (s.production_items.length === 0
+                      ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null }]
+                      : s.production_items
+                    ).map((i, idx) => {
+                      const sku = skuMap.get(i.sku_id);
+                      const code = sku?.code ?? "";
+                      const name = sku?.name ?? (i.sku_id ? "Unknown" : "—");
+                      const weight = sku ? Number((sku as { weight?: number | null }).weight ?? 0) : 0;
+                      const a = Number(i.actual_qty ?? 0);
+                      const t = Number(i.target_qty ?? i.planned_qty ?? 0);
+                      const blob = `${code} ${name}`.toLowerCase();
+                      const isTub = /tub/.test(blob);
+                      const isBag = /bag|sach|pouch/.test(blob);
+                      const bag = isTub && !isBag ? 0 : a;
+                      const tubs = isTub ? a : 0;
+                      return (
+                        <tr key={`${s.id}-${i.id ?? idx}`} className="hover:bg-muted/20">
+                          <td className="p-2 whitespace-nowrap">{s.session_date}</td>
+                          <td className="p-2"><Badge variant="outline">{s.shift}</Badge></td>
+                          <td className="p-2 whitespace-nowrap">{s.line}</td>
+                          <td className="p-2">{name}</td>
+                          <td className="p-2 font-mono text-xs">{code || "—"}</td>
+                          <td className="p-2 text-right tabular-nums">{weight ? weight.toLocaleString() : "—"}</td>
+                          <td className="p-2 text-right tabular-nums">{bag ? bag.toLocaleString() : "—"}</td>
+                          <td className="p-2 text-right tabular-nums">{tubs ? tubs.toLocaleString() : "—"}</td>
+                          <td className="p-2">
+                            <div className="flex items-center justify-end gap-1">
+                              {!s.locked && i.id && i.sku_id && (
+                                <Button size="icon" variant="ghost" title="Edit actual" onClick={() => { setEditingItem({ id: i.id, code, target: t, actual: a }); setEditActual(String(a)); }}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button size="icon" variant="ghost" title="Edit session" onClick={() => setEditing(s)}>
+                                <Pencil className="h-4 w-4 opacity-60" />
+                              </Button>
+                              <Button size="icon" variant="ghost" title="Lock/unlock" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
+                                {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                              </Button>
+                              <Button size="icon" variant="ghost" title="Delete session" onClick={() => setDeleting(s.id)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </CardContent>
-                )}
-              </Card>
-            );
-          })}
-        </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            )}
+          </CardContent>
+        </Card>
 
         <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
           <DialogContent>
