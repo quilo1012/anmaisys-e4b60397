@@ -214,7 +214,23 @@ Deno.serve(async (req) => {
   const matches = (expected: string) =>
     expected.length > 0 && presented.length > 0 && presented === expected;
 
-  const allowed = matches(cronSecret) || matches(cronTriggerToken);
+  let allowed = matches(cronSecret) || matches(cronTriggerToken);
+
+  // Also allow an authenticated admin/manager (e.g. Sync Now from the UI).
+  if (!allowed && bearer) {
+    try {
+      const { data, error } = await admin.auth.getUser(bearer);
+      if (!error && data?.user?.id) {
+        const { data: roles } = await admin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.user.id);
+        if ((roles ?? []).some((r: any) => r.role === "admin" || r.role === "manager")) {
+          allowed = true;
+        }
+      }
+    } catch (_) { /* fall through to 401 */ }
+  }
 
   if (!allowed) {
     console.warn("[intouch-poll][auth] unauthorized call", {
