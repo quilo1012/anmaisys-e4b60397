@@ -200,6 +200,61 @@ export default function IntouchSettingsPage() {
     }
   };
 
+  const resyncAll = async () => {
+    setResyncingAll(true);
+    setResyncResult(null);
+    const errors: string[] = [];
+    const summary: string[] = [];
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      // 1) Schedule jobs calendar (today, both shifts)
+      for (const shift of ["day", "night"] as const) {
+        const { data, error } = await invokeFunction<any>("intouch-list-scheduled-jobs", { date: today, shift });
+        if (error) errors.push(`schedule ${shift}: ${error.message}`);
+        else summary.push(`${shift}:${data?.items?.length ?? data?.count ?? 0} jobs`);
+      }
+      // 2) Products / SKUs
+      const { data: pData, error: pErr } = await invokeFunction<any>("intouch-list-products", {});
+      if (pErr) errors.push(`products: ${pErr.message}`);
+      else {
+        const list = Array.isArray(pData?.products) ? pData.products : [];
+        setProducts(list);
+        setProductSource(String(pData?.source || ""));
+        summary.push(`${list.length} products`);
+        // Import into sku_products immediately
+        if (list.length > 0) {
+          const rows = list.map((p: any) => ({
+            code: p.code, name: p.name,
+            category: p.category || null,
+            target_per_hour: p.target_per_hour ?? 0,
+            active: true,
+          }));
+          const { data: imp, error: impErr } = await (supabase as any).rpc("import_sku_products", { _rows: rows });
+          if (impErr) errors.push(`import: ${impErr.message}`);
+          else summary.push(`${imp?.count ?? rows.length} SKUs imported`);
+        }
+      }
+      // 3) Production actuals
+      if (!syncDisabled) {
+        const { data: sData, error: sErr } = await invokeFunction<any>("intouch-sync-production", { force: true });
+        if (sErr) errors.push(`production: ${sErr.message}`);
+        else summary.push(sData?.summary || "production synced");
+      }
+    } catch (e: any) {
+      errors.push(e?.message || "unexpected error");
+    } finally {
+      setResyncingAll(false);
+    }
+    if (errors.length === 0) {
+      setResyncResult({ ok: true, msg: `Resync OK · ${summary.join(" · ")}` });
+      toast.success("Full resync complete");
+    } else {
+      setResyncResult({ ok: false, msg: `Errors: ${errors.join(" | ")}` });
+      toast.error("Resync finished with errors");
+    }
+  };
+
+
   const copy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
