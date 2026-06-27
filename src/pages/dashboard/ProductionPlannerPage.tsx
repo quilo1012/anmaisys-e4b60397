@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload, Download, FileInput, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload, Download, FileInput, Sparkles, RefreshCw, X } from "lucide-react";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { IntouchImportDialog } from "@/components/IntouchImportDialog";
 import { toast } from "sonner";
@@ -113,6 +113,34 @@ export default function ProductionPlannerPage() {
   const [notes, setNotes] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
   const [historyLine, setHistoryLine] = useState<string>("__all__");
+  const [syncedLines, setSyncedLines] = useState<string[] | null>(null);
+  const [syncingLines, setSyncingLines] = useState(false);
+
+  const syncLinesForDate = async () => {
+    setSyncingLines(true);
+    try {
+      const { data, error } = await supabase
+        .from("production_sessions")
+        .select("line")
+        .eq("session_date", date);
+      if (error) throw error;
+      const distinct = Array.from(
+        new Set((data ?? []).map((r: { line: string }) => (r.line ?? "").trim()).filter(Boolean))
+      ).sort();
+      if (distinct.length === 0) {
+        setSyncedLines(null);
+        toast("No lines found for this date");
+      } else {
+        setSyncedLines(distinct);
+        toast.success(`Found ${distinct.length} line(s) for ${date}`);
+        if (line && !distinct.includes(line)) setLine("");
+      }
+    } catch (e: any) {
+      toast.error(`Sync failed: ${e?.message ?? "unknown"}`);
+    } finally {
+      setSyncingLines(false);
+    }
+  };
 
   const { data: lines = [] } = useLines();
   const { data: leaders = [] } = useLineLeaders(shift);
@@ -323,7 +351,27 @@ export default function ProductionPlannerPage() {
                   <Button variant="outline" size="icon" onClick={() => setDate(format(subDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronLeft className="h-4 w-4" /></Button>
                   <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1" />
                   <Button variant="outline" size="icon" onClick={() => setDate(format(addDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronRight className="h-4 w-4" /></Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={syncLinesForDate}
+                    disabled={syncingLines}
+                    title="Show only lines active on this date"
+                  >
+                    <RefreshCw className={cn("h-4 w-4 mr-1", syncingLines && "animate-spin")} />
+                    Sync Lines
+                  </Button>
+                  {syncedLines && (
+                    <Button variant="ghost" size="icon" onClick={() => setSyncedLines(null)} title="Clear filter">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
+                {syncedLines && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Filtered to {syncedLines.length} line(s) for {date}
+                  </div>
+                )}
               </div>
               <div>
                 <Label>Shift</Label>
@@ -349,7 +397,10 @@ export default function ProductionPlannerPage() {
                       <CommandList>
                         <CommandEmpty>No line.</CommandEmpty>
                         <CommandGroup>
-                          {lines.map((l: { id: string; name: string }) => (
+                          {(syncedLines
+                            ? lines.filter((l: { id: string; name: string }) => syncedLines.includes(l.name))
+                            : lines
+                          ).map((l: { id: string; name: string }) => (
                             <CommandItem key={l.id} value={l.name} onSelect={() => setLine(l.name)}>
                               <Check className={cn("mr-2 h-4 w-4", line === l.name ? "opacity-100" : "opacity-0")} />{l.name}
                             </CommandItem>
