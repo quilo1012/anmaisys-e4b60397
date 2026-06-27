@@ -143,9 +143,22 @@ export default function ProductionPlannerPage() {
           .filter(Boolean),
       );
 
-      // 3. Strict intersection: must be scheduled in Work-To-List AND have an active machine
+      // 3. Lines in RAG weekly for this date with plan filled (> 0)
+      const { data: rag, error: rErr } = await supabase
+        .from("rag_weekly_entries")
+        .select("line, plan_qty")
+        .eq("entry_date", date)
+        .gt("plan_qty", 0);
+      if (rErr) throw rErr;
+      const planned = new Set(
+        (rag ?? [])
+          .map((r: any) => (r.line ?? "").trim())
+          .filter(Boolean),
+      );
+
+      // 4. Strict intersection: scheduled ∩ active machine ∩ RAG plan filled
       const distinct = Array.from(scheduled)
-        .filter((l) => activeLineNames.has(l))
+        .filter((l) => activeLineNames.has(l) && planned.has(l))
         .sort();
 
       if (distinct.length === 0) {
@@ -154,12 +167,14 @@ export default function ProductionPlannerPage() {
           toast.error(`No Work-To-List schedule found for ${date}`);
         } else if (activeLineNames.size === 0) {
           toast.error("No active machines mapped in iTouching Settings");
+        } else if (planned.size === 0) {
+          toast.error(`No RAG Weekly plan filled for ${date}`);
         } else {
-          toast.error(`No scheduled lines for ${date} have active machines mapped`);
+          toast.error(`No lines match: schedule + active machine + RAG plan for ${date}`);
         }
       } else {
         setSyncedLines(distinct);
-        toast.success(`Found ${distinct.length} scheduled line(s) with active machine for ${date}`);
+        toast.success(`Found ${distinct.length} line(s) with plan + active machine for ${date}`);
         if (line && !distinct.includes(line)) setLine("");
       }
     } catch (e: any) {
