@@ -197,8 +197,11 @@ Deno.serve(async (req) => {
 
 
     const { start, end } = shiftWindow(session_date, shift);
+    // Cap to "now" so we never look into the future part of the shift.
+    const nowDate = new Date();
+    const effectiveEnd = nowDate < end ? nowDate : end;
     const startISO = start.toISOString();
-    const endISO = end.toISOString();
+    const endISO = effectiveEnd.toISOString();
 
     // Group mapped machines by line
     const { data: maps } = await admin
@@ -222,8 +225,8 @@ Deno.serve(async (req) => {
       const line = lineName.get(line_id);
       if (!line) continue;
 
-      // Aggregate per SKU (PartCode) — only identify which SKUs ran on this line
-      // and how long each one ran in the shift window (for proportional plan split).
+      // Only mirror what iTouching shows RIGHT NOW: keep jobs whose EndTime is
+      // missing/sentinel (still running) OR which are still open at `now`.
       type Agg = { ms: number; description: string };
       const skuAgg = new Map<string, Agg>();
 
@@ -235,9 +238,14 @@ Deno.serve(async (req) => {
         const jobs: any[] = resp?.Jobs ?? [];
 
         for (const j of jobs) {
+          const hasEnd = j.EndTime && !String(j.EndTime).startsWith("0001");
+          // skip jobs that already finished before "now" — they're not what
+          // the operator sees on the iTouching screen anymore.
+          if (hasEnd && new Date(j.EndTime).getTime() < nowDate.getTime() - 60_000) continue;
+
           const js = new Date(j.StartTime);
-          const je = j.EndTime && !j.EndTime.startsWith("0001") ? new Date(j.EndTime) : end;
-          const ms = overlapMs(js, je, start, end);
+          const je = hasEnd ? new Date(j.EndTime) : effectiveEnd;
+          const ms = overlapMs(js, je, start, effectiveEnd);
           if (ms <= 0) continue;
           const wo = (j.WorksOrders ?? [])[0];
           const code = (wo?.PartCode || wo?.OrderNumber || "UNKNOWN").trim();
@@ -248,6 +256,7 @@ Deno.serve(async (req) => {
           skuAgg.set(code, cur);
         }
       }
+
 
       if (skuAgg.size === 0) {
         results.push({ line, skipped: "no jobs ran" });
