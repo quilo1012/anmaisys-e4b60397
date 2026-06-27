@@ -46,8 +46,14 @@ Deno.serve(async (req) => {
     }
 
 
-    const body = await req.json().catch(() => ({}));
-    const recipient: string | undefined = body?.to;
+    const rawBody = await req.json().catch(() => ({}));
+    const parsed = BodySchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return new Response(JSON.stringify({ error: parsed.error.flatten().fieldErrors }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const recipient: string | undefined = parsed.data.to;
 
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { data: wos, error } = await supabase
