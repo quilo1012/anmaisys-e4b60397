@@ -1191,6 +1191,8 @@ function DayNightTotalSummary({
   entryMap,
   autoDtMap,
   autoDtBreakdown,
+  cellScrapMap,
+  cellItemTargetMap,
   isAdmin = false,
   onSave,
   onOpenFull,
@@ -1200,10 +1202,13 @@ function DayNightTotalSummary({
   entryMap: Map<string, Entry>;
   autoDtMap?: Map<string, number>;
   autoDtBreakdown?: Map<string, ClampedStop[]>;
+  cellScrapMap?: Map<string, number>;
+  cellItemTargetMap?: Map<string, number>;
   isAdmin?: boolean;
   onSave?: (payload: Omit<Entry, "id">) => void;
   onOpenFull?: (date: string, line: string, shift: Shift) => void;
 }) {
+
 
   const qcExcl = useQueryClient();
   const fromDate = weekDates.length ? format(weekDates[0], "yyyy-MM-dd") : null;
