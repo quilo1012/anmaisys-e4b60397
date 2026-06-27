@@ -112,8 +112,18 @@ class AlertAudioEngine {
   private vibTimer: number | null = null;
   private watchdog: number | null = null;
   private playing = false;
+  /** Current siren volume (0..1). Applied to both HTMLAudio and oscillator gain. */
+  volume = 1;
   /** Called when the browser blocks audio playback so the UI can flip the icon. */
   onBlocked: (() => void) | null = null;
+
+  setVolume(v: number) {
+    const clamped = Math.max(0, Math.min(1, v));
+    this.volume = clamped;
+    if (this.htmlAudio) {
+      try { this.htmlAudio.volume = clamped; } catch { /* ignore */ }
+    }
+  }
 
   unlock() {
     try {
