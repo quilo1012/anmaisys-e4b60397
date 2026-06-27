@@ -101,6 +101,35 @@ function normalizeLine(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+// Jaccard char-bigram similarity (0..1) for fuzzy line ↔ machine matching.
+function similarity(a: string, b: string) {
+  const grams = (s: string) => {
+    const t = normalizeLine(s);
+    const g = new Set<string>();
+    for (let i = 0; i < t.length - 1; i++) g.add(t.slice(i, i + 2));
+    return g;
+  };
+  const A = grams(a), B = grams(b);
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const x of A) if (B.has(x)) inter++;
+  return inter / (A.size + B.size - inter);
+}
+
+// Aliases — same rules used in iTouching Settings auto-map.
+const MAP_ALIASES: { intouch: RegExp; dbPatterns: RegExp[] }[] = [
+  { intouch: /filler.*1|^line\s*1/i, dbPatterns: [/^line\s*1$/i] },
+  { intouch: /filler.*2|^line\s*2/i, dbPatterns: [/^line\s*2$/i] },
+  { intouch: /filler.*3|^line\s*3/i, dbPatterns: [/^line\s*3$/i] },
+  { intouch: /filler.*4|^line\s*4/i, dbPatterns: [/^line\s*4$/i] },
+  { intouch: /filler.*5|^line\s*5/i, dbPatterns: [/^line\s*5$/i, /^line\s*5a$/i, /^line\s*5b$/i] },
+  { intouch: /filler.*6|^line\s*6/i, dbPatterns: [/^line\s*6$/i, /^line\s*6a$/i, /^line\s*6b$/i] },
+  { intouch: /filler.*7|^line\s*7/i, dbPatterns: [/^line\s*7$/i] },
+  { intouch: /capsul|tablet/i,       dbPatterns: [/capsul|tablet/i] },
+  { intouch: /gel/i,                 dbPatterns: [/gel/i] },
+];
+
+
 function getImportErrorMessage(err: unknown) {
   if (err instanceof Error && err.message) return err.message;
   if (err && typeof err === "object") {
