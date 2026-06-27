@@ -47,9 +47,12 @@ export default function IntouchSettingsPage() {
     lastSync: string | null;
   } | null>(null);
   const [loadingDiag, setLoadingDiag] = useState(false);
+  const [diagError, setDiagError] = useState<string | null>(null);
+  const [diagRefreshedAt, setDiagRefreshedAt] = useState<Date | null>(null);
+  const [diagAuto, setDiagAuto] = useState(true);
 
-  const loadDiag = async () => {
-    setLoadingDiag(true);
+  const loadDiag = async (opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) setLoadingDiag(true);
     try {
       const { data, error } = await (supabase as any)
         .from("production_items")
@@ -83,14 +86,25 @@ export default function IntouchSettingsPage() {
         byLine,
         lastSync: last ? new Date(last).toISOString() : null,
       });
+      setDiagError(null);
+      setDiagRefreshedAt(new Date());
     } catch (e: any) {
-      toast.error(e.message || "Failed to load diagnostics");
+      const msg = e?.message || "Failed to load diagnostics";
+      setDiagError(msg);
+      if (!opts.silent) toast.error(msg);
     } finally {
-      setLoadingDiag(false);
+      if (!opts.silent) setLoadingDiag(false);
     }
   };
 
-  useEffect(() => { loadDiag(); }, []);
+  useEffect(() => {
+    loadDiag();
+    if (!diagAuto) return;
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") loadDiag({ silent: true });
+    }, 30_000);
+    return () => clearInterval(t);
+  }, [diagAuto]);
 
 
 
@@ -652,7 +666,7 @@ export default function IntouchSettingsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={loadDiag} disabled={loadingDiag} size="sm" variant="outline">
+              <Button onClick={() => loadDiag()} disabled={loadingDiag} size="sm" variant="outline">
                 {loadingDiag ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Refresh
               </Button>
@@ -664,6 +678,21 @@ export default function IntouchSettingsPage() {
                   </strong>
                 </div>
               )}
+              <div className="flex items-center gap-2 ml-auto">
+                {diagError ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-red-500">
+                    <AlertCircle className="h-3.5 w-3.5" /> {diagError.slice(0, 80)}
+                  </span>
+                ) : diagRefreshedAt ? (
+                  <span className="text-xs text-muted-foreground">
+                    Updated {diagRefreshedAt.toLocaleTimeString("en-GB", { timeZone: "Europe/London" })}
+                  </span>
+                ) : null}
+                <Label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <Switch checked={diagAuto} onCheckedChange={setDiagAuto} />
+                  Auto 30s
+                </Label>
+              </div>
             </div>
             {diag && (
               <>
