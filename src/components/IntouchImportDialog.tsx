@@ -270,9 +270,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
           session_date: date,
           shift,
           line: sec.matched_line,
-          // line_leaders are operational records, not auth users. production_sessions.leader_id
-          // points to auth.users, so storing a line_leaders.id here causes a FK import failure.
-          leader_id: null,
+          leader_id: lead?.id ?? null,
           leader_name: lead?.name?.trim() || null,
           staff_planned: 0,
           staff_actual: 0,
