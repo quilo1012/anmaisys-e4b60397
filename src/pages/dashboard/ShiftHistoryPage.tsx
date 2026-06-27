@@ -23,7 +23,7 @@ interface SessionRow {
   leader_id: string | null; leader_name: string | null;
   staff_planned: number | null; staff_actual: number | null;
   locked: boolean; notes: string | null;
-  production_items: { sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null }[];
+  production_items: { id: string; sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null }[];
 }
 
 export default function ShiftHistoryPage() {
@@ -48,7 +48,7 @@ export default function ShiftHistoryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, locked, notes, production_items(sku_id, target_qty, planned_qty, actual_qty, notes)")
+        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes)")
         .gte("session_date", from).lte("session_date", to)
         .order("session_date", { ascending: false });
       if (error) throw error;
@@ -108,6 +108,15 @@ export default function ShiftHistoryPage() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setDeleting(null); toast.success("Deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const delItemMut = useMutation({
+    mutationFn: async (itemId: string) => {
+      const { error } = await supabase.from("production_items").delete().eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); toast.success("SKU removed"); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -264,7 +273,7 @@ export default function ShiftHistoryPage() {
                           const a = Number(i.actual_qty ?? 0);
                           const e = t > 0 ? (a / t) * 100 : 0;
                           return (
-                            <div key={idx} className="flex items-center justify-between p-2 text-sm">
+                            <div key={i.id ?? idx} className="flex items-center justify-between p-2 text-sm">
                               <div>
                                 <span className="font-mono text-xs mr-2">{sku?.code ?? "?"}</span>
                                 <span>{sku?.name ?? "Unknown"}</span>
@@ -272,6 +281,20 @@ export default function ShiftHistoryPage() {
                               <div className="flex items-center gap-4">
                                 <span className="text-muted-foreground">{a} / {t}</span>
                                 <span className={`font-semibold w-12 text-right ${e >= 100 ? "text-green-500" : e >= 80 ? "text-amber-500" : "text-red-500"}`}>{e.toFixed(0)}%</span>
+                                {!s.locked && i.id && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      if (window.confirm(`Remove ${sku?.code ?? "this SKU"} from this session?`)) {
+                                        delItemMut.mutate(i.id);
+                                      }
+                                    }}
+                                    title="Delete SKU"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           );
