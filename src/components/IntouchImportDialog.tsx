@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Upload, FileSpreadsheet, AlertTriangle, Loader2, Cloud } from "lucide-react";
+import { Upload, FileSpreadsheet, AlertTriangle, Loader2, Cloud, Wand2, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -101,6 +101,35 @@ function normalizeLine(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+// Jaccard char-bigram similarity (0..1) for fuzzy line ↔ machine matching.
+function similarity(a: string, b: string) {
+  const grams = (s: string) => {
+    const t = normalizeLine(s);
+    const g = new Set<string>();
+    for (let i = 0; i < t.length - 1; i++) g.add(t.slice(i, i + 2));
+    return g;
+  };
+  const A = grams(a), B = grams(b);
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const x of A) if (B.has(x)) inter++;
+  return inter / (A.size + B.size - inter);
+}
+
+// Aliases — same rules used in iTouching Settings auto-map.
+const MAP_ALIASES: { intouch: RegExp; dbPatterns: RegExp[] }[] = [
+  { intouch: /filler.*1|^line\s*1/i, dbPatterns: [/^line\s*1$/i] },
+  { intouch: /filler.*2|^line\s*2/i, dbPatterns: [/^line\s*2$/i] },
+  { intouch: /filler.*3|^line\s*3/i, dbPatterns: [/^line\s*3$/i] },
+  { intouch: /filler.*4|^line\s*4/i, dbPatterns: [/^line\s*4$/i] },
+  { intouch: /filler.*5|^line\s*5/i, dbPatterns: [/^line\s*5$/i, /^line\s*5a$/i, /^line\s*5b$/i] },
+  { intouch: /filler.*6|^line\s*6/i, dbPatterns: [/^line\s*6$/i, /^line\s*6a$/i, /^line\s*6b$/i] },
+  { intouch: /filler.*7|^line\s*7/i, dbPatterns: [/^line\s*7$/i] },
+  { intouch: /capsul|tablet/i,       dbPatterns: [/capsul|tablet/i] },
+  { intouch: /gel/i,                 dbPatterns: [/gel/i] },
+];
+
+
 function getImportErrorMessage(err: unknown) {
   if (err instanceof Error && err.message) return err.message;
   if (err && typeof err === "object") {
@@ -116,6 +145,12 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   const [loading, setLoading] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [autoMapBusy, setAutoMapBusy] = useState(false);
+  const [autoMapSaving, setAutoMapSaving] = useState(false);
+  const [autoMapPreview, setAutoMapPreview] = useState<
+    | null
+    | Array<{ guid: string; intouch_name: string; line_id: string | null; line_name: string; reason: string; include: boolean }>
+  >(null);
 
   const [date, setDate] = useState(defaultDate ?? format(new Date(), "yyyy-MM-dd"));
   const [shift, setShift] = useState<"DAY" | "NIGHT">(defaultShift);
@@ -247,6 +282,101 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       setPulling(false);
     }
   };
+
+  const runAutoMap = async () => {
+    setAutoMapBusy(true);
+    setAutoMapPreview(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("intouch-list-machines", {});
+      if (error) throw error;
+      const machines = ((data as any)?.machines ?? []) as { guid: string; name: string }[];
+      if (machines.length === 0) {
+        toast.error("iTouching returned no machines");
+        return;
+      }
+      const { data: existing } = await supabase
+        .from("intouch_machine_map")
+        .select("intouch_machine_id, line_id");
+      const existingMap = new Map((existing ?? []).map((r: any) => [r.intouch_machine_id, r.line_id]));
+
+      const preview = machines
+        .filter((m) => m.guid)
+        .map((m) => {
+          const alias = MAP_ALIASES.find((a) => a.intouch.test(m.name));
+          let matched: { id: string; name: string } | undefined;
+          let reason = "";
+          if (alias) {
+            const hit = lines.find((l) => alias.dbPatterns.some((p) => p.test(l.name)));
+            if (hit) { matched = hit; reason = "alias"; }
+          }
+          if (!matched) {
+            let best: { line: { id: string; name: string }; score: number } | null = null;
+            for (const l of lines) {
+              const s = similarity(m.name, l.name);
+              if (!best || s > best.score) best = { line: l, score: s };
+            }
+            if (best && best.score >= 0.3) {
+              matched = best.line;
+              reason = `fuzzy ${best.score.toFixed(2)}`;
+            } else {
+              reason = `no match (best ${best?.score.toFixed(2) ?? "0"})`;
+            }
+          }
+          const currentLineId = existingMap.get(m.guid) ?? null;
+          if (currentLineId && !matched) {
+            const cur = lines.find((l) => l.id === currentLineId);
+            if (cur) { matched = cur; reason = "existing"; }
+          }
+          return {
+            guid: m.guid,
+            intouch_name: m.name || "(unnamed)",
+            line_id: matched?.id ?? null,
+            line_name: matched?.name ?? "",
+            reason,
+            include: !!matched,
+          };
+        })
+        .sort((a, b) => Number(b.include) - Number(a.include) || a.intouch_name.localeCompare(b.intouch_name));
+      setAutoMapPreview(preview);
+      const matched = preview.filter((p) => p.include).length;
+      toast.success(`${matched}/${preview.length} machines matched — review and confirm`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Auto-map failed");
+    } finally {
+      setAutoMapBusy(false);
+    }
+  };
+
+  const saveAutoMap = async () => {
+    if (!autoMapPreview) return;
+    const rows = autoMapPreview
+      .filter((p) => p.include && p.line_id)
+      .map((p) => ({
+        intouch_machine_id: p.guid,
+        intouch_machine_name: p.intouch_name,
+        line_id: p.line_id,
+        active: true,
+      }));
+    if (rows.length === 0) {
+      toast.error("Nothing selected to save");
+      return;
+    }
+    setAutoMapSaving(true);
+    try {
+      const { error } = await supabase
+        .from("intouch_machine_map")
+        .upsert(rows, { onConflict: "intouch_machine_id" });
+      if (error) throw error;
+      toast.success(`Saved ${rows.length} machine mapping${rows.length === 1 ? "" : "s"}`);
+      setAutoMapPreview(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setAutoMapSaving(false);
+    }
+  };
+
+
 
 
   const setLeader = (sectionLine: string, value: string) => {
@@ -397,10 +527,115 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
             {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
             Pull scheduled jobs from iTouching
           </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={runAutoMap}
+            disabled={autoMapBusy || pulling}
+            className="gap-2"
+          >
+            {autoMapBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+            Auto-map all machines
+          </Button>
           <span className="text-xs text-muted-foreground">
-            Uses the iTouching API directly — no spreadsheet upload required.
+            Maps iTouching GUIDs to lines so the pull above can find jobs.
           </span>
         </div>
+
+        {autoMapPreview && (
+          <div className="border rounded-md p-3 space-y-2 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium">
+                Confirm machine mapping ({autoMapPreview.filter((p) => p.include && p.line_id).length}/{autoMapPreview.length} selected)
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setAutoMapPreview(null)} disabled={autoMapSaving}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={saveAutoMap} disabled={autoMapSaving}>
+                  {autoMapSaving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
+                  Save mappings
+                </Button>
+              </div>
+            </div>
+            <div className="max-h-64 overflow-auto border rounded">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40 sticky top-0">
+                  <tr>
+                    <th className="text-left px-2 py-1 w-8">Use</th>
+                    <th className="text-left px-2 py-1">iTouching machine</th>
+                    <th className="text-left px-2 py-1">Line</th>
+                    <th className="text-left px-2 py-1">Match</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {autoMapPreview.map((p, i) => (
+                    <tr key={p.guid} className="border-t">
+                      <td className="px-2 py-1">
+                        <input
+                          type="checkbox"
+                          checked={p.include && !!p.line_id}
+                          disabled={!p.line_id}
+                          onChange={(e) =>
+                            setAutoMapPreview((prev) =>
+                              prev ? prev.map((r, j) => (j === i ? { ...r, include: e.target.checked } : r)) : prev,
+                            )
+                          }
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <div className="font-medium">{p.intouch_name}</div>
+                        <div className="font-mono text-[10px] text-muted-foreground">{p.guid}</div>
+                      </td>
+                      <td className="px-2 py-1">
+                        <Select
+                          value={p.line_id ?? "__none"}
+                          onValueChange={(v) =>
+                            setAutoMapPreview((prev) =>
+                              prev
+                                ? prev.map((r, j) =>
+                                    j === i
+                                      ? {
+                                          ...r,
+                                          line_id: v === "__none" ? null : v,
+                                          line_name: v === "__none" ? "" : (lines.find((l) => l.id === v)?.name ?? ""),
+                                          include: v !== "__none",
+                                        }
+                                      : r,
+                                  )
+                                : prev,
+                            )
+                          }
+                        >
+                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">— none —</SelectItem>
+                            {lines.map((l) => (
+                              <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-2 py-1">
+                        {p.line_id ? (
+                          <Badge variant="outline" className="text-[10px] gap-1">
+                            <Check className="h-3 w-3" />{p.reason}
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-[10px] gap-1">
+                            <X className="h-3 w-3" />{p.reason}
+                          </Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+
 
 
         <div className="flex-1 overflow-y-auto -mx-1 px-1">
