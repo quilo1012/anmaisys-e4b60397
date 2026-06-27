@@ -8,6 +8,9 @@ const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const INTOUCH_URL = (Deno.env.get("INTOUCH_API_URL") ?? "").replace(/\/+$/, "");
 const INTOUCH_TOKEN = Deno.env.get("INTOUCH_API_TOKEN") ?? "";
+const INTOUCH_AUTH_HEADER = /^bearer\s+/i.test(INTOUCH_TOKEN.trim())
+  ? INTOUCH_TOKEN.trim()
+  : `Bearer ${INTOUCH_TOKEN.trim()}`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -48,7 +51,7 @@ Deno.serve(async (req) => {
     for (const path of candidates) {
       try {
         const res = await fetch(`${INTOUCH_URL}${path}`, {
-          headers: { Authorization: `Bearer ${INTOUCH_TOKEN}`, Accept: "application/json" },
+          headers: { Authorization: INTOUCH_AUTH_HEADER, Accept: "application/json" },
         });
         const txt = await res.text();
         if (!res.ok) { errs.push(`${path} → ${res.status}: ${txt.slice(0, 160)}`); continue; }
