@@ -116,19 +116,6 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
 
-    // Master switch: when disabled, skip all sync (cron + manual).
-    const { data: settings } = await admin
-      .from("system_settings")
-      .select("intouch_sync_enabled")
-      .limit(1)
-      .maybeSingle();
-    if (settings && settings.intouch_sync_enabled === false) {
-      return new Response(
-        JSON.stringify({ success: false, skipped: true, reason: "intouch_sync_disabled" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
     if (!isCron) {
       // Auth: admin or manager only (validate JWT via getClaims — works with signing keys)
       const authHeader = req.headers.get("Authorization") ?? "";
@@ -163,6 +150,23 @@ Deno.serve(async (req) => {
       });
     }
     const body = parsedBody.data;
+
+    // The Settings toggle disables automatic/current-shift sync. A targeted
+    // Planner sync with an explicit date+shift is allowed because the manager
+    // is intentionally pulling that Work-To-List into the selected shift.
+    const explicitPlannerSync = !!body.session_date && !!body.shift;
+    const { data: settings } = await admin
+      .from("system_settings")
+      .select("intouch_sync_enabled")
+      .limit(1)
+      .maybeSingle();
+    if (settings && settings.intouch_sync_enabled === false && !explicitPlannerSync) {
+      return new Response(
+        JSON.stringify({ success: false, skipped: true, reason: "intouch_current_shift_sync_disabled" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // Cron auto-derives: morning closes previous NIGHT (yesterday's date in London),
     // evening closes today's DAY shift. Manual `force:true` sync derives the
     // currently active London shift so the Settings button works without inputs.

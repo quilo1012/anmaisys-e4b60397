@@ -22,6 +22,7 @@ import {
 } from "@/hooks/useProductionPlanner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { invokeFunction } from "@/lib/invokeFunction";
 import { format, parseISO, addDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -119,14 +120,35 @@ export default function ProductionPlannerPage() {
   const syncLinesForDate = async () => {
     setSyncingLines(true);
     try {
-      // 1. Lines scheduled in Work-To-List for this date
+      const { data: syncData, error: syncError } = await invokeFunction<any>("intouch-sync-production", {
+        session_date: date,
+        shift: shift.toUpperCase() === "NIGHT" ? "NIGHT" : "DAY",
+        force: true,
+      });
+      if (syncError) throw syncError;
+      if (syncData?.skipped) {
+        toast.error(syncData.reason === "intouch_sync_disabled" || syncData.reason === "intouch_current_shift_sync_disabled"
+          ? "iTouching SKU sync is disabled in Settings. Enable it first."
+          : `iTouching sync skipped: ${syncData.reason ?? "unknown"}`);
+      } else {
+        const summary = syncData?.summary ? ` · ${syncData.summary}` : "";
+        toast.success(`iTouching Work-To-List synced${summary}`);
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["production_sessions"] });
+      await queryClient.invalidateQueries({ queryKey: ["production_session"] });
+      await queryClient.invalidateQueries({ queryKey: ["production_items"] });
+
+      // 1. Lines scheduled/imported from Work-To-List for this date+shift, with SKUs saved
       const { data: sessions, error: sErr } = await supabase
         .from("production_sessions")
-        .select("line")
-        .eq("session_date", date);
+        .select("line, production_items(id)")
+        .eq("session_date", date)
+        .eq("shift", shift.toUpperCase() === "NIGHT" ? "NIGHT" : "DAY");
       if (sErr) throw sErr;
       const scheduled = new Set(
         (sessions ?? [])
+          .filter((r: any) => Array.isArray(r.production_items) && r.production_items.length > 0)
           .map((r: { line: string }) => (r.line ?? "").trim())
           .filter(Boolean),
       );
@@ -164,7 +186,10 @@ export default function ProductionPlannerPage() {
       if (distinct.length === 0) {
         setSyncedLines(null);
         if (scheduled.size === 0) {
-          toast.error(`No Work-To-List schedule found for ${date}`);
+          const details = Array.isArray(syncData?.results)
+            ? syncData.results.map((r: any) => `${r.line}: ${r.skipped ?? `${r.skus ?? 0} SKU(s)`}`).join(" · ")
+            : "";
+          toast.error(`No Work-To-List SKUs found for ${date} ${shift}${details ? ` — ${details}` : ""}`);
         } else if (activeLineNames.size === 0) {
           toast.error("No active machines mapped in iTouching Settings");
         } else if (planned.size === 0) {
@@ -175,7 +200,7 @@ export default function ProductionPlannerPage() {
       } else {
         setSyncedLines(distinct);
         toast.success(`Found ${distinct.length} line(s) with plan + active machine for ${date}`);
-        if (line && !distinct.includes(line)) setLine("");
+        if (!line || !distinct.includes(line)) setLine(distinct[0]);
       }
     } catch (e: any) {
       toast.error(`Sync failed: ${e?.message ?? "unknown"}`);
