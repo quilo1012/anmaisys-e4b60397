@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Upload, FileSpreadsheet, AlertTriangle, Loader2 } from "lucide-react";
+import { Upload, FileSpreadsheet, AlertTriangle, Loader2, Cloud } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -114,7 +114,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
+  const [pulling, setPulling] = useState(false);
   const [importing, setImporting] = useState(false);
+
   const [date, setDate] = useState(defaultDate ?? format(new Date(), "yyyy-MM-dd"));
   const [shift, setShift] = useState<"DAY" | "NIGHT">(defaultShift);
   const [sections, setSections] = useState<WorkToListSection[]>([]);
@@ -215,6 +217,31 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       setLoading(false);
     }
   };
+  const pullFromIntouch = async () => {
+    setPulling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("intouch-list-scheduled-jobs", {
+        body: { session_date: date, shift },
+      });
+      if (error) throw error;
+      const secs = ((data as any)?.sections ?? []) as WorkToListSection[];
+      if (secs.length === 0) {
+        toast.error("iTouching returned no scheduled jobs for that date/shift. Map your machines in iTouching Settings or upload the file instead.");
+        return;
+      }
+      setSections(secs);
+      const init: Record<string, { id?: string; name: string }> = {};
+      for (const s of secs) init[s.line] = { name: "" };
+      setLeaderByLine(init);
+      setParsePreview([]);
+      toast.success(`Pulled ${(data as any)?.total_skus ?? 0} SKUs across ${secs.length} line${secs.length > 1 ? "s" : ""}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not pull from iTouching");
+    } finally {
+      setPulling(false);
+    }
+  };
+
 
   const setLeader = (sectionLine: string, value: string) => {
     if (value === "__none") {
@@ -353,6 +380,22 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
             </Button>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2 -mt-1">
+          <Button
+            type="button"
+            onClick={pullFromIntouch}
+            disabled={pulling || loading}
+            className="gap-2"
+          >
+            {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
+            Pull scheduled jobs from iTouching
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Uses the iTouching API directly — no spreadsheet upload required.
+          </span>
+        </div>
+
 
         <div className="flex-1 overflow-y-auto -mx-1 px-1">
           {resolved.length === 0 ? (
