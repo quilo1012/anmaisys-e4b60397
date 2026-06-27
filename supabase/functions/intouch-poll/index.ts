@@ -384,7 +384,7 @@ Deno.serve(async (req) => {
           occurred_date,
           shift,
           line: lineLbl,
-          category: "Other",
+          category: prevMappedCode?.category || "Other",
           reason: reasonLbl,
           duration_minutes: mins,
           started_at: m.prod_dt_started_at,
