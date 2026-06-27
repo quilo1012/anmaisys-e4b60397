@@ -1379,7 +1379,15 @@ export type Database = {
           started_by?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "production_sessions_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       production_targets: {
         Row: {
