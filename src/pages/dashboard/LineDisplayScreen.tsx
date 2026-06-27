@@ -283,7 +283,35 @@ export default function LineDisplayScreen() {
       </header>
 
 
+      {(() => {
+        const sorted = [...(items ?? [])].sort(
+          (a, b) => Number(b.actual_qty ?? 0) - Number(a.actual_qty ?? 0)
+        );
+        const current = sorted[0] ?? (items ?? [])[0];
+        if (!current) return null;
+        const p = Number(current.planned_qty ?? 0);
+        const a = Number(current.actual_qty ?? 0);
+        const pc = p > 0 ? Math.min(100, (a / p) * 100) : 0;
+        const c = pc >= 95 ? "bg-green-500" : pc >= 75 ? "bg-amber-500" : "bg-red-500";
+        return (
+          <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 border-2 border-indigo-400/40 rounded-2xl p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-indigo-300 text-sm tracking-widest font-bold">CURRENT JOB</div>
+              <div className="text-indigo-200 text-2xl font-mono font-bold">
+                {a.toLocaleString()} / {p.toLocaleString()}
+              </div>
+            </div>
+            <div className="text-5xl font-black mb-1">{current.sku?.code ?? "—"}</div>
+            <div className="text-2xl text-indigo-100 mb-4">{current.sku?.name ?? ""}</div>
+            <div className="h-4 bg-slate-900/60 rounded-full overflow-hidden">
+              <div className={`h-full ${c} transition-all duration-700`} style={{ width: `${pc}%` }} />
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="grid grid-cols-4 gap-6">
+
         <Kpi label="TARGET" value={target.toLocaleString()} accent="text-sky-400" />
         <Kpi label="ACTUAL" value={actual.toLocaleString()} accent="text-green-400" />
         <Kpi label="REMAINING" value={remaining.toLocaleString()} accent="text-amber-400" />
