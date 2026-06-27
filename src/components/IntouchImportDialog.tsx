@@ -824,6 +824,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                 );
               })}
             </Accordion>
+            </>
           )}
         </div>
 
