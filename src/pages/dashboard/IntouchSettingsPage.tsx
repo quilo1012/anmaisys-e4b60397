@@ -294,6 +294,47 @@ export default function IntouchSettingsPage() {
 
 
 
+
+  const loadProducts = async () => {
+    setLoadingProducts(true);
+    setProductsErr(null);
+    const { data, error } = await invokeFunction<any>("intouch-list-products", {});
+    setLoadingProducts(false);
+    if (error) {
+      setProductsErr(error.message || "Failed to load products");
+      toast.error("Failed to load products");
+      return;
+    }
+    const list = Array.isArray(data?.products) ? data.products : [];
+    setProducts(list);
+    setProductSource(String(data?.source || ""));
+    toast.success(`${list.length} products loaded from iTouching`);
+  };
+
+  const importProducts = async () => {
+    if (!products || products.length === 0) {
+      toast.error("Load products first");
+      return;
+    }
+    setImportingProducts(true);
+    try {
+      const rows = products.map((p) => ({
+        code: p.code,
+        name: p.name,
+        category: p.category || null,
+        target_per_hour: p.target_per_hour ?? 0,
+        active: true,
+      }));
+      const { data, error } = await (supabase as any).rpc("import_sku_products", { _rows: rows });
+      if (error) throw error;
+      toast.success(`Imported ${data?.count ?? rows.length} SKUs into the system`);
+    } catch (e: any) {
+      toast.error(e.message || "Import failed");
+    } finally {
+      setImportingProducts(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-5xl">
@@ -302,6 +343,7 @@ export default function IntouchSettingsPage() {
           <p className="text-sm text-muted-foreground">
             Setup, test and monitor the iTouching i4 connection.
           </p>
+
         </div>
 
         <Card>
