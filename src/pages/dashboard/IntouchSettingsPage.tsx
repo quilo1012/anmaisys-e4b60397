@@ -704,6 +704,9 @@ export default function IntouchSettingsPage() {
           </CardContent>
         </Card>
 
+        <SyncRunsCard />
+
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
