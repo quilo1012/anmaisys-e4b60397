@@ -174,6 +174,66 @@ function extractSkuRows(raw: unknown, source: string, machines: MachineRef[]): S
   return rows;
 }
 
+// Extract { code -> produced_qty } from any raw iTouching payload (running/ran jobs).
+function extractActualsByCode(raw: unknown, machines: MachineRef[]): Map<string, number> {
+  const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+  const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
+  const out = new Map<string, number>();
+  walkObjects(raw, (obj) => {
+    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
+    const code = cleanCode(pick(obj, [
+      "PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "OrderNumber",
+    ]));
+    if (!code || code.length < 2) return;
+    const produced = num(pick(obj, [
+      "Good", "GoodQty", "GoodQuantity", "GoodCount",
+      "Produced", "ProducedQty", "ProducedQuantity", "ProducedCount",
+      "ActualQty", "ActualQuantity", "Actual", "Output", "OutputQty",
+      "TotalProduced", "QuantityProduced",
+    ]));
+    if (produced <= 0) return;
+    out.set(code, Math.max(out.get(code) ?? 0, produced));
+  });
+  return out;
+}
+
+async function fetchActualsForLine(machines: MachineRef[], startISO: string, endISO: string) {
+  const ids = machines.map((m) => m.id);
+  const merged = new Map<string, number>();
+  const merge = (m: Map<string, number>) => {
+    for (const [k, v] of m) merged.set(k, Math.max(merged.get(k) ?? 0, v));
+  };
+
+  // Running jobs (current SKU + live counts)
+  const running = await tryIt("/api/GetRunningJobs", { method: "GET" });
+  merge(extractActualsByCode(running, machines));
+  // Hydrate full job records if running returns only IDs
+  const jobIds = new Set<string>();
+  walkObjects(running, (obj) => {
+    const mid = String(pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid"]) ?? "").trim();
+    const jid = String(pick(obj, ["JobID", "JobId", "JobGUID", "JobGuid", "ID", "Id"]) ?? "").trim();
+    if (mid && jid && ids.includes(mid)) jobIds.add(jid);
+  });
+  if (jobIds.size > 0) {
+    const jobs = await tryIt("/api/GetJobs", { method: "POST", body: JSON.stringify(Array.from(jobIds)) });
+    merge(extractActualsByCode(jobs, machines));
+  }
+
+  // Jobs ran during the shift window (historical actuals)
+  const ranAttempts = [
+    () => tryIt(`/api/GetJobsRan?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
+    () => tryIt("/api/GetJobsRan", { method: "POST", body: JSON.stringify({ MachineGUIDs: ids, StartTime: startISO, EndTime: endISO }) }),
+    () => tryIt(`/api/GetJobsRanDuringPeriod?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
+  ];
+  for (const attempt of ranAttempts) {
+    const raw = await attempt();
+    if (raw) merge(extractActualsByCode(raw, machines));
+  }
+
+  return merged;
+}
+
 function aggregateRows(rows: SkuRow[]) {
   const skuAgg = new Map<string, Agg>();
   for (const row of rows) {
@@ -479,18 +539,26 @@ Deno.serve(async (req) => {
 
       await admin.from("production_items").delete().eq("session_id", session.id);
 
+      // Pull live actuals (produced/good qty) per SKU code from iTouching.
+      const actualsByCode = await fetchActualsForLine(machines, startISO, endISO);
+
       const entries = Array.from(skuAgg.entries());
       const totalQty = entries.reduce((sum, [, a]) => sum + Math.max(1, Number(a.qty) || 0), 0) || 1;
       const rows = entries
         .map(([code, a]) => {
           const plan = Math.round(ragPlan * (Math.max(1, Number(a.qty) || 0) / totalQty));
           const sku_id = idByCode.get(code);
+          const itouchActual = Math.round(actualsByCode.get(code) ?? 0);
+          const prev = sku_id ? (actualBySku.get(sku_id) ?? 0) : 0;
+          // Never let an automatic sync drive the actual backwards (covers
+          // manual edits + cumulative iTouching counts that may dip).
+          const actual = Math.max(prev, itouchActual);
           return {
             session_id: session.id,
             sku_id,
             target_qty: plan,
             planned_qty: plan,
-            actual_qty: sku_id ? (actualBySku.get(sku_id) ?? 0) : 0,
+            actual_qty: actual,
             notes: `itouching:${source}`,
           };
         })
