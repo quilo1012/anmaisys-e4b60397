@@ -576,12 +576,22 @@ export default function ProductionPlannerPage() {
                       <span className="text-xs text-muted-foreground">units</span>
                     </div>
                   </div>
-                  <div className="md:col-span-2 flex items-end gap-2">
+                  <div className="md:col-span-1 flex items-end">
                     <div className="flex-1">
                       <div className={cn("text-xs font-medium mb-1", effColor(eff))}>{eff.toFixed(0)}%</div>
                       <Progress value={Math.min(100, eff)} className="h-2" />
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => removeRow(i)} disabled={locked}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                  <div className="md:col-span-1 flex items-end justify-end">
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      onClick={() => removeRow(i)}
+                      disabled={locked}
+                      title="Delete SKU"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               );
