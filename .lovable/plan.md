@@ -109,6 +109,60 @@ Abaixo está um prompt único, pronto para colar em uma nova sessão Lovable, de
 > - CI: `.github/workflows/ci.yml` + coverage workflow para downtime/reliability.
 >
 > Quero todas essas funcionalidades implementadas com migrations completas (com GRANT em todas as tabelas públicas + RLS + policies), Edge Functions com CORS + Zod + JWKS, e UI dark profissional.
+>
+> ---
+>
+> ## ENTERPRISE PRODUCTION AUDIT — MANDATORY VALIDATION
+>
+> Antes de considerar qualquer tarefa concluída, execute uma **auditoria técnica completa** do sistema. **Não assuma que uma funcionalidade funciona apenas porque existe código** — toda funcionalidade deve ser validada de ponta a ponta, sem erros funcionais, de integração, de segurança ou de performance.
+>
+> ### Full System Audit — verifique 100% do projeto
+>
+> **Frontend**: todas as páginas carregam sem erros JS; nenhum componente quebra; todos os formulários, botões, dialogs, drawers, modais, popovers, dropdowns, atalhos, gráficos, tabelas, filtros, pesquisas, exportações, impressões, uploads, imagens e QR Codes funcionam.
+>
+> **Navegação**: validar TODAS as rotas — nenhuma pode retornar 404, 500, tela branca, infinite loading ou redirect loop. Verificar sidebar, menus, breadcrumbs e deep links.
+>
+> **Authentication**: login, logout, silent login, tablet login, PIN login, refresh token, session restore, token expiration, role switching, disabled users, realtime sign out.
+>
+> **RBAC**: validar cada Role (Admin, Manager, Engineer, Operator, Viewer) — páginas, menus, APIs, Edge Functions e permissões. Nenhum usuário pode acessar recursos indevidos.
+>
+> **Work Orders**: criar, editar, iniciar, pausar, retomar, finalizar, fechar, reabrir, recorrência, force action, fotos, assinatura, timer, SLA, alertas, PDF, auditoria, machine events, downtime, notificações.
+>
+> **Inventory**: FIFO, dedução automática, saldo, bloqueio sem estoque, histórico, Purchase Orders, Suppliers, Excel.
+>
+> **Machines**: CRUD, Machine Health, Risk Engine, Predictive, MTBF, MTTR, Reliability, QR Codes, Downtime, Heatmap, PM Intelligence.
+>
+> **Production**: Planner, Import CSV, Import XLSX, SKU, Production Sessions, Production Items, Shift Targets, Performance, Forecast, Quality, Shift History, SKU Efficiency.
+>
+> **RAG Weekly**: validar completamente — todas as linhas, dias e turnos, realtime, inline edit, exclusões, downtime, popovers, badges, totalizadores, gatilhos, sincronização, recálculo, atualizações automáticas. **Verificar consistência matemática.**
+>
+> **iTouching**: Settings, Machine Mapping, Stop Codes, Polling, Webhook, Production Sync, Machine Sync, SKU Sync, Diagnostics, Health Status, Cron Jobs, Auto Mapping, Actual Quantity, OEE, Runtime, Downtime, Scrap.
+>
+> **APIs**: testar TODAS — status HTTP, payload, timeout, retries, autorização, JWT, Cron Secret, CORS, Zod, logs.
+>
+> **Edge Functions**: executar todas; nenhuma pode falhar. Verificar timeout, erros, logs, performance, memory.
+>
+> **Database**: todas as tabelas, foreign keys, triggers, indexes, constraints, views, policies, RLS, functions, GRANTs, realtime, cron.
+>
+> **Storage**: buckets, signed URLs.
+>
+> **Security**: auditoria baseada em **OWASP Top 10 / CWE / SANS** — SQL Injection, XSS, CSRF, SSRF, IDOR, JWT, secrets, storage, permissions, RLS, CORS, headers, rate limits, audit logs.
+>
+> **Performance**: queries lentas, N+1, bundle size, lazy loading, memory, CPU, realtime, polling, renderizações, cache.
+>
+> **Tests**: executar todos os testes existentes; criar testes ausentes; não permitir regressões.
+>
+> **Code Quality**: detectar code smells, dead code, duplicações, violações SOLID, clean architecture, complexidade, acoplamento.
+>
+> ### Auditoria Final — Relatório obrigatório
+>
+> Gerar relatório contendo: Status Geral do Sistema, Funcionalidades Aprovadas, Funcionalidades Reprovadas, Bugs encontrados, Vulnerabilidades, Problemas de Performance / Segurança / UX / Integração / Banco / Edge Functions / iTouching / RAG Weekly / Work Orders / Dashboards, Melhorias sugeridas.
+>
+> **Para cada problema informar**: Severidade · Arquivo · Linha · Causa · Impacto · Correção · Diff aplicado.
+>
+> **Nota de qualidade 0–100** para: Segurança · Performance · Arquitetura · Escalabilidade · Confiabilidade · Código · UX · Banco de Dados · APIs · Sistema Geral.
+>
+> O sistema **somente poderá ser considerado "Production Ready"** se nenhuma falha crítica permanecer aberta.
 
 ---
 
