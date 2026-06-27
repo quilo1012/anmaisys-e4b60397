@@ -114,7 +114,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
+  const [pulling, setPulling] = useState(false);
   const [importing, setImporting] = useState(false);
+
   const [date, setDate] = useState(defaultDate ?? format(new Date(), "yyyy-MM-dd"));
   const [shift, setShift] = useState<"DAY" | "NIGHT">(defaultShift);
   const [sections, setSections] = useState<WorkToListSection[]>([]);
