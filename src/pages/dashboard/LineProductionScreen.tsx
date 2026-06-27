@@ -19,7 +19,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Delete, Clock, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
