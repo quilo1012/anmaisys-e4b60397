@@ -229,41 +229,38 @@ function OperatorDashboardContent() {
           <button
             type="button"
             onClick={() => navigate("/dashboard/line-display")}
-            className="inline-flex items-center gap-2 h-11 px-4 rounded-md border border-sky-500 bg-sky-600 text-white hover:bg-sky-700 text-sm font-semibold"
+            className="inline-flex items-center gap-2 h-9 px-3 rounded-md border bg-card hover:bg-accent text-xs font-medium text-muted-foreground"
           >
-            🎯 View Target
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard/line-hub")}
-            className="inline-flex items-center gap-2 h-11 px-4 rounded-md border bg-card hover:bg-accent text-sm font-medium"
-          >
-            ← Back to Hub
+            View target
           </button>
         </div>
       </div>
 
-      {/* Quick CTA buttons — Line Stopped vs Line Running */}
-      <div className="grid gap-4 md:grid-cols-2">
+      {/* Compact state toggle — Line Stopped vs Line Running */}
+      <div className="inline-flex rounded-md border bg-card p-1 text-sm">
         <button
           type="button"
           onClick={() => { setLineStopped(true); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
-          className="rounded-xl border-2 border-red-600 bg-red-600 text-white p-6 text-left shadow-lg hover:bg-red-700 hover:scale-[1.01] transition-all"
+          className={cn(
+            "px-3 h-8 rounded-sm font-medium transition-colors",
+            lineStopped ? "bg-red-600 text-white" : "text-muted-foreground hover:bg-accent"
+          )}
         >
-          <div className="text-4xl mb-2">🛑</div>
-          <div className="text-2xl font-bold mb-1">MACHINE STOPPED</div>
-          <div className="text-sm opacity-90">Open WO Request — Line Stopped (downtime starts now)</div>
+          🛑 Stopped
         </button>
         <button
           type="button"
           onClick={() => { setLineStopped(false); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
-          className="rounded-xl border-2 border-amber-500 bg-amber-500 text-white p-6 text-left shadow-lg hover:bg-amber-600 hover:scale-[1.01] transition-all"
+          className={cn(
+            "px-3 h-8 rounded-sm font-medium transition-colors",
+            !lineStopped ? "bg-amber-500 text-white" : "text-muted-foreground hover:bg-accent"
+          )}
         >
-          <div className="text-4xl mb-2">⚠️</div>
-          <div className="text-2xl font-bold mb-1">PROBLEM, LINE STILL RUNNING</div>
-          <div className="text-sm opacity-90">Open WO Request — Line in Operation (no downtime)</div>
+          ⚠️ Running
         </button>
       </div>
+
+
 
 
       <div id="wo-form-anchor" />
