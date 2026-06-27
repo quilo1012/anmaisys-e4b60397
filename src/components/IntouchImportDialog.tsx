@@ -381,6 +381,22 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 -mt-1">
+          <Button
+            type="button"
+            onClick={pullFromIntouch}
+            disabled={pulling || loading}
+            className="gap-2"
+          >
+            {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
+            Pull scheduled jobs from iTouching
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Uses the iTouching API directly — no spreadsheet upload required.
+          </span>
+        </div>
+
+
         <div className="flex-1 overflow-y-auto -mx-1 px-1">
           {resolved.length === 0 ? (
             <div className="text-sm text-muted-foreground py-8 border rounded-md px-4 space-y-4">
