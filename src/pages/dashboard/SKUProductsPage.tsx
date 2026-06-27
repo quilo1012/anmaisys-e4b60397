@@ -52,10 +52,21 @@ function parseCSV(text: string): Partial<Sku>[] {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "")
     .trim();
-  const headers = parseLine(lines[0]).map(normalize);
+  const CODE_KEYS = ["sku", "code", "codigo", "cod", "item", "productcode", "itemcode", "artigo", "ref", "referencia", "uipartnumber", "partnumber", "partno"];
+  const NAME_KEYS = ["name", "produto", "product", "nome", "descricao", "description", "designacao", "productdescription", "itemname", "itemdescription"];
+  // Find header row within the first 15 lines (skips title/banner rows).
+  let headerRow = 0;
+  let headers: string[] = [];
+  for (let i = 0; i < Math.min(lines.length, 15); i++) {
+    const h = parseLine(lines[i]).map(normalize);
+    if (h.some((c) => CODE_KEYS.includes(c)) || h.some((c) => NAME_KEYS.includes(c))) {
+      headerRow = i; headers = h; break;
+    }
+  }
+  if (!headers.length) headers = parseLine(lines[0]).map(normalize);
   const idx = (names: string[]) => headers.findIndex((h) => names.includes(h));
-  const iCode = idx(["sku", "code", "codigo", "cod", "item", "productcode", "itemcode", "artigo", "ref", "referencia", "uipartnumber", "partnumber", "partno"]);
-  const iName = idx(["name", "produto", "product", "nome", "descricao", "description", "designacao", "productdescription", "itemname", "itemdescription"]);
+  const iCode = idx(CODE_KEYS);
+  const iName = idx(NAME_KEYS);
   const iCat = idx(["category", "categoria", "familia", "family", "machine", "maquina"]);
   const iTph = idx(["targetperhour", "target", "tph", "objetivo"]);
   const iWeight = idx(["weight", "peso", "partweight"]);
@@ -63,7 +74,8 @@ function parseCSV(text: string): Partial<Sku>[] {
   const iCav = idx(["cavities", "cavidades", "cav"]);
   const hasHeader = iCode >= 0 || iName >= 0;
   const byCode = new Map<string, Partial<Sku>>();
-  const start = hasHeader ? 1 : 0;
+  const start = hasHeader ? headerRow + 1 : 0;
+
 
   for (let r = start; r < lines.length; r++) {
     const cols = parseLine(lines[r]);
