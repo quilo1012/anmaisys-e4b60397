@@ -4,8 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getShift, SHIFT_LABEL } from "@/lib/shifts";
-import { ArrowLeft, Maximize2 } from "lucide-react";
+import { ArrowLeft, Maximize2, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+
 
 
 type RagEntry = {
