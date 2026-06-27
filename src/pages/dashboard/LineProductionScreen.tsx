@@ -234,6 +234,22 @@ export default function LineProductionScreen() {
     onError: (e: any) => toast.error(e.message || "Failed to save"),
   });
 
+  const syncSkus = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("intouch-sync-production", {
+        body: { session_date: activeSessionDate, shift, force: true },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lps-session"] });
+      qc.invalidateQueries({ queryKey: ["lps-items"] });
+      toast.success("SKUs synced from iTouching");
+    },
+    onError: (e: any) => toast.error(e.message || "Sync failed"),
+  });
+
   // Per-shift observations (notes on production_sessions)
   const [notes, setNotes] = useState<string>("");
   useEffect(() => {
@@ -327,6 +343,15 @@ export default function LineProductionScreen() {
             <Button variant="outline" size="lg" onClick={toggleKiosk} className="h-12">
               {isFullscreen ? <Minimize2 className="h-5 w-5 mr-2" /> : <Maximize2 className="h-5 w-5 mr-2" />}
               {isFullscreen ? "Exit Kiosk" : "Kiosk"}
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              className="h-12"
+              disabled={syncSkus.isPending || !line}
+              onClick={() => syncSkus.mutate()}
+            >
+              {syncSkus.isPending ? "Syncing…" : "Sync SKUs"}
             </Button>
             <div className="flex items-center gap-2 text-2xl font-mono tabular-nums">
               <Clock className="h-6 w-6" />
