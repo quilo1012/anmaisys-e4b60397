@@ -185,10 +185,12 @@ Deno.serve(async (req) => {
       return json({ error: 'forbidden' }, 403);
     }
 
-    const { shareUrl } = await req.json();
-    if (!shareUrl || typeof shareUrl !== 'string') {
-      return json({ error: 'shareUrl required' }, 400);
+    const rawBody = await req.json().catch(() => ({}));
+    const parsedBody = BodySchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return json({ error: parsedBody.error.flatten().fieldErrors }, 400);
     }
+    const { shareUrl } = parsedBody.data;
 
     const normalizedUrl = normalizeShareUrl(shareUrl);
     try {
