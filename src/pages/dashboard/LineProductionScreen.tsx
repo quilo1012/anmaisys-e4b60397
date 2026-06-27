@@ -375,7 +375,7 @@ export default function LineProductionScreen() {
       )}
 
 
-      {sessionQ.data && (
+      {sessionQ.data && (ragPlanQ.data ?? 0) > 0 && (
         <>
           {/* KPIs */}
           <div className="grid grid-cols-3 gap-3 md:gap-4 mb-4">
