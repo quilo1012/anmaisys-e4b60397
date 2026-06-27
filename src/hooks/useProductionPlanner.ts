@@ -58,7 +58,11 @@ export function useLeaders() {
   return useQuery({
     queryKey: ["leaders"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("list_active_profile_names");
+      const { data, error } = await supabase
+        .from("line_leaders")
+        .select("id, name")
+        .eq("active", true)
+        .order("name");
       if (error) throw error;
       return (data ?? []) as { id: string; name: string }[];
     },
