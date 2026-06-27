@@ -226,7 +226,13 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       if (error) throw error;
       const secs = ((data as any)?.sections ?? []) as WorkToListSection[];
       if (secs.length === 0) {
-        toast.error("iTouching returned no scheduled jobs for that date/shift. Map your machines in iTouching Settings or upload the file instead.");
+        const d = data as any;
+        const okHits = (d?.endpoints ?? []).filter((e: any) => e.ok && e.bytes > 2).map((e: any) => e.path).join(", ");
+        const msg = okHits
+          ? `iTouching answered (${okHits}) but no jobs matched your ${d?.mapped_machines ?? 0} mapped machines for this window. Check iTouching Machine GUIDs.`
+          : "iTouching returned nothing for any schedule endpoint. Verify INTOUCH_API_URL/TOKEN or upload the file.";
+        console.warn("[pullFromIntouch] debug:", d);
+        toast.error(msg);
         return;
       }
       setSections(secs);
