@@ -155,14 +155,21 @@ Deno.serve(async (req) => {
       }
     }
 
-    const body = await req.json().catch(() => ({}));
+    const rawBody = await req.json().catch(() => ({}));
+    const parsedBody = BodySchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return new Response(JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const body = parsedBody.data;
     // Cron auto-derives: morning closes previous NIGHT (yesterday's date in London),
     // evening closes today's DAY shift. Manual `force:true` sync derives the
     // currently active London shift so the Settings button works without inputs.
-    let session_date: string = body.session_date;
-    let shift: "DAY" | "NIGHT" = body.shift;
+    let session_date: string | undefined = body.session_date;
+    let shift: "DAY" | "NIGHT" | undefined = body.shift;
     if (isCron && (!session_date || !shift)) {
-      const auto = body.auto as "morning" | "evening" | undefined;
+      const auto = body.auto;
       const londonNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/London" }));
       if (auto === "morning") {
         const y = new Date(londonNow); y.setDate(y.getDate() - 1);
@@ -178,7 +185,7 @@ Deno.serve(async (req) => {
       session_date = current.session_date;
       shift = current.shift;
     }
-    if (!session_date || !["DAY", "NIGHT"].includes(shift)) {
+    if (!session_date || !shift) {
       return new Response(JSON.stringify({ error: "session_date and shift (DAY|NIGHT) required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
