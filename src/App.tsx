@@ -151,12 +151,9 @@ const App = () => (
                 <Route path="/login" element={<Login />} />
                 <Route
                   path="/dashboard/operator"
-                  element={
-                    <ProtectedRoute allowedRoles={["operator"]}>
-                      <OperatorDashboard />
-                    </ProtectedRoute>
-                  }
+                  element={<Navigate to="/dashboard/line-hub" replace />}
                 />
+
                 <Route
                   path="/dashboard/engineer"
                   element={
