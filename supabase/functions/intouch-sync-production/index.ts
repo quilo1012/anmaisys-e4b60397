@@ -612,8 +612,8 @@ Deno.serve(async (req) => {
 
       await admin.from("production_items").delete().eq("session_id", session.id);
 
-      // Pull live actuals (produced/good qty) per SKU code from iTouching.
-      const actualsByCode = await fetchActualsForLine(machines, startISO, endISO);
+      // Pull live actuals + scrap + shift metrics (run/down/OEE) per SKU from iTouching.
+      const { actuals: actualsByCode, scrap: scrapByCode, metrics } = await fetchActualsForLine(machines, startISO, endISO);
 
       const entries = Array.from(skuAgg.entries());
       const totalQty = entries.reduce((sum, [, a]) => sum + Math.max(1, Number(a.qty) || 0), 0) || 1;
@@ -626,17 +626,30 @@ Deno.serve(async (req) => {
           // Never let an automatic sync drive the actual backwards (covers
           // manual edits + cumulative iTouching counts that may dip).
           const actual = Math.max(prev, itouchActual);
+          const scrap_qty = Math.round(scrapByCode.get(code) ?? 0);
           return {
             session_id: session.id,
             sku_id,
             target_qty: plan,
             planned_qty: plan,
             actual_qty: actual,
+            scrap_qty,
             notes: `itouching:${source}`,
           };
         })
         .filter((r) => r.sku_id);
       if (rows.length) await admin.from("production_items").insert(rows);
+
+      // Persist shift-level OEE / run / down to the session row.
+      const hasAnyMetric = metrics.runMin > 0 || metrics.downMin > 0 || metrics.oee !== null;
+      if (hasAnyMetric) {
+        await admin.from("production_sessions").update({
+          run_time_min: metrics.runMin > 0 ? Math.round(metrics.runMin) : null,
+          down_time_min: metrics.downMin > 0 ? Math.round(metrics.downMin) : null,
+          oee_pct: metrics.oee,
+          metrics_synced_at: new Date().toISOString(),
+        }).eq("id", session.id);
+      }
 
       results.push({
         line,
@@ -644,6 +657,10 @@ Deno.serve(async (req) => {
         rag_plan: ragPlan,
         source,
         actual_preserved: rows.reduce((s, r) => s + r.actual_qty, 0),
+        scrap_total: rows.reduce((s, r) => s + r.scrap_qty, 0),
+        run_min: metrics.runMin || null,
+        down_min: metrics.downMin || null,
+        oee: metrics.oee,
       });
     }
 
