@@ -108,6 +108,8 @@ export default function ShiftHistoryPage() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setDeleting(null); toast.success("Deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const delItemMut = useMutation({
     mutationFn: async (itemId: string) => {
@@ -115,8 +117,6 @@ export default function ShiftHistoryPage() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); toast.success("SKU removed"); },
-    onError: (e: Error) => toast.error(e.message),
-  });
     onError: (e: Error) => toast.error(e.message),
   });
 
