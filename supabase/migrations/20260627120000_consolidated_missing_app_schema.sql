@@ -1429,8 +1429,7 @@ AS $function$
     WHERE user_id = _user_id
       AND role = _role
   )
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.current_user_role()
  RETURNS app_role
@@ -1439,8 +1438,7 @@ CREATE OR REPLACE FUNCTION public.current_user_role()
  SET search_path TO 'public'
 AS $function$
   SELECT role FROM public.user_roles WHERE user_id = auth.uid() LIMIT 1;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.current_device_token()
  RETURNS text
@@ -1452,8 +1450,7 @@ AS $function$
     current_setting('request.headers', true)::json ->> 'x-device-token',
     ''
   );
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.current_device_line()
  RETURNS uuid
@@ -1465,8 +1462,7 @@ AS $function$
   FROM public.devices d
   WHERE d.device_token = public.current_device_token()
   LIMIT 1;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.current_device_line_ids()
  RETURNS uuid[]
@@ -1478,8 +1474,7 @@ AS $function$
   FROM public.device_lines dl
   JOIN public.devices d ON d.id = dl.device_id
   WHERE d.device_token = public.current_device_token();
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.accept_wo_with_pin(_wo_id uuid, _pin text)
  RETURNS jsonb
@@ -1535,8 +1530,7 @@ BEGIN
 
   RETURN jsonb_build_object('success', true, 'engineer_id', _user_id, 'engineer_name', _engineer_name);
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.acknowledge_wo_alert(_wo_id uuid)
  RETURNS void
@@ -1560,8 +1554,7 @@ BEGIN
        OR public.has_role(_uid, 'admin'::app_role)
        OR public.has_role(_uid, 'engineer'::app_role)
      );
-END $function$
-
+END $function$;
 
 CREATE OR REPLACE FUNCTION public.add_wo_collaborator(_wo_id uuid, _pin text)
  RETURNS jsonb
@@ -1623,8 +1616,7 @@ BEGIN
 
   RETURN jsonb_build_object('success', true, 'engineer_id', _uid, 'engineer_name', _name);
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.admin_list_device_tokens()
  RETURNS TABLE(id uuid, device_token text, label text, line_id uuid, last_seen_at timestamp with time zone, paired_at timestamp with time zone)
@@ -1645,8 +1637,7 @@ BEGIN
   FROM public.devices d
   ORDER BY d.last_seen_at DESC NULLS LAST;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.finish_wo_with_pin(_wo_id uuid, _pin text, _signed_by_name text DEFAULT NULL::text)
  RETURNS jsonb
@@ -1716,8 +1707,7 @@ BEGIN
 
   RETURN jsonb_build_object('success', true);
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_device_line(_token text)
  RETURNS uuid
@@ -1726,8 +1716,7 @@ CREATE OR REPLACE FUNCTION public.get_device_line(_token text)
  SET search_path TO 'public'
 AS $function$
   SELECT line_id FROM public.devices WHERE device_token = _token LIMIT 1;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_own_labor_rate()
  RETURNS numeric
@@ -1736,8 +1725,7 @@ CREATE OR REPLACE FUNCTION public.get_own_labor_rate()
  SET search_path TO 'public'
 AS $function$
   SELECT COALESCE(labor_rate, 0) FROM public.profiles WHERE id = auth.uid();
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_profile_labor_rate(_user_id uuid)
  RETURNS numeric
@@ -1754,8 +1742,7 @@ BEGIN
   SELECT labor_rate INTO _rate FROM public.profiles WHERE id = _user_id;
   RETURN COALESCE(_rate, 0);
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_user_role(_user_id uuid)
  RETURNS app_role
@@ -1767,8 +1754,7 @@ AS $function$
   FROM public.user_roles
   WHERE user_id = _user_id
   LIMIT 1
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.guard_engineer_pin_hash()
  RETURNS trigger
@@ -1807,8 +1793,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
  RETURNS trigger
@@ -1838,8 +1823,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.import_sku_products(_rows jsonb)
  RETURNS jsonb
@@ -1890,8 +1874,7 @@ BEGIN
 
   RETURN jsonb_build_object('success', true, 'count', _count);
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.list_active_profile_names()
  RETURNS TABLE(id uuid, name text)
@@ -1903,8 +1886,7 @@ AS $function$
   FROM public.profiles p
   WHERE p.active = true
   ORDER BY p.name ASC;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.list_engineer_names()
  RETURNS TABLE(id uuid, name text)
@@ -1916,8 +1898,7 @@ AS $function$
   FROM public.engineers e
   WHERE e.is_active = true
   ORDER BY e.name ASC;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.list_operator_account_user_ids()
  RETURNS TABLE(user_id uuid, email text)
@@ -1931,8 +1912,7 @@ BEGIN
   END IF;
   RETURN QUERY SELECT o.user_id, o.email FROM public.operator_line_accounts o;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.list_profile_labor_rates()
  RETURNS TABLE(id uuid, name text, labor_rate numeric)
@@ -1946,8 +1926,7 @@ BEGIN
   END IF;
   RETURN QUERY SELECT p.id, p.name, p.labor_rate FROM public.profiles p;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.list_tablet_accounts_public()
  RETURNS TABLE(id uuid, label text, line_ids uuid[])
@@ -1958,8 +1937,7 @@ AS $function$
   SELECT o.id, o.label, o.line_ids
   FROM public.operator_line_accounts o
   ORDER BY o.label ASC;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.log_audit_event(_action text, _entity_type text, _entity_id text DEFAULT NULL::text, _details jsonb DEFAULT '{}'::jsonb)
  RETURNS void
@@ -1991,8 +1969,7 @@ BEGIN
     _details
   );
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.log_wo_retrigger(_wo_id uuid, _reason text)
  RETURNS jsonb
@@ -2048,8 +2025,7 @@ BEGIN
     'retrigger_count', _retrigger_count
   );
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.move_machine_to_line(_machine_id uuid, _new_line text, _notes text DEFAULT NULL::text)
  RETURNS void
@@ -2088,8 +2064,7 @@ BEGIN
     'machine_moved', 'machine', _machine_id::text,
     jsonb_build_object('new_line', _new_line, 'notes', _notes)
   );
-END $function$
-
+END $function$;
 
 CREATE OR REPLACE FUNCTION public.pair_device(_token text, _line_id uuid, _label text DEFAULT NULL::text)
  RETURNS void
@@ -2110,8 +2085,7 @@ BEGIN
     VALUES (_token, _line_id, _label, auth.uid(), now());
   END IF;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.pair_device_lines(_token text, _line_ids uuid[], _label text DEFAULT NULL::text)
  RETURNS void
@@ -2157,8 +2131,7 @@ BEGIN
     UPDATE public.devices SET line_id = NULL WHERE id = _device_id;
   END IF;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.pm_apply_execution()
  RETURNS trigger
@@ -2172,8 +2145,7 @@ BEGIN
    WHERE id = NEW.schedule_id;
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.pm_recompute_next_due()
  RETURNS trigger
@@ -2189,8 +2161,7 @@ BEGIN
   NEW.updated_at := now();
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.recalculate_health_scores()
  RETURNS trigger
@@ -2241,8 +2212,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.reduce_stock_on_parts_used()
  RETURNS trigger
@@ -2256,8 +2226,7 @@ BEGIN
   WHERE id = NEW.product_id;
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.reopen_wo_as_recurrence(_wo_id uuid, _reason text)
  RETURNS jsonb
@@ -2376,8 +2345,7 @@ BEGIN
     'reopen_count', COALESCE(_orig.reopen_count, 0) + 1
   );
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.reopen_wo_recurrence(_wo_id uuid, _reason text)
  RETURNS jsonb
@@ -2443,8 +2411,7 @@ BEGIN
     'episode_number', _new_episode,
     'engineer_id', _prev_engineer);
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.set_admin_pin(_new_pin text)
  RETURNS void
@@ -2461,8 +2428,7 @@ BEGIN
       updated_at = now()
   WHERE id = (SELECT id FROM public.system_settings LIMIT 1);
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.set_engineer_pin(_user_id uuid, _new_pin text)
  RETURNS void
@@ -2479,8 +2445,7 @@ BEGIN
   SET pin_hash = extensions.crypt(_new_pin, extensions.gen_salt('bf', 10))
   WHERE id = _user_id;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.set_engineer_pin_standalone(_engineer_id uuid, _new_pin text)
  RETURNS void
@@ -2493,8 +2458,7 @@ BEGIN
   SET pin_hash = crypt(_new_pin, gen_salt('bf'))
   WHERE id = _engineer_id;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.set_updated_at()
  RETURNS trigger
@@ -2505,8 +2469,7 @@ BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.sync_machine_status_from_wo()
  RETURNS trigger
@@ -2550,8 +2513,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.sync_rag_actual_from_items()
  RETURNS trigger
@@ -2583,8 +2545,7 @@ BEGIN
 
   RETURN NULL;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.sync_wo_line_status()
  RETURNS trigger
@@ -2623,8 +2584,7 @@ BEGIN
     )
   WHERE wo.id = _wo_id;
   RETURN NULL;
-END $function$
-
+END $function$;
 
 CREATE OR REPLACE FUNCTION public.touch_device(_token text)
  RETURNS void
@@ -2633,8 +2593,7 @@ CREATE OR REPLACE FUNCTION public.touch_device(_token text)
  SET search_path TO 'public'
 AS $function$
   UPDATE public.devices SET last_seen_at = now() WHERE device_token = _token;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.unpair_device(_device_id uuid)
  RETURNS void
@@ -2651,8 +2610,7 @@ BEGIN
     SET line_id = NULL, paired_by = NULL, paired_at = NULL
     WHERE id = _device_id;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.update_engineer_score()
  RETURNS trigger
@@ -2712,8 +2670,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
  RETURNS trigger
@@ -2724,8 +2681,7 @@ BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.validate_downtime_category()
  RETURNS trigger
@@ -2738,8 +2694,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.validate_machine_side()
  RETURNS trigger
@@ -2764,8 +2719,7 @@ BEGIN
   END IF;
 
   RETURN NEW;
-END $function$
-
+END $function$;
 
 CREATE OR REPLACE FUNCTION public.validate_stock_availability()
  RETURNS trigger
@@ -2789,8 +2743,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.verify_admin_pin(_pin text)
  RETURNS boolean
@@ -2808,8 +2761,7 @@ BEGIN
     LIMIT 1
   );
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.verify_engineer_pin(_user_id uuid, _pin text)
  RETURNS boolean
@@ -2824,8 +2776,7 @@ AS $function$
       AND pin_hash IS NOT NULL
       AND pin_hash = extensions.crypt(_pin, pin_hash)
   )
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.verify_pin_by_code(_pin text)
  RETURNS TABLE(engineer_id uuid, engineer_name text)
@@ -2840,8 +2791,7 @@ BEGIN
   WHERE e.is_active = true
     AND e.pin_hash = crypt(_pin, e.pin_hash);
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.verify_pin_with_lockout(_pin text)
  RETURNS jsonb
@@ -2933,8 +2883,7 @@ BEGIN
     'remaining', _max_free - _row.failures
   );
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.wo_total_pause_seconds(_wo_id uuid)
  RETURNS integer
@@ -2947,8 +2896,7 @@ AS $function$
     0
   )::int
   FROM public.wo_pauses WHERE wo_id = _wo_id;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.work_orders_set_line_at_time()
  RETURNS trigger
@@ -2970,8 +2918,7 @@ BEGIN
     LIMIT 1;
   END IF;
   RETURN NEW;
-END $function$
-
+END $function$;
 
 CREATE OR REPLACE FUNCTION public.work_orders_set_line_at_time_v2()
  RETURNS trigger
@@ -3001,8 +2948,7 @@ BEGIN
   END IF;
 
   RETURN NEW;
-END $function$
-
+END $function$;
 
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated, service_role;
