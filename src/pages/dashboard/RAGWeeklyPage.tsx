@@ -283,7 +283,7 @@ export default function RAGWeeklyPage() {
 
 
 
-  const { autoDtMap, autoDtBreakdown } = useMemo(() => {
+  const { autoDtMap, autoDtMaintMap, autoDtQualityMap, autoDtBreakdown } = useMemo(() => {
     const byLine = new Map<string, StopDetail[]>();
     for (const s of lineStops) {
       const arr = byLine.get(s.line) ?? [];
@@ -291,17 +291,25 @@ export default function RAGWeeklyPage() {
       byLine.set(s.line, arr);
     }
     const out = new Map<string, number>();
+    const outMaint = new Map<string, number>();
+    const outQuality = new Map<string, number>();
     const breakdown = new Map<string, ClampedStop[]>();
     const now = Date.now();
     for (const line of lines) {
       const stops = byLine.get(line) ?? [];
       if (!stops.length) continue;
+      const maintStops = stops.filter((s) => s.kind === "MAINT");
+      const qualityStops = stops.filter((s) => s.kind === "QUALITY");
       for (const d of weekDates) {
         const ds = format(d, "yyyy-MM-dd");
         for (const shift of ["DAY", "NIGHT"] as Shift[]) {
           const [ws, we] = londonShiftWindow(ds, shift);
-          const mins = reconcileMinutes(stops, ws, we);
-          if (mins > 0) out.set(`${ds}|${line}|${shift}`, mins);
+          const k = `${ds}|${line}|${shift}`;
+          const mMaint = reconcileMinutes(maintStops, ws, we);
+          const mQual = reconcileMinutes(qualityStops, ws, we);
+          if (mMaint > 0) outMaint.set(k, mMaint);
+          if (mQual > 0) outQuality.set(k, mQual);
+          if (mMaint + mQual > 0) out.set(k, mMaint + mQual);
           const clamped: ClampedStop[] = [];
           for (const s of stops) {
             const sMs = new Date(s.start).getTime();
@@ -320,12 +328,12 @@ export default function RAGWeeklyPage() {
           }
           if (clamped.length) {
             clamped.sort((a, b) => a.clampedStart.localeCompare(b.clampedStart));
-            breakdown.set(`${ds}|${line}|${shift}`, clamped);
+            breakdown.set(k, clamped);
           }
         }
       }
     }
-    return { autoDtMap: out, autoDtBreakdown: breakdown };
+    return { autoDtMap: out, autoDtMaintMap: outMaint, autoDtQualityMap: outQuality, autoDtBreakdown: breakdown };
   }, [lineStops, lines, weekDates]);
 
   // Inconsistency detector: a single WO contributing minutes to multiple (date|line|shift) cells
