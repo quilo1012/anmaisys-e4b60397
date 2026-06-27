@@ -174,12 +174,12 @@ export default function SKUProductsPage() {
   });
 
   const handleImport = async (file: File) => {
-    if (!confirm("This will DELETE all existing SKUs and replace them with the new CSV. Continue?")) return;
+    if (!confirm("This will DELETE all existing SKUs and replace them with the new file. Continue?")) return;
     setImporting(true);
     try {
-      const text = await file.text();
-      const rows = parseCSV(text);
-      if (!rows.length) { toast.error("No valid rows. Use CSV with SKU and Name/Description columns."); return; }
+      const isXlsx = /\.xlsx$/i.test(file.name);
+      const rows = isXlsx ? await parseXLSX(file) : parseCSV(await file.text());
+      if (!rows.length) { toast.error("No valid rows. Use a file with SKU and Name/Description columns."); return; }
       const valid = rows
         .filter((r): r is SkuImportRow => !!r.code && !!r.name)
         .map((r) => ({ ...r, target_per_hour: r.target_per_hour ?? 0 }));
@@ -204,9 +204,26 @@ export default function SKUProductsPage() {
       qc.invalidateQueries({ queryKey: ["sku_products_all"] });
       toast.success(`Replaced SKUs — imported ${ok} from ${valid.length} valid rows`);
     } catch (e) {
-      const message = (e as Error).message || "CSV import failed";
+      const message = (e as Error).message || "Import failed";
       toast.error(message.includes("Forbidden") ? "Only Admin or Manager can import SKUs" : message);
     } finally { setImporting(false); }
+  };
+
+  const downloadTemplate = async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("SKUs");
+    ws.addRow(["SKU", "Description", "Category", "TargetPerHour"]);
+    ws.addRow(["BFHYDRATDS", "BODYFUEL HYDRATION DRINK", "Drinks", 3000]);
+    ws.addRow(["BFENERGYDS", "BODYFUEL ENERGY DRINK", "Drinks", 2800]);
+    ws.getRow(1).font = { bold: true };
+    ws.columns.forEach((c) => { c.width = 24; });
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "sku_products_template.xlsx";
+    a.click();
+    URL.revokeObjectURL(a.href);
   };
 
   return (
@@ -216,24 +233,13 @@ export default function SKUProductsPage() {
           <div>
             <h1 className="text-2xl font-bold">SKU Products</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Upload CSV File — required columns: <code>product_code</code> (or SKU) and <code>product_description</code> (or name).
-              Accepts various header formats (SKU, Codigo, Code, Name, Description, etc.).
+              Upload Excel (.xlsx) — required columns: <code>SKU</code> (or product_code) and <code>Description</code> (or name).
+              Optional: <code>Category</code>, <code>TargetPerHour</code>. Legacy <code>.csv</code> is still accepted.
             </p>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                const csv = "SKU;SKU;Descrição\nBFHYDRATDS;BFHYDRATDS;BODYFUEL HYDRATION DRINK\nBFENERGYDS;BFENERGYDS;BODYFUEL ENERGY DRINK\n";
-                const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
-                const a = document.createElement("a");
-                a.href = URL.createObjectURL(blob);
-                a.download = "sku_products_template.csv";
-                a.click();
-                URL.revokeObjectURL(a.href);
-              }}
-            >
-              <Download className="h-4 w-4 mr-1" />Template CSV
+            <Button variant="outline" onClick={downloadTemplate}>
+              <Download className="h-4 w-4 mr-1" />Template XLSX
             </Button>
             <label>
               <input
