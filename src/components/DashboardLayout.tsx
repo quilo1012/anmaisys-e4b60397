@@ -310,7 +310,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             </div>
           </Sidebar>
 
-          <main className="flex-1 flex flex-col overflow-hidden">
+          <main className="flex-1 flex flex-col overflow-hidden min-w-0">
             <header className="h-14 border-b bg-card flex items-center px-2 sm:px-4 gap-2 sm:gap-3 print:hidden">
               <SidebarTrigger aria-label="Toggle menu" className="shrink-0" />
               {currentPageTitle && (
@@ -359,9 +359,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 ⚠️ You are offline — changes will sync when connection is restored
               </div>
             )}
-            <div className="flex-1 overflow-y-auto p-4 md:p-6">
-              {children}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0">
+              <div className="min-w-0 w-full">{children}</div>
             </div>
+
           </main>
         </div>
         <ChangePasswordDialog open={changePwdOpen} onOpenChange={setChangePwdOpen} />
