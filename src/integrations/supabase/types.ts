@@ -500,6 +500,42 @@ export type Database = {
         }
         Relationships: []
       }
+      intouch_sync_runs: {
+        Row: {
+          created_at: string
+          details: Json
+          error_message: string | null
+          finished_at: string | null
+          function_name: string
+          id: string
+          started_at: string
+          status: string
+          trigger_source: string | null
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          error_message?: string | null
+          finished_at?: string | null
+          function_name: string
+          id?: string
+          started_at?: string
+          status: string
+          trigger_source?: string | null
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          error_message?: string | null
+          finished_at?: string | null
+          function_name?: string
+          id?: string
+          started_at?: string
+          status?: string
+          trigger_source?: string | null
+        }
+        Relationships: []
+      }
       intouch_webhook_logs: {
         Row: {
           created_at: string
