@@ -260,13 +260,28 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   const [showUnlock, setShowUnlock] = useState(false);
   const [active, setActive] = useState<CriticalAlertPayload | null>(null);
   const [queue, setQueue] = useState<CriticalAlertPayload[]>([]);
+  const [volume, setVolumeState] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(AUDIO_VOLUME_KEY);
+      const n = raw == null ? 1 : Number(raw);
+      return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 1;
+    } catch { return 1; }
+  });
   const engineRef = useRef<AlertAudioEngine | null>(null);
   const titleTimerRef = useRef<number | null>(null);
   const originalTitleRef = useRef<string>(typeof document !== "undefined" ? document.title : "");
 
   if (!engineRef.current && typeof window !== "undefined") {
     engineRef.current = new AlertAudioEngine();
+    engineRef.current.setVolume(volume);
   }
+
+  const setVolume = useCallback((v: number) => {
+    const clamped = Math.max(0, Math.min(1, Number.isFinite(v) ? v : 1));
+    setVolumeState(clamped);
+    try { localStorage.setItem(AUDIO_VOLUME_KEY, String(clamped)); } catch { /* ignore */ }
+    engineRef.current?.setVolume(clamped);
+  }, []);
   // Reflect autoplay-blocked state in the header icon (green→red) AND register
   // a one-shot global gesture listener so the next click/touch/keypress
   // anywhere on the page unlocks audio and resumes the active siren — this is
