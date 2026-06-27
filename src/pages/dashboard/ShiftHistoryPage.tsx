@@ -86,11 +86,6 @@ export default function ShiftHistoryPage() {
       }));
   }, [filtered]);
 
-  const toggle = (id: string) => {
-    const n = new Set(expanded);
-    n.has(id) ? n.delete(id) : n.add(id);
-    setExpanded(n);
-  };
 
   const lockMut = useMutation({
     mutationFn: async ({ id, lock }: { id: string; lock: boolean }) => {
