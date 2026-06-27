@@ -328,6 +328,15 @@ export default function LineProductionScreen() {
               {isFullscreen ? <Minimize2 className="h-5 w-5 mr-2" /> : <Maximize2 className="h-5 w-5 mr-2" />}
               {isFullscreen ? "Exit Kiosk" : "Kiosk"}
             </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              className="h-12"
+              disabled={syncSkus.isPending || !line}
+              onClick={() => syncSkus.mutate()}
+            >
+              {syncSkus.isPending ? "Syncing…" : "Sync SKUs"}
+            </Button>
             <div className="flex items-center gap-2 text-2xl font-mono tabular-nums">
               <Clock className="h-6 w-6" />
               {now.toLocaleTimeString("en-GB", { hour12: false })}
