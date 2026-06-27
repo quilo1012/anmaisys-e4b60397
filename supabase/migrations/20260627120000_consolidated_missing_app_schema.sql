@@ -4155,122 +4155,91 @@ GRANT SELECT ON public.engineers_safe TO authenticated;
 GRANT ALL ON public.engineers_safe TO service_role;
 
 DROP TRIGGER IF EXISTS "validate_downtime_category_trigger" ON public."downtime";
-CREATE TRIGGER "validate_downtime_category_trigger" BEFORE INSERT ON public."downtime" FOR EACH ROW EXECUTE FUNCTION validate_downtime_category();
-
-DROP TRIGGER IF EXISTS "validate_downtime_category_trigger" ON public."downtime";
-CREATE TRIGGER "validate_downtime_category_trigger" BEFORE UPDATE ON public."downtime" FOR EACH ROW EXECUTE FUNCTION validate_downtime_category();
+CREATE TRIGGER validate_downtime_category_trigger BEFORE INSERT OR UPDATE ON public.downtime FOR EACH ROW EXECUTE FUNCTION validate_downtime_category();
 
 DROP TRIGGER IF EXISTS "trg_downtime_sync" ON public."downtime_events";
-CREATE TRIGGER "trg_downtime_sync" AFTER DELETE ON public."downtime_events" FOR EACH ROW EXECUTE FUNCTION sync_wo_line_status();
-
-DROP TRIGGER IF EXISTS "trg_downtime_sync" ON public."downtime_events";
-CREATE TRIGGER "trg_downtime_sync" AFTER INSERT ON public."downtime_events" FOR EACH ROW EXECUTE FUNCTION sync_wo_line_status();
-
-DROP TRIGGER IF EXISTS "trg_downtime_sync" ON public."downtime_events";
-CREATE TRIGGER "trg_downtime_sync" AFTER UPDATE ON public."downtime_events" FOR EACH ROW EXECUTE FUNCTION sync_wo_line_status();
+CREATE TRIGGER trg_downtime_sync AFTER INSERT OR DELETE OR UPDATE ON public.downtime_events FOR EACH ROW EXECUTE FUNCTION sync_wo_line_status();
 
 DROP TRIGGER IF EXISTS "guard_engineer_pin_hash_trigger" ON public."engineers";
-CREATE TRIGGER "guard_engineer_pin_hash_trigger" BEFORE INSERT ON public."engineers" FOR EACH ROW EXECUTE FUNCTION guard_engineer_pin_hash();
-
-DROP TRIGGER IF EXISTS "guard_engineer_pin_hash_trigger" ON public."engineers";
-CREATE TRIGGER "guard_engineer_pin_hash_trigger" BEFORE UPDATE ON public."engineers" FOR EACH ROW EXECUTE FUNCTION guard_engineer_pin_hash();
+CREATE TRIGGER guard_engineer_pin_hash_trigger BEFORE INSERT OR UPDATE ON public.engineers FOR EACH ROW EXECUTE FUNCTION guard_engineer_pin_hash();
 
 DROP TRIGGER IF EXISTS "update_intouch_stop_code_map_updated_at" ON public."intouch_stop_code_map";
-CREATE TRIGGER "update_intouch_stop_code_map_updated_at" BEFORE UPDATE ON public."intouch_stop_code_map" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_intouch_stop_code_map_updated_at BEFORE UPDATE ON public.intouch_stop_code_map FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS "line_leaders_set_updated_at" ON public."line_leaders";
-CREATE TRIGGER "line_leaders_set_updated_at" BEFORE UPDATE ON public."line_leaders" FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER line_leaders_set_updated_at BEFORE UPDATE ON public.line_leaders FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 DROP TRIGGER IF EXISTS "trg_validate_machine_side" ON public."machines";
-CREATE TRIGGER "trg_validate_machine_side" BEFORE INSERT ON public."machines" FOR EACH ROW EXECUTE FUNCTION validate_machine_side();
-
-DROP TRIGGER IF EXISTS "trg_validate_machine_side" ON public."machines";
-CREATE TRIGGER "trg_validate_machine_side" BEFORE UPDATE ON public."machines" FOR EACH ROW EXECUTE FUNCTION validate_machine_side();
+CREATE TRIGGER trg_validate_machine_side BEFORE INSERT OR UPDATE OF side, line_id ON public.machines FOR EACH ROW EXECUTE FUNCTION validate_machine_side();
 
 DROP TRIGGER IF EXISTS "operator_line_accounts_updated_at" ON public."operator_line_accounts";
-CREATE TRIGGER "operator_line_accounts_updated_at" BEFORE UPDATE ON public."operator_line_accounts" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER operator_line_accounts_updated_at BEFORE UPDATE ON public.operator_line_accounts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS "trg_reduce_stock_on_parts_used" ON public."parts_used";
-CREATE TRIGGER "trg_reduce_stock_on_parts_used" AFTER INSERT ON public."parts_used" FOR EACH ROW EXECUTE FUNCTION reduce_stock_on_parts_used();
+CREATE TRIGGER trg_reduce_stock_on_parts_used AFTER INSERT ON public.parts_used FOR EACH ROW EXECUTE FUNCTION reduce_stock_on_parts_used();
 
 DROP TRIGGER IF EXISTS "trg_validate_stock" ON public."parts_used";
-CREATE TRIGGER "trg_validate_stock" BEFORE INSERT ON public."parts_used" FOR EACH ROW EXECUTE FUNCTION validate_stock_availability();
+CREATE TRIGGER trg_validate_stock BEFORE INSERT ON public.parts_used FOR EACH ROW EXECUTE FUNCTION validate_stock_availability();
 
 DROP TRIGGER IF EXISTS "trg_pm_executions_apply" ON public."pm_executions";
-CREATE TRIGGER "trg_pm_executions_apply" AFTER INSERT ON public."pm_executions" FOR EACH ROW EXECUTE FUNCTION pm_apply_execution();
+CREATE TRIGGER trg_pm_executions_apply AFTER INSERT ON public.pm_executions FOR EACH ROW EXECUTE FUNCTION pm_apply_execution();
 
 DROP TRIGGER IF EXISTS "trg_pm_schedules_recompute_next_due" ON public."pm_schedules";
-CREATE TRIGGER "trg_pm_schedules_recompute_next_due" BEFORE INSERT ON public."pm_schedules" FOR EACH ROW EXECUTE FUNCTION pm_recompute_next_due();
-
-DROP TRIGGER IF EXISTS "trg_pm_schedules_recompute_next_due" ON public."pm_schedules";
-CREATE TRIGGER "trg_pm_schedules_recompute_next_due" BEFORE UPDATE ON public."pm_schedules" FOR EACH ROW EXECUTE FUNCTION pm_recompute_next_due();
+CREATE TRIGGER trg_pm_schedules_recompute_next_due BEFORE INSERT OR UPDATE OF last_done_at, interval_days ON public.pm_schedules FOR EACH ROW EXECUTE FUNCTION pm_recompute_next_due();
 
 DROP TRIGGER IF EXISTS "set_production_downtimes_updated_at" ON public."production_downtimes";
-CREATE TRIGGER "set_production_downtimes_updated_at" BEFORE UPDATE ON public."production_downtimes" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER set_production_downtimes_updated_at BEFORE UPDATE ON public.production_downtimes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS "trg_production_items_updated" ON public."production_items";
-CREATE TRIGGER "trg_production_items_updated" BEFORE UPDATE ON public."production_items" FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_production_items_updated BEFORE UPDATE ON public.production_items FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 DROP TRIGGER IF EXISTS "trg_sync_rag_actual" ON public."production_items";
-CREATE TRIGGER "trg_sync_rag_actual" AFTER DELETE ON public."production_items" FOR EACH ROW EXECUTE FUNCTION sync_rag_actual_from_items();
-
-DROP TRIGGER IF EXISTS "trg_sync_rag_actual" ON public."production_items";
-CREATE TRIGGER "trg_sync_rag_actual" AFTER INSERT ON public."production_items" FOR EACH ROW EXECUTE FUNCTION sync_rag_actual_from_items();
-
-DROP TRIGGER IF EXISTS "trg_sync_rag_actual" ON public."production_items";
-CREATE TRIGGER "trg_sync_rag_actual" AFTER UPDATE ON public."production_items" FOR EACH ROW EXECUTE FUNCTION sync_rag_actual_from_items();
+CREATE TRIGGER trg_sync_rag_actual AFTER INSERT OR DELETE OR UPDATE OF actual_qty ON public.production_items FOR EACH ROW EXECUTE FUNCTION sync_rag_actual_from_items();
 
 DROP TRIGGER IF EXISTS "trg_production_sessions_updated" ON public."production_sessions";
-CREATE TRIGGER "trg_production_sessions_updated" BEFORE UPDATE ON public."production_sessions" FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_production_sessions_updated BEFORE UPDATE ON public.production_sessions FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 DROP TRIGGER IF EXISTS "trg_production_targets_updated" ON public."production_targets";
-CREATE TRIGGER "trg_production_targets_updated" BEFORE UPDATE ON public."production_targets" FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_production_targets_updated BEFORE UPDATE ON public.production_targets FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 DROP TRIGGER IF EXISTS "update_products_updated_at" ON public."products";
-CREATE TRIGGER "update_products_updated_at" BEFORE UPDATE ON public."products" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON public.products FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS "update_profiles_updated_at" ON public."profiles";
-CREATE TRIGGER "update_profiles_updated_at" BEFORE UPDATE ON public."profiles" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS "purchase_orders_updated_at" ON public."purchase_orders";
-CREATE TRIGGER "purchase_orders_updated_at" BEFORE UPDATE ON public."purchase_orders" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER purchase_orders_updated_at BEFORE UPDATE ON public.purchase_orders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS "trg_quality_action_types_updated" ON public."quality_action_types";
-CREATE TRIGGER "trg_quality_action_types_updated" BEFORE UPDATE ON public."quality_action_types" FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_quality_action_types_updated BEFORE UPDATE ON public.quality_action_types FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 DROP TRIGGER IF EXISTS "trg_quality_actions_updated" ON public."quality_actions";
-CREATE TRIGGER "trg_quality_actions_updated" BEFORE UPDATE ON public."quality_actions" FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_quality_actions_updated BEFORE UPDATE ON public.quality_actions FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 DROP TRIGGER IF EXISTS "trg_rag_weekly_updated_at" ON public."rag_weekly_entries";
-CREATE TRIGGER "trg_rag_weekly_updated_at" BEFORE UPDATE ON public."rag_weekly_entries" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_rag_weekly_updated_at BEFORE UPDATE ON public.rag_weekly_entries FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS "trg_sku_products_updated" ON public."sku_products";
-CREATE TRIGGER "trg_sku_products_updated" BEFORE UPDATE ON public."sku_products" FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_sku_products_updated BEFORE UPDATE ON public.sku_products FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 DROP TRIGGER IF EXISTS "suppliers_updated_at" ON public."suppliers";
-CREATE TRIGGER "suppliers_updated_at" BEFORE UPDATE ON public."suppliers" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER suppliers_updated_at BEFORE UPDATE ON public.suppliers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS "trg_recalculate_health" ON public."work_orders";
-CREATE TRIGGER "trg_recalculate_health" AFTER INSERT ON public."work_orders" FOR EACH ROW EXECUTE FUNCTION recalculate_health_scores();
-
-DROP TRIGGER IF EXISTS "trg_recalculate_health" ON public."work_orders";
-CREATE TRIGGER "trg_recalculate_health" AFTER UPDATE ON public."work_orders" FOR EACH ROW EXECUTE FUNCTION recalculate_health_scores();
+CREATE TRIGGER trg_recalculate_health AFTER INSERT OR UPDATE OF status ON public.work_orders FOR EACH ROW EXECUTE FUNCTION recalculate_health_scores();
 
 DROP TRIGGER IF EXISTS "trg_sync_machine_status" ON public."work_orders";
-CREATE TRIGGER "trg_sync_machine_status" AFTER UPDATE ON public."work_orders" FOR EACH ROW EXECUTE FUNCTION sync_machine_status_from_wo();
+CREATE TRIGGER trg_sync_machine_status AFTER UPDATE ON public.work_orders FOR EACH ROW EXECUTE FUNCTION sync_machine_status_from_wo();
 
 DROP TRIGGER IF EXISTS "trg_update_engineer_score" ON public."work_orders";
-CREATE TRIGGER "trg_update_engineer_score" AFTER UPDATE ON public."work_orders" FOR EACH ROW EXECUTE FUNCTION update_engineer_score();
+CREATE TRIGGER trg_update_engineer_score AFTER UPDATE ON public.work_orders FOR EACH ROW EXECUTE FUNCTION update_engineer_score();
 
 DROP TRIGGER IF EXISTS "trg_wo_set_line_at_time" ON public."work_orders";
-CREATE TRIGGER "trg_wo_set_line_at_time" BEFORE INSERT ON public."work_orders" FOR EACH ROW EXECUTE FUNCTION work_orders_set_line_at_time_v2();
-
-DROP TRIGGER IF EXISTS "trg_wo_set_line_at_time" ON public."work_orders";
-CREATE TRIGGER "trg_wo_set_line_at_time" BEFORE UPDATE ON public."work_orders" FOR EACH ROW EXECUTE FUNCTION work_orders_set_line_at_time_v2();
+CREATE TRIGGER trg_wo_set_line_at_time BEFORE INSERT OR UPDATE OF line_id, machine ON public.work_orders FOR EACH ROW EXECUTE FUNCTION work_orders_set_line_at_time_v2();
 
 DROP TRIGGER IF EXISTS "trg_work_orders_set_line_at_time" ON public."work_orders";
-CREATE TRIGGER "trg_work_orders_set_line_at_time" BEFORE INSERT ON public."work_orders" FOR EACH ROW EXECUTE FUNCTION work_orders_set_line_at_time();
-
+CREATE TRIGGER trg_work_orders_set_line_at_time BEFORE INSERT ON public.work_orders FOR EACH ROW EXECUTE FUNCTION work_orders_set_line_at_time();
 
 INSERT INTO public.lines (name)
 SELECT v.name FROM (VALUES ('Line 1'),('Line 2'),('Line 3'),('Line 4'),('Line 5'),('Line 6'),('Line 7'),('Capsules'),('Gel')) AS v(name)
