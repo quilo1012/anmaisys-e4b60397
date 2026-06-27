@@ -161,21 +161,25 @@ function objectOverlapsWindow(obj: any, startMs: number, endMs: number) {
   return a < endMs && b >= startMs;
 }
 
-function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNames: Set<string>, startMs: number, endMs: number): Row[] {
+function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNames: Set<string>, startMs: number, endMs: number, opts?: { skipMatch?: boolean; skipWindow?: boolean }): Row[] {
   const out: Row[] = [];
+  const skipMatch = !!opts?.skipMatch;
+  const skipWindow = !!opts?.skipWindow;
   const same = (v: unknown) => {
+    if (skipMatch) return true;
     const s = String(v ?? "").trim();
     if (!s) return true;
     return allowedIds.has(machineKey(s)) || allowedNames.has(s.toLowerCase());
   };
+  const inWin = (o: any) => skipWindow ? true : objectOverlapsWindow(o, startMs, endMs);
   walk(raw, (obj) => {
     const wos = obj?.WorksOrders ?? obj?.WorkOrders ?? obj?.worksOrders;
     const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
     if (!Array.isArray(wos)) return;
     if (!same(mref)) return;
-    if (!objectOverlapsWindow(obj, startMs, endMs)) return;
+    if (!inWin(obj)) return;
     for (const wo of wos) {
-      if (!objectOverlapsWindow(wo, startMs, endMs)) continue;
+      if (!inWin(wo)) continue;
       const code = cleanCode(pick(wo, ["PartCode", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "OrderNumber", "WorkOrderNo", "JobProductCode", "ProductID", "ProductId", "Code"]));
       if (!code || code.length < 2) continue;
       const description = String(pick(wo, ["LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
@@ -187,7 +191,7 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
     walk(raw, (obj) => {
       const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
       if (!same(mref)) return;
-      if (!objectOverlapsWindow(obj, startMs, endMs)) return;
+      if (!inWin(obj)) return;
       const code = cleanCode(pick(obj, ["PartCode", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "FGCode", "FinishedGood", "MaterialCode", "Product", "ProductID", "ProductId", "JobProductCode", "OrderNumber", "WorkOrderNo", "Code"]));
       if (!code || code.length < 3 || /^(LINE|MACHINE|DATE|SHIFT|START|END|STATUS)$/i.test(code)) return;
       const qty = num(pick(obj, ["OrderQuantity", "OrderQty", "RequiredQuantity", "RequiredQty", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "TargetQty", "ScheduledQty", "Balance", "Demand", "Units"])) || 1;
@@ -248,13 +252,13 @@ Deno.serve(async (req) => {
       { machines: ids, startTime: startISO, endTime: endISO },
     ];
 
-    const payloads: Array<{ source: string; data: unknown }> = [];
+    const payloads: Array<{ source: string; data: unknown; forMachineId?: string }> = [];
     const debug: Array<{ path: string; method: string; status: number; ok: boolean; bytes: number; sample: unknown; err?: string }> = [];
-    const pushDebug = (path: string, method: string, r: { data: unknown; status: number; ok: boolean; bytes: number; err?: string }) => {
+    const pushDebug = (path: string, method: string, r: { data: unknown; status: number; ok: boolean; bytes: number; err?: string }, forMachineId?: string) => {
       let sample: unknown = null;
       if (r.data) { try { sample = JSON.parse(JSON.stringify(r.data).slice(0, 800)); } catch { sample = null; } }
       if (debug.length < 120) debug.push({ path: path.split("?")[0], method, status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
-      if (r.data) payloads.push({ source: `${method} ${path.split("?")[0]}`, data: r.data });
+      if (r.data) payloads.push({ source: `${method} ${path.split("?")[0]}`, data: r.data, forMachineId });
     };
 
     // NOTE: /api/GetRunningJobs and /api/GetJobs hydration removed — they
@@ -271,14 +275,14 @@ Deno.serve(async (req) => {
         let winningTemplate: string | null = null;
         for (const q of queryVariants(path, firstId, startISO, endISO)) {
           const r = await itFetch(q, { method: "GET" });
-          pushDebug(q.replace(firstId, "…"), "GET", r);
+          pushDebug(q.replace(firstId, "…"), "GET", r, firstId);
           if (r.ok && r.bytes > 2) { winningTemplate = q; break; }
         }
         if (!winningTemplate) continue;
         for (const machineId of ids.slice(1)) {
           const q = winningTemplate.replace(firstId, machineId);
           const r = await itFetch(q, { method: "GET" });
-          pushDebug(q.replace(machineId, "…"), "GET", r);
+          pushDebug(q.replace(machineId, "…"), "GET", r, machineId);
         }
       } else {
         const getPath = `${path}?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`;
@@ -312,7 +316,14 @@ Deno.serve(async (req) => {
       const allowedNames = new Set(machines.map((m) => (m.name ?? "").toLowerCase()).filter(Boolean));
       const merged = new Map<string, Row & { sources: Set<string> }>();
       for (const p of payloads) {
-        for (const r of extractRowsForMachine(p.data, allowedIds, allowedNames, start.getTime(), end.getTime())) {
+        // Per-machine payloads: only consume for the line that owns that machine.
+        // Skip MachineID matching (the response may not echo it) and the shift
+        // window filter (the endpoint already returned what iTouching considers
+        // scheduled for that machine).
+        const scoped = p.forMachineId ? allowedIds.has(machineKey(p.forMachineId)) : true;
+        if (!scoped) continue;
+        const opts = p.forMachineId ? { skipMatch: true, skipWindow: true } : undefined;
+        for (const r of extractRowsForMachine(p.data, allowedIds, allowedNames, start.getTime(), end.getTime(), opts)) {
           const cur = merged.get(r.code);
           if (!cur) merged.set(r.code, { ...r, sources: new Set([p.source]) });
           else {
