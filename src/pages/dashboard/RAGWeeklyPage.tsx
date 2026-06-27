@@ -226,11 +226,37 @@ export default function RAGWeeklyPage() {
     },
   });
 
-  useEffect(() => {
-    if (lineStopsError) {
-      toast.error(`Failed to load downtime: ${(lineStopsError as Error).message}`);
+  // Items by week — drives scrap impact in popover + rounding mismatch detection.
+  const weekStartIso = weekStartStr;
+  const weekEndIso = format(addDays(weekStart, 6), "yyyy-MM-dd");
+  const { data: weekItems = [] } = useQuery({
+    queryKey: ["rag-week-items", weekStartStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("production_sessions")
+        .select("session_date, line, shift, production_items(planned_qty, target_qty, scrap_qty)")
+        .gte("session_date", weekStartIso)
+        .lte("session_date", weekEndIso);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        session_date: string; line: string; shift: "DAY" | "NIGHT";
+        production_items?: { planned_qty: number | null; target_qty: number | null; scrap_qty: number | null }[];
+      }>;
+    },
+  });
+
+  const { cellScrapMap, cellItemTargetMap } = useMemo(() => {
+    const scrap = new Map<string, number>();
+    const tgt = new Map<string, number>();
+    for (const s of weekItems) {
+      const k = `${s.session_date}|${s.line}|${s.shift}`;
+      const items = s.production_items ?? [];
+      scrap.set(k, items.reduce((a, i) => a + Number(i.scrap_qty ?? 0), 0));
+      tgt.set(k, items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0));
     }
-  }, [lineStopsError]);
+    return { cellScrapMap: scrap, cellItemTargetMap: tgt };
+  }, [weekItems]);
+
 
 
 
