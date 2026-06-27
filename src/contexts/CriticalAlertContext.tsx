@@ -24,6 +24,10 @@ interface CriticalAlertContextType {
   audioEnabled: boolean;
   promptEnableAudio: () => void;
   testSound: () => void;
+  /** Current alert volume (0..1). Persisted per-device. */
+  volume: number;
+  /** Update the alert volume (0..1). Persists to localStorage. */
+  setVolume: (v: number) => void;
 }
 
 const CriticalAlertContext = createContext<CriticalAlertContextType>({
@@ -33,11 +37,14 @@ const CriticalAlertContext = createContext<CriticalAlertContextType>({
   audioEnabled: false,
   promptEnableAudio: () => {},
   testSound: () => {},
+  volume: 1,
+  setVolume: () => {},
 });
 
 export const useCriticalAlert = () => useContext(CriticalAlertContext);
 
 const AUDIO_FLAG_KEY = "alertAudioEnabled";
+const AUDIO_VOLUME_KEY = "alertAudioVolume";
 // Siren rings continuously until the engineer acknowledges. We used to auto-stop
 // after 30s which made the alert sound "intermittent" — removed.
 const VIBRATE_PATTERN = [500, 200, 500, 200, 500, 200, 500];
