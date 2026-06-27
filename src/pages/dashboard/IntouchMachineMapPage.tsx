@@ -54,14 +54,22 @@ export default function IntouchMachineMapPage() {
       if (error) throw error;
       return data as Array<{ MachineID: string; MachineName: string; Active: boolean }>;
     },
-    onSuccess: async (machines) => {
-      const rows = machines
-        .filter((m) => m.Active)
-        .map((m) => ({
-          intouch_machine_id: m.MachineID,
-          intouch_machine_name: m.MachineName,
+    onSuccess: async (raw: any) => {
+      const list: any[] = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.machines) ? raw.machines
+        : Array.isArray(raw?.data) ? raw.data
+        : Array.isArray(raw?.items) ? raw.items
+        : Array.isArray(raw?.Machines) ? raw.Machines
+        : [];
+      const rows = list
+        .filter((m: any) => m && (m.Active ?? m.active ?? true))
+        .map((m: any) => ({
+          intouch_machine_id: m.MachineID ?? m.MachineId ?? m.MachineGUID ?? m.id,
+          intouch_machine_name: m.MachineName ?? m.Name ?? m.name ?? "",
           active: true,
-        }));
+        }))
+        .filter((r) => r.intouch_machine_id);
       const { error } = await supabase
         .from("intouch_machine_map")
         .upsert(rows, { onConflict: "intouch_machine_id", ignoreDuplicates: true });
