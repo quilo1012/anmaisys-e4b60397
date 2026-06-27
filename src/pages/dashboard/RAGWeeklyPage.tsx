@@ -69,11 +69,13 @@ interface StopDetail {
   line: string;
   start: string;
   end: string | null;
-  source: "WO" | "Manual";
+  source: "WO" | "Manual" | "Prod";
   ref: string | null;
   machine: string | null;
   reason: string | null;
   status?: string | null;
+  kind: "MAINT" | "QUALITY";
+  category?: string | null;
 }
 
 interface ClampedStop extends StopDetail {
@@ -183,20 +185,24 @@ export default function RAGWeeklyPage() {
   const { data: lineStops = [], error: lineStopsError } = useQuery({
     queryKey: ["rag-week-line-stops", weekStartStr],
     queryFn: async () => {
-      const [woRes, manRes] = await Promise.all([
+      const [woRes, manRes, prodRes] = await Promise.all([
         supabase.from("work_orders")
           .select("wo_number, status, machine, description, line_at_time, line_stopped_at, line_resumed_at, created_at, finished_at, closed_at")
           .not("line_stopped_at", "is", null)
           .gte("line_stopped_at", padStartIso)
           .lte("line_stopped_at", padEndIso),
         (supabase as any).from("downtime")
-          .select("line, machine, reason, started_at, ended_at")
+          .select("line, machine, reason, category, started_at, ended_at")
+          .gte("started_at", padStartIso).lte("started_at", padEndIso),
+        (supabase as any).from("production_downtimes")
+          .select("line, machine, reason, category, started_at, ended_at")
           .gte("started_at", padStartIso).lte("started_at", padEndIso),
       ]);
       if (woRes.error) throw woRes.error;
       if ((manRes as any).error) throw (manRes as any).error;
+      if ((prodRes as any).error) throw (prodRes as any).error;
 
-      const wo = ((woRes.data ?? []) as any[]).map((r) => {
+      const wo: StopDetail[] = ((woRes.data ?? []) as any[]).map((r) => {
         const mapped = mapWoToStop(r);
         return {
           line: mapped?.line ?? (r.line_at_time as string | null),
@@ -207,22 +213,39 @@ export default function RAGWeeklyPage() {
           machine: r.machine as string | null,
           reason: r.description as string | null,
           status: r.status as string | null,
+          kind: "MAINT" as const,
+          category: "Maintenance",
         };
       });
 
+      const classify = (cat?: string | null): "MAINT" | "QUALITY" =>
+        String(cat ?? "").toLowerCase() === "quality" ? "QUALITY" : "MAINT";
 
-
-
-      const man = ((manRes.data ?? []) as any[]).map((r) => ({
+      const man: StopDetail[] = ((manRes.data ?? []) as any[]).map((r) => ({
         line: r.line as string | null,
         start: r.started_at as string,
         end: r.ended_at as string | null,
         source: "Manual" as const,
-        ref: null as string | null,
+        ref: null,
         machine: r.machine as string | null,
         reason: r.reason as string | null,
+        kind: classify(r.category),
+        category: r.category ?? null,
       }));
-      return [...wo, ...man].filter((s) => s.line && s.start) as StopDetail[];
+
+      const prod: StopDetail[] = ((prodRes.data ?? []) as any[]).map((r) => ({
+        line: r.line as string | null,
+        start: r.started_at as string,
+        end: r.ended_at as string | null,
+        source: "Prod" as const,
+        ref: null,
+        machine: r.machine as string | null,
+        reason: r.reason as string | null,
+        kind: classify(r.category),
+        category: r.category ?? null,
+      }));
+
+      return [...wo, ...man, ...prod].filter((s) => s.line && s.start) as StopDetail[];
     },
   });
 
@@ -260,7 +283,7 @@ export default function RAGWeeklyPage() {
 
 
 
-  const { autoDtMap, autoDtBreakdown } = useMemo(() => {
+  const { autoDtMap, autoDtMaintMap, autoDtQualityMap, autoDtBreakdown } = useMemo(() => {
     const byLine = new Map<string, StopDetail[]>();
     for (const s of lineStops) {
       const arr = byLine.get(s.line) ?? [];
@@ -268,17 +291,25 @@ export default function RAGWeeklyPage() {
       byLine.set(s.line, arr);
     }
     const out = new Map<string, number>();
+    const outMaint = new Map<string, number>();
+    const outQuality = new Map<string, number>();
     const breakdown = new Map<string, ClampedStop[]>();
     const now = Date.now();
     for (const line of lines) {
       const stops = byLine.get(line) ?? [];
       if (!stops.length) continue;
+      const maintStops = stops.filter((s) => s.kind === "MAINT");
+      const qualityStops = stops.filter((s) => s.kind === "QUALITY");
       for (const d of weekDates) {
         const ds = format(d, "yyyy-MM-dd");
         for (const shift of ["DAY", "NIGHT"] as Shift[]) {
           const [ws, we] = londonShiftWindow(ds, shift);
-          const mins = reconcileMinutes(stops, ws, we);
-          if (mins > 0) out.set(`${ds}|${line}|${shift}`, mins);
+          const k = `${ds}|${line}|${shift}`;
+          const mMaint = reconcileMinutes(maintStops, ws, we);
+          const mQual = reconcileMinutes(qualityStops, ws, we);
+          if (mMaint > 0) outMaint.set(k, mMaint);
+          if (mQual > 0) outQuality.set(k, mQual);
+          if (mMaint + mQual > 0) out.set(k, mMaint + mQual);
           const clamped: ClampedStop[] = [];
           for (const s of stops) {
             const sMs = new Date(s.start).getTime();
@@ -297,12 +328,12 @@ export default function RAGWeeklyPage() {
           }
           if (clamped.length) {
             clamped.sort((a, b) => a.clampedStart.localeCompare(b.clampedStart));
-            breakdown.set(`${ds}|${line}|${shift}`, clamped);
+            breakdown.set(k, clamped);
           }
         }
       }
     }
-    return { autoDtMap: out, autoDtBreakdown: breakdown };
+    return { autoDtMap: out, autoDtMaintMap: outMaint, autoDtQualityMap: outQuality, autoDtBreakdown: breakdown };
   }, [lineStops, lines, weekDates]);
 
   // Inconsistency detector: a single WO contributing minutes to multiple (date|line|shift) cells
@@ -952,6 +983,8 @@ export default function RAGWeeklyPage() {
           weekDates={weekDates}
           entryMap={entryMap}
           autoDtMap={autoDtMap}
+          autoDtMaintMap={autoDtMaintMap}
+          autoDtQualityMap={autoDtQualityMap}
           autoDtBreakdown={autoDtBreakdown}
           cellScrapMap={cellScrapMap}
           cellItemTargetMap={cellItemTargetMap}
@@ -1190,6 +1223,8 @@ function DayNightTotalSummary({
   weekDates,
   entryMap,
   autoDtMap,
+  autoDtMaintMap,
+  autoDtQualityMap,
   autoDtBreakdown,
   cellScrapMap,
   cellItemTargetMap,
@@ -1201,6 +1236,8 @@ function DayNightTotalSummary({
   weekDates: Date[];
   entryMap: Map<string, Entry>;
   autoDtMap?: Map<string, number>;
+  autoDtMaintMap?: Map<string, number>;
+  autoDtQualityMap?: Map<string, number>;
   autoDtBreakdown?: Map<string, ClampedStop[]>;
   cellScrapMap?: Map<string, number>;
   cellItemTargetMap?: Map<string, number>;
@@ -1286,18 +1323,25 @@ function DayNightTotalSummary({
     return "bg-red-500/15 text-red-700 dark:text-red-300 font-semibold rounded px-1.5";
   };
 
-  type Cell = { plan: number; actual: number; dt: number; upm: number };
-  const empty: Cell = { plan: 0, actual: 0, dt: 0, upm: 0 };
+  type Cell = { plan: number; actual: number; dt: number; dtMaint: number; dtQuality: number; upm: number };
+  const empty: Cell = { plan: 0, actual: 0, dt: 0, dtMaint: 0, dtQuality: 0, upm: 0 };
 
   const getCell = (dateStr: string, line: string, shift: Shift): Cell => {
-    const e = entryMap.get(`${dateStr}|${line}|${shift}`);
-    const auto = autoDtMap?.get(`${dateStr}|${line}|${shift}`) ?? 0;
-    const dt = auto > 0 ? auto : (Number(e?.downtime_min) || 0);
-    if (!e) return { ...empty, dt };
+    const key = `${dateStr}|${line}|${shift}`;
+    const e = entryMap.get(key);
+    const autoMaint = autoDtMaintMap?.get(key) ?? 0;
+    const autoQual = autoDtQualityMap?.get(key) ?? 0;
+    const auto = autoMaint + autoQual;
+    const dtMaint = autoMaint > 0 ? autoMaint : (auto === 0 ? (Number(e?.downtime_min) || 0) : 0);
+    const dtQuality = autoQual;
+    const dt = dtMaint + dtQuality;
+    if (!e) return { ...empty, dt, dtMaint, dtQuality };
     return {
       plan: Number(e.plan_qty) || 0,
       actual: Number(e.actual_qty) || 0,
       dt,
+      dtMaint,
+      dtQuality,
       upm: Number(e.upm_actual) || 0,
     };
   };
@@ -1308,6 +1352,8 @@ function DayNightTotalSummary({
       plan: cells.reduce((s, c) => s + c.plan, 0),
       actual: cells.reduce((s, c) => s + c.actual, 0),
       dt: cells.reduce((s, c) => s + c.dt, 0),
+      dtMaint: cells.reduce((s, c) => s + c.dtMaint, 0),
+      dtQuality: cells.reduce((s, c) => s + c.dtQuality, 0),
       upm: upms.length ? upms.reduce((s, v) => s + v, 0) / upms.length : 0,
     };
   };
@@ -1353,9 +1399,14 @@ function DayNightTotalSummary({
       },
       { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : "—") },
       {
-        key: "dt",
-        label: "Downtime (auto)",
-        render: (c) => <span className={c.dt > 0 ? "text-red-600 dark:text-red-400" : ""}>{fmtHm(c.dt)}</span>,
+        key: "dtMaint",
+        label: "Downtime · Maint",
+        render: (c) => <span className={c.dtMaint > 0 ? "text-red-600 dark:text-red-400" : ""}>{fmtHm(c.dtMaint)}</span>,
+      },
+      {
+        key: "dtQuality",
+        label: "Downtime · Quality",
+        render: (c) => <span className={c.dtQuality > 0 ? "text-amber-600 dark:text-amber-400" : ""}>{fmtHm(c.dtQuality)}</span>,
       },
     ];
 
@@ -1484,12 +1535,15 @@ function DayNightTotalSummary({
                     />
                   );
                 };
-                const isDt = row.key === "dt";
+                const isDt = row.key === "dtMaint" || row.key === "dtQuality";
+                const dtKind: "MAINT" | "QUALITY" | null =
+                  row.key === "dtMaint" ? "MAINT" : row.key === "dtQuality" ? "QUALITY" : null;
                 const isPlan = row.key === "plan";
                 const wrapDt = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
                   if (!isDt || lineFilter.length !== 1) return cellEl;
                   const key = `${ds}|${lineFilter[0]}|${shift}`;
-                  const details = autoDtBreakdown?.get(key) ?? [];
+                  const all = autoDtBreakdown?.get(key) ?? [];
+                  const details = dtKind ? all.filter((s) => s.kind === dtKind) : all;
                   if (!details.length) return cellEl;
                   const scrap = cellScrapMap?.get(key) ?? 0;
                   return <DowntimeBreakdownPopover trigger={cellEl} stops={details} dateStr={ds} shift={shift} line={lineFilter[0]} totalScrap={scrap} />;
