@@ -400,6 +400,7 @@ export type Database = {
         Row: {
           active: boolean
           created_at: string
+          id: string | null
           intouch_machine_id: string
           intouch_machine_name: string | null
           last_downtime_code: string | null
@@ -414,6 +415,7 @@ export type Database = {
         Insert: {
           active?: boolean
           created_at?: string
+          id?: string | null
           intouch_machine_id: string
           intouch_machine_name?: string | null
           last_downtime_code?: string | null
@@ -428,6 +430,7 @@ export type Database = {
         Update: {
           active?: boolean
           created_at?: string
+          id?: string | null
           intouch_machine_id?: string
           intouch_machine_name?: string | null
           last_downtime_code?: string | null
@@ -453,11 +456,14 @@ export type Database = {
         Row: {
           active: boolean
           category: string | null
+          code: string | null
           created_at: string
           default_priority: string
+          description: string | null
           id: string
           label: string
           line_hint: string | null
+          priority: string | null
           requires_wo: boolean
           stop_code: string
           updated_at: string
@@ -465,11 +471,14 @@ export type Database = {
         Insert: {
           active?: boolean
           category?: string | null
+          code?: string | null
           created_at?: string
           default_priority?: string
+          description?: string | null
           id?: string
           label: string
           line_hint?: string | null
+          priority?: string | null
           requires_wo?: boolean
           stop_code: string
           updated_at?: string
@@ -477,11 +486,14 @@ export type Database = {
         Update: {
           active?: boolean
           category?: string | null
+          code?: string | null
           created_at?: string
           default_priority?: string
+          description?: string | null
           id?: string
           label?: string
           line_hint?: string | null
+          priority?: string | null
           requires_wo?: boolean
           stop_code?: string
           updated_at?: string
@@ -598,6 +610,7 @@ export type Database = {
           has_sides: boolean
           id: string
           name: string
+          updated_at: string | null
         }
         Insert: {
           active?: boolean
@@ -606,6 +619,7 @@ export type Database = {
           has_sides?: boolean
           id?: string
           name: string
+          updated_at?: string | null
         }
         Update: {
           active?: boolean
@@ -614,6 +628,7 @@ export type Database = {
           has_sides?: boolean
           id?: string
           name?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -755,6 +770,7 @@ export type Database = {
           sector: string | null
           side: string
           status: string | null
+          updated_at: string | null
         }
         Insert: {
           category?: Database["public"]["Enums"]["machine_category"] | null
@@ -773,6 +789,7 @@ export type Database = {
           sector?: string | null
           side?: string
           status?: string | null
+          updated_at?: string | null
         }
         Update: {
           category?: Database["public"]["Enums"]["machine_category"] | null
@@ -791,6 +808,7 @@ export type Database = {
           sector?: string | null
           side?: string
           status?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -875,6 +893,7 @@ export type Database = {
       }
       operator_line_accounts: {
         Row: {
+          active: boolean | null
           created_at: string
           created_by: string | null
           email: string
@@ -885,6 +904,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          active?: boolean | null
           created_at?: string
           created_by?: string | null
           email: string
@@ -895,6 +915,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          active?: boolean | null
           created_at?: string
           created_by?: string | null
           email?: string
@@ -1057,8 +1078,11 @@ export type Database = {
           interval_days: number
           last_done_at: string | null
           machine: string
+          machine_id: string | null
+          machine_name: string | null
           next_due_at: string | null
           priority: string
+          tasks: Json | null
           title: string
           updated_at: string
         }
@@ -1072,8 +1096,11 @@ export type Database = {
           interval_days: number
           last_done_at?: string | null
           machine: string
+          machine_id?: string | null
+          machine_name?: string | null
           next_due_at?: string | null
           priority?: string
+          tasks?: Json | null
           title: string
           updated_at?: string
         }
@@ -1087,8 +1114,11 @@ export type Database = {
           interval_days?: number
           last_done_at?: string | null
           machine?: string
+          machine_id?: string | null
+          machine_name?: string | null
           next_due_at?: string | null
           priority?: string
+          tasks?: Json | null
           title?: string
           updated_at?: string
         }
@@ -1182,49 +1212,61 @@ export type Database = {
           category: string
           created_at: string
           created_by: string | null
+          downtime_date: string | null
           duration_minutes: number
           ended_at: string | null
           id: string
           leader_name: string | null
           line: string
+          machine: string | null
           notes: string | null
           occurred_date: string
           reason: string | null
           shift: string
+          source: string | null
           started_at: string | null
           updated_at: string
+          work_order_id: string | null
         }
         Insert: {
           category: string
           created_at?: string
           created_by?: string | null
+          downtime_date?: string | null
           duration_minutes: number
           ended_at?: string | null
           id?: string
           leader_name?: string | null
           line: string
+          machine?: string | null
           notes?: string | null
           occurred_date?: string
           reason?: string | null
           shift: string
+          source?: string | null
           started_at?: string | null
           updated_at?: string
+          work_order_id?: string | null
         }
         Update: {
           category?: string
           created_at?: string
           created_by?: string | null
+          downtime_date?: string | null
           duration_minutes?: number
           ended_at?: string | null
           id?: string
           leader_name?: string | null
           line?: string
+          machine?: string | null
           notes?: string | null
           occurred_date?: string
           reason?: string | null
           shift?: string
+          source?: string | null
           started_at?: string | null
           updated_at?: string
+          work_order_id?: string | null
         }
         Relationships: []
       }
@@ -1786,6 +1828,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          notes: string | null
           target_per_hour: number
           updated_at: string
           weight: number | null
@@ -1797,6 +1840,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          notes?: string | null
           target_per_hour?: number
           updated_at?: string
           weight?: number | null
@@ -1808,6 +1852,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          notes?: string | null
           target_per_hour?: number
           updated_at?: string
           weight?: number | null
@@ -2176,10 +2221,14 @@ export type Database = {
           engineer_id: string | null
           engineer_name: string | null
           engineer_notified_acknowledged_at: string | null
+          engineer_notified_at: string | null
           finished_at: string | null
           id: string
           intouch_downtime_code: string | null
           intouch_machine_id: string | null
+          intouch_machine_name: string | null
+          intouch_stop_code: string | null
+          intouch_stop_reason: string | null
           line_at_time: string | null
           line_id: string | null
           line_resumed_at: string | null
@@ -2207,6 +2256,7 @@ export type Database = {
           started_at: string | null
           status: Database["public"]["Enums"]["wo_status"]
           total_paused_minutes: number
+          updated_at: string | null
           wo_number: number
         }
         Insert: {
@@ -2223,10 +2273,14 @@ export type Database = {
           engineer_id?: string | null
           engineer_name?: string | null
           engineer_notified_acknowledged_at?: string | null
+          engineer_notified_at?: string | null
           finished_at?: string | null
           id?: string
           intouch_downtime_code?: string | null
           intouch_machine_id?: string | null
+          intouch_machine_name?: string | null
+          intouch_stop_code?: string | null
+          intouch_stop_reason?: string | null
           line_at_time?: string | null
           line_id?: string | null
           line_resumed_at?: string | null
@@ -2254,6 +2308,7 @@ export type Database = {
           started_at?: string | null
           status?: Database["public"]["Enums"]["wo_status"]
           total_paused_minutes?: number
+          updated_at?: string | null
           wo_number?: number
         }
         Update: {
@@ -2270,10 +2325,14 @@ export type Database = {
           engineer_id?: string | null
           engineer_name?: string | null
           engineer_notified_acknowledged_at?: string | null
+          engineer_notified_at?: string | null
           finished_at?: string | null
           id?: string
           intouch_downtime_code?: string | null
           intouch_machine_id?: string | null
+          intouch_machine_name?: string | null
+          intouch_stop_code?: string | null
+          intouch_stop_reason?: string | null
           line_at_time?: string | null
           line_id?: string | null
           line_resumed_at?: string | null
@@ -2301,6 +2360,7 @@ export type Database = {
           started_at?: string | null
           status?: Database["public"]["Enums"]["wo_status"]
           total_paused_minutes?: number
+          updated_at?: string | null
           wo_number?: number
         }
         Relationships: [
