@@ -42,6 +42,9 @@ export default function ShiftHistoryPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<SessionRow | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<{ id: string; code: string; target: number; actual: number } | null>(null);
+  const [editActual, setEditActual] = useState<string>("");
+
 
   const { data: sessions = [] } = useQuery({
     queryKey: ["shift_history", from, to],
