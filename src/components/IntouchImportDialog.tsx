@@ -159,7 +159,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [sections, lineByNorm, skuByCode, lines]);
 
-  const totalProducts = resolved.reduce((a, s) => a + s.items.filter((i) => i.sku_id).length, 0);
+  const totalProducts = resolved.reduce((a, s) => a + s.items.length, 0);
   const totalLines = resolved.length;
   const canImport = totalProducts > 0
     && resolved.every((s) => s.matched_line && (leaderByLine[s.line]?.name?.trim()?.length ?? 0) > 0);
@@ -228,7 +228,32 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     setImporting(true);
     let okSessions = 0;
     let okItems = 0;
+    let createdSkus = 0;
     try {
+      // Auto-create unknown SKUs so import never fails on missing catalog entries
+      const missing = new Map<string, string>();
+      for (const sec of resolved) {
+        for (const it of sec.items) {
+          if (!it.sku_id) {
+            const code = it.sku_code.trim();
+            if (code && !missing.has(code.toUpperCase())) {
+              missing.set(code.toUpperCase(), (it.description ?? code).trim() || code);
+            }
+          }
+        }
+      }
+      const newSkuMap = new Map<string, string>();
+      if (missing.size > 0) {
+        const rows = Array.from(missing.entries()).map(([code, name]) => ({ code, name, active: true }));
+        const { data: inserted, error } = await supabase
+          .from("sku_products")
+          .upsert(rows, { onConflict: "code" })
+          .select("id, code");
+        if (error) throw error;
+        for (const r of inserted ?? []) newSkuMap.set(r.code.toUpperCase(), r.id);
+        createdSkus = inserted?.length ?? 0;
+      }
+
       for (const sec of resolved) {
         if (!sec.matched_line) continue;
         const lead = leaderByLine[sec.line];
@@ -244,20 +269,18 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
         });
         okSessions++;
         const items = sec.items
-          .filter((i) => i.sku_id)
-          .map((i) => ({
-            sku_id: i.sku_id!,
-            target_qty: i.qty,
-            planned_qty: i.qty,
-            actual_qty: 0,
-            notes: null,
-          }));
+          .map((i) => {
+            const sku_id = i.sku_id ?? newSkuMap.get(i.sku_code.trim().toUpperCase());
+            return sku_id ? { sku_id, target_qty: i.qty, planned_qty: i.qty, actual_qty: 0, notes: null } : null;
+          })
+          .filter((x): x is NonNullable<typeof x> => !!x);
         await saveItems.mutateAsync({ session_id: session.id, items });
         okItems += items.length;
       }
-      toast.success(`Imported ${okItems} products across ${okSessions} session${okSessions === 1 ? "" : "s"}`);
+      toast.success(`Imported ${okItems} products across ${okSessions} session${okSessions === 1 ? "" : "s"}${createdSkus ? ` · ${createdSkus} new SKU${createdSkus === 1 ? "" : "s"} created` : ""}`);
       qc.invalidateQueries({ queryKey: ["production_sessions"] });
       qc.invalidateQueries({ queryKey: ["production_items"] });
+      qc.invalidateQueries({ queryKey: ["sku_products"] });
       onImported?.();
       reset();
       onOpenChange(false);
