@@ -397,7 +397,10 @@ export default function ProductionPlannerPage() {
                       <CommandList>
                         <CommandEmpty>No line.</CommandEmpty>
                         <CommandGroup>
-                          {lines.map((l: { id: string; name: string }) => (
+                          {(syncedLines
+                            ? lines.filter((l: { id: string; name: string }) => syncedLines.includes(l.name))
+                            : lines
+                          ).map((l: { id: string; name: string }) => (
                             <CommandItem key={l.id} value={l.name} onSelect={() => setLine(l.name)}>
                               <Check className={cn("mr-2 h-4 w-4", line === l.name ? "opacity-100" : "opacity-0")} />{l.name}
                             </CommandItem>
