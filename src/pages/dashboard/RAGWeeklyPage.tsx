@@ -185,20 +185,24 @@ export default function RAGWeeklyPage() {
   const { data: lineStops = [], error: lineStopsError } = useQuery({
     queryKey: ["rag-week-line-stops", weekStartStr],
     queryFn: async () => {
-      const [woRes, manRes] = await Promise.all([
+      const [woRes, manRes, prodRes] = await Promise.all([
         supabase.from("work_orders")
           .select("wo_number, status, machine, description, line_at_time, line_stopped_at, line_resumed_at, created_at, finished_at, closed_at")
           .not("line_stopped_at", "is", null)
           .gte("line_stopped_at", padStartIso)
           .lte("line_stopped_at", padEndIso),
         (supabase as any).from("downtime")
-          .select("line, machine, reason, started_at, ended_at")
+          .select("line, machine, reason, category, started_at, ended_at")
+          .gte("started_at", padStartIso).lte("started_at", padEndIso),
+        (supabase as any).from("production_downtimes")
+          .select("line, machine, reason, category, started_at, ended_at")
           .gte("started_at", padStartIso).lte("started_at", padEndIso),
       ]);
       if (woRes.error) throw woRes.error;
       if ((manRes as any).error) throw (manRes as any).error;
+      if ((prodRes as any).error) throw (prodRes as any).error;
 
-      const wo = ((woRes.data ?? []) as any[]).map((r) => {
+      const wo: StopDetail[] = ((woRes.data ?? []) as any[]).map((r) => {
         const mapped = mapWoToStop(r);
         return {
           line: mapped?.line ?? (r.line_at_time as string | null),
@@ -209,22 +213,39 @@ export default function RAGWeeklyPage() {
           machine: r.machine as string | null,
           reason: r.description as string | null,
           status: r.status as string | null,
+          kind: "MAINT" as const,
+          category: "Maintenance",
         };
       });
 
+      const classify = (cat?: string | null): "MAINT" | "QUALITY" =>
+        String(cat ?? "").toLowerCase() === "quality" ? "QUALITY" : "MAINT";
 
-
-
-      const man = ((manRes.data ?? []) as any[]).map((r) => ({
+      const man: StopDetail[] = ((manRes.data ?? []) as any[]).map((r) => ({
         line: r.line as string | null,
         start: r.started_at as string,
         end: r.ended_at as string | null,
         source: "Manual" as const,
-        ref: null as string | null,
+        ref: null,
         machine: r.machine as string | null,
         reason: r.reason as string | null,
+        kind: classify(r.category),
+        category: r.category ?? null,
       }));
-      return [...wo, ...man].filter((s) => s.line && s.start) as StopDetail[];
+
+      const prod: StopDetail[] = ((prodRes.data ?? []) as any[]).map((r) => ({
+        line: r.line as string | null,
+        start: r.started_at as string,
+        end: r.ended_at as string | null,
+        source: "Prod" as const,
+        ref: null,
+        machine: r.machine as string | null,
+        reason: r.reason as string | null,
+        kind: classify(r.category),
+        category: r.category ?? null,
+      }));
+
+      return [...wo, ...man, ...prod].filter((s) => s.line && s.start) as StopDetail[];
     },
   });
 
