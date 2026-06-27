@@ -79,6 +79,62 @@ async function itFetch(path: string, init?: RequestInit): Promise<{ data: unknow
   } catch (e) { return { data: null, status: 0, ok: false, bytes: 0, err: (e as Error).message }; }
 }
 
+async function discoverSchedulePaths() {
+  const defaults = [
+    "/api/ScheduleReports/ScheduleJobs/Machine",
+    "/api/ScheduleReports/ScheduledJobs/Machine",
+    "/api/ScheduleReports/Jobs/Machine",
+    "/api/ScheduleReports/JobSchedule/Machine",
+    "/api/ScheduleReports/ProductionSchedule/Machine",
+    "/api/ScheduleReports/WorkToList/Machine",
+    "/api/ScheduleReports/MaterialRequirements/Machine",
+    "/api/ScheduleReports/MaterialRequirementsByMachine",
+    "/api/Reports/ScheduleJobs/Machine",
+    "/api/Reports/ScheduledJobs/Machine",
+    "/api/Reports/ProductionSchedule/Machine",
+    "/api/Reports/MaterialRequirements/Machine",
+    "/api/GetScheduledJobs",
+    "/api/GetJobSchedule",
+    "/api/GetWorkToList",
+    "/api/GetJobsScheduledDuringPeriod",
+    "/api/GetJobsRanDuringPeriod",
+    "/api/GetJobsRan",
+    "/api/JobChange",
+  ];
+  const docs1 = await itFetch("/swagger/docs/v1", { method: "GET" });
+  const docs2 = docs1.data ? docs1 : await itFetch("/swagger/v1/swagger.json", { method: "GET" });
+  const docs3 = docs2.data ? docs2 : await itFetch("/swagger.json", { method: "GET" });
+  const discovered = (docs3.data as any)?.paths && typeof (docs3.data as any).paths === "object"
+    ? Object.keys((docs3.data as any).paths).filter((p) => {
+      const n = p.toLowerCase();
+      return (n.includes("schedule") || n.includes("job") || n.includes("worktolist") || n.includes("material"))
+        && !n.includes("stop") && !n.includes("login");
+    })
+    : [];
+  return Array.from(new Set([...discovered, ...defaults])).slice(0, 40);
+}
+
+function fillPath(path: string, machineId: string) {
+  return path.replace(/\{\s*(MachineGUID|MachineGuid|MachineID|MachineId|machineId|id|ID)\s*\}/g, encodeURIComponent(machineId));
+}
+
+function queryVariants(path: string, machineId: string | null, startISO: string, endISO: string) {
+  const base = machineId ? fillPath(path, machineId) : path;
+  const machineParams = machineId
+    ? [`MachineGUID=${encodeURIComponent(machineId)}`, `MachineID=${encodeURIComponent(machineId)}`, `MachineGuid=${encodeURIComponent(machineId)}`, `machineId=${encodeURIComponent(machineId)}`]
+    : [""];
+  const dateParams = [
+    `StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+    `startTime=${encodeURIComponent(startISO)}&endTime=${encodeURIComponent(endISO)}`,
+    `From=${encodeURIComponent(startISO)}&To=${encodeURIComponent(endISO)}`,
+    `FromDate=${encodeURIComponent(startISO)}&ToDate=${encodeURIComponent(endISO)}`,
+    `StartDate=${encodeURIComponent(startISO)}&EndDate=${encodeURIComponent(endISO)}`,
+  ];
+  const out: string[] = [];
+  for (const mp of machineParams) for (const dp of dateParams) out.push(`${base}?${[mp, dp].filter(Boolean).join("&")}`);
+  return Array.from(new Set(out));
+}
+
 type Row = { code: string; description: string; qty: number };
 function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNames: Set<string>): Row[] {
   const out: Row[] = [];
