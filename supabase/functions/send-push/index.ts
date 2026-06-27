@@ -1,6 +1,29 @@
-// @ts-nocheck
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
+
+interface PushPayload {
+  user_id?: string;
+  user_ids?: string[];
+  title: string;
+  body?: string;
+  priority?: "low" | "medium" | "high" | "critical";
+  tag?: string;
+  requireInteraction?: boolean;
+  action_url?: string;
+  wo_id?: string;
+}
+
+interface PushSubscriptionRow {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_id: string;
+}
+
+interface WebPushError extends Error {
+  statusCode?: number;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
