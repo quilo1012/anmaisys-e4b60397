@@ -337,7 +337,7 @@ Deno.serve(async (req) => {
     const debugBlock = {
       endpoints: debug,
       mapped_machines: (maps ?? []).length,
-      mapped_machine_ids: ids.map((id: string) => `${id.slice(0, 8)}…`),
+      mapped_machine_ids: ids,
       machine_keys_seen: Array.from(machineKeysSeen).slice(0, 200),
     };
 
