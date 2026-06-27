@@ -621,37 +621,8 @@ export default function ProductionPlannerPage() {
           </Button>
         </div>
 
-        {/* History */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">History (last 30 days)</CardTitle>
-            <Select value={historyLine} onValueChange={setHistoryLine}>
-              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All lines</SelectItem>
-                {lines.map((l: { id: string; name: string }) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Shift</TableHead><TableHead>Line</TableHead><TableHead>Leader</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
-              <TableBody>
-                {history.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No sessions</TableCell></TableRow>}
-                {history.map((s) => (
-                  <TableRow key={s.id} className="cursor-pointer" onClick={() => loadSession(s.id)}>
-                    <TableCell>{s.session_date}</TableCell>
-                    <TableCell>{s.shift}</TableCell>
-                    <TableCell>{s.line}</TableCell>
-                    <TableCell>{s.leader_name ?? "—"}</TableCell>
-                    <TableCell>{s.locked ? <Badge variant="secondary"><Lock className="h-3 w-3 mr-1" />Locked</Badge> : <Badge variant="outline">Open</Badge>}</TableCell>
-                    <TableCell><Button variant="ghost" size="sm">Load</Button></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+
+
       </div>
     </DashboardLayout>
   );
