@@ -139,21 +139,7 @@ export default function ProductionPlannerPage() {
       await queryClient.invalidateQueries({ queryKey: ["production_session"] });
       await queryClient.invalidateQueries({ queryKey: ["production_items"] });
 
-      // 1. Lines scheduled/imported from Work-To-List for this date+shift, with SKUs saved
-      const { data: sessions, error: sErr } = await supabase
-        .from("production_sessions")
-        .select("line, production_items(id)")
-        .eq("session_date", date)
-        .eq("shift", shift.toUpperCase() === "NIGHT" ? "NIGHT" : "DAY");
-      if (sErr) throw sErr;
-      const scheduled = new Set(
-        (sessions ?? [])
-          .filter((r: any) => Array.isArray(r.production_items) && r.production_items.length > 0)
-          .map((r: { line: string }) => (r.line ?? "").trim())
-          .filter(Boolean),
-      );
-
-      // 2. Lines that have at least one ACTIVE mapped machine in iTouching
+      // 1. Lines with at least one ACTIVE mapped machine in iTouching
       const { data: maps, error: mErr } = await supabase
         .from("intouch_machine_map")
         .select("line_id, active, lines:line_id(name)")
@@ -165,11 +151,12 @@ export default function ProductionPlannerPage() {
           .filter(Boolean),
       );
 
-      // 3. Lines in RAG weekly for this date with plan filled (> 0)
+      // 2. Lines in RAG weekly for this date+shift with plan filled (> 0)
       const { data: rag, error: rErr } = await supabase
         .from("rag_weekly_entries")
-        .select("line, plan_qty")
+        .select("line, plan_qty, shift")
         .eq("entry_date", date)
+        .eq("shift", shift.toUpperCase() === "NIGHT" ? "NIGHT" : "DAY")
         .gt("plan_qty", 0);
       if (rErr) throw rErr;
       const planned = new Set(
@@ -178,30 +165,43 @@ export default function ProductionPlannerPage() {
           .filter(Boolean),
       );
 
-      // 4. Strict intersection: scheduled ∩ active machine ∩ RAG plan filled
-      const distinct = Array.from(scheduled)
-        .filter((l) => activeLineNames.has(l) && planned.has(l))
+      // 3. Optional info: lines that already have a session with SKUs (from iTouching jobs ran)
+      const { data: sessions } = await supabase
+        .from("production_sessions")
+        .select("line, production_items(id)")
+        .eq("session_date", date)
+        .eq("shift", shift.toUpperCase() === "NIGHT" ? "NIGHT" : "DAY");
+      const withSkus = new Set(
+        (sessions ?? [])
+          .filter((r: any) => Array.isArray(r.production_items) && r.production_items.length > 0)
+          .map((r: any) => (r.line ?? "").trim())
+          .filter(Boolean),
+      );
+
+      // Schedule = active machine ∩ RAG plan (SKUs are filled later by iTouching as jobs run)
+      const distinct = Array.from(planned)
+        .filter((l) => activeLineNames.has(l))
         .sort();
 
       if (distinct.length === 0) {
         setSyncedLines(null);
-        if (scheduled.size === 0) {
-          const details = Array.isArray(syncData?.results)
-            ? syncData.results.map((r: any) => `${r.line}: ${r.skipped ?? `${r.skus ?? 0} SKU(s)`}`).join(" · ")
-            : "";
-          toast.error(`No Work-To-List SKUs found for ${date} ${shift}${details ? ` — ${details}` : ""}`);
-        } else if (activeLineNames.size === 0) {
+        if (activeLineNames.size === 0) {
           toast.error("No active machines mapped in iTouching Settings");
         } else if (planned.size === 0) {
-          toast.error(`No RAG Weekly plan filled for ${date}`);
+          toast.error(`No RAG Weekly plan filled for ${date} ${shift}`);
         } else {
-          toast.error(`No lines match: schedule + active machine + RAG plan for ${date}`);
+          toast.error(`No lines match: active machine + RAG plan for ${date} ${shift}`);
         }
       } else {
         setSyncedLines(distinct);
-        toast.success(`Found ${distinct.length} line(s) with plan + active machine for ${date}`);
+        const pending = distinct.filter((l) => !withSkus.has(l)).length;
+        toast.success(
+          `Found ${distinct.length} line(s) for ${date} ${shift}` +
+            (pending > 0 ? ` · ${pending} awaiting iTouching jobs` : ""),
+        );
         if (!line || !distinct.includes(line)) setLine(distinct[0]);
       }
+
     } catch (e: any) {
       toast.error(`Sync failed: ${e?.message ?? "unknown"}`);
     } finally {
