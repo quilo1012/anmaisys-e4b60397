@@ -213,8 +213,12 @@ export default function LineDisplayScreen() {
           <Button size="icon" variant="outline" onClick={goFullscreen} className="h-12 w-12">
             <Maximize2 className="h-6 w-6" />
           </Button>
+          <Button variant="outline" onClick={() => navigate("/dashboard/line-hub")} className="h-12 px-4 gap-2">
+            <ArrowLeft className="h-5 w-5" /> Back
+          </Button>
         </div>
       </header>
+
 
       <div className="grid grid-cols-4 gap-6">
         <Kpi label="TARGET" value={target.toLocaleString()} accent="text-sky-400" />
