@@ -256,7 +256,7 @@ Deno.serve(async (req) => {
     const debug: Array<{ path: string; method: string; status: number; ok: boolean; bytes: number; sample: unknown; err?: string }> = [];
     const pushDebug = (path: string, method: string, r: { data: unknown; status: number; ok: boolean; bytes: number; err?: string }, forMachineId?: string) => {
       let sample: unknown = null;
-      if (r.data) { try { sample = JSON.parse(JSON.stringify(r.data).slice(0, 800)); } catch { sample = null; } }
+      if (r.data) { try { sample = JSON.stringify(r.data).slice(0, 4000); } catch { sample = null; } }
       if (debug.length < 120) debug.push({ path: path.split("?")[0], method, status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
       if (r.data) payloads.push({ source: `${method} ${path.split("?")[0]}`, data: r.data, forMachineId });
     };
