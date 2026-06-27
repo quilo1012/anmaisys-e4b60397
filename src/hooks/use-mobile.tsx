@@ -1,6 +1,8 @@
 import * as React from "react";
 
-const MOBILE_BREAKPOINT = 768;
+// Treat tablets (≤1023px) as "mobile" so the sidebar switches to a Sheet
+// drawer on factory tablets, freeing horizontal space for content.
+const MOBILE_BREAKPOINT = 1024;
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
