@@ -1323,18 +1323,25 @@ function DayNightTotalSummary({
     return "bg-red-500/15 text-red-700 dark:text-red-300 font-semibold rounded px-1.5";
   };
 
-  type Cell = { plan: number; actual: number; dt: number; upm: number };
-  const empty: Cell = { plan: 0, actual: 0, dt: 0, upm: 0 };
+  type Cell = { plan: number; actual: number; dt: number; dtMaint: number; dtQuality: number; upm: number };
+  const empty: Cell = { plan: 0, actual: 0, dt: 0, dtMaint: 0, dtQuality: 0, upm: 0 };
 
   const getCell = (dateStr: string, line: string, shift: Shift): Cell => {
-    const e = entryMap.get(`${dateStr}|${line}|${shift}`);
-    const auto = autoDtMap?.get(`${dateStr}|${line}|${shift}`) ?? 0;
-    const dt = auto > 0 ? auto : (Number(e?.downtime_min) || 0);
-    if (!e) return { ...empty, dt };
+    const key = `${dateStr}|${line}|${shift}`;
+    const e = entryMap.get(key);
+    const autoMaint = autoDtMaintMap?.get(key) ?? 0;
+    const autoQual = autoDtQualityMap?.get(key) ?? 0;
+    const auto = autoMaint + autoQual;
+    const dtMaint = autoMaint > 0 ? autoMaint : (auto === 0 ? (Number(e?.downtime_min) || 0) : 0);
+    const dtQuality = autoQual;
+    const dt = dtMaint + dtQuality;
+    if (!e) return { ...empty, dt, dtMaint, dtQuality };
     return {
       plan: Number(e.plan_qty) || 0,
       actual: Number(e.actual_qty) || 0,
       dt,
+      dtMaint,
+      dtQuality,
       upm: Number(e.upm_actual) || 0,
     };
   };
@@ -1345,6 +1352,8 @@ function DayNightTotalSummary({
       plan: cells.reduce((s, c) => s + c.plan, 0),
       actual: cells.reduce((s, c) => s + c.actual, 0),
       dt: cells.reduce((s, c) => s + c.dt, 0),
+      dtMaint: cells.reduce((s, c) => s + c.dtMaint, 0),
+      dtQuality: cells.reduce((s, c) => s + c.dtQuality, 0),
       upm: upms.length ? upms.reduce((s, v) => s + v, 0) / upms.length : 0,
     };
   };
