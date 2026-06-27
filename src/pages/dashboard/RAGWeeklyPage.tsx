@@ -159,6 +159,22 @@ export default function RAGWeeklyPage() {
     return map;
   }, [entries]);
 
+  // Realtime: when production_items actual/plan change, the trigger updates
+  // rag_weekly_entries. Subscribe to both so line totals update live.
+  useEffect(() => {
+    const ch = supabase
+      .channel(`rag-live-${weekStartStr}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "rag_weekly_entries" }, () => {
+        qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "production_items" }, () => {
+        qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [weekStartStr, qc]);
+
+
   // Auto downtime per (date|line|shift) from work orders + manual downtime.
   const padStartIso = new Date(weekStart.getTime() - 24 * 3600_000).toISOString();
   const padEndIso = addDays(weekStart, 8).toISOString();
