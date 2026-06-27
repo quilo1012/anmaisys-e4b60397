@@ -7,6 +7,14 @@
 // Body: { date?: "YYYY-MM-DD", shift?: "DAY"|"NIGHT", line?: string, overwrite?: boolean }
 // Defaults: current London shift, all lines, only items where target_qty is null/0.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "https://esm.sh/zod@3.23.8";
+
+const BodySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  shift: z.enum(["DAY", "NIGHT"]).optional(),
+  line: z.string().max(100).nullable().optional(),
+  overwrite: z.boolean().optional(),
+}).strict();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -62,12 +70,19 @@ Deno.serve(async (req) => {
     });
   }
 
-  let body: any = {};
-  try { body = req.method === "POST" ? await req.json() : {}; } catch { /* empty */ }
+  let rawBody: unknown = {};
+  try { rawBody = req.method === "POST" ? await req.json() : {}; } catch { /* empty */ }
+  const parsed = BodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return new Response(JSON.stringify({ ok: false, error: parsed.error.flatten().fieldErrors }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const body = parsed.data;
 
   const def = currentShiftLondon();
   const date: string = body.date ?? def.date;
-  const shift: "DAY" | "NIGHT" = (body.shift ?? def.shift) as any;
+  const shift: "DAY" | "NIGHT" = body.shift ?? def.shift;
   const lineFilter: string | null = body.line ?? null;
   const overwrite: boolean = !!body.overwrite;
 

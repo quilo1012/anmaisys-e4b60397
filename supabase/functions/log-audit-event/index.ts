@@ -6,6 +6,14 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { z } from "https://esm.sh/zod@3.23.8";
+
+const BodySchema = z.object({
+  action: z.string().min(1).max(100),
+  entity_type: z.string().min(1).max(100),
+  entity_id: z.string().min(1).max(200).optional().nullable(),
+  details: z.record(z.string(), z.unknown()).optional(),
+}).strict();
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -56,9 +64,9 @@ Deno.serve(async (req) => {
   const userId = userData.user.id;
 
   // Parse + validate body.
-  let body: { action?: unknown; entity_type?: unknown; entity_id?: unknown; details?: unknown };
+  let rawBody: unknown;
   try {
-    body = await req.json();
+    rawBody = await req.json();
   } catch {
     return new Response(JSON.stringify({ error: "invalid_json" }), {
       status: 400,
@@ -66,29 +74,18 @@ Deno.serve(async (req) => {
     });
   }
 
-  const action = typeof body.action === "string" ? body.action : "";
-  const entityType = typeof body.entity_type === "string" ? body.entity_type : "";
-  const entityId =
-    typeof body.entity_id === "string" && body.entity_id.length > 0
-      ? body.entity_id
-      : null;
-  const details =
-    body.details && typeof body.details === "object" && !Array.isArray(body.details)
-      ? (body.details as Record<string, unknown>)
-      : {};
+  const parsedBody = BodySchema.safeParse(rawBody);
+  if (!parsedBody.success) {
+    return new Response(JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const action = parsedBody.data.action;
+  const entityType = parsedBody.data.entity_type;
+  const entityId = parsedBody.data.entity_id ?? null;
+  const details = parsedBody.data.details ?? {};
 
-  if (!action || action.length > 100 || !entityType || entityType.length > 100) {
-    return new Response(JSON.stringify({ error: "invalid_fields" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  if (entityId && entityId.length > 200) {
-    return new Response(JSON.stringify({ error: "entity_id_too_long" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
   if (JSON.stringify(details).length > 10000) {
     return new Response(JSON.stringify({ error: "details_too_large" }), {
       status: 400,

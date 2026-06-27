@@ -1,17 +1,19 @@
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "https://esm.sh/zod@3.23.8";
 
-interface PushPayload {
-  user_id?: string;
-  user_ids?: string[];
-  title: string;
-  body?: string;
-  priority?: "low" | "medium" | "high" | "critical";
-  tag?: string;
-  requireInteraction?: boolean;
-  action_url?: string;
-  wo_id?: string;
-}
+const PushPayloadSchema = z.object({
+  user_id: z.string().uuid().optional(),
+  user_ids: z.array(z.string().uuid()).max(1000).optional(),
+  title: z.string().min(1).max(200),
+  body: z.string().max(2000).optional(),
+  priority: z.enum(["low", "medium", "high", "critical"]).optional(),
+  tag: z.string().max(100).optional(),
+  requireInteraction: z.boolean().optional(),
+  action_url: z.string().max(2048).optional(),
+  wo_id: z.string().uuid().optional(),
+}).strict();
+type PushPayload = z.infer<typeof PushPayloadSchema>;
 
 interface PushSubscriptionRow {
   id: string;
@@ -69,7 +71,15 @@ Deno.serve(async (req) => {
       .from("user_roles").select("role").eq("user_id", claimsData.claims.sub);
     const isStaff = (roles ?? []).some((r: { role: string }) => ["admin", "manager"].includes(r.role));
 
-    const body = (await req.json()) as PushPayload;
+    const rawBody = await req.json().catch(() => null);
+    const parsedBody = PushPayloadSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return new Response(
+        JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const body: PushPayload = parsedBody.data;
     const userIds: string[] = body.user_ids || (body.user_id ? [body.user_id] : []);
     if (!userIds.length) {
       return new Response(

@@ -1,5 +1,10 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { z } from 'https://esm.sh/zod@3.23.8';
+
+const BodySchema = z.object({
+  shareUrl: z.string().url().max(2048),
+}).strict();
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/microsoft_sharepoint';
 
@@ -180,10 +185,12 @@ Deno.serve(async (req) => {
       return json({ error: 'forbidden' }, 403);
     }
 
-    const { shareUrl } = await req.json();
-    if (!shareUrl || typeof shareUrl !== 'string') {
-      return json({ error: 'shareUrl required' }, 400);
+    const rawBody = await req.json().catch(() => ({}));
+    const parsedBody = BodySchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return json({ error: parsedBody.error.flatten().fieldErrors }, 400);
     }
+    const { shareUrl } = parsedBody.data;
 
     const normalizedUrl = normalizeShareUrl(shareUrl);
     try {

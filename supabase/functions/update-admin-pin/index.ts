@@ -1,4 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://esm.sh/zod@3.23.8";
+
+const BodySchema = z.object({
+  newPin: z.string().min(4).max(10).regex(/^\d+$/, "PIN must be digits"),
+}).strict();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,15 +60,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body = await req.json();
-    const newPin = body?.newPin;
-
-    if (!newPin || typeof newPin !== "string" || newPin.length < 4 || newPin.length > 10) {
-      return new Response(JSON.stringify({ error: "PIN must be 4-10 characters" }), {
+    const rawBody = await req.json().catch(() => ({}));
+    const parsedBody = BodySchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return new Response(JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const newPin = parsedBody.data.newPin;
 
     // Hash and update PIN using pgcrypto
     const { error: updateError } = await supabaseAdmin.rpc("set_admin_pin", {

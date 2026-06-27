@@ -5,6 +5,11 @@
 // pending preventive-maintenance tasks for the affected machine/line.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { z } from "https://esm.sh/zod@3.23.8";
+
+// Permissive shape — upstream sends varying field names. We enforce it is a
+// JSON object and not an array/scalar; specific fields are extracted via pick().
+const PayloadSchema = z.record(z.string(), z.unknown());
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -129,7 +134,14 @@ Deno.serve(async (req) => {
   let payload: any = null;
   let parseError: string | null = null;
   try {
-    payload = raw ? JSON.parse(raw) : {};
+    const json = raw ? JSON.parse(raw) : {};
+    const parsed = PayloadSchema.safeParse(json);
+    if (!parsed.success) {
+      parseError = "invalid_payload_shape";
+      payload = { _raw: raw };
+    } else {
+      payload = parsed.data;
+    }
   } catch (e) {
     parseError = `invalid_json: ${(e as Error).message}`;
     payload = { _raw: raw };

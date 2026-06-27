@@ -1,4 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://esm.sh/zod@3.23.8";
+
+const BodySchema = z.object({
+  pin: z.string().min(4).max(10).regex(/^\d+$/, "PIN must be digits"),
+}).strict();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,15 +59,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body = await req.json();
-    const pin = body?.pin;
-
-    if (!pin || typeof pin !== "string" || pin.length < 4 || pin.length > 10) {
-      return new Response(JSON.stringify({ error: "Invalid PIN format" }), {
+    const rawBody = await req.json().catch(() => ({}));
+    const parsedBody = BodySchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return new Response(JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const pin = parsedBody.data.pin;
 
     // Verify PIN using pgcrypto crypt() comparison.
     // Must use the user-scoped client so auth.uid() resolves inside the SECURITY DEFINER function.
