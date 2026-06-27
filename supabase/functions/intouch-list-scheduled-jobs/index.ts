@@ -321,6 +321,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Pull SKU catalog once (Code → name/category) for enrichment.
+    const { data: skuRows } = await admin
+      .from("sku_products")
+      .select("code, name, category")
+      .eq("active", true);
+    const skuByCode = new Map<string, { name: string; category: string | null }>(
+      (skuRows ?? []).map((s: any) => [String(s.code).toUpperCase(), { name: s.name, category: s.category ?? null }]),
+    );
 
     const sections: Array<{ line: string; items: any[] }> = [];
     for (const [line_id, machines] of byLine) {
@@ -330,30 +338,43 @@ Deno.serve(async (req) => {
       const allowedNames = new Set(machines.map((m) => (m.name ?? "").toLowerCase()).filter(Boolean));
       const merged = new Map<string, Row & { sources: Set<string> }>();
       for (const p of payloads) {
-        // Per-machine payloads: only consume for the line that owns that machine.
-        // Skip MachineID matching (the response may not echo it) and the shift
-        // window filter (the endpoint already returned what iTouching considers
-        // scheduled for that machine).
         const scoped = p.forMachineId ? allowedIds.has(machineKey(p.forMachineId)) : true;
         if (!scoped) continue;
         const opts = p.forMachineId ? { skipMatch: true, skipWindow: true } : undefined;
         for (const r of extractRowsForMachine(p.data, allowedIds, allowedNames, start.getTime(), end.getTime(), opts)) {
-          const cur = merged.get(r.code);
-          if (!cur) merged.set(r.code, { ...r, sources: new Set([p.source]) });
+          // Composite key preserves multiple batches of the same SKU in the queue.
+          const key = `${r.code}#${r.seq}`;
+          const cur = merged.get(key);
+          if (!cur) merged.set(key, { ...r, sources: new Set([p.source]) });
           else {
             cur.description = cur.description || r.description;
             cur.qty = Math.max(cur.qty, r.qty);
+            if (r.status === "Running") cur.status = "Running";
             cur.sources.add(p.source);
           }
         }
       }
       if (merged.size > 0) {
+        // Order: Running first, then by queue sequence.
+        const ordered = Array.from(merged.values()).sort((a, b) => {
+          if (a.status !== b.status) return a.status === "Running" ? -1 : 1;
+          return a.seq - b.seq;
+        });
         sections.push({
           line,
-          items: Array.from(merged.values()).map((r) => ({
-            sku_code: r.code, description: r.description, qty: r.qty,
-            sources: Array.from(r.sources),
-          })),
+          items: ordered.map((r) => {
+            const cat = skuByCode.get(r.code.toUpperCase());
+            return {
+              sku_code: r.code,
+              description: cat?.name || r.description,
+              qty: r.qty,
+              status: r.status,
+              seq: r.seq,
+              catalog_match: !!cat,
+              category: cat?.category ?? null,
+              sources: Array.from(r.sources),
+            };
+          }),
         });
       }
 
