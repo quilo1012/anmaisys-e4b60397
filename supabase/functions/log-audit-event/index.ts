@@ -50,18 +50,17 @@ Deno.serve(async (req) => {
     });
   }
 
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+  const authClient = createClient(SUPABASE_URL, ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: userData, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !userData.user) {
+  const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(token);
+  const userId = claimsData?.claims?.sub as string | undefined;
+  if (claimsErr || !userId) {
     return new Response(JSON.stringify({ error: "invalid_token" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  const userId = userData.user.id;
 
   // Parse + validate body.
   let rawBody: unknown;
