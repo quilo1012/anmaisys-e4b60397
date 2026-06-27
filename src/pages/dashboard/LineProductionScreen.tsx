@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { CircularProgress } from "@/components/ui/circular-progress";
 import {
   Select,
   SelectContent,
@@ -424,33 +425,31 @@ export default function LineProductionScreen() {
 
       {sessionQ.data && (ragPlanQ.data ?? 0) > 0 && (
         <>
-          {/* KPIs */}
-          <div className="grid grid-cols-3 gap-3 md:gap-4 mb-4">
-            <Card>
-              <CardContent className="p-4 md:p-6">
-                <div className="text-sm text-muted-foreground">Target</div>
-                <div className="text-3xl md:text-5xl font-bold tabular-nums">
-                  {totals.target.toLocaleString()}
+          {/* KPI — Production Performance style */}
+          {(() => {
+            const eff = totals.pct;
+            const gap = totals.actual - totals.target;
+            const borderColor = eff >= 100 ? "border-green-500" : eff >= 80 ? "border-amber-500" : "border-red-500";
+            const headerBg = eff >= 100 ? "bg-green-500/15" : eff >= 80 ? "bg-amber-500/15" : "bg-red-500/15";
+            const headerText = eff >= 100 ? "text-green-600 dark:text-green-400" : eff >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
+            return (
+              <Card className={cn("overflow-hidden border-l-4 mb-4", borderColor)}>
+                <div className={cn("px-4 py-2 flex items-center justify-between", headerBg, headerText)}>
+                  <div className="font-semibold">{line}</div>
+                  <div className="text-xs">{sessionQ.data.leader_name ?? "—"} · {shift}</div>
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 md:p-6">
-                <div className="text-sm text-muted-foreground">Actual</div>
-                <div className="text-3xl md:text-5xl font-bold tabular-nums text-primary">
-                  {totals.actual.toLocaleString()}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 md:p-6">
-                <div className="text-sm text-muted-foreground">Remaining</div>
-                <div className="text-3xl md:text-5xl font-bold tabular-nums">
-                  {totals.remaining.toLocaleString()}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                <CardContent className="p-4 md:p-6 flex items-center gap-6 flex-wrap">
+                  <CircularProgress value={eff} size={120} strokeWidth={10} />
+                  <div className="flex-1 min-w-[200px] space-y-1 text-base md:text-lg">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Target</span><span className="font-semibold tabular-nums">{totals.target.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Actual</span><span className="font-semibold tabular-nums text-primary">{totals.actual.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Gap</span><span className={cn("font-semibold tabular-nums", gap >= 0 ? "text-green-500" : "text-red-500")}>{gap.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Remaining</span><span className="font-semibold tabular-nums">{totals.remaining.toLocaleString()}</span></div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* Progress */}
           <Card className="mb-4">
