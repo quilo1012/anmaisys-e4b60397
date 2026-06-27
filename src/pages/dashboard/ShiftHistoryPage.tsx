@@ -171,7 +171,7 @@ export default function ShiftHistoryPage() {
     <DashboardLayout>
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-bold">Shift History</h1>
+          <h1 className="text-2xl font-bold">Production Control</h1>
           <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
         </div>
 
