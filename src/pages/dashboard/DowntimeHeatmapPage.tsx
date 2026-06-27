@@ -150,12 +150,10 @@ export default function DowntimeHeatmapPage() {
                     </tr>
                     <tr className="text-[10px] text-muted-foreground">
                       <th />
-                      {DAYS.map((d) => (
-                        <>
-                          <th key={`${d}-D`} className="font-normal">D</th>
-                          <th key={`${d}-N`} className="font-normal">N</th>
-                        </>
-                      ))}
+                      {DAYS.flatMap((d) => [
+                        <th key={`${d}-D`} className="font-normal">D</th>,
+                        <th key={`${d}-N`} className="font-normal">N</th>,
+                      ])}
                       <th />
                     </tr>
                   </thead>
