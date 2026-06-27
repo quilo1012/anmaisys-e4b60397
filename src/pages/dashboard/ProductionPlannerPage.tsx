@@ -599,16 +599,6 @@ export default function ProductionPlannerPage() {
           </CardContent>
         </Card>
 
-        {/* Staffing */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Staffing</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div><Label>Staff Planned</Label><Input type="number" value={staffPlanned} onChange={(e) => setStaffPlanned(+e.target.value)} disabled={locked} /></div>
-              <div><Label>Staff Actual</Label><Input type="number" value={staffActual} onChange={(e) => setStaffActual(+e.target.value)} disabled={locked} /></div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Observações */}
         <Card>
