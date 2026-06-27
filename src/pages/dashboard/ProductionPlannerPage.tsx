@@ -143,23 +143,23 @@ export default function ProductionPlannerPage() {
           .filter(Boolean),
       );
 
-      // 3. Prefer intersection (scheduled ∩ active machines); fall back to
-      //    all active-machine lines when nothing is scheduled yet for the date.
-      const intersection = Array.from(scheduled).filter((l) => activeLineNames.has(l));
-      const distinct = (intersection.length > 0
-        ? intersection
-        : Array.from(activeLineNames)
-      ).sort();
+      // 3. Strict intersection: must be scheduled in Work-To-List AND have an active machine
+      const distinct = Array.from(scheduled)
+        .filter((l) => activeLineNames.has(l))
+        .sort();
 
       if (distinct.length === 0) {
         setSyncedLines(null);
-        toast("No active machines mapped in iTouching Settings");
+        if (scheduled.size === 0) {
+          toast.error(`No Work-To-List schedule found for ${date}`);
+        } else if (activeLineNames.size === 0) {
+          toast.error("No active machines mapped in iTouching Settings");
+        } else {
+          toast.error(`No scheduled lines for ${date} have active machines mapped`);
+        }
       } else {
         setSyncedLines(distinct);
-        const msg = intersection.length > 0
-          ? `Found ${distinct.length} scheduled line(s) for ${date}`
-          : `No schedule for ${date} — showing ${distinct.length} active line(s)`;
-        toast.success(msg);
+        toast.success(`Found ${distinct.length} scheduled line(s) with active machine for ${date}`);
         if (line && !distinct.includes(line)) setLine("");
       }
     } catch (e: any) {
