@@ -43,9 +43,18 @@ const num = (v: unknown) => {
   return Number.isFinite(n) ? n : 0;
 };
 const pick = (o: any, ks: string[]) => {
+  if (!o || typeof o !== "object") return undefined;
   for (const k of ks) { const v = o?.[k]; if (v != null && String(v).trim() !== "") return v; }
+  const lower = new Map(Object.keys(o).map((k) => [k.toLowerCase(), k]));
+  for (const k of ks) {
+    const real = lower.get(k.toLowerCase());
+    const v = real ? o[real] : undefined;
+    if (v != null && String(v).trim() !== "") return v;
+  }
   return undefined;
 };
+const machineKey = (v: unknown) => String(v ?? "").trim().replace(/[{}]/g, "").toLowerCase();
+const authValue = INTOUCH_TOKEN.match(/^bearer\s+/i) ? INTOUCH_TOKEN : `Bearer ${INTOUCH_TOKEN}`;
 function walk(v: unknown, cb: (o: any) => void) {
   if (!v || typeof v !== "object") return;
   if (Array.isArray(v)) { for (const x of v) walk(x, cb); return; }
@@ -57,7 +66,7 @@ async function itFetch(path: string, init?: RequestInit): Promise<{ data: unknow
     const r = await fetch(`${INTOUCH_URL}${path}`, {
       ...(init ?? {}),
       headers: {
-        Authorization: `Bearer ${INTOUCH_TOKEN}`,
+        Authorization: authValue,
         Accept: "application/json",
         "Content-Type": "application/json",
         ...(init?.headers ?? {}),
