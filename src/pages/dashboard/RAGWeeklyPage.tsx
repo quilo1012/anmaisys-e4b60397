@@ -73,6 +73,7 @@ interface StopDetail {
   ref: string | null;
   machine: string | null;
   reason: string | null;
+  status?: string | null;
 }
 
 interface ClampedStop extends StopDetail {
@@ -81,6 +82,7 @@ interface ClampedStop extends StopDetail {
   minutes: number;
   ongoing: boolean;
 }
+
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
