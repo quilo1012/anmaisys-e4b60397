@@ -51,8 +51,26 @@ export default function ProductionPerformancePage() {
   });
   const skuMap = useMemo(() => new Map(skus.map((s) => [s.id, s])), [skus]);
 
+  const { data: ragTargets = [] } = useQuery({
+    queryKey: ["rag_targets_perf", range.from, range.to, shift, lineFilter],
+    queryFn: async () => {
+      let q = supabase.from("rag_weekly_entries")
+        .select("entry_date, shift, line, plan_qty")
+        .gte("entry_date", range.from).lte("entry_date", range.to);
+      if (shift !== "all") q = q.eq("shift", shift);
+      if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
+      const { data } = await q;
+      return (data ?? []) as { entry_date: string; shift: string; line: string; plan_qty: number | null }[];
+    },
+  });
+  const ragTargetMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of ragTargets) m.set(`${r.entry_date}|${r.shift}|${r.line}`, Number(r.plan_qty ?? 0));
+    return m;
+  }, [ragTargets]);
+
   const { data: sessions = [] } = useQuery<SessionAgg[]>({
-    queryKey: ["oee", range.from, range.to, shift, lineFilter],
+    queryKey: ["oee", range.from, range.to, shift, lineFilter, ragTargets.length],
     queryFn: async () => {
       let q = supabase.from("production_sessions")
         .select("id, session_date, shift, line, leader_name, locked, production_items(sku_id, target_qty, planned_qty, actual_qty)")
@@ -63,12 +81,16 @@ export default function ProductionPerformancePage() {
       if (error) throw error;
       return (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null }[] }) => {
         const items = s.production_items ?? [];
-        const target = items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
+        const ragTarget = ragTargetMap.get(`${s.session_date}|${s.shift}|${s.line}`);
+        const target = ragTarget && ragTarget > 0
+          ? ragTarget
+          : items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
         const actual = items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
         return { id: s.id, session_date: s.session_date, shift: s.shift, line: s.line, leader_name: s.leader_name, locked: s.locked, target, actual, eff: target > 0 ? (actual / target) * 100 : 0, items: items.map((i) => ({ sku_id: i.sku_id, actual: Number(i.actual_qty ?? 0) })) };
       });
     },
   });
+
 
   const topSkus = useMemo(() => {
     const m = new Map<string, number>();
