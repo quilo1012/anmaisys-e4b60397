@@ -99,13 +99,19 @@ Deno.serve(async (req) => {
       return 0;
     };
 
-    const products = list.map((p) => ({
-      code: pick(p, ["ProductCode", "Code", "SKU", "Sku", "SkuCode", "ItemCode", "ProductID", "ProductId", "Id", "ID", "id"]),
-      name: pick(p, ["ProductName", "Name", "Description", "SkuName", "ItemName", "description", "name"]),
+    const mapped = list.map((p) => ({
+      code: pick(p, ["ProductCode", "Code", "SKU", "Sku", "SkuCode", "ItemCode", "ProductID", "ProductId", "JobProductCode", "Id", "ID", "id"]),
+      name: pick(p, ["ProductName", "Name", "Description", "SkuName", "ItemName", "JobProductName", "description", "name"]),
       category: pick(p, ["Category", "ProductCategory", "Group", "GroupName", "Family"]),
       target_per_hour: num(p, ["TargetPerHour", "RatePerHour", "StandardRate", "UPH", "Target", "RunRate", "StandardUPH"]),
       raw: p,
     })).filter((p) => p.code && p.name);
+    const seen = new Set<string>();
+    const products = mapped.filter((p) => {
+      const k = p.code.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    });
 
     return new Response(JSON.stringify({ products, source: usedPath, count: products.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
