@@ -156,6 +156,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   const [shift, setShift] = useState<"DAY" | "NIGHT">(defaultShift);
   const [sections, setSections] = useState<WorkToListSection[]>([]);
   const [leaderByLine, setLeaderByLine] = useState<Record<string, { id?: string; name: string }>>({});
+  const [includedLines, setIncludedLines] = useState<Record<string, boolean>>({});
   const [parsePreview, setParsePreview] = useState<string[][]>([]);
 
   const { data: lines = [] } = useLines();
@@ -212,14 +213,16 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [sections, lineByNorm, skuByCode, lines]);
 
-  const totalProducts = resolved.reduce((a, s) => a + s.items.length, 0);
-  const totalLines = resolved.length;
+  const activeSections = useMemo(() => resolved.filter((s) => includedLines[s.line] !== false), [resolved, includedLines]);
+  const totalProducts = activeSections.reduce((a, s) => a + s.items.length, 0);
+  const totalLines = activeSections.length;
   const canImport = totalProducts > 0
-    && resolved.every((s) => s.matched_line && (leaderByLine[s.line]?.name?.trim()?.length ?? 0) > 0);
+    && activeSections.every((s) => s.matched_line && (leaderByLine[s.line]?.name?.trim()?.length ?? 0) > 0);
 
   const reset = () => {
     setSections([]);
     setLeaderByLine({});
+    setIncludedLines({});
     setParsePreview([]);
   };
 
@@ -242,8 +245,10 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       setSections(parsed);
       // pre-fill leader from active list (first available leader for shift)
       const init: Record<string, { id?: string; name: string }> = {};
-      for (const s of parsed) init[s.line] = { name: "" };
+      const inc: Record<string, boolean> = {};
+      for (const s of parsed) { init[s.line] = { name: "" }; inc[s.line] = true; }
       setLeaderByLine(init);
+      setIncludedLines(inc);
       toast.success(`Detected ${parsed.length} line${parsed.length > 1 ? "s" : ""}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not read file";
@@ -281,8 +286,10 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       }
       setSections(secs);
       const init: Record<string, { id?: string; name: string }> = {};
-      for (const s of secs) init[s.line] = { name: "" };
+      const inc: Record<string, boolean> = {};
+      for (const s of secs) { init[s.line] = { name: "" }; inc[s.line] = true; }
       setLeaderByLine(init);
+      setIncludedLines(inc);
       setParsePreview([]);
       toast.success(`Pulled ${(data as any)?.total_skus ?? 0} SKUs across ${secs.length} line${secs.length > 1 ? "s" : ""}`);
     } catch (e) {
@@ -420,7 +427,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     try {
       // Auto-create unknown SKUs so import never fails on missing catalog entries
       const missing = new Map<string, string>();
-      for (const sec of resolved) {
+      for (const sec of activeSections) {
         for (const it of sec.items) {
           if (!it.sku_id) {
             const code = it.sku_code.trim();
@@ -442,7 +449,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
         createdSkus = inserted?.length ?? 0;
       }
 
-      for (const sec of resolved) {
+      for (const sec of activeSections) {
         if (!sec.matched_line) continue;
         const lead = leaderByLine[sec.line];
         const session = await upsertSession.mutateAsync({
@@ -686,14 +693,36 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
               )}
             </div>
           ) : (
+            <>
+            <div className="flex items-center justify-between gap-2 px-1 py-2 text-xs text-muted-foreground">
+              <div>Select which lines to import (scheduled to work this shift):</div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" className="h-7 text-xs"
+                  onClick={() => setIncludedLines(Object.fromEntries(resolved.map((s) => [s.line, true])))}>
+                  Select all
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs"
+                  onClick={() => setIncludedLines(Object.fromEntries(resolved.map((s) => [s.line, false])))}>
+                  Clear
+                </Button>
+              </div>
+            </div>
             <Accordion type="multiple" className="w-full">
               {resolved.map((sec) => {
                 const lead = leaderByLine[sec.line] ?? { name: "" };
                 const selectValue = lead.id ? `__id:${lead.id}` : "__none";
+                const included = includedLines[sec.line] !== false;
                 return (
                   <AccordionItem key={sec.line} value={sec.line}>
-                    <AccordionTrigger className="hover:no-underline">
+                    <AccordionTrigger className={`hover:no-underline ${!included ? "opacity-50" : ""}`}>
                       <div className="flex items-center gap-3 flex-1 pr-3">
+                        <input
+                          type="checkbox"
+                          checked={included}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setIncludedLines((p) => ({ ...p, [sec.line]: e.target.checked }))}
+                          className="h-4 w-4"
+                        />
                         <span className="font-medium text-left flex-1 truncate">{sec.line}</span>
                         {sec.matched_line ? (
                           <Badge variant="outline" className="text-xs">{sec.matched_line}</Badge>
@@ -703,6 +732,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                           </Badge>
                         )}
                         <Badge>{sec.items.filter((i) => i.sku_id).length} SKUs</Badge>
+                        <Badge variant="secondary" className="text-xs tabular-nums">
+                          Σ {sec.items.reduce((a, i) => a + (i.qty || 0), 0).toLocaleString()}
+                        </Badge>
                         {sec.unknown > 0 && (
                           <Badge variant="secondary" className="text-xs">{sec.unknown} unknown</Badge>
                         )}
@@ -792,6 +824,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                 );
               })}
             </Accordion>
+            </>
           )}
         </div>
 
