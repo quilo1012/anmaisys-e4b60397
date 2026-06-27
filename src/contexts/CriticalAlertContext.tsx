@@ -134,7 +134,7 @@ class AlertAudioEngine {
       if (!this.htmlAudio) {
         this.htmlAudio = new Audio();
         this.htmlAudio.loop = true;
-        this.htmlAudio.volume = 1.0;
+        this.htmlAudio.volume = this.volume;
         this.htmlAudio.preload = "auto";
         this.htmlAudio.src = "/alert.mp3";
         // Safety net: if loop fails for any reason, restart while still playing.
