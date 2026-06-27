@@ -211,6 +211,27 @@ Deno.serve(async (req) => {
       seen.add(k); return true;
     });
 
+    if (products.length === 0) {
+      const { data: skus } = await admin
+        .from("sku_products")
+        .select("code, name, category, target_per_hour")
+        .eq("active", true)
+        .order("code", { ascending: true })
+        .limit(5000);
+      const fb = (skus ?? []).map((s) => ({
+        code: String(s.code ?? "").trim(),
+        name: String(s.name ?? "").trim(),
+        category: String(s.category ?? "").trim(),
+        target_per_hour: Number(s.target_per_hour ?? 0),
+        raw: s,
+      })).filter((p) => p.code && p.name);
+      return new Response(JSON.stringify({
+        products: fb, count: fb.length,
+        source: `sku_products (local catalog — iTouching ${usedPath || "endpoints"} returned no products)`,
+        fallback: true, last_error: lastErr || null,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     return new Response(JSON.stringify({ products, source: usedPath, count: products.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
