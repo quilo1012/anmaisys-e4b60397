@@ -59,15 +59,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body = await req.json();
-    const pin = body?.pin;
-
-    if (!pin || typeof pin !== "string" || pin.length < 4 || pin.length > 10) {
-      return new Response(JSON.stringify({ error: "Invalid PIN format" }), {
+    const rawBody = await req.json().catch(() => ({}));
+    const parsedBody = BodySchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return new Response(JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const pin = parsedBody.data.pin;
 
     // Verify PIN using pgcrypto crypt() comparison.
     // Must use the user-scoped client so auth.uid() resolves inside the SECURITY DEFINER function.
