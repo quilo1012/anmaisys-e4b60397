@@ -236,12 +236,19 @@ export default function LineDisplayScreen() {
               Updated {rag?.updated_at ? new Date(rag.updated_at).toLocaleTimeString("en-GB") : "—"}
             </div>
           </div>
-          <Button size="icon" variant="outline" onClick={goFullscreen} className="h-12 w-12">
-            <Maximize2 className="h-6 w-6" />
+          <Button variant="outline" onClick={goFullscreen} className="h-12 px-4">
+            <Maximize2 className="h-5 w-5" />
+          </Button>
+          <Button
+            onClick={() => navigate("/dashboard/operator")}
+            className="h-12 px-4 bg-red-600 hover:bg-red-700 text-white font-bold"
+          >
+            REQUEST WO
           </Button>
           <Button variant="outline" onClick={() => navigate("/dashboard/line-hub")} className="h-12 px-4 gap-2">
             <ArrowLeft className="h-5 w-5" /> Back
           </Button>
+
         </div>
       </header>
 
