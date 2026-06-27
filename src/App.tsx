@@ -49,6 +49,7 @@ const RAGWeeklyPage = lazy(() => import("./pages/dashboard/RAGWeeklyPage"));
 const IntouchSettingsPage = lazy(() => import("./pages/dashboard/IntouchSettingsPage"));
 const LineProductionScreen = lazy(() => import("./pages/dashboard/LineProductionScreen"));
 const LineDisplayScreen = lazy(() => import("./pages/dashboard/LineDisplayScreen"));
+const LineHubScreen = lazy(() => import("./pages/dashboard/LineHubScreen"));
 const IntouchMachineMapPage = lazy(() => import("./pages/dashboard/IntouchMachineMapPage"));
 const IntouchStopCodesPage = lazy(() => import("./pages/dashboard/IntouchStopCodesPage"));
 const DowntimeHeatmapPage = lazy(() => import("./pages/dashboard/DowntimeHeatmapPage"));
@@ -82,7 +83,7 @@ const roleDashMap: Record<string, string> = {
   manager: "/dashboard/manager",
   maintenance_manager: "/dashboard/manager",
   engineer: "/dashboard/engineer",
-  operator: "/dashboard/line-display",
+  operator: "/dashboard/line-hub",
   viewer: "/dashboard/manager",
 };
 
@@ -402,6 +403,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]}>
                       <LineProductionScreen />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/line-hub"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]}>
+                      <LineHubScreen />
                     </ProtectedRoute>
                   }
                 />
