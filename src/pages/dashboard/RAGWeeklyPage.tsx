@@ -1221,6 +1221,8 @@ function DayNightTotalSummary({
   weekDates,
   entryMap,
   autoDtMap,
+  autoDtMaintMap,
+  autoDtQualityMap,
   autoDtBreakdown,
   cellScrapMap,
   cellItemTargetMap,
@@ -1232,6 +1234,8 @@ function DayNightTotalSummary({
   weekDates: Date[];
   entryMap: Map<string, Entry>;
   autoDtMap?: Map<string, number>;
+  autoDtMaintMap?: Map<string, number>;
+  autoDtQualityMap?: Map<string, number>;
   autoDtBreakdown?: Map<string, ClampedStop[]>;
   cellScrapMap?: Map<string, number>;
   cellItemTargetMap?: Map<string, number>;
