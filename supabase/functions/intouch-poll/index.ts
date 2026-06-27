@@ -479,6 +479,10 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      const changedMaintenanceCode = hadPreviousSnapshot
+        && !!codeKey
+        && previousCodeKey !== codeKey
+        && mapped_code?.requires_wo === true;
       const cameFromHealthy = hadPreviousSnapshot
         && previousStatus != null
         && HEALTHY_STATUS.has(previousStatus)
@@ -488,7 +492,7 @@ Deno.serve(async (req) => {
       // previous iTouching status was running/healthy with no active stop code,
       // current status is stopped. This prevents delete → recreate loops when
       // the line remains stopped or when a bad reset left a stale stop code.
-      if (!cameFromHealthy) {
+      if (!cameFromHealthy && !changedMaintenanceCode) {
         results.skipped.push(`${m.intouch_machine_name} (${codeName} baseline/no new stop)`);
         continue;
       }
