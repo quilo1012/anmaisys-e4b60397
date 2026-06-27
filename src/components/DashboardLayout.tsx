@@ -58,6 +58,7 @@ const navItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
   { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
   { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
+  { title: "Downtime Heatmap", url: "/dashboard/downtime-map", icon: BarChart3, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
   { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
   // Assets
   { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager", "maintenance_manager"], group: "Assets" },
