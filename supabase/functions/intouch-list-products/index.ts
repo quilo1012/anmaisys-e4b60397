@@ -46,17 +46,18 @@ Deno.serve(async (req) => {
       "/api/SKU", "/api/SKUs", "/api/GetSKUs", "/api/GetSKUList",
       "/api/Item", "/api/GetItems",
     ];
-    // Fallback: derive distinct products from job endpoints when no catalog exists.
-    const jobFallbacks = [
-      "/api/GetRunningJobs", "/api/GetCompletedJobs", "/api/GetJobs",
-      "/api/GetJobList", "/api/GetWorkToList",
-    ];
     let raw: any = null;
     let usedPath = "";
     let lastErr = "";
-    const tryFetch = async (path: string) => {
+    const tryFetch = async (path: string, init?: RequestInit) => {
       const res = await fetch(`${INTOUCH_URL}${path}`, {
-        headers: { Authorization: `Bearer ${INTOUCH_TOKEN}`, Accept: "application/json" },
+        ...(init ?? {}),
+        headers: {
+          Authorization: `Bearer ${INTOUCH_TOKEN}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {}),
+        },
       });
       const txt = await res.text();
       if (!res.ok) { lastErr = `${path} → ${res.status}: ${txt.slice(0, 120)}`; return null; }
@@ -68,17 +69,81 @@ Deno.serve(async (req) => {
         if (data != null) { raw = data; usedPath = path; break; }
       } catch (e) { lastErr = `${path}: ${(e as Error).message}`; }
     }
+
+    // Job-derived fallback: walk Running + Completed + Scheduled job payloads
+    // and extract every distinct Product/SKU appearing inside them.
+    const walk = (node: any, cb: (o: any) => void) => {
+      if (!node) return;
+      if (Array.isArray(node)) { for (const n of node) walk(n, cb); return; }
+      if (typeof node === "object") {
+        cb(node);
+        for (const k of Object.keys(node)) walk(node[k], cb);
+      }
+    };
+    const pickStr = (o: any, keys: string[]) => {
+      for (const k of keys) {
+        const v = o?.[k];
+        if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+      }
+      return "";
+    };
+    const pickNum = (o: any, keys: string[]) => {
+      for (const k of keys) {
+        const v = o?.[k];
+        if (v !== undefined && v !== null && String(v).trim() !== "") {
+          const n = Number(String(v).replace(",", "."));
+          if (!isNaN(n)) return n;
+        }
+      }
+      return 0;
+    };
+    const jobProducts = new Map<string, { code: string; name: string; category: string; target_per_hour: number; raw: any }>();
+    const harvest = (payload: any) => {
+      walk(payload, (o) => {
+        const code = pickStr(o, ["ProductCode", "SkuCode", "SKUCode", "SKU", "Sku", "ItemCode", "JobProductCode", "Code"]);
+        const name = pickStr(o, ["ProductName", "SkuName", "SKUName", "ItemName", "JobProductName", "ProductDescription", "Description", "Name"]);
+        if (!code || !name) return;
+        const k = code.toLowerCase();
+        if (jobProducts.has(k)) return;
+        jobProducts.set(k, {
+          code, name,
+          category: pickStr(o, ["Category", "ProductCategory", "Group", "GroupName", "Family"]),
+          target_per_hour: pickNum(o, ["TargetPerHour", "RatePerHour", "StandardRate", "UPH", "RunRate", "StandardUPH", "Target"]),
+          raw: o,
+        });
+      });
+    };
+
     if (raw == null) {
-      for (const path of jobFallbacks) {
-        try {
-          const data = await tryFetch(path);
-          if (data != null) { raw = data; usedPath = `${path} (derived)`; break; }
-        } catch (e) { lastErr = `${path}: ${(e as Error).message}`; }
+      // 1) Pull running jobs (GET) — contains current product context.
+      const running = await tryFetch("/api/GetRunningJobs", { method: "GET" });
+      if (running) { harvest(running); usedPath = "/api/GetRunningJobs (derived)"; }
+
+      // 2) Collect job IDs and hydrate full records via POST /api/GetJobs.
+      const jobIds = new Set<string>();
+      walk(running, (o) => {
+        const jid = pickStr(o, ["JobID", "JobId", "JobGUID", "JobGuid", "ID", "Id"]);
+        if (jid && jid.length >= 8) jobIds.add(jid);
+      });
+      if (jobIds.size > 0) {
+        const jobs = await tryFetch("/api/GetJobs", { method: "POST", body: JSON.stringify(Array.from(jobIds)) });
+        if (jobs) { harvest(jobs); usedPath = "/api/GetJobs (derived)"; }
+      }
+
+      // 3) Pull historical jobs ran in the last 30 days for catalog breadth.
+      const endISO = new Date().toISOString();
+      const startISO = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      const ranAttempts = [
+        () => tryFetch(`/api/GetJobsRanDuringPeriod?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify([]) }),
+        () => tryFetch(`/api/GetJobsRan?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify([]) }),
+      ];
+      for (const a of ranAttempts) {
+        try { const d = await a(); if (d) { harvest(d); usedPath = usedPath || "/api/GetJobsRan (derived)"; } } catch { /* ignore */ }
       }
     }
-    if (raw == null) {
+
+    if (raw == null && jobProducts.size === 0) {
       // Final fallback: return the local sku_products catalog.
-      // iTouching has no public product endpoint on this deployment.
       const { data: skus, error: skuErr } = await admin
         .from("sku_products")
         .select("code, name, category, target_per_hour")
@@ -95,11 +160,19 @@ Deno.serve(async (req) => {
       })).filter((p) => p.code && p.name);
       return new Response(JSON.stringify({
         products, count: products.length,
-        source: "sku_products (local catalog — iTouching has no /api product endpoint)",
+        source: "sku_products (local catalog — iTouching returned no jobs/products)",
         fallback: true,
         last_error: lastErr || null,
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+
+    if (raw == null) {
+      const products = Array.from(jobProducts.values());
+      return new Response(JSON.stringify({
+        products, count: products.length, source: usedPath || "iTouching jobs (derived)",
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
 
 
     const list: any[] = Array.isArray(raw)
