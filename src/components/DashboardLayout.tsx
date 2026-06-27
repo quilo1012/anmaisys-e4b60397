@@ -85,6 +85,7 @@ const navItems: NavItem[] = [
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager", "maintenance_manager"], group: "Admin" },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Admin" },
   { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "Admin" },
+  { title: "iTouching Sync", url: "/dashboard/intouch-settings", icon: Radar, roles: ["admin"], group: "Admin" },
 ];
 
 function useDarkMode() {
