@@ -67,21 +67,16 @@ Deno.serve(async (req) => {
     }
 
     // Parse optional context (report scope / wo id)
-    let body: Record<string, unknown> = {};
-    try {
-      body = await req.json();
-    } catch {
-      body = {};
+    let rawBody: unknown = {};
+    try { rawBody = await req.json(); } catch { rawBody = {}; }
+    const parsedBody = BodySchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return new Response(JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
-
-    const reportType =
-      typeof body.reportType === "string" && body.reportType.length <= 100
-        ? body.reportType
-        : "wo_report";
-    const entityId =
-      typeof body.entityId === "string" && body.entityId.length <= 200
-        ? body.entityId
-        : null;
+    const reportType = parsedBody.data.reportType ?? "wo_report";
+    const entityId = parsedBody.data.entityId ?? null;
 
     // Audit log via the user-scoped client so auth.uid() resolves inside the SECURITY DEFINER function.
     const { error: auditErr } = await supabaseUser.rpc("log_audit_event", {
