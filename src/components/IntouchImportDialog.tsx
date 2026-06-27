@@ -261,12 +261,18 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       if (error) throw error;
       const secs = ((data as any)?.sections ?? []) as WorkToListSection[];
       if (secs.length === 0) {
-        const d = data as any;
-        const okHits = (d?.endpoints ?? []).filter((e: any) => e.ok && e.bytes > 2).map((e: any) => e.path).join(", ");
-        const msg = okHits
-          ? `iTouching answered (${okHits}) but no jobs matched your ${d?.mapped_machines ?? 0} mapped machines for this window. Check iTouching Machine GUIDs.`
-          : "iTouching returned nothing for any schedule endpoint. Verify INTOUCH_API_URL/TOKEN or upload the file.";
-        console.warn("[pullFromIntouch] debug:", d);
+        const root = (data as any) ?? {};
+        const d = root.debug ?? root;
+        const endpoints = (d?.endpoints ?? []) as Array<{ path: string; ok: boolean; bytes: number; sample?: unknown }>;
+        const okHits = endpoints.filter((e) => e.ok && e.bytes > 2);
+        console.log("[pullFromIntouch] debug:", {
+          endpoints,
+          mapped_machines: d?.mapped_machines ?? 0,
+          machine_keys_seen: d?.machine_keys_seen ?? [],
+        });
+        const msg = okHits.length
+          ? `iTouching answered (${okHits.length} endpoints) but no jobs matched your ${d?.mapped_machines ?? 0} mapped machines. Check GUIDs in iTouching Settings → Machines. Use Auto-map all machines or copy the correct GUID.`
+          : "iTouching returned nothing for any schedule endpoint. Verify INTOUCH_API_URL/TOKEN or upload the XLSX file.";
         toast.error(msg);
         return;
       }
