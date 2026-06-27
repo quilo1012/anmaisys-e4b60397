@@ -252,13 +252,13 @@ Deno.serve(async (req) => {
       { machines: ids, startTime: startISO, endTime: endISO },
     ];
 
-    const payloads: Array<{ source: string; data: unknown }> = [];
+    const payloads: Array<{ source: string; data: unknown; forMachineId?: string }> = [];
     const debug: Array<{ path: string; method: string; status: number; ok: boolean; bytes: number; sample: unknown; err?: string }> = [];
-    const pushDebug = (path: string, method: string, r: { data: unknown; status: number; ok: boolean; bytes: number; err?: string }) => {
+    const pushDebug = (path: string, method: string, r: { data: unknown; status: number; ok: boolean; bytes: number; err?: string }, forMachineId?: string) => {
       let sample: unknown = null;
       if (r.data) { try { sample = JSON.parse(JSON.stringify(r.data).slice(0, 800)); } catch { sample = null; } }
       if (debug.length < 120) debug.push({ path: path.split("?")[0], method, status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
-      if (r.data) payloads.push({ source: `${method} ${path.split("?")[0]}`, data: r.data });
+      if (r.data) payloads.push({ source: `${method} ${path.split("?")[0]}`, data: r.data, forMachineId });
     };
 
     // NOTE: /api/GetRunningJobs and /api/GetJobs hydration removed — they
@@ -275,14 +275,14 @@ Deno.serve(async (req) => {
         let winningTemplate: string | null = null;
         for (const q of queryVariants(path, firstId, startISO, endISO)) {
           const r = await itFetch(q, { method: "GET" });
-          pushDebug(q.replace(firstId, "…"), "GET", r);
+          pushDebug(q.replace(firstId, "…"), "GET", r, firstId);
           if (r.ok && r.bytes > 2) { winningTemplate = q; break; }
         }
         if (!winningTemplate) continue;
         for (const machineId of ids.slice(1)) {
           const q = winningTemplate.replace(firstId, machineId);
           const r = await itFetch(q, { method: "GET" });
-          pushDebug(q.replace(machineId, "…"), "GET", r);
+          pushDebug(q.replace(machineId, "…"), "GET", r, machineId);
         }
       } else {
         const getPath = `${path}?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`;
@@ -316,7 +316,14 @@ Deno.serve(async (req) => {
       const allowedNames = new Set(machines.map((m) => (m.name ?? "").toLowerCase()).filter(Boolean));
       const merged = new Map<string, Row & { sources: Set<string> }>();
       for (const p of payloads) {
-        for (const r of extractRowsForMachine(p.data, allowedIds, allowedNames, start.getTime(), end.getTime())) {
+        // Per-machine payloads: only consume for the line that owns that machine.
+        // Skip MachineID matching (the response may not echo it) and the shift
+        // window filter (the endpoint already returned what iTouching considers
+        // scheduled for that machine).
+        const scoped = p.forMachineId ? allowedIds.has(machineKey(p.forMachineId)) : true;
+        if (!scoped) continue;
+        const opts = p.forMachineId ? { skipMatch: true, skipWindow: true } : undefined;
+        for (const r of extractRowsForMachine(p.data, allowedIds, allowedNames, start.getTime(), end.getTime(), opts)) {
           const cur = merged.get(r.code);
           if (!cur) merged.set(r.code, { ...r, sources: new Set([p.source]) });
           else {
