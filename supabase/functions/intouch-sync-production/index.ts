@@ -243,13 +243,26 @@ function extractShiftMetrics(raw: unknown, machines: MachineRef[]) {
 async function fetchActualsForLine(machines: MachineRef[], startISO: string, endISO: string) {
   const ids = machines.map((m) => m.id);
   const merged = new Map<string, number>();
+  const scrap = new Map<string, number>();
+  let runMin = 0, downMin = 0, oeeSum = 0, oeeN = 0;
   const merge = (m: Map<string, number>) => {
     for (const [k, v] of m) merged.set(k, Math.max(merged.get(k) ?? 0, v));
+  };
+  const mergeScrap = (m: Map<string, number>) => {
+    for (const [k, v] of m) scrap.set(k, Math.max(scrap.get(k) ?? 0, v));
+  };
+  const mergeMetrics = (raw: unknown) => {
+    const m = extractShiftMetrics(raw, machines);
+    runMin += m.runMin;
+    downMin += m.downMin;
+    if (m.oee !== null) { oeeSum += m.oee; oeeN += 1; }
   };
 
   // Running jobs (current SKU + live counts)
   const running = await tryIt("/api/GetRunningJobs", { method: "GET" });
   merge(extractActualsByCode(running, machines));
+  mergeScrap(extractScrapByCode(running, machines));
+  mergeMetrics(running);
   // Hydrate full job records if running returns only IDs
   const jobIds = new Set<string>();
   walkObjects(running, (obj) => {
@@ -260,6 +273,8 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
   if (jobIds.size > 0) {
     const jobs = await tryIt("/api/GetJobs", { method: "POST", body: JSON.stringify(Array.from(jobIds)) });
     merge(extractActualsByCode(jobs, machines));
+    mergeScrap(extractScrapByCode(jobs, machines));
+    mergeMetrics(jobs);
   }
 
   // Jobs ran during the shift window (historical actuals)
@@ -270,10 +285,26 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
   ];
   for (const attempt of ranAttempts) {
     const raw = await attempt();
-    if (raw) merge(extractActualsByCode(raw, machines));
+    if (raw) {
+      merge(extractActualsByCode(raw, machines));
+      mergeScrap(extractScrapByCode(raw, machines));
+      mergeMetrics(raw);
+    }
   }
 
-  return merged;
+  // Aggregate shift-level OEE / run / down explicitly when iTouching exposes them.
+  const shiftStatsAttempts = [
+    () => tryIt(`/api/GetShiftReport?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
+    () => tryIt(`/api/GetMachineKPIs?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
+    () => tryIt(`/api/GetOEE?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
+  ];
+  for (const attempt of shiftStatsAttempts) {
+    const raw = await attempt();
+    if (raw) mergeMetrics(raw);
+  }
+
+  const oee = oeeN > 0 ? Math.round((oeeSum / oeeN) * 10) / 10 : null;
+  return { actuals: merged, scrap, metrics: { runMin, downMin, oee } };
 }
 
 function aggregateRows(rows: SkuRow[]) {
