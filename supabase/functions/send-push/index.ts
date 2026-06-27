@@ -67,9 +67,9 @@ Deno.serve(async (req) => {
 
     const { data: roles } = await supabase
       .from("user_roles").select("role").eq("user_id", claimsData.claims.sub);
-    const isStaff = (roles ?? []).some((r: any) => ["admin", "manager"].includes(r.role));
+    const isStaff = (roles ?? []).some((r: { role: string }) => ["admin", "manager"].includes(r.role));
 
-    const body = await req.json();
+    const body = (await req.json()) as PushPayload;
     const userIds: string[] = body.user_ids || (body.user_id ? [body.user_id] : []);
     if (!userIds.length) {
       return new Response(
