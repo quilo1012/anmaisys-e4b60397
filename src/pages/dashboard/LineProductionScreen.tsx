@@ -73,11 +73,15 @@ interface ItemRow {
 }
 
 const LS_LINE_KEY = "lps:line";
+const LS_TABLET_KEY = "lps:tablet_id";
+const EDIT_TABLET_ID = "1"; // only this tablet can edit actuals/observations
 
 export default function LineProductionScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [line, setLine] = useState<string>(() => localStorage.getItem(LS_LINE_KEY) || "");
+  const [tabletId, setTabletId] = useState<string>(() => localStorage.getItem(LS_TABLET_KEY) || "");
+  const canEdit = tabletId === EDIT_TABLET_ID;
   const [shift, setShift] = useState<Shift>(currentShift());
   const [now, setNow] = useState<Date>(new Date());
   const [editing, setEditing] = useState<ItemRow | null>(null);
@@ -111,6 +115,10 @@ export default function LineProductionScreen() {
   useEffect(() => {
     if (line) localStorage.setItem(LS_LINE_KEY, line);
   }, [line]);
+
+  useEffect(() => {
+    localStorage.setItem(LS_TABLET_KEY, tabletId);
+  }, [tabletId]);
 
   const linesQ = useQuery({
     queryKey: ["lps-lines"],
@@ -273,6 +281,10 @@ export default function LineProductionScreen() {
   });
 
   const openEditor = (row: ItemRow) => {
+    if (!canEdit) {
+      toast.error("Read-only — only Tablet 1 can edit actuals");
+      return;
+    }
     setEditing(row);
     setPad(String(row.actual_qty || ""));
   };
@@ -335,6 +347,23 @@ export default function LineProductionScreen() {
           <Badge variant="outline" className="h-10 px-3 text-sm">
             {activeSessionDate}
           </Badge>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Tablet</span>
+            <Select value={tabletId || "__none__"} onValueChange={(v) => setTabletId(v === "__none__" ? "" : v)}>
+              <SelectTrigger className="h-12 min-w-[110px] text-lg">
+                <SelectValue placeholder="ID" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Not set</SelectItem>
+                {["1","2","3","4","5","6","7","8"].map((n) => (
+                  <SelectItem key={n} value={n} className="text-lg">Tablet {n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Badge variant={canEdit ? "default" : "secondary"} className="h-8 px-2">
+              {canEdit ? "EDIT" : "READ-ONLY"}
+            </Badge>
+          </div>
           <div className="ml-auto flex items-center gap-3">
             <SyncStatusIndicator
               isSyncing={itemsQ.isFetching || ragPlanQ.isFetching || sessionQ.isFetching || updateActual.isPending}
@@ -520,12 +549,13 @@ export default function LineProductionScreen() {
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="E.g. Filler 2 stopped 14:20–14:55 (sensor), changeover SKU-123→SKU-456 at 16:00…"
                 className="min-h-[120px] text-base"
+                readOnly={!canEdit}
               />
               <div className="flex justify-end">
                 <Button
                   className="h-12 px-6"
                   onClick={() => saveNotes.mutate(notes)}
-                  disabled={saveNotes.isPending || notes === (sessionQ.data?.notes ?? "")}
+                  disabled={!canEdit || saveNotes.isPending || notes === (sessionQ.data?.notes ?? "")}
                 >
                   <Save className="h-5 w-5 mr-2" />
                   Save observations
