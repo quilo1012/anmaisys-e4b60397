@@ -227,6 +227,43 @@ function OperatorDashboardContent() {
 
       <OperatorNavCards myOpenWOs={countOpenWOs(workOrders)} />
 
+      {/* KPI: WOs by Shift — last 7 days (moved to top) */}
+      {workOrders && workOrders.length > 0 && (() => {
+        const cutoff = subDays(new Date(), 7);
+        const byDay: Record<string, { date: string; day: number; night: number }> = {};
+        workOrders.forEach((w) => {
+          const d = new Date(w.created_at);
+          if (d < cutoff) return;
+          const key = format(d, "dd/MM");
+          if (!byDay[key]) byDay[key] = { date: key, day: 0, night: 0 };
+          byDay[key][getShift(d)]++;
+        });
+        const data = Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
+        if (!data.length) return null;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">WOs by Shift — Last 7 Days</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data}>
+                    <XAxis dataKey="date" fontSize={12} />
+                    <YAxis allowDecimals={false} fontSize={12} />
+                    <RTooltip />
+                    <Legend />
+                    <Bar dataKey="day" name="Day (06–18)" fill="hsl(var(--primary))" />
+                    <Bar dataKey="night" name="Night (18–06)" fill="hsl(var(--destructive))" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+
       {/* Quick CTA buttons — Line Stopped vs Line Running */}
       <div className="grid gap-4 md:grid-cols-2">
         <button
@@ -457,41 +494,8 @@ function OperatorDashboardContent() {
         </CardContent>
       </Card>
 
-      {/* WOs by Shift — last 7 days */}
-      {workOrders && workOrders.length > 0 && (() => {
-        const cutoff = subDays(new Date(), 7);
-        const byDay: Record<string, { date: string; day: number; night: number }> = {};
-        workOrders.forEach((w) => {
-          const d = new Date(w.created_at);
-          if (d < cutoff) return;
-          const key = format(d, "dd/MM");
-          if (!byDay[key]) byDay[key] = { date: key, day: 0, night: 0 };
-          byDay[key][getShift(d)]++;
-        });
-        const data = Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
-        if (!data.length) return null;
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">WOs by Shift — Last 7 Days</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data}>
-                    <XAxis dataKey="date" fontSize={12} />
-                    <YAxis allowDecimals={false} fontSize={12} />
-                    <RTooltip />
-                    <Legend />
-                    <Bar dataKey="day" name="Day (06–18)" fill="hsl(var(--primary))" />
-                    <Bar dataKey="night" name="Night (18–06)" fill="hsl(var(--destructive))" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
+      {/* WOs by Shift chart moved to top of dashboard */}
+
 
       <Card>
         <CardHeader>
