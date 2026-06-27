@@ -375,6 +375,29 @@ export default function ShiftHistoryPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Dialog open={!!editingItem} onOpenChange={(o) => !o && setEditingItem(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit actual — {editingItem?.code}</DialogTitle></DialogHeader>
+            {editingItem && (
+              <div className="space-y-3">
+                <div className="text-sm text-muted-foreground">Target: <span className="font-semibold text-foreground">{editingItem.target.toLocaleString()}</span></div>
+                <div>
+                  <Label>Actual quantity</Label>
+                  <Input type="number" value={editActual} onChange={(e) => setEditActual(e.target.value)} autoFocus />
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
+              <Button
+                onClick={() => editingItem && saveItemActual.mutate({ id: editingItem.id, actual: Number(editActual) || 0 })}
+                disabled={saveItemActual.isPending}
+              >Save</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </DashboardLayout>
   );
