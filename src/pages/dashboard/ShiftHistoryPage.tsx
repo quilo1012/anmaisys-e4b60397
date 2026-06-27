@@ -273,7 +273,7 @@ export default function ShiftHistoryPage() {
                           const a = Number(i.actual_qty ?? 0);
                           const e = t > 0 ? (a / t) * 100 : 0;
                           return (
-                            <div key={idx} className="flex items-center justify-between p-2 text-sm">
+                            <div key={i.id ?? idx} className="flex items-center justify-between p-2 text-sm">
                               <div>
                                 <span className="font-mono text-xs mr-2">{sku?.code ?? "?"}</span>
                                 <span>{sku?.name ?? "Unknown"}</span>
@@ -281,6 +281,20 @@ export default function ShiftHistoryPage() {
                               <div className="flex items-center gap-4">
                                 <span className="text-muted-foreground">{a} / {t}</span>
                                 <span className={`font-semibold w-12 text-right ${e >= 100 ? "text-green-500" : e >= 80 ? "text-amber-500" : "text-red-500"}`}>{e.toFixed(0)}%</span>
+                                {!s.locked && i.id && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      if (window.confirm(`Remove ${sku?.code ?? "this SKU"} from this session?`)) {
+                                        delItemMut.mutate(i.id);
+                                      }
+                                    }}
+                                    title="Delete SKU"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           );
