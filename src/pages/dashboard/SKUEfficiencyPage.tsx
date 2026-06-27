@@ -126,18 +126,48 @@ export default function SKUEfficiencyPage() {
     [filtered],
   );
 
-  const exportCsv = () => {
-    const headers = ["SKU", "Product", "Category", "Line", "Target", "Actual", "Gap", "Efficiency %", "Runs", "UPM Standard"];
-    const rows = filtered.map((r) => [
-      r.sku_code, `"${r.sku_name.replace(/"/g, '""')}"`, r.category ?? "", r.line,
-      r.target, r.actual, r.gap, r.eff.toFixed(1), r.runs, r.upm_standard,
-    ].join(","));
-    const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv" });
+  const exportXlsx = async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("SKU Efficiency");
+    ws.columns = [
+      { header: "SKU", key: "sku_code", width: 16 },
+      { header: "Product", key: "sku_name", width: 36 },
+      { header: "Category", key: "category", width: 14 },
+      { header: "Line", key: "line", width: 12 },
+      { header: "Target", key: "target", width: 12 },
+      { header: "Actual", key: "actual", width: 12 },
+      { header: "Gap", key: "gap", width: 12 },
+      { header: "Efficiency %", key: "eff", width: 14 },
+      { header: "Runs", key: "runs", width: 8 },
+      { header: "UPM Standard", key: "upm_standard", width: 14 },
+    ];
+    ws.getRow(1).font = { bold: true };
+    filtered.forEach((r) =>
+      ws.addRow({
+        sku_code: r.sku_code,
+        sku_name: r.sku_name,
+        category: r.category ?? "",
+        line: r.line,
+        target: r.target,
+        actual: r.actual,
+        gap: r.gap,
+        eff: Number(r.eff.toFixed(1)),
+        runs: r.runs,
+        upm_standard: r.upm_standard,
+      }),
+    );
+    ws.getColumn("eff").numFmt = '0.0"%"';
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `sku-efficiency-${days}d.csv`; a.click();
+    a.href = url;
+    a.download = `sku-efficiency-${days}d.xlsx`;
+    a.click();
     URL.revokeObjectURL(url);
   };
+
 
   return (
     <DashboardLayout>
@@ -170,9 +200,10 @@ export default function SKUEfficiencyPage() {
                 <SelectItem value="runs_desc">Most runs</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={exportCsv} disabled={!filtered.length}>
-              <Download className="h-4 w-4 mr-2" /> Export CSV
+            <Button variant="outline" onClick={exportXlsx} disabled={!filtered.length}>
+              <Download className="h-4 w-4 mr-2" /> Export XLSX
             </Button>
+
           </div>
         </div>
 
