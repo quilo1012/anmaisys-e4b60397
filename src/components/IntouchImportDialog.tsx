@@ -693,14 +693,36 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
               )}
             </div>
           ) : (
+            <>
+            <div className="flex items-center justify-between gap-2 px-1 py-2 text-xs text-muted-foreground">
+              <div>Select which lines to import (scheduled to work this shift):</div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" className="h-7 text-xs"
+                  onClick={() => setIncludedLines(Object.fromEntries(resolved.map((s) => [s.line, true])))}>
+                  Select all
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs"
+                  onClick={() => setIncludedLines(Object.fromEntries(resolved.map((s) => [s.line, false])))}>
+                  Clear
+                </Button>
+              </div>
+            </div>
             <Accordion type="multiple" className="w-full">
               {resolved.map((sec) => {
                 const lead = leaderByLine[sec.line] ?? { name: "" };
                 const selectValue = lead.id ? `__id:${lead.id}` : "__none";
+                const included = includedLines[sec.line] !== false;
                 return (
                   <AccordionItem key={sec.line} value={sec.line}>
-                    <AccordionTrigger className="hover:no-underline">
+                    <AccordionTrigger className={`hover:no-underline ${!included ? "opacity-50" : ""}`}>
                       <div className="flex items-center gap-3 flex-1 pr-3">
+                        <input
+                          type="checkbox"
+                          checked={included}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setIncludedLines((p) => ({ ...p, [sec.line]: e.target.checked }))}
+                          className="h-4 w-4"
+                        />
                         <span className="font-medium text-left flex-1 truncate">{sec.line}</span>
                         {sec.matched_line ? (
                           <Badge variant="outline" className="text-xs">{sec.matched_line}</Badge>
@@ -710,6 +732,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                           </Badge>
                         )}
                         <Badge>{sec.items.filter((i) => i.sku_id).length} SKUs</Badge>
+                        <Badge variant="secondary" className="text-xs tabular-nums">
+                          Σ {sec.items.reduce((a, i) => a + (i.qty || 0), 0).toLocaleString()}
+                        </Badge>
                         {sec.unknown > 0 && (
                           <Badge variant="secondary" className="text-xs">{sec.unknown} unknown</Badge>
                         )}
