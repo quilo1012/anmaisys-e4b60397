@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
     // Try every known scheduled-jobs / material-requirements endpoint.
 
     const payloads: unknown[] = [];
-    const debug: Array<{ path: string; ok: boolean; bytes: number }> = [];
+    const debug: Array<{ path: string; ok: boolean; bytes: number; sample: unknown }> = [];
     const paths = [
       `/api/ScheduleReports/MaterialRequirements/Machine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
       `/api/ScheduleReports/MaterialRequirementsByMachine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
@@ -159,8 +159,24 @@ Deno.serve(async (req) => {
       const init: RequestInit = p.includes("GetJobs") && !p.includes("?") ? { method: "GET" } : { method: "POST", body: JSON.stringify([]) };
       const r = await itFetch(p, init);
       const bytes = r ? JSON.stringify(r).length : 0;
-      debug.push({ path: p.split("?")[0], ok: !!r, bytes });
+      let sample: unknown = null;
+      if (r) {
+        try { sample = JSON.parse(JSON.stringify(r).slice(0, 800)); } catch { sample = null; }
+      }
+      debug.push({ path: p.split("?")[0], ok: !!r, bytes, sample });
       if (r) payloads.push(r);
+    }
+
+    // Collect all machine identifier keys seen in payloads (for GUID mismatch diagnostics).
+    const machineKeysSeen = new Set<string>();
+    for (const p of payloads) {
+      walk(p, (obj) => {
+        const v = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+        if (v != null) {
+          const s = String(v).trim();
+          if (s) machineKeysSeen.add(s);
+        }
+      });
     }
 
     const sections: Array<{ line: string; items: any[] }> = [];
@@ -185,12 +201,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // When nothing matched, return a tiny sample of one payload so the UI can show why.
-    let sample: unknown = null;
-    if (sections.length === 0 && payloads.length > 0) {
-      const first = payloads.find((p) => p && JSON.stringify(p).length > 2) ?? payloads[0];
-      sample = JSON.parse(JSON.stringify(first)?.slice(0, 4000) ?? "null");
-    }
+    const debugBlock = {
+      endpoints: debug,
+      mapped_machines: (maps ?? []).length,
+      machine_keys_seen: Array.from(machineKeysSeen).slice(0, 200),
+    };
 
     return new Response(JSON.stringify({
       sections, count: sections.length,
@@ -198,7 +213,7 @@ Deno.serve(async (req) => {
       window: { start: startISO, end: endISO },
       mapped_machines: (maps ?? []).length,
       endpoints: debug,
-      sample,
+      debug: debugBlock,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: (e as Error).message }), {
