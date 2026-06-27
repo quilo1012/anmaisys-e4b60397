@@ -1278,7 +1278,7 @@ export type Database = {
           notes: string | null
           planned_qty: number
           session_id: string
-          sku_id: string
+          sku_id: string | null
           target_qty: number | null
           updated_at: string
         }
@@ -1289,7 +1289,7 @@ export type Database = {
           notes?: string | null
           planned_qty?: number
           session_id: string
-          sku_id: string
+          sku_id?: string | null
           target_qty?: number | null
           updated_at?: string
         }
@@ -1300,7 +1300,7 @@ export type Database = {
           notes?: string | null
           planned_qty?: number
           session_id?: string
-          sku_id?: string
+          sku_id?: string | null
           target_qty?: number | null
           updated_at?: string
         }
