@@ -51,6 +51,19 @@ export default function ProductionForecastPage() {
     },
   });
 
+  // Lines list (independent from estimates so dropdown is populated up-front)
+  const { data: allLines = [] } = useQuery({
+    queryKey: ["forecast-lines"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lines")
+        .select("name")
+        .order("name");
+      if (error) throw error;
+      return (data ?? []).map((l: any) => l.name as string);
+    },
+  });
+
   const suggestions = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return [];
@@ -66,6 +79,9 @@ export default function ProductionForecastPage() {
       if (!calculated) return [];
       const { sku, qty, line: pickedLine } = calculated;
       const since = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
+
+      // target_per_hour is units/hour → convert to units/minute
+      const stdUpm = Number(sku.target_per_hour ?? 0) / 60;
 
       // Pull historical runs for this SKU in last 90 days
       const { data: sessions } = await supabase
@@ -96,45 +112,37 @@ export default function ProductionForecastPage() {
         }
       }
 
-      const stdUpm = Number(sku.target_per_hour ?? 0); // interpreted as units/minute (UPM)
+      // Decide which lines to forecast for
+      const candidateLines = pickedLine === "any"
+        ? Array.from(new Set([...allLines, ...perLine.keys()]))
+        : [pickedLine];
 
       const rows: Estimate[] = [];
-      if (perLine.size === 0) {
-        // No history — fall back to standard UPM on the picked line (or "Any line")
-        if (stdUpm > 0) {
-          rows.push({
-            line: pickedLine === "any" ? "Any line (standard)" : pickedLine,
-            upm: stdUpm,
-            source: "standard",
-            runs: 0,
-            minutes: qty / stdUpm,
-            shifts: Math.ceil(qty / stdUpm / SHIFT_MIN),
-            remainderMin: 0,
-          });
-        }
-      } else {
-        for (const [ln, agg] of perLine) {
-          if (pickedLine !== "any" && ln !== pickedLine) continue;
-          // Effective UPM: prefer actual rate when we have ≥2 runs, else blend with standard
-          const actualUpm = agg.runs > 0 && agg.target > 0
-            ? (agg.actual / (agg.target / Math.max(stdUpm, 1))) // approx minutes worked
-            : 0;
-          const blended = agg.runs >= 2 && actualUpm > 0 ? actualUpm : (stdUpm > 0 ? stdUpm : actualUpm);
-          if (!blended || !isFinite(blended) || blended <= 0) continue;
-          const minutes = qty / blended;
-          const shifts = Math.ceil(minutes / SHIFT_MIN);
-          const remainderMin = shifts * SHIFT_MIN - minutes;
-          rows.push({
-            line: ln,
-            upm: blended,
-            source: agg.runs >= 2 ? "actual" : "standard",
-            runs: agg.runs,
-            minutes,
-            shifts,
-            remainderMin,
-          });
-        }
+      for (const ln of candidateLines) {
+        const agg = perLine.get(ln);
+        // Actual UPM = units produced ÷ minutes worked.
+        // We don't store per-item duration, so approximate using SHIFT_MIN per run
+        // (each production_items row maps to one shift session).
+        const actualUpm = agg && agg.runs > 0 && agg.actual > 0
+          ? agg.actual / (agg.runs * SHIFT_MIN)
+          : 0;
+        const useActual = !!agg && agg.runs >= 2 && actualUpm > 0;
+        const upm = useActual ? actualUpm : stdUpm;
+        if (!upm || !isFinite(upm) || upm <= 0) continue;
+        const minutes = qty / upm;
+        const shifts = Math.ceil(minutes / SHIFT_MIN);
+        const remainderMin = shifts * SHIFT_MIN - minutes;
+        rows.push({
+          line: ln,
+          upm,
+          source: useActual ? "actual" : "standard",
+          runs: agg?.runs ?? 0,
+          minutes,
+          shifts,
+          remainderMin,
+        });
       }
+
       rows.sort((a, b) => a.minutes - b.minutes);
       return rows;
     },
@@ -150,12 +158,7 @@ export default function ProductionForecastPage() {
     setTimeout(() => refetch(), 0);
   };
 
-  const lineOptions = useMemo(() => {
-    const set = new Set<string>();
-    // best-effort — derive from any existing estimates after first calc; otherwise empty
-    estimates?.forEach((e) => set.add(e.line));
-    return Array.from(set);
-  }, [estimates]);
+  const lineOptions = allLines;
 
   return (
     <DashboardLayout>
