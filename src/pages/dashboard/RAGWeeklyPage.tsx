@@ -983,6 +983,8 @@ export default function RAGWeeklyPage() {
           weekDates={weekDates}
           entryMap={entryMap}
           autoDtMap={autoDtMap}
+          autoDtMaintMap={autoDtMaintMap}
+          autoDtQualityMap={autoDtQualityMap}
           autoDtBreakdown={autoDtBreakdown}
           cellScrapMap={cellScrapMap}
           cellItemTargetMap={cellItemTargetMap}
