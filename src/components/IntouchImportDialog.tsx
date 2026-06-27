@@ -527,10 +527,115 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
             {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
             Pull scheduled jobs from iTouching
           </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={runAutoMap}
+            disabled={autoMapBusy || pulling}
+            className="gap-2"
+          >
+            {autoMapBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+            Auto-map all machines
+          </Button>
           <span className="text-xs text-muted-foreground">
-            Uses the iTouching API directly — no spreadsheet upload required.
+            Maps iTouching GUIDs to lines so the pull above can find jobs.
           </span>
         </div>
+
+        {autoMapPreview && (
+          <div className="border rounded-md p-3 space-y-2 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium">
+                Confirm machine mapping ({autoMapPreview.filter((p) => p.include && p.line_id).length}/{autoMapPreview.length} selected)
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setAutoMapPreview(null)} disabled={autoMapSaving}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={saveAutoMap} disabled={autoMapSaving}>
+                  {autoMapSaving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
+                  Save mappings
+                </Button>
+              </div>
+            </div>
+            <div className="max-h-64 overflow-auto border rounded">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40 sticky top-0">
+                  <tr>
+                    <th className="text-left px-2 py-1 w-8">Use</th>
+                    <th className="text-left px-2 py-1">iTouching machine</th>
+                    <th className="text-left px-2 py-1">Line</th>
+                    <th className="text-left px-2 py-1">Match</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {autoMapPreview.map((p, i) => (
+                    <tr key={p.guid} className="border-t">
+                      <td className="px-2 py-1">
+                        <input
+                          type="checkbox"
+                          checked={p.include && !!p.line_id}
+                          disabled={!p.line_id}
+                          onChange={(e) =>
+                            setAutoMapPreview((prev) =>
+                              prev ? prev.map((r, j) => (j === i ? { ...r, include: e.target.checked } : r)) : prev,
+                            )
+                          }
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <div className="font-medium">{p.intouch_name}</div>
+                        <div className="font-mono text-[10px] text-muted-foreground">{p.guid}</div>
+                      </td>
+                      <td className="px-2 py-1">
+                        <Select
+                          value={p.line_id ?? "__none"}
+                          onValueChange={(v) =>
+                            setAutoMapPreview((prev) =>
+                              prev
+                                ? prev.map((r, j) =>
+                                    j === i
+                                      ? {
+                                          ...r,
+                                          line_id: v === "__none" ? null : v,
+                                          line_name: v === "__none" ? "" : (lines.find((l) => l.id === v)?.name ?? ""),
+                                          include: v !== "__none",
+                                        }
+                                      : r,
+                                  )
+                                : prev,
+                            )
+                          }
+                        >
+                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">— none —</SelectItem>
+                            {lines.map((l) => (
+                              <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-2 py-1">
+                        {p.line_id ? (
+                          <Badge variant="outline" className="text-[10px] gap-1">
+                            <Check className="h-3 w-3" />{p.reason}
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-[10px] gap-1">
+                            <X className="h-3 w-3" />{p.reason}
+                          </Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+
 
 
         <div className="flex-1 overflow-y-auto -mx-1 px-1">
