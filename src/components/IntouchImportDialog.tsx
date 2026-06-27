@@ -101,6 +101,15 @@ function normalizeLine(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function getImportErrorMessage(err: unknown) {
+  if (err instanceof Error && err.message) return err.message;
+  if (err && typeof err === "object") {
+    const e = err as { message?: string; details?: string; hint?: string; code?: string };
+    return [e.message, e.details, e.hint, e.code ? `Code: ${e.code}` : ""].filter(Boolean).join(" · ") || "Import failed";
+  }
+  return "Import failed";
+}
+
 export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultShift = "DAY", onImported }: Props) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -261,7 +270,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
           session_date: date,
           shift,
           line: sec.matched_line,
-          leader_id: lead?.id ?? null,
+          // line_leaders are operational records, not auth users. production_sessions.leader_id
+          // points to auth.users, so storing a line_leaders.id here causes a FK import failure.
+          leader_id: null,
           leader_name: lead?.name?.trim() || null,
           staff_planned: 0,
           staff_actual: 0,
@@ -285,8 +296,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       reset();
       onOpenChange(false);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Import failed";
-      toast.error(msg);
+      toast.error(getImportErrorMessage(e));
     } finally {
       setImporting(false);
     }
