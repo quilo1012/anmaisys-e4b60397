@@ -90,8 +90,58 @@ function cellColor(minutes: number, max: number): string {
 
 export default function DowntimeHeatmapPage() {
   const { data: records, isLoading } = useDowntime();
-  const [range, setRange] = useState<RangePreset>("30d");
-  const fromMs = useMemo(() => rangeStartMs(range), [range]);
+
+  const [range, setRange] = useState<RangePreset>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.range && parsed.range in RANGE_LABEL) return parsed.range as RangePreset;
+      }
+    } catch { /* ignore */ }
+    return "30d";
+  });
+  const [customFrom, setCustomFrom] = useState<Date | undefined>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p?.from) return new Date(p.from);
+      }
+    } catch { /* ignore */ }
+    return undefined;
+  });
+  const [customTo, setCustomTo] = useState<Date | undefined>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p?.to) return new Date(p.to);
+      }
+    } catch { /* ignore */ }
+    return undefined;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        range,
+        from: customFrom?.toISOString() ?? null,
+        to: customTo?.toISOString() ?? null,
+      }));
+    } catch { /* ignore */ }
+  }, [range, customFrom, customTo]);
+
+  const { fromMs, toMs } = useMemo(() => {
+    if (range === "custom") {
+      const f = customFrom ? startOfDay(customFrom).getTime() : Date.now() - 7 * 86400000;
+      const t = customTo ? endOfDay(customTo).getTime() : Date.now();
+      return { fromMs: f, toMs: t };
+    }
+    const r = presetRange(range);
+    return { fromMs: r.from, toMs: r.to };
+  }, [range, customFrom, customTo]);
+
 
 
   const { matrix, lines, lineTotals, dayShiftTotals, insights, grandMax } = useMemo(() => {
@@ -106,11 +156,13 @@ export default function DowntimeHeatmapPage() {
       const line = r.line || "—";
       const start = new Date(r.started_at).getTime();
       const end = r.ended_at ? new Date(r.ended_at).getTime() : Date.now();
-      // Filter by selected range (overlap with [fromMs, now])
-      if (end < fromMs) continue;
+      // Overlap with [fromMs, toMs]
+      if (end < fromMs || start > toMs) continue;
       const clampedStart = Math.max(start, fromMs);
-      const minutes = Math.max(0, Math.round((end - clampedStart) / 60000));
+      const clampedEnd = Math.min(end, toMs);
+      const minutes = Math.max(0, Math.round((clampedEnd - clampedStart) / 60000));
       if (minutes <= 0) continue;
+
 
       const { dayIdx, hour } = londonParts(new Date(start));
       const shift = shiftOf(hour);
