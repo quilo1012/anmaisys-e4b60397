@@ -163,12 +163,25 @@ export default function DowntimeHeatmapPage() {
   return (
     <DashboardLayout>
       <div className="p-4 md:p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Downtime Heatmap</h1>
-          <p className="text-sm text-muted-foreground">
-            Line × Weekday × Shift — last 90 days, Europe/London time.
-          </p>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold">Downtime Heatmap</h1>
+            <p className="text-sm text-muted-foreground">
+              Line × Weekday × Shift — {RANGE_LABEL[range]}, Europe/London time.
+            </p>
+          </div>
+          <Select value={range} onValueChange={(v) => setRange(v as RangePreset)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(RANGE_LABEL) as RangePreset[]).map((k) => (
+                <SelectItem key={k} value={k}>{RANGE_LABEL[k]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
+
 
         {isLoading ? (
           <Skeleton className="h-96" />
