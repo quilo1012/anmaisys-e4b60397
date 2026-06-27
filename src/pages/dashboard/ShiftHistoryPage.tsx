@@ -123,7 +123,17 @@ export default function ShiftHistoryPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const saveItemActual = useMutation({
+    mutationFn: async ({ id, actual }: { id: string; actual: number }) => {
+      const { error } = await supabase.from("production_items").update({ actual_qty: actual }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setEditingItem(null); toast.success("Actual updated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const saveEdit = useMutation({
+
     mutationFn: async (s: SessionRow) => {
       const { error } = await supabase.from("production_sessions").update({
         leader_id: s.leader_id, leader_name: s.leader_name,
