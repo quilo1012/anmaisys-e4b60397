@@ -161,21 +161,25 @@ function objectOverlapsWindow(obj: any, startMs: number, endMs: number) {
   return a < endMs && b >= startMs;
 }
 
-function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNames: Set<string>, startMs: number, endMs: number): Row[] {
+function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNames: Set<string>, startMs: number, endMs: number, opts?: { skipMatch?: boolean; skipWindow?: boolean }): Row[] {
   const out: Row[] = [];
+  const skipMatch = !!opts?.skipMatch;
+  const skipWindow = !!opts?.skipWindow;
   const same = (v: unknown) => {
+    if (skipMatch) return true;
     const s = String(v ?? "").trim();
     if (!s) return true;
     return allowedIds.has(machineKey(s)) || allowedNames.has(s.toLowerCase());
   };
+  const inWin = (o: any) => skipWindow ? true : objectOverlapsWindow(o, startMs, endMs);
   walk(raw, (obj) => {
     const wos = obj?.WorksOrders ?? obj?.WorkOrders ?? obj?.worksOrders;
     const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
     if (!Array.isArray(wos)) return;
     if (!same(mref)) return;
-    if (!objectOverlapsWindow(obj, startMs, endMs)) return;
+    if (!inWin(obj)) return;
     for (const wo of wos) {
-      if (!objectOverlapsWindow(wo, startMs, endMs)) continue;
+      if (!inWin(wo)) continue;
       const code = cleanCode(pick(wo, ["PartCode", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "OrderNumber", "WorkOrderNo", "JobProductCode", "ProductID", "ProductId", "Code"]));
       if (!code || code.length < 2) continue;
       const description = String(pick(wo, ["LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
@@ -187,7 +191,7 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
     walk(raw, (obj) => {
       const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
       if (!same(mref)) return;
-      if (!objectOverlapsWindow(obj, startMs, endMs)) return;
+      if (!inWin(obj)) return;
       const code = cleanCode(pick(obj, ["PartCode", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "FGCode", "FinishedGood", "MaterialCode", "Product", "ProductID", "ProductId", "JobProductCode", "OrderNumber", "WorkOrderNo", "Code"]));
       if (!code || code.length < 3 || /^(LINE|MACHINE|DATE|SHIFT|START|END|STATUS)$/i.test(code)) return;
       const qty = num(pick(obj, ["OrderQuantity", "OrderQty", "RequiredQuantity", "RequiredQty", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "TargetQty", "ScheduledQty", "Balance", "Demand", "Units"])) || 1;
