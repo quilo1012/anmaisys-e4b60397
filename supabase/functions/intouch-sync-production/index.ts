@@ -539,18 +539,26 @@ Deno.serve(async (req) => {
 
       await admin.from("production_items").delete().eq("session_id", session.id);
 
+      // Pull live actuals (produced/good qty) per SKU code from iTouching.
+      const actualsByCode = await fetchActualsForLine(machines, startISO, endISO);
+
       const entries = Array.from(skuAgg.entries());
       const totalQty = entries.reduce((sum, [, a]) => sum + Math.max(1, Number(a.qty) || 0), 0) || 1;
       const rows = entries
         .map(([code, a]) => {
           const plan = Math.round(ragPlan * (Math.max(1, Number(a.qty) || 0) / totalQty));
           const sku_id = idByCode.get(code);
+          const itouchActual = Math.round(actualsByCode.get(code) ?? 0);
+          const prev = sku_id ? (actualBySku.get(sku_id) ?? 0) : 0;
+          // Never let an automatic sync drive the actual backwards (covers
+          // manual edits + cumulative iTouching counts that may dip).
+          const actual = Math.max(prev, itouchActual);
           return {
             session_id: session.id,
             sku_id,
             target_qty: plan,
             planned_qty: plan,
-            actual_qty: sku_id ? (actualBySku.get(sku_id) ?? 0) : 0,
+            actual_qty: actual,
             notes: `itouching:${source}`,
           };
         })
