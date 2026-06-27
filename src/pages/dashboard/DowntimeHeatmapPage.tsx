@@ -216,7 +216,7 @@ export default function DowntimeHeatmapPage() {
     }
 
     return { matrix: perLine, lines, lineTotals, dayShiftTotals, insights, grandMax };
-  }, [records, fromMs]);
+  }, [records, fromMs, toMs]);
 
   return (
     <DashboardLayout>
@@ -228,17 +228,46 @@ export default function DowntimeHeatmapPage() {
               Line × Weekday × Shift — {RANGE_LABEL[range]}, Europe/London time.
             </p>
           </div>
-          <Select value={range} onValueChange={(v) => setRange(v as RangePreset)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(RANGE_LABEL) as RangePreset[]).map((k) => (
-                <SelectItem key={k} value={k}>{RANGE_LABEL[k]}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={range} onValueChange={(v) => setRange(v as RangePreset)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(RANGE_LABEL) as RangePreset[]).map((k) => (
+                  <SelectItem key={k} value={k}>{RANGE_LABEL[k]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {range === "custom" && (
+              <>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal", !customFrom && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customFrom ? format(customFrom, "PP") : "From"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={customFrom} onSelect={setCustomFrom} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal", !customTo && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customTo ? format(customTo, "PP") : "To"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={customTo} onSelect={setCustomTo} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+              </>
+            )}
+          </div>
         </div>
+
 
 
         {isLoading ? (
