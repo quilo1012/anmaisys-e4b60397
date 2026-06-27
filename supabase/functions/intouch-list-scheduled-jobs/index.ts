@@ -80,26 +80,23 @@ async function itFetch(path: string, init?: RequestInit): Promise<{ data: unknow
 }
 
 async function discoverSchedulePaths() {
+  // STRICT: only schedule-oriented endpoints. We deliberately exclude
+  // RunningJobs / JobsRan / historical job endpoints — they expose what was
+  // produced, not what is currently scheduled in iTouching, and were the root
+  // cause of the planner showing SKUs that did not match the live schedule.
   const defaults = [
     "/api/ScheduleReports/ScheduleJobs/Machine",
     "/api/ScheduleReports/ScheduledJobs/Machine",
-    "/api/ScheduleReports/Jobs/Machine",
     "/api/ScheduleReports/JobSchedule/Machine",
     "/api/ScheduleReports/ProductionSchedule/Machine",
     "/api/ScheduleReports/WorkToList/Machine",
-    "/api/ScheduleReports/MaterialRequirements/Machine",
-    "/api/ScheduleReports/MaterialRequirementsByMachine",
     "/api/Reports/ScheduleJobs/Machine",
     "/api/Reports/ScheduledJobs/Machine",
     "/api/Reports/ProductionSchedule/Machine",
-    "/api/Reports/MaterialRequirements/Machine",
     "/api/GetScheduledJobs",
     "/api/GetJobSchedule",
     "/api/GetWorkToList",
     "/api/GetJobsScheduledDuringPeriod",
-    "/api/GetJobsRanDuringPeriod",
-    "/api/GetJobsRan",
-    "/api/JobChange",
   ];
   const docs1 = await itFetch("/swagger/docs/v1", { method: "GET" });
   const docs2 = docs1.data ? docs1 : await itFetch("/swagger/v1/swagger.json", { method: "GET" });
@@ -107,11 +104,15 @@ async function discoverSchedulePaths() {
   const discovered = (docs3.data as any)?.paths && typeof (docs3.data as any).paths === "object"
     ? Object.keys((docs3.data as any).paths).filter((p) => {
       const n = p.toLowerCase();
-      return (n.includes("schedule") || n.includes("job") || n.includes("worktolist") || n.includes("material"))
-        && !n.includes("stop") && !n.includes("login");
+      // Only paths that explicitly mention "schedule" or "worktolist".
+      // Reject ran/running/history/material/stop/login.
+      if (!(n.includes("schedule") || n.includes("worktolist"))) return false;
+      if (n.includes("ran") || n.includes("running") || n.includes("history")) return false;
+      if (n.includes("stop") || n.includes("login") || n.includes("material")) return false;
+      return true;
     })
     : [];
-  return Array.from(new Set([...discovered, ...defaults])).slice(0, 40);
+  return Array.from(new Set([...discovered, ...defaults])).slice(0, 30);
 }
 
 function fillPath(path: string, machineId: string) {
