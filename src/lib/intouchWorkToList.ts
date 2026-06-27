@@ -6,7 +6,7 @@
 // We group by Machine name, strip -B\d+ batch suffixes from Part Code,
 // remove [HS CODE:...] from descriptions and aggregate Order Quantity per SKU.
 
-export type WorkToListRow = { sku_code: string; qty: number; description?: string };
+export type WorkToListRow = { sku_code: string; qty: number; description?: string; status?: "Running" | "Scheduled"; seq?: number };
 export type WorkToListSection = { line: string; items: WorkToListRow[] };
 
 export function splitIntouchCsvLine(line: string): string[] {
