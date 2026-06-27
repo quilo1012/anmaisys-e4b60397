@@ -427,7 +427,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     try {
       // Auto-create unknown SKUs so import never fails on missing catalog entries
       const missing = new Map<string, string>();
-      for (const sec of resolved) {
+      for (const sec of activeSections) {
         for (const it of sec.items) {
           if (!it.sku_id) {
             const code = it.sku_code.trim();
