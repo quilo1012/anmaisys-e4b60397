@@ -14,6 +14,14 @@
 //                            time slice inside the shift window
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { z } from "https://esm.sh/zod@3.23.8";
+
+const BodySchema = z.object({
+  session_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  shift: z.enum(["DAY", "NIGHT"]).optional(),
+  auto: z.enum(["morning", "evening"]).optional(),
+  force: z.boolean().optional(),
+}).strict();
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
