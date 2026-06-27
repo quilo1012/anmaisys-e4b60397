@@ -48,7 +48,7 @@ export default function ShiftHistoryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, locked, notes, production_items(sku_id, target_qty, planned_qty, actual_qty, notes)")
+        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes)")
         .gte("session_date", from).lte("session_date", to)
         .order("session_date", { ascending: false });
       if (error) throw error;
