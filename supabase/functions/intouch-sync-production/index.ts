@@ -1,17 +1,5 @@
-// Pulls production for a given session_date + shift directly from the
-// iTouching API and upserts a `production_sessions` row + `production_items`
-// rows per line (auto-creating sku_products as needed).
-//
-// Endpoints used (discovered via /swagger/docs/v1):
-//   POST /api/GetJobsRanDuringPeriod?StartTime&EndTime  body: [MachineGUID,...]
-//     -> Jobs[].WorksOrders[].PartCode / LongDescription / OrderQuantity / StartTime / EndTime
-//   GET  /api/GetMachineCycles?MachineGUID&StartTime&EndTime
-//     -> total good cycles produced by that machine in the window
-//
-// One line may have multiple iTouching machines mapped. We aggregate by line:
-//   - planned_qty per SKU = sum(WorksOrder.OrderQuantity) across machines/jobs
-//   - actual_qty  per SKU = cycles distributed proportionally to each job's
-//                            time slice inside the shift window
+// Sync Planner SKUs from iTouching Schedule Reports → Material Requirements → Machine.
+// Falls back to schedule/current job endpoints when that report endpoint is not exposed.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "https://esm.sh/zod@3.23.8";
@@ -29,11 +17,16 @@ const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const INTOUCH_URL = (Deno.env.get("INTOUCH_API_URL") ?? "").replace(/\/+$/, "");
 const INTOUCH_TOKEN = Deno.env.get("INTOUCH_API_TOKEN") ?? "";
 
+type MachineRef = { id: string; name: string };
+type SkuRow = { code: string; description: string; qty: number; source: string };
+type Agg = { qty: number; description: string; source: string };
+
 async function it(path: string, init?: RequestInit) {
   const res = await fetch(`${INTOUCH_URL}${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${INTOUCH_TOKEN}`,
+      Accept: "application/json",
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
@@ -43,9 +36,10 @@ async function it(path: string, init?: RequestInit) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
-// London shift windows: DAY 06:00→18:00, NIGHT 18:00→06:00(+1) Europe/London.
-// Dynamically compute the UTC offset (BST/GMT) for the supplied date so the
-// window stays correct across DST transitions.
+async function tryIt(path: string, init?: RequestInit) {
+  try { return await it(path, init); } catch { return null; }
+}
+
 function londonOffsetMs(instant: Date): number {
   const dtf = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
@@ -59,6 +53,7 @@ function londonOffsetMs(instant: Date): number {
   const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
   return asUtc - instant.getTime();
 }
+
 function shiftWindow(date: string, shift: "DAY" | "NIGHT") {
   const hour = shift === "DAY" ? 6 : 18;
   const naiveUtc = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00Z`);
@@ -87,21 +82,233 @@ function currentLondonShift() {
     hour12: false,
   }).format(now));
 
-  if (londonHour >= 6 && londonHour < 18) {
-    return { session_date: londonDateString(now), shift: "DAY" as const };
-  }
-
-  if (londonHour >= 18) {
-    return { session_date: londonDateString(now), shift: "NIGHT" as const };
-  }
-
+  if (londonHour >= 6 && londonHour < 18) return { session_date: londonDateString(now), shift: "DAY" as const };
+  if (londonHour >= 18) return { session_date: londonDateString(now), shift: "NIGHT" as const };
   const previousLondonDay = new Date(now);
   previousLondonDay.setUTCDate(previousLondonDay.getUTCDate() - 1);
   return { session_date: londonDateString(previousLondonDay), shift: "NIGHT" as const };
 }
 
-function overlapMs(a1: Date, a2: Date, b1: Date, b2: Date) {
-  return Math.max(0, Math.min(a2.getTime(), b2.getTime()) - Math.max(a1.getTime(), b1.getTime()));
+function cleanCode(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .replace(/^['"]+|['"]+$/g, "")
+    .replace(/-B\d+$/i, "")
+    .toUpperCase();
+}
+
+function num(value: unknown) {
+  const cleaned = String(value ?? "")
+    .replace(/[^\d,.-]/g, "")
+    .replace(/,(?=\d{3}(\D|$))/g, "")
+    .replace(/\s/g, "");
+  const normalized = cleaned.includes(",") && !cleaned.includes(".") ? cleaned.replace(",", ".") : cleaned;
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function pick(o: any, keys: string[]) {
+  for (const key of keys) {
+    const v = o?.[key];
+    if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+  }
+  return undefined;
+}
+
+function walkObjects(value: unknown, visit: (obj: any) => void) {
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    for (const item of value) walkObjects(item, visit);
+    return;
+  }
+  visit(value);
+  for (const item of Object.values(value)) walkObjects(item, visit);
+}
+
+function sameMachine(value: unknown, allowedIds: Set<string>, allowedNames: Set<string>) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return true;
+  return allowedIds.has(raw) || allowedNames.has(raw.toLowerCase());
+}
+
+function extractSkuRows(raw: unknown, source: string, machines: MachineRef[]): SkuRow[] {
+  const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+  const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
+  const rows: SkuRow[] = [];
+  const seenJobs = new Set<any>();
+
+  walkObjects(raw, (obj) => {
+    const worksOrders = obj?.WorksOrders ?? obj?.WorkOrders ?? obj?.worksOrders ?? obj?.works_orders;
+    if (!Array.isArray(worksOrders) || seenJobs.has(obj)) return;
+    seenJobs.add(obj);
+    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
+    for (const wo of worksOrders) {
+      const code = cleanCode(pick(wo, ["PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "OrderNumber"]));
+      if (!code || code === "UNKNOWN") continue;
+      const description = String(pick(wo, ["LongDescription", "ProductDescription", "PartDescription", "Description", "ShortDescription", "Name"]) ?? code).trim();
+      const qty = num(pick(wo, ["OrderQuantity", "RequiredQuantity", "RequiredQty", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "Balance"])) || 1;
+      rows.push({ code, description, qty, source });
+    }
+  });
+  if (rows.length > 0) return rows;
+
+  walkObjects(raw, (obj) => {
+    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
+    const code = cleanCode(pick(obj, [
+      "PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "FGCode", "FinishedGood",
+      "MaterialCode", "Material", "Product", "Code",
+    ]));
+    if (!code || code.length < 3 || /^(LINE|MACHINE|DATE|SHIFT|START|END|STATUS)$/i.test(code)) return;
+    const qty = num(pick(obj, [
+      "OrderQuantity", "RequiredQuantity", "RequiredQty", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty",
+      "TargetQty", "ScheduledQty", "Balance", "Demand", "Units",
+    ])) || 1;
+    const description = String(pick(obj, [
+      "LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "ShortDescription", "Name",
+    ]) ?? code).trim();
+    rows.push({ code, description, qty, source });
+  });
+
+  return rows;
+}
+
+function aggregateRows(rows: SkuRow[]) {
+  const skuAgg = new Map<string, Agg>();
+  for (const row of rows) {
+    const cur = skuAgg.get(row.code) ?? { qty: 0, description: row.description, source: row.source };
+    cur.qty += Math.max(1, row.qty || 0);
+    if (!cur.description || cur.description === row.code) cur.description = row.description;
+    cur.source = cur.source === row.source ? cur.source : `${cur.source}+${row.source}`;
+    skuAgg.set(row.code, cur);
+  }
+  return skuAgg;
+}
+
+async function discoverMaterialPaths() {
+  const defaults = [
+    "/api/ScheduleReports/MaterialRequirements/Machine",
+    "/api/ScheduleReports/MaterialRequirementsByMachine",
+    "/api/Reports/MaterialRequirements/Machine",
+    "/api/Reports/MaterialRequirements",
+    "/api/GetMaterialRequirementsByMachine",
+    "/api/GetMaterialRequirements",
+    "/api/MaterialRequirements/Machine",
+    "/api/MaterialRequirements",
+  ];
+  const docs = await tryIt("/swagger/docs/v1", { method: "GET" })
+    ?? await tryIt("/swagger/v1/swagger.json", { method: "GET" })
+    ?? await tryIt("/swagger.json", { method: "GET" });
+  const discovered = docs?.paths && typeof docs.paths === "object"
+    ? Object.keys(docs.paths).filter((p) => {
+      const n = p.toLowerCase();
+      return n.includes("material") && (n.includes("require") || n.includes("report"));
+    })
+    : [];
+  return Array.from(new Set([...discovered, ...defaults]));
+}
+
+function fillPath(path: string, machineId: string) {
+  return path.replace(/\{\s*(MachineGUID|MachineGuid|MachineID|MachineId|machineId|id|ID)\s*\}/g, encodeURIComponent(machineId));
+}
+
+async function fetchMaterialRows(machines: MachineRef[], startISO: string, endISO: string) {
+  const paths = await discoverMaterialPaths();
+  for (const path of paths) {
+    const allRows: SkuRow[] = [];
+
+    for (const m of machines) {
+      const base = fillPath(path, m.id);
+      const queryVariants = [
+        `${base}?MachineGUID=${encodeURIComponent(m.id)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+        `${base}?MachineID=${encodeURIComponent(m.id)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+        `${base}?machineId=${encodeURIComponent(m.id)}&startTime=${encodeURIComponent(startISO)}&endTime=${encodeURIComponent(endISO)}`,
+      ];
+      for (const q of queryVariants) {
+        const raw = await tryIt(q, { method: "GET" });
+        const rows = extractSkuRows(raw, "material_requirements", [m]);
+        if (rows.length) allRows.push(...rows);
+      }
+    }
+
+    if (allRows.length === 0) {
+      const ids = machines.map((m) => m.id);
+      const postBodies = [
+        { MachineGUIDs: ids, StartTime: startISO, EndTime: endISO },
+        { MachineIDs: ids, StartTime: startISO, EndTime: endISO },
+        { machines: ids, startTime: startISO, endTime: endISO, groupBy: "Machine" },
+      ];
+      for (const body of postBodies) {
+        const raw = await tryIt(path, { method: "POST", body: JSON.stringify(body) });
+        const rows = extractSkuRows(raw, "material_requirements", machines);
+        if (rows.length) allRows.push(...rows);
+      }
+    }
+
+    if (allRows.length) return { rows: allRows, sourcePath: path };
+  }
+  return { rows: [] as SkuRow[], sourcePath: "" };
+}
+
+async function fetchJobChangeRows(machines: MachineRef[], startISO: string, endISO: string) {
+  const ids = machines.map((m) => m.id);
+  const attempts = [
+    () => tryIt(`/api/JobChange?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
+    () => tryIt("/api/JobChange", { method: "POST", body: JSON.stringify({ MachineGUIDs: ids, StartTime: startISO, EndTime: endISO }) }),
+    () => tryIt("/api/JobChange", { method: "POST", body: JSON.stringify({ MachineIDs: ids, StartTime: startISO, EndTime: endISO }) }),
+  ];
+  for (const attempt of attempts) {
+    const raw = await attempt();
+    const rows = extractSkuRows(raw, "job_change", machines);
+    if (rows.length) return rows;
+  }
+  return [];
+}
+
+async function fetchRunningJobRows(machines: MachineRef[]) {
+  const running = await tryIt("/api/GetRunningJobs", { method: "GET" });
+  const allowedIds = new Set(machines.map((m) => m.id));
+  const jobIds = new Set<string>();
+  walkObjects(running, (obj) => {
+    const machineId = String(pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid"]) ?? "").trim();
+    const jobId = String(pick(obj, ["JobID", "JobId", "JobGUID", "JobGuid", "ID", "Id"]) ?? "").trim();
+    if (machineId && allowedIds.has(machineId) && jobId) jobIds.add(jobId);
+  });
+  if (jobIds.size === 0) return [];
+  const raw = await tryIt("/api/GetJobs", { method: "POST", body: JSON.stringify(Array.from(jobIds)) });
+  return extractSkuRows(raw, "running_jobs", machines);
+}
+
+async function fetchJobsRanRows(machines: MachineRef[], startISO: string, endISO: string) {
+  const ids = machines.map((m) => m.id);
+  const attempts = [
+    () => tryIt(`/api/GetJobsRan?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
+    () => tryIt("/api/GetJobsRan", { method: "POST", body: JSON.stringify({ MachineGUIDs: ids, StartTime: startISO, EndTime: endISO }) }),
+    () => tryIt(`/api/GetJobsRanDuringPeriod?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
+  ];
+  for (const attempt of attempts) {
+    const raw = await attempt();
+    const rows = extractSkuRows(raw, "jobs_ran", machines);
+    if (rows.length) return rows;
+  }
+  return [];
+}
+
+async function fetchSkuRowsForLine(machines: MachineRef[], startISO: string, endISO: string) {
+  const material = await fetchMaterialRows(machines, startISO, endISO);
+  if (material.rows.length) return { rows: material.rows, source: material.sourcePath || "material_requirements" };
+
+  const jobChange = await fetchJobChangeRows(machines, startISO, endISO);
+  if (jobChange.length) return { rows: jobChange, source: "job_change" };
+
+  const running = await fetchRunningJobRows(machines);
+  if (running.length) return { rows: running, source: "running_jobs" };
+
+  const ran = await fetchJobsRanRows(machines, startISO, endISO);
+  if (ran.length) return { rows: ran, source: "jobs_ran" };
+
+  return { rows: [] as SkuRow[], source: "none" };
 }
 
 Deno.serve(async (req) => {
@@ -112,12 +319,9 @@ Deno.serve(async (req) => {
     const CRON_SECRET = Deno.env.get("CRON_TRIGGER_TOKEN") ?? Deno.env.get("CRON_SECRET") ?? "";
     const providedCron = req.headers.get("x-cron-secret") ?? "";
     const isCron = !!CRON_SECRET && providedCron === CRON_SECRET;
-
-
     const admin = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
 
     if (!isCron) {
-      // Auth: admin or manager only (validate JWT via getClaims — works with signing keys)
       const authHeader = req.headers.get("Authorization") ?? "";
       const token = authHeader.replace(/^Bearer\s+/i, "").trim();
       if (!token) {
@@ -151,9 +355,6 @@ Deno.serve(async (req) => {
     }
     const body = parsedBody.data;
 
-    // The Settings toggle disables automatic/current-shift sync. A targeted
-    // Planner sync with an explicit date+shift is allowed because the manager
-    // is intentionally pulling that Work-To-List into the selected shift.
     const explicitPlannerSync = !!body.session_date && !!body.shift;
     const { data: settings } = await admin
       .from("system_settings")
@@ -167,9 +368,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Cron auto-derives: morning closes previous NIGHT (yesterday's date in London),
-    // evening closes today's DAY shift. Manual `force:true` sync derives the
-    // currently active London shift so the Settings button works without inputs.
     let session_date: string | undefined = body.session_date;
     let shift: "DAY" | "NIGHT" | undefined = body.shift;
     if (isCron && (!session_date || !shift)) {
@@ -195,15 +393,12 @@ Deno.serve(async (req) => {
       });
     }
 
-
     const { start, end } = shiftWindow(session_date, shift);
-    // Cap to "now" so we never look into the future part of the shift.
     const nowDate = new Date();
     const effectiveEnd = nowDate < end ? nowDate : end;
     const startISO = start.toISOString();
     const endISO = effectiveEnd.toISOString();
 
-    // Group mapped machines by line
     const { data: maps } = await admin
       .from("intouch_machine_map")
       .select("intouch_machine_id, intouch_machine_name, line_id")
@@ -213,57 +408,39 @@ Deno.serve(async (req) => {
     const { data: lines } = await admin.from("lines").select("id, name");
     const lineName = new Map((lines ?? []).map((l: any) => [l.id, l.name]));
 
-    const byLine = new Map<string, Array<{ id: string; name: string }>>();
+    const byLine = new Map<string, MachineRef[]>();
     for (const m of maps ?? []) {
       const arr = byLine.get(m.line_id!) ?? [];
       arr.push({ id: m.intouch_machine_id, name: m.intouch_machine_name ?? "" });
       byLine.set(m.line_id!, arr);
     }
 
+    const { data: ragRows } = await admin
+      .from("rag_weekly_entries")
+      .select("line, plan_qty")
+      .eq("entry_date", session_date)
+      .eq("shift", shift)
+      .gt("plan_qty", 0);
+    const ragPlanByLine = new Map((ragRows ?? []).map((r: any) => [String(r.line ?? "").trim(), Number(r.plan_qty ?? 0)]));
+
     const results: any[] = [];
     for (const [line_id, machines] of byLine) {
       const line = lineName.get(line_id);
       if (!line) continue;
 
-      // Only mirror what iTouching shows RIGHT NOW: keep jobs whose EndTime is
-      // missing/sentinel (still running) OR which are still open at `now`.
-      type Agg = { ms: number; description: string };
-      const skuAgg = new Map<string, Agg>();
-
-      for (const m of machines) {
-        const resp = await it(
-          `/api/GetJobsRanDuringPeriod?StartTime=${startISO}&EndTime=${endISO}`,
-          { method: "POST", body: JSON.stringify([m.id]) },
-        );
-        const jobs: any[] = resp?.Jobs ?? [];
-
-        for (const j of jobs) {
-          const hasEnd = j.EndTime && !String(j.EndTime).startsWith("0001");
-          // skip jobs that already finished before "now" — they're not what
-          // the operator sees on the iTouching screen anymore.
-          if (hasEnd && new Date(j.EndTime).getTime() < nowDate.getTime() - 60_000) continue;
-
-          const js = new Date(j.StartTime);
-          const je = hasEnd ? new Date(j.EndTime) : effectiveEnd;
-          const ms = overlapMs(js, je, start, effectiveEnd);
-          if (ms <= 0) continue;
-          const wo = (j.WorksOrders ?? [])[0];
-          const code = (wo?.PartCode || wo?.OrderNumber || "UNKNOWN").trim();
-          const desc = (wo?.LongDescription || wo?.Description || code).trim();
-          const cur = skuAgg.get(code) ?? { ms: 0, description: desc };
-          cur.ms += ms;
-          cur.description = cur.description || desc;
-          skuAgg.set(code, cur);
-        }
-      }
-
-
-      if (skuAgg.size === 0) {
-        results.push({ line, skipped: "no jobs ran" });
+      const ragPlan = Number(ragPlanByLine.get(line) ?? 0);
+      if (ragPlan <= 0) {
+        results.push({ line, skipped: "no RAG Weekly plan" });
         continue;
       }
 
-      // Ensure sku_products rows exist; collect ids
+      const { rows: skuRows, source } = await fetchSkuRowsForLine(machines, startISO, endISO);
+      const skuAgg = aggregateRows(skuRows);
+      if (skuAgg.size === 0) {
+        results.push({ line, skipped: "no Material Requirements / schedule SKUs found" });
+        continue;
+      }
+
       const codes = Array.from(skuAgg.keys());
       const { data: existingSkus } = await admin
         .from("sku_products").select("id, code").in("code", codes);
@@ -279,11 +456,10 @@ Deno.serve(async (req) => {
         .from("sku_products").select("id, code").in("code", codes);
       const idByCode = new Map((allSkus ?? []).map((s: any) => [s.code, s.id]));
 
-      // Upsert session
       const { data: session, error: sErr } = await admin
         .from("production_sessions")
         .upsert(
-          { session_date, line, shift, notes: "[Auto-synced from iTouching — SKUs only]" },
+          { session_date, line, shift, notes: `[Auto-synced from iTouching — ${source}]` },
           { onConflict: "session_date,line,shift" },
         )
         .select("id, locked").single();
@@ -293,18 +469,6 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Plan comes from RAG Weekly — distribute across SKUs proportionally
-      // to their run-time on the line. Leader enters actual_qty on the tablet.
-      const { data: rag } = await admin
-        .from("rag_weekly_entries")
-        .select("plan_qty")
-        .eq("entry_date", session_date)
-        .eq("line", line)
-        .eq("shift", shift)
-        .maybeSingle();
-      const ragPlan = Number(rag?.plan_qty ?? 0);
-
-      // Preserve any actuals already typed by the leader
       const { data: existingItems } = await admin
         .from("production_items")
         .select("sku_id, actual_qty")
@@ -316,12 +480,10 @@ Deno.serve(async (req) => {
       await admin.from("production_items").delete().eq("session_id", session.id);
 
       const entries = Array.from(skuAgg.entries());
-      const totalMs = entries.reduce((s, [, a]) => s + a.ms, 0) || 1;
+      const totalQty = entries.reduce((sum, [, a]) => sum + Math.max(1, Number(a.qty) || 0), 0) || 1;
       const rows = entries
-        .map(([code, a], _i, arr) => {
-          const plan = ragPlan > 0
-            ? Math.round(ragPlan * (a.ms / totalMs))
-            : 0;
+        .map(([code, a]) => {
+          const plan = Math.round(ragPlan * (Math.max(1, Number(a.qty) || 0) / totalQty));
           const sku_id = idByCode.get(code);
           return {
             session_id: session.id,
@@ -329,7 +491,7 @@ Deno.serve(async (req) => {
             target_qty: plan,
             planned_qty: plan,
             actual_qty: sku_id ? (actualBySku.get(sku_id) ?? 0) : 0,
-            notes: null,
+            notes: `itouching:${source}`,
           };
         })
         .filter((r) => r.sku_id);
@@ -339,9 +501,11 @@ Deno.serve(async (req) => {
         line,
         skus: rows.length,
         rag_plan: ragPlan,
+        source,
         actual_preserved: rows.reduce((s, r) => s + r.actual_qty, 0),
       });
     }
+
     const syncedLines = results.filter((r) => !r.skipped).length;
     const syncedSkus = results.reduce((sum, r) => sum + Number(r.skus ?? 0), 0);
 

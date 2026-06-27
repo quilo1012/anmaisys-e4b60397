@@ -132,7 +132,7 @@ export default function ProductionPlannerPage() {
           : `iTouching sync skipped: ${syncData.reason ?? "unknown"}`);
       } else {
         const summary = syncData?.summary ? ` · ${syncData.summary}` : "";
-        toast.success(`iTouching Work-To-List synced${summary}`);
+        toast.success(`iTouching Material Requirements synced${summary}`);
       }
 
       await queryClient.invalidateQueries({ queryKey: ["production_sessions"] });
@@ -165,7 +165,7 @@ export default function ProductionPlannerPage() {
           .filter(Boolean),
       );
 
-      // 3. Optional info: lines that already have a session with SKUs (from iTouching jobs ran)
+      // 3. Optional info: lines that already have a session with SKUs from iTouching Material Requirements
       const { data: sessions } = await supabase
         .from("production_sessions")
         .select("line, production_items(id)")
@@ -178,7 +178,7 @@ export default function ProductionPlannerPage() {
           .filter(Boolean),
       );
 
-      // Schedule = active machine ∩ RAG plan (SKUs are filled later by iTouching as jobs run)
+      // Schedule = active machine ∩ RAG plan (SKUs come from iTouching Material Requirements)
       const distinct = Array.from(planned)
         .filter((l) => activeLineNames.has(l))
         .sort();
@@ -197,7 +197,7 @@ export default function ProductionPlannerPage() {
         const pending = distinct.filter((l) => !withSkus.has(l)).length;
         toast.success(
           `Found ${distinct.length} line(s) for ${date} ${shift}` +
-            (pending > 0 ? ` · ${pending} awaiting iTouching jobs` : ""),
+            (pending > 0 ? ` · ${pending} without iTouching SKUs yet` : ""),
         );
         if (!line || !distinct.includes(line)) setLine(distinct[0]);
       }
