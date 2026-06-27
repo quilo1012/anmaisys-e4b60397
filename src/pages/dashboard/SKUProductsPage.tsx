@@ -54,10 +54,13 @@ function parseCSV(text: string): Partial<Sku>[] {
     .trim();
   const headers = parseLine(lines[0]).map(normalize);
   const idx = (names: string[]) => headers.findIndex((h) => names.includes(h));
-  const iCode = idx(["sku", "code", "codigo", "cod", "item", "productcode", "itemcode", "artigo", "ref", "referencia"]);
+  const iCode = idx(["sku", "code", "codigo", "cod", "item", "productcode", "itemcode", "artigo", "ref", "referencia", "uipartnumber", "partnumber", "partno"]);
   const iName = idx(["name", "produto", "product", "nome", "descricao", "description", "designacao", "productdescription", "itemname", "itemdescription"]);
-  const iCat = idx(["category", "categoria", "familia", "family"]);
+  const iCat = idx(["category", "categoria", "familia", "family", "machine", "maquina"]);
   const iTph = idx(["targetperhour", "target", "tph", "objetivo"]);
+  const iWeight = idx(["weight", "peso", "partweight"]);
+  const iCycle = idx(["standardcycletime", "cycletime", "cycle", "tempociclo"]);
+  const iCav = idx(["cavities", "cavidades", "cav"]);
   const hasHeader = iCode >= 0 || iName >= 0;
   const byCode = new Map<string, Partial<Sku>>();
   const start = hasHeader ? 1 : 0;
@@ -74,12 +77,22 @@ function parseCSV(text: string): Partial<Sku>[] {
     name = (name ?? "").trim();
     if (!code) continue;
 
-    const targetValue = iTph >= 0 && cols[iTph] ? Number(String(cols[iTph]).replace(",", ".")) : null;
+    const num = (i: number) => (i >= 0 && cols[i] ? Number(String(cols[i]).replace(",", ".")) : NaN);
+    const targetDirect = num(iTph);
+    const cycle = num(iCycle); // seconds per cycle
+    const cav = num(iCav);
+    let tph: number = Number.isFinite(targetDirect) ? targetDirect : 0;
+    if (!tph && Number.isFinite(cycle) && cycle > 0) {
+      const cavities = Number.isFinite(cav) && cav > 0 ? cav : 1;
+      tph = Math.round((3600 / cycle) * cavities);
+    }
+    const weight = num(iWeight);
     const row: Partial<Sku> = {
       code,
       name,
       category: iCat >= 0 ? cols[iCat] || null : null,
-      target_per_hour: Number.isFinite(targetValue) ? targetValue : 0,
+      target_per_hour: tph,
+      weight: Number.isFinite(weight) ? weight : null,
       active: true,
     };
 
@@ -89,6 +102,7 @@ function parseCSV(text: string): Partial<Sku>[] {
   }
   return Array.from(byCode.values()).filter((row) => row.code && row.name);
 }
+
 
 function cellText(v: unknown): string {
   if (v == null) return "";
