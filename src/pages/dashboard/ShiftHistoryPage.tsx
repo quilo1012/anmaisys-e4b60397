@@ -42,6 +42,9 @@ export default function ShiftHistoryPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<SessionRow | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<{ id: string; code: string; target: number; actual: number } | null>(null);
+  const [editActual, setEditActual] = useState<string>("");
+
 
   const { data: sessions = [] } = useQuery({
     queryKey: ["shift_history", from, to],
@@ -120,7 +123,17 @@ export default function ShiftHistoryPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const saveItemActual = useMutation({
+    mutationFn: async ({ id, actual }: { id: string; actual: number }) => {
+      const { error } = await supabase.from("production_items").update({ actual_qty: actual }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setEditingItem(null); toast.success("Actual updated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const saveEdit = useMutation({
+
     mutationFn: async (s: SessionRow) => {
       const { error } = await supabase.from("production_sessions").update({
         leader_id: s.leader_id, leader_name: s.leader_name,
@@ -286,6 +299,19 @@ export default function ShiftHistoryPage() {
                                     size="icon"
                                     variant="ghost"
                                     onClick={() => {
+                                      setEditingItem({ id: i.id, code: sku?.code ?? "?", target: t, actual: a });
+                                      setEditActual(String(a));
+                                    }}
+                                    title="Edit actual quantity"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {!s.locked && i.id && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => {
                                       if (window.confirm(`Remove ${sku?.code ?? "this SKU"} from this session?`)) {
                                         delItemMut.mutate(i.id);
                                       }
@@ -296,6 +322,7 @@ export default function ShiftHistoryPage() {
                                   </Button>
                                 )}
                               </div>
+
                             </div>
                           );
                         })}
@@ -348,6 +375,29 @@ export default function ShiftHistoryPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Dialog open={!!editingItem} onOpenChange={(o) => !o && setEditingItem(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit actual — {editingItem?.code}</DialogTitle></DialogHeader>
+            {editingItem && (
+              <div className="space-y-3">
+                <div className="text-sm text-muted-foreground">Target: <span className="font-semibold text-foreground">{editingItem.target.toLocaleString()}</span></div>
+                <div>
+                  <Label>Actual quantity</Label>
+                  <Input type="number" value={editActual} onChange={(e) => setEditActual(e.target.value)} autoFocus />
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
+              <Button
+                onClick={() => editingItem && saveItemActual.mutate({ id: editingItem.id, actual: Number(editActual) || 0 })}
+                disabled={saveItemActual.isPending}
+              >Save</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </DashboardLayout>
   );
