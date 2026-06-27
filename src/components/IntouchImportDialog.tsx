@@ -145,6 +145,12 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   const [loading, setLoading] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [autoMapBusy, setAutoMapBusy] = useState(false);
+  const [autoMapSaving, setAutoMapSaving] = useState(false);
+  const [autoMapPreview, setAutoMapPreview] = useState<
+    | null
+    | Array<{ guid: string; intouch_name: string; line_id: string | null; line_name: string; reason: string; include: boolean }>
+  >(null);
 
   const [date, setDate] = useState(defaultDate ?? format(new Date(), "yyyy-MM-dd"));
   const [shift, setShift] = useState<"DAY" | "NIGHT">(defaultShift);
