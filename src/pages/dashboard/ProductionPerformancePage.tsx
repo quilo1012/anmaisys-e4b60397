@@ -73,18 +73,18 @@ export default function ProductionPerformancePage() {
     queryKey: ["oee", range.from, range.to, shift, lineFilter, ragTargets.length],
     queryFn: async () => {
       let q = supabase.from("production_sessions")
-        .select("id, session_date, shift, line, leader_name, locked, production_items(sku_id, plan_qty, planned_qty, actual_qty)")
+        .select("id, session_date, shift, line, leader_name, locked, production_items(sku_id, target_qty, planned_qty, actual_qty)")
         .gte("session_date", range.from).lte("session_date", range.to);
       if (shift !== "all") q = q.eq("shift", shift);
       if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string; plan_qty: number | null; planned_qty: number | null; actual_qty: number | null }[] }) => {
+      return (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null }[] }) => {
         const items = s.production_items ?? [];
         const ragTarget = ragTargetMap.get(`${s.session_date}|${s.shift}|${s.line}`);
         const target = ragTarget && ragTarget > 0
           ? ragTarget
-          : items.reduce((a, i) => a + Number(i.plan_qty ?? i.planned_qty ?? 0), 0);
+          : items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
         const actual = items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
         return { id: s.id, session_date: s.session_date, shift: s.shift, line: s.line, leader_name: s.leader_name, locked: s.locked, target, actual, eff: target > 0 ? (actual / target) * 100 : 0, items: items.map((i) => ({ sku_id: i.sku_id, actual: Number(i.actual_qty ?? 0) })) };
       });
