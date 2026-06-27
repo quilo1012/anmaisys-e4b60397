@@ -126,24 +126,32 @@ function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
     items: filteredItems.filter((i) => i.group === g),
   })).filter((g) => g.items.length > 0);
 
+  // When there are very few items (e.g. engineer role), drop group labels for
+  // a cleaner, more professional look.
+  const hideLabels = filteredItems.length <= 4;
+
   return (
     <>
       {grouped.map((group) => (
-        <SidebarGroup key={group.label}>
-          <SidebarGroupLabel className="text-sidebar-foreground/60">{group.label}</SidebarGroupLabel>
+        <SidebarGroup key={group.label} className="px-2">
+          {!hideLabels && (
+            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50 px-2">
+              {group.label}
+            </SidebarGroupLabel>
+          )}
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-0.5">
               {group.items.map((item) => (
                 <SidebarMenuItem key={item.title + item.url}>
-                  <SidebarMenuButton asChild tooltip={item.title}>
+                  <SidebarMenuButton asChild tooltip={item.title} className="h-9 rounded-md">
                     <NavLink
                       to={item.url}
                       end
-                      className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      className="text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
                       activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                     >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      <span className="text-sm">{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -155,6 +163,7 @@ function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
     </>
   );
 }
+
 
 const roleTitle: Record<string, string> = {
   admin: "Admin",
