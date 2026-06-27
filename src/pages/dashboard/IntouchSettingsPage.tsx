@@ -47,9 +47,12 @@ export default function IntouchSettingsPage() {
     lastSync: string | null;
   } | null>(null);
   const [loadingDiag, setLoadingDiag] = useState(false);
+  const [diagError, setDiagError] = useState<string | null>(null);
+  const [diagRefreshedAt, setDiagRefreshedAt] = useState<Date | null>(null);
+  const [diagAuto, setDiagAuto] = useState(true);
 
-  const loadDiag = async () => {
-    setLoadingDiag(true);
+  const loadDiag = async (opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) setLoadingDiag(true);
     try {
       const { data, error } = await (supabase as any)
         .from("production_items")
@@ -83,14 +86,25 @@ export default function IntouchSettingsPage() {
         byLine,
         lastSync: last ? new Date(last).toISOString() : null,
       });
+      setDiagError(null);
+      setDiagRefreshedAt(new Date());
     } catch (e: any) {
-      toast.error(e.message || "Failed to load diagnostics");
+      const msg = e?.message || "Failed to load diagnostics";
+      setDiagError(msg);
+      if (!opts.silent) toast.error(msg);
     } finally {
-      setLoadingDiag(false);
+      if (!opts.silent) setLoadingDiag(false);
     }
   };
 
-  useEffect(() => { loadDiag(); }, []);
+  useEffect(() => {
+    loadDiag();
+    if (!diagAuto) return;
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") loadDiag({ silent: true });
+    }, 30_000);
+    return () => clearInterval(t);
+  }, [diagAuto]);
 
 
 
