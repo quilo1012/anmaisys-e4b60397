@@ -200,9 +200,10 @@ export default function SKUEfficiencyPage() {
                 <SelectItem value="runs_desc">Most runs</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={exportCsv} disabled={!filtered.length}>
-              <Download className="h-4 w-4 mr-2" /> Export CSV
+            <Button variant="outline" onClick={exportXlsx} disabled={!filtered.length}>
+              <Download className="h-4 w-4 mr-2" /> Export XLSX
             </Button>
+
           </div>
         </div>
 
