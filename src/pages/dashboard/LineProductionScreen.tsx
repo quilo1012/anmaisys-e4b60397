@@ -347,6 +347,23 @@ export default function LineProductionScreen() {
           <Badge variant="outline" className="h-10 px-3 text-sm">
             {activeSessionDate}
           </Badge>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Tablet</span>
+            <Select value={tabletId || "__none__"} onValueChange={(v) => setTabletId(v === "__none__" ? "" : v)}>
+              <SelectTrigger className="h-12 min-w-[110px] text-lg">
+                <SelectValue placeholder="ID" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Not set</SelectItem>
+                {["1","2","3","4","5","6","7","8"].map((n) => (
+                  <SelectItem key={n} value={n} className="text-lg">Tablet {n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Badge variant={canEdit ? "default" : "secondary"} className="h-8 px-2">
+              {canEdit ? "EDIT" : "READ-ONLY"}
+            </Badge>
+          </div>
           <div className="ml-auto flex items-center gap-3">
             <SyncStatusIndicator
               isSyncing={itemsQ.isFetching || ragPlanQ.isFetching || sessionQ.isFetching || updateActual.isPending}
