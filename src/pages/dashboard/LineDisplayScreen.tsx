@@ -138,6 +138,31 @@ export default function LineDisplayScreen() {
     },
   });
 
+  // Auto-sync actuals from iTouching every 60s so the screen mirrors the live balance
+  useEffect(() => {
+    if (!line) return;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        await supabase.functions.invoke("intouch-sync-production", {
+          body: { date, shift: shiftDb, line, manual: true },
+        });
+        if (!cancelled) {
+          qc.invalidateQueries({ queryKey: ["rag-live", date, line, shift] });
+          qc.invalidateQueries({ queryKey: ["prod-items-live", date, line, shift] });
+        }
+      } catch {
+        /* ignore transient sync errors */
+      }
+    };
+    run();
+    const t = setInterval(run, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [line, shift, shiftDb, date, qc]);
+
   // Realtime subscriptions
   useEffect(() => {
     if (!line) return;
@@ -157,6 +182,7 @@ export default function LineDisplayScreen() {
       supabase.removeChannel(ch);
     };
   }, [line, shift, date, qc]);
+
 
   const target = Number(rag?.plan_qty ?? 0);
   const actual = Number(rag?.actual_qty ?? 0);
