@@ -134,7 +134,14 @@ Deno.serve(async (req) => {
   let payload: any = null;
   let parseError: string | null = null;
   try {
-    payload = raw ? JSON.parse(raw) : {};
+    const json = raw ? JSON.parse(raw) : {};
+    const parsed = PayloadSchema.safeParse(json);
+    if (!parsed.success) {
+      parseError = "invalid_payload_shape";
+      payload = { _raw: raw };
+    } else {
+      payload = parsed.data;
+    }
   } catch (e) {
     parseError = `invalid_json: ${(e as Error).message}`;
     payload = { _raw: raw };
