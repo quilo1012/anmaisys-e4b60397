@@ -491,6 +491,41 @@ export default function IntouchSettingsPage() {
 
         </div>
 
+        <Card className="border-primary/40">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" /> Full resync now
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Forces an immediate re-pull of the Schedule Jobs calendar (today, both shifts), the iTouching products / SKUs (imported into the system) and the production actuals.
+            </p>
+            <Button onClick={resyncAll} disabled={resyncingAll}>
+              {resyncingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Resync schedule + products + production
+            </Button>
+            {resyncResult && (
+              <div
+                className={
+                  "flex items-start gap-2 rounded-md border p-3 text-sm " +
+                  (resyncResult.ok
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                    : "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300")
+                }
+              >
+                {resyncResult.ok ? (
+                  <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                )}
+                <span className="break-all">{resyncResult.msg}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+
         <Card>
           <CardHeader><CardTitle className="text-lg">Setup guide</CardTitle></CardHeader>
           <CardContent className="space-y-4 text-sm">
