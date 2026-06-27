@@ -1,0 +1,1 @@
+ALTER TABLE public.production_items ALTER COLUMN sku_id DROP NOT NULL;
