@@ -65,7 +65,10 @@ export default function ProductionPerformancePage() {
   });
   const ragTargetMap = useMemo(() => {
     const m = new Map<string, number>();
-    for (const r of ragTargets) m.set(`${r.entry_date}|${r.shift}|${r.line}`, Number(r.plan_qty ?? 0));
+    for (const r of ragTargets) {
+      const k = `${r.entry_date}|${r.shift}|${r.line}`;
+      m.set(k, (m.get(k) ?? 0) + Number(r.plan_qty ?? 0));
+    }
     return m;
   }, [ragTargets]);
 
