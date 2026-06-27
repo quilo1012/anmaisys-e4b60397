@@ -100,6 +100,33 @@ export default function LineDisplayScreen() {
 
   const line = profile?.production_line ?? null;
 
+  // Permission to open REQUEST WO: admin/manager OR operator mapped to this line
+  const { data: canRequest } = useQuery({
+    queryKey: ["can-request-wo", user?.id, line],
+    enabled: !!user?.id && !!line,
+    queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id);
+      const r = (roles ?? []).map((x: any) => x.role);
+      if (r.includes("admin") || r.includes("manager")) return true;
+      const { data: ln } = await supabase
+        .from("lines")
+        .select("id")
+        .eq("name", line!)
+        .maybeSingle();
+      if (!ln?.id) return false;
+      const { data: ola } = await supabase
+        .from("operator_line_accounts")
+        .select("line_ids")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return (ola?.line_ids ?? []).includes(ln.id);
+    },
+  });
+
+
   const { data: rag } = useQuery({
     queryKey: ["rag-live", date, line, shift],
     enabled: !!line,
