@@ -276,7 +276,7 @@ Deno.serve(async (req) => {
     const machineKeysSeen = new Set<string>();
     for (const p of payloads) {
       walk(p, (obj) => {
-        const v = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+        const v = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
         if (v != null) {
           const s = String(v).trim();
           if (s) machineKeysSeen.add(s);
@@ -288,7 +288,7 @@ Deno.serve(async (req) => {
     for (const [line_id, machines] of byLine) {
       const line = lineName.get(line_id);
       if (!line) continue;
-      const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+      const allowedIds = new Set(machines.map((m) => machineKey(m.id)).filter(Boolean));
       const allowedNames = new Set(machines.map((m) => (m.name ?? "").toLowerCase()).filter(Boolean));
       const merged = new Map<string, Row>();
       for (const p of payloads) {
@@ -309,6 +309,7 @@ Deno.serve(async (req) => {
     const debugBlock = {
       endpoints: debug,
       mapped_machines: (maps ?? []).length,
+      mapped_machine_ids: ids.map((id: string) => `${id.slice(0, 8)}…`),
       machine_keys_seen: Array.from(machineKeysSeen).slice(0, 200),
     };
 
