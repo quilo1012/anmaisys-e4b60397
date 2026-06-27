@@ -153,9 +153,25 @@ Deno.serve(async (req) => {
       () => itFetch(`/api/GetRunningJobs`, { method: "GET" }),
     ];
     const payloads: unknown[] = [];
-    for (const a of attempts) { const r = await a(); if (r) payloads.push(r); }
+    const debug: Array<{ path: string; ok: boolean; bytes: number }> = [];
+    const paths = [
+      `/api/ScheduleReports/MaterialRequirements/Machine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+      `/api/ScheduleReports/MaterialRequirementsByMachine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+      `/api/GetScheduledJobs?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+      `/api/GetJobSchedule?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+      `/api/GetWorkToList?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+      `/api/GetJobs`,
+      `/api/GetRunningJobs`,
+    ];
+    for (const p of paths) {
+      const init: RequestInit = p.includes("GetJobs") && !p.includes("?") ? { method: "GET" } : { method: "POST", body: JSON.stringify([]) };
+      const r = await itFetch(p, init);
+      const bytes = r ? JSON.stringify(r).length : 0;
+      debug.push({ path: p.split("?")[0], ok: !!r, bytes });
+      if (r) payloads.push(r);
+    }
 
-    const sections: Array<{ line: string; items: Row[] }> = [];
+    const sections: Array<{ line: string; items: any[] }> = [];
     for (const [line_id, machines] of byLine) {
       const line = lineName.get(line_id);
       if (!line) continue;
@@ -172,19 +188,25 @@ Deno.serve(async (req) => {
       if (merged.size > 0) {
         sections.push({
           line,
-          items: Array.from(merged.values()).map((r) => ({
-            sku_code: r.code,
-            description: r.description,
-            qty: r.qty,
-          })) as any,
+          items: Array.from(merged.values()).map((r) => ({ sku_code: r.code, description: r.description, qty: r.qty })),
         });
       }
+    }
+
+    // When nothing matched, return a tiny sample of one payload so the UI can show why.
+    let sample: unknown = null;
+    if (sections.length === 0 && payloads.length > 0) {
+      const first = payloads.find((p) => p && JSON.stringify(p).length > 2) ?? payloads[0];
+      sample = JSON.parse(JSON.stringify(first)?.slice(0, 4000) ?? "null");
     }
 
     return new Response(JSON.stringify({
       sections, count: sections.length,
       total_skus: sections.reduce((a, s) => a + s.items.length, 0),
       window: { start: startISO, end: endISO },
+      mapped_machines: (maps ?? []).length,
+      endpoints: debug,
+      sample,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: (e as Error).message }), {
