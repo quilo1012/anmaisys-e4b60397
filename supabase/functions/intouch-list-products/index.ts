@@ -35,27 +35,51 @@ Deno.serve(async (req) => {
 
     const candidates = [
       "/api/Product", "/api/Products", "/api/GetProducts", "/api/GetProductList",
-      "/api/SKU", "/api/SKUs", "/api/GetSKUs", "/api/Item", "/api/Items",
+      "/api/ProductList", "/api/GetAllProducts",
+      "/api/SKU", "/api/SKUs", "/api/GetSKUs", "/api/GetSKUList",
+      "/api/Item", "/api/GetItems",
+    ];
+    // Fallback: derive distinct products from job endpoints when no catalog exists.
+    const jobFallbacks = [
+      "/api/GetRunningJobs", "/api/GetCompletedJobs", "/api/GetJobs",
+      "/api/GetJobList", "/api/GetWorkToList",
     ];
     let raw: any = null;
     let usedPath = "";
     let lastErr = "";
+    const tryFetch = async (path: string) => {
+      const res = await fetch(`${INTOUCH_URL}${path}`, {
+        headers: { Authorization: `Bearer ${INTOUCH_TOKEN}`, Accept: "application/json" },
+      });
+      const txt = await res.text();
+      if (!res.ok) { lastErr = `${path} → ${res.status}: ${txt.slice(0, 120)}`; return null; }
+      try { return JSON.parse(txt); } catch { lastErr = `${path}: invalid JSON`; return null; }
+    };
     for (const path of candidates) {
       try {
-        const res = await fetch(`${INTOUCH_URL}${path}`, {
-          headers: { Authorization: `Bearer ${INTOUCH_TOKEN}`, Accept: "application/json" },
-        });
-        const txt = await res.text();
-        if (!res.ok) { lastErr = `${path} → ${res.status}: ${txt.slice(0, 160)}`; continue; }
-        try { raw = JSON.parse(txt); usedPath = path; break; }
-        catch { lastErr = `${path}: invalid JSON`; }
+        const data = await tryFetch(path);
+        if (data != null) { raw = data; usedPath = path; break; }
       } catch (e) { lastErr = `${path}: ${(e as Error).message}`; }
     }
-    if (raw == null) throw new Error(`iTouching: no product endpoint returned JSON. ${lastErr}`);
+    if (raw == null) {
+      for (const path of jobFallbacks) {
+        try {
+          const data = await tryFetch(path);
+          if (data != null) { raw = data; usedPath = `${path} (derived)`; break; }
+        } catch (e) { lastErr = `${path}: ${(e as Error).message}`; }
+      }
+    }
+    if (raw == null) {
+      return new Response(JSON.stringify({
+        products: [], count: 0, fallback: true,
+        error: "iTouching has no accessible product catalog endpoint.",
+        hint: "Last error: " + lastErr,
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     const list: any[] = Array.isArray(raw)
       ? raw
-      : (raw.Products ?? raw.products ?? raw.SKUs ?? raw.Items ?? raw.items ?? raw.data ?? raw.Result ?? raw.result ?? []);
+      : (raw.Products ?? raw.products ?? raw.SKUs ?? raw.Items ?? raw.items ?? raw.Jobs ?? raw.jobs ?? raw.data ?? raw.Result ?? raw.result ?? []);
 
     const pick = (o: any, keys: string[]) => {
       for (const k of keys) {
@@ -75,13 +99,19 @@ Deno.serve(async (req) => {
       return 0;
     };
 
-    const products = list.map((p) => ({
-      code: pick(p, ["ProductCode", "Code", "SKU", "Sku", "SkuCode", "ItemCode", "ProductID", "ProductId", "Id", "ID", "id"]),
-      name: pick(p, ["ProductName", "Name", "Description", "SkuName", "ItemName", "description", "name"]),
+    const mapped = list.map((p) => ({
+      code: pick(p, ["ProductCode", "Code", "SKU", "Sku", "SkuCode", "ItemCode", "ProductID", "ProductId", "JobProductCode", "Id", "ID", "id"]),
+      name: pick(p, ["ProductName", "Name", "Description", "SkuName", "ItemName", "JobProductName", "description", "name"]),
       category: pick(p, ["Category", "ProductCategory", "Group", "GroupName", "Family"]),
       target_per_hour: num(p, ["TargetPerHour", "RatePerHour", "StandardRate", "UPH", "Target", "RunRate", "StandardUPH"]),
       raw: p,
     })).filter((p) => p.code && p.name);
+    const seen = new Set<string>();
+    const products = mapped.filter((p) => {
+      const k = p.code.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    });
 
     return new Response(JSON.stringify({ products, source: usedPath, count: products.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
