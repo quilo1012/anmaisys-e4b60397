@@ -538,6 +538,17 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
           </Button>
           <Button
             type="button"
+            variant="destructive"
+            onClick={async () => { reset(); await pullFromIntouch(); }}
+            disabled={pulling || loading}
+            className="gap-2"
+            title="Clears the current preview and re-pulls fresh data from iTouching"
+          >
+            {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
+            Force Re-sync
+          </Button>
+          <Button
+            type="button"
             variant="secondary"
             onClick={runAutoMap}
             disabled={autoMapBusy || pulling}
@@ -738,6 +749,8 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                           <table className="w-full text-sm">
                             <thead className="bg-muted/40 text-xs">
                               <tr>
+                                <th className="text-left px-3 py-2 w-10">#</th>
+                                <th className="text-left px-3 py-2">Status</th>
                                 <th className="text-left px-3 py-2">Code</th>
                                 <th className="text-left px-3 py-2">Description</th>
                                 <th className="text-right px-3 py-2">Qty</th>
@@ -745,20 +758,31 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                               </tr>
                             </thead>
                             <tbody>
-                              {sec.items.map((i, idx) => (
-                                <tr key={`${i.sku_code}-${idx}`} className="border-t">
-                                  <td className="px-3 py-1.5 font-mono text-xs">{i.sku_code}</td>
-                                  <td className="px-3 py-1.5 text-muted-foreground truncate max-w-[280px]">{i.description ?? ""}</td>
-                                  <td className="px-3 py-1.5 text-right tabular-nums">{i.qty.toLocaleString()}</td>
-                                  <td className="px-3 py-1.5">
-                                    {i.sku_id ? (
-                                      <span className="text-xs text-green-500">{i.sku_name}</span>
-                                    ) : (
-                                      <span className="text-xs text-amber-500">Unknown SKU</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
+                              {sec.items.map((i, idx) => {
+                                const running = (i as any).status === "Running";
+                                return (
+                                  <tr key={`${i.sku_code}-${idx}`} className={`border-t ${running ? "bg-primary/10" : ""}`}>
+                                    <td className="px-3 py-1.5 text-xs text-muted-foreground tabular-nums">{idx + 1}</td>
+                                    <td className="px-3 py-1.5">
+                                      {running ? (
+                                        <Badge className="text-[10px] bg-green-600 hover:bg-green-600">RUNNING</Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-[10px]">Scheduled</Badge>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-1.5 font-mono text-xs">{i.sku_code}</td>
+                                    <td className="px-3 py-1.5 text-muted-foreground truncate max-w-[280px]">{i.description ?? ""}</td>
+                                    <td className="px-3 py-1.5 text-right tabular-nums">{i.qty.toLocaleString()}</td>
+                                    <td className="px-3 py-1.5">
+                                      {i.sku_id ? (
+                                        <span className="text-xs text-green-500">{i.sku_name}</span>
+                                      ) : (
+                                        <span className="text-xs text-amber-500">Unknown SKU</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>

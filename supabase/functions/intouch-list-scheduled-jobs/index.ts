@@ -143,7 +143,7 @@ function queryVariants(path: string, machineId: string | null, startISO: string,
   return Array.from(new Set(out));
 }
 
-type Row = { code: string; description: string; qty: number };
+type Row = { code: string; description: string; qty: number; status: "Running" | "Scheduled"; seq: number };
 function parseDateMs(value: unknown) {
   if (value == null || String(value).trim() === "") return null;
   const ms = Date.parse(String(value));
@@ -161,6 +161,19 @@ function objectOverlapsWindow(obj: any, startMs: number, endMs: number) {
   return a < endMs && b >= startMs;
 }
 
+function readStatus(o: any): "Running" | "Scheduled" {
+  const raw = String(pick(o, ["Status", "JobStatus", "State", "RunStatus", "CurrentStatus"]) ?? "").toLowerCase();
+  if (/run|active|in.?progress|started/.test(raw)) return "Running";
+  const isRunning = pick(o, ["IsRunning", "Running", "IsActive"]);
+  if (isRunning === true || String(isRunning).toLowerCase() === "true") return "Running";
+  return "Scheduled";
+}
+function readSeq(o: any): number {
+  const v = pick(o, ["Sequence", "Seq", "QueuePosition", "Position", "SequenceNumber", "JobOrder", "PriorityOrder", "RowNumber"]);
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNames: Set<string>, startMs: number, endMs: number, opts?: { skipMatch?: boolean; skipWindow?: boolean }): Row[] {
   const out: Row[] = [];
   const skipMatch = !!opts?.skipMatch;
@@ -172,6 +185,7 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
     return allowedIds.has(machineKey(s)) || allowedNames.has(s.toLowerCase());
   };
   const inWin = (o: any) => skipWindow ? true : objectOverlapsWindow(o, startMs, endMs);
+  let autoSeq = 0;
   walk(raw, (obj) => {
     const wos = obj?.WorksOrders ?? obj?.WorkOrders ?? obj?.worksOrders;
     const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
@@ -180,11 +194,11 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
     if (!inWin(obj)) return;
     for (const wo of wos) {
       if (!inWin(wo)) continue;
-      const code = cleanCode(pick(wo, ["PartCode", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "OrderNumber", "WorkOrderNo", "JobProductCode", "ProductID", "ProductId", "Code"]));
+      const code = cleanCode(pick(wo, ["PartCode", "Part Code", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "JobProductCode", "ProductID", "ProductId", "Code"]));
       if (!code || code.length < 2) continue;
-      const description = String(pick(wo, ["LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
-      const qty = num(pick(wo, ["OrderQuantity", "OrderQty", "RequiredQuantity", "RequiredQty", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "ScheduledQty", "TargetQty", "Balance", "Demand", "Units"])) || 1;
-      out.push({ code, description, qty });
+      const description = String(pick(wo, ["Description", "LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
+      const qty = num(pick(wo, ["OrderQty", "Order Qty", "JobOrderQuantity", "Job Order Quantity", "OrderQuantity", "RequiredQuantity", "RequiredQty", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "ScheduledQty", "TargetQty", "Balance", "Demand", "Units"])) || 1;
+      out.push({ code, description, qty, status: readStatus(wo), seq: readSeq(wo) || ++autoSeq });
     }
   });
   if (out.length === 0) {
@@ -192,11 +206,11 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
       const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
       if (!same(mref)) return;
       if (!inWin(obj)) return;
-      const code = cleanCode(pick(obj, ["PartCode", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "FGCode", "FinishedGood", "MaterialCode", "Product", "ProductID", "ProductId", "JobProductCode", "OrderNumber", "WorkOrderNo", "Code"]));
+      const code = cleanCode(pick(obj, ["PartCode", "Part Code", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "FGCode", "FinishedGood", "MaterialCode", "Product", "ProductID", "ProductId", "JobProductCode", "Code"]));
       if (!code || code.length < 3 || /^(LINE|MACHINE|DATE|SHIFT|START|END|STATUS)$/i.test(code)) return;
-      const qty = num(pick(obj, ["OrderQuantity", "OrderQty", "RequiredQuantity", "RequiredQty", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "TargetQty", "ScheduledQty", "Balance", "Demand", "Units"])) || 1;
-      const description = String(pick(obj, ["LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
-      out.push({ code, description, qty });
+      const qty = num(pick(obj, ["OrderQty", "Order Qty", "JobOrderQuantity", "Job Order Quantity", "OrderQuantity", "RequiredQuantity", "RequiredQty", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "TargetQty", "ScheduledQty", "Balance", "Demand", "Units"])) || 1;
+      const description = String(pick(obj, ["Description", "LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
+      out.push({ code, description, qty, status: readStatus(obj), seq: readSeq(obj) || ++autoSeq });
     });
   }
   return out;
@@ -307,6 +321,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Pull SKU catalog once (Code → name/category) for enrichment.
+    const { data: skuRows } = await admin
+      .from("sku_products")
+      .select("code, name, category")
+      .eq("active", true);
+    const skuByCode = new Map<string, { name: string; category: string | null }>(
+      (skuRows ?? []).map((s: any) => [String(s.code).toUpperCase(), { name: s.name, category: s.category ?? null }]),
+    );
 
     const sections: Array<{ line: string; items: any[] }> = [];
     for (const [line_id, machines] of byLine) {
@@ -316,30 +338,43 @@ Deno.serve(async (req) => {
       const allowedNames = new Set(machines.map((m) => (m.name ?? "").toLowerCase()).filter(Boolean));
       const merged = new Map<string, Row & { sources: Set<string> }>();
       for (const p of payloads) {
-        // Per-machine payloads: only consume for the line that owns that machine.
-        // Skip MachineID matching (the response may not echo it) and the shift
-        // window filter (the endpoint already returned what iTouching considers
-        // scheduled for that machine).
         const scoped = p.forMachineId ? allowedIds.has(machineKey(p.forMachineId)) : true;
         if (!scoped) continue;
         const opts = p.forMachineId ? { skipMatch: true, skipWindow: true } : undefined;
         for (const r of extractRowsForMachine(p.data, allowedIds, allowedNames, start.getTime(), end.getTime(), opts)) {
-          const cur = merged.get(r.code);
-          if (!cur) merged.set(r.code, { ...r, sources: new Set([p.source]) });
+          // Composite key preserves multiple batches of the same SKU in the queue.
+          const key = `${r.code}#${r.seq}`;
+          const cur = merged.get(key);
+          if (!cur) merged.set(key, { ...r, sources: new Set([p.source]) });
           else {
             cur.description = cur.description || r.description;
             cur.qty = Math.max(cur.qty, r.qty);
+            if (r.status === "Running") cur.status = "Running";
             cur.sources.add(p.source);
           }
         }
       }
       if (merged.size > 0) {
+        // Order: Running first, then by queue sequence.
+        const ordered = Array.from(merged.values()).sort((a, b) => {
+          if (a.status !== b.status) return a.status === "Running" ? -1 : 1;
+          return a.seq - b.seq;
+        });
         sections.push({
           line,
-          items: Array.from(merged.values()).map((r) => ({
-            sku_code: r.code, description: r.description, qty: r.qty,
-            sources: Array.from(r.sources),
-          })),
+          items: ordered.map((r) => {
+            const cat = skuByCode.get(r.code.toUpperCase());
+            return {
+              sku_code: r.code,
+              description: cat?.name || r.description,
+              qty: r.qty,
+              status: r.status,
+              seq: r.seq,
+              catalog_match: !!cat,
+              category: cat?.category ?? null,
+              sources: Array.from(r.sources),
+            };
+          }),
         });
       }
 
