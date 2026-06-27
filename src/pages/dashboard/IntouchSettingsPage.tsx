@@ -40,6 +40,58 @@ export default function IntouchSettingsPage() {
   const [importingProducts, setImportingProducts] = useState(false);
   const [productSource, setProductSource] = useState<string>("");
 
+  const [diag, setDiag] = useState<{
+    total: number;
+    distinctSkus: number;
+    byLine: { line: string; skus: number; items: number }[];
+    lastSync: string | null;
+  } | null>(null);
+  const [loadingDiag, setLoadingDiag] = useState(false);
+
+  const loadDiag = async () => {
+    setLoadingDiag(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from("production_items")
+        .select("sku_code, sku_name, created_at, updated_at, production_sessions!inner(line)")
+        .not("sku_code", "is", null)
+        .order("updated_at", { ascending: false })
+        .limit(10000);
+      if (error) throw error;
+      const rows = (data ?? []) as any[];
+      const lineMap = new Map<string, Set<string>>();
+      const lineCount = new Map<string, number>();
+      let last = 0;
+      const allSkus = new Set<string>();
+      for (const r of rows) {
+        const line = String(r.production_sessions?.line ?? "—");
+        const code = String(r.sku_code ?? "").trim();
+        if (!code) continue;
+        allSkus.add(code.toLowerCase());
+        if (!lineMap.has(line)) lineMap.set(line, new Set());
+        lineMap.get(line)!.add(code.toLowerCase());
+        lineCount.set(line, (lineCount.get(line) ?? 0) + 1);
+        const t = new Date(r.updated_at ?? r.created_at).getTime();
+        if (t > last) last = t;
+      }
+      const byLine = Array.from(lineMap.entries())
+        .map(([line, set]) => ({ line, skus: set.size, items: lineCount.get(line) ?? 0 }))
+        .sort((a, b) => b.items - a.items);
+      setDiag({
+        total: rows.length,
+        distinctSkus: allSkus.size,
+        byLine,
+        lastSync: last ? new Date(last).toISOString() : null,
+      });
+    } catch (e: any) {
+      toast.error(e.message || "Failed to load diagnostics");
+    } finally {
+      setLoadingDiag(false);
+    }
+  };
+
+  useEffect(() => { loadDiag(); }, []);
+
 
 
   const [syncDisabled, setSyncDisabled] = useState<boolean>(false);
