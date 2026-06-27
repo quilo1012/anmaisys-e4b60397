@@ -534,7 +534,17 @@ Deno.serve(async (req) => {
 
 
     console.log("intouch-poll result", JSON.stringify(results));
-    return new Response(JSON.stringify({ ok: true, ...results }), {
+    const debug = new URL(req.url).searchParams.get("debug") === "1";
+    const payload: any = { ok: true, ...results };
+    if (debug) {
+      payload.raw_statuses = statuses.map((s) => ({
+        MachineID: s.MachineID,
+        Status: s.Status,
+        DowntimeCode: s.DowntimeCode ?? null,
+        name: mapped.find((m) => m.intouch_machine_id === s.MachineID)?.intouch_machine_name,
+      }));
+    }
+    return new Response(JSON.stringify(payload), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
