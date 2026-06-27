@@ -407,6 +407,14 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/dashboard/line-hub"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]}>
+                      <LineHubScreen />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/dashboard/line-display"
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]}>
