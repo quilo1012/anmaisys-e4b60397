@@ -1604,13 +1604,14 @@ function SummaryInlineInput({
 }
 
 function DowntimeBreakdownPopover({
-  trigger, stops, dateStr, shift, line,
+  trigger, stops, dateStr, shift, line, totalScrap = 0,
 }: {
   trigger: React.ReactNode;
   stops: ClampedStop[];
   dateStr: string;
   shift: Shift;
   line: string;
+  totalScrap?: number;
 }) {
   const fmtTs = (iso: string) =>
     new Date(iso).toLocaleString("en-GB", {
@@ -1618,6 +1619,16 @@ function DowntimeBreakdownPopover({
       day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
     });
   const totalMin = stops.reduce((s, x) => s + x.minutes, 0);
+  const statusBadge = (st?: string | null) => {
+    if (!st) return null;
+    const s = String(st).toLowerCase();
+    const tone =
+      ["finished","closed","completed","force_closed"].includes(s) ? "bg-emerald-500/15 text-emerald-500" :
+      ["in_progress","arrived","received"].includes(s) ? "bg-blue-500/15 text-blue-500" :
+      s === "open" ? "bg-red-500/15 text-red-500" :
+      "bg-muted text-muted-foreground";
+    return <span className={`ml-1 inline-block px-1 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${tone}`}>{s.replace("_"," ")}</span>;
+  };
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -1625,11 +1636,16 @@ function DowntimeBreakdownPopover({
           {trigger}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[420px] max-w-[92vw] p-0">
+      <PopoverContent align="end" className="w-[440px] max-w-[92vw] p-0">
         <div className="px-3 py-2 border-b bg-muted/40">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{line} · {shift} · {dateStr}</div>
-          <div className="text-sm font-semibold">{stops.length} stop{stops.length === 1 ? "" : "s"} · {totalMin}m total</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm font-semibold">{stops.length} stop{stops.length === 1 ? "" : "s"} · {totalMin}m total</div>
+            {totalScrap > 0 && <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">Scrap: {totalScrap.toLocaleString()}</div>}
+          </div>
+          <a href="/dashboard/work-orders" className="text-[11px] text-primary hover:underline">Open Work Orders →</a>
         </div>
+
         <div className="max-h-[320px] overflow-y-auto">
           <table className="w-full text-xs tabular-nums">
             <thead className="sticky top-0 bg-background border-b">
