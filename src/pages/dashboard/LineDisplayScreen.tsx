@@ -54,6 +54,8 @@ function formatCountdown(ms: number) {
 
 export default function LineDisplayScreen() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
   const qc = useQueryClient();
   const [now, setNow] = useState(new Date());
 
