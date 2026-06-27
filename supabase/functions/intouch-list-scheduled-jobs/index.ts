@@ -80,26 +80,23 @@ async function itFetch(path: string, init?: RequestInit): Promise<{ data: unknow
 }
 
 async function discoverSchedulePaths() {
+  // STRICT: only schedule-oriented endpoints. We deliberately exclude
+  // RunningJobs / JobsRan / historical job endpoints — they expose what was
+  // produced, not what is currently scheduled in iTouching, and were the root
+  // cause of the planner showing SKUs that did not match the live schedule.
   const defaults = [
     "/api/ScheduleReports/ScheduleJobs/Machine",
     "/api/ScheduleReports/ScheduledJobs/Machine",
-    "/api/ScheduleReports/Jobs/Machine",
     "/api/ScheduleReports/JobSchedule/Machine",
     "/api/ScheduleReports/ProductionSchedule/Machine",
     "/api/ScheduleReports/WorkToList/Machine",
-    "/api/ScheduleReports/MaterialRequirements/Machine",
-    "/api/ScheduleReports/MaterialRequirementsByMachine",
     "/api/Reports/ScheduleJobs/Machine",
     "/api/Reports/ScheduledJobs/Machine",
     "/api/Reports/ProductionSchedule/Machine",
-    "/api/Reports/MaterialRequirements/Machine",
     "/api/GetScheduledJobs",
     "/api/GetJobSchedule",
     "/api/GetWorkToList",
     "/api/GetJobsScheduledDuringPeriod",
-    "/api/GetJobsRanDuringPeriod",
-    "/api/GetJobsRan",
-    "/api/JobChange",
   ];
   const docs1 = await itFetch("/swagger/docs/v1", { method: "GET" });
   const docs2 = docs1.data ? docs1 : await itFetch("/swagger/v1/swagger.json", { method: "GET" });
@@ -107,11 +104,15 @@ async function discoverSchedulePaths() {
   const discovered = (docs3.data as any)?.paths && typeof (docs3.data as any).paths === "object"
     ? Object.keys((docs3.data as any).paths).filter((p) => {
       const n = p.toLowerCase();
-      return (n.includes("schedule") || n.includes("job") || n.includes("worktolist") || n.includes("material"))
-        && !n.includes("stop") && !n.includes("login");
+      // Only paths that explicitly mention "schedule" or "worktolist".
+      // Reject ran/running/history/material/stop/login.
+      if (!(n.includes("schedule") || n.includes("worktolist"))) return false;
+      if (n.includes("ran") || n.includes("running") || n.includes("history")) return false;
+      if (n.includes("stop") || n.includes("login") || n.includes("material")) return false;
+      return true;
     })
     : [];
-  return Array.from(new Set([...discovered, ...defaults])).slice(0, 40);
+  return Array.from(new Set([...discovered, ...defaults])).slice(0, 30);
 }
 
 function fillPath(path: string, machineId: string) {
@@ -220,18 +221,18 @@ Deno.serve(async (req) => {
       { machines: ids, startTime: startISO, endTime: endISO },
     ];
 
-    const payloads: unknown[] = [];
+    const payloads: Array<{ source: string; data: unknown }> = [];
     const debug: Array<{ path: string; method: string; status: number; ok: boolean; bytes: number; sample: unknown; err?: string }> = [];
     const pushDebug = (path: string, method: string, r: { data: unknown; status: number; ok: boolean; bytes: number; err?: string }) => {
       let sample: unknown = null;
       if (r.data) { try { sample = JSON.parse(JSON.stringify(r.data).slice(0, 800)); } catch { sample = null; } }
       if (debug.length < 120) debug.push({ path: path.split("?")[0], method, status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
-      if (r.data) payloads.push(r.data);
+      if (r.data) payloads.push({ source: `${method} ${path.split("?")[0]}`, data: r.data });
     };
 
-    // Current running jobs is often the only endpoint that exposes the active schedule.
-    const running = await itFetch("/api/GetRunningJobs", { method: "GET" });
-    pushDebug("/api/GetRunningJobs", "GET", running);
+    // NOTE: /api/GetRunningJobs and /api/GetJobs hydration removed — they
+    // return current/historical production, not the live schedule, which made
+    // the planner show SKUs that did not match iTouching.
 
     const paths = await discoverSchedulePaths();
     for (const path of paths) {
@@ -244,10 +245,7 @@ Deno.serve(async (req) => {
         for (const q of queryVariants(path, firstId, startISO, endISO)) {
           const r = await itFetch(q, { method: "GET" });
           pushDebug(q.replace(firstId, "…"), "GET", r);
-          if (r.ok && r.bytes > 2) {
-            winningTemplate = q;
-            break;
-          }
+          if (r.ok && r.bytes > 2) { winningTemplate = q; break; }
         }
         if (!winningTemplate) continue;
         for (const machineId of ids.slice(1)) {
@@ -267,26 +265,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Hydrate: if any running-jobs payload contains JobIDs, POST them to /api/GetJobs for full records.
-    const jobIds = new Set<string>();
-    for (const p of payloads) {
-      walk(p, (o) => {
-        const jid = String(pick(o, ["JobID", "JobId", "JobGUID", "JobGuid"]) ?? "").trim();
-        if (jid && jid.length >= 8) jobIds.add(jid);
-      });
-    }
-    if (jobIds.size > 0) {
-      const r = await itFetch(`/api/GetJobs`, { method: "POST", body: JSON.stringify({ Idents: Array.from(jobIds) }) });
-      let sample: unknown = null;
-      if (r.data) { try { sample = JSON.parse(JSON.stringify(r.data).slice(0, 800)); } catch { sample = null; } }
-      debug.push({ path: "/api/GetJobs (hydrated)", method: "POST", status: r.status, ok: r.ok, bytes: r.bytes, sample, err: r.err });
-      if (r.data) payloads.push(r.data);
-    }
-
-    // Collect all machine identifier keys seen in payloads (for GUID mismatch diagnostics).
     const machineKeysSeen = new Set<string>();
     for (const p of payloads) {
-      walk(p, (obj) => {
+      walk(p.data, (obj) => {
         const v = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
         if (v != null) {
           const s = String(v).trim();
@@ -295,26 +276,35 @@ Deno.serve(async (req) => {
       });
     }
 
+
     const sections: Array<{ line: string; items: any[] }> = [];
     for (const [line_id, machines] of byLine) {
       const line = lineName.get(line_id);
       if (!line) continue;
       const allowedIds = new Set(machines.map((m) => machineKey(m.id)).filter(Boolean));
       const allowedNames = new Set(machines.map((m) => (m.name ?? "").toLowerCase()).filter(Boolean));
-      const merged = new Map<string, Row>();
+      const merged = new Map<string, Row & { sources: Set<string> }>();
       for (const p of payloads) {
-        for (const r of extractRowsForMachine(p, allowedIds, allowedNames)) {
+        for (const r of extractRowsForMachine(p.data, allowedIds, allowedNames)) {
           const cur = merged.get(r.code);
-          if (!cur) merged.set(r.code, r);
-          else merged.set(r.code, { code: r.code, description: cur.description || r.description, qty: Math.max(cur.qty, r.qty) });
+          if (!cur) merged.set(r.code, { ...r, sources: new Set([p.source]) });
+          else {
+            cur.description = cur.description || r.description;
+            cur.qty = Math.max(cur.qty, r.qty);
+            cur.sources.add(p.source);
+          }
         }
       }
       if (merged.size > 0) {
         sections.push({
           line,
-          items: Array.from(merged.values()).map((r) => ({ sku_code: r.code, description: r.description, qty: r.qty })),
+          items: Array.from(merged.values()).map((r) => ({
+            sku_code: r.code, description: r.description, qty: r.qty,
+            sources: Array.from(r.sources),
+          })),
         });
       }
+
     }
 
     const debugBlock = {
