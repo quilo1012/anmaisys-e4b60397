@@ -283,6 +283,101 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     }
   };
 
+  const runAutoMap = async () => {
+    setAutoMapBusy(true);
+    setAutoMapPreview(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("intouch-list-machines", {});
+      if (error) throw error;
+      const machines = ((data as any)?.machines ?? []) as { guid: string; name: string }[];
+      if (machines.length === 0) {
+        toast.error("iTouching returned no machines");
+        return;
+      }
+      const { data: existing } = await supabase
+        .from("intouch_machine_map")
+        .select("intouch_machine_id, line_id");
+      const existingMap = new Map((existing ?? []).map((r: any) => [r.intouch_machine_id, r.line_id]));
+
+      const preview = machines
+        .filter((m) => m.guid)
+        .map((m) => {
+          const alias = MAP_ALIASES.find((a) => a.intouch.test(m.name));
+          let matched: { id: string; name: string } | undefined;
+          let reason = "";
+          if (alias) {
+            const hit = lines.find((l) => alias.dbPatterns.some((p) => p.test(l.name)));
+            if (hit) { matched = hit; reason = "alias"; }
+          }
+          if (!matched) {
+            let best: { line: { id: string; name: string }; score: number } | null = null;
+            for (const l of lines) {
+              const s = similarity(m.name, l.name);
+              if (!best || s > best.score) best = { line: l, score: s };
+            }
+            if (best && best.score >= 0.3) {
+              matched = best.line;
+              reason = `fuzzy ${best.score.toFixed(2)}`;
+            } else {
+              reason = `no match (best ${best?.score.toFixed(2) ?? "0"})`;
+            }
+          }
+          const currentLineId = existingMap.get(m.guid) ?? null;
+          if (currentLineId && !matched) {
+            const cur = lines.find((l) => l.id === currentLineId);
+            if (cur) { matched = cur; reason = "existing"; }
+          }
+          return {
+            guid: m.guid,
+            intouch_name: m.name || "(unnamed)",
+            line_id: matched?.id ?? null,
+            line_name: matched?.name ?? "",
+            reason,
+            include: !!matched,
+          };
+        })
+        .sort((a, b) => Number(b.include) - Number(a.include) || a.intouch_name.localeCompare(b.intouch_name));
+      setAutoMapPreview(preview);
+      const matched = preview.filter((p) => p.include).length;
+      toast.success(`${matched}/${preview.length} machines matched — review and confirm`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Auto-map failed");
+    } finally {
+      setAutoMapBusy(false);
+    }
+  };
+
+  const saveAutoMap = async () => {
+    if (!autoMapPreview) return;
+    const rows = autoMapPreview
+      .filter((p) => p.include && p.line_id)
+      .map((p) => ({
+        intouch_machine_id: p.guid,
+        intouch_machine_name: p.intouch_name,
+        line_id: p.line_id,
+        active: true,
+      }));
+    if (rows.length === 0) {
+      toast.error("Nothing selected to save");
+      return;
+    }
+    setAutoMapSaving(true);
+    try {
+      const { error } = await supabase
+        .from("intouch_machine_map")
+        .upsert(rows, { onConflict: "intouch_machine_id" });
+      if (error) throw error;
+      toast.success(`Saved ${rows.length} machine mapping${rows.length === 1 ? "" : "s"}`);
+      setAutoMapPreview(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setAutoMapSaving(false);
+    }
+  };
+
+
+
 
   const setLeader = (sectionLine: string, value: string) => {
     if (value === "__none") {
