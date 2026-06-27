@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { isWOAcknowledged, acknowledgeWOLocal, clearAcknowledgedWOLocal } from "@/lib/woAck";
 import { useEngineerLineFilter } from "@/hooks/useEngineerLineFilter";
+import { shouldFireWOAlert } from "@/lib/woAlertGate";
 
 export function useWOAlerts() {
   const { user, role } = useAuth();
@@ -70,18 +71,13 @@ export function useWOAlerts() {
 
           console.log("[useWOAlerts INSERT]", wo.id, "ack:", wo.engineer_notified_acknowledged_at, "line:", wo.line_id);
 
-          // Client-side ack gate — survives remount/reconnect/refresh even before server propagates.
-          if (isWOAcknowledged(wo.id)) return;
-          // Server-side ack gate — never re-fire if already acknowledged.
-          if (wo.engineer_notified_acknowledged_at) return;
-          // Status gate — only 'open' WOs alert.
-          if (wo.status !== "open") return;
-          // Targeting gate — if WO is already locked/assigned to another engineer, don't fire.
-          if (wo.engineer_id && wo.engineer_id !== user.id) return;
-          if (wo.locked_engineer_id && wo.locked_engineer_id !== user.id) return;
-          // Line filter — engineer-scoped preference (no filter = all lines).
-          if (!shouldAlertForLine(wo.line_id)) {
-            console.log("[useWOAlerts INSERT] suppressed by line filter:", wo.line_id);
+          // Single-fire per WO + targeting + line filter (pure gate, unit-tested).
+          if (!shouldFireWOAlert(wo, {
+            userId: user.id,
+            shouldAlertForLine,
+            isAcknowledged: isWOAcknowledged,
+          })) {
+            console.log("[useWOAlerts INSERT] suppressed by gate");
             return;
           }
 

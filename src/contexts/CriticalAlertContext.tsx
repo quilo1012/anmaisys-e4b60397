@@ -24,6 +24,10 @@ interface CriticalAlertContextType {
   audioEnabled: boolean;
   promptEnableAudio: () => void;
   testSound: () => void;
+  /** Current alert volume (0..1). Persisted per-device. */
+  volume: number;
+  /** Update the alert volume (0..1). Persists to localStorage. */
+  setVolume: (v: number) => void;
 }
 
 const CriticalAlertContext = createContext<CriticalAlertContextType>({
@@ -33,11 +37,14 @@ const CriticalAlertContext = createContext<CriticalAlertContextType>({
   audioEnabled: false,
   promptEnableAudio: () => {},
   testSound: () => {},
+  volume: 1,
+  setVolume: () => {},
 });
 
 export const useCriticalAlert = () => useContext(CriticalAlertContext);
 
 const AUDIO_FLAG_KEY = "alertAudioEnabled";
+const AUDIO_VOLUME_KEY = "alertAudioVolume";
 // Siren rings continuously until the engineer acknowledges. We used to auto-stop
 // after 30s which made the alert sound "intermittent" — removed.
 const VIBRATE_PATTERN = [500, 200, 500, 200, 500, 200, 500];
@@ -105,8 +112,18 @@ class AlertAudioEngine {
   private vibTimer: number | null = null;
   private watchdog: number | null = null;
   private playing = false;
+  /** Current siren volume (0..1). Applied to both HTMLAudio and oscillator gain. */
+  volume = 1;
   /** Called when the browser blocks audio playback so the UI can flip the icon. */
   onBlocked: (() => void) | null = null;
+
+  setVolume(v: number) {
+    const clamped = Math.max(0, Math.min(1, v));
+    this.volume = clamped;
+    if (this.htmlAudio) {
+      try { this.htmlAudio.volume = clamped; } catch { /* ignore */ }
+    }
+  }
 
   unlock() {
     try {
@@ -117,7 +134,7 @@ class AlertAudioEngine {
       if (!this.htmlAudio) {
         this.htmlAudio = new Audio();
         this.htmlAudio.loop = true;
-        this.htmlAudio.volume = 1.0;
+        this.htmlAudio.volume = this.volume;
         this.htmlAudio.preload = "auto";
         this.htmlAudio.src = "/alert.mp3";
         // Safety net: if loop fails for any reason, restart while still playing.
@@ -149,13 +166,14 @@ class AlertAudioEngine {
       try {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
+        const peak = 0.3 * this.volume;
         osc.type = "square";
         osc.frequency.value = 800;
-        gain.gain.value = 0.3;
+        gain.gain.value = peak;
         osc.connect(gain).connect(ctx.destination);
         const now = ctx.currentTime;
         gain.gain.setValueAtTime(0, now);
-        gain.gain.linearRampToValueAtTime(0.3, now + 0.01);
+        gain.gain.linearRampToValueAtTime(peak, now + 0.01);
         gain.gain.linearRampToValueAtTime(0, now + 0.2);
         osc.start(now);
         osc.stop(now + 0.2);
@@ -175,7 +193,7 @@ class AlertAudioEngine {
     if (this.htmlAudio) {
       try {
         this.htmlAudio.currentTime = 0;
-        this.htmlAudio.volume = 1.0;
+        this.htmlAudio.volume = this.volume;
         this.htmlAudio.muted = false;
         const p = this.htmlAudio.play();
         if (p && typeof p.then === "function") {
@@ -242,13 +260,28 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   const [showUnlock, setShowUnlock] = useState(false);
   const [active, setActive] = useState<CriticalAlertPayload | null>(null);
   const [queue, setQueue] = useState<CriticalAlertPayload[]>([]);
+  const [volume, setVolumeState] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(AUDIO_VOLUME_KEY);
+      const n = raw == null ? 1 : Number(raw);
+      return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 1;
+    } catch { return 1; }
+  });
   const engineRef = useRef<AlertAudioEngine | null>(null);
   const titleTimerRef = useRef<number | null>(null);
   const originalTitleRef = useRef<string>(typeof document !== "undefined" ? document.title : "");
 
   if (!engineRef.current && typeof window !== "undefined") {
     engineRef.current = new AlertAudioEngine();
+    engineRef.current.setVolume(volume);
   }
+
+  const setVolume = useCallback((v: number) => {
+    const clamped = Math.max(0, Math.min(1, Number.isFinite(v) ? v : 1));
+    setVolumeState(clamped);
+    try { localStorage.setItem(AUDIO_VOLUME_KEY, String(clamped)); } catch { /* ignore */ }
+    engineRef.current?.setVolume(clamped);
+  }, []);
   // Reflect autoplay-blocked state in the header icon (green→red) AND register
   // a one-shot global gesture listener so the next click/touch/keypress
   // anywhere on the page unlocks audio and resumes the active siren — this is
@@ -457,8 +490,8 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   const [declineReason, setDeclineReason] = useState("");
 
   const value = useMemo(
-    () => ({ triggerAlert, acknowledge, declineAlert, audioEnabled, promptEnableAudio, testSound }),
-    [triggerAlert, acknowledge, declineAlert, audioEnabled, promptEnableAudio, testSound]
+    () => ({ triggerAlert, acknowledge, declineAlert, audioEnabled, promptEnableAudio, testSound, volume, setVolume }),
+    [triggerAlert, acknowledge, declineAlert, audioEnabled, promptEnableAudio, testSound, volume, setVolume]
   );
 
   return (
