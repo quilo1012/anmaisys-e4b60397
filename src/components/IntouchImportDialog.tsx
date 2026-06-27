@@ -538,6 +538,17 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
           </Button>
           <Button
             type="button"
+            variant="destructive"
+            onClick={async () => { reset(); await pullFromIntouch(); }}
+            disabled={pulling || loading}
+            className="gap-2"
+            title="Clears the current preview and re-pulls fresh data from iTouching"
+          >
+            {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
+            Force Re-sync
+          </Button>
+          <Button
+            type="button"
             variant="secondary"
             onClick={runAutoMap}
             disabled={autoMapBusy || pulling}
