@@ -449,6 +449,35 @@ export default function LineProductionScreen() {
               );
             })}
           </div>
+
+          {/* Shift observations */}
+          <Card className="mt-4">
+            <CardContent className="p-4 md:p-6 space-y-3">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-muted-foreground" />
+                <span className="text-base font-semibold">Shift observations</span>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  Downtime, problems, notes for this shift
+                </span>
+              </div>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="E.g. Filler 2 stopped 14:20–14:55 (sensor), changeover SKU-123→SKU-456 at 16:00…"
+                className="min-h-[120px] text-base"
+              />
+              <div className="flex justify-end">
+                <Button
+                  className="h-12 px-6"
+                  onClick={() => saveNotes.mutate(notes)}
+                  disabled={saveNotes.isPending || notes === (sessionQ.data?.notes ?? "")}
+                >
+                  <Save className="h-5 w-5 mr-2" />
+                  Save observations
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </>
       )}
 
