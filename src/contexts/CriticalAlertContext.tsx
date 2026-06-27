@@ -490,8 +490,8 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   const [declineReason, setDeclineReason] = useState("");
 
   const value = useMemo(
-    () => ({ triggerAlert, acknowledge, declineAlert, audioEnabled, promptEnableAudio, testSound }),
-    [triggerAlert, acknowledge, declineAlert, audioEnabled, promptEnableAudio, testSound]
+    () => ({ triggerAlert, acknowledge, declineAlert, audioEnabled, promptEnableAudio, testSound, volume, setVolume }),
+    [triggerAlert, acknowledge, declineAlert, audioEnabled, promptEnableAudio, testSound, volume, setVolume]
   );
 
   return (
