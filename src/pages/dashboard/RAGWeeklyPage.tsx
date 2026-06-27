@@ -1574,17 +1574,28 @@ function DowntimeBreakdownPopover({
           <table className="w-full text-xs tabular-nums">
             <thead className="sticky top-0 bg-background border-b">
               <tr className="text-left">
-                <th className="px-2 py-1.5 font-medium">Ref</th>
+                <th className="px-2 py-1.5 font-medium">Ref WO #</th>
                 <th className="px-2 py-1.5 font-medium">Start</th>
                 <th className="px-2 py-1.5 font-medium">End</th>
                 <th className="px-2 py-1.5 font-medium text-right">Min</th>
               </tr>
             </thead>
             <tbody>
-              {stops.map((s, i) => (
+              {stops.map((s, i) => {
+                const woLabel = s.source === "WO" && s.ref ? `WO #${s.ref}` : (s.ref ?? s.source);
+                return (
                 <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
                   <td className="px-2 py-1.5">
-                    <div className="font-mono text-[11px]">{s.ref ?? s.source}</div>
+                    {s.source === "WO" && s.ref ? (
+                      <a
+                        href={`/dashboard/work-orders?wo=${encodeURIComponent(s.ref)}`}
+                        className="font-mono text-[11px] text-primary hover:underline"
+                      >
+                        {woLabel}
+                      </a>
+                    ) : (
+                      <div className="font-mono text-[11px]">{woLabel}</div>
+                    )}
                     {(s.machine || s.reason) && (
                       <div className="text-[10px] text-muted-foreground truncate max-w-[160px]" title={s.reason ?? ""}>
                         {[s.machine, s.reason].filter(Boolean).join(" — ")}
