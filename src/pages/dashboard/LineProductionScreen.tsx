@@ -351,7 +351,19 @@ export default function LineProductionScreen() {
         </Card>
       )}
 
-      {line && !sessionQ.isLoading && !sessionQ.data && (
+      {line && !ragPlanQ.isLoading && (ragPlanQ.data ?? 0) <= 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="p-10 text-center space-y-2">
+            <div className="text-2xl font-semibold text-amber-500">No planned shift today</div>
+            <div className="text-muted-foreground">
+              No target set for <span className="font-medium">{line}</span> · {shift} on {activeSessionDate}.
+              <br />Ask the supervisor to fill the plan in RAG Weekly.
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {line && (ragPlanQ.data ?? 0) > 0 && !sessionQ.isLoading && !sessionQ.data && (
         <Card>
           <CardContent className="p-10 text-center space-y-2">
             <div className="text-xl font-semibold">No session for {line} – {shift}</div>
@@ -361,6 +373,7 @@ export default function LineProductionScreen() {
           </CardContent>
         </Card>
       )}
+
 
       {sessionQ.data && (
         <>
