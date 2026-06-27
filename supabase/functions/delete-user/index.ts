@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     }
 
     // Nullify FK references in work_orders and parts_used before deleting
-    await supabaseAdmin.from("work_orders").update({ operator_id: caller.id }).eq("operator_id", userId);
+    await supabaseAdmin.from("work_orders").update({ operator_id: null }).eq("operator_id", userId);
     await supabaseAdmin.from("work_orders").update({ engineer_id: null }).eq("engineer_id", userId);
     await supabaseAdmin.from("work_orders").update({ closed_by: null }).eq("closed_by", userId);
     await supabaseAdmin.from("parts_used").delete().eq("engineer_id", userId);

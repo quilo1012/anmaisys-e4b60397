@@ -1,6 +1,29 @@
-// @ts-nocheck
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
+
+interface PushPayload {
+  user_id?: string;
+  user_ids?: string[];
+  title: string;
+  body?: string;
+  priority?: "low" | "medium" | "high" | "critical";
+  tag?: string;
+  requireInteraction?: boolean;
+  action_url?: string;
+  wo_id?: string;
+}
+
+interface PushSubscriptionRow {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_id: string;
+}
+
+interface WebPushError extends Error {
+  statusCode?: number;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,9 +67,9 @@ Deno.serve(async (req) => {
 
     const { data: roles } = await supabase
       .from("user_roles").select("role").eq("user_id", claimsData.claims.sub);
-    const isStaff = (roles ?? []).some((r: any) => ["admin", "manager"].includes(r.role));
+    const isStaff = (roles ?? []).some((r: { role: string }) => ["admin", "manager"].includes(r.role));
 
-    const body = await req.json();
+    const body = (await req.json()) as PushPayload;
     const userIds: string[] = body.user_ids || (body.user_id ? [body.user_id] : []);
     if (!userIds.length) {
       return new Response(
@@ -105,13 +128,13 @@ Deno.serve(async (req) => {
     });
 
     const results = await Promise.allSettled(
-      (subs || []).map((sub) =>
+      ((subs as PushSubscriptionRow[] | null) || []).map((sub) =>
         webpush
           .sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
             payload
           )
-          .catch(async (err: any) => {
+          .catch(async (err: WebPushError) => {
             if (err.statusCode === 410 || err.statusCode === 404) {
               await supabase.from("push_subscriptions").delete().eq("id", sub.id);
             }
