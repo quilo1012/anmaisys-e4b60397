@@ -70,10 +70,29 @@ Deno.serve(async (req) => {
       }
     }
     if (raw == null) {
+      // Final fallback: derive SKUs from production_items already captured by
+      // intouch-sync-production / Excel imports. iTouching has no public
+      // product catalog endpoint on this deployment.
+      const { data: items } = await admin
+        .from("production_items")
+        .select("sku_code, sku_name, target_qty")
+        .not("sku_code", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      const map = new Map<string, { code: string; name: string; category: string; target_per_hour: number; raw: any }>();
+      for (const it of items ?? []) {
+        const code = String(it.sku_code ?? "").trim();
+        const name = String(it.sku_name ?? "").trim();
+        if (!code || !name) continue;
+        if (!map.has(code.toLowerCase())) {
+          map.set(code.toLowerCase(), { code, name, category: "", target_per_hour: 0, raw: it });
+        }
+      }
+      const products = Array.from(map.values());
       return new Response(JSON.stringify({
-        products: [], count: 0, fallback: true,
-        error: "iTouching has no accessible product catalog endpoint.",
-        hint: "Last error: " + lastErr,
+        products, count: products.length,
+        source: "production_items (iTouching has no /api product endpoint)",
+        fallback: true,
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
