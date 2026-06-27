@@ -172,7 +172,7 @@ export default function LineDisplayScreen() {
     const run = async () => {
       try {
         await supabase.functions.invoke("intouch-sync-production", {
-          body: { date, shift: shiftDb, line, manual: true },
+          body: { session_date: date, shift: shiftDb, force: true },
         });
         if (!cancelled) {
           qc.invalidateQueries({ queryKey: ["rag-live", date, line, shift] });
