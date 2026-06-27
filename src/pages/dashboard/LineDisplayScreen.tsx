@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getShift, SHIFT_LABEL } from "@/lib/shifts";
-import { Maximize2 } from "lucide-react";
+import { ArrowLeft, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
 
 type RagEntry = {
   id: string;
