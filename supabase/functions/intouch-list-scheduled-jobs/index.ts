@@ -143,15 +143,7 @@ Deno.serve(async (req) => {
     }
 
     // Try every known scheduled-jobs / material-requirements endpoint.
-    const attempts: Array<() => Promise<unknown>> = [
-      () => itFetch(`/api/ScheduleReports/MaterialRequirements/Machine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify([]) }),
-      () => itFetch(`/api/ScheduleReports/MaterialRequirementsByMachine?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify([]) }),
-      () => itFetch(`/api/GetScheduledJobs?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify([]) }),
-      () => itFetch(`/api/GetJobSchedule?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify([]) }),
-      () => itFetch(`/api/GetWorkToList?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify([]) }),
-      () => itFetch(`/api/GetJobs`, { method: "GET" }),
-      () => itFetch(`/api/GetRunningJobs`, { method: "GET" }),
-    ];
+
     const payloads: unknown[] = [];
     const debug: Array<{ path: string; ok: boolean; bytes: number }> = [];
     const paths = [
