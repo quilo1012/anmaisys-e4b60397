@@ -354,7 +354,6 @@ export default function LineDisplayScreen() {
                     </span>
                     {editingId === it.id ? (
                       <div className="flex items-center gap-2">
-                        <span className="font-mono">{a.toLocaleString()} /</span>
                         <Input
                           type="number"
                           inputMode="numeric"
@@ -363,6 +362,7 @@ export default function LineDisplayScreen() {
                           className="w-24 h-9 bg-slate-900 text-white"
                           autoFocus
                         />
+                        <span className="font-mono">/ {p.toLocaleString()}</span>
                         <Button
                           size="icon"
                           className="h-9 w-9 bg-green-600 hover:bg-green-700"
@@ -372,14 +372,14 @@ export default function LineDisplayScreen() {
                             setSaving(true);
                             const { error } = await supabase
                               .from("production_items")
-                              .update({ planned_qty: v })
+                              .update({ actual_qty: v })
                               .eq("id", it.id);
                             setSaving(false);
                             if (error) {
                               toast.error(error.message);
                               return;
                             }
-                            toast.success("Planned qty updated");
+                            toast.success("Actual qty updated");
                             setEditingId(null);
                             qc.invalidateQueries({ queryKey: ["prod-items-live", date, line, shift] });
                             qc.invalidateQueries({ queryKey: ["rag-live", date, line, shift] });
@@ -408,7 +408,7 @@ export default function LineDisplayScreen() {
                             className="h-8 w-8 text-slate-400 hover:text-white"
                             onClick={() => {
                               setEditingId(it.id);
-                              setEditValue(String(p));
+                              setEditValue(String(a));
                             }}
                           >
                             <Pencil className="h-4 w-4" />
