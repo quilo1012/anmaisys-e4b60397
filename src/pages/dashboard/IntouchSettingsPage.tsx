@@ -132,6 +132,8 @@ export default function IntouchSettingsPage() {
 
   const [syncDisabled, setSyncDisabled] = useState<boolean>(false);
   const [togglingFlag, setTogglingFlag] = useState(false);
+  const [resyncingAll, setResyncingAll] = useState(false);
+  const [resyncResult, setResyncResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -197,6 +199,61 @@ export default function IntouchSettingsPage() {
       toast.success("Sync complete");
     }
   };
+
+  const resyncAll = async () => {
+    setResyncingAll(true);
+    setResyncResult(null);
+    const errors: string[] = [];
+    const summary: string[] = [];
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      // 1) Schedule jobs calendar (today, both shifts)
+      for (const shift of ["day", "night"] as const) {
+        const { data, error } = await invokeFunction<any>("intouch-list-scheduled-jobs", { date: today, shift });
+        if (error) errors.push(`schedule ${shift}: ${error.message}`);
+        else summary.push(`${shift}:${data?.items?.length ?? data?.count ?? 0} jobs`);
+      }
+      // 2) Products / SKUs
+      const { data: pData, error: pErr } = await invokeFunction<any>("intouch-list-products", {});
+      if (pErr) errors.push(`products: ${pErr.message}`);
+      else {
+        const list = Array.isArray(pData?.products) ? pData.products : [];
+        setProducts(list);
+        setProductSource(String(pData?.source || ""));
+        summary.push(`${list.length} products`);
+        // Import into sku_products immediately
+        if (list.length > 0) {
+          const rows = list.map((p: any) => ({
+            code: p.code, name: p.name,
+            category: p.category || null,
+            target_per_hour: p.target_per_hour ?? 0,
+            active: true,
+          }));
+          const { data: imp, error: impErr } = await (supabase as any).rpc("import_sku_products", { _rows: rows });
+          if (impErr) errors.push(`import: ${impErr.message}`);
+          else summary.push(`${imp?.count ?? rows.length} SKUs imported`);
+        }
+      }
+      // 3) Production actuals
+      if (!syncDisabled) {
+        const { data: sData, error: sErr } = await invokeFunction<any>("intouch-sync-production", { force: true });
+        if (sErr) errors.push(`production: ${sErr.message}`);
+        else summary.push(sData?.summary || "production synced");
+      }
+    } catch (e: any) {
+      errors.push(e?.message || "unexpected error");
+    } finally {
+      setResyncingAll(false);
+    }
+    if (errors.length === 0) {
+      setResyncResult({ ok: true, msg: `Resync OK · ${summary.join(" · ")}` });
+      toast.success("Full resync complete");
+    } else {
+      setResyncResult({ ok: false, msg: `Errors: ${errors.join(" | ")}` });
+      toast.error("Resync finished with errors");
+    }
+  };
+
 
   const copy = async (text: string) => {
     try {
@@ -433,6 +490,41 @@ export default function IntouchSettingsPage() {
           </p>
 
         </div>
+
+        <Card className="border-primary/40">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" /> Full resync now
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Forces an immediate re-pull of the Schedule Jobs calendar (today, both shifts), the iTouching products / SKUs (imported into the system) and the production actuals.
+            </p>
+            <Button onClick={resyncAll} disabled={resyncingAll}>
+              {resyncingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Resync schedule + products + production
+            </Button>
+            {resyncResult && (
+              <div
+                className={
+                  "flex items-start gap-2 rounded-md border p-3 text-sm " +
+                  (resyncResult.ok
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                    : "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300")
+                }
+              >
+                {resyncResult.ok ? (
+                  <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                )}
+                <span className="break-all">{resyncResult.msg}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
 
         <Card>
           <CardHeader><CardTitle className="text-lg">Setup guide</CardTitle></CardHeader>
