@@ -65,8 +65,8 @@ export default function IntouchMachineMapPage() {
       const rows = list
         .filter((m: any) => m && (m.Active ?? m.active ?? true))
         .map((m: any) => ({
-          intouch_machine_id: m.MachineID ?? m.MachineId ?? m.MachineGUID ?? m.id,
-          intouch_machine_name: m.MachineName ?? m.Name ?? m.name ?? "",
+          intouch_machine_id: m.MachineID ?? m.MachineId ?? m.MachineGUID ?? m.MachineGuid ?? m.guid ?? m.Guid ?? m.GUID ?? m.id ?? m.ID,
+          intouch_machine_name: m.MachineName ?? m.Name ?? m.name ?? m.Description ?? "",
           active: true,
         }))
         .filter((r) => r.intouch_machine_id);
