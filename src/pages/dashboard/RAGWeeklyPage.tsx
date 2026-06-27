@@ -1672,12 +1672,14 @@ function DowntimeBreakdownPopover({
                     ) : (
                       <div className="font-mono text-[11px]">{woLabel}</div>
                     )}
+                    {statusBadge(s.status)}
                     {(s.machine || s.reason) && (
-                      <div className="text-[10px] text-muted-foreground truncate max-w-[160px]" title={s.reason ?? ""}>
+                      <div className="text-[10px] text-muted-foreground truncate max-w-[180px]" title={s.reason ?? ""}>
                         {[s.machine, s.reason].filter(Boolean).join(" — ")}
                       </div>
                     )}
                   </td>
+
                   <td className="px-2 py-1.5 font-mono text-[11px]">{fmtTs(s.clampedStart)}</td>
                   <td className="px-2 py-1.5 font-mono text-[11px]">
                     {s.ongoing ? <span className="text-red-600 font-semibold">ongoing</span> : fmtTs(s.clampedEnd)}
