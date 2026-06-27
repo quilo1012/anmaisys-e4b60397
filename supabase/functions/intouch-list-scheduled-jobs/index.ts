@@ -52,7 +52,7 @@ function walk(v: unknown, cb: (o: any) => void) {
   cb(v);
   for (const x of Object.values(v)) walk(x, cb);
 }
-async function itFetch(path: string, init?: RequestInit) {
+async function itFetch(path: string, init?: RequestInit): Promise<{ data: unknown; status: number; ok: boolean; bytes: number; err?: string }> {
   try {
     const r = await fetch(`${INTOUCH_URL}${path}`, {
       ...(init ?? {}),
@@ -64,9 +64,10 @@ async function itFetch(path: string, init?: RequestInit) {
       },
     });
     const t = await r.text();
-    if (!r.ok) return null;
-    try { return JSON.parse(t); } catch { return null; }
-  } catch { return null; }
+    if (!r.ok) return { data: null, status: r.status, ok: false, bytes: t.length, err: t.slice(0, 160) };
+    try { return { data: JSON.parse(t), status: r.status, ok: true, bytes: t.length }; }
+    catch { return { data: null, status: r.status, ok: false, bytes: t.length, err: "invalid_json" }; }
+  } catch (e) { return { data: null, status: 0, ok: false, bytes: 0, err: (e as Error).message }; }
 }
 
 type Row = { code: string; description: string; qty: number };
