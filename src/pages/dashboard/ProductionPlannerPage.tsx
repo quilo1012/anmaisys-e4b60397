@@ -351,7 +351,27 @@ export default function ProductionPlannerPage() {
                   <Button variant="outline" size="icon" onClick={() => setDate(format(subDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronLeft className="h-4 w-4" /></Button>
                   <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1" />
                   <Button variant="outline" size="icon" onClick={() => setDate(format(addDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronRight className="h-4 w-4" /></Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={syncLinesForDate}
+                    disabled={syncingLines}
+                    title="Show only lines active on this date"
+                  >
+                    <RefreshCw className={cn("h-4 w-4 mr-1", syncingLines && "animate-spin")} />
+                    Sync Lines
+                  </Button>
+                  {syncedLines && (
+                    <Button variant="ghost" size="icon" onClick={() => setSyncedLines(null)} title="Clear filter">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
+                {syncedLines && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Filtered to {syncedLines.length} line(s) for {date}
+                  </div>
+                )}
               </div>
               <div>
                 <Label>Shift</Label>
