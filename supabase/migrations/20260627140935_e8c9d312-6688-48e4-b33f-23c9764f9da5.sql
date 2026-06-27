@@ -1,0 +1,2 @@
+ALTER TABLE public.production_items DROP CONSTRAINT IF EXISTS production_items_sku_id_fkey;
+ALTER TABLE public.production_items ADD CONSTRAINT production_items_sku_id_fkey FOREIGN KEY (sku_id) REFERENCES public.sku_products(id) ON DELETE SET NULL ON UPDATE CASCADE;
