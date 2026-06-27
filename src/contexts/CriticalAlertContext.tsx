@@ -166,13 +166,14 @@ class AlertAudioEngine {
       try {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
+        const peak = 0.3 * this.volume;
         osc.type = "square";
         osc.frequency.value = 800;
-        gain.gain.value = 0.3;
+        gain.gain.value = peak;
         osc.connect(gain).connect(ctx.destination);
         const now = ctx.currentTime;
         gain.gain.setValueAtTime(0, now);
-        gain.gain.linearRampToValueAtTime(0.3, now + 0.01);
+        gain.gain.linearRampToValueAtTime(peak, now + 0.01);
         gain.gain.linearRampToValueAtTime(0, now + 0.2);
         osc.start(now);
         osc.stop(now + 0.2);
@@ -192,7 +193,7 @@ class AlertAudioEngine {
     if (this.htmlAudio) {
       try {
         this.htmlAudio.currentTime = 0;
-        this.htmlAudio.volume = 1.0;
+        this.htmlAudio.volume = this.volume;
         this.htmlAudio.muted = false;
         const p = this.htmlAudio.play();
         if (p && typeof p.then === "function") {
