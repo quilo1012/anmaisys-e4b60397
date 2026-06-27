@@ -1399,9 +1399,14 @@ function DayNightTotalSummary({
       },
       { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : "—") },
       {
-        key: "dt",
-        label: "Downtime (auto)",
-        render: (c) => <span className={c.dt > 0 ? "text-red-600 dark:text-red-400" : ""}>{fmtHm(c.dt)}</span>,
+        key: "dtMaint",
+        label: "Downtime · Maint",
+        render: (c) => <span className={c.dtMaint > 0 ? "text-red-600 dark:text-red-400" : ""}>{fmtHm(c.dtMaint)}</span>,
+      },
+      {
+        key: "dtQuality",
+        label: "Downtime · Quality",
+        render: (c) => <span className={c.dtQuality > 0 ? "text-amber-600 dark:text-amber-400" : ""}>{fmtHm(c.dtQuality)}</span>,
       },
     ];
 
