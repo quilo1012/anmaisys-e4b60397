@@ -299,6 +299,19 @@ export default function ShiftHistoryPage() {
                                     size="icon"
                                     variant="ghost"
                                     onClick={() => {
+                                      setEditingItem({ id: i.id, code: sku?.code ?? "?", target: t, actual: a });
+                                      setEditActual(String(a));
+                                    }}
+                                    title="Edit actual quantity"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {!s.locked && i.id && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => {
                                       if (window.confirm(`Remove ${sku?.code ?? "this SKU"} from this session?`)) {
                                         delItemMut.mutate(i.id);
                                       }
@@ -309,6 +322,7 @@ export default function ShiftHistoryPage() {
                                   </Button>
                                 )}
                               </div>
+
                             </div>
                           );
                         })}
