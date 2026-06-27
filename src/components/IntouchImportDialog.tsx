@@ -156,6 +156,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   const [shift, setShift] = useState<"DAY" | "NIGHT">(defaultShift);
   const [sections, setSections] = useState<WorkToListSection[]>([]);
   const [leaderByLine, setLeaderByLine] = useState<Record<string, { id?: string; name: string }>>({});
+  const [includedLines, setIncludedLines] = useState<Record<string, boolean>>({});
   const [parsePreview, setParsePreview] = useState<string[][]>([]);
 
   const { data: lines = [] } = useLines();
