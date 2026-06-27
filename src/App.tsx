@@ -83,7 +83,7 @@ const roleDashMap: Record<string, string> = {
   manager: "/dashboard/manager",
   maintenance_manager: "/dashboard/manager",
   engineer: "/dashboard/engineer",
-  operator: "/dashboard/line-hub",
+  operator: "/dashboard/operator",
   viewer: "/dashboard/manager",
 };
 
@@ -400,14 +400,8 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/dashboard/line-hub"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]}>
-                      <LineHubScreen />
-                    </ProtectedRoute>
-                  }
-                />
+                <Route path="/dashboard/line-hub" element={<Navigate to="/dashboard/operator" replace />} />
+
                 <Route
                   path="/dashboard/line-display"
                   element={
