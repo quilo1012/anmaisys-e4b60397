@@ -1,36 +1,40 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useDowntime } from "@/hooks/useDowntime";
 import { formatMinutes } from "@/lib/formatDuration";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, CalendarIcon } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
-type RangePreset = "today" | "shift" | "7d" | "30d" | "90d";
+type RangePreset = "today" | "shift" | "7d" | "30d" | "90d" | "custom";
+const STORAGE_KEY = "downtime-heatmap-range";
 
-function rangeStartMs(preset: RangePreset): number {
+function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function endOfDay(d: Date) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
+
+function presetRange(preset: Exclude<RangePreset, "custom">): { from: number; to: number } {
   const now = Date.now();
   const DAY = 24 * 60 * 60 * 1000;
   switch (preset) {
-    case "today": {
-      const d = new Date();
-      d.setHours(0, 0, 0, 0);
-      return d.getTime();
-    }
+    case "today": return { from: startOfDay(new Date()).getTime(), to: now };
     case "shift": {
-      // Day shift 06:00–18:00, Night shift 18:00–06:00 (London-local approximation)
       const d = new Date();
       const h = d.getHours();
       const start = new Date(d);
       if (h >= 6 && h < 18) start.setHours(6, 0, 0, 0);
       else if (h >= 18) start.setHours(18, 0, 0, 0);
       else { start.setDate(start.getDate() - 1); start.setHours(18, 0, 0, 0); }
-      return start.getTime();
+      return { from: start.getTime(), to: now };
     }
-    case "7d": return now - 7 * DAY;
-    case "30d": return now - 30 * DAY;
-    case "90d": return now - 90 * DAY;
+    case "7d": return { from: now - 7 * DAY, to: now };
+    case "30d": return { from: now - 30 * DAY, to: now };
+    case "90d": return { from: now - 90 * DAY, to: now };
   }
 }
 
@@ -40,7 +44,9 @@ const RANGE_LABEL: Record<RangePreset, string> = {
   "7d": "Last 7 days",
   "30d": "Last 30 days",
   "90d": "Last 90 days",
+  custom: "Custom range",
 };
+
 
 
 
