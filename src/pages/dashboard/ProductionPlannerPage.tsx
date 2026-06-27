@@ -279,7 +279,12 @@ export default function ProductionPlannerPage() {
   const addRow = () => setRows((r) => [...r, { sku_id: "", sku_name: "", target_qty: 0, actual_qty: 0 }]);
   const updateRow = (i: number, patch: Partial<Row>) =>
     setRows((r) => r.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
-  const removeRow = (i: number) => setRows((r) => r.filter((_, idx) => idx !== i));
+  const removeRow = (i: number) => {
+    const row = rows[i];
+    const label = row?.sku_name || "this SKU";
+    if (!window.confirm(`Delete ${label} from this plan?`)) return;
+    setRows((r) => r.filter((_, idx) => idx !== i));
+  };
 
   const save = async () => {
     if (!line) return alert("Pick a production line");
