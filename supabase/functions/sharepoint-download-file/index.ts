@@ -1,5 +1,10 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { z } from 'https://esm.sh/zod@3.23.8';
+
+const BodySchema = z.object({
+  shareUrl: z.string().url().max(2048),
+}).strict();
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/microsoft_sharepoint';
 
