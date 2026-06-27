@@ -16,6 +16,9 @@ const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const INTOUCH_URL = (Deno.env.get("INTOUCH_API_URL") ?? "").replace(/\/+$/, "");
 const INTOUCH_TOKEN = Deno.env.get("INTOUCH_API_TOKEN") ?? "";
+const INTOUCH_AUTH_HEADER = /^bearer\s+/i.test(INTOUCH_TOKEN.trim())
+  ? INTOUCH_TOKEN.trim()
+  : `Bearer ${INTOUCH_TOKEN.trim()}`;
 
 type MachineRef = { id: string; name: string };
 type SkuRow = { code: string; description: string; qty: number; source: string };
@@ -25,7 +28,7 @@ async function it(path: string, init?: RequestInit) {
   const res = await fetch(`${INTOUCH_URL}${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${INTOUCH_TOKEN}`,
+      Authorization: INTOUCH_AUTH_HEADER,
       Accept: "application/json",
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
@@ -217,7 +220,7 @@ function extractShiftMetrics(raw: unknown, machines: MachineRef[]) {
   return { runMin, downMin, oee };
 }
 
-
+function extractActualsByCode(raw: unknown, machines: MachineRef[]): Map<string, number> {
   const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const out = new Map<string, number>();

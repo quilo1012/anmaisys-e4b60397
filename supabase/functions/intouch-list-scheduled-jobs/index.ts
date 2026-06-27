@@ -54,7 +54,7 @@ const pick = (o: any, ks: string[]) => {
   return undefined;
 };
 const machineKey = (v: unknown) => String(v ?? "").trim().replace(/[{}]/g, "").toLowerCase();
-const authValue = INTOUCH_TOKEN.match(/^bearer\s+/i) ? INTOUCH_TOKEN : `Bearer ${INTOUCH_TOKEN}`;
+const authValue = INTOUCH_TOKEN.trim().match(/^bearer\s+/i) ? INTOUCH_TOKEN.trim() : `Bearer ${INTOUCH_TOKEN.trim()}`;
 function walk(v: unknown, cb: (o: any) => void) {
   if (!v || typeof v !== "object") return;
   if (Array.isArray(v)) { for (const x of v) walk(x, cb); return; }
@@ -85,6 +85,10 @@ async function discoverSchedulePaths() {
   // produced, not what is currently scheduled in iTouching, and were the root
   // cause of the planner showing SKUs that did not match the live schedule.
   const defaults = [
+    // This is the real endpoint exposed by the current iTouching Swagger.
+    // It accepts ONLY MachineID; date filtering is done locally from the job
+    // PlannedStart/EarliestStart fields when iTouching includes them.
+    "/api/appapi/getscheduledjobs",
     "/api/ScheduleReports/ScheduleJobs/Machine",
     "/api/ScheduleReports/ScheduledJobs/Machine",
     "/api/ScheduleReports/JobSchedule/Machine",
@@ -121,6 +125,9 @@ function fillPath(path: string, machineId: string) {
 
 function queryVariants(path: string, machineId: string | null, startISO: string, endISO: string) {
   const base = machineId ? fillPath(path, machineId) : path;
+  if (machineId && /\/api\/appapi\/getscheduledjobs$/i.test(base)) {
+    return [`${base}?MachineID=${encodeURIComponent(machineId)}`];
+  }
   const machineParams = machineId
     ? [`MachineGUID=${encodeURIComponent(machineId)}`, `MachineID=${encodeURIComponent(machineId)}`, `MachineGuid=${encodeURIComponent(machineId)}`, `machineId=${encodeURIComponent(machineId)}`]
     : [""];
@@ -137,7 +144,24 @@ function queryVariants(path: string, machineId: string | null, startISO: string,
 }
 
 type Row = { code: string; description: string; qty: number };
-function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNames: Set<string>): Row[] {
+function parseDateMs(value: unknown) {
+  if (value == null || String(value).trim() === "") return null;
+  const ms = Date.parse(String(value));
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function objectOverlapsWindow(obj: any, startMs: number, endMs: number) {
+  const starts = ["PlannedStart", "EarliestStart", "StartTime", "StartDate", "ScheduledStart", "From", "FromDate"];
+  const ends = ["PlannedFinish", "LatestFinish", "EndTime", "EndDate", "ScheduledFinish", "To", "ToDate", "DueDate"];
+  const s = parseDateMs(pick(obj, starts));
+  const e = parseDateMs(pick(obj, ends));
+  if (s == null && e == null) return true;
+  const a = s ?? e!;
+  const b = e ?? s!;
+  return a < endMs && b >= startMs;
+}
+
+function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNames: Set<string>, startMs: number, endMs: number): Row[] {
   const out: Row[] = [];
   const same = (v: unknown) => {
     const s = String(v ?? "").trim();
@@ -149,7 +173,9 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
     const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
     if (!Array.isArray(wos)) return;
     if (!same(mref)) return;
+    if (!objectOverlapsWindow(obj, startMs, endMs)) return;
     for (const wo of wos) {
+      if (!objectOverlapsWindow(wo, startMs, endMs)) continue;
       const code = cleanCode(pick(wo, ["PartCode", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "OrderNumber", "WorkOrderNo", "JobProductCode", "ProductID", "ProductId", "Code"]));
       if (!code || code.length < 2) continue;
       const description = String(pick(wo, ["LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
@@ -161,6 +187,7 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
     walk(raw, (obj) => {
       const mref = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine", "MachineName", "Line", "LineName"]);
       if (!same(mref)) return;
+      if (!objectOverlapsWindow(obj, startMs, endMs)) return;
       const code = cleanCode(pick(obj, ["PartCode", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "FGCode", "FinishedGood", "MaterialCode", "Product", "ProductID", "ProductId", "JobProductCode", "OrderNumber", "WorkOrderNo", "Code"]));
       if (!code || code.length < 3 || /^(LINE|MACHINE|DATE|SHIFT|START|END|STATUS)$/i.test(code)) return;
       const qty = num(pick(obj, ["OrderQuantity", "OrderQty", "RequiredQuantity", "RequiredQty", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "TargetQty", "ScheduledQty", "Balance", "Demand", "Units"])) || 1;
@@ -285,7 +312,7 @@ Deno.serve(async (req) => {
       const allowedNames = new Set(machines.map((m) => (m.name ?? "").toLowerCase()).filter(Boolean));
       const merged = new Map<string, Row & { sources: Set<string> }>();
       for (const p of payloads) {
-        for (const r of extractRowsForMachine(p.data, allowedIds, allowedNames)) {
+        for (const r of extractRowsForMachine(p.data, allowedIds, allowedNames, start.getTime(), end.getTime())) {
           const cur = merged.get(r.code);
           if (!cur) merged.set(r.code, { ...r, sources: new Set([p.source]) });
           else {

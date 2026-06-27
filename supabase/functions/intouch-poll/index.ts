@@ -8,6 +8,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const INTOUCH_URL = (Deno.env.get("INTOUCH_API_URL") ?? "").replace(/\/+$/, "");
 const INTOUCH_TOKEN = Deno.env.get("INTOUCH_API_TOKEN") ?? "";
+const INTOUCH_AUTH_HEADER = /^bearer\s+/i.test(INTOUCH_TOKEN.trim())
+  ? INTOUCH_TOKEN.trim()
+  : `Bearer ${INTOUCH_TOKEN.trim()}`;
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
   auth: { persistSession: false },
@@ -22,7 +25,7 @@ async function it(path: string, init?: RequestInit) {
   const res = await fetch(`${INTOUCH_URL}${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${INTOUCH_TOKEN}`,
+      Authorization: INTOUCH_AUTH_HEADER,
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
