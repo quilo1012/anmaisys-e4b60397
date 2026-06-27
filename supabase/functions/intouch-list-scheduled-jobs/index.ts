@@ -237,12 +237,22 @@ Deno.serve(async (req) => {
       const hasMachinePlaceholder = /\{\s*(MachineGUID|MachineGuid|MachineID|MachineId|machineId|id|ID)\s*\}/.test(path);
       const perMachineOnly = hasMachinePlaceholder || /\/Machine\b/i.test(path);
       if (perMachineOnly) {
-        for (const machineId of ids) {
-          for (const q of queryVariants(path, machineId, startISO, endISO)) {
-            const r = await itFetch(q, { method: "GET" });
-            pushDebug(q.replace(machineId, "…"), "GET", r);
-            if (r.ok && r.bytes > 2) break;
+        const firstId = ids[0];
+        if (!firstId) continue;
+        let winningTemplate: string | null = null;
+        for (const q of queryVariants(path, firstId, startISO, endISO)) {
+          const r = await itFetch(q, { method: "GET" });
+          pushDebug(q.replace(firstId, "…"), "GET", r);
+          if (r.ok && r.bytes > 2) {
+            winningTemplate = q;
+            break;
           }
+        }
+        if (!winningTemplate) continue;
+        for (const machineId of ids.slice(1)) {
+          const q = winningTemplate.replace(firstId, machineId);
+          const r = await itFetch(q, { method: "GET" });
+          pushDebug(q.replace(machineId, "…"), "GET", r);
         }
       } else {
         const getPath = `${path}?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`;
