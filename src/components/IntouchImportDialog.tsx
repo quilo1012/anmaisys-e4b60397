@@ -144,12 +144,19 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     const norm = normalizeLine(sectionLine);
     const exact = lineByNorm.get(norm);
     if (exact) return exact;
-    // substring match (e.g. "Line 2 - Filler" → "Line 2")
-    for (const [k, v] of lineByNorm) {
-      if (norm.includes(k) || k.includes(norm)) return v;
+    // Try ANY digit in the section name → "Line N" first (handles "Filler 2",
+    // "L2", "Line 2 - Filler", "Filler Line 2", numeric ids, etc.)
+    const nums = sectionLine.match(/\d+/g) ?? [];
+    for (const n of nums) {
+      const hit = lineByNorm.get(`line${n}`);
+      if (hit) return hit;
     }
-    // fallback: match by trailing number (e.g. "Filler 2" → "Line 2")
-    const num = sectionLine.match(/(\d+)\s*$/)?.[1];
+    // Substring fuzzy match (e.g. "gelline" ↔ "gel")
+    for (const [k, v] of lineByNorm) {
+      if (k.length >= 3 && (norm.includes(k) || k.includes(norm))) return v;
+    }
+    // Last resort: any line whose name shares the trailing number
+    const num = nums[nums.length - 1];
     if (num) {
       const byNum = lines.find((l) => new RegExp(`(^|\\D)${num}(\\D|$)`).test(l.name));
       if (byNum) return byNum.name;
