@@ -281,6 +281,10 @@ export default function LineProductionScreen() {
   });
 
   const openEditor = (row: ItemRow) => {
+    if (!canEdit) {
+      toast.error("Read-only — only Tablet 1 can edit actuals");
+      return;
+    }
     setEditing(row);
     setPad(String(row.actual_qty || ""));
   };
