@@ -1,10 +1,48 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useDowntime } from "@/hooks/useDowntime";
 import { formatMinutes } from "@/lib/formatDuration";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Lightbulb } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+type RangePreset = "today" | "shift" | "7d" | "30d" | "90d";
+
+function rangeStartMs(preset: RangePreset): number {
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+  switch (preset) {
+    case "today": {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    }
+    case "shift": {
+      // Day shift 06:00–18:00, Night shift 18:00–06:00 (London-local approximation)
+      const d = new Date();
+      const h = d.getHours();
+      const start = new Date(d);
+      if (h >= 6 && h < 18) start.setHours(6, 0, 0, 0);
+      else if (h >= 18) start.setHours(18, 0, 0, 0);
+      else { start.setDate(start.getDate() - 1); start.setHours(18, 0, 0, 0); }
+      return start.getTime();
+    }
+    case "7d": return now - 7 * DAY;
+    case "30d": return now - 30 * DAY;
+    case "90d": return now - 90 * DAY;
+  }
+}
+
+const RANGE_LABEL: Record<RangePreset, string> = {
+  today: "Today",
+  shift: "Current shift",
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  "90d": "Last 90 days",
+};
+
+
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 const SHIFTS = ["Day", "Night"] as const;
@@ -46,6 +84,9 @@ function cellColor(minutes: number, max: number): string {
 
 export default function DowntimeHeatmapPage() {
   const { data: records, isLoading } = useDowntime();
+  const [range, setRange] = useState<RangePreset>("30d");
+  const fromMs = useMemo(() => rangeStartMs(range), [range]);
+
 
   const { matrix, lines, lineTotals, dayShiftTotals, insights, grandMax } = useMemo(() => {
     type LineMap = Map<string, Cell>; // key: `${dayIdx}-${shift}`
@@ -59,8 +100,12 @@ export default function DowntimeHeatmapPage() {
       const line = r.line || "—";
       const start = new Date(r.started_at).getTime();
       const end = r.ended_at ? new Date(r.ended_at).getTime() : Date.now();
-      const minutes = Math.max(0, Math.round((end - start) / 60000));
+      // Filter by selected range (overlap with [fromMs, now])
+      if (end < fromMs) continue;
+      const clampedStart = Math.max(start, fromMs);
+      const minutes = Math.max(0, Math.round((end - clampedStart) / 60000));
       if (minutes <= 0) continue;
+
       const { dayIdx, hour } = londonParts(new Date(start));
       const shift = shiftOf(hour);
       const key = `${dayIdx}-${shift}`;
@@ -113,17 +158,30 @@ export default function DowntimeHeatmapPage() {
     }
 
     return { matrix: perLine, lines, lineTotals, dayShiftTotals, insights, grandMax };
-  }, [records]);
+  }, [records, fromMs]);
 
   return (
     <DashboardLayout>
       <div className="p-4 md:p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Downtime Heatmap</h1>
-          <p className="text-sm text-muted-foreground">
-            Line × Weekday × Shift — last 90 days, Europe/London time.
-          </p>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold">Downtime Heatmap</h1>
+            <p className="text-sm text-muted-foreground">
+              Line × Weekday × Shift — {RANGE_LABEL[range]}, Europe/London time.
+            </p>
+          </div>
+          <Select value={range} onValueChange={(v) => setRange(v as RangePreset)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(RANGE_LABEL) as RangePreset[]).map((k) => (
+                <SelectItem key={k} value={k}>{RANGE_LABEL[k]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
+
 
         {isLoading ? (
           <Skeleton className="h-96" />
