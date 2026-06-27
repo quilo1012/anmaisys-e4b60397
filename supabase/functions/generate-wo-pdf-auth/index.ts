@@ -1,4 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://esm.sh/zod@3.23.8";
+
+const BodySchema = z.object({
+  reportType: z.string().min(1).max(100).optional(),
+  entityId: z.string().min(1).max(200).optional(),
+}).strict();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
