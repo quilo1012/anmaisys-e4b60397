@@ -241,7 +241,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   // Sidebar opens by default on desktop/tablet (≥ md breakpoint). On phones
   // it stays closed and the user opens it via the trigger.
-  const defaultSidebarOpen = typeof window !== "undefined" && window.innerWidth >= 768;
+  const defaultSidebarOpen = typeof window !== "undefined" && window.innerWidth >= 1024;
   const currentPageTitle = routeTitles[location.pathname] ?? "";
 
   return (

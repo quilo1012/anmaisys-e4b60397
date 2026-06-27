@@ -249,12 +249,42 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   if (!engineRef.current && typeof window !== "undefined") {
     engineRef.current = new AlertAudioEngine();
   }
-  // Reflect autoplay-blocked state in the header icon (green→red).
+  // Reflect autoplay-blocked state in the header icon (green→red) AND register
+  // a one-shot global gesture listener so the next click/touch/keypress
+  // anywhere on the page unlocks audio and resumes the active siren — this is
+  // the "re-unlock" fallback for browsers that blocked the initial play().
   useEffect(() => {
     if (!engineRef.current) return;
-    engineRef.current.onBlocked = () => {
+    const engine = engineRef.current;
+    let armed = false;
+    const handler = () => {
+      armed = false;
+      try {
+        engine.unlock();
+        try { localStorage.setItem(AUDIO_FLAG_KEY, "true"); } catch { /* ignore */ }
+        setAudioEnabled(true);
+        // If a siren is currently active but muted, restart it now that we
+        // have a user gesture in hand.
+        engine.stop();
+        engine.start();
+      } catch { /* ignore */ }
+      window.removeEventListener("pointerdown", handler, true);
+      window.removeEventListener("keydown", handler, true);
+      window.removeEventListener("touchstart", handler, true);
+    };
+    engine.onBlocked = () => {
       try { localStorage.setItem(AUDIO_FLAG_KEY, "false"); } catch { /* ignore */ }
       setAudioEnabled(false);
+      if (armed) return;
+      armed = true;
+      window.addEventListener("pointerdown", handler, true);
+      window.addEventListener("keydown", handler, true);
+      window.addEventListener("touchstart", handler, true);
+    };
+    return () => {
+      window.removeEventListener("pointerdown", handler, true);
+      window.removeEventListener("keydown", handler, true);
+      window.removeEventListener("touchstart", handler, true);
     };
   }, []);
 
