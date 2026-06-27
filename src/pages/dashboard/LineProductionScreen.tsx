@@ -220,6 +220,28 @@ export default function LineProductionScreen() {
     onError: (e: any) => toast.error(e.message || "Failed to save"),
   });
 
+  // Per-shift observations (notes on production_sessions)
+  const [notes, setNotes] = useState<string>("");
+  useEffect(() => {
+    setNotes(sessionQ.data?.notes ?? "");
+  }, [sessionQ.data?.id, sessionQ.data?.notes]);
+
+  const saveNotes = useMutation({
+    mutationFn: async (value: string) => {
+      if (!sessionQ.data?.id) throw new Error("No session");
+      const { error } = await (supabase as any)
+        .from("production_sessions")
+        .update({ notes: value })
+        .eq("id", sessionQ.data.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lps-session", line, shift, todayISO()] });
+      toast.success("Observations saved");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save observations"),
+  });
+
   const openEditor = (row: ItemRow) => {
     setEditing(row);
     setPad(String(row.actual_qty || ""));
