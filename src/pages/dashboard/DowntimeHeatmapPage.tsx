@@ -1,10 +1,13 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useDowntime } from "@/hooks/useDowntime";
 import { formatMinutes } from "@/lib/formatDuration";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Lightbulb } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { londonShiftWindow } from "@/lib/shifts";
+
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 const SHIFTS = ["Day", "Night"] as const;
