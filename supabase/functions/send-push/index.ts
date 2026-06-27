@@ -71,7 +71,15 @@ Deno.serve(async (req) => {
       .from("user_roles").select("role").eq("user_id", claimsData.claims.sub);
     const isStaff = (roles ?? []).some((r: { role: string }) => ["admin", "manager"].includes(r.role));
 
-    const body = (await req.json()) as PushPayload;
+    const rawBody = await req.json().catch(() => null);
+    const parsedBody = PushPayloadSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return new Response(
+        JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const body: PushPayload = parsedBody.data;
     const userIds: string[] = body.user_ids || (body.user_id ? [body.user_id] : []);
     if (!userIds.length) {
       return new Response(
