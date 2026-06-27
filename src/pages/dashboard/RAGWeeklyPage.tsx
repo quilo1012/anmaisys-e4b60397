@@ -206,8 +206,10 @@ export default function RAGWeeklyPage() {
           ref: r.wo_number as string | null,
           machine: r.machine as string | null,
           reason: r.description as string | null,
+          status: r.status as string | null,
         };
       });
+
 
 
 
