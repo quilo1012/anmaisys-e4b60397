@@ -348,18 +348,80 @@ export default function LineDisplayScreen() {
               const c = pc >= 95 ? "bg-green-500" : pc >= 75 ? "bg-amber-500" : "bg-red-500";
               return (
                 <li key={it.id} className="bg-slate-800 rounded-xl p-4">
-                  <div className="flex justify-between text-lg mb-2">
-                    <span className="font-semibold">
+                  <div className="flex justify-between items-center text-lg mb-2 gap-3">
+                    <span className="font-semibold flex-1 min-w-0 truncate">
                       {it.sku?.code ?? "—"} <span className="text-slate-400 font-normal">{it.sku?.name ?? ""}</span>
                     </span>
-                    <span className="font-mono">
-                      {a.toLocaleString()} / {p.toLocaleString()}
-                    </span>
+                    {editingId === it.id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono">{a.toLocaleString()} /</span>
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="w-24 h-9 bg-slate-900 text-white"
+                          autoFocus
+                        />
+                        <Button
+                          size="icon"
+                          className="h-9 w-9 bg-green-600 hover:bg-green-700"
+                          disabled={saving}
+                          onClick={async () => {
+                            const v = Math.max(0, Math.floor(Number(editValue) || 0));
+                            setSaving(true);
+                            const { error } = await supabase
+                              .from("production_items")
+                              .update({ planned_qty: v })
+                              .eq("id", it.id);
+                            setSaving(false);
+                            if (error) {
+                              toast.error(error.message);
+                              return;
+                            }
+                            toast.success("Planned qty updated");
+                            setEditingId(null);
+                            qc.invalidateQueries({ queryKey: ["prod-items-live", date, line, shift] });
+                            qc.invalidateQueries({ queryKey: ["rag-live", date, line, shift] });
+                          }}
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-9 w-9"
+                          onClick={() => setEditingId(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono">
+                          {a.toLocaleString()} / {p.toLocaleString()}
+                        </span>
+                        {canRequest && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-slate-400 hover:text-white"
+                            onClick={() => {
+                              setEditingId(it.id);
+                              setEditValue(String(p));
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
                     <div className={`h-full ${c}`} style={{ width: `${pc}%` }} />
                   </div>
                 </li>
+
               );
             })}
           </ul>
