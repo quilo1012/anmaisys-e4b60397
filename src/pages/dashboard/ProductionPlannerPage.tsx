@@ -279,7 +279,12 @@ export default function ProductionPlannerPage() {
   const addRow = () => setRows((r) => [...r, { sku_id: "", sku_name: "", target_qty: 0, actual_qty: 0 }]);
   const updateRow = (i: number, patch: Partial<Row>) =>
     setRows((r) => r.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
-  const removeRow = (i: number) => setRows((r) => r.filter((_, idx) => idx !== i));
+  const removeRow = (i: number) => {
+    const row = rows[i];
+    const label = row?.sku_name || "this SKU";
+    if (!window.confirm(`Delete ${label} from this plan?`)) return;
+    setRows((r) => r.filter((_, idx) => idx !== i));
+  };
 
   const save = async () => {
     if (!line) return alert("Pick a production line");
@@ -571,12 +576,22 @@ export default function ProductionPlannerPage() {
                       <span className="text-xs text-muted-foreground">units</span>
                     </div>
                   </div>
-                  <div className="md:col-span-2 flex items-end gap-2">
+                  <div className="md:col-span-1 flex items-end">
                     <div className="flex-1">
                       <div className={cn("text-xs font-medium mb-1", effColor(eff))}>{eff.toFixed(0)}%</div>
                       <Progress value={Math.min(100, eff)} className="h-2" />
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => removeRow(i)} disabled={locked}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                  <div className="md:col-span-1 flex items-end justify-end">
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      onClick={() => removeRow(i)}
+                      disabled={locked}
+                      title="Delete SKU"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               );
