@@ -647,6 +647,63 @@ export default function IntouchSettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
+              <List className="h-5 w-5" /> SKU Sync Diagnostics
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={loadDiag} disabled={loadingDiag} size="sm" variant="outline">
+                {loadingDiag ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Refresh
+              </Button>
+              {diag && (
+                <div className="text-xs text-muted-foreground">
+                  Last sync:{" "}
+                  <strong className="text-foreground">
+                    {diag.lastSync ? new Date(diag.lastSync).toLocaleString("en-GB", { timeZone: "Europe/London" }) : "—"}
+                  </strong>
+                </div>
+              )}
+            </div>
+            {diag && (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-muted-foreground">Items (production_items)</div>
+                    <div className="text-2xl font-semibold">{diag.total}</div>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-muted-foreground">Distinct SKUs</div>
+                    <div className="text-2xl font-semibold">{diag.distinctSkus}</div>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-muted-foreground">Lines reporting</div>
+                    <div className="text-2xl font-semibold">{diag.byLine.length}</div>
+                  </div>
+                </div>
+                <div className="rounded-md border divide-y max-h-72 overflow-auto">
+                  <div className="grid grid-cols-3 px-3 py-2 text-xs font-medium bg-muted/40">
+                    <div>Line</div><div className="text-right">Distinct SKUs</div><div className="text-right">Items</div>
+                  </div>
+                  {diag.byLine.length === 0 && (
+                    <div className="p-3 text-sm text-muted-foreground">No data yet.</div>
+                  )}
+                  {diag.byLine.map((r) => (
+                    <div key={r.line} className="grid grid-cols-3 px-3 py-2 text-sm">
+                      <div className="truncate">{r.line}</div>
+                      <div className="text-right font-mono">{r.skus}</div>
+                      <div className="text-right font-mono">{r.items}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
               <Package className="h-5 w-5" /> iTouching Products / SKUs
             </CardTitle>
           </CardHeader>
