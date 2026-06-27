@@ -223,56 +223,25 @@ function OperatorDashboardContent() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold">Operator Panel</h2>
-          <p className="text-muted-foreground">Create and track your work orders</p>
+          <p className="text-muted-foreground">Open a maintenance request</p>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate("/dashboard/line-hub")}
-          className="inline-flex items-center gap-2 h-11 px-4 rounded-md border bg-card hover:bg-accent text-sm font-medium"
-        >
-          ← Back to Hub
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard/line-display")}
+            className="inline-flex items-center gap-2 h-11 px-4 rounded-md border border-sky-500 bg-sky-600 text-white hover:bg-sky-700 text-sm font-semibold"
+          >
+            🎯 View Target
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard/line-hub")}
+            className="inline-flex items-center gap-2 h-11 px-4 rounded-md border bg-card hover:bg-accent text-sm font-medium"
+          >
+            ← Back to Hub
+          </button>
+        </div>
       </div>
-
-
-      <OperatorNavCards myOpenWOs={countOpenWOs(workOrders)} />
-
-      {/* KPI: WOs by Shift — last 7 days (moved to top) */}
-      {workOrders && workOrders.length > 0 && (() => {
-        const cutoff = subDays(new Date(), 7);
-        const byDay: Record<string, { date: string; day: number; night: number }> = {};
-        workOrders.forEach((w) => {
-          const d = new Date(w.created_at);
-          if (d < cutoff) return;
-          const key = format(d, "dd/MM");
-          if (!byDay[key]) byDay[key] = { date: key, day: 0, night: 0 };
-          byDay[key][getShift(d)]++;
-        });
-        const data = Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
-        if (!data.length) return null;
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">WOs by Shift — Last 7 Days</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data}>
-                    <XAxis dataKey="date" fontSize={12} />
-                    <YAxis allowDecimals={false} fontSize={12} />
-                    <RTooltip />
-                    <Legend />
-                    <Bar dataKey="day" name="Day (06–18)" fill="hsl(var(--primary))" />
-                    <Bar dataKey="night" name="Night (18–06)" fill="hsl(var(--destructive))" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
-
 
       {/* Quick CTA buttons — Line Stopped vs Line Running */}
       <div className="grid gap-4 md:grid-cols-2">
@@ -295,6 +264,7 @@ function OperatorDashboardContent() {
           <div className="text-sm opacity-90">Open WO Request — Line in Operation (no downtime)</div>
         </button>
       </div>
+
 
       <div id="wo-form-anchor" />
 
