@@ -1,36 +1,40 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useDowntime } from "@/hooks/useDowntime";
 import { formatMinutes } from "@/lib/formatDuration";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, CalendarIcon } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
-type RangePreset = "today" | "shift" | "7d" | "30d" | "90d";
+type RangePreset = "today" | "shift" | "7d" | "30d" | "90d" | "custom";
+const STORAGE_KEY = "downtime-heatmap-range";
 
-function rangeStartMs(preset: RangePreset): number {
+function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function endOfDay(d: Date) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
+
+function presetRange(preset: Exclude<RangePreset, "custom">): { from: number; to: number } {
   const now = Date.now();
   const DAY = 24 * 60 * 60 * 1000;
   switch (preset) {
-    case "today": {
-      const d = new Date();
-      d.setHours(0, 0, 0, 0);
-      return d.getTime();
-    }
+    case "today": return { from: startOfDay(new Date()).getTime(), to: now };
     case "shift": {
-      // Day shift 06:00–18:00, Night shift 18:00–06:00 (London-local approximation)
       const d = new Date();
       const h = d.getHours();
       const start = new Date(d);
       if (h >= 6 && h < 18) start.setHours(6, 0, 0, 0);
       else if (h >= 18) start.setHours(18, 0, 0, 0);
       else { start.setDate(start.getDate() - 1); start.setHours(18, 0, 0, 0); }
-      return start.getTime();
+      return { from: start.getTime(), to: now };
     }
-    case "7d": return now - 7 * DAY;
-    case "30d": return now - 30 * DAY;
-    case "90d": return now - 90 * DAY;
+    case "7d": return { from: now - 7 * DAY, to: now };
+    case "30d": return { from: now - 30 * DAY, to: now };
+    case "90d": return { from: now - 90 * DAY, to: now };
   }
 }
 
@@ -40,7 +44,9 @@ const RANGE_LABEL: Record<RangePreset, string> = {
   "7d": "Last 7 days",
   "30d": "Last 30 days",
   "90d": "Last 90 days",
+  custom: "Custom range",
 };
+
 
 
 
@@ -84,8 +90,58 @@ function cellColor(minutes: number, max: number): string {
 
 export default function DowntimeHeatmapPage() {
   const { data: records, isLoading } = useDowntime();
-  const [range, setRange] = useState<RangePreset>("30d");
-  const fromMs = useMemo(() => rangeStartMs(range), [range]);
+
+  const [range, setRange] = useState<RangePreset>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.range && parsed.range in RANGE_LABEL) return parsed.range as RangePreset;
+      }
+    } catch { /* ignore */ }
+    return "30d";
+  });
+  const [customFrom, setCustomFrom] = useState<Date | undefined>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p?.from) return new Date(p.from);
+      }
+    } catch { /* ignore */ }
+    return undefined;
+  });
+  const [customTo, setCustomTo] = useState<Date | undefined>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p?.to) return new Date(p.to);
+      }
+    } catch { /* ignore */ }
+    return undefined;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        range,
+        from: customFrom?.toISOString() ?? null,
+        to: customTo?.toISOString() ?? null,
+      }));
+    } catch { /* ignore */ }
+  }, [range, customFrom, customTo]);
+
+  const { fromMs, toMs } = useMemo(() => {
+    if (range === "custom") {
+      const f = customFrom ? startOfDay(customFrom).getTime() : Date.now() - 7 * 86400000;
+      const t = customTo ? endOfDay(customTo).getTime() : Date.now();
+      return { fromMs: f, toMs: t };
+    }
+    const r = presetRange(range);
+    return { fromMs: r.from, toMs: r.to };
+  }, [range, customFrom, customTo]);
+
 
 
   const { matrix, lines, lineTotals, dayShiftTotals, insights, grandMax } = useMemo(() => {
@@ -100,11 +156,13 @@ export default function DowntimeHeatmapPage() {
       const line = r.line || "—";
       const start = new Date(r.started_at).getTime();
       const end = r.ended_at ? new Date(r.ended_at).getTime() : Date.now();
-      // Filter by selected range (overlap with [fromMs, now])
-      if (end < fromMs) continue;
+      // Overlap with [fromMs, toMs]
+      if (end < fromMs || start > toMs) continue;
       const clampedStart = Math.max(start, fromMs);
-      const minutes = Math.max(0, Math.round((end - clampedStart) / 60000));
+      const clampedEnd = Math.min(end, toMs);
+      const minutes = Math.max(0, Math.round((clampedEnd - clampedStart) / 60000));
       if (minutes <= 0) continue;
+
 
       const { dayIdx, hour } = londonParts(new Date(start));
       const shift = shiftOf(hour);
@@ -158,7 +216,7 @@ export default function DowntimeHeatmapPage() {
     }
 
     return { matrix: perLine, lines, lineTotals, dayShiftTotals, insights, grandMax };
-  }, [records, fromMs]);
+  }, [records, fromMs, toMs]);
 
   return (
     <DashboardLayout>
@@ -170,17 +228,46 @@ export default function DowntimeHeatmapPage() {
               Line × Weekday × Shift — {RANGE_LABEL[range]}, Europe/London time.
             </p>
           </div>
-          <Select value={range} onValueChange={(v) => setRange(v as RangePreset)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(RANGE_LABEL) as RangePreset[]).map((k) => (
-                <SelectItem key={k} value={k}>{RANGE_LABEL[k]}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={range} onValueChange={(v) => setRange(v as RangePreset)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(RANGE_LABEL) as RangePreset[]).map((k) => (
+                  <SelectItem key={k} value={k}>{RANGE_LABEL[k]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {range === "custom" && (
+              <>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal", !customFrom && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customFrom ? format(customFrom, "PP") : "From"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={customFrom} onSelect={setCustomFrom} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal", !customTo && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customTo ? format(customTo, "PP") : "To"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={customTo} onSelect={setCustomTo} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+              </>
+            )}
+          </div>
         </div>
+
 
 
         {isLoading ? (
