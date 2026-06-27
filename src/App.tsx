@@ -151,8 +151,13 @@ const App = () => (
                 <Route path="/login" element={<Login />} />
                 <Route
                   path="/dashboard/operator"
-                  element={<Navigate to="/dashboard/line-hub" replace />}
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]}>
+                      <OperatorDashboard />
+                    </ProtectedRoute>
+                  }
                 />
+
 
                 <Route
                   path="/dashboard/engineer"
