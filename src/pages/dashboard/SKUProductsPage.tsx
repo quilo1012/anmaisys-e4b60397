@@ -90,6 +90,37 @@ function parseCSV(text: string): Partial<Sku>[] {
   return Array.from(byCode.values()).filter((row) => row.code && row.name);
 }
 
+function cellText(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "number" || typeof v === "boolean") return String(v).trim();
+  if (typeof v === "object") {
+    const obj = v as { text?: string; result?: unknown; richText?: Array<{ text: string }>; hyperlink?: string };
+    if (Array.isArray(obj.richText)) return obj.richText.map((r) => r.text ?? "").join("").trim();
+    if (typeof obj.text === "string") return obj.text.trim();
+    if (obj.result != null) return cellText(obj.result);
+  }
+  return String(v).trim();
+}
+
+async function parseXLSX(file: File): Promise<Partial<Sku>[]> {
+  const buf = await file.arrayBuffer();
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+  const ws = wb.worksheets[0];
+  if (!ws) return [];
+  const rows: string[][] = [];
+  ws.eachRow({ includeEmpty: false }, (row) => {
+    const arr: string[] = [];
+    row.eachCell({ includeEmpty: true }, (cell, col) => { arr[col - 1] = cellText(cell.value); });
+    if (arr.some((c) => c && c.length)) rows.push(arr.map((c) => c ?? ""));
+  });
+  if (!rows.length) return [];
+  // Reuse the CSV parser by serialising back as a tab-delimited string.
+  const tsv = rows.map((r) => r.map((c) => c.replace(/\t/g, " ")).join("\t")).join("\n");
+  return parseCSV(tsv);
+}
+
 export default function SKUProductsPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
