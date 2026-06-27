@@ -325,7 +325,17 @@ Deno.serve(async (req) => {
       const currentStatus = parseStatus(s.Status);
       const previousStatus = parseStatus(m.last_status);
       const currentIsHealthy = currentStatus != null && HEALTHY_STATUS.has(currentStatus);
-      const currentDowntimeCode = currentIsHealthy ? null : (s.DowntimeCode ?? null);
+      const rawDowntimeCode = s.DowntimeCode ?? null;
+      const rawCodeKey = normalizeStopCode(rawDowntimeCode);
+      const rawMappedCode = rawCodeKey ? codeLookup.get(rawCodeKey) : undefined;
+
+      // Some iTouching screens keep Status=1 (running) while the operator has
+      // already selected a maintenance stop reason. If that reason is explicitly
+      // configured as requires_wo=true, treat it as a maintenance stop anyway.
+      const maintenanceCodeWhileHealthy = currentIsHealthy
+        && !!rawCodeKey
+        && rawMappedCode?.requires_wo === true;
+      const currentDowntimeCode = currentIsHealthy && !maintenanceCodeWhileHealthy ? null : rawDowntimeCode;
       const codeKey = normalizeStopCode(currentDowntimeCode);
       const previousCodeKey = normalizeStopCode(m.last_downtime_code);
       const hadPreviousSnapshot = Boolean(m.last_seen_at);
@@ -346,7 +356,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const isDown = !currentIsHealthy && !!codeKey;
+      const isDown = !!codeKey && (!currentIsHealthy || maintenanceCodeWhileHealthy);
       const codeName = uuidToName.get(codeKey) ?? codeKey;
       const mapped_code = codeLookup.get(codeKey);
       const prevMappedCode = m.prod_dt_code ? codeLookup.get(normalizeStopCode(m.prod_dt_code)) : null;
