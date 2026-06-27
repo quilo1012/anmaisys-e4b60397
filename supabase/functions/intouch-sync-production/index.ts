@@ -446,13 +446,27 @@ async function fetchSkuRowsForLine(machines: MachineRef[], startISO: string, end
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const admin = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
+  let runId: string | null = null;
+  let triggerSource = "manual";
   try {
     if (!INTOUCH_URL || !INTOUCH_TOKEN) throw new Error("Missing INTOUCH_API_URL/TOKEN");
 
     const CRON_SECRET = Deno.env.get("CRON_TRIGGER_TOKEN") ?? Deno.env.get("CRON_SECRET") ?? "";
     const providedCron = req.headers.get("x-cron-secret") ?? "";
     const isCron = !!CRON_SECRET && providedCron === CRON_SECRET;
-    const admin = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
+    if (isCron) triggerSource = "cron";
+
+    // Log run start (best-effort).
+    try {
+      const { data: runRow } = await admin
+        .from("intouch_sync_runs")
+        .insert({ function_name: "intouch-sync-production", status: "running", trigger_source: triggerSource })
+        .select("id")
+        .maybeSingle();
+      runId = runRow?.id ?? null;
+    } catch { /* ignore */ }
+
 
     if (!isCron) {
       const authHeader = req.headers.get("Authorization") ?? "";
