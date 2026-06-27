@@ -267,11 +267,14 @@ export default function LineDisplayScreen() {
             <Maximize2 className="h-5 w-5" />
           </Button>
           <Button
-            onClick={() => navigate("/dashboard/operator")}
-            className="h-12 px-4 bg-red-600 hover:bg-red-700 text-white font-bold"
+            onClick={() => canRequest && navigate("/dashboard/operator")}
+            disabled={!canRequest}
+            title={canRequest ? "" : "Not authorized for this line"}
+            className="h-12 px-4 bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed"
           >
             REQUEST WO
           </Button>
+
           <Button variant="outline" onClick={() => navigate("/dashboard/line-hub")} className="h-12 px-4 gap-2">
             <ArrowLeft className="h-5 w-5" /> Back
           </Button>
