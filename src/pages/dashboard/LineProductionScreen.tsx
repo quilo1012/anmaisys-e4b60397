@@ -549,12 +549,13 @@ export default function LineProductionScreen() {
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="E.g. Filler 2 stopped 14:20–14:55 (sensor), changeover SKU-123→SKU-456 at 16:00…"
                 className="min-h-[120px] text-base"
+                readOnly={!canEdit}
               />
               <div className="flex justify-end">
                 <Button
                   className="h-12 px-6"
                   onClick={() => saveNotes.mutate(notes)}
-                  disabled={saveNotes.isPending || notes === (sessionQ.data?.notes ?? "")}
+                  disabled={!canEdit || saveNotes.isPending || notes === (sessionQ.data?.notes ?? "")}
                 >
                   <Save className="h-5 w-5 mr-2" />
                   Save observations
