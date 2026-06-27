@@ -681,13 +681,33 @@ Deno.serve(async (req) => {
     const syncedLines = results.filter((r) => !r.skipped).length;
     const syncedSkus = results.reduce((sum, r) => sum + Number(r.skus ?? 0), 0);
 
+    if (runId) {
+      try {
+        await admin.from("intouch_sync_runs").update({
+          status: "success",
+          finished_at: new Date().toISOString(),
+          details: { synced_lines: syncedLines, synced_skus: syncedSkus, session_date, shift },
+        }).eq("id", runId);
+      } catch { /* ignore */ }
+    }
+
     return new Response(JSON.stringify({ ok: true, session_date, shift,
       summary: `${syncedLines} lines · ${syncedSkus} SKUs`,
       window: { start: startISO, end: endISO }, results }, null, 2), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: (e as Error).message }), {
+    const msg = (e as Error).message;
+    if (runId) {
+      try {
+        await admin.from("intouch_sync_runs").update({
+          status: "error",
+          finished_at: new Date().toISOString(),
+          error_message: msg.slice(0, 2000),
+        }).eq("id", runId);
+      } catch { /* ignore */ }
+    }
+    return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
