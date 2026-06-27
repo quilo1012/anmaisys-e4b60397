@@ -286,8 +286,10 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       }
       setSections(secs);
       const init: Record<string, { id?: string; name: string }> = {};
-      for (const s of secs) init[s.line] = { name: "" };
+      const inc: Record<string, boolean> = {};
+      for (const s of secs) { init[s.line] = { name: "" }; inc[s.line] = true; }
       setLeaderByLine(init);
+      setIncludedLines(inc);
       setParsePreview([]);
       toast.success(`Pulled ${(data as any)?.total_skus ?? 0} SKUs across ${secs.length} line${secs.length > 1 ? "s" : ""}`);
     } catch (e) {
