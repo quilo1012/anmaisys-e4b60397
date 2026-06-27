@@ -234,6 +234,22 @@ export default function LineProductionScreen() {
     onError: (e: any) => toast.error(e.message || "Failed to save"),
   });
 
+  const syncSkus = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("intouch-sync-production", {
+        body: { session_date: activeSessionDate, shift, force: true },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lps-session"] });
+      qc.invalidateQueries({ queryKey: ["lps-items"] });
+      toast.success("SKUs synced from iTouching");
+    },
+    onError: (e: any) => toast.error(e.message || "Sync failed"),
+  });
+
   // Per-shift observations (notes on production_sessions)
   const [notes, setNotes] = useState<string>("");
   useEffect(() => {
