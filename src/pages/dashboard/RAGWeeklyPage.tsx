@@ -953,6 +953,8 @@ export default function RAGWeeklyPage() {
           entryMap={entryMap}
           autoDtMap={autoDtMap}
           autoDtBreakdown={autoDtBreakdown}
+          cellScrapMap={cellScrapMap}
+          cellItemTargetMap={cellItemTargetMap}
           isAdmin={isAdmin}
           onSave={(payload) => upsertMutation.mutate(payload)}
           onOpenFull={(date, line, shift) => {
@@ -960,6 +962,7 @@ export default function RAGWeeklyPage() {
             setEditing({ date, line, shift, entry: e });
           }}
         />
+
 
 
 
