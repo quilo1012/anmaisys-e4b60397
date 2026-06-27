@@ -100,10 +100,32 @@ export default function IntouchSettingsPage() {
   useEffect(() => {
     loadDiag();
     if (!diagAuto) return;
-    const t = setInterval(() => {
-      if (document.visibilityState === "visible") loadDiag({ silent: true });
-    }, 30_000);
-    return () => clearInterval(t);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const FAST = 30_000;   // foreground
+    const SLOW = 120_000;  // background
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      const delay = document.visibilityState === "visible" ? FAST : SLOW;
+      timer = setTimeout(tick, delay);
+    };
+    const tick = async () => {
+      try { await loadDiag({ silent: true }); } catch { /* handled in loadDiag */ }
+      schedule();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        // Resume immediately when the tab returns to the foreground.
+        loadDiag({ silent: true }).finally(schedule);
+      } else {
+        schedule();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    schedule();
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (timer) clearTimeout(timer);
+    };
   }, [diagAuto]);
 
 
