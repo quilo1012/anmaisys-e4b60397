@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getShift, SHIFT_LABEL } from "@/lib/shifts";
-import { Maximize2 } from "lucide-react";
+import { ArrowLeft, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
 
 type RagEntry = {
   id: string;
@@ -52,6 +54,8 @@ function formatCountdown(ms: number) {
 
 export default function LineDisplayScreen() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
   const qc = useQueryClient();
   const [now, setNow] = useState(new Date());
 
@@ -209,8 +213,12 @@ export default function LineDisplayScreen() {
           <Button size="icon" variant="outline" onClick={goFullscreen} className="h-12 w-12">
             <Maximize2 className="h-6 w-6" />
           </Button>
+          <Button variant="outline" onClick={() => navigate("/dashboard/line-hub")} className="h-12 px-4 gap-2">
+            <ArrowLeft className="h-5 w-5" /> Back
+          </Button>
         </div>
       </header>
+
 
       <div className="grid grid-cols-4 gap-6">
         <Kpi label="TARGET" value={target.toLocaleString()} accent="text-sky-400" />
