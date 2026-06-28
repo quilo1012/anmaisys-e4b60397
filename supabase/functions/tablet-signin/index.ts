@@ -66,6 +66,22 @@ Deno.serve(async (req) => {
     }
     const { account_id, password } = parsed.data;
 
+    // Rate-limit per account_id (server resolves email, so this is the stable key)
+    const gate = checkRateLimit(account_id);
+    if (!gate.allowed) {
+      return new Response(
+        JSON.stringify({ error: "Too many attempts. Try again later.", retry_after: gate.retryAfter }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "Retry-After": String(gate.retryAfter),
+          },
+        },
+      );
+    }
+
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -79,6 +95,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (accErr || !acc?.email) {
+      recordFailure(account_id);
       // Generic message to avoid account enumeration
       return new Response(
         JSON.stringify({ error: "Invalid credentials" }),
@@ -94,11 +111,15 @@ Deno.serve(async (req) => {
     });
 
     if (signErr || !signIn.session) {
+      recordFailure(account_id);
       return new Response(
         JSON.stringify({ error: "Invalid credentials" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
+    clearAttempts(account_id);
+
 
     // Return session tokens only — no email, no user object
     return new Response(
