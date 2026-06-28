@@ -33,6 +33,7 @@ type LineStat = {
 const fmtPct = (n: number) => `${n.toFixed(1)}%`;
 
 export default function WeeklyProductionReportPage() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<Row[] | null>(null);
 
   useEffect(() => {
