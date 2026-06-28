@@ -21,7 +21,7 @@ const dashMap: Record<string, string> = {
   maintenance_manager: "/dashboard/manager",
   viewer: "/dashboard/manager",
   engineer: "/dashboard/engineer",
-  operator: "/dashboard/line-production",
+  operator: "/dashboard/operator",
 };
 
 const MODE_KEY = "an_login_mode";

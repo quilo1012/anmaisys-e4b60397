@@ -11,7 +11,7 @@ const dashMap: Record<AppRole, string> = {
   manager: "/dashboard/manager",
   maintenance_manager: "/dashboard/manager",
   engineer: "/dashboard/engineer",
-  operator: "/dashboard/line-production",
+  operator: "/dashboard/operator",
   viewer: "/dashboard/manager",
 };
 
