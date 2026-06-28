@@ -440,8 +440,22 @@ export default function ProductionPlannerPage() {
                       line,
                       items,
                     });
-                    if (error) throw error;
-                    if (data?.error) throw new Error(typeof data.error === "string" ? data.error : JSON.stringify(data.error));
+                    const payload = (error as any)?.details ?? data;
+                    const errMsg = payload?.error;
+                    const retryAfter = payload?.retry_after;
+                    if (errMsg) {
+                      const msg = typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg);
+                      if (/quota/i.test(msg) && retryAfter) {
+                        toast.error(`iTouching daily quota exhausted. Try again after ${new Date(retryAfter).toLocaleString()}.`);
+                      } else {
+                        toast.error(`Send failed: ${msg}`);
+                      }
+                      return;
+                    }
+                    if (error) {
+                      toast.error(`Send failed: ${(error as any)?.message ?? "unknown"}`);
+                      return;
+                    }
                     toast.success(`Sent ${data?.sent ?? items.length} job(s) to iTouching`);
                   } catch (e: any) {
                     toast.error(`Send failed: ${e?.message ?? "unknown"}`);
