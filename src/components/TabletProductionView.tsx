@@ -24,7 +24,7 @@ type ProductionItem = { actual_qty: number | null; target_qty: number | null };
 type SessionRow = {
   id: string;
   locked: boolean | null;
-  comments: string | null;
+  notes: string | null;
   leader_name: string | null;
   production_items: ProductionItem[] | null;
 };
@@ -55,7 +55,7 @@ export function TabletProductionView() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, locked, comments, leader_name, production_items(actual_qty, target_qty)")
+        .select("id, locked, notes, leader_name, production_items(actual_qty, target_qty)")
         .eq("line", detectedLine)
         .eq("session_date", currentDate)
         .eq("shift", currentShift)
@@ -100,7 +100,7 @@ export function TabletProductionView() {
   const efficiency = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0;
 
   useEffect(() => {
-    if (sessionData?.comments) setOperatorNotes(sessionData.comments);
+    if (sessionData?.notes) setOperatorNotes(sessionData.notes);
     if (sessionData?.leader_name) setOperatorName(sessionData.leader_name);
   }, [sessionData]);
 
@@ -109,7 +109,7 @@ export function TabletProductionView() {
       if (!sessionData?.id) throw new Error("Nenhuma sessão ativa para este turno.");
       const { error } = await supabase
         .from("production_sessions")
-        .update({ leader_name: operatorName, comments: operatorNotes })
+        .update({ leader_name: operatorName, notes: operatorNotes })
         .eq("id", sessionData.id);
       if (error) throw error;
     },
