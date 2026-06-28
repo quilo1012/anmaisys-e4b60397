@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,25 @@ export default function ProductionPerformancePage() {
   const [period, setPeriod] = useState<Period>("day");
   const [shift, setShift] = useState<"all" | "DAY" | "NIGHT">("all");
   const [lineFilter, setLineFilter] = useState<string>("__all__");
+  const qc = useQueryClient();
+
+  // Pull latest actuals from iTouching every 60s while page is open
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        await supabase.functions.invoke("intouch-sync-production", {
+          body: { date, shift: shift === "all" ? undefined : shift },
+        });
+        if (!cancelled) qc.invalidateQueries({ queryKey: ["oee"] });
+      } catch (e) {
+        console.warn("intouch-sync-production failed", e);
+      }
+    };
+    run();
+    const id = setInterval(run, 60_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [date, shift, qc]);
 
   const range = useMemo(() => {
     const d = parseISO(date);
