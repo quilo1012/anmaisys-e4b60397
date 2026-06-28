@@ -24,24 +24,34 @@ type MachineRef = { id: string; name: string };
 type SkuRow = { code: string; description: string; qty: number; source: string };
 type Agg = { qty: number; description: string; source: string };
 
+const FETCH_TIMEOUT_MS = 7_000;
+
 async function it(path: string, init?: RequestInit) {
-  const res = await fetch(`${INTOUCH_URL}${path}`, {
-    ...init,
-    headers: {
-      Authorization: INTOUCH_AUTH_HEADER,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`iTouching ${path} ${res.status}: ${text.slice(0, 200)}`);
-  try { return JSON.parse(text); } catch { return text; }
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${INTOUCH_URL}${path}`, {
+      ...init,
+      signal: ac.signal,
+      headers: {
+        Authorization: INTOUCH_AUTH_HEADER,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`iTouching ${path} ${res.status}: ${text.slice(0, 200)}`);
+    try { return JSON.parse(text); } catch { return text; }
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 async function tryIt(path: string, init?: RequestInit) {
   try { return await it(path, init); } catch { return null; }
 }
+
 
 function londonOffsetMs(instant: Date): number {
   const dtf = new Intl.DateTimeFormat("en-GB", {
@@ -357,26 +367,12 @@ function aggregateRows(rows: SkuRow[]) {
 }
 
 async function discoverMaterialPaths() {
-  const defaults = [
+  // Fixed shortlist — skip /swagger discovery (slow + large payloads, often 400 egress).
+  return [
     "/api/ScheduleReports/MaterialRequirements/Machine",
-    "/api/ScheduleReports/MaterialRequirementsByMachine",
-    "/api/Reports/MaterialRequirements/Machine",
-    "/api/Reports/MaterialRequirements",
     "/api/GetMaterialRequirementsByMachine",
-    "/api/GetMaterialRequirements",
     "/api/MaterialRequirements/Machine",
-    "/api/MaterialRequirements",
   ];
-  const docs = await tryIt("/swagger/docs/v1", { method: "GET" })
-    ?? await tryIt("/swagger/v1/swagger.json", { method: "GET" })
-    ?? await tryIt("/swagger.json", { method: "GET" });
-  const discovered = docs?.paths && typeof docs.paths === "object"
-    ? Object.keys(docs.paths).filter((p) => {
-      const n = p.toLowerCase();
-      return n.includes("material") && (n.includes("require") || n.includes("report"));
-    })
-    : [];
-  return Array.from(new Set([...discovered, ...defaults]));
 }
 
 function fillPath(path: string, machineId: string) {
@@ -385,41 +381,31 @@ function fillPath(path: string, machineId: string) {
 
 async function fetchMaterialRows(machines: MachineRef[], startISO: string, endISO: string) {
   const paths = await discoverMaterialPaths();
+  const ids = machines.map((m) => m.id);
   for (const path of paths) {
     const allRows: SkuRow[] = [];
-
     for (const m of machines) {
       const base = fillPath(path, m.id);
-      const queryVariants = [
+      // Single canonical variant per machine — keeps egress + latency bounded.
+      const raw = await tryIt(
         `${base}?MachineGUID=${encodeURIComponent(m.id)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
-        `${base}?MachineID=${encodeURIComponent(m.id)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
-        `${base}?machineId=${encodeURIComponent(m.id)}&startTime=${encodeURIComponent(startISO)}&endTime=${encodeURIComponent(endISO)}`,
-      ];
-      for (const q of queryVariants) {
-        const raw = await tryIt(q, { method: "GET" });
-        const rows = extractSkuRows(raw, "material_requirements", [m]);
-        if (rows.length) allRows.push(...rows);
-      }
+        { method: "GET" },
+      );
+      const rows = extractSkuRows(raw, "material_requirements", [m]);
+      if (rows.length) allRows.push(...rows);
     }
-
     if (allRows.length === 0) {
-      const ids = machines.map((m) => m.id);
-      const postBodies = [
-        { MachineGUIDs: ids, StartTime: startISO, EndTime: endISO },
-        { MachineIDs: ids, StartTime: startISO, EndTime: endISO },
-        { machines: ids, startTime: startISO, endTime: endISO, groupBy: "Machine" },
-      ];
-      for (const body of postBodies) {
-        const raw = await tryIt(path, { method: "POST", body: JSON.stringify(body) });
-        const rows = extractSkuRows(raw, "material_requirements", machines);
-        if (rows.length) allRows.push(...rows);
-      }
+      const raw = await tryIt(path, {
+        method: "POST",
+        body: JSON.stringify({ MachineGUIDs: ids, StartTime: startISO, EndTime: endISO }),
+      });
+      allRows.push(...extractSkuRows(raw, "material_requirements", machines));
     }
-
     if (allRows.length) return { rows: allRows, sourcePath: path };
   }
   return { rows: [] as SkuRow[], sourcePath: "" };
 }
+
 
 async function fetchJobChangeRows(machines: MachineRef[], startISO: string, endISO: string) {
   const ids = machines.map((m) => m.id);
@@ -466,20 +452,29 @@ async function fetchJobsRanRows(machines: MachineRef[], startISO: string, endISO
 }
 
 async function fetchSkuRowsForLine(machines: MachineRef[], startISO: string, endISO: string) {
-  const material = await fetchMaterialRows(machines, startISO, endISO);
-  if (material.rows.length) return { rows: material.rows, source: material.sourcePath || "material_requirements" };
+  // Per-line time budget — never let the schedule probe stall the whole sync.
+  const BUDGET_MS = 12_000;
+  const run = (async () => {
+    const material = await fetchMaterialRows(machines, startISO, endISO);
+    if (material.rows.length) return { rows: material.rows, source: material.sourcePath || "material_requirements" };
 
-  const jobChange = await fetchJobChangeRows(machines, startISO, endISO);
-  if (jobChange.length) return { rows: jobChange, source: "job_change" };
+    const jobChange = await fetchJobChangeRows(machines, startISO, endISO);
+    if (jobChange.length) return { rows: jobChange, source: "job_change" };
 
-  const running = await fetchRunningJobRows(machines);
-  if (running.length) return { rows: running, source: "running_jobs" };
+    const running = await fetchRunningJobRows(machines);
+    if (running.length) return { rows: running, source: "running_jobs" };
 
-  const ran = await fetchJobsRanRows(machines, startISO, endISO);
-  if (ran.length) return { rows: ran, source: "jobs_ran" };
+    const ran = await fetchJobsRanRows(machines, startISO, endISO);
+    if (ran.length) return { rows: ran, source: "jobs_ran" };
 
-  return { rows: [] as SkuRow[], source: "none" };
+    return { rows: [] as SkuRow[], source: "none" };
+  })();
+  const timeout = new Promise<{ rows: SkuRow[]; source: string }>((resolve) =>
+    setTimeout(() => resolve({ rows: [], source: "timeout" }), BUDGET_MS),
+  );
+  return await Promise.race([run, timeout]);
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
