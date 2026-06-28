@@ -391,7 +391,6 @@ function OperatorDashboardContent() {
                         variant="secondary"
                         className="h-7"
                         onClick={async () => {
-                          const qc = (window as any).__qc__ || null;
                           const { error } = await (supabase as any).rpc("move_machine_to_line", {
                             _machine_id: m.id,
                             _new_line: lineName,
