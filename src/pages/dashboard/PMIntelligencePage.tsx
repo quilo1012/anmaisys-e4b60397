@@ -51,6 +51,7 @@ const recMeta: Record<RecKind, { label: string; cls: string; icon: any }> = {
 };
 
 export default function PMIntelligencePage() {
+  const navigate = useNavigate();
   const { data: wos, isLoading: woLoading } = useWorkOrders();
   const { data: schedules, isLoading: pmLoading } = usePmSchedules();
   const updatePm = useUpdatePmSchedule();
