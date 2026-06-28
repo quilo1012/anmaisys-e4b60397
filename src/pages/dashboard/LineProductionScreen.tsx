@@ -319,7 +319,8 @@ export default function LineProductionScreen() {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["lps-items"] });
+      // Narrow invalidation to this session only — avoids re-fetching every tablet view.
+      qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
       toast.success("Saved");
     },
     onError: (e: any) => toast.error(e.message || "Failed to save"),
@@ -334,8 +335,8 @@ export default function LineProductionScreen() {
       return data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["lps-session"] });
-      qc.invalidateQueries({ queryKey: ["lps-items"] });
+      qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
+      qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
       toast.success("SKUs synced from iTouching");
     },
     onError: (e: any) => toast.error(e.message || "Sync failed"),
