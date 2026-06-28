@@ -378,6 +378,19 @@ export default function ShiftHistoryPage() {
             {editingItem && (
               <div className="space-y-3">
                 <div className="text-sm text-muted-foreground">Target: <span className="font-semibold text-foreground">{editingItem.target.toLocaleString()}</span></div>
+                {isAdmin && (
+                  <div>
+                    <Label>SKU</Label>
+                    <Select value={editSkuId} onValueChange={setEditSkuId}>
+                      <SelectTrigger><SelectValue placeholder="Pick a SKU" /></SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {skus.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.code} — {s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div>
                   <Label>Unit type</Label>
                   <Select value={editUnit} onValueChange={(v) => setEditUnit(v as "tubs" | "bags")}>
@@ -397,7 +410,7 @@ export default function ShiftHistoryPage() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
               <Button
-                onClick={() => editingItem && saveItemActual.mutate({ id: editingItem.id, actual: Number(editActual) || 0, unit: editUnit, prevNotes: editingItem.notes })}
+                onClick={() => editingItem && saveItemActual.mutate({ id: editingItem.id, actual: Number(editActual) || 0, unit: editUnit, prevNotes: editingItem.notes, sku_id: isAdmin && editSkuId && editSkuId !== editingItem.sku_id ? editSkuId : undefined })}
                 disabled={saveItemActual.isPending}
               >Save</Button>
             </DialogFooter>
