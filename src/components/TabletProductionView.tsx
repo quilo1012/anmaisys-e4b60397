@@ -55,7 +55,7 @@ export function TabletProductionView() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, locked, comments, line_leader, production_items(actual_qty, target_qty)")
+        .select("id, locked, comments, leader_name, production_items(actual_qty, target_qty)")
         .eq("line", detectedLine)
         .eq("session_date", currentDate)
         .eq("shift", currentShift)
@@ -101,7 +101,7 @@ export function TabletProductionView() {
 
   useEffect(() => {
     if (sessionData?.comments) setOperatorNotes(sessionData.comments);
-    if (sessionData?.line_leader) setOperatorName(sessionData.line_leader);
+    if (sessionData?.leader_name) setOperatorName(sessionData.leader_name);
   }, [sessionData]);
 
   const submitShiftMutation = useMutation({
@@ -109,7 +109,7 @@ export function TabletProductionView() {
       if (!sessionData?.id) throw new Error("Nenhuma sessão ativa para este turno.");
       const { error } = await supabase
         .from("production_sessions")
-        .update({ line_leader: operatorName, comments: operatorNotes })
+        .update({ leader_name: operatorName, comments: operatorNotes })
         .eq("id", sessionData.id);
       if (error) throw error;
     },
