@@ -81,7 +81,7 @@ export default function LineProductionScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [line, setLine] = useState<string>(() => localStorage.getItem(LS_LINE_KEY) || "");
-  const [tabletId, setTabletId] = useState<string>(() => localStorage.getItem(LS_TABLET_KEY) || "");
+  const [tabletId, setTabletId] = useState<string>(() => localStorage.getItem(LS_TABLET_KEY) || EDIT_TABLET_ID);
   const canEdit = tabletId === EDIT_TABLET_ID;
   const [shift, setShift] = useState<Shift>(currentShift());
   const [now, setNow] = useState<Date>(new Date());
