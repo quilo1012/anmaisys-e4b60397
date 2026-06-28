@@ -244,15 +244,17 @@ function EngineerDashboardContent() {
   const [focusMode, setFocusMode] = useState(false);
   const [changePinOpen, setChangePinOpen] = useState(false);
 
-  // When the sidebar's "My Tasks" item is clicked, scroll to the Work Orders section
+  // When the sidebar's "My Tasks" / "History" items are clicked, scroll to the
+  // matching section.
   useEffect(() => {
-    if (searchParams.get("focus") === "tasks") {
-      const t = setTimeout(() => {
-        const el = document.getElementById("my-tasks");
-        el?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
-      return () => clearTimeout(t);
-    }
+    const focus = searchParams.get("focus");
+    if (!focus) return;
+    const id = focus === "history" ? "history" : focus === "tasks" ? "my-tasks" : null;
+    if (!id) return;
+    const t = setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+    return () => clearTimeout(t);
   }, [searchParams]);
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
