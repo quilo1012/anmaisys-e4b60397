@@ -289,9 +289,14 @@ Deno.serve(async (req) => {
 
     const blockedUntil = await intouchQuotaBlockedUntil();
     if (blockedUntil) {
+      // Soft-fail: return 200 with empty sections so the planner UI stays usable.
       return new Response(JSON.stringify({
-        error: "iTouching daily quota exhausted", retry_after: blockedUntil,
-      }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        skipped: true,
+        reason: "iTouching daily quota exhausted",
+        retry_after: blockedUntil,
+        sections: [],
+        debug: [],
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
 
