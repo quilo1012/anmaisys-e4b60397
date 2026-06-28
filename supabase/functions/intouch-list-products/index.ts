@@ -70,9 +70,30 @@ Deno.serve(async (req) => {
 
     const blockedUntil = await intouchQuotaBlockedUntil();
     if (blockedUntil) {
+      const { data: skus, error: skuErr } = await admin
+        .from("sku_products")
+        .select("code, name, category, target_per_hour")
+        .eq("active", true)
+        .order("code", { ascending: true })
+        .limit(5000);
+      if (skuErr) throw skuErr;
+      const products = (skus ?? []).map((s) => ({
+        code: String(s.code ?? "").trim(),
+        name: String(s.name ?? "").trim(),
+        category: String(s.category ?? "").trim(),
+        target_per_hour: Number(s.target_per_hour ?? 0),
+        raw: s,
+      })).filter((p) => p.code && p.name);
       return new Response(JSON.stringify({
-        error: "iTouching daily quota exhausted", retry_after: blockedUntil,
-      }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        products,
+        count: products.length,
+        source: "sku_products (local catalog — iTouching quota exhausted)",
+        cached: true,
+        skipped: true,
+        reason: "quota_exhausted",
+        retry_after: blockedUntil,
+        error: "iTouching daily quota exhausted",
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const candidates = [
