@@ -338,7 +338,12 @@ export function AssemblyListImporter({
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-4">
             <div className="md:col-span-2">
-              <Label>Assembly List (.xlsx) from ERP</Label>
+              <div className="flex items-center justify-between">
+                <Label>Assembly List (.xlsx) from ERP</Label>
+                <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={downloadTemplate}>
+                  <Download className="h-3 w-3" /> Download Unleashed template
+                </Button>
+              </div>
               <Input type="file" accept=".xlsx,.xls,.xlsm" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             </div>
             <div>
