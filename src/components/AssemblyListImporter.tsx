@@ -100,7 +100,24 @@ export function AssemblyListImporter({
   }, [skus]);
 
   const matched = useMemo(() => rows.filter((r) => r.sku_id).length, [rows]);
-  const totalQty = useMemo(() => rows.reduce((a, r) => a + (r.sku_id ? r.qty : 0), 0), [rows]);
+  const missingLine = useMemo(() => rows.filter((r) => r.sku_id && !r.line).length, [rows]);
+  const readyToImport = useMemo(() => rows.filter((r) => r.sku_id && r.line && r.qty > 0).length, [rows]);
+  const totalQty = useMemo(() => rows.reduce((a, r) => a + (r.sku_id && r.line ? r.qty : 0), 0), [rows]);
+
+  const applyLineToEmpty = (line: string) => {
+    if (!line) return;
+    setRows((rs) => rs.map((r) => (r.line ? r : { ...r, line })));
+    toast.success(`Line "${line}" applied to empty rows`);
+  };
+  const applyLineToAll = (line: string) => {
+    if (!line) return;
+    setRows((rs) => rs.map((r) => ({ ...r, line })));
+    toast.success(`Line "${line}" applied to all rows`);
+  };
+  const applyLineToCode = (rawCode: string, line: string) => {
+    if (!line || !rawCode) return;
+    setRows((rs) => rs.map((r) => (r.raw_code === rawCode ? { ...r, line } : r)));
+  };
 
   const handleFile = async (file: File) => {
     setFileName(file.name);
