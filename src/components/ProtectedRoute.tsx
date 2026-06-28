@@ -3,17 +3,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { Database } from "@/integrations/supabase/types";
 import { Loader2, RefreshCw, ShieldAlert, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { roleDashMap } from "@/lib/permissions";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
-const dashMap: Record<AppRole, string> = {
-  admin: "/dashboard/manager",
-  manager: "/dashboard/manager",
-  maintenance_manager: "/dashboard/manager",
-  engineer: "/dashboard/engineer",
-  operator: "/dashboard/operator",
-  viewer: "/dashboard/manager",
-};
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles?: AppRole[];
+}
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
