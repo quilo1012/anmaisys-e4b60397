@@ -1,0 +1,1 @@
+ALTER TABLE public.production_items ADD COLUMN IF NOT EXISTS blender_ref TEXT NULL;
