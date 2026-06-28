@@ -372,8 +372,10 @@ export function AssemblyListImporter({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Expected columns (auto-detected): <b>Part Code</b>, <b>Description</b>, <b>Order Qty</b>, <b>Line</b> (optional), <b>Date</b> (optional), <b>Shift</b> (optional).
-            Smart-match: exact code first, then fuzzy on description (≥50%). Missing matches are editable below.
+            Required from Unleashed: <b>Part Code</b>, <b>Description</b>, <b>Order Qty</b>.
+            <b> Line</b> (do Trello), <b>Date</b> e <b>Shift</b> são opcionais no arquivo — se faltarem,
+            o sistema usa os defaults acima e você pode atribuir a Line em massa abaixo.
+            Smart-match: código exato primeiro, depois fuzzy por descrição (≥50%).
           </p>
 
           {rows.length > 0 && (
