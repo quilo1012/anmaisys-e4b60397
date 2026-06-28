@@ -27,7 +27,7 @@ import { invokeFunction } from "@/lib/invokeFunction";
 import { format, parseISO, addDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 
-type Row = { sku_id: string; sku_name: string; target_qty: number; actual_qty: number };
+type Row = { sku_id: string; sku_name: string; target_qty: number; actual_qty: number; blender_ref?: string };
 
 function useLineLeaders(shift: string) {
   return useQuery({
