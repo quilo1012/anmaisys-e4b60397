@@ -110,11 +110,20 @@ function OperatorDashboardContent() {
     }
   };
 
-  // Detect Sealer/Printer line by name to show the asset sub-picker.
-  const isSealerPrinterLine = useMemo(
-    () => /sealer|printer/i.test(lineName),
+  // Detect Sealer/Printer line by name to pre-select the asset sub-picker mode.
+  const lineIsSealerPrinter = useMemo(
+    () => /sealer|printer/i.test(lineName || ""),
     [lineName]
   );
+  // Operator can manually switch any login between "Line" WO and "Sealer/Printer Ink" WO.
+  const [targetMode, setTargetMode] = useState<"line" | "sealer_printer">(
+    lineIsSealerPrinter ? "sealer_printer" : "line"
+  );
+  // Keep mode in sync when the operator switches the bound line.
+  useMemo(() => {
+    setTargetMode(lineIsSealerPrinter ? "sealer_printer" : "line");
+  }, [lineIsSealerPrinter]);
+  const isSealerPrinterLine = targetMode === "sealer_printer";
 
   // Smart suggestions: recent WOs for the locked line
   const machineSuggestions = useMemo(() => {
@@ -292,7 +301,41 @@ function OperatorDashboardContent() {
               />
             </div>
 
-            {/* Mobile-asset sub-picker (only on Sealer/Printer line). Line itself is locked. */}
+            {/* WO target — Line vs Sealer/Printer Ink (available on every operator login) */}
+            <div className="md:col-span-2 space-y-2">
+              <Label>What needs maintenance?</Label>
+              <div className="inline-flex rounded-md border bg-card p-1 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetMode("line");
+                    setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId("");
+                  }}
+                  className={cn(
+                    "flex-1 sm:flex-none px-4 h-11 rounded-sm font-semibold transition-colors",
+                    targetMode === "line" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  🏭 {lineName || "Line"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetMode("sealer_printer");
+                    setMachineName("");
+                    if (!physicalLineId && lineId && !lineIsSealerPrinter) setPhysicalLineId(lineId);
+                  }}
+                  className={cn(
+                    "flex-1 sm:flex-none px-4 h-11 rounded-sm font-semibold transition-colors",
+                    targetMode === "sealer_printer" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  🖨️ Sealer / Printer Ink
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile-asset sub-picker — shown whenever Sealer/Printer mode is active. */}
             {isSealerPrinterLine && (
               <>
                 <div className="md:col-span-2">
