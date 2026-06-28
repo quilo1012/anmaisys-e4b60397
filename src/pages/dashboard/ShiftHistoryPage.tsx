@@ -17,6 +17,27 @@ import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 
+/**
+ * Extract package weight from SKU code/name (e.g. "1kg", "500g", "2.5 KG", "750ml", "1L").
+ * Returns weight in grams (or ml). Falls back to the stored sku.weight if no pattern matched.
+ */
+function parseWeightFromSku(code: string, name: string, fallback: number | null): number {
+  const blob = `${code} ${name}`.toLowerCase();
+  const m = blob.match(/(\d+(?:[.,]\d+)?)\s*(kg|g|ml|l|lb|oz)\b/);
+  if (m) {
+    const n = parseFloat(m[1].replace(",", "."));
+    const u = m[2];
+    if (!isNaN(n)) {
+      if (u === "kg") return Math.round(n * 1000);
+      if (u === "l")  return Math.round(n * 1000);
+      if (u === "lb") return Math.round(n * 453.592);
+      if (u === "oz") return Math.round(n * 28.3495);
+      return Math.round(n); // g, ml
+    }
+  }
+  return Number(fallback ?? 0);
+}
+
 interface SessionRow {
   id: string; session_date: string; shift: string; line: string;
   leader_id: string | null; leader_name: string | null;
