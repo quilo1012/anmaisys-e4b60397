@@ -19,8 +19,8 @@ import { toast } from "sonner";
 import { format, startOfWeek, addDays, addWeeks, getISOWeek, startOfMonth, endOfMonth, isSameMonth } from "date-fns";
 import { Link } from "react-router-dom";
 import { ManageLinesDialog } from "@/components/ManageLinesDialog";
-import { SharePointImportDialog } from "@/components/SharePointImportDialog";
-import { CloudDownload } from "lucide-react";
+
+
 import { Settings2 } from "lucide-react";
 import { downloadRagTemplate } from "@/lib/ragTemplateExport";
 import { useRole } from "@/hooks/useRole";
@@ -107,7 +107,7 @@ export default function RAGWeeklyPage() {
     date: string; line: string; shift: Shift; entry?: Entry;
   } | null>(null);
   const [manageLinesOpen, setManageLinesOpen] = useState(false);
-  const [sharePointOpen, setSharePointOpen] = useState(false);
+  
 
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -805,12 +805,6 @@ export default function RAGWeeklyPage() {
                   <RefreshCw className={`h-4 w-4 mr-1 ${syncMutation.isPending ? "animate-spin" : ""}`} />
                   {syncMutation.isPending ? "Syncing..." : "Sync from system"}
                 </Button>
-                <Button
-                  onClick={() => setSharePointOpen(true)}
-                  className="bg-sky-600 hover:bg-sky-700 text-white"
-                >
-                  <CloudDownload className="h-4 w-4 mr-1" />Import from SharePoint
-                </Button>
                 {isAdmin && (
                   <Button
                     onClick={() => downloadRagTemplate(weekStart, lines).catch((e) => toast.error(e.message))}
@@ -963,13 +957,6 @@ export default function RAGWeeklyPage() {
       )}
 
       <ManageLinesDialog open={manageLinesOpen} onOpenChange={setManageLinesOpen} />
-      <SharePointImportDialog
-        open={sharePointOpen}
-        onOpenChange={setSharePointOpen}
-        knownLines={lines}
-        weekStart={weekStart}
-        weekDates={weekDates}
-      />
     </DashboardLayout>
   );
 }
