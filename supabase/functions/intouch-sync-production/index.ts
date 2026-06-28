@@ -558,6 +558,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Egress backoff: refuse early if the iTouching daily quota window is still open.
+    const blockedUntil = await intouchQuotaBlockedUntil();
+    if (blockedUntil) {
+      return new Response(JSON.stringify({
+        error: "iTouching daily quota exhausted",
+        retry_after: blockedUntil,
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Log run start AFTER auth so failed-auth invocations don't leave "running" rows behind.
     try {
       const { data: runRow } = await admin
