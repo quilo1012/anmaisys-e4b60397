@@ -274,6 +274,7 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
   const merged = new Map<string, number>();
   const scrap = new Map<string, number>();
   let runMin = 0, downMin = 0, oeeSum = 0, oeeN = 0;
+  let lineGood = 0;
   const merge = (m: Map<string, number>) => {
     for (const [k, v] of m) merged.set(k, Math.max(merged.get(k) ?? 0, v));
   };
@@ -286,12 +287,17 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
     downMin += m.downMin;
     if (m.oee !== null) { oeeSum += m.oee; oeeN += 1; }
   };
+  const mergeLineGood = (raw: unknown) => {
+    const t = extractLineGoodTotal(raw, machines);
+    if (t > lineGood) lineGood = t;
+  };
 
   // Running jobs (current SKU + live counts)
   const running = await tryIt("/api/GetRunningJobs", { method: "GET" });
   merge(extractActualsByCode(running, machines));
   mergeScrap(extractScrapByCode(running, machines));
   mergeMetrics(running);
+  mergeLineGood(running);
   // Hydrate full job records if running returns only IDs
   const jobIds = new Set<string>();
   walkObjects(running, (obj) => {
@@ -304,6 +310,7 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
     merge(extractActualsByCode(jobs, machines));
     mergeScrap(extractScrapByCode(jobs, machines));
     mergeMetrics(jobs);
+    mergeLineGood(jobs);
   }
 
   // Jobs ran during the shift window (historical actuals)
@@ -318,6 +325,7 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
       merge(extractActualsByCode(raw, machines));
       mergeScrap(extractScrapByCode(raw, machines));
       mergeMetrics(raw);
+      mergeLineGood(raw);
     }
   }
 
@@ -329,11 +337,11 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
   ];
   for (const attempt of shiftStatsAttempts) {
     const raw = await attempt();
-    if (raw) mergeMetrics(raw);
+    if (raw) { mergeMetrics(raw); mergeLineGood(raw); }
   }
 
   const oee = oeeN > 0 ? Math.round((oeeSum / oeeN) * 10) / 10 : null;
-  return { actuals: merged, scrap, metrics: { runMin, downMin, oee } };
+  return { actuals: merged, scrap, lineGood, metrics: { runMin, downMin, oee } };
 }
 
 function aggregateRows(rows: SkuRow[]) {
