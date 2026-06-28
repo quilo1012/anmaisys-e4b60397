@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Eye } from "lucide-react";
+import { ArrowLeft, Eye, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLines } from "@/hooks/useMachines";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import LineProductionScreen from "./LineProductionScreen";
 
 const LS_LINE_KEY = "lps:line";
@@ -60,6 +62,22 @@ export default function OperatorPreviewPage() {
           Operator Preview (read-only)
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 bg-slate-900/60 border-slate-700 text-white hover:bg-slate-800"
+            onClick={async () => {
+              const ch = supabase.channel("tablet-control");
+              await new Promise<void>((resolve) => {
+                ch.subscribe((status) => { if (status === "SUBSCRIBED") resolve(); });
+              });
+              await ch.send({ type: "broadcast", event: "reload", payload: { at: Date.now() } });
+              supabase.removeChannel(ch);
+              toast.success("Refresh sent to all tablets");
+            }}
+          >
+            <RefreshCw className="h-4 w-4 mr-1" /> Refresh all tablets
+          </Button>
           <span className="text-xs text-amber-200/80 hidden sm:inline">Simulating line:</span>
           <Select value={line} onValueChange={handleChange} disabled={isLoading}>
             <SelectTrigger className="h-9 w-56 bg-slate-900/60 border-slate-700 text-white">

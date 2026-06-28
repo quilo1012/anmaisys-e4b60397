@@ -140,6 +140,17 @@ export default function LineProductionScreen() {
     return () => clearInterval(t);
   }, []);
 
+  // Listen for admin-triggered "refresh all tablets" broadcast
+  useEffect(() => {
+    const ch = supabase
+      .channel("tablet-control", { config: { broadcast: { self: false } } })
+      .on("broadcast", { event: "reload" }, () => {
+        try { window.location.reload(); } catch { /* noop */ }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
   useEffect(() => {
     if (line) localStorage.setItem(LS_LINE_KEY, line);
   }, [line]);
