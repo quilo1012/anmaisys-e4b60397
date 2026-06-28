@@ -630,8 +630,18 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: (e as Error).message, ...results }), {
-      status: 500,
+    const msg = (e as Error).message ?? String(e);
+    console.error("[intouch-poll] fatal:", msg, (e as Error).stack);
+    try {
+      await admin.from("intouch_sync_runs").insert({
+        kind: "poll",
+        status: "error",
+        error: msg.slice(0, 1000),
+        details: results as any,
+      });
+    } catch (_) { /* best-effort */ }
+    return new Response(JSON.stringify({ ok: false, error: msg, ...results }), {
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
