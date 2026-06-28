@@ -200,25 +200,6 @@ export default function ShiftHistoryPage() {
           </CardContent>
         </Card>
 
-        {trendData.length >= 2 && (
-          <Card>
-            <CardHeader className="py-3"><CardTitle className="text-sm">Performance trend — DAY vs NIGHT</CardTitle></CardHeader>
-            <CardContent className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} domain={[0, (dataMax: number) => Math.max(120, dataMax)]} unit="%" />
-                  <Tooltip formatter={(v: number) => `${v}%`} />
-                  <Legend />
-                  <ReferenceLine y={100} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
-                  <Line type="monotone" dataKey="DAY" stroke="#3b82f6" strokeWidth={2} connectNulls />
-                  <Line type="monotone" dataKey="NIGHT" stroke="#a855f7" strokeWidth={2} connectNulls />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
 
         <Card>
           <CardContent className="p-0 overflow-x-auto">
