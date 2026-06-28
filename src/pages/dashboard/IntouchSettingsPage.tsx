@@ -521,6 +521,41 @@ export default function IntouchSettingsPage() {
           </Button>
         </div>
 
+        {unmappedLines.length > 0 && (
+          <Card className="border-amber-500/40 bg-amber-500/5">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                <AlertCircle className="h-5 w-5" />
+                {unmappedLines.length} line{unmappedLines.length === 1 ? "" : "s"} without iTouching mapping
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p className="text-muted-foreground">
+                These production lines have no entry in the Machine Map. Sync, "Send to iTouching" and automatic Work Orders will skip them until they are mapped to an iTouching MachineID.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {unmappedLines.map((l) => (
+                  <span key={l.id} className="inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                    {l.name}
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" asChild>
+                  <a href="/dashboard/intouch-machines">
+                    <Plug className="h-4 w-4 mr-1" />Open Machine Map
+                  </a>
+                </Button>
+                <Button size="sm" variant="ghost" onClick={loadUnmappedLines} disabled={loadingUnmapped}>
+                  {loadingUnmapped ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                  Refresh
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+
         <Card className="border-primary/40">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
