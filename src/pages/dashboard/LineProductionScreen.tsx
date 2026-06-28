@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save, AlertTriangle, Plus } from "lucide-react";
+import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save, AlertTriangle, Plus, LogOut } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,7 +85,7 @@ const EDIT_TABLET_ID = "1"; // only this tablet can edit actuals/observations
 export default function LineProductionScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { role } = useAuth();
+  const { role, signOut } = useAuth();
   const isOperator = role === "operator";
   const [line, setLine] = useState<string>(() => localStorage.getItem(LS_LINE_KEY) || "");
   const [tabletId, setTabletId] = useState<string>(() => localStorage.getItem(LS_TABLET_KEY) || EDIT_TABLET_ID);
@@ -484,6 +484,15 @@ export default function LineProductionScreen() {
               <Clock className="h-6 w-6" />
               {now.toLocaleTimeString("en-GB", { hour12: false })}
             </div>
+            <Button
+              variant="outline"
+              size="lg"
+              className="h-12"
+              onClick={async () => { await signOut(); navigate("/login"); }}
+            >
+              <LogOut className="h-5 w-5 mr-2" />
+              Sign out
+            </Button>
           </div>
         </CardContent>
       </Card>
