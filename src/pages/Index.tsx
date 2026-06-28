@@ -13,9 +13,9 @@ const Index = () => {
       navigate("/login", { replace: true });
       return;
     }
-    if (role === "admin" || (role === "manager" || role === "maintenance_manager")) navigate("/dashboard/manager", { replace: true });
+    if (role === "admin" || role === "manager" || role === "maintenance_manager" || role === "viewer") navigate("/dashboard/manager", { replace: true });
     else if (role === "engineer") navigate("/dashboard/engineer", { replace: true });
-    else if (role === "operator") navigate("/dashboard/line-hub", { replace: true });
+    else if (role === "operator") navigate("/dashboard/line-production", { replace: true });
     else navigate("/login", { replace: true });
   }, [loading, user, role, navigate]);
 
