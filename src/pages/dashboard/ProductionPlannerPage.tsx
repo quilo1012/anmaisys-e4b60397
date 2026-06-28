@@ -413,6 +413,44 @@ export default function ProductionPlannerPage() {
                 <Sparkles className="h-4 w-4 mr-1" />Auto Targets
               </Button>
             )}
+            {isManager && (
+              <Button
+                variant="default"
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                disabled={!line || rows.filter((r) => r.sku_id).length === 0}
+                onClick={async () => {
+                  const items = rows
+                    .filter((r) => r.sku_id)
+                    .map((r) => {
+                      const sku = skus.find((s) => s.id === r.sku_id);
+                      return {
+                        code: sku?.code ?? "",
+                        description: sku?.name ?? r.sku_name ?? "",
+                        qty: Number(r.target_qty) || 0,
+                      };
+                    })
+                    .filter((it) => it.code);
+                  if (!items.length) { toast.error("Add at least one SKU with a code"); return; }
+                  if (!window.confirm(`Send ${items.length} job(s) to iTouching for ${line} (${date} ${shift})?`)) return;
+                  try {
+                    const { data, error } = await invokeFunction<any>("intouch-job-import", {
+                      session_date: date,
+                      shift: shift.toUpperCase() === "NIGHT" ? "NIGHT" : "DAY",
+                      line,
+                      items,
+                    });
+                    if (error) throw error;
+                    if (data?.error) throw new Error(typeof data.error === "string" ? data.error : JSON.stringify(data.error));
+                    toast.success(`Sent ${data?.sent ?? items.length} job(s) to iTouching`);
+                  } catch (e: any) {
+                    toast.error(`Send failed: ${e?.message ?? "unknown"}`);
+                  }
+                }}
+              >
+                <Upload className="h-4 w-4 mr-1" />Send to iTouching
+              </Button>
+            )}
             {existingId && isManager && (
               <Button variant="outline" size="sm" onClick={() => toggleLock.mutate({ id: existingId, lock: !locked })}>
                 {locked ? <><Unlock className="h-4 w-4 mr-1" />Unlock</> : <><Lock className="h-4 w-4 mr-1" />Lock</>}
