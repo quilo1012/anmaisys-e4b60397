@@ -355,8 +355,62 @@ export default function ProductionPlannerPage() {
           <h1 className="text-2xl font-bold">Production Planner</h1>
           <div className="flex items-center gap-2">
             {isManager && (
-              <Button variant="outline" size="sm" onClick={() => setIntouchOpen(true)}>
-                <FileInput className="h-4 w-4 mr-1" />Import iTouching Work To List
+              <Button variant="outline" size="sm" onClick={() => {
+                const headers = ["Date","Assembly Number","Work Centre","Product Code","Product Description","Weight","QTY","Start Time","Finish Time","Shift"];
+                const sample = [
+                  ["25/06/2026","ASM-0001","Line 1","SKU-001","Sample Product A","0.500","1200","06:00","14:00","DAY"],
+                  ["25/06/2026","ASM-0002","Line 2","SKU-002","Sample Product B","0.750","850","18:00","02:00","NIGHT"],
+                ];
+                const csv = [headers, ...sample].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+                const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = `production-template-${format(new Date(), "yyyy-MM-dd")}.csv`;
+                a.click(); URL.revokeObjectURL(url);
+              }}>
+                <Download className="h-4 w-4 mr-1" />Export Template
+              </Button>
+            )}
+            {isManager && (
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4 mr-1" />Import Production
+              </Button>
+            )}
+            {isManager && (
+              <Button
+                size="sm"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => setAssemblyOpen(true)}
+              >
+                <Sparkles className="h-4 w-4 mr-1" />Assembly List
+              </Button>
+            )}
+            {isManager && (
+              <Button variant="default" size="sm" onClick={() => setIntouchOpen(true)}>
+                <FileInput className="h-4 w-4 mr-1" />Import iTouching
+              </Button>
+            )}
+            {isManager && (
+              <Button
+                variant="default"
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+                onClick={async () => {
+                  try {
+                    const { data, error } = await supabase.functions.invoke("calculate-shift-targets", {
+                      body: { date, shift, line: line || undefined, overwrite: false },
+                    });
+                    if (error) throw error;
+                    toast.success(`Auto Targets: ${data?.items_updated ?? 0} SKU(s) updated`);
+                    queryClient.invalidateQueries({ queryKey: ["planner-items"] });
+                    queryClient.invalidateQueries({ queryKey: ["planner-session"] });
+                    queryClient.invalidateQueries({ queryKey: ["planner-sessions"] });
+                  } catch (e: any) {
+                    toast.error(`Auto Targets failed: ${e?.message ?? "unknown"}`);
+                  }
+                }}
+              >
+                <Sparkles className="h-4 w-4 mr-1" />Auto Targets
               </Button>
             )}
             {existingId && isManager && (

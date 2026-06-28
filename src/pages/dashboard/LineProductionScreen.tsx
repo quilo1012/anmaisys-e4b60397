@@ -31,7 +31,7 @@ import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
-import appliedLogo from "@/assets/an-icon.png";
+import appliedLogo from "@/assets/appliedlogo.jpeg";
 
 import {
   ResponsiveDialogBody,
@@ -409,7 +409,7 @@ export default function LineProductionScreen() {
           <img
             src={appliedLogo}
             alt="Applied Nutrition"
-            className="h-10 md:h-12 w-auto object-contain shrink-0"
+            className="h-10 md:h-12 w-auto rounded-md object-cover shrink-0"
           />
           {!isOperator && (
             <Button variant="ghost" size="lg" onClick={() => navigate("/")}>

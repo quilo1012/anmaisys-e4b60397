@@ -646,36 +646,11 @@ Deno.serve(async (req) => {
         if (sErr) throw sErr;
         if (session.locked) { results.push({ line, skipped: "session locked" }); continue; }
 
-        // Preserve any operator-edited rows. If the session already has rows
-        // for real SKUs (anything other than this Live Production placeholder),
-        // do NOT wipe them — just refresh / upsert the Live SKU alongside.
-        const { data: existingRows } = await admin
-          .from("production_items")
-          .select("id, sku_id, actual_qty, notes")
-          .eq("session_id", session.id);
-        const operatorRows = (existingRows ?? []).filter(
-          (r: any) => r.sku_id !== liveSku.id && !(String(r.notes ?? "").startsWith("itouching:")),
-        );
-        const prevLive = (existingRows ?? []).find((r: any) => r.sku_id === liveSku.id);
-        const prevQty = Number(prevLive?.actual_qty ?? 0);
+        const { data: prevItem } = await admin
+          .from("production_items").select("actual_qty")
+          .eq("session_id", session.id).eq("sku_id", liveSku.id).maybeSingle();
+        const prevQty = Number(prevItem?.actual_qty ?? 0);
         const actual = Math.max(prevQty, Math.round(live.lineGood));
-
-        if (operatorRows.length > 0) {
-          // Operator owns the data — only upsert/refresh the Live row, skip delete.
-          if (prevLive) {
-            await admin.from("production_items")
-              .update({ target_qty: ragPlan, planned_qty: ragPlan, actual_qty: actual, notes: "itouching:live_good" })
-              .eq("id", prevLive.id);
-          } else {
-            await admin.from("production_items").insert([{
-              session_id: session.id, sku_id: liveSku.id,
-              target_qty: 0, planned_qty: 0, actual_qty: actual, scrap_qty: 0,
-              notes: "itouching:live_good",
-            }]);
-          }
-          results.push({ line, skus: operatorRows.length + 1, rag_plan: ragPlan, source: "live_good+operator_preserved", actual_preserved: actual });
-          continue;
-        }
 
         await admin.from("production_items").delete().eq("session_id", session.id);
         await admin.from("production_items").insert([{
@@ -691,7 +666,6 @@ Deno.serve(async (req) => {
         results.push({ line, skus: 1, rag_plan: ragPlan, source: "live_good", actual_preserved: actual });
         continue;
       }
-
 
       const codes = Array.from(skuAgg.keys());
       const { data: existingSkus } = await admin
