@@ -135,6 +135,30 @@ export default function IntouchSettingsPage() {
   const [resyncingAll, setResyncingAll] = useState(false);
   const [resyncResult, setResyncResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
+  const [unmappedLines, setUnmappedLines] = useState<{ id: string; name: string }[]>([]);
+  const [loadingUnmapped, setLoadingUnmapped] = useState(false);
+
+  const loadUnmappedLines = async () => {
+    setLoadingUnmapped(true);
+    try {
+      const [{ data: lines, error: lErr }, { data: maps, error: mErr }] = await Promise.all([
+        (supabase as any).from("lines").select("id, name").order("name"),
+        (supabase as any).from("intouch_machine_map").select("line_id").not("line_id", "is", null),
+      ]);
+      if (lErr) throw lErr;
+      if (mErr) throw mErr;
+      const mapped = new Set((maps ?? []).map((r: any) => r.line_id));
+      setUnmappedLines((lines ?? []).filter((l: any) => !mapped.has(l.id)));
+    } catch (e: any) {
+      console.error("[IntouchSettings] unmapped lines load failed", e);
+    } finally {
+      setLoadingUnmapped(false);
+    }
+  };
+
+  useEffect(() => { loadUnmappedLines(); }, []);
+
+
   useEffect(() => {
     (async () => {
       const { data, error } = await (supabase as any)
