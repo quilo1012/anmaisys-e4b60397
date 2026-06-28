@@ -243,11 +243,15 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
     if (!inWin(obj)) return;
     for (const wo of wos) {
       if (!inWin(wo)) continue;
-      const code = cleanCode(pick(wo, ["PartCode", "Part Code", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "JobProductCode", "ProductID", "ProductId", "Code"]));
+      const rawCode = String(pick(wo, ["PartCode", "Part Code", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "JobProductCode", "ProductID", "ProductId", "Code"]) ?? "").trim();
+      const code = cleanCode(rawCode);
       if (!code || code.length < 2) continue;
+      const batchMatch = rawCode.match(/-([Bb]\d+)$/);
+      const batch = batchMatch?.[1] ?? "";
       const description = String(pick(wo, ["Description", "LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
       const qty = num(pick(wo, ["OrderQty", "Order Qty", "JobOrderQuantity", "Job Order Quantity", "OrderQuantity", "RequiredQuantity", "RequiredQty", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "ScheduledQty", "TargetQty", "Balance", "Demand", "Units"])) || 1;
-      out.push({ code, description, qty, status: readStatus(wo), seq: readSeq(wo) || ++autoSeq });
+      const actual = num(pick(wo, ["CompletedQuantity", "CompletedQty", "AlreadyMade", "ProducedQuantity", "ActualQuantity"])) || 0;
+      out.push({ code, description, qty, status: readStatus(wo), seq: readSeq(wo) || ++autoSeq, batch, actual });
     }
   });
   if (out.length === 0) {
