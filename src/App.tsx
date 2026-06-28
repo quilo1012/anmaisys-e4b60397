@@ -54,6 +54,7 @@ const IntouchMachineMapPage = lazy(() => import("./pages/dashboard/IntouchMachin
 const IntouchStopCodesPage = lazy(() => import("./pages/dashboard/IntouchStopCodesPage"));
 const DowntimeHeatmapPage = lazy(() => import("./pages/dashboard/DowntimeHeatmapPage"));
 const PMIntelligencePage = lazy(() => import("./pages/dashboard/PMIntelligencePage"));
+const SmartTargetPage = lazy(() => import("./pages/dashboard/SmartTargetPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
