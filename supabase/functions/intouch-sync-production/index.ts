@@ -243,6 +243,32 @@ function extractActualsByCode(raw: unknown, machines: MachineRef[]): Map<string,
   return out;
 }
 
+// Sum any "Good / Produced" values for the allowed machines regardless of SKU
+// code matching. Fallback used when iTouching SKU codes don't line up with
+// our local sku_products.code so the operator UI always shows a live Actual.
+function extractLineGoodTotal(raw: unknown, machines: MachineRef[]): number {
+  const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+  const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
+  const perMachine = new Map<string, number>();
+  walkObjects(raw, (obj) => {
+    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
+    const produced = num(pick(obj, [
+      "Good", "GoodQty", "GoodQuantity", "GoodCount",
+      "Produced", "ProducedQty", "ProducedQuantity", "ProducedCount",
+      "ActualQty", "ActualQuantity", "Actual", "Output", "OutputQty",
+      "TotalProduced", "QuantityProduced",
+    ]));
+    if (produced <= 0) return;
+    const key = String(machineRef ?? "_").trim().toLowerCase();
+    // Counts are cumulative within the shift — keep the highest reading per machine.
+    perMachine.set(key, Math.max(perMachine.get(key) ?? 0, produced));
+  });
+  let total = 0;
+  for (const v of perMachine.values()) total += v;
+  return total;
+}
+
 async function fetchActualsForLine(machines: MachineRef[], startISO: string, endISO: string) {
   const ids = machines.map((m) => m.id);
   const merged = new Map<string, number>();
