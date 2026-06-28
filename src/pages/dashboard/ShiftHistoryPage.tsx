@@ -91,11 +91,12 @@ export default function ShiftHistoryPage() {
   });
 
   const filtered = useMemo(() => sessions.filter((s) =>
+    (!isOperator || allowedLineNames.has(s.line)) &&
     (fLine === "__all__" || s.line === fLine) &&
     (fShift === "__all__" || s.shift === fShift) &&
     (fLeader === "__all__" || s.leader_name === fLeader) &&
     (fSku === "__all__" || s.production_items.some((i) => i.sku_id === fSku))
-  ), [sessions, fLine, fShift, fLeader, fSku]);
+  ), [sessions, fLine, fShift, fLeader, fSku, isOperator, allowedLineNames]);
 
   const trendData = useMemo(() => {
     const byDate = new Map<string, { date: string; DAY: number[]; NIGHT: number[] }>();
