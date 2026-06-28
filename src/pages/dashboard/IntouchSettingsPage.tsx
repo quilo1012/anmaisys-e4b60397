@@ -483,12 +483,18 @@ export default function IntouchSettingsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-5xl">
-        <div>
-          <h1 className="text-2xl font-bold">iTouching Integration</h1>
-          <p className="text-sm text-muted-foreground">
-            Setup, test and monitor the iTouching i4 connection.
-          </p>
-
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold">iTouching Integration</h1>
+            <p className="text-sm text-muted-foreground">
+              Setup, test and monitor the iTouching i4 connection.
+            </p>
+          </div>
+          <Button variant="outline" asChild>
+            <a href="/dashboard/intouch-machines">
+              <Plug className="h-4 w-4 mr-1" />Open Machine Map
+            </a>
+          </Button>
         </div>
 
         <Card className="border-primary/40">
