@@ -74,6 +74,7 @@ const navItems: NavItem[] = [
   { title: "SKU Efficiency", url: "/dashboard/sku-efficiency", icon: Trophy, roles: ["admin", "manager"], group: "Production" },
   { title: "Forecast", url: "/dashboard/forecast", icon: Calculator, roles: ["admin", "manager"], group: "Production" },
   { title: "Smart Target", url: "/dashboard/smart-target", icon: Brain, roles: ["admin", "manager"], group: "Production" },
+  { title: "Weekly Report", url: "/dashboard/weekly-report", icon: Brain, roles: ["admin", "manager"], group: "Reports" },
   
   { title: "Quality Actions", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager"], group: "Production" },
   
