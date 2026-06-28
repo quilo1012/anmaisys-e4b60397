@@ -33,11 +33,11 @@ export default function ProductionPerformancePage() {
     let cancelled = false;
     const run = async () => {
       try {
+        const effectiveShift = shift === "all"
+          ? (new Date().getHours() >= 6 && new Date().getHours() < 18 ? "DAY" : "NIGHT")
+          : shift;
         await supabase.functions.invoke("intouch-sync-production", {
-          body: {
-            session_date: date,
-            ...(shift === "all" ? {} : { shift }),
-          },
+          body: { session_date: date, shift: effectiveShift },
         });
         if (!cancelled) qc.invalidateQueries({ queryKey: ["oee"] });
       } catch (e) {
