@@ -85,7 +85,7 @@ const EDIT_TABLET_ID = "1"; // only this tablet can edit actuals/observations
 export default function LineProductionScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { role } = useAuth();
+  const { role, signOut } = useAuth();
   const isOperator = role === "operator";
   const [line, setLine] = useState<string>(() => localStorage.getItem(LS_LINE_KEY) || "");
   const [tabletId, setTabletId] = useState<string>(() => localStorage.getItem(LS_TABLET_KEY) || EDIT_TABLET_ID);
