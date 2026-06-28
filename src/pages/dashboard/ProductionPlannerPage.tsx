@@ -706,8 +706,8 @@ export default function ProductionPlannerPage() {
         </div>
 
         <div className="flex justify-end">
-          <Button size="lg" onClick={save} disabled={locked || upsertSession.isPending || saveItems.isPending}>
-            <Save className="h-4 w-4 mr-2" />Save Session
+          <Button size="lg" onClick={save} disabled={upsertSession.isPending || saveItems.isPending}>
+            <Save className="h-4 w-4 mr-2" />{locked ? "Save SKU changes" : "Save Session"}
           </Button>
         </div>
 
