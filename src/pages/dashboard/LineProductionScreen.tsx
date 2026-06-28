@@ -85,15 +85,25 @@ const EDIT_TABLET_ID = "1"; // only this tablet can edit actuals/observations
 export default function LineProductionScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { role } = useAuth();
+  const isOperator = role === "operator";
   const [line, setLine] = useState<string>(() => localStorage.getItem(LS_LINE_KEY) || "");
   const [tabletId, setTabletId] = useState<string>(() => localStorage.getItem(LS_TABLET_KEY) || EDIT_TABLET_ID);
-  const canEdit = tabletId === EDIT_TABLET_ID;
+  const canEdit = tabletId === EDIT_TABLET_ID || isOperator;
   const [shift, setShift] = useState<Shift>(currentShift());
   const [now, setNow] = useState<Date>(new Date());
   const [editing, setEditing] = useState<ItemRow | null>(null);
   const [pad, setPad] = useState<string>("");
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [requestOpen, setRequestOpen] = useState(false);
   const activeSessionDate = useMemo(() => sessionDateForShift(shift, now), [shift, now]);
+
+  // Operator is locked to current shift — auto-update as time passes.
+  useEffect(() => {
+    if (!isOperator) return;
+    const cur = currentShift();
+    if (cur !== shift) setShift(cur);
+  }, [now, isOperator, shift]);
 
   useEffect(() => {
     const onFs = () => setIsFullscreen(!!document.fullscreenElement);
