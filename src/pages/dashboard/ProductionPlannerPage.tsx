@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload, Download, FileInput, Sparkles, RefreshCw, X } from "lucide-react";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { IntouchImportDialog } from "@/components/IntouchImportDialog";
+import { AssemblyListImporter } from "@/components/AssemblyListImporter";
 import { toast } from "sonner";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -103,6 +104,7 @@ export default function ProductionPlannerPage() {
   const isManager = role === "admin" || (role === "manager" || role === "maintenance_manager");
   const [importOpen, setImportOpen] = useState(false);
   const [intouchOpen, setIntouchOpen] = useState(false);
+  const [assemblyOpen, setAssemblyOpen] = useState(false);
 
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [shift, setShift] = useState("DAY");
@@ -375,6 +377,15 @@ export default function ProductionPlannerPage() {
               </Button>
             )}
             {isManager && (
+              <Button
+                size="sm"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => setAssemblyOpen(true)}
+              >
+                <Sparkles className="h-4 w-4 mr-1" />Assembly List
+              </Button>
+            )}
+            {isManager && (
               <Button variant="default" size="sm" onClick={() => setIntouchOpen(true)}>
                 <FileInput className="h-4 w-4 mr-1" />Import iTouching
               </Button>
@@ -426,6 +437,16 @@ export default function ProductionPlannerPage() {
           onImported={() => {
             queryClient.invalidateQueries({ queryKey: ["production_sessions"] });
             queryClient.invalidateQueries({ queryKey: ["production_items"] });
+          }}
+        />
+        <AssemblyListImporter
+          open={assemblyOpen}
+          onOpenChange={setAssemblyOpen}
+          onImported={() => {
+            queryClient.invalidateQueries({ queryKey: ["production_sessions"] });
+            queryClient.invalidateQueries({ queryKey: ["production_session"] });
+            queryClient.invalidateQueries({ queryKey: ["production_items"] });
+            queryClient.invalidateQueries({ queryKey: ["rag_weekly_entries"] });
           }}
         />
 
