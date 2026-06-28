@@ -19,7 +19,7 @@ const dashMap: Record<string, string> = {
   admin: "/dashboard/manager",
   manager: "/dashboard/manager",
   engineer: "/dashboard/engineer",
-  operator: "/dashboard/operator",
+  operator: "/dashboard/line-production",
 };
 
 const MODE_KEY = "an_login_mode";
