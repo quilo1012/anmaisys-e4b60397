@@ -15,6 +15,8 @@ import { Download, Lock, Unlock, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useOperatorLineIds } from "@/hooks/useOperatorLineAccess";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 
 /**
@@ -48,7 +50,15 @@ interface SessionRow {
 
 export default function ShiftHistoryPage() {
   const qc = useQueryClient();
-  const { data: lines = [] } = useLines();
+  const { role } = useAuth();
+  const isOperator = role === "operator";
+  const { data: operatorLineIds = [] } = useOperatorLineIds();
+  const { data: allLines = [] } = useLines();
+  const lines = useMemo(
+    () => (isOperator ? allLines.filter((l) => operatorLineIds.includes(l.id)) : allLines),
+    [allLines, isOperator, operatorLineIds]
+  );
+  const allowedLineNames = useMemo(() => new Set(lines.map((l) => l.name)), [lines]);
   const { data: leaders = [] } = useLeaders();
   const { data: skus = [] } = useSkuProducts(false);
   const skuMap = useMemo(() => new Map(skus.map((s) => [s.id, s])), [skus]);
@@ -81,11 +91,12 @@ export default function ShiftHistoryPage() {
   });
 
   const filtered = useMemo(() => sessions.filter((s) =>
+    (!isOperator || allowedLineNames.has(s.line)) &&
     (fLine === "__all__" || s.line === fLine) &&
     (fShift === "__all__" || s.shift === fShift) &&
     (fLeader === "__all__" || s.leader_name === fLeader) &&
     (fSku === "__all__" || s.production_items.some((i) => i.sku_id === fSku))
-  ), [sessions, fLine, fShift, fLeader, fSku]);
+  ), [sessions, fLine, fShift, fLeader, fSku, isOperator, allowedLineNames]);
 
   const trendData = useMemo(() => {
     const byDate = new Map<string, { date: string; DAY: number[]; NIGHT: number[] }>();
@@ -281,15 +292,19 @@ export default function ShiftHistoryPage() {
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               )}
-                              <Button size="icon" variant="ghost" title="Edit session" onClick={() => setEditing(s)}>
-                                <Pencil className="h-4 w-4 opacity-60" />
-                              </Button>
-                              <Button size="icon" variant="ghost" title="Lock/unlock" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
-                                {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                              </Button>
-                              <Button size="icon" variant="ghost" title="Delete session" onClick={() => setDeleting(s.id)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
+                              {!isOperator && (
+                                <>
+                                  <Button size="icon" variant="ghost" title="Edit session" onClick={() => setEditing(s)}>
+                                    <Pencil className="h-4 w-4 opacity-60" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" title="Lock/unlock" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
+                                    {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                                  </Button>
+                                  <Button size="icon" variant="ghost" title="Delete session" onClick={() => setDeleting(s.id)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
