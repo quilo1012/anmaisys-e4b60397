@@ -229,7 +229,7 @@ export default function ShiftHistoryPage() {
                       const sku = skuMap.get(i.sku_id);
                       const code = sku?.code ?? "";
                       const name = sku?.name ?? (i.sku_id ? "Unknown" : "—");
-                      const weight = sku ? Number((sku as { weight?: number | null }).weight ?? 0) : 0;
+                      const weight = parseWeightFromSku(code, name, (sku as { weight?: number | null } | undefined)?.weight ?? null);
                       const a = Number(i.actual_qty ?? 0);
                       const t = Number(i.target_qty ?? i.planned_qty ?? 0);
                       const blob = `${code} ${name}`.toLowerCase();
