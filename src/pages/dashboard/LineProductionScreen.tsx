@@ -807,13 +807,13 @@ function RequestOrderDialog({
         requester_name: requestedBy.trim() || operatorLabel || "Operator",
         machine: machine || "",
         description,
-        priority,
+        priority: lineStatus === "stopped" ? "high" : priority,
         line_id: lineQ.data || null,
-        line_stopped: true,
+        line_stopped: lineStatus === "stopped",
       } as any);
       toast.success("Maintenance order opened");
       onOpenChange(false);
-      setProblem(""); setCustomDesc(""); setMachine(""); setRequestedBy(""); setPriority("high");
+      setProblem(""); setCustomDesc(""); setMachine(""); setRequestedBy(""); setPriority("high"); setLineStatus("stopped");
     } catch (e: any) {
       toast.error(e?.message || "Failed to open order");
     }
