@@ -120,7 +120,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   // Role loaded but not authorized for this route — show access denied
   if (allowedRoles && !allowedRoles.includes(role)) {
-    const homePath = dashMap[role] || "/login";
+    const homePath = roleDashMap[role] || "/login";
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center space-y-4">
