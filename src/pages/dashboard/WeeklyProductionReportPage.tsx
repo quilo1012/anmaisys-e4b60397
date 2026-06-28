@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, subDays } from "date-fns";
-import { Brain, TrendingUp, TrendingDown, AlertCircle, CheckCircle2, Target, Sparkles } from "lucide-react";
+import { Brain, TrendingUp, TrendingDown, AlertCircle, CheckCircle2, Target, Sparkles, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -31,6 +33,7 @@ type LineStat = {
 const fmtPct = (n: number) => `${n.toFixed(1)}%`;
 
 export default function WeeklyProductionReportPage() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<Row[] | null>(null);
 
   useEffect(() => {
@@ -106,11 +109,17 @@ export default function WeeklyProductionReportPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <Brain className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-semibold">Weekly Production Report</h1>
-        <Badge variant="secondary" className="ml-2">Continuous learning</Badge>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Brain className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-semibold">Weekly Production Report</h1>
+          <Badge variant="secondary" className="ml-2">Continuous learning</Badge>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+          <ArrowLeft className="h-4 w-4 mr-1" /> Back to menu
+        </Button>
       </div>
+
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
