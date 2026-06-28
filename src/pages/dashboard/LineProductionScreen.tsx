@@ -259,6 +259,27 @@ export default function LineProductionScreen() {
     onError: (e: any) => toast.error(e.message || "Sync failed"),
   });
 
+  // Auto-pull live actuals from iTouching for THIS line/shift so the operator
+  // screen reflects real production without waiting for the global cron.
+  useEffect(() => {
+    if (!line || !sessionQ.data?.id) return;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        await supabase.functions.invoke("intouch-sync-production", {
+          body: { session_date: activeSessionDate, shift, line, force: true },
+        });
+        if (!cancelled) {
+          qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
+          qc.invalidateQueries({ queryKey: ["lps-rag-plan", line, shift, activeSessionDate] });
+        }
+      } catch { /* ignore — next tick retries */ }
+    };
+    run();
+    const t = setInterval(run, 60_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [line, shift, activeSessionDate, sessionQ.data?.id, qc]);
+
   // Per-shift observations (notes on production_sessions)
   const [notes, setNotes] = useState<string>("");
   useEffect(() => {
