@@ -864,19 +864,10 @@ export default function RAGWeeklyPage() {
                   {syncMutation.isPending ? "Syncing..." : "Sync from system"}
                 </Button>
                 <Button
-                  onClick={() => setImportOpen(true)}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  <FileSpreadsheet className="h-4 w-4 mr-1" />Import Excel
-                </Button>
-                <Button
                   onClick={() => setSharePointOpen(true)}
                   className="bg-sky-600 hover:bg-sky-700 text-white"
                 >
                   <CloudDownload className="h-4 w-4 mr-1" />Import from SharePoint
-                </Button>
-                <Button variant="outline" onClick={onPickFile} disabled={importMutation.isPending}>
-                  <Upload className="h-4 w-4 mr-1" />{importMutation.isPending ? "Importing..." : "Re-import (update numbers)"}
                 </Button>
                 {isAdmin && (
                   <Button
