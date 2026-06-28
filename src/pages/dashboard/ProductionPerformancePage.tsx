@@ -36,9 +36,13 @@ export default function ProductionPerformancePage() {
         const effectiveShift = shift === "all"
           ? (new Date().getHours() >= 6 && new Date().getHours() < 18 ? "DAY" : "NIGHT")
           : shift;
-        await supabase.functions.invoke("intouch-sync-production", {
+        const { error } = await supabase.functions.invoke("intouch-sync-production", {
           body: { session_date: date, shift: effectiveShift },
         });
+        if (error) {
+          // 429 quota exhausted or transient iTouching failures: ignore silently, RAG data still renders
+          console.warn("intouch-sync-production skipped:", error?.message ?? error);
+        }
         if (!cancelled) qc.invalidateQueries({ queryKey: ["oee"] });
       } catch (e) {
         console.warn("intouch-sync-production failed", e);
