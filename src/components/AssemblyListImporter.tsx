@@ -431,9 +431,9 @@ export function AssemblyListImporter({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={runImport} disabled={importing || matched === 0}>
+          <Button onClick={runImport} disabled={importing || readyToImport === 0}>
             <Upload className="h-4 w-4 mr-2" />
-            {importing ? "Importing…" : `Import ${matched} orders`}
+            {importing ? "Importing…" : `Import ${readyToImport} orders`}
           </Button>
         </DialogFooter>
       </DialogContent>
