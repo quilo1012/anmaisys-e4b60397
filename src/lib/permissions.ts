@@ -87,6 +87,25 @@ const MATRIX: Record<Action, Role[]> = {
   "system.settings": ["admin"],
 };
 
+/**
+ * Default landing route per role. Single source of truth used by
+ * SessionRedirect (App.tsx) and ProtectedRoute access-denied fallback.
+ */
+export const roleDashMap: Record<Role, string> = {
+  admin: "/dashboard/manager",
+  manager: "/dashboard/manager",
+  maintenance_manager: "/dashboard/manager",
+  engineer: "/dashboard/engineer",
+  operator: "/dashboard/operator",
+  viewer: "/dashboard/manager",
+};
+
+/** Returns the dashboard path for a role, falling back to /login when unknown. */
+export function dashboardPathFor(role: Role | null | undefined): string {
+  if (!role) return "/login";
+  return roleDashMap[role] ?? "/login";
+}
+
 /** Returns true if the given role can perform the action. Null role → false. */
 export function can(role: Role | null | undefined, action: Action): boolean {
   if (!role) return false;
