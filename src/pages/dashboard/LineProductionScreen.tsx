@@ -136,8 +136,24 @@ export default function LineProductionScreen() {
     localStorage.setItem(LS_TABLET_KEY, tabletId);
   }, [tabletId]);
 
+  // Operator account context: allowed lines + tablet label (e.g. "Tablet 4")
+  const operatorAcctQ = useQuery({
+    queryKey: ["lps-operator-acct"],
+    queryFn: async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return null;
+      const { data } = await (supabase as any)
+        .from("operator_line_accounts")
+        .select("line_ids, label")
+        .eq("user_id", uid)
+        .maybeSingle();
+      return data as { line_ids: string[]; label: string } | null;
+    },
+  });
+
   const linesQ = useQuery({
-    queryKey: ["lps-lines-scoped"],
+    queryKey: ["lps-lines-scoped", operatorAcctQ.data?.line_ids?.join(",")],
     queryFn: async () => {
       const { data: lines, error } = await (supabase as any)
         .from("lines")
@@ -146,35 +162,30 @@ export default function LineProductionScreen() {
         .order("name", { ascending: true });
       if (error) throw error;
       const all = (lines || []) as { id: string; name: string }[];
-
-      // Scope to the lines allowed for this operator account (if any).
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
-      if (!uid) return all;
-      const { data: acct } = await (supabase as any)
-        .from("operator_line_accounts")
-        .select("line_ids")
-        .eq("user_id", uid)
-        .maybeSingle();
-      const allowed: string[] = acct?.line_ids ?? [];
-      // Admin/manager (no operator account row) keep full list.
+      const allowed: string[] = operatorAcctQ.data?.line_ids ?? [];
       if (!allowed || allowed.length === 0) return all;
       return all.filter((l) => allowed.includes(l.id));
     },
+    enabled: !operatorAcctQ.isLoading,
   });
 
-  // Auto-select when only one line is allowed; clear stale stored line.
+  // Auto-select first allowed line; clear stale stored line.
   useEffect(() => {
     const list = linesQ.data;
     if (!list) return;
-    if (list.length === 1 && line !== list[0].name) {
+    if (list.length >= 1 && (!line || !list.some((l) => l.name === line))) {
       setLine(list[0].name);
-      return;
-    }
-    if (line && !list.some((l) => l.name === line)) {
-      setLine(list[0]?.name ?? "");
     }
   }, [linesQ.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lock tabletId from the operator account label (e.g. "Tablet 4" -> "4")
+  useEffect(() => {
+    if (!isOperator) return;
+    const lbl = operatorAcctQ.data?.label || "";
+    const m = lbl.match(/(\d+)/);
+    if (m && m[1] !== tabletId) setTabletId(m[1]);
+  }, [isOperator, operatorAcctQ.data?.label]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const sessionQ = useQuery({
     enabled: !!line,
