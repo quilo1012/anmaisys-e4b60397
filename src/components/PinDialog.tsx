@@ -44,23 +44,16 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
 
   const handleVerify = async () => {
     if (isLocked) return;
-    if (pin.length < 4) {
-      setError("PIN must be at least 4 digits");
+    if (pin.length < 6) {
+      setError("PIN must be at least 6 digits");
       return;
     }
     setLoading(true);
     setError("");
     try {
-      // Prefer the new server-side rate-limited RPC. Fall back to the legacy one
-      // if it doesn't exist yet (migration not applied).
-      const rpc: any = (supabase.rpc as any)("verify_pin_with_lockout", { _pin: pin });
-      let { data, error } = await rpc;
-      if (error && /function .* does not exist/i.test(error.message || "")) {
-        const legacy = await supabase.rpc("verify_pin_by_code", { _pin: pin });
-        data = legacy.data;
-        error = legacy.error;
-      }
+      const { data, error } = await supabase.rpc("verify_pin_with_lockout", { _pin: pin });
       if (error) throw error;
+
 
       // Legacy shape: array of { engineer_id, engineer_name }
       // New shape:    { success, engineer_id?, engineer_name?, error?, locked_seconds?, remaining? }
