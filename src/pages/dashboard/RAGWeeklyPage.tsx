@@ -1020,13 +1020,6 @@ export default function RAGWeeklyPage() {
         />
       )}
 
-      <RAGImportDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        knownLines={lines}
-        weekStart={weekStart}
-        weekDates={weekDates}
-      />
       <ManageLinesDialog open={manageLinesOpen} onOpenChange={setManageLinesOpen} />
       <SharePointImportDialog
         open={sharePointOpen}
