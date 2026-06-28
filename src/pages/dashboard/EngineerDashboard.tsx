@@ -225,6 +225,25 @@ function EngineerDashboardContent() {
   const isMobile = useIsMobile();
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });
   const { data: allCompleted } = useWorkOrders({ statusIn: ["completed", "closed", "finished"] as any });
+
+  // Server-side history scoped to the logged-in engineer (primary OR collaborator).
+  // Avoids the 200-row global cap and works regardless of how old the WOs are.
+  const { data: engineerHistory } = useQuery({
+    queryKey: ["engineer-history", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const uid = user!.id;
+      const { data, error } = await supabase
+        .from("work_orders")
+        .select("id, wo_number, line_at_time, machine, description, status, requester_name, engineer_name, engineer_id, collaborator_ids, created_at, finished_at, closed_at, completed_at, started_at")
+        .or(`engineer_id.eq.${uid},collaborator_ids.cs.{${uid}}`)
+        .in("status", ["finished", "closed", "completed"])
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
   const acceptWO = useReceiveWorkOrder();
   const arriveWO = useArriveWorkOrder();
   const startWO = useStartWorkOrder();
