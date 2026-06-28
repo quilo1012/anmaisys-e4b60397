@@ -590,7 +590,23 @@ Deno.serve(async (req) => {
         priority,
       });
 
+     } catch (perMachineErr) {
+       const msg = (perMachineErr as Error).message ?? String(perMachineErr);
+       console.error(`[intouch-poll] machine ${s.MachineID} failed:`, msg);
+       results.errors.push(`machine ${s.MachineID}: ${msg}`);
+       continue;
+     }
     }
+
+    // Record successful poll outcome
+    try {
+      await admin.from("intouch_sync_runs").insert({
+        kind: "poll",
+        status: results.errors.length ? "partial" : "ok",
+        details: results as any,
+        error: results.errors.length ? results.errors.join(" | ").slice(0, 1000) : null,
+      });
+    } catch (_) { /* best-effort */ }
 
     // 3. SKU sync removed — SKUs come exclusively from manual
     //    "Import iTouching (Work To List)" in the Planner page.
