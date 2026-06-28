@@ -243,11 +243,38 @@ function extractActualsByCode(raw: unknown, machines: MachineRef[]): Map<string,
   return out;
 }
 
+// Sum any "Good / Produced" values for the allowed machines regardless of SKU
+// code matching. Fallback used when iTouching SKU codes don't line up with
+// our local sku_products.code so the operator UI always shows a live Actual.
+function extractLineGoodTotal(raw: unknown, machines: MachineRef[]): number {
+  const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+  const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
+  const perMachine = new Map<string, number>();
+  walkObjects(raw, (obj) => {
+    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
+    const produced = num(pick(obj, [
+      "Good", "GoodQty", "GoodQuantity", "GoodCount",
+      "Produced", "ProducedQty", "ProducedQuantity", "ProducedCount",
+      "ActualQty", "ActualQuantity", "Actual", "Output", "OutputQty",
+      "TotalProduced", "QuantityProduced",
+    ]));
+    if (produced <= 0) return;
+    const key = String(machineRef ?? "_").trim().toLowerCase();
+    // Counts are cumulative within the shift — keep the highest reading per machine.
+    perMachine.set(key, Math.max(perMachine.get(key) ?? 0, produced));
+  });
+  let total = 0;
+  for (const v of perMachine.values()) total += v;
+  return total;
+}
+
 async function fetchActualsForLine(machines: MachineRef[], startISO: string, endISO: string) {
   const ids = machines.map((m) => m.id);
   const merged = new Map<string, number>();
   const scrap = new Map<string, number>();
   let runMin = 0, downMin = 0, oeeSum = 0, oeeN = 0;
+  let lineGood = 0;
   const merge = (m: Map<string, number>) => {
     for (const [k, v] of m) merged.set(k, Math.max(merged.get(k) ?? 0, v));
   };
@@ -260,12 +287,17 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
     downMin += m.downMin;
     if (m.oee !== null) { oeeSum += m.oee; oeeN += 1; }
   };
+  const mergeLineGood = (raw: unknown) => {
+    const t = extractLineGoodTotal(raw, machines);
+    if (t > lineGood) lineGood = t;
+  };
 
   // Running jobs (current SKU + live counts)
   const running = await tryIt("/api/GetRunningJobs", { method: "GET" });
   merge(extractActualsByCode(running, machines));
   mergeScrap(extractScrapByCode(running, machines));
   mergeMetrics(running);
+  mergeLineGood(running);
   // Hydrate full job records if running returns only IDs
   const jobIds = new Set<string>();
   walkObjects(running, (obj) => {
@@ -278,6 +310,7 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
     merge(extractActualsByCode(jobs, machines));
     mergeScrap(extractScrapByCode(jobs, machines));
     mergeMetrics(jobs);
+    mergeLineGood(jobs);
   }
 
   // Jobs ran during the shift window (historical actuals)
@@ -292,6 +325,7 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
       merge(extractActualsByCode(raw, machines));
       mergeScrap(extractScrapByCode(raw, machines));
       mergeMetrics(raw);
+      mergeLineGood(raw);
     }
   }
 
@@ -303,11 +337,11 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
   ];
   for (const attempt of shiftStatsAttempts) {
     const raw = await attempt();
-    if (raw) mergeMetrics(raw);
+    if (raw) { mergeMetrics(raw); mergeLineGood(raw); }
   }
 
   const oee = oeeN > 0 ? Math.round((oeeSum / oeeN) * 10) / 10 : null;
-  return { actuals: merged, scrap, metrics: { runMin, downMin, oee } };
+  return { actuals: merged, scrap, lineGood, metrics: { runMin, downMin, oee } };
 }
 
 function aggregateRows(rows: SkuRow[]) {
@@ -630,15 +664,26 @@ Deno.serve(async (req) => {
       await admin.from("production_items").delete().eq("session_id", session.id);
 
       // Pull live actuals + scrap + shift metrics (run/down/OEE) per SKU from iTouching.
-      const { actuals: actualsByCode, scrap: scrapByCode, metrics } = await fetchActualsForLine(machines, startISO, endISO);
+      const { actuals: actualsByCode, scrap: scrapByCode, lineGood, metrics } = await fetchActualsForLine(machines, startISO, endISO);
 
       const entries = Array.from(skuAgg.entries());
       const totalQty = entries.reduce((sum, [, a]) => sum + Math.max(1, Number(a.qty) || 0), 0) || 1;
+      // Sum of per-SKU iTouching actuals matched by code.
+      const matchedActualTotal = entries.reduce(
+        (s, [code]) => s + Math.round(actualsByCode.get(code) ?? 0), 0,
+      );
+      // When SKU-code matching produces nothing but iTouching reports a
+      // line-level Good total, split it proportionally to the plan so the
+      // operator always sees a live Actual under Target.
+      const useLineFallback = matchedActualTotal === 0 && lineGood > 0;
       const rows = entries
         .map(([code, a]) => {
-          const plan = Math.round(ragPlan * (Math.max(1, Number(a.qty) || 0) / totalQty));
+          const weight = Math.max(1, Number(a.qty) || 0) / totalQty;
+          const plan = Math.round(ragPlan * weight);
           const sku_id = idByCode.get(code);
-          const itouchActual = Math.round(actualsByCode.get(code) ?? 0);
+          const itouchActual = useLineFallback
+            ? Math.round(lineGood * weight)
+            : Math.round(actualsByCode.get(code) ?? 0);
           const prev = sku_id ? (actualBySku.get(sku_id) ?? 0) : 0;
           // Never let an automatic sync drive the actual backwards (covers
           // manual edits + cumulative iTouching counts that may dip).
@@ -651,7 +696,7 @@ Deno.serve(async (req) => {
             planned_qty: plan,
             actual_qty: actual,
             scrap_qty,
-            notes: `itouching:${source}`,
+            notes: `itouching:${source}${useLineFallback ? "+line_good" : ""}`,
           };
         })
         .filter((r) => r.sku_id);
