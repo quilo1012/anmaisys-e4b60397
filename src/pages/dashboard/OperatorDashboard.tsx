@@ -379,10 +379,12 @@ function OperatorDashboardContent() {
                     <SelectItem value="__none__">— No specific machine —</SelectItem>
                     {(machines || [])
                       .filter((m: any) => {
-                        if (!lineName) return false;
+                        if (!lineName && !lineId) return false;
                         // Exclude Sealer/Printer — those are selected via the dedicated
                         // "Sealer / Printer Ink" toggle above, not from this machine list.
                         if (m.category === "line_mobile") return false;
+                        // Prefer authoritative line_id match (machines.line_id === bound line).
+                        if (lineId && m.line_id && m.line_id === lineId) return true;
                         const base = (m.current_line || m.fixed_line || m.line || "").toString();
                         if (!base) return false;
                         const withSide = (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
