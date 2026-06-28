@@ -648,6 +648,7 @@ export default function ProductionPlannerPage() {
                       skus={skus}
                       disabled={false}
                     />
+                    {r.blender_ref && <span className="text-xs text-muted-foreground ml-2">· {r.blender_ref}</span>}
                   </div>
                   <div className="md:col-span-3">
                     <Label>Product Name</Label>
