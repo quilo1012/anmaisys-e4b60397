@@ -385,22 +385,24 @@ export default function LineProductionScreen() {
     onError: (e: any) => toast.error(e.message || "Failed to save observations"),
   });
 
-  const openEditor = (row: ItemRow) => {
+  const openEditor = useCallback((row: ItemRow) => {
     if (!canEdit) {
       toast.error("Read-only — only Tablet 1 can edit actuals");
       return;
     }
     setEditing(row);
     setPad(String(row.actual_qty || ""));
-  };
+  }, [canEdit]);
 
-  const padPress = (k: string) => {
+  const padPress = useCallback((k: string) => {
     if (k === "C") return setPad("");
     if (k === "←") return setPad((p) => p.slice(0, -1));
-    if (k === "." && pad.includes(".")) return;
-    if (pad.length >= 9) return;
-    setPad((p) => (p === "0" && k !== "." ? k : p + k));
-  };
+    setPad((p) => {
+      if (k === "." && p.includes(".")) return p;
+      if (p.length >= 9) return p;
+      return p === "0" && k !== "." ? k : p + k;
+    });
+  }, []);
 
   const saveEditor = async () => {
     if (!editing) return;
