@@ -122,17 +122,44 @@ export default function LineProductionScreen() {
   }, [tabletId]);
 
   const linesQ = useQuery({
-    queryKey: ["lps-lines"],
+    queryKey: ["lps-lines-scoped"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data: lines, error } = await (supabase as any)
         .from("lines")
         .select("id, name, display_order")
         .order("display_order", { ascending: true })
         .order("name", { ascending: true });
       if (error) throw error;
-      return (data || []) as { id: string; name: string }[];
+      const all = (lines || []) as { id: string; name: string }[];
+
+      // Scope to the lines allowed for this operator account (if any).
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return all;
+      const { data: acct } = await (supabase as any)
+        .from("operator_line_accounts")
+        .select("line_ids")
+        .eq("user_id", uid)
+        .maybeSingle();
+      const allowed: string[] = acct?.line_ids ?? [];
+      // Admin/manager (no operator account row) keep full list.
+      if (!allowed || allowed.length === 0) return all;
+      return all.filter((l) => allowed.includes(l.id));
     },
   });
+
+  // Auto-select when only one line is allowed; clear stale stored line.
+  useEffect(() => {
+    const list = linesQ.data;
+    if (!list) return;
+    if (list.length === 1 && line !== list[0].name) {
+      setLine(list[0].name);
+      return;
+    }
+    if (line && !list.some((l) => l.name === line)) {
+      setLine(list[0]?.name ?? "");
+    }
+  }, [linesQ.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sessionQ = useQuery({
     enabled: !!line,
