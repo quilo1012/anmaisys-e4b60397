@@ -489,17 +489,6 @@ Deno.serve(async (req) => {
     const isCron = !!CRON_SECRET && providedCron === CRON_SECRET;
     if (isCron) triggerSource = "cron";
 
-    // Log run start (best-effort).
-    try {
-      const { data: runRow } = await admin
-        .from("intouch_sync_runs")
-        .insert({ function_name: "intouch-sync-production", status: "running", trigger_source: triggerSource })
-        .select("id")
-        .maybeSingle();
-      runId = runRow?.id ?? null;
-    } catch { /* ignore */ }
-
-
     if (!isCron) {
       const authHeader = req.headers.get("Authorization") ?? "";
       const token = authHeader.replace(/^Bearer\s+/i, "").trim();
@@ -524,6 +513,17 @@ Deno.serve(async (req) => {
         });
       }
     }
+
+    // Log run start AFTER auth so failed-auth invocations don't leave "running" rows behind.
+    try {
+      const { data: runRow } = await admin
+        .from("intouch_sync_runs")
+        .insert({ function_name: "intouch-sync-production", status: "running", trigger_source: triggerSource })
+        .select("id")
+        .maybeSingle();
+      runId = runRow?.id ?? null;
+    } catch { /* ignore */ }
+
 
     const rawBody = await req.json().catch(() => ({}));
     const parsedBody = BodySchema.safeParse(rawBody);
