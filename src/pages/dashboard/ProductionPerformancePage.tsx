@@ -53,6 +53,8 @@ export default function ProductionPerformancePage() {
 
   const { data: sessions = [] } = useQuery<SessionAgg[]>({
     queryKey: ["oee", range.from, range.to, shift, lineFilter],
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     queryFn: async () => {
       let q = supabase.from("production_sessions")
         .select("id, session_date, shift, line, leader_name, locked, production_items(sku_id, target_qty, planned_qty, actual_qty)")

@@ -61,3 +61,4 @@ export function shiftMinutesForLine(
     .filter((s): s is MappedStop => !!s && s.line === line);
   return reconcileMinutes(stops, windowStart, windowEnd, nowMs);
 }
+

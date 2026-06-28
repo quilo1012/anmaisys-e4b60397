@@ -12,13 +12,12 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Download, Upload, RefreshCw, Target, AlertOctagon, BarChart3, Printer, FileSpreadsheet, CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, AlertOctagon, BarChart3, Printer, CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, startOfWeek, addDays, addWeeks, getISOWeek, startOfMonth, endOfMonth, isSameMonth } from "date-fns";
 import { Link } from "react-router-dom";
-import { RAGImportDialog } from "@/components/RAGImportDialog";
 import { ManageLinesDialog } from "@/components/ManageLinesDialog";
 import { SharePointImportDialog } from "@/components/SharePointImportDialog";
 import { CloudDownload } from "lucide-react";
@@ -107,7 +106,6 @@ export default function RAGWeeklyPage() {
   const [editing, setEditing] = useState<{
     date: string; line: string; shift: Shift; entry?: Entry;
   } | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
   const [manageLinesOpen, setManageLinesOpen] = useState(false);
   const [sharePointOpen, setSharePointOpen] = useState(false);
 
@@ -408,52 +406,6 @@ export default function RAGWeeklyPage() {
     XLSX.writeFile(wb, `rag-template-${weekStartStr}.xlsx`);
   };
 
-  const importMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const XLSX = await import("xlsx");
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array", cellDates: true });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
-      const norm = (s: string) => s.toString().trim().toLowerCase();
-      const payload = rows
-        .map((r) => {
-          const get = (k: string) => {
-            const key = Object.keys(r).find((kk) => norm(kk) === norm(k));
-            return key ? r[key] : undefined;
-          };
-          const rawDate = get("Date");
-          let entry_date = "";
-          if (rawDate instanceof Date) entry_date = format(rawDate, "yyyy-MM-dd");
-          else if (rawDate) entry_date = String(rawDate).slice(0, 10);
-          const shiftRaw = String(get("Shift") ?? "").trim().toUpperCase();
-          const shift: Shift = shiftRaw.startsWith("N") ? "NIGHT" : "DAY";
-          return {
-            entry_date,
-            line: String(get("Line") ?? "").trim(),
-            shift,
-            plan_qty: Number(get("Plan")) || 0,
-            actual_qty: Number(get("Actual")) || 0,
-            upm_target: Number(get("UPM Target")) || 0,
-            upm_actual: Number(get("UPM Actual")) || 0,
-            downtime_min: Number(get("Downtime (min)") ?? get("Downtime")) || 0,
-            notes: String(get("Notes") ?? "") || null,
-          };
-        })
-        .filter((r) => r.entry_date && r.line);
-      if (!payload.length) throw new Error("No valid rows found");
-      const { error } = await supabase
-        .from("rag_weekly_entries")
-        .upsert(payload, { onConflict: "entry_date,line,shift" });
-      if (error) throw error;
-      return payload.length;
-    },
-    onSuccess: (n) => {
-      qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
-      toast.success(`Imported ${n} rows`);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   // RAG block-layout importer (lines as blocks; Plan/Actual/Downtime rows × Mon-Sun × Day/Night/Total)
   const importLayoutMutation = useMutation({
@@ -803,16 +755,6 @@ export default function RAGWeeklyPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const onPickFile = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".xlsx,.xls,.csv";
-    input.onchange = () => {
-      const f = input.files?.[0];
-      if (f) importMutation.mutate(f);
-    };
-    input.click();
-  };
 
 
   const weekNumber = getISOWeek(weekStart);
@@ -848,13 +790,11 @@ export default function RAGWeeklyPage() {
                   isSyncing={
                     ragFetching > 0 ||
                     upsertMutation.isPending ||
-                    importMutation.isPending ||
                     importLayoutMutation.isPending ||
                     syncMutation.isPending
                   }
                   error={
                     upsertMutation.error ||
-                    importMutation.error ||
                     importLayoutMutation.error ||
                     syncMutation.error
                   }
@@ -866,19 +806,10 @@ export default function RAGWeeklyPage() {
                   {syncMutation.isPending ? "Syncing..." : "Sync from system"}
                 </Button>
                 <Button
-                  onClick={() => setImportOpen(true)}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  <FileSpreadsheet className="h-4 w-4 mr-1" />Import Excel
-                </Button>
-                <Button
                   onClick={() => setSharePointOpen(true)}
                   className="bg-sky-600 hover:bg-sky-700 text-white"
                 >
                   <CloudDownload className="h-4 w-4 mr-1" />Import from SharePoint
-                </Button>
-                <Button variant="outline" onClick={onPickFile} disabled={importMutation.isPending}>
-                  <Upload className="h-4 w-4 mr-1" />{importMutation.isPending ? "Importing..." : "Re-import (update numbers)"}
                 </Button>
                 {isAdmin && (
                   <Button
@@ -1031,13 +962,6 @@ export default function RAGWeeklyPage() {
         />
       )}
 
-      <RAGImportDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        knownLines={lines}
-        weekStart={weekStart}
-        weekDates={weekDates}
-      />
       <ManageLinesDialog open={manageLinesOpen} onOpenChange={setManageLinesOpen} />
       <SharePointImportDialog
         open={sharePointOpen}
