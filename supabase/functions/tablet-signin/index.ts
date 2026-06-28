@@ -7,10 +7,47 @@ const BodySchema = z.object({
   password: z.string().min(1).max(200),
 });
 
+// In-memory rate limit: 5 failed attempts per account_id in a 5-min window → 429.
+// Resets on successful sign-in. Per-instance only (best-effort), acceptable here
+// because tablets share a small pool of operator accounts and brute-force on a
+// single instance is the realistic threat model.
+const RL_WINDOW_MS = 5 * 60 * 1000;
+const RL_MAX_FAILS = 5;
+type Bucket = { count: number; firstAt: number; blockedUntil: number };
+const attempts = new Map<string, Bucket>();
+
+function checkRateLimit(key: string): { allowed: boolean; retryAfter: number } {
+  const now = Date.now();
+  const b = attempts.get(key);
+  if (b?.blockedUntil && b.blockedUntil > now) {
+    return { allowed: false, retryAfter: Math.ceil((b.blockedUntil - now) / 1000) };
+  }
+  if (b && now - b.firstAt > RL_WINDOW_MS) attempts.delete(key);
+  return { allowed: true, retryAfter: 0 };
+}
+
+function recordFailure(key: string) {
+  const now = Date.now();
+  const b = attempts.get(key);
+  if (!b || now - b.firstAt > RL_WINDOW_MS) {
+    attempts.set(key, { count: 1, firstAt: now, blockedUntil: 0 });
+    return;
+  }
+  b.count += 1;
+  if (b.count >= RL_MAX_FAILS) {
+    b.blockedUntil = now + RL_WINDOW_MS;
+  }
+}
+
+function clearAttempts(key: string) {
+  attempts.delete(key);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
 
   try {
     if (req.method !== "POST") {
@@ -29,6 +66,22 @@ Deno.serve(async (req) => {
     }
     const { account_id, password } = parsed.data;
 
+    // Rate-limit per account_id (server resolves email, so this is the stable key)
+    const gate = checkRateLimit(account_id);
+    if (!gate.allowed) {
+      return new Response(
+        JSON.stringify({ error: "Too many attempts. Try again later.", retry_after: gate.retryAfter }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "Retry-After": String(gate.retryAfter),
+          },
+        },
+      );
+    }
+
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -42,6 +95,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (accErr || !acc?.email) {
+      recordFailure(account_id);
       // Generic message to avoid account enumeration
       return new Response(
         JSON.stringify({ error: "Invalid credentials" }),
@@ -57,11 +111,15 @@ Deno.serve(async (req) => {
     });
 
     if (signErr || !signIn.session) {
+      recordFailure(account_id);
       return new Response(
         JSON.stringify({ error: "Invalid credentials" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
+    clearAttempts(account_id);
+
 
     // Return session tokens only — no email, no user object
     return new Response(
