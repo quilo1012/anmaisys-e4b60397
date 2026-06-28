@@ -68,6 +68,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    const blockedUntil = await intouchQuotaBlockedUntil();
+    if (blockedUntil) {
+      return new Response(JSON.stringify({
+        error: "iTouching daily quota exhausted", retry_after: blockedUntil,
+      }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const candidates = [
       "/api/Product", "/api/Products", "/api/GetProducts", "/api/GetProductList",
       "/api/ProductList", "/api/GetAllProducts",
@@ -77,17 +84,36 @@ Deno.serve(async (req) => {
     let raw: any = null;
     let usedPath = "";
     let lastErr = "";
+    let quotaHit = false;
     const tryFetch = async (path: string, init?: RequestInit) => {
-      const res = await fetch(`${INTOUCH_URL}${path}`, {
-        ...(init ?? {}),
-        headers: {
-          Authorization: INTOUCH_AUTH_HEADER,
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          ...(init?.headers ?? {}),
-        },
-      });
+      if (quotaHit) return null;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), ITOUCH_TIMEOUT_MS);
+      let res: Response;
+      try {
+        res = await fetch(`${INTOUCH_URL}${path}`, {
+          ...(init ?? {}),
+          signal: controller.signal,
+          headers: {
+            Authorization: INTOUCH_AUTH_HEADER,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            ...(init?.headers ?? {}),
+          },
+        });
+      } catch (e) {
+        if ((e as any)?.name === "AbortError") { lastErr = `${path}: iTouching API timeout`; return null; }
+        lastErr = `${path}: ${(e as Error).message}`; return null;
+      } finally {
+        clearTimeout(timer);
+      }
       const txt = await res.text();
+      if (txt.includes("Exceeded API Max daily egress")) {
+        await intouchMarkEgressExceeded();
+        quotaHit = true;
+        lastErr = "iTouching daily quota exhausted";
+        return null;
+      }
       if (!res.ok) { lastErr = `${path} → ${res.status}: ${txt.slice(0, 120)}`; return null; }
       try { return JSON.parse(txt); } catch { lastErr = `${path}: invalid JSON`; return null; }
     };
