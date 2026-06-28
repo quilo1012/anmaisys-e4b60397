@@ -1,30 +1,28 @@
-import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   useMobileAssets,
   useUpsertMobileAsset,
-  formatMobileAsset,
   type MobileAssetType,
 } from "@/hooks/useMobileAssets";
-import { Plus, Loader2, Printer, Package } from "lucide-react";
+import { Plus, Loader2, Printer, Package, X } from "lucide-react";
 import { toast } from "sonner";
 
 
 interface Props {
   lineId: string;
-  /** Sealer asset id. */
+  /** Sealer asset id (optional — operator may pick only a printer or only a sealer). */
   sealerId: string;
-  /** Printer asset id. */
+  /** Printer asset id (optional — operator may pick only a printer or only a sealer). */
   printerId: string;
   onChange: (next: { sealerId: string; printerId: string }) => void;
 }
 
 /**
- * Sealer + Printer sub-picker for the Sealer/Printer line. The line itself is
- * already locked by the device token — this component only chooses *which*
- * mobile asset(s) on that line are involved in the WO.
+ * Sealer + Printer sub-picker. Each asset is independent — the operator
+ * picks a Printer number AND/OR a Bag Sealer number (they are different
+ * physical machines and can have different numbers).
  */
 export function MobileAssetSubPicker({ lineId, sealerId, printerId, onChange }: Props) {
   const { data: mobileAssets } = useMobileAssets();
@@ -52,54 +50,46 @@ export function MobileAssetSubPicker({ lineId, sealerId, printerId, onChange }: 
     }
   };
 
-  const [activeType, setActiveType] = useState<MobileAssetType>("printer");
-  const list = activeType === "printer" ? printers : sealers;
-  const selectedId = activeType === "printer" ? printerId : sealerId;
-  const pick = (id: string) => {
-    if (activeType === "printer") onChange({ sealerId, printerId: id });
-    else onChange({ sealerId: id, printerId });
-  };
+  const renderSection = (
+    type: MobileAssetType,
+    list: typeof printers,
+    selectedId: string,
+  ) => {
+    const isPrinter = type === "printer";
+    const Icon = isPrinter ? Printer : Package;
+    const label = isPrinter ? "Printer" : "Bag Sealer";
+    const pick = (id: string) => {
+      if (isPrinter) onChange({ sealerId, printerId: id });
+      else onChange({ sealerId: id, printerId });
+    };
+    const clear = () => {
+      if (isPrinter) onChange({ sealerId, printerId: "" });
+      else onChange({ sealerId: "", printerId });
+    };
 
-  const printerSel = printers.find((p) => p.id === printerId);
-  const sealerSel = sealers.find((s) => s.id === sealerId);
-
-  return (
-    <div className="space-y-3">
-      {/* Step 1 — choose asset type */}
-      <div className="inline-flex rounded-md border bg-card p-1 w-full sm:w-auto">
-        <button
-          type="button"
-          onClick={() => setActiveType("printer")}
-          className={cn(
-            "flex-1 sm:flex-none px-4 h-10 rounded-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors",
-            activeType === "printer" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
+    return (
+      <div className="space-y-2 rounded-md border bg-card/40 p-3">
+        <div className="flex items-center justify-between">
+          <Label className="inline-flex items-center gap-2 text-sm font-semibold">
+            <Icon className="h-4 w-4" />
+            {label} number
+          </Label>
+          {selectedId && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={clear}
+            >
+              <X className="h-3 w-3 mr-1" /> Clear
+            </Button>
           )}
-        >
-          <Printer className="h-4 w-4" />
-          Printer {printerSel ? `· ${printerSel.asset_number}` : ""}
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveType("bag_sealer")}
-          className={cn(
-            "flex-1 sm:flex-none px-4 h-10 rounded-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors",
-            activeType === "bag_sealer" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
-          )}
-        >
-          <Package className="h-4 w-4" />
-          Bag Sealer {sealerSel ? `· ${sealerSel.asset_number}` : ""}
-        </button>
-      </div>
-
-      {/* Step 2 — pick the number for the chosen type */}
-      <div className="space-y-2">
-        <Label>
-          Select {activeType === "printer" ? "Printer" : "Bag Sealer"} number *
-        </Label>
+        </div>
         <div className="flex flex-wrap gap-2">
           {list.length === 0 && (
             <span className="text-sm text-muted-foreground py-2">
-              No {activeType === "printer" ? "printers" : "bag sealers"} registered.
+              No {isPrinter ? "printers" : "bag sealers"} registered.
             </span>
           )}
           {list.map((a) => {
@@ -121,7 +111,7 @@ export function MobileAssetSubPicker({ lineId, sealerId, printerId, onChange }: 
             variant="ghost"
             className="h-14"
             disabled={upsertAsset.isPending}
-            onClick={() => handleAdd(activeType)}
+            onClick={() => handleAdd(type)}
           >
             {upsertAsset.isPending ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -132,8 +122,16 @@ export function MobileAssetSubPicker({ lineId, sealerId, printerId, onChange }: 
           </Button>
         </div>
       </div>
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Pick the Printer number, the Bag Sealer number, or both — each machine is independent.
+      </p>
+      {renderSection("printer", printers, printerId)}
+      {renderSection("bag_sealer", sealers, sealerId)}
     </div>
   );
 }
-
-
