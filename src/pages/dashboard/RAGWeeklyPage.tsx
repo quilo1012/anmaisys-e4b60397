@@ -20,7 +20,7 @@ import { format, startOfWeek, addDays, addWeeks, getISOWeek, startOfMonth, endOf
 import { Link } from "react-router-dom";
 import { ManageLinesDialog } from "@/components/ManageLinesDialog";
 
-import { CloudDownload } from "lucide-react";
+
 import { Settings2 } from "lucide-react";
 import { downloadRagTemplate } from "@/lib/ragTemplateExport";
 import { useRole } from "@/hooks/useRole";
