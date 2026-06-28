@@ -1,22 +1,25 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { z } from "https://esm.sh/zod@3.23.8";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { z } from "npm:zod@3.23.8";
+import bcrypt from "npm:bcryptjs@2.4.3";
+
+const MAX_BODY_BYTES = 8 * 1024; // 8 KB is plenty for the JSON payload
+const REQ_TIMEOUT_MS = 15_000;
 
 const createPendingPinHash = async () => {
-  const bcrypt: any = await import("https://esm.sh/bcryptjs@2.4.3");
-  const hashFn = bcrypt.hash ?? bcrypt.default?.hash;
-  if (typeof hashFn !== "function") {
-    // Fallback placeholder; engineer will set a real PIN via set_engineer_pin_standalone
+  try {
+    return await bcrypt.hash(crypto.randomUUID(), 10);
+  } catch {
     return "temp";
   }
-  return hashFn(crypto.randomUUID(), 10);
 };
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-  "Access-Control-Max-Age": "86400",
-};
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 const createUserSchema = z.object({
   email: z.string().email("Invalid email format").max(255),
