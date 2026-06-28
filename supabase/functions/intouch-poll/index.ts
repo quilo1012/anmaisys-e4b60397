@@ -264,7 +264,6 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  }
 
   const results = {
     polled: 0,
