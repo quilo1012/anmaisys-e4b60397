@@ -34,7 +34,10 @@ export default function ProductionPerformancePage() {
     const run = async () => {
       try {
         await supabase.functions.invoke("intouch-sync-production", {
-          body: { date, shift: shift === "all" ? undefined : shift },
+          body: {
+            session_date: date,
+            ...(shift === "all" ? {} : { shift }),
+          },
         });
         if (!cancelled) qc.invalidateQueries({ queryKey: ["oee"] });
       } catch (e) {
