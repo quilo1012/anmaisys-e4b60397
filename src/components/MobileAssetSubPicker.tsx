@@ -52,85 +52,88 @@ export function MobileAssetSubPicker({ lineId, sealerId, printerId, onChange }: 
     }
   };
 
-  const renderButtons = (
-    list: typeof sealers,
-    selectedId: string,
-    onPick: (id: string) => void,
-    emptyLabel: string,
-  ) => (
-    <div className="flex flex-wrap gap-2">
-      {list.length === 0 && (
-        <span className="text-sm text-muted-foreground py-2">{emptyLabel}</span>
-      )}
-      {list.map((a) => {
-        const active = a.id === selectedId;
-        return (
-          <Button
-            key={a.id}
-            type="button"
-            variant={active ? "default" : "outline"}
-            className={cn("h-12 px-4 font-semibold", active && "ring-2 ring-primary")}
-            onClick={() => onPick(a.id)}
-          >
-            {formatMobileAsset(a)}
-          </Button>
-        );
-      })}
-    </div>
-  );
+  const [activeType, setActiveType] = useState<MobileAssetType>("printer");
+  const list = activeType === "printer" ? printers : sealers;
+  const selectedId = activeType === "printer" ? printerId : sealerId;
+  const pick = (id: string) => {
+    if (activeType === "printer") onChange({ sealerId, printerId: id });
+    else onChange({ sealerId: id, printerId });
+  };
+
+  const printerSel = printers.find((p) => p.id === printerId);
+  const sealerSel = sealers.find((s) => s.id === sealerId);
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <div className="space-y-2">
-        <Label>Bag Sealer *</Label>
-        {renderButtons(
-          sealers,
-          sealerId,
-          (id) => onChange({ sealerId: id, printerId }),
-          "No bag sealers registered.",
-        )}
-        <Button
+    <div className="space-y-3">
+      {/* Step 1 — choose asset type */}
+      <div className="inline-flex rounded-md border bg-card p-1 w-full sm:w-auto">
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
-          className="h-9"
-          disabled={upsertAsset.isPending}
-          onClick={() => handleAdd("bag_sealer")}
-        >
-          {upsertAsset.isPending ? (
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-          ) : (
-            <Plus className="h-3 w-3 mr-1" />
+          onClick={() => setActiveType("printer")}
+          className={cn(
+            "flex-1 sm:flex-none px-4 h-10 rounded-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors",
+            activeType === "printer" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
           )}
-          Add Bag Sealer
-        </Button>
+        >
+          <Printer className="h-4 w-4" />
+          Printer {printerSel ? `· ${printerSel.asset_number}` : ""}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveType("bag_sealer")}
+          className={cn(
+            "flex-1 sm:flex-none px-4 h-10 rounded-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors",
+            activeType === "bag_sealer" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
+          )}
+        >
+          <Package className="h-4 w-4" />
+          Bag Sealer {sealerSel ? `· ${sealerSel.asset_number}` : ""}
+        </button>
       </div>
 
+      {/* Step 2 — pick the number for the chosen type */}
       <div className="space-y-2">
-        <Label>Printer *</Label>
-        {renderButtons(
-          printers,
-          printerId,
-          (id) => onChange({ sealerId, printerId: id }),
-          "No printers registered.",
-        )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-9"
-          disabled={upsertAsset.isPending}
-          onClick={() => handleAdd("printer")}
-        >
-          {upsertAsset.isPending ? (
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-          ) : (
-            <Plus className="h-3 w-3 mr-1" />
+        <Label>
+          Select {activeType === "printer" ? "Printer" : "Bag Sealer"} number *
+        </Label>
+        <div className="flex flex-wrap gap-2">
+          {list.length === 0 && (
+            <span className="text-sm text-muted-foreground py-2">
+              No {activeType === "printer" ? "printers" : "bag sealers"} registered.
+            </span>
           )}
-          Add Printer
-        </Button>
+          {list.map((a) => {
+            const active = a.id === selectedId;
+            return (
+              <Button
+                key={a.id}
+                type="button"
+                variant={active ? "default" : "outline"}
+                className={cn("h-14 min-w-14 px-4 text-lg font-bold", active && "ring-2 ring-primary")}
+                onClick={() => pick(a.id)}
+              >
+                {a.asset_number}
+              </Button>
+            );
+          })}
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-14"
+            disabled={upsertAsset.isPending}
+            onClick={() => handleAdd(activeType)}
+          >
+            {upsertAsset.isPending ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4 mr-1" />
+            )}
+            Add
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
+
 
