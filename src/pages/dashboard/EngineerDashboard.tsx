@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -224,6 +225,25 @@ function EngineerDashboardContent() {
   const isMobile = useIsMobile();
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });
   const { data: allCompleted } = useWorkOrders({ statusIn: ["completed", "closed", "finished"] as any });
+
+  // Server-side history scoped to the logged-in engineer (primary OR collaborator).
+  // Avoids the 200-row global cap and works regardless of how old the WOs are.
+  const { data: engineerHistory } = useQuery({
+    queryKey: ["engineer-history", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const uid = user!.id;
+      const { data, error } = await supabase
+        .from("work_orders")
+        .select("id, wo_number, line_at_time, machine, description, status, requester_name, engineer_name, engineer_id, collaborator_ids, created_at, finished_at, closed_at, completed_at, started_at")
+        .or(`engineer_id.eq.${uid},collaborator_ids.cs.{${uid}}`)
+        .in("status", ["finished", "closed", "completed"])
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
   const acceptWO = useReceiveWorkOrder();
   const arriveWO = useArriveWorkOrder();
   const startWO = useStartWorkOrder();
@@ -945,16 +965,7 @@ function EngineerDashboardContent() {
           </CardHeader>
           <CardContent className="p-3 md:p-6 pt-0">
             {(() => {
-              const myHistory = (allCompleted || [])
-                .filter((wo: any) =>
-                  wo.engineer_id === user?.id ||
-                  (Array.isArray(wo.collaborator_ids) && wo.collaborator_ids.includes(user?.id))
-                )
-                .sort((a: any, b: any) =>
-                  new Date(b.finished_at || b.closed_at || b.completed_at || b.created_at).getTime() -
-                  new Date(a.finished_at || a.closed_at || a.completed_at || a.created_at).getTime()
-                )
-                .slice(0, 50);
+              const myHistory = (engineerHistory || []) as any[];
               if (!myHistory.length) {
                 return <p className="text-muted-foreground text-center py-6">No completed work orders yet.</p>;
               }
@@ -964,42 +975,34 @@ function EngineerDashboardContent() {
                     <thead>
                       <tr className="border-b">
                         <th className="text-left p-2 font-medium">WO#</th>
-                        <th className="text-left p-2 font-medium">Machine</th>
-                        <th className="text-left p-2 font-medium">Description</th>
+                        <th className="text-left p-2 font-medium">Line</th>
+                        <th className="text-left p-2 font-medium">Problem</th>
                         <th className="text-left p-2 font-medium">Status</th>
-                        <th className="text-left p-2 font-medium">Finished</th>
-                        <th className="text-left p-2 font-medium">Duration</th>
+                        <th className="text-left p-2 font-medium">Requester</th>
+                        <th className="text-left p-2 font-medium">Engineer</th>
+                        <th className="text-left p-2 font-medium">Created</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {myHistory.map((wo: any) => {
-                        const end = wo.finished_at || wo.closed_at || wo.completed_at;
-                        const dur = wo.started_at && end
-                          ? differenceInMinutes(new Date(end), new Date(wo.started_at))
-                          : null;
-                        return (
-                          <tr
-                            key={wo.id}
-                            className="border-b cursor-pointer hover:bg-muted/40"
-                            onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
-                          >
-                            <td className="p-2 font-mono">
-                              WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
-                            </td>
-                            <td className="p-2">{wo.machine || "—"}</td>
-                            <td className="p-2 max-w-[260px] truncate">{wo.description}</td>
-                            <td className="p-2">
-                              <Badge variant="outline">{wo.status}</Badge>
-                            </td>
-                            <td className="p-2 text-muted-foreground">
-                              {end ? format(new Date(end), "dd/MM HH:mm") : "—"}
-                            </td>
-                            <td className="p-2 font-mono">
-                              {dur !== null ? `${Math.floor(dur / 60)}h ${dur % 60}m` : "—"}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {myHistory.map((wo: any) => (
+                        <tr
+                          key={wo.id}
+                          className="border-b cursor-pointer hover:bg-muted/40"
+                          onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
+                        >
+                          <td className="p-2 font-mono whitespace-nowrap">
+                            WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                          </td>
+                          <td className="p-2">{wo.line_at_time || "—"}</td>
+                          <td className="p-2 max-w-[280px] truncate">{wo.description || wo.machine || "—"}</td>
+                          <td className="p-2"><Badge variant="outline">{wo.status}</Badge></td>
+                          <td className="p-2">{wo.requester_name || "—"}</td>
+                          <td className="p-2">{wo.engineer_name || "—"}</td>
+                          <td className="p-2 text-muted-foreground whitespace-nowrap">
+                            {format(new Date(wo.created_at), "dd/MM HH:mm")}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -1007,6 +1010,7 @@ function EngineerDashboardContent() {
             })()}
           </CardContent>
         </Card>
+
       </div>
 
 
