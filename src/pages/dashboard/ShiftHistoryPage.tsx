@@ -292,15 +292,19 @@ export default function ShiftHistoryPage() {
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               )}
-                              <Button size="icon" variant="ghost" title="Edit session" onClick={() => setEditing(s)}>
-                                <Pencil className="h-4 w-4 opacity-60" />
-                              </Button>
-                              <Button size="icon" variant="ghost" title="Lock/unlock" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
-                                {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                              </Button>
-                              <Button size="icon" variant="ghost" title="Delete session" onClick={() => setDeleting(s.id)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
+                              {!isOperator && (
+                                <>
+                                  <Button size="icon" variant="ghost" title="Edit session" onClick={() => setEditing(s)}>
+                                    <Pencil className="h-4 w-4 opacity-60" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" title="Lock/unlock" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
+                                    {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                                  </Button>
+                                  <Button size="icon" variant="ghost" title="Delete session" onClick={() => setDeleting(s.id)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
