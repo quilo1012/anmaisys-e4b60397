@@ -263,7 +263,10 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
       if (!code || code.length < 3 || /^(LINE|MACHINE|DATE|SHIFT|START|END|STATUS)$/i.test(code)) return;
       const qty = num(pick(obj, ["OrderQty", "Order Qty", "JobOrderQuantity", "Job Order Quantity", "OrderQuantity", "RequiredQuantity", "RequiredQty", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "TargetQty", "ScheduledQty", "Balance", "Demand", "Units"])) || 1;
       const description = String(pick(obj, ["Description", "LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
-      out.push({ code, description, qty, status: readStatus(obj), seq: readSeq(obj) || ++autoSeq });
+      const rawCode2 = String(pick(obj, ["PartCode", "Part Code", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "Code"]) ?? "").trim();
+      const bm = rawCode2.match(/-([Bb]\d+)$/);
+      const actual = num(pick(obj, ["CompletedQuantity", "CompletedQty", "AlreadyMade", "ProducedQuantity", "ActualQuantity"])) || 0;
+      out.push({ code, description, qty, status: readStatus(obj), seq: readSeq(obj) || ++autoSeq, batch: bm?.[1] ?? "", actual });
     });
   }
   return out;
