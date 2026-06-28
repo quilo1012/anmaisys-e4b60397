@@ -31,6 +31,8 @@ import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
+import appliedLogo from "@/assets/appliedlogo.jpeg";
+
 import {
   ResponsiveDialogBody,
   dialogContentResponsive,
@@ -404,11 +406,17 @@ export default function LineProductionScreen() {
       {/* Header */}
       <Card className="mb-4">
         <CardContent className="p-3 md:p-4 flex flex-wrap items-center gap-3">
+          <img
+            src={appliedLogo}
+            alt="Applied Nutrition"
+            className="h-10 md:h-12 w-auto rounded-md object-cover shrink-0"
+          />
           {!isOperator && (
             <Button variant="ghost" size="lg" onClick={() => navigate("/")}>
               <ArrowLeft className="h-5 w-5 mr-2" /> Exit
             </Button>
           )}
+
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Line</span>
             {isOperator ? (
