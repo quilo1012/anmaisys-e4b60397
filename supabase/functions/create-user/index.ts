@@ -173,9 +173,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, userId: newUser.user.id }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ success: true, userId: newUser.user.id }, 200);
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return jsonResponse({ error: error.errors[0]?.message ?? "Invalid input" }, 400);
