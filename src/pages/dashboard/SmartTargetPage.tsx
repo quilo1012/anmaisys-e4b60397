@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Brain, TrendingUp, AlertTriangle, Check, Sparkles } from "lucide-react";
+import { Calendar as CalendarIcon, Brain, TrendingUp, AlertTriangle, Check, Sparkles, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -31,6 +32,7 @@ const fmt = (n: number | null | undefined) =>
 
 export default function SmartTargetPage() {
   const { role } = useAuth();
+  const navigate = useNavigate();
   const canApply = role === "admin" || role === "manager";
 
   const [date, setDate] = useState<Date>(new Date());
@@ -176,10 +178,15 @@ export default function SmartTargetPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <Brain className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-semibold">Smart Target</h1>
-        <Badge variant="secondary" className="ml-2">AI-assisted</Badge>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Brain className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-semibold">Smart Target</h1>
+          <Badge variant="secondary" className="ml-2">AI-assisted</Badge>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+          <ArrowLeft className="h-4 w-4 mr-1" /> Back to menu
+        </Button>
       </div>
 
       {/* Filters */}
