@@ -369,6 +369,39 @@ function OperatorDashboardContent() {
                 <p className="text-xs text-muted-foreground">
                   Pick the specific machine so the WO history is accurate. Leave empty if not applicable.
                 </p>
+                {(() => {
+                  const m: any = (machines || []).find((x: any) => x.name === machineName);
+                  if (!m || m.category !== "line_mobile") return null;
+                  const at = (m.current_line || "").toString();
+                  if (at === lineName) {
+                    return <p className="text-xs text-emerald-600">✓ {m.name} is currently on {lineName}.</p>;
+                  }
+                  return (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-amber-600">
+                        {m.name} is {at ? `at ${at}` : "not assigned"} — move it to {lineName}?
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-7"
+                        onClick={async () => {
+                          const { error } = await (supabase as any).rpc("move_machine_to_line", {
+                            _machine_id: m.id,
+                            _new_line: lineName,
+                            _notes: "Moved by operator from WO dialog",
+                          });
+                          if (error) { toast.error(error.message); return; }
+                          toast.success(`${m.name} moved to ${lineName}`);
+                          qc.invalidateQueries({ queryKey: ["machines"] });
+                        }}
+                      >
+                        Move here
+                      </Button>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
