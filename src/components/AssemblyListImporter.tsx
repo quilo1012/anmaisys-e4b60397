@@ -119,6 +119,54 @@ export function AssemblyListImporter({
     setRows((rs) => rs.map((r) => (r.raw_code === rawCode ? { ...r, line } : r)));
   };
 
+  const downloadTemplate = () => {
+    // Columns mirror Unleashed "Assembly" / Assembly List export so users can
+    // export from Unleashed and re-upload here with zero edits.
+    const headers = [
+      "Part Code",        // Unleashed: Product Code
+      "Description",      // Unleashed: Product Description
+      "Order Qty",        // Unleashed: Quantity
+      "Line",             // Filler / Work Centre (optional)
+      "Date",             // Production date (optional, dd/mm/yyyy)
+      "Shift",            // DAY | NIGHT (optional)
+    ];
+    const sampleLine = lines[0]?.name ?? "Filler 1";
+    const today = format(new Date(), "dd/MM/yyyy");
+    const sample = (skus.slice(0, 3).length ? skus.slice(0, 3) : [
+      { code: "CRE500-B45", name: "Creatine 500g — Batch B45" },
+      { code: "WPI2KG-B12", name: "Whey Protein 2kg — Batch B12" },
+      { code: "PRE300-B07", name: "Pre-Workout 300g — Batch B07" },
+    ]).map((s, i) => [s.code, s.name, 1000 * (i + 1), sampleLine, today, i % 2 ? "NIGHT" : "DAY"]);
+
+    const aoa = [headers, ...sample];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{ wch: 16 }, { wch: 42 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 8 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Assembly List");
+
+    // Instructions sheet
+    const info = XLSX.utils.aoa_to_sheet([
+      ["Unleashed → AN Maintenance · Assembly List Template"],
+      [],
+      ["How to use:"],
+      ["1. In Unleashed, export the Assembly List (or Assemblies report) as XLSX."],
+      ["2. Make sure the columns match the 'Assembly List' tab in this file."],
+      ["3. Keep the header row exactly as named (Part Code, Description, Order Qty, Line, Date, Shift)."],
+      ["4. Line / Date / Shift are optional — defaults from the importer dialog are used when blank."],
+      ["5. Upload via Production Planner → Import Assembly List."],
+      [],
+      ["Notes:"],
+      ["• Part Code must match an SKU code in the system for auto-match (else fuzzy match by Description)."],
+      ["• Order Qty accepts European format (6.666,5) and US format (6,666.5)."],
+      ["• Shift values: DAY or NIGHT (any case)."],
+    ]);
+    info["!cols"] = [{ wch: 90 }];
+    XLSX.utils.book_append_sheet(wb, info, "Instructions");
+
+    XLSX.writeFile(wb, `assembly-list-template-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    toast.success("Template downloaded — fill it in or paste your Unleashed export");
+  };
+
   const handleFile = async (file: File) => {
     setFileName(file.name);
     const buf = await file.arrayBuffer();
