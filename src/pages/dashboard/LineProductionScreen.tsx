@@ -526,11 +526,27 @@ export default function LineProductionScreen() {
 
       {line && (ragPlanQ.data ?? 0) > 0 && !sessionQ.isLoading && !sessionQ.data && (
         <Card>
-          <CardContent className="p-10 text-center space-y-2">
-            <div className="text-xl font-semibold">No session for {line} – {shift}</div>
+          <CardContent className="p-10 text-center space-y-3">
+            <div className="text-xl font-semibold">No session yet for {line} – {shift}</div>
             <div className="text-muted-foreground">
-              Ask the supervisor to create / import the production plan in the Planner.
+              RAG plan = {(ragPlanQ.data ?? 0).toLocaleString()}. Start the shift to begin tracking actuals.
             </div>
+            <Button
+              className="h-12"
+              onClick={async () => {
+                const { error } = await (supabase as any)
+                  .from("production_sessions")
+                  .upsert(
+                    { session_date: activeSessionDate, line, shift, notes: "[Started from tablet]" },
+                    { onConflict: "session_date,line,shift" },
+                  );
+                if (error) { toast.error(error.message); return; }
+                qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
+                toast.success("Shift started");
+              }}
+            >
+              Start shift
+            </Button>
           </CardContent>
         </Card>
       )}
