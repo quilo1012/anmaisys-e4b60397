@@ -388,75 +388,98 @@ export default function LineProductionScreen() {
       {/* Header */}
       <Card className="mb-4">
         <CardContent className="p-3 md:p-4 flex flex-wrap items-center gap-3">
-          <Button variant="ghost" size="lg" onClick={() => navigate("/")}>
-            <ArrowLeft className="h-5 w-5 mr-2" /> Exit
-          </Button>
+          {!isOperator && (
+            <Button variant="ghost" size="lg" onClick={() => navigate("/")}>
+              <ArrowLeft className="h-5 w-5 mr-2" /> Exit
+            </Button>
+          )}
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Line</span>
-            <Select value={line} onValueChange={setLine}>
-              <SelectTrigger className="h-12 min-w-[180px] text-lg">
-                <SelectValue placeholder="Select line" />
-              </SelectTrigger>
-              <SelectContent>
-                {(linesQ.data || []).map((l) => (
-                  <SelectItem key={l.id} value={l.name} className="text-lg">
-                    {l.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {isOperator ? (
+              <Badge className="h-12 px-4 text-xl font-bold">{line || "—"}</Badge>
+            ) : (
+              <Select value={line} onValueChange={setLine}>
+                <SelectTrigger className="h-12 min-w-[180px] text-lg">
+                  <SelectValue placeholder="Select line" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(linesQ.data || []).map((l) => (
+                    <SelectItem key={l.id} value={l.name} className="text-lg">
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
-          <div className="flex gap-1">
-            {(["DAY", "NIGHT"] as Shift[]).map((s) => (
-              <Button
-                key={s}
-                size="lg"
-                variant={shift === s ? "default" : "outline"}
-                onClick={() => setShift(s)}
-                className="h-12 px-6"
-              >
-                {s}
-              </Button>
-            ))}
-          </div>
+          {isOperator ? (
+            <Badge className="h-12 px-4 text-xl font-bold" variant="secondary">{shift}</Badge>
+          ) : (
+            <div className="flex gap-1">
+              {(["DAY", "NIGHT"] as Shift[]).map((s) => (
+                <Button
+                  key={s}
+                  size="lg"
+                  variant={shift === s ? "default" : "outline"}
+                  onClick={() => setShift(s)}
+                  className="h-12 px-6"
+                >
+                  {s}
+                </Button>
+              ))}
+            </div>
+          )}
           <Badge variant="outline" className="h-10 px-3 text-sm">
             {activeSessionDate}
           </Badge>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Tablet</span>
-            <Select value={tabletId || "__none__"} onValueChange={(v) => setTabletId(v === "__none__" ? "" : v)}>
-              <SelectTrigger className="h-12 min-w-[110px] text-lg">
-                <SelectValue placeholder="ID" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Not set</SelectItem>
-                {["1","2","3","4","5","6","7","8"].map((n) => (
-                  <SelectItem key={n} value={n} className="text-lg">Tablet {n}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Badge variant={canEdit ? "default" : "secondary"} className="h-8 px-2">
-              {canEdit ? "EDIT" : "READ-ONLY"}
-            </Badge>
-          </div>
+          {!isOperator && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Tablet</span>
+              <Select value={tabletId || "__none__"} onValueChange={(v) => setTabletId(v === "__none__" ? "" : v)}>
+                <SelectTrigger className="h-12 min-w-[110px] text-lg">
+                  <SelectValue placeholder="ID" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Not set</SelectItem>
+                  {["1","2","3","4","5","6","7","8"].map((n) => (
+                    <SelectItem key={n} value={n} className="text-lg">Tablet {n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Badge variant={canEdit ? "default" : "secondary"} className="h-8 px-2">
+                {canEdit ? "EDIT" : "READ-ONLY"}
+              </Badge>
+            </div>
+          )}
           <div className="ml-auto flex items-center gap-3">
             <SyncStatusIndicator
               isSyncing={itemsQ.isFetching || ragPlanQ.isFetching || sessionQ.isFetching || updateActual.isPending}
               error={updateActual.error || itemsQ.error || ragPlanQ.error}
             />
+            <Button
+              size="lg"
+              className="h-12 bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => setRequestOpen(true)}
+              disabled={!line}
+            >
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              Request Maintenance
+            </Button>
             <Button variant="outline" size="lg" onClick={toggleKiosk} className="h-12">
               {isFullscreen ? <Minimize2 className="h-5 w-5 mr-2" /> : <Maximize2 className="h-5 w-5 mr-2" />}
               {isFullscreen ? "Exit Kiosk" : "Kiosk"}
             </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              className="h-12"
-              disabled={syncSkus.isPending || !line}
-              onClick={() => syncSkus.mutate()}
-            >
-              {syncSkus.isPending ? "Syncing…" : "Sync SKUs"}
-            </Button>
+            {!isOperator && (
+              <Button
+                variant="outline"
+                size="lg"
+                className="h-12"
+                disabled={syncSkus.isPending || !line}
+                onClick={() => syncSkus.mutate()}
+              >
+                {syncSkus.isPending ? "Syncing…" : "Sync SKUs"}
+              </Button>
+            )}
             <div className="flex items-center gap-2 text-2xl font-mono tabular-nums">
               <Clock className="h-6 w-6" />
               {now.toLocaleTimeString("en-GB", { hour12: false })}
