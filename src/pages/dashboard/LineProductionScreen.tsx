@@ -138,10 +138,11 @@ export default function LineProductionScreen() {
 
   // Operator account context: allowed lines + tablet label (e.g. "Tablet 4")
   const operatorAcctQ = useQuery({
-    queryKey: ["lps-operator-acct"],
+    queryKey: ["lps-operator-acct", user?.id],
+    enabled: !!user?.id,
+    staleTime: 0,
     queryFn: async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
+      const uid = user?.id;
       if (!uid) return null;
       const { data } = await (supabase as any)
         .from("operator_line_accounts")
@@ -153,7 +154,7 @@ export default function LineProductionScreen() {
   });
 
   const linesQ = useQuery({
-    queryKey: ["lps-lines-scoped", operatorAcctQ.data?.line_ids?.join(",")],
+    queryKey: ["lps-lines-scoped", user?.id, operatorAcctQ.data?.line_ids?.join(",")],
     queryFn: async () => {
       const { data: lines, error } = await (supabase as any)
         .from("lines")
@@ -163,10 +164,13 @@ export default function LineProductionScreen() {
       if (error) throw error;
       const all = (lines || []) as { id: string; name: string }[];
       const allowed: string[] = operatorAcctQ.data?.line_ids ?? [];
+      // Operators MUST be scoped to their account's lines. If account row is
+      // missing or empty, show nothing instead of falling back to all lines.
+      if (isOperator) return all.filter((l) => allowed.includes(l.id));
       if (!allowed || allowed.length === 0) return all;
       return all.filter((l) => allowed.includes(l.id));
     },
-    enabled: !operatorAcctQ.isLoading,
+    enabled: !operatorAcctQ.isLoading && (!isOperator || !!operatorAcctQ.data),
   });
 
   // Auto-select first allowed line; clear stale stored line.
