@@ -620,8 +620,55 @@ Deno.serve(async (req) => {
 
       const { rows: skuRows, source } = await fetchSkuRowsForLine(machines, startISO, endISO);
       const skuAgg = aggregateRows(skuRows);
+
+      // Fallback path: no SKU schedule from iTouching, but the machines are
+      // reporting live "Good" production. Create/keep a single synthetic
+      // "Live Production" row so the operator screen still shows Actual.
       if (skuAgg.size === 0) {
-        results.push({ line, skipped: "no Material Requirements / schedule SKUs found" });
+        const live = await fetchActualsForLine(machines, startISO, endISO);
+        if (!(live.lineGood > 0)) {
+          results.push({ line, skipped: "no Material Requirements / schedule SKUs found" });
+          continue;
+        }
+        const liveCode = `LIVE-${line}`.toUpperCase().replace(/\s+/g, "-").slice(0, 60);
+        await admin.from("sku_products").upsert(
+          [{ code: liveCode, name: `Live Production — ${line}`, active: true }],
+          { onConflict: "code", ignoreDuplicates: true },
+        );
+        const { data: liveSku } = await admin
+          .from("sku_products").select("id").eq("code", liveCode).maybeSingle();
+        if (!liveSku?.id) {
+          results.push({ line, skipped: "live sku upsert failed" });
+          continue;
+        }
+        const { data: session, error: sErr } = await admin
+          .from("production_sessions")
+          .upsert(
+            { session_date, line, shift, notes: `[Auto-synced from iTouching — live_good]` },
+            { onConflict: "session_date,line,shift" },
+          )
+          .select("id, locked").single();
+        if (sErr) throw sErr;
+        if (session.locked) { results.push({ line, skipped: "session locked" }); continue; }
+
+        const { data: prevItem } = await admin
+          .from("production_items").select("actual_qty")
+          .eq("session_id", session.id).eq("sku_id", liveSku.id).maybeSingle();
+        const prevQty = Number(prevItem?.actual_qty ?? 0);
+        const actual = Math.max(prevQty, Math.round(live.lineGood));
+
+        await admin.from("production_items").delete().eq("session_id", session.id);
+        await admin.from("production_items").insert([{
+          session_id: session.id,
+          sku_id: liveSku.id,
+          target_qty: ragPlan,
+          planned_qty: ragPlan,
+          actual_qty: actual,
+          scrap_qty: 0,
+          notes: `itouching:live_good`,
+        }]);
+
+        results.push({ line, skus: 1, rag_plan: ragPlan, source: "live_good", actual_preserved: actual });
         continue;
       }
 
