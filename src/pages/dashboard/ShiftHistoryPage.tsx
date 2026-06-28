@@ -356,7 +356,17 @@ export default function ShiftHistoryPage() {
               <div className="space-y-3">
                 <div className="text-sm text-muted-foreground">Target: <span className="font-semibold text-foreground">{editingItem.target.toLocaleString()}</span></div>
                 <div>
-                  <Label>Actual quantity</Label>
+                  <Label>Unit type</Label>
+                  <Select value={editUnit} onValueChange={(v) => setEditUnit(v as "tubs" | "bags")}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tubs">Tubs</SelectItem>
+                      <SelectItem value="bags">Bags</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Actual quantity ({editUnit})</Label>
                   <Input type="number" value={editActual} onChange={(e) => setEditActual(e.target.value)} autoFocus />
                 </div>
               </div>
@@ -364,9 +374,10 @@ export default function ShiftHistoryPage() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
               <Button
-                onClick={() => editingItem && saveItemActual.mutate({ id: editingItem.id, actual: Number(editActual) || 0 })}
+                onClick={() => editingItem && saveItemActual.mutate({ id: editingItem.id, actual: Number(editActual) || 0, unit: editUnit, prevNotes: editingItem.notes })}
                 disabled={saveItemActual.isPending}
               >Save</Button>
+            </DialogFooter>
             </DialogFooter>
           </DialogContent>
         </Dialog>
