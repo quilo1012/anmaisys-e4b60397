@@ -178,10 +178,15 @@ export default function SmartTargetPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <Brain className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-semibold">Smart Target</h1>
-        <Badge variant="secondary" className="ml-2">AI-assisted</Badge>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Brain className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-semibold">Smart Target</h1>
+          <Badge variant="secondary" className="ml-2">AI-assisted</Badge>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+          <ArrowLeft className="h-4 w-4 mr-1" /> Back to menu
+        </Button>
       </div>
 
       {/* Filters */}
