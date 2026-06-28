@@ -195,34 +195,51 @@ export default function ShiftHistoryPage() {
 
         <Card>
           <CardContent className="p-4 grid gap-3 md:grid-cols-6">
+            <div className="md:col-span-1">
+              <Label className="text-xs">Date (single)</Label>
+              <Input
+                type="date"
+                value={from === to ? from : ""}
+                onChange={(e) => { setFrom(e.target.value); setTo(e.target.value); }}
+              />
+            </div>
             <div><Label className="text-xs">From</Label><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
             <div><Label className="text-xs">To</Label><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-            <div><Label className="text-xs">Line</Label>
-              <Select value={fLine} onValueChange={setFLine}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="__all__">All</SelectItem>{lines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
             <div><Label className="text-xs">Shift</Label>
               <Select value={fShift} onValueChange={setFShift}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="__all__">All</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="__all__">All shifts</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div><Label className="text-xs">Filler Line</Label>
+              <Select value={fLine} onValueChange={setFLine}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="__all__">All lines</SelectItem>{lines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div><Label className="text-xs">Leader</Label>
               <Select value={fLeader} onValueChange={setFLeader}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="__all__">All</SelectItem>{leaders.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+                <SelectContent><SelectItem value="__all__">All leaders</SelectItem>{leaders.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label className="text-xs">SKU</Label>
+            <div className="md:col-span-5"><Label className="text-xs">SKU</Label>
               <Select value={fSku} onValueChange={setFSku}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="__all__">All</SelectItem>{skus.map((s) => <SelectItem key={s.id} value={s.id}>{s.code} — {s.name}</SelectItem>)}</SelectContent>
+                <SelectContent><SelectItem value="__all__">All SKUs</SelectItem>{skus.map((s) => <SelectItem key={s.id} value={s.id}>{s.code} — {s.name}</SelectItem>)}</SelectContent>
               </Select>
+            </div>
+            <div className="flex items-end gap-2">
+              <Button variant="outline" size="sm" className="w-full" onClick={() => {
+                const t = format(new Date(), "yyyy-MM-dd"); setFrom(t); setTo(t); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
+              }}>Today</Button>
+              <Button variant="ghost" size="sm" className="w-full" onClick={() => {
+                setFrom(format(subDays(new Date(), 14), "yyyy-MM-dd")); setTo(format(new Date(), "yyyy-MM-dd")); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
+              }}>Reset</Button>
             </div>
           </CardContent>
         </Card>
+
 
 
         <Card>
