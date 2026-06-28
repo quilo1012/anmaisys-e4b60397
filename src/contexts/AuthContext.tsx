@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { raw = localStorage.getItem(TABLET_CRED_KEY); } catch { return false; }
     if (!raw) return false;
 
-    let cred: { refresh_token?: string; email?: string; password?: string } | null = null;
+    let cred: { refresh_token?: string; email?: string } | null = null;
     try { cred = JSON.parse(raw); } catch { return false; }
     // Legacy credential shape (email+password) is no longer supported — wipe it.
     if (!cred?.refresh_token) {
