@@ -58,10 +58,15 @@ export function TabletProductionView({
     },
   });
 
-  const items = (sessionData?.production_items ?? []) as Array<{
-    sku_code: string; sku_name: string;
-    target_qty: number | null; planned_qty: number | null; actual_qty: number | null;
-  }>;
+  const sessionAny = sessionData as any;
+  const rawItems: any[] = sessionAny?.production_items ?? [];
+  const items = rawItems.map((it) => ({
+    sku_code: it.sku?.code ?? it.sku_code ?? "—",
+    sku_name: it.sku?.name ?? it.sku_name ?? "",
+    target_qty: it.target_qty as number | null,
+    planned_qty: it.planned_qty as number | null,
+    actual_qty: it.actual_qty as number | null,
+  }));
 
   const totalTarget =
     Number(ragData?.plan_qty ?? 0) ||
@@ -70,17 +75,17 @@ export function TabletProductionView({
   const efficiency = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0;
 
   useEffect(() => {
-    if (sessionData?.comments) setOperatorNotes(sessionData.comments);
-    if (sessionData?.line_leader) setOperatorName(sessionData.line_leader);
-  }, [sessionData]);
+    if (sessionAny?.notes) setOperatorNotes(sessionAny.notes);
+    if (sessionAny?.leader_name) setOperatorName(sessionAny.leader_name);
+  }, [sessionAny]);
 
   const submitShiftMutation = useMutation({
     mutationFn: async () => {
-      if (!sessionData?.id) throw new Error("No active session for this line/shift.");
+      if (!sessionAny?.id) throw new Error("No active session for this line/shift.");
       const { error: sErr } = await supabase
         .from("production_sessions")
-        .update({ line_leader: operatorName, comments: operatorNotes })
-        .eq("id", sessionData.id);
+        .update({ leader_name: operatorName, notes: operatorNotes })
+        .eq("id", sessionAny.id);
       if (sErr) throw sErr;
       await supabase
         .from("rag_weekly_entries")
@@ -88,6 +93,7 @@ export function TabletProductionView({
         .eq("line", productionLine)
         .eq("entry_date", date)
         .eq("shift", shiftType);
+
     },
     onSuccess: () => {
       toast.success("Shift saved & synced to RAG Weekly");
