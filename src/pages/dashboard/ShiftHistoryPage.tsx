@@ -378,7 +378,6 @@ export default function ShiftHistoryPage() {
                 disabled={saveItemActual.isPending}
               >Save</Button>
             </DialogFooter>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
 
