@@ -234,7 +234,7 @@ function EngineerDashboardContent() {
     queryFn: async () => {
       const uid = user!.id;
       const cols = "id, wo_number, line_at_time, machine, description, status, requester_name, engineer_name, engineer_id, collaborator_ids, created_at, finished_at, closed_at, completed_at, started_at";
-      const statuses = ["finished", "closed", "completed"];
+      const statuses = ["finished", "closed", "completed"] as const;
       const [primaryRes, collabRes] = await Promise.all([
         supabase.from("work_orders").select(cols)
           .eq("engineer_id", uid).in("status", statuses)
