@@ -31,6 +31,8 @@ import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
+import appliedLogo from "@/assets/appliedlogo.jpeg";
+
 import {
   ResponsiveDialogBody,
   dialogContentResponsive,
