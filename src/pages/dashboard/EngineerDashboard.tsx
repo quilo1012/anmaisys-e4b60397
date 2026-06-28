@@ -755,34 +755,12 @@ function EngineerDashboardContent() {
           </Alert>
         )}
 
-        {predictiveAlerts.length > 0 && (
-          <Alert className="border-purple-500 bg-purple-500/10 text-purple-800">
-            <AlertTriangle className="h-5 w-5 text-purple-600" />
-            <AlertTitle className="text-sm font-bold">{predictiveAlerts.length} Predictive Alert(s)</AlertTitle>
-            <AlertDescription className="text-xs">
-              {predictiveAlerts.slice(0, 2).map((a, i) => {
-                const cleanProblem = (a.problem ?? "").replace(/\|{2,}/g, "|").replace(/^[\s|¦]+|[\s|¦]+$/g, "").trim();
-                return (
-                  <span key={i} className="block">{a.machine}: "{cleanProblem}" - {a.count}x in 30 days</span>
-                );
-              })}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <EngineerNavCards assignedCount={activeWOs?.filter(wo => wo.status === "in_progress").length ?? 0} />
-
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h2 className="text-xl md:text-2xl font-bold">Engineer Panel</h2>
-            <p className="text-muted-foreground text-sm">View and execute work orders</p>
+            <h2 className="text-xl md:text-2xl font-bold">Engineer Console</h2>
+            <p className="text-muted-foreground text-sm">Open, in-progress and recently finished work</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {suggestedEngineer && (
-              <Badge variant="outline" className="bg-blue-500/10 border-blue-500 text-blue-700 gap-1">
-                <Users className="h-3 w-3" /> Suggested: {suggestedEngineer.name}
-              </Badge>
-            )}
             <EngineerAlertLineFilter />
             <Button variant={focusMode ? "default" : "outline"} size="sm" onClick={() => setFocusMode(!focusMode)} className="gap-1">
               <Focus className="h-4 w-4" /> {focusMode ? "Focus ON" : "Focus"}
@@ -793,54 +771,52 @@ function EngineerDashboardContent() {
           </div>
         </div>
 
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Completed</CardTitle>
-              <div className="h-9 w-9 rounded-lg bg-green-500/15 flex items-center justify-center">
-                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-3xl font-bold tabular-nums">{kpis.totalCompleted}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Avg Response</CardTitle>
-              <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${kpis.avgResponse > 30 ? "bg-amber-500/15" : "bg-blue-500/15"}`}>
-                <Timer className={`h-5 w-5 ${kpis.avgResponse > 30 ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400"}`} />
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className={`text-3xl font-bold tabular-nums ${kpis.avgResponse > 30 ? "text-amber-600 dark:text-amber-400" : ""}`}>
-                {kpis.avgResponse}m
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Avg MTTR</CardTitle>
-              <div className="h-9 w-9 rounded-lg bg-purple-500/15 flex items-center justify-center">
-                <Activity className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-3xl font-bold tabular-nums">{kpis.avgMTTR}m</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Parts Used</CardTitle>
-              <div className="h-9 w-9 rounded-lg bg-indigo-500/15 flex items-center justify-center">
-                <Package className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-3xl font-bold tabular-nums">{totalParts ?? 0}</div>
-            </CardContent>
-          </Card>
-        </div>
+        {(() => {
+          const activeCount = activeWOs?.length ?? 0;
+          const start = new Date(); start.setHours(0, 0, 0, 0);
+          const completedToday = (allCompleted ?? []).filter((w: any) => {
+            const t = new Date(w.finished_at || w.completed_at || w.closed_at || w.created_at);
+            return t >= start;
+          }).length;
+          return (
+            <div className="grid gap-3 grid-cols-3">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Active</CardTitle>
+                  <div className="h-9 w-9 rounded-lg bg-amber-500/15 flex items-center justify-center">
+                    <Activity className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <div className="text-3xl font-bold tabular-nums">{activeCount}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Completed today</CardTitle>
+                  <div className="h-9 w-9 rounded-lg bg-green-500/15 flex items-center justify-center">
+                    <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <div className="text-3xl font-bold tabular-nums">{completedToday}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Avg MTTR</CardTitle>
+                  <div className="h-9 w-9 rounded-lg bg-purple-500/15 flex items-center justify-center">
+                    <Timer className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <div className="text-3xl font-bold tabular-nums">{kpis.avgMTTR}m</div>
+                </CardContent>
+              </Card>
+            </div>
+          );
+        })()}
+
 
         <Card id="my-tasks" className="scroll-mt-24">
           <CardHeader className="p-4 md:p-6">
