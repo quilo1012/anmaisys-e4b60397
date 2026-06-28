@@ -201,11 +201,15 @@ function extractSkuRows(raw: unknown, source: string, machines: MachineRef[]): S
     const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
     for (const wo of worksOrders) {
-      const code = cleanCode(pick(wo, ["PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "OrderNumber"]));
+      const rawCode = String(pick(wo, ["PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "OrderNumber"]) ?? "").trim();
+      const code = cleanCode(rawCode);
       if (!code || code === "UNKNOWN") continue;
+      const bm = rawCode.match(/-([Bb]\d+)$/);
+      const batch = bm?.[1] ?? "";
       const description = String(pick(wo, ["LongDescription", "ProductDescription", "PartDescription", "Description", "ShortDescription", "Name"]) ?? code).trim();
       const qty = num(pick(wo, ["OrderQuantity", "RequiredQuantity", "RequiredQty", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "Balance"])) || 1;
-      rows.push({ code, description, qty, source });
+      const actual = num(pick(wo, ["CompletedQuantity", "CompletedQty", "AlreadyMade", "ProducedQuantity", "ActualQuantity"])) || 0;
+      rows.push({ code, description, qty, source, batch, actual });
     }
   });
   if (rows.length > 0) return rows;
@@ -213,11 +217,14 @@ function extractSkuRows(raw: unknown, source: string, machines: MachineRef[]): S
   walkObjects(raw, (obj) => {
     const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
-    const code = cleanCode(pick(obj, [
+    const rawCode = String(pick(obj, [
       "PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "FGCode", "FinishedGood",
       "MaterialCode", "Material", "Product", "Code",
-    ]));
+    ]) ?? "").trim();
+    const code = cleanCode(rawCode);
     if (!code || code.length < 3 || /^(LINE|MACHINE|DATE|SHIFT|START|END|STATUS)$/i.test(code)) return;
+    const bm = rawCode.match(/-([Bb]\d+)$/);
+    const batch = bm?.[1] ?? "";
     const qty = num(pick(obj, [
       "OrderQuantity", "RequiredQuantity", "RequiredQty", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty",
       "TargetQty", "ScheduledQty", "Balance", "Demand", "Units",
@@ -225,7 +232,8 @@ function extractSkuRows(raw: unknown, source: string, machines: MachineRef[]): S
     const description = String(pick(obj, [
       "LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "Description", "ShortDescription", "Name",
     ]) ?? code).trim();
-    rows.push({ code, description, qty, source });
+    const actual = num(pick(obj, ["CompletedQuantity", "CompletedQty", "AlreadyMade", "ProducedQuantity", "ActualQuantity"])) || 0;
+    rows.push({ code, description, qty, source, batch, actual });
   });
 
   return rows;
