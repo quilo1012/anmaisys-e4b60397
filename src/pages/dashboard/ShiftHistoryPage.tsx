@@ -300,17 +300,23 @@ export default function ShiftHistoryPage() {
             {editing && (
               <div className="space-y-3">
                 <div><Label>Leader</Label>
-                  <Select value={editing.leader_id ?? ""} onValueChange={(v) => {
-                    const l = leaders.find((x) => x.id === v);
-                    setEditing({ ...editing, leader_id: v, leader_name: l?.name ?? null });
-                  }}>
-                    <SelectTrigger><SelectValue placeholder="Pick leader" /></SelectTrigger>
-                    <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Input
+                    list="leader-options"
+                    placeholder="Type or pick a leader"
+                    value={editing.leader_name ?? ""}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      const match = leaders.find((x) => x.name.toLowerCase() === name.toLowerCase());
+                      setEditing({ ...editing, leader_name: name || null, leader_id: match?.id ?? null });
+                    }}
+                  />
+                  <datalist id="leader-options">
+                    {leaders.map((l) => <option key={l.id} value={l.name} />)}
+                  </datalist>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div><Label>Staff planned</Label><Input type="number" value={editing.staff_planned ?? ""} onChange={(e) => setEditing({ ...editing, staff_planned: e.target.value ? +e.target.value : null })} /></div>
-                  <div><Label>Staff actual</Label><Input type="number" value={editing.staff_actual ?? ""} onChange={(e) => setEditing({ ...editing, staff_actual: e.target.value ? +e.target.value : null })} /></div>
+                  <div><Label>Staff planned</Label><Input type="number" placeholder="" value={editing.staff_planned == null || editing.staff_planned === 0 ? "" : editing.staff_planned} onChange={(e) => setEditing({ ...editing, staff_planned: e.target.value === "" ? null : +e.target.value })} /></div>
+                  <div><Label>Staff actual</Label><Input type="number" placeholder="" value={editing.staff_actual == null || editing.staff_actual === 0 ? "" : editing.staff_actual} onChange={(e) => setEditing({ ...editing, staff_actual: e.target.value === "" ? null : +e.target.value })} /></div>
                 </div>
                 <div><Label>Notes</Label><Textarea value={editing.notes ?? ""} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} /></div>
               </div>
