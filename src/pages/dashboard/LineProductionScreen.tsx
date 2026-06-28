@@ -751,6 +751,63 @@ export default function LineProductionScreen() {
   );
 }
 
+const SkuCard = memo(function SkuCard({
+  item,
+  effTarget,
+  onOpen,
+}: {
+  item: ItemRow;
+  effTarget: number;
+  onOpen: (row: ItemRow) => void;
+}) {
+  const pct = effTarget > 0 ? (item.actual_qty / effTarget) * 100 : 0;
+  const done = pct >= 100;
+  return (
+    <Card
+      onClick={() => onOpen({ ...item, target_qty: effTarget })}
+      className={cn(
+        "cursor-pointer active:scale-[0.99] transition",
+        done && "bg-emerald-500/10 border-emerald-500/40",
+      )}
+    >
+      <CardContent className="p-5 md:p-6 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-mono font-bold text-base flex items-center gap-2">
+              {item.code}
+              {item.target_qty === 0 && effTarget === 0 && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                  Intouch
+                </Badge>
+              )}
+            </div>
+            <div className="text-sm text-muted-foreground truncate">{item.name}</div>
+          </div>
+          <Badge variant="outline" className="text-base tabular-nums shrink-0">
+            {effTarget === 0 ? "No plan" : `${pct.toFixed(0)}%`}
+          </Badge>
+        </div>
+        <div className="flex items-baseline justify-between">
+          <span className="text-3xl font-bold tabular-nums">
+            {item.actual_qty.toLocaleString()}
+          </span>
+          <span className="text-sm text-muted-foreground tabular-nums">
+            / {effTarget.toLocaleString()}
+          </span>
+        </div>
+        <div className="h-3 overflow-hidden rounded-full bg-muted">
+          <div
+            className={cn("h-full transition-all", ragColor(pct))}
+            style={{ width: `${Math.min(100, pct)}%` }}
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
+
+// placeholder removed
+
 function RequestOrderDialog({
   open,
   onOpenChange,
