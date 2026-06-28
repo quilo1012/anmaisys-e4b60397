@@ -628,7 +628,7 @@ export default function ProductionPlannerPage() {
                         updateRow(i, { sku_id: id, sku_name: name, target_qty: r.target_qty || (tph ? tph * 8 : 0) });
                       }}
                       skus={skus}
-                      disabled={locked}
+                      disabled={false}
                     />
                   </div>
                   <div className="md:col-span-3">
