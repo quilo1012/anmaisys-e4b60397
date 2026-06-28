@@ -270,8 +270,8 @@ export default function ShiftHistoryPage() {
                           <td className="p-2 text-right tabular-nums">{tubs ? tubs.toLocaleString() : "—"}</td>
                           <td className="p-2">
                             <div className="flex items-center justify-end gap-1">
-                              {!s.locked && i.id && i.sku_id && (
-                                <Button size="icon" variant="ghost" title="Edit actual" onClick={() => { setEditingItem({ id: i.id, code, target: t, actual: a }); setEditActual(String(a)); }}>
+                              {!s.locked && i.id && i.sku_id && (isTub || isBag) && (
+                                <Button size="icon" variant="ghost" title="Edit actual (tubs/bags only)" onClick={() => { setEditingItem({ id: i.id, code, target: t, actual: a }); setEditActual(String(a)); }}>
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               )}
