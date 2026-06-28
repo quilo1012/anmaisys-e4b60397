@@ -1195,6 +1195,66 @@ export type Database = {
           },
         ]
       }
+      prediction_log: {
+        Row: {
+          actual_qty: number | null
+          applied_target: number | null
+          base_target: number
+          carryover_adj: number
+          created_at: string
+          created_by: string | null
+          entry_date: string
+          error_pct: number | null
+          id: string
+          line: string
+          mtbf_adj: number
+          notes: Json
+          predicted_target: number
+          resolved: boolean
+          resolved_at: string | null
+          shift: string
+          updated_at: string
+        }
+        Insert: {
+          actual_qty?: number | null
+          applied_target?: number | null
+          base_target?: number
+          carryover_adj?: number
+          created_at?: string
+          created_by?: string | null
+          entry_date: string
+          error_pct?: number | null
+          id?: string
+          line: string
+          mtbf_adj?: number
+          notes?: Json
+          predicted_target?: number
+          resolved?: boolean
+          resolved_at?: string | null
+          shift: string
+          updated_at?: string
+        }
+        Update: {
+          actual_qty?: number | null
+          applied_target?: number | null
+          base_target?: number
+          carryover_adj?: number
+          created_at?: string
+          created_by?: string | null
+          entry_date?: string
+          error_pct?: number | null
+          id?: string
+          line?: string
+          mtbf_adj?: number
+          notes?: Json
+          predicted_target?: number
+          resolved?: boolean
+          resolved_at?: string | null
+          shift?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       problem_descriptions: {
         Row: {
           active: boolean | null
@@ -2664,6 +2724,10 @@ export type Database = {
           line_id: string
           paired_at: string
         }[]
+      }
+      compute_smart_target: {
+        Args: { _entry_date: string; _line: string; _shift: string }
+        Returns: Json
       }
       current_device_line: { Args: never; Returns: string }
       current_device_line_ids: { Args: never; Returns: string[] }
