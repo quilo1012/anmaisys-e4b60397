@@ -244,15 +244,17 @@ function EngineerDashboardContent() {
   const [focusMode, setFocusMode] = useState(false);
   const [changePinOpen, setChangePinOpen] = useState(false);
 
-  // When the sidebar's "My Tasks" item is clicked, scroll to the Work Orders section
+  // When the sidebar's "My Tasks" / "History" items are clicked, scroll to the
+  // matching section.
   useEffect(() => {
-    if (searchParams.get("focus") === "tasks") {
-      const t = setTimeout(() => {
-        const el = document.getElementById("my-tasks");
-        el?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
-      return () => clearTimeout(t);
-    }
+    const focus = searchParams.get("focus");
+    if (!focus) return;
+    const id = focus === "history" ? "history" : focus === "tasks" ? "my-tasks" : null;
+    if (!id) return;
+    const t = setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+    return () => clearTimeout(t);
   }, [searchParams]);
   const [partsDialogWO, setPartsDialogWO] = useState<string | null>(null);
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
@@ -933,7 +935,80 @@ function EngineerDashboardContent() {
             )}
           </CardContent>
         </Card>
+
+        {/* History — orders this engineer has worked on */}
+        <Card id="history" className="scroll-mt-24">
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ClipboardList className="h-5 w-5" /> History
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 md:p-6 pt-0">
+            {(() => {
+              const myHistory = (allCompleted || [])
+                .filter((wo: any) =>
+                  wo.engineer_id === user?.id ||
+                  (Array.isArray(wo.collaborator_ids) && wo.collaborator_ids.includes(user?.id))
+                )
+                .sort((a: any, b: any) =>
+                  new Date(b.finished_at || b.closed_at || b.completed_at || b.created_at).getTime() -
+                  new Date(a.finished_at || a.closed_at || a.completed_at || a.created_at).getTime()
+                )
+                .slice(0, 50);
+              if (!myHistory.length) {
+                return <p className="text-muted-foreground text-center py-6">No completed work orders yet.</p>;
+              }
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 font-medium">WO#</th>
+                        <th className="text-left p-2 font-medium">Machine</th>
+                        <th className="text-left p-2 font-medium">Description</th>
+                        <th className="text-left p-2 font-medium">Status</th>
+                        <th className="text-left p-2 font-medium">Finished</th>
+                        <th className="text-left p-2 font-medium">Duration</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myHistory.map((wo: any) => {
+                        const end = wo.finished_at || wo.closed_at || wo.completed_at;
+                        const dur = wo.started_at && end
+                          ? differenceInMinutes(new Date(end), new Date(wo.started_at))
+                          : null;
+                        return (
+                          <tr
+                            key={wo.id}
+                            className="border-b cursor-pointer hover:bg-muted/40"
+                            onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
+                          >
+                            <td className="p-2 font-mono">
+                              WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                            </td>
+                            <td className="p-2">{wo.machine || "—"}</td>
+                            <td className="p-2 max-w-[260px] truncate">{wo.description}</td>
+                            <td className="p-2">
+                              <Badge variant="outline">{wo.status}</Badge>
+                            </td>
+                            <td className="p-2 text-muted-foreground">
+                              {end ? format(new Date(end), "dd/MM HH:mm") : "—"}
+                            </td>
+                            <td className="p-2 font-mono">
+                              {dur !== null ? `${Math.floor(dur / 60)}h ${dur % 60}m` : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
       </div>
+
 
       {partsDialogWO && (
         <PartsUsedDialog open={!!partsDialogWO} onOpenChange={(o) => !o && setPartsDialogWO(null)} workOrderId={partsDialogWO} engineerName={currentEngineer?.name} />
