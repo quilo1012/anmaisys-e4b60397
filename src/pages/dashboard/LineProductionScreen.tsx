@@ -771,6 +771,7 @@ function RequestOrderDialog({
   const [priority, setPriority] = useState<string>("high");
   const [machine, setMachine] = useState<string>("");
   const [requestedBy, setRequestedBy] = useState<string>("");
+  const [lineStatus, setLineStatus] = useState<"stopped" | "running">("stopped");
 
   // Lookup line_id for the selected line name
   const lineQ = useQuery({
