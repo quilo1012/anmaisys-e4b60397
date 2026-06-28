@@ -31,7 +31,8 @@ export function TabletProductionView({
       const { data, error } = await supabase
         .from("production_sessions")
         .select(`id, locked, notes, leader_name,
-                 production_items (sku_code, sku_name, target_qty, planned_qty, actual_qty)`)
+                 production_items (target_qty, planned_qty, actual_qty, sku:sku_id (code, name))`)
+
         .eq("line", productionLine)
         .eq("session_date", date)
         .eq("shift", shiftType)
