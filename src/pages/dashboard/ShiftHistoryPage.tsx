@@ -15,6 +15,7 @@ import { Download, Lock, Unlock, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
+import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 
 /**
@@ -48,6 +49,8 @@ interface SessionRow {
 
 export default function ShiftHistoryPage() {
   const qc = useQueryClient();
+  const { role } = useAuth();
+  const isAdmin = role === "admin" || role === "manager" || role === "maintenance_manager";
   const { data: lines = [] } = useLines();
   const { data: leaders = [] } = useLeaders();
   const { data: skus = [] } = useSkuProducts(false);
@@ -62,9 +65,10 @@ export default function ShiftHistoryPage() {
   
   const [editing, setEditing] = useState<SessionRow | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [editingItem, setEditingItem] = useState<{ id: string; code: string; target: number; actual: number; notes: string | null } | null>(null);
+  const [editingItem, setEditingItem] = useState<{ id: string; sku_id: string; code: string; target: number; actual: number; notes: string | null } | null>(null);
   const [editActual, setEditActual] = useState<string>("");
   const [editUnit, setEditUnit] = useState<"tubs" | "bags">("tubs");
+  const [editSkuId, setEditSkuId] = useState<string>("");
 
 
   const { data: sessions = [] } = useQuery({
@@ -140,13 +144,15 @@ export default function ShiftHistoryPage() {
   });
 
   const saveItemActual = useMutation({
-    mutationFn: async ({ id, actual, unit, prevNotes }: { id: string; actual: number; unit: "tubs" | "bags"; prevNotes: string | null }) => {
+    mutationFn: async ({ id, actual, unit, prevNotes, sku_id }: { id: string; actual: number; unit: "tubs" | "bags"; prevNotes: string | null; sku_id?: string }) => {
       const stripped = (prevNotes ?? "").replace(/\[unit:(tubs|bags)\]\s*/gi, "").trim();
       const newNotes = `[unit:${unit}]${stripped ? " " + stripped : ""}`;
-      const { error } = await supabase.from("production_items").update({ actual_qty: actual, notes: newNotes }).eq("id", id);
+      const payload: { actual_qty: number; notes: string; sku_id?: string } = { actual_qty: actual, notes: newNotes };
+      if (sku_id) payload.sku_id = sku_id;
+      const { error } = await supabase.from("production_items").update(payload).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setEditingItem(null); toast.success("Actual updated"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setEditingItem(null); toast.success("Saved"); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -294,7 +300,7 @@ export default function ShiftHistoryPage() {
                           <td className="p-2">
                             <div className="flex items-center justify-end gap-1">
                               {!s.locked && i.id && i.sku_id && (
-                                <Button size="icon" variant="ghost" title="Edit actual" onClick={() => { setEditingItem({ id: i.id, code, target: t, actual: a, notes: i.notes }); setEditActual(String(a)); setEditUnit(noteUnit ?? (isBag && !isTub ? "bags" : "tubs")); }}>
+                                <Button size="icon" variant="ghost" title="Edit actual" onClick={() => { setEditingItem({ id: i.id, sku_id: i.sku_id, code, target: t, actual: a, notes: i.notes }); setEditActual(String(a)); setEditUnit(noteUnit ?? (isBag && !isTub ? "bags" : "tubs")); setEditSkuId(i.sku_id); }}>
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               )}
@@ -372,6 +378,19 @@ export default function ShiftHistoryPage() {
             {editingItem && (
               <div className="space-y-3">
                 <div className="text-sm text-muted-foreground">Target: <span className="font-semibold text-foreground">{editingItem.target.toLocaleString()}</span></div>
+                {isAdmin && (
+                  <div>
+                    <Label>SKU</Label>
+                    <Select value={editSkuId} onValueChange={setEditSkuId}>
+                      <SelectTrigger><SelectValue placeholder="Pick a SKU" /></SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {skus.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.code} — {s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div>
                   <Label>Unit type</Label>
                   <Select value={editUnit} onValueChange={(v) => setEditUnit(v as "tubs" | "bags")}>
@@ -391,7 +410,7 @@ export default function ShiftHistoryPage() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
               <Button
-                onClick={() => editingItem && saveItemActual.mutate({ id: editingItem.id, actual: Number(editActual) || 0, unit: editUnit, prevNotes: editingItem.notes })}
+                onClick={() => editingItem && saveItemActual.mutate({ id: editingItem.id, actual: Number(editActual) || 0, unit: editUnit, prevNotes: editingItem.notes, sku_id: isAdmin && editSkuId && editSkuId !== editingItem.sku_id ? editSkuId : undefined })}
                 disabled={saveItemActual.isPending}
               >Save</Button>
             </DialogFooter>
