@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Eye } from "lucide-react";
+import { ArrowLeft, Eye, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLines } from "@/hooks/useMachines";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import LineProductionScreen from "./LineProductionScreen";
 
 const LS_LINE_KEY = "lps:line";
