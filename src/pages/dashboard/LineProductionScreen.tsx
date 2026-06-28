@@ -279,9 +279,8 @@ export default function LineProductionScreen() {
 
   const totals = useMemo(() => {
     const ragTotal = ragPlanQ.data || 0;
-    const skuTarget = items.reduce((s, i) => s + (i.target_qty || 0), 0);
-    // Prefer RAG Weekly plan as the source of truth for the shift target.
-    const target = ragTotal > 0 ? ragTotal : skuTarget;
+    // RAG Weekly plan_qty is the single source of truth for the shift target.
+    const target = ragTotal;
     const actual = items.reduce((s, i) => s + (i.actual_qty || 0), 0);
     const remaining = Math.max(0, target - actual);
     const pct = target > 0 ? (actual / target) * 100 : 0;
