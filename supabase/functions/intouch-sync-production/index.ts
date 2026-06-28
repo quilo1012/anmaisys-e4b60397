@@ -24,13 +24,50 @@ type MachineRef = { id: string; name: string };
 type SkuRow = { code: string; description: string; qty: number; source: string };
 type Agg = { qty: number; description: string; source: string };
 
-const FETCH_TIMEOUT_MS = 7_000;
+const FETCH_TIMEOUT_MS = 10_000;
+
+// ── iTouching quota helpers (shared state via intouch_quota_status table) ──
+const __QUOTA_ADMIN = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
+const tomorrowUtcMidnight = () => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 1);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+};
+async function intouchQuotaBlockedUntil(): Promise<string | null> {
+  try {
+    const { data } = await __QUOTA_ADMIN
+      .from("intouch_quota_status").select("blocked_until")
+      .eq("id", "singleton").maybeSingle();
+    if (data?.blocked_until && new Date(data.blocked_until).getTime() > Date.now()) {
+      return data.blocked_until as string;
+    }
+  } catch { /* best-effort */ }
+  return null;
+}
+async function intouchMarkEgressExceeded() {
+  try {
+    await __QUOTA_ADMIN.from("intouch_quota_status").upsert({
+      id: "singleton",
+      blocked_until: tomorrowUtcMidnight(),
+      updated_at: new Date().toISOString(),
+    });
+  } catch { /* best-effort */ }
+}
+class ItouchQuotaError extends Error {
+  blocked_until: string;
+  constructor(until: string) { super("iTouching daily quota exhausted"); this.blocked_until = until; }
+}
+class ItouchTimeoutError extends Error {
+  constructor() { super("iTouching API timeout"); }
+}
 
 async function it(path: string, init?: RequestInit) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+  let res: Response;
   try {
-    const res = await fetch(`${INTOUCH_URL}${path}`, {
+    res = await fetch(`${INTOUCH_URL}${path}`, {
       ...init,
       signal: ac.signal,
       headers: {
@@ -40,12 +77,19 @@ async function it(path: string, init?: RequestInit) {
         ...(init?.headers ?? {}),
       },
     });
-    const text = await res.text();
-    if (!res.ok) throw new Error(`iTouching ${path} ${res.status}: ${text.slice(0, 200)}`);
-    try { return JSON.parse(text); } catch { return text; }
+  } catch (e) {
+    if ((e as any)?.name === "AbortError") throw new ItouchTimeoutError();
+    throw e;
   } finally {
     clearTimeout(t);
   }
+  const text = await res.text();
+  if (text.includes("Exceeded API Max daily egress")) {
+    await intouchMarkEgressExceeded();
+    throw new ItouchQuotaError(tomorrowUtcMidnight());
+  }
+  if (!res.ok) throw new Error(`iTouching ${path} ${res.status}: ${text.slice(0, 200)}`);
+  try { return JSON.parse(text); } catch { return text; }
 }
 
 async function tryIt(path: string, init?: RequestInit) {
