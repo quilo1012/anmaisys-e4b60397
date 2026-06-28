@@ -1,0 +1,1 @@
+INSERT INTO public.lines (name, has_sides) VALUES ('Capsules Machine 1', false), ('Capsules Machine 2', false) ON CONFLICT (name) DO NOTHING;
