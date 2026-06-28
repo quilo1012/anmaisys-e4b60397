@@ -32,6 +32,7 @@ const fmt = (n: number | null | undefined) =>
 
 export default function SmartTargetPage() {
   const { role } = useAuth();
+  const navigate = useNavigate();
   const canApply = role === "admin" || role === "manager";
 
   const [date, setDate] = useState<Date>(new Date());
