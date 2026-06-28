@@ -414,6 +414,8 @@ Deno.serve(async (req) => {
           else {
             cur.description = cur.description || r.description;
             cur.qty = Math.max(cur.qty, r.qty);
+            cur.actual = Math.max(cur.actual, r.actual);
+            if (!cur.batch && r.batch) cur.batch = r.batch;
             if (r.status === "Running") cur.status = "Running";
             cur.sources.add(p.source);
           }
