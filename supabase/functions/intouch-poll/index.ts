@@ -200,9 +200,10 @@ Deno.serve(async (req) => {
   //     the secret value) so missing/invalid attempts are observable.
   const cronSecret = (Deno.env.get("CRON_SECRET") ?? "").trim();
   const cronTriggerToken = (Deno.env.get("CRON_TRIGGER_TOKEN") ?? "").trim();
+  const cronPollKey = (Deno.env.get("CRON_POLL_KEY") ?? "").trim();
 
-  if (!cronSecret && !cronTriggerToken) {
-    console.error("[intouch-poll][auth] CRON_SECRET/CRON_TRIGGER_TOKEN are not configured; refusing all requests.");
+  if (!cronSecret && !cronTriggerToken && !cronPollKey) {
+    console.error("[intouch-poll][auth] CRON_SECRET/CRON_TRIGGER_TOKEN/CRON_POLL_KEY are not configured; refusing all requests.");
     return new Response(JSON.stringify({ ok: false, error: "server_misconfigured" }), {
       status: 503,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -217,7 +218,8 @@ Deno.serve(async (req) => {
   const matches = (expected: string) =>
     expected.length > 0 && presented.length > 0 && presented === expected;
 
-  let allowed = matches(cronSecret) || matches(cronTriggerToken);
+  let allowed = matches(cronSecret) || matches(cronTriggerToken) || matches(cronPollKey);
+
 
   // Also allow an authenticated admin/manager (e.g. Sync Now from the UI).
   let authDebug: Record<string, unknown> = {};
