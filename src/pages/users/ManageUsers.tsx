@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Tablet, Users as UsersIcon } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
+import { TabletBindingsCard } from "@/components/TabletBindingsCard";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -539,6 +540,7 @@ export default function ManageUsers() {
           </div>
 
         <div className={activeTab === "tablets" ? "space-y-4" : "hidden"}>
+          <TabletBindingsCard />
           <OperatorAccountsSection isAdmin={currentRole === "admin"} />
         </div>
 
