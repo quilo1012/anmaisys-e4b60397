@@ -73,6 +73,7 @@ const navItems: NavItem[] = [
   { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production" },
   { title: "SKU Efficiency", url: "/dashboard/sku-efficiency", icon: Trophy, roles: ["admin", "manager"], group: "Production" },
   { title: "Forecast", url: "/dashboard/forecast", icon: Calculator, roles: ["admin", "manager"], group: "Production" },
+  { title: "Smart Target", url: "/dashboard/smart-target", icon: Brain, roles: ["admin", "manager"], group: "Production" },
   
   { title: "Quality Actions", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager"], group: "Production" },
   
