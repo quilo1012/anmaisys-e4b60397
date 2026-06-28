@@ -20,12 +20,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save } from "lucide-react";
+import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save, AlertTriangle, Plus } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
+import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 
 type Shift = "DAY" | "NIGHT";
 
