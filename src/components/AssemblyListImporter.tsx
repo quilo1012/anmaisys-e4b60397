@@ -120,47 +120,64 @@ export function AssemblyListImporter({
   };
 
   const downloadTemplate = () => {
-    // Matches the raw Unleashed Assembly export — no Line/Date/Shift columns.
-    // Line comes from Trello and is assigned per row (or in bulk) in the dialog.
-    const headers = [
-      "Part Code",        // Unleashed: Product Code
-      "Description",      // Unleashed: Product Description
-      "Order Qty",        // Unleashed: Quantity
-    ];
+    // Unleashed export + Line column (vem do Trello) com dropdown via data validation.
+    const headers = ["Part Code", "Description", "Order Qty", "Line"];
+    const lineNames = lines.map((l) => l.name);
+    const fallbackLine = defaultLine || lineNames[0] || "";
     const sample = (skus.slice(0, 3).length ? skus.slice(0, 3) : [
       { code: "CRE500-B45", name: "Creatine 500g — Batch B45" },
       { code: "WPI2KG-B12", name: "Whey Protein 2kg — Batch B12" },
       { code: "PRE300-B07", name: "Pre-Workout 300g — Batch B07" },
-    ]).map((s, i) => [s.code, s.name, 1000 * (i + 1)]);
+    ]).map((s, i) => [s.code, s.name, 1000 * (i + 1), fallbackLine]);
 
-    const aoa = [headers, ...sample];
+    // Reserve 500 blank rows so the dropdown extends past the sample
+    const blankRows = Array.from({ length: 500 }, () => ["", "", "", ""]);
+    const aoa = [headers, ...sample, ...blankRows];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = [{ wch: 18 }, { wch: 46 }, { wch: 12 }];
+    ws["!cols"] = [{ wch: 18 }, { wch: 46 }, { wch: 12 }, { wch: 22 }];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Assembly List");
+
+    // "Lines" sheet feeds the dropdown via a named range
+    const linesWs = XLSX.utils.aoa_to_sheet([["Line"], ...lineNames.map((n) => [n])]);
+    linesWs["!cols"] = [{ wch: 28 }];
+    XLSX.utils.book_append_sheet(wb, linesWs, "Lines");
+
+    // Data validation (Excel-compatible) on column D rows 2..501 → list from Lines!$A$2:$A$<n>
+    const lastLineRow = Math.max(2, lineNames.length + 1);
+    type WSWithDV = XLSX.WorkSheet & { "!dataValidation"?: unknown[] };
+    (ws as WSWithDV)["!dataValidation"] = [{
+      sqref: "D2:D501",
+      type: "list",
+      formula1: `=Lines!$A$2:$A$${lastLineRow}`,
+      allowBlank: true,
+      showDropDown: false,
+      showErrorMessage: true,
+      errorTitle: "Invalid line",
+      error: "Pick a line from the dropdown",
+    }];
 
     const info = XLSX.utils.aoa_to_sheet([
       ["Unleashed → AN Maintenance · Assembly List Template"],
       [],
       ["How to use:"],
-      ["1. In Unleashed, export the Assembly List as XLSX and upload it here as-is."],
-      ["2. Only 3 columns are required: Part Code, Description, Order Qty."],
-      ["3. The Line is NOT in Unleashed — it comes from Trello."],
-      ["   In the dialog, set the date + shift + line (per Trello) and use 'Apply to all'"],
-      ["   or pick the line per row before importing."],
-      ["4. Date and Shift default to the values set at the top of the dialog."],
+      ["1. Export the Assembly List from Unleashed as XLSX."],
+      ["2. Paste Part Code / Description / Order Qty into this template."],
+      ["3. Fill the Line column using the dropdown (values come from Trello)."],
+      ["4. Save and upload here — the system reads Line directly from the file."],
       [],
       ["Notes:"],
-      ["• Part Code must match an SKU code in the system for auto-match"],
-      ["  (otherwise fuzzy match by Description ≥ 50%)."],
+      ["• Date and Shift default to the values set at the top of the dialog."],
+      ["• Part Code must match an SKU code; fuzzy match by Description ≥ 50% otherwise."],
       ["• Order Qty accepts European (6.666,5) and US (6,666.5) number formats."],
-      ["• Extra Unleashed columns (Assembly Number, Warehouse, Status, …) are ignored."],
+      ["• The 'Lines' sheet is the source of the dropdown — do not delete or rename it."],
     ]);
     info["!cols"] = [{ wch: 90 }];
     XLSX.utils.book_append_sheet(wb, info, "Instructions");
 
     XLSX.writeFile(wb, `assembly-list-template-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-    toast.success("Template baixado — Line é atribuída aqui (vem do Trello)");
+    toast.success("Template baixado — coluna Line com dropdown pronta");
   };
 
 
