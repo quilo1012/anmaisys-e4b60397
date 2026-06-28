@@ -708,6 +708,13 @@ export default function LineProductionScreen() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RequestOrderDialog
+        open={requestOpen}
+        onOpenChange={setRequestOpen}
+        line={line}
+        operatorLabel={operatorAcctQ.data?.label || `Tablet ${tabletId}`}
+      />
     </div>
   );
 }
