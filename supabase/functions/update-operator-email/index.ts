@@ -14,6 +14,54 @@ const bodySchema = z.object({
   email: z.string().email().max(255),
 });
 
+const getReadableErrorMessage = (error: unknown) => {
+  const anyErr = error as any;
+  const message =
+    (typeof anyErr?.message === "string" && anyErr.message) ||
+    (typeof anyErr?.error_description === "string" && anyErr.error_description) ||
+    (typeof anyErr?.error === "string" && anyErr.error) ||
+    (typeof anyErr?.hint === "string" && anyErr.hint) ||
+    (typeof anyErr?.details === "string" && anyErr.details) ||
+    (typeof error === "string" ? error : "") ||
+    "Unknown error";
+
+  const lower = message.toLowerCase();
+  if (
+    lower.includes("users_email_partial_key") ||
+    lower.includes("duplicate key") ||
+    lower.includes("already been registered") ||
+    lower.includes("already registered") ||
+    lower.includes("already exists")
+  ) {
+    return "This email is already in use by another login. Choose another email or delete/restore the existing account first.";
+  }
+  if (lower.includes("authretryablefetcherror") || lower === "{}" || lower === "unknown error") {
+    return "The login email service returned a temporary 500 while changing this email. The system checked whether the change applied; please try again, or create a fresh tablet login with this email.";
+  }
+  return message;
+};
+
+async function updateAuthEmailWithVerification(admin: ReturnType<typeof createClient>, userId: string, newEmail: string) {
+  // Updating email + email_confirm in the same Auth Admin call can surface
+  // retryable 500/{} errors in GoTrue. Keep this operation minimal, then
+  // verify the persisted user before treating retryable errors as fatal.
+  const { error: authErr } = await admin.auth.admin.updateUserById(userId, { email: newEmail });
+  if (!authErr) return;
+
+  const { data: verifyData, error: verifyErr } = await admin.auth.admin.getUserById(userId);
+  const persistedEmail = verifyData?.user?.email?.trim().toLowerCase();
+  if (!verifyErr && persistedEmail === newEmail) return;
+
+  console.error("[update-operator-email] auth email update did not persist", {
+    userId,
+    newEmail,
+    persistedEmail,
+    authErr,
+    verifyErr,
+  });
+  throw authErr;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
 
@@ -25,17 +73,14 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const userClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
 
-    const { data: { user: caller } } = await userClient.auth.getUser();
-    if (!caller) throw new Error("Not authenticated");
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const { data: claimsData, error: claimsError } = await admin.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) throw new Error("Not authenticated");
+    const callerId = claimsData.claims.sub as string;
 
-    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: caller.id, _role: "admin" });
-    const { data: isManager } = await admin.rpc("has_role", { _user_id: caller.id, _role: "manager" });
+    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: callerId, _role: "admin" });
+    const { data: isManager } = await admin.rpc("has_role", { _user_id: callerId, _role: "manager" });
     if (!isAdmin && !isManager) throw new Error("Only admins or managers may update operator emails");
 
     const { id, email } = bodySchema.parse(await req.json());
@@ -67,11 +112,7 @@ Deno.serve(async (req) => {
     if (clash) throw new Error("Another operator account already uses this email");
 
     // Update auth user (this changes the login email)
-    const { error: authErr } = await admin.auth.admin.updateUserById(acc.user_id, {
-      email: newEmail,
-      email_confirm: true,
-    });
-    if (authErr) throw authErr;
+    await updateAuthEmailWithVerification(admin, acc.user_id, newEmail);
 
     // Update operator_line_accounts + profile email
     const { error: olaErr } = await admin
@@ -93,17 +134,8 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    // Robust message extraction — Supabase errors (PostgrestError, AuthError)
-    // are plain objects, not Error instances, so error.message alone or
-    // JSON.stringify on a non-enumerable Error yields "{}".
     const anyErr = error as any;
-    const message =
-      (typeof anyErr?.message === "string" && anyErr.message) ||
-      (typeof anyErr?.error_description === "string" && anyErr.error_description) ||
-      (typeof anyErr?.error === "string" && anyErr.error) ||
-      (typeof anyErr?.hint === "string" && anyErr.hint) ||
-      (typeof error === "string" ? error : null) ||
-      "Unknown error";
+    const message = getReadableErrorMessage(error);
     console.error("[update-operator-email] failed:", message, anyErr);
     return new Response(JSON.stringify({ error: message }), {
       status: 400,
