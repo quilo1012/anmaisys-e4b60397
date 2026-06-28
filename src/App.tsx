@@ -57,6 +57,7 @@ const PMIntelligencePage = lazy(() => import("./pages/dashboard/PMIntelligencePa
 const SmartTargetPage = lazy(() => import("./pages/dashboard/SmartTargetPage"));
 const WeeklyProductionReportPage = lazy(() => import("./pages/dashboard/WeeklyProductionReportPage"));
 const OperatorPreviewPage = lazy(() => import("./pages/dashboard/OperatorPreviewPage"));
+const EngineerPreviewPage = lazy(() => import("./pages/dashboard/EngineerPreviewPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -475,6 +476,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <OperatorPreviewPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/engineer-preview"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                      <EngineerPreviewPage />
                     </ProtectedRoute>
                   }
                 />

@@ -90,6 +90,7 @@ const navItems: NavItem[] = [
   { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "Admin" },
   { title: "iTouching Sync", url: "/dashboard/intouch-settings", icon: Radar, roles: ["admin"], group: "Admin" },
   { title: "Operator Preview", url: "/dashboard/operator-preview", icon: Gauge, roles: ["admin", "manager", "maintenance_manager"], group: "Admin" },
+  { title: "Engineer Preview", url: "/dashboard/engineer-preview", icon: Gauge, roles: ["admin", "manager", "maintenance_manager"], group: "Admin" },
 ];
 
 function useDarkMode() {
