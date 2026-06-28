@@ -965,25 +965,6 @@ function EngineerDashboardContent() {
           </CardHeader>
           <CardContent className="p-3 md:p-6 pt-0">
             {(() => {
-              const myHistory = (allCompleted || [])
-                .filter((wo: any) =>
-                  wo.engineer_id === user?.id ||
-                  (Array.isArray(wo.collaborator_ids) && wo.collaborator_ids.includes(user?.id))
-                )
-                .sort((a: any, b: any) =>
-                  new Date(b.finished_at || b.closed_at || b.completed_at || b.created_at).getTime() -
-                  new Date(a.finished_at || a.closed_at || a.completed_at || a.created_at).getTime()
-                )
-                .slice(0, 50);
-              if (!myHistory.length) {
-                return <p className="text-muted-foreground text-center py-6">No completed work orders yet.</p>;
-              }
-              return (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-          <CardContent className="p-3 md:p-6 pt-0">
-            {(() => {
               const myHistory = (engineerHistory || []) as any[];
               if (!myHistory.length) {
                 return <p className="text-muted-foreground text-center py-6">No completed work orders yet.</p>;
