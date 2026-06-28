@@ -192,7 +192,7 @@ function queryVariants(path: string, machineId: string | null, startISO: string,
   return Array.from(new Set(out));
 }
 
-type Row = { code: string; description: string; qty: number; status: "Running" | "Scheduled"; seq: number };
+type Row = { code: string; description: string; qty: number; status: "Running" | "Scheduled"; seq: number; batch: string; actual: number };
 function parseDateMs(value: unknown) {
   if (value == null || String(value).trim() === "") return null;
   const ms = Date.parse(String(value));
