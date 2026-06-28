@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, subDays } from "date-fns";
-import { Brain, TrendingUp, TrendingDown, AlertCircle, CheckCircle2, Target, Sparkles } from "lucide-react";
+import { Brain, TrendingUp, TrendingDown, AlertCircle, CheckCircle2, Target, Sparkles, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
