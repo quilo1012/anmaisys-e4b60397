@@ -369,8 +369,10 @@ Deno.serve(async (req) => {
     const now = new Date().toISOString();
 
     for (const s of statuses) {
+     try {
       const m = mapped.find((x) => x.intouch_machine_id === s.MachineID);
       if (!m) continue;
+
 
       const currentStatus = parseStatus(s.Status);
       const previousStatus = parseStatus(m.last_status);
