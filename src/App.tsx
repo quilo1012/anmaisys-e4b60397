@@ -398,7 +398,8 @@ const App = () => (
                 <Route
                   path="/dashboard/shift-history"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "operator"]}>
+
                       <ShiftHistoryPage />
                     </ProtectedRoute>
                   }
