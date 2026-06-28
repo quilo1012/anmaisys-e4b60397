@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useLocation, useNavigate } from "react-router-dom";
-import appliedLogo from "@/assets/appliedlogo.jpeg";
+import appliedLogo from "@/assets/an-icon.png";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
