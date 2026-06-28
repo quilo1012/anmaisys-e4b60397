@@ -562,10 +562,13 @@ Deno.serve(async (req) => {
     const blockedUntil = await intouchQuotaBlockedUntil();
     if (blockedUntil) {
       return new Response(JSON.stringify({
+        ok: false,
+        skipped: true,
+        reason: "quota_exhausted",
         error: "iTouching daily quota exhausted",
         retry_after: blockedUntil,
       }), {
-        status: 429,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -853,6 +856,28 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     const msg = (e as Error).message;
+    if (e instanceof ItouchQuotaError) {
+      if (runId) {
+        try {
+          await admin.from("intouch_sync_runs").update({
+            status: "skipped",
+            finished_at: new Date().toISOString(),
+            error_message: msg.slice(0, 2000),
+            details: { reason: "quota_exhausted", retry_after: e.blocked_until },
+          }).eq("id", runId);
+        } catch { /* ignore */ }
+      }
+      return new Response(JSON.stringify({
+        ok: false,
+        skipped: true,
+        reason: "quota_exhausted",
+        error: "iTouching daily quota exhausted",
+        retry_after: e.blocked_until,
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     if (runId) {
       try {
         await admin.from("intouch_sync_runs").update({
