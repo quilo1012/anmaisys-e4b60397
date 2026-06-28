@@ -354,6 +354,14 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/dashboard/weekly-report"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <WeeklyProductionReportPage />
+                    </ProtectedRoute>
+                  }
+                />
 
                 <Route
                   path="/dashboard/sku-efficiency"
