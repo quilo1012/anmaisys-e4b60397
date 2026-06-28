@@ -467,7 +467,7 @@ export default function LineProductionScreen() {
           <Badge variant="outline" className="h-10 px-3 text-sm">
             {activeSessionDate}
           </Badge>
-          {!isOperator && (
+          {!isOperator && tabletId !== "0" && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Tablet</span>
               <Select value={tabletId || "__none__"} onValueChange={(v) => setTabletId(v === "__none__" ? "" : v)}>
@@ -486,6 +486,7 @@ export default function LineProductionScreen() {
               </Badge>
             </div>
           )}
+
           <div className="ml-auto flex items-center gap-3">
             <SyncStatusIndicator
               isSyncing={itemsQ.isFetching || ragPlanQ.isFetching || sessionQ.isFetching || updateActual.isPending}
