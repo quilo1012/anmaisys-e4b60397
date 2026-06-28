@@ -718,3 +718,149 @@ export default function LineProductionScreen() {
     </div>
   );
 }
+
+function RequestOrderDialog({
+  open,
+  onOpenChange,
+  line,
+  operatorLabel,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  line: string;
+  operatorLabel: string;
+}) {
+  const createWO = useCreateWorkOrder();
+  const problemsQ = useActiveProblemDescriptions();
+  const [problem, setProblem] = useState<string>("");
+  const [customDesc, setCustomDesc] = useState<string>("");
+  const [priority, setPriority] = useState<string>("high");
+  const [machine, setMachine] = useState<string>("");
+  const [requestedBy, setRequestedBy] = useState<string>("");
+
+  // Lookup line_id for the selected line name
+  const lineQ = useQuery({
+    enabled: open && !!line,
+    queryKey: ["lps-req-line-id", line],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("lines").select("id").eq("name", line).maybeSingle();
+      return data?.id as string | null;
+    },
+  });
+
+  // Machines on this line (optional)
+  const machinesQ = useQuery({
+    enabled: open && !!lineQ.data,
+    queryKey: ["lps-req-machines", lineQ.data],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("machines")
+        .select("id, name, fixed_line, current_line, line")
+        .or(`fixed_line.eq.${line},current_line.eq.${line},line.eq.${line}`);
+      return (data || []) as { id: string; name: string }[];
+    },
+  });
+
+  const submit = async () => {
+    const description = problem === "__custom__" || !problem ? customDesc.trim() : problem;
+    if (!description) {
+      toast.error("Please describe the problem");
+      return;
+    }
+    try {
+      await createWO.mutateAsync({
+        requester_name: requestedBy.trim() || operatorLabel || "Operator",
+        machine: machine || "",
+        description,
+        priority,
+        line_id: lineQ.data || null,
+        line_stopped: true,
+      } as any);
+      toast.success("Maintenance order opened");
+      onOpenChange(false);
+      setProblem(""); setCustomDesc(""); setMachine(""); setRequestedBy(""); setPriority("high");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to open order");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-2xl flex items-center gap-2">
+            <AlertTriangle className="h-6 w-6 text-red-500" /> Request Maintenance — {line}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-base">Requested by</Label>
+            <Input
+              className="h-12 text-lg"
+              placeholder={operatorLabel || "Your name / tablet"}
+              value={requestedBy}
+              onChange={(e) => setRequestedBy(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-base">Machine (optional)</Label>
+            <Select value={machine || "__none__"} onValueChange={(v) => setMachine(v === "__none__" ? "" : v)}>
+              <SelectTrigger className="h-12 text-lg"><SelectValue placeholder="Any" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Any —</SelectItem>
+                {(machinesQ.data || []).map((m) => (
+                  <SelectItem key={m.id} value={m.name} className="text-lg">{m.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-base">Problem</Label>
+            <Select value={problem} onValueChange={setProblem}>
+              <SelectTrigger className="h-12 text-lg"><SelectValue placeholder="Select problem" /></SelectTrigger>
+              <SelectContent>
+                {(problemsQ.data || []).map((p: any) => (
+                  <SelectItem key={p.id} value={p.name} className="text-lg">{p.name}</SelectItem>
+                ))}
+                <SelectItem value="__custom__" className="text-lg">— Other (describe) —</SelectItem>
+              </SelectContent>
+            </Select>
+            {(problem === "__custom__" || !problem) && (
+              <Textarea
+                className="min-h-[80px] text-base mt-2"
+                placeholder="Describe the problem"
+                value={customDesc}
+                onChange={(e) => setCustomDesc(e.target.value)}
+              />
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label className="text-base">Priority</Label>
+            <div className="flex gap-2">
+              {["low","medium","high","critical"].map((p) => (
+                <Button
+                  key={p}
+                  variant={priority === p ? "default" : "outline"}
+                  className="h-12 flex-1 capitalize"
+                  onClick={() => setPriority(p)}
+                >
+                  {p}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" className="h-12" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            className="h-12 bg-red-600 hover:bg-red-700 text-white"
+            onClick={submit}
+            disabled={createWO.isPending}
+          >
+            <Plus className="h-5 w-5 mr-2" /> {createWO.isPending ? "Opening…" : "Open Order"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
