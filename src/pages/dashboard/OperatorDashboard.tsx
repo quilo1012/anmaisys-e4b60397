@@ -390,14 +390,15 @@ function OperatorDashboardContent() {
                         variant="secondary"
                         className="h-7"
                         onClick={async () => {
+                          const qc = (window as any).__qc__ || null;
                           const { error } = await (supabase as any).rpc("move_machine_to_line", {
                             _machine_id: m.id,
                             _new_line: lineName,
                             _notes: "Moved by operator from WO dialog",
                           });
-                          if (error) { toast.error(error.message); return; }
-                          toast.success(`${m.name} moved to ${lineName}`);
-                          qc.invalidateQueries({ queryKey: ["machines"] });
+                          if (error) { sonnerToast.error(error.message); return; }
+                          sonnerToast.success(`${m.name} moved to ${lineName}`);
+                          qcRef.invalidateQueries({ queryKey: ["machines"] });
                         }}
                       >
                         Move here
