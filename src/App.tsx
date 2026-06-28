@@ -479,6 +479,14 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/dashboard/engineer-preview"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                      <EngineerPreviewPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/" element={<SessionRedirect />} />
                 <Route path="*" element={<SessionRedirect />} />
               </Routes>
