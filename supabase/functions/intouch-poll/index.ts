@@ -298,34 +298,10 @@ Deno.serve(async (req) => {
     const statuses: Array<{ MachineID: string; Status: number; DowntimeCode?: string | null }> =
       await it(`/api/getmachineStatuses`, { method: "POST", body: JSON.stringify(ids) });
 
-    // Resolve iTouching DowntimeCode UUIDs → friendly names
-    let uuidToName = new Map<string, string>();
-    try {
-      const codes: Array<{ ID: string; Name: string; Active: boolean }> =
-        await it(`/api/DowntimeCode`);
-      uuidToName = new Map(
-        (codes ?? []).map((c) => [String(c.ID).toLowerCase(), c.Name ?? ""]),
-      );
-
-      // Auto-seed the stop-code map (requires_wo defaults FALSE on first sight
-      // so the admin can opt-in per code; existing rows are preserved).
-      if (codes?.length) {
-        await admin.from("intouch_stop_code_map").upsert(
-          codes
-            .filter((c) => c.ID)
-            .map((c) => ({
-              stop_code: String(c.ID).toLowerCase(),
-              label: c.Name || `iTouching ${c.ID}`,
-              requires_wo: false,
-              active: c.Active !== false,
-            })),
-          { onConflict: "stop_code", ignoreDuplicates: true },
-        );
-      }
-    } catch (e) {
-      results.errors.push(`DowntimeCode list: ${(e as Error).message}`);
-    }
-
+    // Resolve iTouching DowntimeCode UUIDs → friendly names.
+    // To save iTouching API egress (100MB/day quota), prefer the labels we
+    // already cached in intouch_stop_code_map and only fetch /api/DowntimeCode
+    // when the current poll surfaces an unknown UUID.
     const { data: codeMap } = await admin
       .from("intouch_stop_code_map")
       .select("stop_code, label, default_priority, requires_wo")
@@ -333,6 +309,42 @@ Deno.serve(async (req) => {
     const codeLookup = new Map(
       (codeMap ?? []).map((c) => [normalizeStopCode(c.stop_code), c]),
     );
+    const uuidToName = new Map<string, string>(
+      (codeMap ?? []).map((c) => [normalizeStopCode(c.stop_code), c.label ?? ""]),
+    );
+
+    const seenCodes = new Set(
+      (statuses ?? [])
+        .map((s) => normalizeStopCode(s.DowntimeCode))
+        .filter((k) => k.length > 0),
+    );
+    const unknownCodes = [...seenCodes].filter((k) => !codeLookup.has(k));
+
+    if (unknownCodes.length > 0) {
+      try {
+        const codes: Array<{ ID: string; Name: string; Active: boolean }> =
+          await it(`/api/DowntimeCode`);
+        if (codes?.length) {
+          for (const c of codes) {
+            const k = normalizeStopCode(c.ID);
+            if (k) uuidToName.set(k, c.Name ?? "");
+          }
+          await admin.from("intouch_stop_code_map").upsert(
+            codes
+              .filter((c) => c.ID)
+              .map((c) => ({
+                stop_code: normalizeStopCode(c.ID),
+                label: c.Name || `iTouching ${c.ID}`,
+                requires_wo: false,
+                active: c.Active !== false,
+              })),
+            { onConflict: "stop_code", ignoreDuplicates: true },
+          );
+        }
+      } catch (e) {
+        results.errors.push(`DowntimeCode list: ${(e as Error).message}`);
+      }
+    }
 
 
     const now = new Date().toISOString();
