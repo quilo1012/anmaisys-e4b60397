@@ -7,7 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { usePmSchedules, useUpdatePmSchedule } from "@/hooks/usePreventiveMaintenance";
 import { toast } from "sonner";
-import { Brain, CheckCircle2, AlertTriangle, ArrowDown, ArrowUp } from "lucide-react";
+import { Brain, CheckCircle2, AlertTriangle, ArrowDown, ArrowUp, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 type RecKind = "reduce" | "no_pm" | "ok" | "increase";
 
