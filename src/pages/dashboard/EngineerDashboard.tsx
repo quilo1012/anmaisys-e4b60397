@@ -982,44 +982,46 @@ function EngineerDashboardContent() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
+          <CardContent className="p-3 md:p-6 pt-0">
+            {(() => {
+              const myHistory = (engineerHistory || []) as any[];
+              if (!myHistory.length) {
+                return <p className="text-muted-foreground text-center py-6">No completed work orders yet.</p>;
+              }
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
                       <tr className="border-b">
                         <th className="text-left p-2 font-medium">WO#</th>
-                        <th className="text-left p-2 font-medium">Machine</th>
-                        <th className="text-left p-2 font-medium">Description</th>
+                        <th className="text-left p-2 font-medium">Line</th>
+                        <th className="text-left p-2 font-medium">Problem</th>
                         <th className="text-left p-2 font-medium">Status</th>
-                        <th className="text-left p-2 font-medium">Finished</th>
-                        <th className="text-left p-2 font-medium">Duration</th>
+                        <th className="text-left p-2 font-medium">Requester</th>
+                        <th className="text-left p-2 font-medium">Engineer</th>
+                        <th className="text-left p-2 font-medium">Created</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {myHistory.map((wo: any) => {
-                        const end = wo.finished_at || wo.closed_at || wo.completed_at;
-                        const dur = wo.started_at && end
-                          ? differenceInMinutes(new Date(end), new Date(wo.started_at))
-                          : null;
-                        return (
-                          <tr
-                            key={wo.id}
-                            className="border-b cursor-pointer hover:bg-muted/40"
-                            onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
-                          >
-                            <td className="p-2 font-mono">
-                              WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
-                            </td>
-                            <td className="p-2">{wo.machine || "—"}</td>
-                            <td className="p-2 max-w-[260px] truncate">{wo.description}</td>
-                            <td className="p-2">
-                              <Badge variant="outline">{wo.status}</Badge>
-                            </td>
-                            <td className="p-2 text-muted-foreground">
-                              {end ? format(new Date(end), "dd/MM HH:mm") : "—"}
-                            </td>
-                            <td className="p-2 font-mono">
-                              {dur !== null ? `${Math.floor(dur / 60)}h ${dur % 60}m` : "—"}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {myHistory.map((wo: any) => (
+                        <tr
+                          key={wo.id}
+                          className="border-b cursor-pointer hover:bg-muted/40"
+                          onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
+                        >
+                          <td className="p-2 font-mono whitespace-nowrap">
+                            WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                          </td>
+                          <td className="p-2">{wo.line_at_time || "—"}</td>
+                          <td className="p-2 max-w-[280px] truncate">{wo.description || wo.machine || "—"}</td>
+                          <td className="p-2"><Badge variant="outline">{wo.status}</Badge></td>
+                          <td className="p-2">{wo.requester_name || "—"}</td>
+                          <td className="p-2">{wo.engineer_name || "—"}</td>
+                          <td className="p-2 text-muted-foreground whitespace-nowrap">
+                            {format(new Date(wo.created_at), "dd/MM HH:mm")}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -1027,6 +1029,7 @@ function EngineerDashboardContent() {
             })()}
           </CardContent>
         </Card>
+
       </div>
 
 
