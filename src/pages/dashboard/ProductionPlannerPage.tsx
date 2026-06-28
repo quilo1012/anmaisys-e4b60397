@@ -292,6 +292,23 @@ export default function ProductionPlannerPage() {
     if (!line) return alert("Pick a production line");
     const leader = leaders.find((l) => l.id === leaderId);
     try {
+      // When locked, only allow SKU corrections — skip session/RAG updates.
+      if (locked) {
+        if (!existingId) return alert("No session to update");
+        await saveItems.mutateAsync({
+          session_id: existingId,
+          items: rows.filter((r) => r.sku_id).map((r) => ({
+            sku_id: r.sku_id,
+            target_qty: r.target_qty || 0,
+            planned_qty: r.target_qty || 0,
+            actual_qty: r.actual_qty || 0,
+            notes: null,
+          })),
+        });
+        toast.success("SKU updated on locked session.");
+        return;
+      }
+
       const session = await upsertSession.mutateAsync({
         id: existingId ?? undefined,
         session_date: date, shift, line,
@@ -689,8 +706,8 @@ export default function ProductionPlannerPage() {
         </div>
 
         <div className="flex justify-end">
-          <Button size="lg" onClick={save} disabled={locked || upsertSession.isPending || saveItems.isPending}>
-            <Save className="h-4 w-4 mr-2" />Save Session
+          <Button size="lg" onClick={save} disabled={upsertSession.isPending || saveItems.isPending}>
+            <Save className="h-4 w-4 mr-2" />{locked ? "Save SKU changes" : "Save Session"}
           </Button>
         </div>
 
