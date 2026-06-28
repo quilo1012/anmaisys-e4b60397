@@ -50,7 +50,15 @@ interface SessionRow {
 
 export default function ShiftHistoryPage() {
   const qc = useQueryClient();
-  const { data: lines = [] } = useLines();
+  const { role } = useAuth();
+  const isOperator = role === "operator";
+  const { data: operatorLineIds = [] } = useOperatorLineIds();
+  const { data: allLines = [] } = useLines();
+  const lines = useMemo(
+    () => (isOperator ? allLines.filter((l) => operatorLineIds.includes(l.id)) : allLines),
+    [allLines, isOperator, operatorLineIds]
+  );
+  const allowedLineNames = useMemo(() => new Set(lines.map((l) => l.name)), [lines]);
   const { data: leaders = [] } = useLeaders();
   const { data: skus = [] } = useSkuProducts(false);
   const skuMap = useMemo(() => new Map(skus.map((s) => [s.id, s])), [skus]);
