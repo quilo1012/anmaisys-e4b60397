@@ -119,6 +119,63 @@ export function AssemblyListImporter({
     setRows((rs) => rs.map((r) => (r.raw_code === rawCode ? { ...r, line } : r)));
   };
 
+  /**
+   * Smart auto-assign: para cada SKU sem Line, procura a Line mais usada
+   * em production_items / production_sessions nos últimos 90 dias.
+   * Cobre "code change": se o ERP mudou o código, casamos via sku_id
+   * (já resolvido por exact code OU fuzzy description acima).
+   */
+  const autoAssignFromHistory = async (silent = false) => {
+    const targets = rows.filter((r) => r.sku_id && !r.line);
+    if (targets.length === 0) {
+      if (!silent) toast.info("Nothing to auto-assign — all rows already have a line");
+      return;
+    }
+    const skuIds = Array.from(new Set(targets.map((r) => r.sku_id!)));
+    const since = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
+
+    const { data, error } = await supabase
+      .from("production_items")
+      .select("sku_id, production_sessions!inner(line, session_date)")
+      .in("sku_id", skuIds)
+      .gte("production_sessions.session_date", since);
+    if (error) { if (!silent) toast.error(error.message); return; }
+
+    // sku_id -> Map<line, weight>  (weight = recency-decayed count)
+    const lineNames = new Set(lines.map((l) => l.name));
+    const tally = new Map<string, Map<string, number>>();
+    const today = Date.now();
+    for (const row of (data ?? []) as Array<{ sku_id: string; production_sessions: { line: string; session_date: string } }>) {
+      const ln = row.production_sessions?.line;
+      if (!ln || !lineNames.has(ln)) continue;
+      const ageDays = Math.max(0, (today - new Date(row.production_sessions.session_date).getTime()) / 86400_000);
+      const w = 1 / (1 + ageDays / 30); // newer counts more
+      const m = tally.get(row.sku_id) ?? new Map<string, number>();
+      m.set(ln, (m.get(ln) ?? 0) + w);
+      tally.set(row.sku_id, m);
+    }
+
+    const best = new Map<string, string>();
+    for (const [sku, m] of tally) {
+      let topLine = ""; let topW = 0;
+      for (const [ln, w] of m) if (w > topW) { topW = w; topLine = ln; }
+      if (topLine) best.set(sku, topLine);
+    }
+
+    let assigned = 0;
+    setRows((rs) => rs.map((r) => {
+      if (r.sku_id && !r.line && best.has(r.sku_id)) {
+        assigned++;
+        return { ...r, line: best.get(r.sku_id)!, notes: "auto:history" };
+      }
+      return r;
+    }));
+    if (!silent) {
+      if (assigned > 0) toast.success(`Smart match: assigned line to ${assigned} row(s) from history`);
+      else toast.info("No prior line found in history for the unassigned SKUs");
+    }
+  };
+
   const downloadTemplate = () => {
     // Unleashed export + Line column (vem do Trello) com dropdown via data validation.
     const headers = ["Part Code", "Description", "Order Qty", "Line"];
