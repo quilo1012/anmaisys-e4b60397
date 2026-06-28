@@ -800,7 +800,7 @@ Deno.serve(async (req) => {
           const sku_id = idByCode.get(code);
           const itouchActual = useLineFallback
             ? Math.round(lineGood * weight)
-            : Math.round(actualsByCode.get(code) ?? 0);
+            : Math.max(Math.round(actualsByCode.get(code) ?? 0), Math.round(a.actual ?? 0));
           const prev = sku_id ? (actualBySku.get(sku_id) ?? 0) : 0;
           // Never let an automatic sync drive the actual backwards (covers
           // manual edits + cumulative iTouching counts that may dip).
@@ -815,6 +815,7 @@ Deno.serve(async (req) => {
             planned_qty: plan,
             actual_qty: actual,
             scrap_qty,
+            blender_ref: a.batch || null,
             target_manual_at: manualTarget != null ? new Date().toISOString() : null,
             notes: `itouching:${source}${useLineFallback ? "+line_good" : ""}${manualTarget != null ? "+manual_target" : ""}`,
           };
