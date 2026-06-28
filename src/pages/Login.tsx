@@ -18,6 +18,8 @@ import {
 const dashMap: Record<string, string> = {
   admin: "/dashboard/manager",
   manager: "/dashboard/manager",
+  maintenance_manager: "/dashboard/manager",
+  viewer: "/dashboard/manager",
   engineer: "/dashboard/engineer",
   operator: "/dashboard/line-production",
 };
