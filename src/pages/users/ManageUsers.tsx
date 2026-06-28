@@ -540,6 +540,7 @@ export default function ManageUsers() {
           </div>
 
         <div className={activeTab === "tablets" ? "space-y-4" : "hidden"}>
+          <TabletBindingsCard />
           <OperatorAccountsSection isAdmin={currentRole === "admin"} />
         </div>
 
