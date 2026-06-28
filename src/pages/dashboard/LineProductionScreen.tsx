@@ -771,6 +771,7 @@ function RequestOrderDialog({
   const [priority, setPriority] = useState<string>("high");
   const [machine, setMachine] = useState<string>("");
   const [requestedBy, setRequestedBy] = useState<string>("");
+  const [lineStatus, setLineStatus] = useState<"stopped" | "running">("stopped");
 
   // Lookup line_id for the selected line name
   const lineQ = useQuery({
@@ -806,13 +807,13 @@ function RequestOrderDialog({
         requester_name: requestedBy.trim() || operatorLabel || "Operator",
         machine: machine || "",
         description,
-        priority,
+        priority: lineStatus === "stopped" ? "high" : priority,
         line_id: lineQ.data || null,
-        line_stopped: true,
+        line_stopped: lineStatus === "stopped",
       } as any);
       toast.success("Maintenance order opened");
       onOpenChange(false);
-      setProblem(""); setCustomDesc(""); setMachine(""); setRequestedBy(""); setPriority("high");
+      setProblem(""); setCustomDesc(""); setMachine(""); setRequestedBy(""); setPriority("high"); setLineStatus("stopped");
     } catch (e: any) {
       toast.error(e?.message || "Failed to open order");
     }
@@ -827,6 +828,27 @@ function RequestOrderDialog({
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-base">Line status</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={lineStatus === "stopped" ? "default" : "outline"}
+                className={`h-14 text-base ${lineStatus === "stopped" ? "bg-red-600 hover:bg-red-700 text-white" : ""}`}
+                onClick={() => setLineStatus("stopped")}
+              >
+                🛑 Machine stopped
+              </Button>
+              <Button
+                type="button"
+                variant={lineStatus === "running" ? "default" : "outline"}
+                className={`h-14 text-base ${lineStatus === "running" ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+                onClick={() => { setLineStatus("running"); setPriority("medium"); }}
+              >
+                ⚙️ Running — needs maintenance
+              </Button>
+            </div>
+          </div>
           <div className="space-y-2">
             <Label className="text-base">Requested by</Label>
             <Input
