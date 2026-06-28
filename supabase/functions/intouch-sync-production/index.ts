@@ -664,15 +664,26 @@ Deno.serve(async (req) => {
       await admin.from("production_items").delete().eq("session_id", session.id);
 
       // Pull live actuals + scrap + shift metrics (run/down/OEE) per SKU from iTouching.
-      const { actuals: actualsByCode, scrap: scrapByCode, metrics } = await fetchActualsForLine(machines, startISO, endISO);
+      const { actuals: actualsByCode, scrap: scrapByCode, lineGood, metrics } = await fetchActualsForLine(machines, startISO, endISO);
 
       const entries = Array.from(skuAgg.entries());
       const totalQty = entries.reduce((sum, [, a]) => sum + Math.max(1, Number(a.qty) || 0), 0) || 1;
+      // Sum of per-SKU iTouching actuals matched by code.
+      const matchedActualTotal = entries.reduce(
+        (s, [code]) => s + Math.round(actualsByCode.get(code) ?? 0), 0,
+      );
+      // When SKU-code matching produces nothing but iTouching reports a
+      // line-level Good total, split it proportionally to the plan so the
+      // operator always sees a live Actual under Target.
+      const useLineFallback = matchedActualTotal === 0 && lineGood > 0;
       const rows = entries
         .map(([code, a]) => {
-          const plan = Math.round(ragPlan * (Math.max(1, Number(a.qty) || 0) / totalQty));
+          const weight = Math.max(1, Number(a.qty) || 0) / totalQty;
+          const plan = Math.round(ragPlan * weight);
           const sku_id = idByCode.get(code);
-          const itouchActual = Math.round(actualsByCode.get(code) ?? 0);
+          const itouchActual = useLineFallback
+            ? Math.round(lineGood * weight)
+            : Math.round(actualsByCode.get(code) ?? 0);
           const prev = sku_id ? (actualBySku.get(sku_id) ?? 0) : 0;
           // Never let an automatic sync drive the actual backwards (covers
           // manual edits + cumulative iTouching counts that may dip).
@@ -685,7 +696,7 @@ Deno.serve(async (req) => {
             planned_qty: plan,
             actual_qty: actual,
             scrap_qty,
-            notes: `itouching:${source}`,
+            notes: `itouching:${source}${useLineFallback ? "+line_good" : ""}`,
           };
         })
         .filter((r) => r.sku_id);
