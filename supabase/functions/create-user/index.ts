@@ -173,15 +173,11 @@ Deno.serve(async (req) => {
     });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      return new Response(JSON.stringify({ error: error.errors[0].message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: error.errors[0]?.message ?? "Invalid input" }, 400);
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("create-user error:", error);
+    return jsonResponse({ error: "Internal error" }, 500);
+  } finally {
+    clearTimeout(timeoutId);
   }
 });
