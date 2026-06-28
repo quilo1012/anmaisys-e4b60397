@@ -69,9 +69,26 @@ Deno.serve(async (req) => {
 
     const blockedUntil = await intouchQuotaBlockedUntil();
     if (blockedUntil) {
+      const { data: cached } = await admin
+        .from("intouch_machine_map")
+        .select("intouch_machine_id, intouch_machine_name, machine_name, line_id, updated_at")
+        .order("updated_at", { ascending: false });
+      const machines = (cached ?? []).map((c) => ({
+        guid: c.intouch_machine_id ?? "",
+        name: c.intouch_machine_name ?? c.machine_name ?? "",
+        line: "",
+        raw: c,
+      }));
       return new Response(JSON.stringify({
-        error: "iTouching daily quota exhausted", retry_after: blockedUntil,
-      }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        machines,
+        source: "cache",
+        count: machines.length,
+        cached: true,
+        skipped: true,
+        reason: "quota_exhausted",
+        retry_after: blockedUntil,
+        error: "iTouching daily quota exhausted",
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Try a few endpoints — iTouching deployments differ.
