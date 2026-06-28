@@ -843,21 +843,6 @@ function RequestOrderDialog({
               />
             )}
           </div>
-          <div className="space-y-2">
-            <Label className="text-base">Priority</Label>
-            <div className="flex gap-2">
-              {["low","medium","high","critical"].map((p) => (
-                <Button
-                  key={p}
-                  variant={priority === p ? "default" : "outline"}
-                  className="h-12 flex-1 capitalize"
-                  onClick={() => setPriority(p)}
-                >
-                  {p}
-                </Button>
-              ))}
-            </div>
-          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" className="h-12" onClick={() => onOpenChange(false)}>Cancel</Button>
