@@ -31,6 +31,16 @@ import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
+import {
+  ResponsiveDialogBody,
+  dialogContentResponsive,
+  dialogTitleResponsive,
+  dialogFooterResponsive,
+  dialogFieldLabelResponsive,
+  dialogControlResponsive,
+  dialogPrimaryActionResponsive,
+} from "@/components/ResponsiveDialogShell";
+
 
 type Shift = "DAY" | "NIGHT";
 
