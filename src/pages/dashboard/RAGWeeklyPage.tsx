@@ -106,7 +106,7 @@ export default function RAGWeeklyPage() {
   const [editing, setEditing] = useState<{
     date: string; line: string; shift: Shift; entry?: Entry;
   } | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
+  const [manageLinesOpen, setManageLinesOpen] = useState(false);
   const [manageLinesOpen, setManageLinesOpen] = useState(false);
   const [sharePointOpen, setSharePointOpen] = useState(false);
 
