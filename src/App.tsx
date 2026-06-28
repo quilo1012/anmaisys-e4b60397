@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, WifiOff } from "lucide-react";
+import { roleDashMap } from "@/lib/permissions";
 
 const OperatorDashboard = lazy(() => import("./pages/dashboard/OperatorDashboard"));
 const EngineerDashboard = lazy(() => import("./pages/dashboard/EngineerDashboard"));
