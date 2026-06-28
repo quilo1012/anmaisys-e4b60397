@@ -293,10 +293,29 @@ Deno.serve(async (req) => {
     }
     results.polled = mapped.length;
 
-    // 2. Batch status call
+    // 2. Batch status call (wrapped so a transient iTouching outage does not
+    //    abort the whole poll — we record the reason and exit cleanly).
     const ids = mapped.map((m) => m.intouch_machine_id);
-    const statuses: Array<{ MachineID: string; Status: number; DowntimeCode?: string | null }> =
-      await it(`/api/getmachineStatuses`, { method: "POST", body: JSON.stringify(ids) });
+    let statuses: Array<{ MachineID: string; Status: number; DowntimeCode?: string | null }> = [];
+    try {
+      statuses = await it(`/api/getmachineStatuses`, { method: "POST", body: JSON.stringify(ids) });
+    } catch (e) {
+      const msg = (e as Error).message ?? String(e);
+      console.error("[intouch-poll] getmachineStatuses failed:", msg);
+      results.errors.push(`getmachineStatuses: ${msg}`);
+      try {
+        await admin.from("intouch_sync_runs").insert({
+          kind: "poll",
+          status: "error",
+          error: msg,
+          details: results as any,
+        });
+      } catch (_) { /* best-effort */ }
+      return new Response(JSON.stringify({ ok: false, error: msg, ...results }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Resolve iTouching DowntimeCode UUIDs → friendly names.
     // To save iTouching API egress (100MB/day quota), prefer the labels we
