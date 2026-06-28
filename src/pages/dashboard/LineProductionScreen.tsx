@@ -484,6 +484,15 @@ export default function LineProductionScreen() {
               <Clock className="h-6 w-6" />
               {now.toLocaleTimeString("en-GB", { hour12: false })}
             </div>
+            <Button
+              variant="outline"
+              size="lg"
+              className="h-12"
+              onClick={async () => { await signOut(); navigate("/login"); }}
+            >
+              <LogOut className="h-5 w-5 mr-2" />
+              Sign out
+            </Button>
           </div>
         </CardContent>
       </Card>
