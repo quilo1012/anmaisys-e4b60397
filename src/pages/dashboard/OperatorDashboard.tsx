@@ -24,6 +24,9 @@ import { useActiveProblemsForLine } from "@/hooks/useLineProblemDescriptions";
 import { OperatorLineGuard } from "@/components/OperatorLineGuard";
 import { useDeviceLineCtx } from "@/contexts/DeviceLineContext";
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, Navigate } from "react-router-dom";
 import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -93,6 +96,7 @@ function OperatorDashboardContent() {
   const createWO = useCreateWorkOrder();
   const closeWO = useCloseWorkOrder();
   const { toast } = useToast();
+  const qcRef = useQueryClient();
   const navigate = useNavigate();
 
   // Operator close — no signature dialog; uses requester or operator profile name as signature
@@ -333,6 +337,8 @@ function OperatorDashboardContent() {
                     {(machines || [])
                       .filter((m: any) => {
                         if (!lineName) return false;
+                        // Mobile machines (Sealer / Printer) are always available on every line.
+                        if (m.category === "line_mobile") return true;
                         const base = (m.current_line || m.fixed_line || m.line || "").toString();
                         if (!base) return false;
                         const withSide = (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
@@ -341,9 +347,13 @@ function OperatorDashboardContent() {
                       .map((m: any) => {
                         const isUuid = typeof m.code === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.code);
                         const showCode = m.code && !isUuid;
+                        const isMobile = m.category === "line_mobile";
+                        const at = (m.current_line || "").toString();
+                        const here = at && at === lineName;
                         return (
                           <SelectItem key={m.id} value={m.name}>
                             {m.name}{showCode ? ` (${m.code})` : ""}
+                            {isMobile ? (here ? "  • Mobile (here)" : `  • Mobile${at ? ` @ ${at}` : ""}`) : ""}
                           </SelectItem>
                         );
                       })}
@@ -363,6 +373,39 @@ function OperatorDashboardContent() {
                 <p className="text-xs text-muted-foreground">
                   Pick the specific machine so the WO history is accurate. Leave empty if not applicable.
                 </p>
+                {(() => {
+                  const m: any = (machines || []).find((x: any) => x.name === machineName);
+                  if (!m || m.category !== "line_mobile") return null;
+                  const at = (m.current_line || "").toString();
+                  if (at === lineName) {
+                    return <p className="text-xs text-emerald-600">✓ {m.name} is currently on {lineName}.</p>;
+                  }
+                  return (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-amber-600">
+                        {m.name} is {at ? `at ${at}` : "not assigned"} — move it to {lineName}?
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-7"
+                        onClick={async () => {
+                          const { error } = await (supabase as any).rpc("move_machine_to_line", {
+                            _machine_id: m.id,
+                            _new_line: lineName,
+                            _notes: "Moved by operator from WO dialog",
+                          });
+                          if (error) { sonnerToast.error(error.message); return; }
+                          sonnerToast.success(`${m.name} moved to ${lineName}`);
+                          qcRef.invalidateQueries({ queryKey: ["machines"] });
+                        }}
+                      >
+                        Move here
+                      </Button>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
