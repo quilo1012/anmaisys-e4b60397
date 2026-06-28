@@ -62,8 +62,9 @@ export default function ShiftHistoryPage() {
   
   const [editing, setEditing] = useState<SessionRow | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [editingItem, setEditingItem] = useState<{ id: string; code: string; target: number; actual: number } | null>(null);
+  const [editingItem, setEditingItem] = useState<{ id: string; code: string; target: number; actual: number; notes: string | null } | null>(null);
   const [editActual, setEditActual] = useState<string>("");
+  const [editUnit, setEditUnit] = useState<"tubs" | "bags">("tubs");
 
 
   const { data: sessions = [] } = useQuery({
@@ -139,8 +140,10 @@ export default function ShiftHistoryPage() {
   });
 
   const saveItemActual = useMutation({
-    mutationFn: async ({ id, actual }: { id: string; actual: number }) => {
-      const { error } = await supabase.from("production_items").update({ actual_qty: actual }).eq("id", id);
+    mutationFn: async ({ id, actual, unit, prevNotes }: { id: string; actual: number; unit: "tubs" | "bags"; prevNotes: string | null }) => {
+      const stripped = (prevNotes ?? "").replace(/\[unit:(tubs|bags)\]\s*/gi, "").trim();
+      const newNotes = `[unit:${unit}]${stripped ? " " + stripped : ""}`;
+      const { error } = await supabase.from("production_items").update({ actual_qty: actual, notes: newNotes }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setEditingItem(null); toast.success("Actual updated"); },
@@ -256,8 +259,11 @@ export default function ShiftHistoryPage() {
                       const blob = `${code} ${name}`.toLowerCase();
                       const isTub = /tub/.test(blob);
                       const isBag = /bag|sach|pouch/.test(blob);
-                      const bag = isTub && !isBag ? 0 : a;
-                      const tubs = isTub ? a : 0;
+                      const noteUnit = /\[unit:tubs\]/i.test(i.notes ?? "") ? "tubs" : /\[unit:bags\]/i.test(i.notes ?? "") ? "bags" : null;
+                      const effIsTub = noteUnit ? noteUnit === "tubs" : isTub;
+                      const effIsBag = noteUnit ? noteUnit === "bags" : isBag;
+                      const bag = effIsBag ? a : 0;
+                      const tubs = effIsTub ? a : 0;
                       return (
                         <tr key={`${s.id}-${i.id ?? idx}`} className="hover:bg-muted/20">
                           <td className="p-2 whitespace-nowrap">{s.session_date}</td>
@@ -270,8 +276,8 @@ export default function ShiftHistoryPage() {
                           <td className="p-2 text-right tabular-nums">{tubs ? tubs.toLocaleString() : "—"}</td>
                           <td className="p-2">
                             <div className="flex items-center justify-end gap-1">
-                              {!s.locked && i.id && i.sku_id && (isTub || isBag) && (
-                                <Button size="icon" variant="ghost" title="Edit actual (tubs/bags only)" onClick={() => { setEditingItem({ id: i.id, code, target: t, actual: a }); setEditActual(String(a)); }}>
+                              {!s.locked && i.id && i.sku_id && (
+                                <Button size="icon" variant="ghost" title="Edit actual" onClick={() => { setEditingItem({ id: i.id, code, target: t, actual: a, notes: i.notes }); setEditActual(String(a)); setEditUnit(noteUnit ?? (isBag && !isTub ? "bags" : "tubs")); }}>
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               )}
@@ -350,7 +356,17 @@ export default function ShiftHistoryPage() {
               <div className="space-y-3">
                 <div className="text-sm text-muted-foreground">Target: <span className="font-semibold text-foreground">{editingItem.target.toLocaleString()}</span></div>
                 <div>
-                  <Label>Actual quantity</Label>
+                  <Label>Unit type</Label>
+                  <Select value={editUnit} onValueChange={(v) => setEditUnit(v as "tubs" | "bags")}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tubs">Tubs</SelectItem>
+                      <SelectItem value="bags">Bags</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Actual quantity ({editUnit})</Label>
                   <Input type="number" value={editActual} onChange={(e) => setEditActual(e.target.value)} autoFocus />
                 </div>
               </div>
@@ -358,7 +374,7 @@ export default function ShiftHistoryPage() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
               <Button
-                onClick={() => editingItem && saveItemActual.mutate({ id: editingItem.id, actual: Number(editActual) || 0 })}
+                onClick={() => editingItem && saveItemActual.mutate({ id: editingItem.id, actual: Number(editActual) || 0, unit: editUnit, prevNotes: editingItem.notes })}
                 disabled={saveItemActual.isPending}
               >Save</Button>
             </DialogFooter>
