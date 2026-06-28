@@ -254,13 +254,16 @@ Deno.serve(async (req) => {
     console.warn("[intouch-poll][auth] unauthorized call", {
       hasXCronSecretHeader: providedHeader.length > 0,
       hasBearer: bearer.length > 0,
+      bearerLen: bearer.length,
       ua: req.headers.get("user-agent") ?? null,
       from: req.headers.get("x-forwarded-for") ?? null,
+      authDebug,
     });
     return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+  }
   }
 
   const results = {
