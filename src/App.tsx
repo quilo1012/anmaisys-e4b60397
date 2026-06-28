@@ -346,6 +346,15 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/dashboard/smart-target"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <SmartTargetPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
                   path="/dashboard/sku-efficiency"
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager"]}>
