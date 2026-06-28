@@ -220,27 +220,44 @@ Deno.serve(async (req) => {
   let allowed = matches(cronSecret) || matches(cronTriggerToken);
 
   // Also allow an authenticated admin/manager (e.g. Sync Now from the UI).
+  let authDebug: Record<string, unknown> = {};
   if (!allowed && bearer) {
     try {
-      const { data, error } = await admin.auth.getUser(bearer);
-      if (!error && data?.user?.id) {
-        const { data: roles } = await admin
+      let userId: string | null = null;
+      const { data: claimsData, error: claimsErr } = await admin.auth.getClaims(bearer);
+      if (!claimsErr && claimsData?.claims?.sub) {
+        userId = claimsData.claims.sub as string;
+      } else {
+        const { data: userData, error: userErr } = await admin.auth.getUser(bearer);
+        if (!userErr && userData?.user?.id) userId = userData.user.id;
+        authDebug.getUserErr = userErr?.message ?? null;
+        authDebug.getClaimsErr = claimsErr?.message ?? null;
+      }
+      if (userId) {
+        const { data: roles, error: rolesErr } = await admin
           .from("user_roles")
           .select("role")
-          .eq("user_id", data.user.id);
+          .eq("user_id", userId);
+        authDebug.userId = userId;
+        authDebug.roles = (roles ?? []).map((r: any) => r.role);
+        authDebug.rolesErr = rolesErr?.message ?? null;
         if ((roles ?? []).some((r: any) => r.role === "admin" || r.role === "manager")) {
           allowed = true;
         }
       }
-    } catch (_) { /* fall through to 401 */ }
+    } catch (e: any) {
+      authDebug.exception = e?.message ?? String(e);
+    }
   }
 
   if (!allowed) {
     console.warn("[intouch-poll][auth] unauthorized call", {
       hasXCronSecretHeader: providedHeader.length > 0,
       hasBearer: bearer.length > 0,
+      bearerLen: bearer.length,
       ua: req.headers.get("user-agent") ?? null,
       from: req.headers.get("x-forwarded-for") ?? null,
+      authDebug,
     });
     return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
       status: 401,
