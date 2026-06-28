@@ -30,9 +30,26 @@ const updateUserSchema = z.object({
 });
 
 const getReadableErrorMessage = (error: unknown) => {
-  const message = error instanceof Error ? error.message : "Unknown error";
+  const anyErr = error as any;
+  let message =
+    (typeof anyErr?.message === "string" && anyErr.message) ||
+    (typeof anyErr?.error_description === "string" && anyErr.error_description) ||
+    (typeof anyErr?.error === "string" && anyErr.error) ||
+    (typeof anyErr?.hint === "string" && anyErr.hint) ||
+    (typeof anyErr?.details === "string" && anyErr.details) ||
+    (typeof error === "string" ? error : "") ||
+    "Unknown error";
+
+  // Some Supabase Auth errors surface as JSON-stringified payloads or "{}".
+  if (message === "{}" || message === "") {
+    try { message = JSON.stringify(anyErr) || "Unknown error"; } catch { /* noop */ }
+  }
 
   const lower = message.toLowerCase();
+
+  if (lower.includes("users_email_partial_key") || lower.includes("duplicate key") || lower.includes("already been registered") || lower.includes("already registered")) {
+    return "This email is already in use by another account. Choose a different email.";
+  }
   if (
     lower.includes("known to be weak and easy to guess") ||
     lower.includes("pwned") ||
