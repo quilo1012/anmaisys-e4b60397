@@ -849,6 +849,7 @@ function RequestOrderDialog({
               </Button>
             </div>
           </div>
+          <div className="space-y-2">
             <Label className="text-base">Requested by</Label>
             <Input
               className="h-12 text-lg"
