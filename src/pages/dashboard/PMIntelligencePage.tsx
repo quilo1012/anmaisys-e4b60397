@@ -154,6 +154,9 @@ export default function PMIntelligencePage() {
   return (
     <DashboardLayout>
       <div className="p-4 md:p-6 space-y-6">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2 -ml-2">
+          <ArrowLeft className="h-4 w-4" /> Back to menu
+        </Button>
         <div className="flex items-start gap-3">
           <Brain className="h-7 w-7 text-primary mt-1" />
           <div>
