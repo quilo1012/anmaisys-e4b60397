@@ -846,13 +846,11 @@ export default function RAGWeeklyPage() {
                   isSyncing={
                     ragFetching > 0 ||
                     upsertMutation.isPending ||
-                    importMutation.isPending ||
                     importLayoutMutation.isPending ||
                     syncMutation.isPending
                   }
                   error={
                     upsertMutation.error ||
-                    importMutation.error ||
                     importLayoutMutation.error ||
                     syncMutation.error
                   }
