@@ -334,11 +334,13 @@ Deno.serve(async (req) => {
     const blockedUntil = await intouchQuotaBlockedUntil();
     if (blockedUntil) {
       return new Response(JSON.stringify({
-        ok: false,
-        error: "iTouching daily quota exhausted",
+        ok: true,
+        skipped: true,
+        reason: "iTouching daily quota exhausted",
         retry_after: blockedUntil,
+        created: 0,
       }), {
-        status: 429,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
