@@ -105,10 +105,15 @@ Deno.serve(async (req) => {
       user_metadata: { name },
     });
 
-    if (createError) throw createError;
+    if (createError) {
+      const msg = /already|exists|registered/i.test(createError.message)
+        ? "Email already registered"
+        : "Could not create user";
+      return jsonResponse({ error: msg }, 400);
+    }
 
     if (!newUser.user) {
-      throw new Error("Failed to create user record");
+      return jsonResponse({ error: "Could not create user" }, 500);
     }
 
     if (shift) {
