@@ -147,7 +147,7 @@ export default function ShiftHistoryPage() {
     mutationFn: async ({ id, actual, unit, prevNotes, sku_id }: { id: string; actual: number; unit: "tubs" | "bags"; prevNotes: string | null; sku_id?: string }) => {
       const stripped = (prevNotes ?? "").replace(/\[unit:(tubs|bags)\]\s*/gi, "").trim();
       const newNotes = `[unit:${unit}]${stripped ? " " + stripped : ""}`;
-      const payload: Record<string, unknown> = { actual_qty: actual, notes: newNotes };
+      const payload: { actual_qty: number; notes: string; sku_id?: string } = { actual_qty: actual, notes: newNotes };
       if (sku_id) payload.sku_id = sku_id;
       const { error } = await supabase.from("production_items").update(payload).eq("id", id);
       if (error) throw error;
@@ -300,7 +300,7 @@ export default function ShiftHistoryPage() {
                           <td className="p-2">
                             <div className="flex items-center justify-end gap-1">
                               {!s.locked && i.id && i.sku_id && (
-                                <Button size="icon" variant="ghost" title="Edit actual" onClick={() => { setEditingItem({ id: i.id, code, target: t, actual: a, notes: i.notes }); setEditActual(String(a)); setEditUnit(noteUnit ?? (isBag && !isTub ? "bags" : "tubs")); }}>
+                                <Button size="icon" variant="ghost" title="Edit actual" onClick={() => { setEditingItem({ id: i.id, sku_id: i.sku_id, code, target: t, actual: a, notes: i.notes }); setEditActual(String(a)); setEditUnit(noteUnit ?? (isBag && !isTub ? "bags" : "tubs")); setEditSkuId(i.sku_id); }}>
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               )}
