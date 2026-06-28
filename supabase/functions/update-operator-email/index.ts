@@ -93,7 +93,18 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
+    // Robust message extraction — Supabase errors (PostgrestError, AuthError)
+    // are plain objects, not Error instances, so error.message alone or
+    // JSON.stringify on a non-enumerable Error yields "{}".
+    const anyErr = error as any;
+    const message =
+      (typeof anyErr?.message === "string" && anyErr.message) ||
+      (typeof anyErr?.error_description === "string" && anyErr.error_description) ||
+      (typeof anyErr?.error === "string" && anyErr.error) ||
+      (typeof anyErr?.hint === "string" && anyErr.hint) ||
+      (typeof error === "string" ? error : null) ||
+      "Unknown error";
+    console.error("[update-operator-email] failed:", message, anyErr);
     return new Response(JSON.stringify({ error: message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
