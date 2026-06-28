@@ -439,6 +439,8 @@ Deno.serve(async (req) => {
               seq: r.seq,
               catalog_match: !!cat,
               category: cat?.category ?? null,
+              batch: r.batch,
+              actual: r.actual,
               sources: Array.from(r.sources),
             };
           }),
