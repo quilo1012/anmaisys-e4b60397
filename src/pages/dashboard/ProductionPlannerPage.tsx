@@ -255,13 +255,14 @@ export default function ProductionPlannerPage() {
     // a new reference every time).
     if (!existingId) return;
     setRows(
-      existingItems.map((i) => {
+      existingItems.map((i: any) => {
         const sku = skus.find((s) => s.id === i.sku_id);
         return {
           sku_id: i.sku_id,
           sku_name: sku?.name ?? "",
           target_qty: Number(i.target_qty ?? i.planned_qty ?? 0),
           actual_qty: Number(i.actual_qty ?? 0),
+          blender_ref: i.blender_ref ?? undefined,
         };
       }),
     );
