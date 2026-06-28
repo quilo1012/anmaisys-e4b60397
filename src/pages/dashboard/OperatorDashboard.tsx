@@ -333,6 +333,8 @@ function OperatorDashboardContent() {
                     {(machines || [])
                       .filter((m: any) => {
                         if (!lineName) return false;
+                        // Mobile machines (Sealer / Printer) are always available on every line.
+                        if (m.category === "line_mobile") return true;
                         const base = (m.current_line || m.fixed_line || m.line || "").toString();
                         if (!base) return false;
                         const withSide = (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
@@ -341,9 +343,13 @@ function OperatorDashboardContent() {
                       .map((m: any) => {
                         const isUuid = typeof m.code === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.code);
                         const showCode = m.code && !isUuid;
+                        const isMobile = m.category === "line_mobile";
+                        const at = (m.current_line || "").toString();
+                        const here = at && at === lineName;
                         return (
                           <SelectItem key={m.id} value={m.name}>
                             {m.name}{showCode ? ` (${m.code})` : ""}
+                            {isMobile ? (here ? "  • Mobile (here)" : `  • Mobile${at ? ` @ ${at}` : ""}`) : ""}
                           </SelectItem>
                         );
                       })}
