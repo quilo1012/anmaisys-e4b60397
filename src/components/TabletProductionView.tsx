@@ -25,7 +25,7 @@ type SessionRow = {
   id: string;
   locked: boolean | null;
   comments: string | null;
-  line_leader: string | null;
+  leader_name: string | null;
   production_items: ProductionItem[] | null;
 };
 type WORow = {
