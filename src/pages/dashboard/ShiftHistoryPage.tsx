@@ -140,8 +140,10 @@ export default function ShiftHistoryPage() {
   });
 
   const saveItemActual = useMutation({
-    mutationFn: async ({ id, actual }: { id: string; actual: number }) => {
-      const { error } = await supabase.from("production_items").update({ actual_qty: actual }).eq("id", id);
+    mutationFn: async ({ id, actual, unit, prevNotes }: { id: string; actual: number; unit: "tubs" | "bags"; prevNotes: string | null }) => {
+      const stripped = (prevNotes ?? "").replace(/\[unit:(tubs|bags)\]\s*/gi, "").trim();
+      const newNotes = `[unit:${unit}]${stripped ? " " + stripped : ""}`;
+      const { error } = await supabase.from("production_items").update({ actual_qty: actual, notes: newNotes }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setEditingItem(null); toast.success("Actual updated"); },
