@@ -240,6 +240,9 @@ export default function LineProductionScreen() {
       if (error) throw error;
       return Number(data?.plan_qty ?? 0);
     },
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   // Realtime: refresh when RAG Weekly changes for this line/shift/today
