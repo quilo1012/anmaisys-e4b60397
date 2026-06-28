@@ -21,16 +21,67 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
 // codes from creating orders when a machine is first mapped or re-enabled.
 const HEALTHY_STATUS = new Set<number>([1, 2]);
 
+// ── iTouching quota / timeout helpers ──────────────────────────────────────
+const ITOUCH_TIMEOUT_MS = 10_000;
+const tomorrowUtcMidnight = () => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 1);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+};
+async function intouchQuotaBlockedUntil(): Promise<string | null> {
+  try {
+    const { data } = await admin
+      .from("intouch_quota_status").select("blocked_until")
+      .eq("id", "singleton").maybeSingle();
+    if (data?.blocked_until && new Date(data.blocked_until).getTime() > Date.now()) {
+      return data.blocked_until as string;
+    }
+  } catch { /* best-effort */ }
+  return null;
+}
+async function intouchMarkEgressExceeded() {
+  try {
+    await admin.from("intouch_quota_status").upsert({
+      id: "singleton",
+      blocked_until: tomorrowUtcMidnight(),
+      updated_at: new Date().toISOString(),
+    });
+  } catch { /* best-effort */ }
+}
+class ItouchQuotaError extends Error {
+  blocked_until: string;
+  constructor(until: string) { super("iTouching daily quota exhausted"); this.blocked_until = until; }
+}
+class ItouchTimeoutError extends Error {
+  constructor() { super("iTouching API timeout"); }
+}
+
 async function it(path: string, init?: RequestInit) {
-  const res = await fetch(`${INTOUCH_URL}${path}`, {
-    ...init,
-    headers: {
-      Authorization: INTOUCH_AUTH_HEADER,
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ITOUCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${INTOUCH_URL}${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        Authorization: INTOUCH_AUTH_HEADER,
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch (e) {
+    if ((e as any)?.name === "AbortError") throw new ItouchTimeoutError();
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
   const text = await res.text();
+  if (text.includes("Exceeded API Max daily egress")) {
+    await intouchMarkEgressExceeded();
+    throw new ItouchQuotaError(tomorrowUtcMidnight());
+  }
   if (!res.ok) throw new Error(`iTouching ${path} ${res.status}: ${text.slice(0, 200)}`);
   try { return JSON.parse(text); } catch { return text; }
 }
@@ -278,6 +329,20 @@ Deno.serve(async (req) => {
     if (!INTOUCH_URL || !INTOUCH_TOKEN) {
       throw new Error("Missing INTOUCH_API_URL or INTOUCH_API_TOKEN");
     }
+
+    // Egress backoff: skip the entire poll until iTouching quota window resets.
+    const blockedUntil = await intouchQuotaBlockedUntil();
+    if (blockedUntil) {
+      return new Response(JSON.stringify({
+        ok: false,
+        error: "iTouching daily quota exhausted",
+        retry_after: blockedUntil,
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
 
     // 1. Active machines mapped to our system

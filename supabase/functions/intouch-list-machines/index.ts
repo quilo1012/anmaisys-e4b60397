@@ -12,6 +12,31 @@ const INTOUCH_AUTH_HEADER = /^bearer\s+/i.test(INTOUCH_TOKEN.trim())
   ? INTOUCH_TOKEN.trim()
   : `Bearer ${INTOUCH_TOKEN.trim()}`;
 
+const ITOUCH_TIMEOUT_MS = 10_000;
+const __QUOTA_ADMIN_MACH = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
+const tomorrowUtcMidnight = () => {
+  const d = new Date(); d.setUTCDate(d.getUTCDate() + 1); d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+};
+async function intouchQuotaBlockedUntil(): Promise<string | null> {
+  try {
+    const { data } = await __QUOTA_ADMIN_MACH
+      .from("intouch_quota_status").select("blocked_until")
+      .eq("id", "singleton").maybeSingle();
+    if (data?.blocked_until && new Date(data.blocked_until).getTime() > Date.now()) {
+      return data.blocked_until as string;
+    }
+  } catch { /* best-effort */ }
+  return null;
+}
+async function intouchMarkEgressExceeded() {
+  try {
+    await __QUOTA_ADMIN_MACH.from("intouch_quota_status").upsert({
+      id: "singleton", blocked_until: tomorrowUtcMidnight(), updated_at: new Date().toISOString(),
+    });
+  } catch { /* best-effort */ }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -42,6 +67,12 @@ Deno.serve(async (req) => {
       });
     }
 
+    const blockedUntil = await intouchQuotaBlockedUntil();
+    if (blockedUntil) {
+      return new Response(JSON.stringify({
+        error: "iTouching daily quota exhausted", retry_after: blockedUntil,
+      }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     // Try a few endpoints — iTouching deployments differ.
     const candidates = ["/api/GetMachineList", "/api/Machine"];
@@ -49,19 +80,30 @@ Deno.serve(async (req) => {
     let usedPath = "";
     const errs: string[] = [];
     for (const path of candidates) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), ITOUCH_TIMEOUT_MS);
       try {
         const res = await fetch(`${INTOUCH_URL}${path}`, {
+          signal: controller.signal,
           headers: { Authorization: INTOUCH_AUTH_HEADER, Accept: "application/json" },
         });
         const txt = await res.text();
+        if (txt.includes("Exceeded API Max daily egress")) {
+          await intouchMarkEgressExceeded();
+          errs.push(`${path}: iTouching daily quota exhausted`);
+          break;
+        }
         if (!res.ok) { errs.push(`${path} → ${res.status}: ${txt.slice(0, 160)}`); continue; }
         try { raw = JSON.parse(txt); usedPath = path; break; }
         catch { errs.push(`${path}: invalid JSON (${txt.slice(0, 120)})`); }
       } catch (e) {
-        errs.push(`${path}: ${(e as Error).message}`);
+        if ((e as any)?.name === "AbortError") errs.push(`${path}: iTouching API timeout`);
+        else errs.push(`${path}: ${(e as Error).message}`);
+      } finally {
+        clearTimeout(timer);
       }
     }
-    const egressHit = errs.some((e) => /egress/i.test(e));
+    const egressHit = errs.some((e) => /egress|quota/i.test(e));
 
     if (raw == null) {
       const { data: cached } = await admin

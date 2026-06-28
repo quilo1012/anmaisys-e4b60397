@@ -31,8 +31,11 @@ function detectMode(text: string, url: string) {
 async function probe(path: string) {
   const url = `${INTOUCH_URL}${path}`;
   const started = Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
   try {
     const res = await fetch(url, {
+      signal: controller.signal,
       headers: { Authorization: INTOUCH_AUTH_HEADER, Accept: "application/json" },
     });
     const text = await res.text();
@@ -47,7 +50,12 @@ async function probe(path: string) {
       body_length: text.length,
     };
   } catch (e) {
+    if ((e as any)?.name === "AbortError") {
+      return { path, url, status: 504, ok: false, ms: Date.now() - started, error: "iTouching API timeout" };
+    }
     return { path, url, status: 0, ok: false, ms: Date.now() - started, error: (e as Error).message };
+  } finally {
+    clearTimeout(timer);
   }
 }
 

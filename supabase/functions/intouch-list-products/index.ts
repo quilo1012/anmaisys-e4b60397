@@ -12,6 +12,31 @@ const INTOUCH_AUTH_HEADER = /^bearer\s+/i.test(INTOUCH_TOKEN.trim())
   ? INTOUCH_TOKEN.trim()
   : `Bearer ${INTOUCH_TOKEN.trim()}`;
 
+const ITOUCH_TIMEOUT_MS = 10_000;
+const __QUOTA_ADMIN_PROD = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
+const tomorrowUtcMidnight = () => {
+  const d = new Date(); d.setUTCDate(d.getUTCDate() + 1); d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+};
+async function intouchQuotaBlockedUntil(): Promise<string | null> {
+  try {
+    const { data } = await __QUOTA_ADMIN_PROD
+      .from("intouch_quota_status").select("blocked_until")
+      .eq("id", "singleton").maybeSingle();
+    if (data?.blocked_until && new Date(data.blocked_until).getTime() > Date.now()) {
+      return data.blocked_until as string;
+    }
+  } catch { /* best-effort */ }
+  return null;
+}
+async function intouchMarkEgressExceeded() {
+  try {
+    await __QUOTA_ADMIN_PROD.from("intouch_quota_status").upsert({
+      id: "singleton", blocked_until: tomorrowUtcMidnight(), updated_at: new Date().toISOString(),
+    });
+  } catch { /* best-effort */ }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -43,6 +68,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    const blockedUntil = await intouchQuotaBlockedUntil();
+    if (blockedUntil) {
+      return new Response(JSON.stringify({
+        error: "iTouching daily quota exhausted", retry_after: blockedUntil,
+      }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const candidates = [
       "/api/Product", "/api/Products", "/api/GetProducts", "/api/GetProductList",
       "/api/ProductList", "/api/GetAllProducts",
@@ -52,17 +84,36 @@ Deno.serve(async (req) => {
     let raw: any = null;
     let usedPath = "";
     let lastErr = "";
+    let quotaHit = false;
     const tryFetch = async (path: string, init?: RequestInit) => {
-      const res = await fetch(`${INTOUCH_URL}${path}`, {
-        ...(init ?? {}),
-        headers: {
-          Authorization: INTOUCH_AUTH_HEADER,
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          ...(init?.headers ?? {}),
-        },
-      });
+      if (quotaHit) return null;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), ITOUCH_TIMEOUT_MS);
+      let res: Response;
+      try {
+        res = await fetch(`${INTOUCH_URL}${path}`, {
+          ...(init ?? {}),
+          signal: controller.signal,
+          headers: {
+            Authorization: INTOUCH_AUTH_HEADER,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            ...(init?.headers ?? {}),
+          },
+        });
+      } catch (e) {
+        if ((e as any)?.name === "AbortError") { lastErr = `${path}: iTouching API timeout`; return null; }
+        lastErr = `${path}: ${(e as Error).message}`; return null;
+      } finally {
+        clearTimeout(timer);
+      }
       const txt = await res.text();
+      if (txt.includes("Exceeded API Max daily egress")) {
+        await intouchMarkEgressExceeded();
+        quotaHit = true;
+        lastErr = "iTouching daily quota exhausted";
+        return null;
+      }
       if (!res.ok) { lastErr = `${path} → ${res.status}: ${txt.slice(0, 120)}`; return null; }
       try { return JSON.parse(txt); } catch { lastErr = `${path}: invalid JSON`; return null; }
     };
@@ -125,7 +176,7 @@ Deno.serve(async (req) => {
       // 2) Collect job IDs and hydrate full records via POST /api/GetJobs.
       const jobIds = new Set<string>();
       walk(running, (o) => {
-        const jid = pickStr(o, ["JobID", "JobId", "JobGUID", "JobGuid", "ID", "Id"]);
+        const jid = pickStr(o, ["WorskOrderID", "WorksOrderID", "JobID", "JobId", "JobGUID", "JobGuid", "ID", "Id"]);
         if (jid && jid.length >= 8) jobIds.add(jid);
       });
       if (jobIds.size > 0) {

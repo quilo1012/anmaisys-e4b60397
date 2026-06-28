@@ -452,6 +452,24 @@ export type Database = {
           },
         ]
       }
+      intouch_quota_status: {
+        Row: {
+          blocked_until: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          blocked_until?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          blocked_until?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       intouch_stop_code_map: {
         Row: {
           active: boolean
