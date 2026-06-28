@@ -71,6 +71,20 @@ export default function WorkOrdersPage() {
       setDrRange(getPresetRange("all"));
     }
   }, [role]);
+
+  // Deep-link support: /dashboard/work-orders?wo=WO-2026-000123 focuses that WO
+  useEffect(() => {
+    const wo = searchParams.get("wo");
+    if (wo) {
+      setSearchTerm(wo);
+      setStatusFilter("all");
+      setDrPreset("all");
+      setDrRange(getPresetRange("all"));
+      setLineStoppedFilter("all");
+      setShiftFilter("ALL");
+    }
+  }, [searchParams]);
+
   const [lineStoppedFilter, setLineStoppedFilter] = useState<"all" | "stopped" | "running">("all");
 
   const ALL_COLUMNS = [
