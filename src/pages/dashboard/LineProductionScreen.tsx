@@ -20,12 +20,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save } from "lucide-react";
+import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save, AlertTriangle, Plus } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
+import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 
 type Shift = "DAY" | "NIGHT";
 
@@ -80,15 +85,25 @@ const EDIT_TABLET_ID = "1"; // only this tablet can edit actuals/observations
 export default function LineProductionScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { role } = useAuth();
+  const isOperator = role === "operator";
   const [line, setLine] = useState<string>(() => localStorage.getItem(LS_LINE_KEY) || "");
   const [tabletId, setTabletId] = useState<string>(() => localStorage.getItem(LS_TABLET_KEY) || EDIT_TABLET_ID);
-  const canEdit = tabletId === EDIT_TABLET_ID;
+  const canEdit = tabletId === EDIT_TABLET_ID || isOperator;
   const [shift, setShift] = useState<Shift>(currentShift());
   const [now, setNow] = useState<Date>(new Date());
   const [editing, setEditing] = useState<ItemRow | null>(null);
   const [pad, setPad] = useState<string>("");
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [requestOpen, setRequestOpen] = useState(false);
   const activeSessionDate = useMemo(() => sessionDateForShift(shift, now), [shift, now]);
+
+  // Operator is locked to current shift — auto-update as time passes.
+  useEffect(() => {
+    if (!isOperator) return;
+    const cur = currentShift();
+    if (cur !== shift) setShift(cur);
+  }, [now, isOperator, shift]);
 
   useEffect(() => {
     const onFs = () => setIsFullscreen(!!document.fullscreenElement);
@@ -121,8 +136,24 @@ export default function LineProductionScreen() {
     localStorage.setItem(LS_TABLET_KEY, tabletId);
   }, [tabletId]);
 
+  // Operator account context: allowed lines + tablet label (e.g. "Tablet 4")
+  const operatorAcctQ = useQuery({
+    queryKey: ["lps-operator-acct"],
+    queryFn: async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return null;
+      const { data } = await (supabase as any)
+        .from("operator_line_accounts")
+        .select("line_ids, label")
+        .eq("user_id", uid)
+        .maybeSingle();
+      return data as { line_ids: string[]; label: string } | null;
+    },
+  });
+
   const linesQ = useQuery({
-    queryKey: ["lps-lines-scoped"],
+    queryKey: ["lps-lines-scoped", operatorAcctQ.data?.line_ids?.join(",")],
     queryFn: async () => {
       const { data: lines, error } = await (supabase as any)
         .from("lines")
@@ -131,35 +162,30 @@ export default function LineProductionScreen() {
         .order("name", { ascending: true });
       if (error) throw error;
       const all = (lines || []) as { id: string; name: string }[];
-
-      // Scope to the lines allowed for this operator account (if any).
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
-      if (!uid) return all;
-      const { data: acct } = await (supabase as any)
-        .from("operator_line_accounts")
-        .select("line_ids")
-        .eq("user_id", uid)
-        .maybeSingle();
-      const allowed: string[] = acct?.line_ids ?? [];
-      // Admin/manager (no operator account row) keep full list.
+      const allowed: string[] = operatorAcctQ.data?.line_ids ?? [];
       if (!allowed || allowed.length === 0) return all;
       return all.filter((l) => allowed.includes(l.id));
     },
+    enabled: !operatorAcctQ.isLoading,
   });
 
-  // Auto-select when only one line is allowed; clear stale stored line.
+  // Auto-select first allowed line; clear stale stored line.
   useEffect(() => {
     const list = linesQ.data;
     if (!list) return;
-    if (list.length === 1 && line !== list[0].name) {
+    if (list.length >= 1 && (!line || !list.some((l) => l.name === line))) {
       setLine(list[0].name);
-      return;
-    }
-    if (line && !list.some((l) => l.name === line)) {
-      setLine(list[0]?.name ?? "");
     }
   }, [linesQ.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lock tabletId from the operator account label (e.g. "Tablet 4" -> "4")
+  useEffect(() => {
+    if (!isOperator) return;
+    const lbl = operatorAcctQ.data?.label || "";
+    const m = lbl.match(/(\d+)/);
+    if (m && m[1] !== tabletId) setTabletId(m[1]);
+  }, [isOperator, operatorAcctQ.data?.label]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const sessionQ = useQuery({
     enabled: !!line,
@@ -362,75 +388,98 @@ export default function LineProductionScreen() {
       {/* Header */}
       <Card className="mb-4">
         <CardContent className="p-3 md:p-4 flex flex-wrap items-center gap-3">
-          <Button variant="ghost" size="lg" onClick={() => navigate("/")}>
-            <ArrowLeft className="h-5 w-5 mr-2" /> Exit
-          </Button>
+          {!isOperator && (
+            <Button variant="ghost" size="lg" onClick={() => navigate("/")}>
+              <ArrowLeft className="h-5 w-5 mr-2" /> Exit
+            </Button>
+          )}
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Line</span>
-            <Select value={line} onValueChange={setLine}>
-              <SelectTrigger className="h-12 min-w-[180px] text-lg">
-                <SelectValue placeholder="Select line" />
-              </SelectTrigger>
-              <SelectContent>
-                {(linesQ.data || []).map((l) => (
-                  <SelectItem key={l.id} value={l.name} className="text-lg">
-                    {l.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {isOperator ? (
+              <Badge className="h-12 px-4 text-xl font-bold">{line || "—"}</Badge>
+            ) : (
+              <Select value={line} onValueChange={setLine}>
+                <SelectTrigger className="h-12 min-w-[180px] text-lg">
+                  <SelectValue placeholder="Select line" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(linesQ.data || []).map((l) => (
+                    <SelectItem key={l.id} value={l.name} className="text-lg">
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
-          <div className="flex gap-1">
-            {(["DAY", "NIGHT"] as Shift[]).map((s) => (
-              <Button
-                key={s}
-                size="lg"
-                variant={shift === s ? "default" : "outline"}
-                onClick={() => setShift(s)}
-                className="h-12 px-6"
-              >
-                {s}
-              </Button>
-            ))}
-          </div>
+          {isOperator ? (
+            <Badge className="h-12 px-4 text-xl font-bold" variant="secondary">{shift}</Badge>
+          ) : (
+            <div className="flex gap-1">
+              {(["DAY", "NIGHT"] as Shift[]).map((s) => (
+                <Button
+                  key={s}
+                  size="lg"
+                  variant={shift === s ? "default" : "outline"}
+                  onClick={() => setShift(s)}
+                  className="h-12 px-6"
+                >
+                  {s}
+                </Button>
+              ))}
+            </div>
+          )}
           <Badge variant="outline" className="h-10 px-3 text-sm">
             {activeSessionDate}
           </Badge>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Tablet</span>
-            <Select value={tabletId || "__none__"} onValueChange={(v) => setTabletId(v === "__none__" ? "" : v)}>
-              <SelectTrigger className="h-12 min-w-[110px] text-lg">
-                <SelectValue placeholder="ID" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Not set</SelectItem>
-                {["1","2","3","4","5","6","7","8"].map((n) => (
-                  <SelectItem key={n} value={n} className="text-lg">Tablet {n}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Badge variant={canEdit ? "default" : "secondary"} className="h-8 px-2">
-              {canEdit ? "EDIT" : "READ-ONLY"}
-            </Badge>
-          </div>
+          {!isOperator && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Tablet</span>
+              <Select value={tabletId || "__none__"} onValueChange={(v) => setTabletId(v === "__none__" ? "" : v)}>
+                <SelectTrigger className="h-12 min-w-[110px] text-lg">
+                  <SelectValue placeholder="ID" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Not set</SelectItem>
+                  {["1","2","3","4","5","6","7","8"].map((n) => (
+                    <SelectItem key={n} value={n} className="text-lg">Tablet {n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Badge variant={canEdit ? "default" : "secondary"} className="h-8 px-2">
+                {canEdit ? "EDIT" : "READ-ONLY"}
+              </Badge>
+            </div>
+          )}
           <div className="ml-auto flex items-center gap-3">
             <SyncStatusIndicator
               isSyncing={itemsQ.isFetching || ragPlanQ.isFetching || sessionQ.isFetching || updateActual.isPending}
               error={updateActual.error || itemsQ.error || ragPlanQ.error}
             />
+            <Button
+              size="lg"
+              className="h-12 bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => setRequestOpen(true)}
+              disabled={!line}
+            >
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              Request Maintenance
+            </Button>
             <Button variant="outline" size="lg" onClick={toggleKiosk} className="h-12">
               {isFullscreen ? <Minimize2 className="h-5 w-5 mr-2" /> : <Maximize2 className="h-5 w-5 mr-2" />}
               {isFullscreen ? "Exit Kiosk" : "Kiosk"}
             </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              className="h-12"
-              disabled={syncSkus.isPending || !line}
-              onClick={() => syncSkus.mutate()}
-            >
-              {syncSkus.isPending ? "Syncing…" : "Sync SKUs"}
-            </Button>
+            {!isOperator && (
+              <Button
+                variant="outline"
+                size="lg"
+                className="h-12"
+                disabled={syncSkus.isPending || !line}
+                onClick={() => syncSkus.mutate()}
+              >
+                {syncSkus.isPending ? "Syncing…" : "Sync SKUs"}
+              </Button>
+            )}
             <div className="flex items-center gap-2 text-2xl font-mono tabular-nums">
               <Clock className="h-6 w-6" />
               {now.toLocaleTimeString("en-GB", { hour12: false })}
@@ -659,6 +708,159 @@ export default function LineProductionScreen() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RequestOrderDialog
+        open={requestOpen}
+        onOpenChange={setRequestOpen}
+        line={line}
+        operatorLabel={operatorAcctQ.data?.label || `Tablet ${tabletId}`}
+      />
     </div>
+  );
+}
+
+function RequestOrderDialog({
+  open,
+  onOpenChange,
+  line,
+  operatorLabel,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  line: string;
+  operatorLabel: string;
+}) {
+  const createWO = useCreateWorkOrder();
+  const problemsQ = useActiveProblemDescriptions();
+  const [problem, setProblem] = useState<string>("");
+  const [customDesc, setCustomDesc] = useState<string>("");
+  const [priority, setPriority] = useState<string>("high");
+  const [machine, setMachine] = useState<string>("");
+  const [requestedBy, setRequestedBy] = useState<string>("");
+
+  // Lookup line_id for the selected line name
+  const lineQ = useQuery({
+    enabled: open && !!line,
+    queryKey: ["lps-req-line-id", line],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("lines").select("id").eq("name", line).maybeSingle();
+      return data?.id as string | null;
+    },
+  });
+
+  // Machines on this line (optional)
+  const machinesQ = useQuery({
+    enabled: open && !!lineQ.data,
+    queryKey: ["lps-req-machines", lineQ.data],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("machines")
+        .select("id, name, fixed_line, current_line, line")
+        .or(`fixed_line.eq.${line},current_line.eq.${line},line.eq.${line}`);
+      return (data || []) as { id: string; name: string }[];
+    },
+  });
+
+  const submit = async () => {
+    const description = problem === "__custom__" || !problem ? customDesc.trim() : problem;
+    if (!description) {
+      toast.error("Please describe the problem");
+      return;
+    }
+    try {
+      await createWO.mutateAsync({
+        requester_name: requestedBy.trim() || operatorLabel || "Operator",
+        machine: machine || "",
+        description,
+        priority,
+        line_id: lineQ.data || null,
+        line_stopped: true,
+      } as any);
+      toast.success("Maintenance order opened");
+      onOpenChange(false);
+      setProblem(""); setCustomDesc(""); setMachine(""); setRequestedBy(""); setPriority("high");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to open order");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-2xl flex items-center gap-2">
+            <AlertTriangle className="h-6 w-6 text-red-500" /> Request Maintenance — {line}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-base">Requested by</Label>
+            <Input
+              className="h-12 text-lg"
+              placeholder={operatorLabel || "Your name / tablet"}
+              value={requestedBy}
+              onChange={(e) => setRequestedBy(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-base">Machine (optional)</Label>
+            <Select value={machine || "__none__"} onValueChange={(v) => setMachine(v === "__none__" ? "" : v)}>
+              <SelectTrigger className="h-12 text-lg"><SelectValue placeholder="Any" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Any —</SelectItem>
+                {(machinesQ.data || []).map((m) => (
+                  <SelectItem key={m.id} value={m.name} className="text-lg">{m.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-base">Problem</Label>
+            <Select value={problem} onValueChange={setProblem}>
+              <SelectTrigger className="h-12 text-lg"><SelectValue placeholder="Select problem" /></SelectTrigger>
+              <SelectContent>
+                {(problemsQ.data || []).map((p: any) => (
+                  <SelectItem key={p.id} value={p.name} className="text-lg">{p.name}</SelectItem>
+                ))}
+                <SelectItem value="__custom__" className="text-lg">— Other (describe) —</SelectItem>
+              </SelectContent>
+            </Select>
+            {(problem === "__custom__" || !problem) && (
+              <Textarea
+                className="min-h-[80px] text-base mt-2"
+                placeholder="Describe the problem"
+                value={customDesc}
+                onChange={(e) => setCustomDesc(e.target.value)}
+              />
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label className="text-base">Priority</Label>
+            <div className="flex gap-2">
+              {["low","medium","high","critical"].map((p) => (
+                <Button
+                  key={p}
+                  variant={priority === p ? "default" : "outline"}
+                  className="h-12 flex-1 capitalize"
+                  onClick={() => setPriority(p)}
+                >
+                  {p}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" className="h-12" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            className="h-12 bg-red-600 hover:bg-red-700 text-white"
+            onClick={submit}
+            disabled={createWO.isPending}
+          >
+            <Plus className="h-5 w-5 mr-2" /> {createWO.isPending ? "Opening…" : "Open Order"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
