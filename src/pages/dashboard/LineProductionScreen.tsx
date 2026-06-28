@@ -829,6 +829,26 @@ function RequestOrderDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
+            <Label className="text-base">Line status</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={lineStatus === "stopped" ? "default" : "outline"}
+                className={`h-14 text-base ${lineStatus === "stopped" ? "bg-red-600 hover:bg-red-700 text-white" : ""}`}
+                onClick={() => setLineStatus("stopped")}
+              >
+                🛑 Machine stopped
+              </Button>
+              <Button
+                type="button"
+                variant={lineStatus === "running" ? "default" : "outline"}
+                className={`h-14 text-base ${lineStatus === "running" ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+                onClick={() => { setLineStatus("running"); setPriority("medium"); }}
+              >
+                ⚙️ Running — needs maintenance
+              </Button>
+            </div>
+          </div>
             <Label className="text-base">Requested by</Label>
             <Input
               className="h-12 text-lg"
