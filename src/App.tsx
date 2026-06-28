@@ -55,6 +55,7 @@ const IntouchStopCodesPage = lazy(() => import("./pages/dashboard/IntouchStopCod
 const DowntimeHeatmapPage = lazy(() => import("./pages/dashboard/DowntimeHeatmapPage"));
 const PMIntelligencePage = lazy(() => import("./pages/dashboard/PMIntelligencePage"));
 const SmartTargetPage = lazy(() => import("./pages/dashboard/SmartTargetPage"));
+const WeeklyProductionReportPage = lazy(() => import("./pages/dashboard/WeeklyProductionReportPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
