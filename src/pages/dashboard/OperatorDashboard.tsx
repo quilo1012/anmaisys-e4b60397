@@ -96,6 +96,7 @@ function OperatorDashboardContent() {
   const createWO = useCreateWorkOrder();
   const closeWO = useCloseWorkOrder();
   const { toast } = useToast();
+  const qcRef = useQueryClient();
   const navigate = useNavigate();
 
   // Operator close — no signature dialog; uses requester or operator profile name as signature
