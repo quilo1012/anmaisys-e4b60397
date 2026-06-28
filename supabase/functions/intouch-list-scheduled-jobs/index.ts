@@ -192,7 +192,7 @@ function queryVariants(path: string, machineId: string | null, startISO: string,
   return Array.from(new Set(out));
 }
 
-type Row = { code: string; description: string; qty: number; status: "Running" | "Scheduled"; seq: number };
+type Row = { code: string; description: string; qty: number; status: "Running" | "Scheduled"; seq: number; batch: string; actual: number };
 function parseDateMs(value: unknown) {
   if (value == null || String(value).trim() === "") return null;
   const ms = Date.parse(String(value));
@@ -243,11 +243,15 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
     if (!inWin(obj)) return;
     for (const wo of wos) {
       if (!inWin(wo)) continue;
-      const code = cleanCode(pick(wo, ["PartCode", "Part Code", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "JobProductCode", "ProductID", "ProductId", "Code"]));
+      const rawCode = String(pick(wo, ["PartCode", "Part Code", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "JobProductCode", "ProductID", "ProductId", "Code"]) ?? "").trim();
+      const code = cleanCode(rawCode);
       if (!code || code.length < 2) continue;
+      const batchMatch = rawCode.match(/-([Bb]\d+)$/);
+      const batch = batchMatch?.[1] ?? "";
       const description = String(pick(wo, ["Description", "LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
       const qty = num(pick(wo, ["OrderQty", "Order Qty", "JobOrderQuantity", "Job Order Quantity", "OrderQuantity", "RequiredQuantity", "RequiredQty", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "ScheduledQty", "TargetQty", "Balance", "Demand", "Units"])) || 1;
-      out.push({ code, description, qty, status: readStatus(wo), seq: readSeq(wo) || ++autoSeq });
+      const actual = num(pick(wo, ["CompletedQuantity", "CompletedQty", "AlreadyMade", "ProducedQuantity", "ActualQuantity"])) || 0;
+      out.push({ code, description, qty, status: readStatus(wo), seq: readSeq(wo) || ++autoSeq, batch, actual });
     }
   });
   if (out.length === 0) {
@@ -259,7 +263,10 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
       if (!code || code.length < 3 || /^(LINE|MACHINE|DATE|SHIFT|START|END|STATUS)$/i.test(code)) return;
       const qty = num(pick(obj, ["OrderQty", "Order Qty", "JobOrderQuantity", "Job Order Quantity", "OrderQuantity", "RequiredQuantity", "RequiredQty", "Required", "Quantity", "Qty", "PlannedQuantity", "PlanQty", "TargetQty", "ScheduledQty", "Balance", "Demand", "Units"])) || 1;
       const description = String(pick(obj, ["Description", "LongDescription", "ProductDescription", "PartDescription", "MaterialDescription", "ShortDescription", "Name", "ProductName", "ItemName"]) ?? code).trim();
-      out.push({ code, description, qty, status: readStatus(obj), seq: readSeq(obj) || ++autoSeq });
+      const rawCode2 = String(pick(obj, ["PartCode", "Part Code", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "Code"]) ?? "").trim();
+      const bm = rawCode2.match(/-([Bb]\d+)$/);
+      const actual = num(pick(obj, ["CompletedQuantity", "CompletedQty", "AlreadyMade", "ProducedQuantity", "ActualQuantity"])) || 0;
+      out.push({ code, description, qty, status: readStatus(obj), seq: readSeq(obj) || ++autoSeq, batch: bm?.[1] ?? "", actual });
     });
   }
   return out;
@@ -407,6 +414,8 @@ Deno.serve(async (req) => {
           else {
             cur.description = cur.description || r.description;
             cur.qty = Math.max(cur.qty, r.qty);
+            cur.actual = Math.max(cur.actual, r.actual);
+            if (!cur.batch && r.batch) cur.batch = r.batch;
             if (r.status === "Running") cur.status = "Running";
             cur.sources.add(p.source);
           }
@@ -430,6 +439,8 @@ Deno.serve(async (req) => {
               seq: r.seq,
               catalog_match: !!cat,
               category: cat?.category ?? null,
+              batch: r.batch,
+              actual: r.actual,
               sources: Array.from(r.sources),
             };
           }),

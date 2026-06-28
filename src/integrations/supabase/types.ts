@@ -1387,6 +1387,7 @@ export type Database = {
       production_items: {
         Row: {
           actual_qty: number
+          blender_ref: string | null
           created_at: string
           id: string
           notes: string | null
@@ -1401,6 +1402,7 @@ export type Database = {
         }
         Insert: {
           actual_qty?: number
+          blender_ref?: string | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -1415,6 +1417,7 @@ export type Database = {
         }
         Update: {
           actual_qty?: number
+          blender_ref?: string | null
           created_at?: string
           id?: string
           notes?: string | null
