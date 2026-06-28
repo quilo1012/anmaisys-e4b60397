@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
       // 2) Collect job IDs and hydrate full records via POST /api/GetJobs.
       const jobIds = new Set<string>();
       walk(running, (o) => {
-        const jid = pickStr(o, ["JobID", "JobId", "JobGUID", "JobGuid", "ID", "Id"]);
+        const jid = pickStr(o, ["WorskOrderID", "WorksOrderID", "JobID", "JobId", "JobGUID", "JobGuid", "ID", "Id"]);
         if (jid && jid.length >= 8) jobIds.add(jid);
       });
       if (jobIds.size > 0) {

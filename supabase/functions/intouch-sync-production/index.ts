@@ -356,7 +356,7 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
   const jobIds = new Set<string>();
   walkObjects(running, (obj) => {
     const mid = String(pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid"]) ?? "").trim();
-    const jid = String(pick(obj, ["JobID", "JobId", "JobGUID", "JobGuid", "ID", "Id"]) ?? "").trim();
+    const jid = String(pick(obj, ["WorskOrderID", "WorksOrderID", "JobID", "JobId", "JobGUID", "JobGuid", "ID", "Id"]) ?? "").trim();
     if (mid && jid && ids.includes(mid)) jobIds.add(jid);
   });
   if (jobIds.size > 0) {
@@ -472,7 +472,7 @@ async function fetchRunningJobRows(machines: MachineRef[]) {
   const jobIds = new Set<string>();
   walkObjects(running, (obj) => {
     const machineId = String(pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid"]) ?? "").trim();
-    const jobId = String(pick(obj, ["JobID", "JobId", "JobGUID", "JobGuid", "ID", "Id"]) ?? "").trim();
+    const jobId = String(pick(obj, ["WorskOrderID", "WorksOrderID", "JobID", "JobId", "JobGUID", "JobGuid", "ID", "Id"]) ?? "").trim();
     if (machineId && allowedIds.has(machineId) && jobId) jobIds.add(jobId);
   });
   if (jobIds.size === 0) return [];
