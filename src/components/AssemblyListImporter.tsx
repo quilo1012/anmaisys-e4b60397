@@ -486,6 +486,9 @@ export function AssemblyListImporter({
                 <Button size="sm" variant="outline" disabled={!defaultLine} onClick={() => applyLineToAll(defaultLine)}>
                   Apply to all ({rows.length})
                 </Button>
+                <Button size="sm" variant="default" className="gap-1" onClick={() => autoAssignFromHistory(false)}>
+                  <Wand2 className="h-3 w-3" /> Smart match from history
+                </Button>
                 <span className="text-xs text-muted-foreground ml-auto">
                   Same blender, different size? Set line per row below.
                 </span>
