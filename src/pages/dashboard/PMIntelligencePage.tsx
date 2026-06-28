@@ -7,7 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { usePmSchedules, useUpdatePmSchedule } from "@/hooks/usePreventiveMaintenance";
 import { toast } from "sonner";
-import { Brain, CheckCircle2, AlertTriangle, ArrowDown, ArrowUp } from "lucide-react";
+import { Brain, CheckCircle2, AlertTriangle, ArrowDown, ArrowUp, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 type RecKind = "reduce" | "no_pm" | "ok" | "increase";
 
@@ -50,6 +51,7 @@ const recMeta: Record<RecKind, { label: string; cls: string; icon: any }> = {
 };
 
 export default function PMIntelligencePage() {
+  const navigate = useNavigate();
   const { data: wos, isLoading: woLoading } = useWorkOrders();
   const { data: schedules, isLoading: pmLoading } = usePmSchedules();
   const updatePm = useUpdatePmSchedule();
@@ -152,6 +154,9 @@ export default function PMIntelligencePage() {
   return (
     <DashboardLayout>
       <div className="p-4 md:p-6 space-y-6">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2 -ml-2">
+          <ArrowLeft className="h-4 w-4" /> Back to menu
+        </Button>
         <div className="flex items-start gap-3">
           <Brain className="h-7 w-7 text-primary mt-1" />
           <div>
