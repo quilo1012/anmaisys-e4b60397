@@ -828,10 +828,27 @@ function EngineerDashboardContent() {
             ) : !activeWOs?.length ? (
               <p className="text-muted-foreground text-center py-8">No open work orders right now.</p>
             ) : isMobile ? (
-              <div className="space-y-4 md:space-y-5">
-                {activeWOs.map((wo) => <MobileWOCard key={wo.id} wo={wo} />)}
+              (() => {
+                const openWOs = activeWOs.filter((w) => w.status === "open");
+                const inProgressWOs = activeWOs.filter((w) => w.status !== "open");
+                return (
+                  <div className="space-y-6">
+                    {openWOs.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-bold uppercase tracking-wide text-destructive">🆕 Open · {openWOs.length}</h3>
+                        {openWOs.map((wo) => <MobileWOCard key={wo.id} wo={wo} />)}
+                      </div>
+                    )}
+                    {inProgressWOs.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">🔧 In Progress · {inProgressWOs.length}</h3>
+                        {inProgressWOs.map((wo) => <MobileWOCard key={wo.id} wo={wo} />)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
 
-              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
