@@ -461,7 +461,10 @@ export default function LineProductionScreen() {
             <SyncStatusIndicator
               isSyncing={itemsQ.isFetching || ragPlanQ.isFetching || sessionQ.isFetching || updateActual.isPending}
               error={updateActual.error || itemsQ.error || ragPlanQ.error}
+              label={isOperator ? "" : "Sync"}
+              className={isOperator ? "px-1.5 py-0.5 text-[10px] [&_span]:hidden" : ""}
             />
+
             <Button
               size="lg"
               className="h-12 bg-red-600 hover:bg-red-700 text-white"
