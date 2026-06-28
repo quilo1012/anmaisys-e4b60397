@@ -612,12 +612,15 @@ export default function LineProductionScreen() {
               </Card>
             )}
             {items.map((it) => {
-              const pct = it.target_qty > 0 ? (it.actual_qty / it.target_qty) * 100 : 0;
+              const effTarget = it.target_qty > 0
+                ? it.target_qty
+                : (items.length > 0 ? Math.round((ragPlanQ.data || 0) / items.length) : 0);
+              const pct = effTarget > 0 ? (it.actual_qty / effTarget) * 100 : 0;
               const done = pct >= 100;
               return (
                 <Card
                   key={it.id}
-                  onClick={() => openEditor(it)}
+                  onClick={() => openEditor({ ...it, target_qty: effTarget })}
                   className={cn(
                     "cursor-pointer active:scale-[0.99] transition",
                     done && "bg-emerald-500/10 border-emerald-500/40",
@@ -628,7 +631,7 @@ export default function LineProductionScreen() {
                       <div className="min-w-0">
                         <div className="font-mono font-bold text-base flex items-center gap-2">
                           {it.code}
-                          {it.target_qty === 0 && (
+                          {it.target_qty === 0 && effTarget === 0 && (
                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                               Intouch
                             </Badge>
@@ -637,7 +640,7 @@ export default function LineProductionScreen() {
                         <div className="text-sm text-muted-foreground truncate">{it.name}</div>
                       </div>
                       <Badge variant="outline" className="text-base tabular-nums shrink-0">
-                        {it.target_qty === 0 ? "No plan" : `${pct.toFixed(0)}%`}
+                        {effTarget === 0 ? "No plan" : `${pct.toFixed(0)}%`}
                       </Badge>
                     </div>
 
@@ -646,7 +649,7 @@ export default function LineProductionScreen() {
                         {it.actual_qty.toLocaleString()}
                       </span>
                       <span className="text-sm text-muted-foreground tabular-nums">
-                        / {it.target_qty.toLocaleString()}
+                        / {effTarget.toLocaleString()}
                       </span>
                     </div>
                     <div className="h-3 overflow-hidden rounded-full bg-muted">
