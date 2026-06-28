@@ -110,11 +110,20 @@ function OperatorDashboardContent() {
     }
   };
 
-  // Detect Sealer/Printer line by name to show the asset sub-picker.
-  const isSealerPrinterLine = useMemo(
-    () => /sealer|printer/i.test(lineName),
+  // Detect Sealer/Printer line by name to pre-select the asset sub-picker mode.
+  const lineIsSealerPrinter = useMemo(
+    () => /sealer|printer/i.test(lineName || ""),
     [lineName]
   );
+  // Operator can manually switch any login between "Line" WO and "Sealer/Printer Ink" WO.
+  const [targetMode, setTargetMode] = useState<"line" | "sealer_printer">(
+    lineIsSealerPrinter ? "sealer_printer" : "line"
+  );
+  // Keep mode in sync when the operator switches the bound line.
+  useMemo(() => {
+    setTargetMode(lineIsSealerPrinter ? "sealer_printer" : "line");
+  }, [lineIsSealerPrinter]);
+  const isSealerPrinterLine = targetMode === "sealer_printer";
 
   // Smart suggestions: recent WOs for the locked line
   const machineSuggestions = useMemo(() => {
