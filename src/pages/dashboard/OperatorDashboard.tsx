@@ -301,7 +301,41 @@ function OperatorDashboardContent() {
               />
             </div>
 
-            {/* Mobile-asset sub-picker (only on Sealer/Printer line). Line itself is locked. */}
+            {/* WO target — Line vs Sealer/Printer Ink (available on every operator login) */}
+            <div className="md:col-span-2 space-y-2">
+              <Label>What needs maintenance?</Label>
+              <div className="inline-flex rounded-md border bg-card p-1 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetMode("line");
+                    setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId("");
+                  }}
+                  className={cn(
+                    "flex-1 sm:flex-none px-4 h-11 rounded-sm font-semibold transition-colors",
+                    targetMode === "line" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  🏭 {lineName || "Line"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetMode("sealer_printer");
+                    setMachineName("");
+                    if (!physicalLineId && lineId && !lineIsSealerPrinter) setPhysicalLineId(lineId);
+                  }}
+                  className={cn(
+                    "flex-1 sm:flex-none px-4 h-11 rounded-sm font-semibold transition-colors",
+                    targetMode === "sealer_printer" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  🖨️ Sealer / Printer Ink
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile-asset sub-picker — shown whenever Sealer/Printer mode is active. */}
             {isSealerPrinterLine && (
               <>
                 <div className="md:col-span-2">
