@@ -347,6 +347,16 @@ function OperatorDashboardContent() {
                           </SelectItem>
                         );
                       })}
+                    {/* Mobile assets (Sealer / Printer Ink) — available on every line */}
+                    {(mobileAssets || []).filter((a: any) => a.active !== false).map((a: any) => {
+                      const label = formatMobileAsset(a);
+                      return (
+                        <SelectItem key={`ma-${a.id}`} value={label}>
+                          {label}
+                        </SelectItem>
+                      );
+                    })}
+
 
                   </SelectContent>
                 </Select>
