@@ -21,8 +21,8 @@ const INTOUCH_AUTH_HEADER = /^bearer\s+/i.test(INTOUCH_TOKEN.trim())
   : `Bearer ${INTOUCH_TOKEN.trim()}`;
 
 type MachineRef = { id: string; name: string };
-type SkuRow = { code: string; description: string; qty: number; source: string };
-type Agg = { qty: number; description: string; source: string };
+type SkuRow = { code: string; description: string; qty: number; source: string; batch: string; actual: number };
+type Agg = { qty: number; description: string; source: string; batch: string; actual: number };
 
 const FETCH_TIMEOUT_MS = 10_000;
 
