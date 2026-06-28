@@ -439,6 +439,16 @@ export default function ProductionPlannerPage() {
             queryClient.invalidateQueries({ queryKey: ["production_items"] });
           }}
         />
+        <AssemblyListImporter
+          open={assemblyOpen}
+          onOpenChange={setAssemblyOpen}
+          onImported={() => {
+            queryClient.invalidateQueries({ queryKey: ["production_sessions"] });
+            queryClient.invalidateQueries({ queryKey: ["production_session"] });
+            queryClient.invalidateQueries({ queryKey: ["production_items"] });
+            queryClient.invalidateQueries({ queryKey: ["rag_weekly_entries"] });
+          }}
+        />
 
         {/* Shift Information — horizontal row */}
         <Card>
