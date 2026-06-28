@@ -755,16 +755,6 @@ export default function RAGWeeklyPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const onPickFile = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".xlsx,.xls,.csv";
-    input.onchange = () => {
-      const f = input.files?.[0];
-      if (f) importMutation.mutate(f);
-    };
-    input.click();
-  };
 
 
   const weekNumber = getISOWeek(weekStart);
