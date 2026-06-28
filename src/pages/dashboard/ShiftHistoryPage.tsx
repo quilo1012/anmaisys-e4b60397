@@ -15,6 +15,8 @@ import { Download, Lock, Unlock, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useOperatorLineIds } from "@/hooks/useOperatorLineAccess";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 
 /**
