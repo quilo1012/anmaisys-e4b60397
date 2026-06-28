@@ -233,16 +233,25 @@ function EngineerDashboardContent() {
     enabled: !!user?.id,
     queryFn: async () => {
       const uid = user!.id;
-      const { data, error } = await supabase
-        .from("work_orders")
-        .select("id, wo_number, line_at_time, machine, description, status, requester_name, engineer_name, engineer_id, collaborator_ids, created_at, finished_at, closed_at, completed_at, started_at")
-        .or(`engineer_id.eq.${uid},collaborator_ids.cs.{${uid}}`)
-        .in("status", ["finished", "closed", "completed"])
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return data ?? [];
+      const cols = "id, wo_number, line_at_time, machine, description, status, requester_name, engineer_name, engineer_id, collaborator_ids, created_at, finished_at, closed_at, completed_at, started_at";
+      const statuses = ["finished", "closed", "completed"] as const;
+      const [primaryRes, collabRes] = await Promise.all([
+        supabase.from("work_orders").select(cols)
+          .eq("engineer_id", uid).in("status", statuses)
+          .order("created_at", { ascending: false }).limit(200),
+        supabase.from("work_orders").select(cols)
+          .contains("collaborator_ids", [uid]).in("status", statuses)
+          .order("created_at", { ascending: false }).limit(200),
+      ]);
+      if (primaryRes.error) throw primaryRes.error;
+      if (collabRes.error) throw collabRes.error;
+      const map = new Map<string, any>();
+      for (const row of [...(primaryRes.data ?? []), ...(collabRes.data ?? [])]) map.set(row.id, row);
+      return Array.from(map.values()).sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      ).slice(0, 200);
     },
+
   });
   const acceptWO = useReceiveWorkOrder();
   const arriveWO = useArriveWorkOrder();
