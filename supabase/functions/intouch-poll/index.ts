@@ -330,6 +330,20 @@ Deno.serve(async (req) => {
       throw new Error("Missing INTOUCH_API_URL or INTOUCH_API_TOKEN");
     }
 
+    // Egress backoff: skip the entire poll until iTouching quota window resets.
+    const blockedUntil = await intouchQuotaBlockedUntil();
+    if (blockedUntil) {
+      return new Response(JSON.stringify({
+        ok: false,
+        error: "iTouching daily quota exhausted",
+        retry_after: blockedUntil,
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
 
     // 1. Active machines mapped to our system
     const { data: mapped, error: mErr } = await admin
