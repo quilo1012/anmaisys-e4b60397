@@ -50,35 +50,48 @@ export function MobileAssetSubPicker({ lineId, sealerId, printerId, onChange }: 
     }
   };
 
+  const renderButtons = (
+    list: typeof sealers,
+    selectedId: string,
+    onPick: (id: string) => void,
+    emptyLabel: string,
+  ) => (
+    <div className="flex flex-wrap gap-2">
+      {list.length === 0 && (
+        <span className="text-sm text-muted-foreground py-2">{emptyLabel}</span>
+      )}
+      {list.map((a) => {
+        const active = a.id === selectedId;
+        return (
+          <Button
+            key={a.id}
+            type="button"
+            variant={active ? "default" : "outline"}
+            className={cn("h-12 px-4 font-semibold", active && "ring-2 ring-primary")}
+            onClick={() => onPick(a.id)}
+          >
+            {formatMobileAsset(a)}
+          </Button>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid gap-4 md:grid-cols-2">
       <div className="space-y-2">
         <Label>Bag Sealer *</Label>
-        <Select
-          value={sealerId || undefined}
-          onValueChange={(v) => onChange({ sealerId: v, printerId })}
-        >
-          <SelectTrigger className="h-12">
-            <SelectValue placeholder="Select sealer..." />
-          </SelectTrigger>
-          <SelectContent>
-            {sealers.length === 0 && (
-              <div className="px-2 py-3 text-sm text-muted-foreground">
-                No bag sealers registered.
-              </div>
-            )}
-            {sealers.map((a) => (
-              <SelectItem key={a.id} value={a.id}>
-                {formatMobileAsset(a)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {renderButtons(
+          sealers,
+          sealerId,
+          (id) => onChange({ sealerId: id, printerId }),
+          "No bag sealers registered.",
+        )}
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
-          className="h-9 w-full"
+          className="h-9"
           disabled={upsertAsset.isPending}
           onClick={() => handleAdd("bag_sealer")}
         >
@@ -93,31 +106,17 @@ export function MobileAssetSubPicker({ lineId, sealerId, printerId, onChange }: 
 
       <div className="space-y-2">
         <Label>Printer *</Label>
-        <Select
-          value={printerId || undefined}
-          onValueChange={(v) => onChange({ sealerId, printerId: v })}
-        >
-          <SelectTrigger className="h-12">
-            <SelectValue placeholder="Select printer..." />
-          </SelectTrigger>
-          <SelectContent>
-            {printers.length === 0 && (
-              <div className="px-2 py-3 text-sm text-muted-foreground">
-                No printers registered.
-              </div>
-            )}
-            {printers.map((a) => (
-              <SelectItem key={a.id} value={a.id}>
-                {formatMobileAsset(a)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {renderButtons(
+          printers,
+          printerId,
+          (id) => onChange({ sealerId, printerId: id }),
+          "No printers registered.",
+        )}
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
-          className="h-9 w-full"
+          className="h-9"
           disabled={upsertAsset.isPending}
           onClick={() => handleAdd("printer")}
         >
@@ -132,3 +131,4 @@ export function MobileAssetSubPicker({ lineId, sealerId, printerId, onChange }: 
     </div>
   );
 }
+
