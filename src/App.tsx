@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, WifiOff } from "lucide-react";
+import { roleDashMap } from "@/lib/permissions";
 
 const OperatorDashboard = lazy(() => import("./pages/dashboard/OperatorDashboard"));
 const EngineerDashboard = lazy(() => import("./pages/dashboard/EngineerDashboard"));
@@ -64,6 +65,19 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 30 * 1000,
       gcTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+      retry: (failureCount, error: unknown) => {
+        const status = (error as { status?: number; statusCode?: number } | null)?.status
+          ?? (error as { statusCode?: number } | null)?.statusCode;
+        // Don't retry auth / permission / not-found errors
+        if (status === 401 || status === 403 || status === 404) return false;
+        return failureCount < 2;
+      },
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    },
+    mutations: {
+      retry: 0,
     },
   },
 });
@@ -82,14 +96,7 @@ const PageLoader = () => (
   </div>
 );
 
-const roleDashMap: Record<string, string> = {
-  admin: "/dashboard/manager",
-  manager: "/dashboard/manager",
-  maintenance_manager: "/dashboard/manager",
-  engineer: "/dashboard/engineer",
-  operator: "/dashboard/operator",
-  viewer: "/dashboard/manager",
-};
+
 
 const SessionRedirect = () => {
   const { session, role, loading, authError, retryAuth, signOut } = useAuth();

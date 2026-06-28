@@ -3,17 +3,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { Database } from "@/integrations/supabase/types";
 import { Loader2, RefreshCw, ShieldAlert, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { roleDashMap } from "@/lib/permissions";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
-const dashMap: Record<AppRole, string> = {
-  admin: "/dashboard/manager",
-  manager: "/dashboard/manager",
-  maintenance_manager: "/dashboard/manager",
-  engineer: "/dashboard/engineer",
-  operator: "/dashboard/operator",
-  viewer: "/dashboard/manager",
-};
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles?: AppRole[];
+}
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -123,7 +120,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   // Role loaded but not authorized for this route — show access denied
   if (allowedRoles && !allowedRoles.includes(role)) {
-    const homePath = dashMap[role] || "/login";
+    const homePath = roleDashMap[role] || "/login";
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center space-y-4">
