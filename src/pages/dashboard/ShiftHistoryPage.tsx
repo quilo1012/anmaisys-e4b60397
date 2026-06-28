@@ -15,6 +15,7 @@ import { Download, Lock, Unlock, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
+import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 
 /**
@@ -48,6 +49,8 @@ interface SessionRow {
 
 export default function ShiftHistoryPage() {
   const qc = useQueryClient();
+  const { role } = useAuth();
+  const isAdmin = role === "admin" || role === "manager" || role === "maintenance_manager";
   const { data: lines = [] } = useLines();
   const { data: leaders = [] } = useLeaders();
   const { data: skus = [] } = useSkuProducts(false);
@@ -62,9 +65,10 @@ export default function ShiftHistoryPage() {
   
   const [editing, setEditing] = useState<SessionRow | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [editingItem, setEditingItem] = useState<{ id: string; code: string; target: number; actual: number; notes: string | null } | null>(null);
+  const [editingItem, setEditingItem] = useState<{ id: string; sku_id: string; code: string; target: number; actual: number; notes: string | null } | null>(null);
   const [editActual, setEditActual] = useState<string>("");
   const [editUnit, setEditUnit] = useState<"tubs" | "bags">("tubs");
+  const [editSkuId, setEditSkuId] = useState<string>("");
 
 
   const { data: sessions = [] } = useQuery({
@@ -140,13 +144,15 @@ export default function ShiftHistoryPage() {
   });
 
   const saveItemActual = useMutation({
-    mutationFn: async ({ id, actual, unit, prevNotes }: { id: string; actual: number; unit: "tubs" | "bags"; prevNotes: string | null }) => {
+    mutationFn: async ({ id, actual, unit, prevNotes, sku_id }: { id: string; actual: number; unit: "tubs" | "bags"; prevNotes: string | null; sku_id?: string }) => {
       const stripped = (prevNotes ?? "").replace(/\[unit:(tubs|bags)\]\s*/gi, "").trim();
       const newNotes = `[unit:${unit}]${stripped ? " " + stripped : ""}`;
-      const { error } = await supabase.from("production_items").update({ actual_qty: actual, notes: newNotes }).eq("id", id);
+      const payload: Record<string, unknown> = { actual_qty: actual, notes: newNotes };
+      if (sku_id) payload.sku_id = sku_id;
+      const { error } = await supabase.from("production_items").update(payload).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setEditingItem(null); toast.success("Actual updated"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setEditingItem(null); toast.success("Saved"); },
     onError: (e: Error) => toast.error(e.message),
   });
 
