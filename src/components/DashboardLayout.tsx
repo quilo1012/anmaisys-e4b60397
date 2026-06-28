@@ -69,7 +69,7 @@ const navItems: NavItem[] = [
   // Production
   { title: "Planner", url: "/dashboard/planner", icon: Factory, roles: ["admin", "manager"], group: "Production" },
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager"], group: "Production" },
-  { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager"], group: "Production" },
+  { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "operator"], group: "Production" },
   { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production" },
   { title: "SKU Efficiency", url: "/dashboard/sku-efficiency", icon: Trophy, roles: ["admin", "manager"], group: "Production" },
   { title: "Forecast", url: "/dashboard/forecast", icon: Calculator, roles: ["admin", "manager"], group: "Production" },
