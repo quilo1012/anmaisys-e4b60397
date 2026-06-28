@@ -49,15 +49,3 @@ export function mapWoToStop(r: WoRowForDowntime): MappedStop | null {
   };
 }
 
-export function shiftMinutesForLine(
-  rows: WoRowForDowntime[],
-  line: string,
-  windowStart: number,
-  windowEnd: number,
-  nowMs?: number,
-): number {
-  const stops = rows
-    .map(mapWoToStop)
-    .filter((s): s is MappedStop => !!s && s.line === line);
-  return reconcileMinutes(stops, windowStart, windowEnd, nowMs);
-}
