@@ -307,6 +307,8 @@ export function AssemblyListImporter({
     }
     setRows(parsed);
     toast.success(`Parsed ${parsed.length} orders · ${parsed.filter((p) => p.sku_id).length} matched`);
+    // Smart auto-assign lines from history for matched SKUs that came without a Line
+    setTimeout(() => { autoAssignFromHistory(true).catch(() => {}); }, 0);
   };
 
   const update = (i: number, patch: Partial<Row>) =>
