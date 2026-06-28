@@ -824,17 +824,23 @@ function RequestOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+      <DialogContent
+        data-testid="maintenance-dialog"
+        className={dialogContentResponsive}
+      >
         <DialogHeader>
-          <DialogTitle className="text-lg sm:text-2xl flex items-center gap-2">
+          <DialogTitle className={dialogTitleResponsive}>
             <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-red-500 shrink-0" />
             <span className="truncate">Request Maintenance — {line}</span>
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <ResponsiveDialogBody data-testid="maintenance-dialog-body">
           <div className="space-y-2">
-            <Label className="text-sm sm:text-base">Line status</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Label className={dialogFieldLabelResponsive}>Line status</Label>
+            <div
+              data-testid="line-status-grid"
+              className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3"
+            >
               <Button
                 type="button"
                 variant={lineStatus === "stopped" ? "default" : "outline"}
@@ -854,18 +860,18 @@ function RequestOrderDialog({
             </div>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm sm:text-base">Requested by</Label>
+            <Label className={dialogFieldLabelResponsive}>Requested by</Label>
             <Input
-              className="h-11 sm:h-12 text-base sm:text-lg"
+              className={dialogControlResponsive}
               placeholder={operatorLabel || "Your name / tablet"}
               value={requestedBy}
               onChange={(e) => setRequestedBy(e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-sm sm:text-base">Machine (optional)</Label>
+            <Label className={dialogFieldLabelResponsive}>Machine (optional)</Label>
             <Select value={machine || "__none__"} onValueChange={(v) => setMachine(v === "__none__" ? "" : v)}>
-              <SelectTrigger className="h-11 sm:h-12 text-base sm:text-lg"><SelectValue placeholder="Any" /></SelectTrigger>
+              <SelectTrigger className={dialogControlResponsive}><SelectValue placeholder="Any" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">— Any —</SelectItem>
                 {(machinesQ.data || []).map((m) => (
@@ -875,9 +881,9 @@ function RequestOrderDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm sm:text-base">Problem</Label>
+            <Label className={dialogFieldLabelResponsive}>Problem</Label>
             <Select value={problem} onValueChange={setProblem}>
-              <SelectTrigger className="h-11 sm:h-12 text-base sm:text-lg"><SelectValue placeholder="Select problem" /></SelectTrigger>
+              <SelectTrigger className={dialogControlResponsive}><SelectValue placeholder="Select problem" /></SelectTrigger>
               <SelectContent>
                 {(problemsQ.data || []).map((p: any) => (
                   <SelectItem key={p.id} value={p.name} className="text-base sm:text-lg">{p.name}</SelectItem>
@@ -894,11 +900,11 @@ function RequestOrderDialog({
               />
             )}
           </div>
-        </div>
-        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-0">
-          <Button variant="outline" className="h-11 sm:h-12 w-full sm:w-auto" onClick={() => onOpenChange(false)}>Cancel</Button>
+        </ResponsiveDialogBody>
+        <DialogFooter className={dialogFooterResponsive}>
+          <Button variant="outline" className={dialogPrimaryActionResponsive} onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
-            className="h-11 sm:h-12 w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
+            className={`${dialogPrimaryActionResponsive} bg-red-600 hover:bg-red-700 text-white`}
             onClick={submit}
             disabled={createWO.isPending}
           >
@@ -906,6 +912,7 @@ function RequestOrderDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
     </Dialog>
   );
 }
