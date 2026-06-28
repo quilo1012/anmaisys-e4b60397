@@ -61,7 +61,36 @@ Deno.serve(async (req) => {
         errs.push(`${path}: ${(e as Error).message}`);
       }
     }
-    if (raw == null) throw new Error(`iTouching: no endpoint returned JSON. ${errs.join(" | ")}`);
+    const egressHit = errs.some((e) => /egress/i.test(e));
+
+    if (raw == null) {
+      const { data: cached } = await admin
+        .from("intouch_machine_map")
+        .select("intouch_machine_id, intouch_machine_name, machine_name, line_id, updated_at")
+        .order("updated_at", { ascending: false });
+
+      if (cached && cached.length > 0) {
+        const machines = cached.map((c) => ({
+          guid: c.intouch_machine_id ?? "",
+          name: c.intouch_machine_name ?? c.machine_name ?? "",
+          line: "",
+          raw: c,
+        }));
+        return new Response(
+          JSON.stringify({
+            machines,
+            source: "cache",
+            count: machines.length,
+            cached: true,
+            cached_at: cached[0]?.updated_at ?? null,
+            reason: egressHit ? "itouching_egress_exceeded" : "itouching_unavailable",
+            upstream_errors: errs,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      throw new Error(`iTouching: no endpoint returned JSON. ${errs.join(" | ")}`);
+    }
 
 
     // The payload may be an array, or wrapped (e.g. { Machines: [...] } / { data: [...] }).
@@ -84,9 +113,10 @@ Deno.serve(async (req) => {
       raw: m,
     })).filter((m) => m.guid || m.name);
 
-    return new Response(JSON.stringify({ machines, source: usedPath, count: machines.length }), {
+    return new Response(JSON.stringify({ machines, source: usedPath, count: machines.length, cached: false }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
   } catch (e) {
     return new Response(JSON.stringify({ error: (e as Error).message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
