@@ -705,7 +705,11 @@ export default function WorkOrdersPage() {
                         return withSide === selectedLineName || base === selectedLineName;
                       });
                       return filtered.length
-                        ? filtered.map((m: any) => <SelectItem key={m.id} value={m.name}>{m.name}{m.code ? ` (${m.code})` : ""}</SelectItem>)
+                        ? filtered.map((m: any) => {
+                            const isUuid = typeof m.code === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.code);
+                            const showCode = m.code && !isUuid;
+                            return <SelectItem key={m.id} value={m.name}>{m.name}{showCode ? ` (${m.code})` : ""}</SelectItem>;
+                          })
                         : <SelectItem value="__none__" disabled>No machines for this line</SelectItem>;
                     })()}
                   </SelectContent>
