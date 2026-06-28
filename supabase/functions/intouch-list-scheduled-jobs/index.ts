@@ -69,10 +69,42 @@ function walk(v: unknown, cb: (o: any) => void) {
   cb(v);
   for (const x of Object.values(v)) walk(x, cb);
 }
+const ITOUCH_TIMEOUT_MS = 10_000;
+const __QUOTA_ADMIN_SCH = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  { auth: { persistSession: false } },
+);
+const tomorrowUtcMidnight = () => {
+  const d = new Date(); d.setUTCDate(d.getUTCDate() + 1); d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+};
+async function intouchQuotaBlockedUntil(): Promise<string | null> {
+  try {
+    const { data } = await __QUOTA_ADMIN_SCH
+      .from("intouch_quota_status").select("blocked_until")
+      .eq("id", "singleton").maybeSingle();
+    if (data?.blocked_until && new Date(data.blocked_until).getTime() > Date.now()) {
+      return data.blocked_until as string;
+    }
+  } catch { /* best-effort */ }
+  return null;
+}
+async function intouchMarkEgressExceeded() {
+  try {
+    await __QUOTA_ADMIN_SCH.from("intouch_quota_status").upsert({
+      id: "singleton", blocked_until: tomorrowUtcMidnight(), updated_at: new Date().toISOString(),
+    });
+  } catch { /* best-effort */ }
+}
+
 async function itFetch(path: string, init?: RequestInit): Promise<{ data: unknown; status: number; ok: boolean; bytes: number; err?: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ITOUCH_TIMEOUT_MS);
   try {
     const r = await fetch(`${INTOUCH_URL}${path}`, {
       ...(init ?? {}),
+      signal: controller.signal,
       headers: {
         Authorization: authValue,
         Accept: "application/json",
@@ -81,10 +113,19 @@ async function itFetch(path: string, init?: RequestInit): Promise<{ data: unknow
       },
     });
     const t = await r.text();
+    if (t.includes("Exceeded API Max daily egress")) {
+      await intouchMarkEgressExceeded();
+      return { data: null, status: r.status, ok: false, bytes: t.length, err: "iTouching daily quota exhausted" };
+    }
     if (!r.ok) return { data: null, status: r.status, ok: false, bytes: t.length, err: t.slice(0, 160) };
     try { return { data: JSON.parse(t), status: r.status, ok: true, bytes: t.length }; }
     catch { return { data: null, status: r.status, ok: false, bytes: t.length, err: "invalid_json" }; }
-  } catch (e) { return { data: null, status: 0, ok: false, bytes: 0, err: (e as Error).message }; }
+  } catch (e) {
+    if ((e as any)?.name === "AbortError") return { data: null, status: 504, ok: false, bytes: 0, err: "iTouching API timeout" };
+    return { data: null, status: 0, ok: false, bytes: 0, err: (e as Error).message };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function discoverSchedulePaths() {
