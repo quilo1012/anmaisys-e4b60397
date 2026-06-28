@@ -1376,6 +1376,8 @@ export type Database = {
           scrap_qty: number
           session_id: string
           sku_id: string | null
+          target_manual_at: string | null
+          target_manual_by: string | null
           target_qty: number | null
           updated_at: string
         }
@@ -1388,6 +1390,8 @@ export type Database = {
           scrap_qty?: number
           session_id: string
           sku_id?: string | null
+          target_manual_at?: string | null
+          target_manual_by?: string | null
           target_qty?: number | null
           updated_at?: string
         }
@@ -1400,6 +1404,8 @@ export type Database = {
           scrap_qty?: number
           session_id?: string
           sku_id?: string | null
+          target_manual_at?: string | null
+          target_manual_by?: string | null
           target_qty?: number | null
           updated_at?: string
         }

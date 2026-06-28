@@ -697,10 +697,16 @@ Deno.serve(async (req) => {
 
       const { data: existingItems } = await admin
         .from("production_items")
-        .select("sku_id, actual_qty")
+        .select("sku_id, actual_qty, target_qty, target_manual_at")
         .eq("session_id", session.id);
       const actualBySku = new Map(
         (existingItems ?? []).map((r: any) => [r.sku_id, Number(r.actual_qty) || 0]),
+      );
+      // Preserve manually-edited targets so sync never overwrites them.
+      const manualTargetBySku = new Map(
+        (existingItems ?? [])
+          .filter((r: any) => r.target_manual_at)
+          .map((r: any) => [r.sku_id, Number(r.target_qty) || 0]),
       );
 
       await admin.from("production_items").delete().eq("session_id", session.id);
@@ -721,7 +727,7 @@ Deno.serve(async (req) => {
       const rows = entries
         .map(([code, a]) => {
           const weight = Math.max(1, Number(a.qty) || 0) / totalQty;
-          const plan = Math.round(ragPlan * weight);
+          const planAuto = Math.round(ragPlan * weight);
           const sku_id = idByCode.get(code);
           const itouchActual = useLineFallback
             ? Math.round(lineGood * weight)
@@ -730,6 +736,8 @@ Deno.serve(async (req) => {
           // Never let an automatic sync drive the actual backwards (covers
           // manual edits + cumulative iTouching counts that may dip).
           const actual = Math.max(prev, itouchActual);
+          const manualTarget = sku_id ? manualTargetBySku.get(sku_id) : undefined;
+          const plan = manualTarget != null ? manualTarget : planAuto;
           const scrap_qty = Math.round(scrapByCode.get(code) ?? 0);
           return {
             session_id: session.id,
@@ -738,7 +746,8 @@ Deno.serve(async (req) => {
             planned_qty: plan,
             actual_qty: actual,
             scrap_qty,
-            notes: `itouching:${source}${useLineFallback ? "+line_good" : ""}`,
+            target_manual_at: manualTarget != null ? new Date().toISOString() : null,
+            notes: `itouching:${source}${useLineFallback ? "+line_good" : ""}${manualTarget != null ? "+manual_target" : ""}`,
           };
         })
         .filter((r) => r.sku_id);
