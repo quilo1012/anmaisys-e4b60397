@@ -330,11 +330,37 @@ export function AssemblyListImporter({
             <>
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge variant="secondary" className="gap-1"><CheckCircle2 className="h-3 w-3 text-green-500" />{matched} / {rows.length} matched</Badge>
+                <Badge variant="outline">Ready: {readyToImport}</Badge>
                 <Badge variant="outline">Total qty: {totalQty.toLocaleString()}</Badge>
                 {rows.length - matched > 0 && (
                   <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" />{rows.length - matched} unmatched</Badge>
                 )}
+                {missingLine > 0 && (
+                  <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" />{missingLine} without line</Badge>
+                )}
                 <span className="text-muted-foreground">· {fileName}</span>
+              </div>
+
+              <div className="flex flex-wrap items-end gap-2 p-3 border rounded-md bg-muted/30">
+                <div className="space-y-1">
+                  <Label className="text-xs">Bulk-assign line (per Trello)</Label>
+                  <Select value={defaultLine || "__none__"} onValueChange={(v) => setDefaultLine(v === "__none__" ? "" : v)}>
+                    <SelectTrigger className="h-9 w-44"><SelectValue placeholder="Pick line" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">—</SelectItem>
+                      {lines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button size="sm" variant="secondary" disabled={!defaultLine} onClick={() => applyLineToEmpty(defaultLine)}>
+                  Apply to empty ({missingLine})
+                </Button>
+                <Button size="sm" variant="outline" disabled={!defaultLine} onClick={() => applyLineToAll(defaultLine)}>
+                  Apply to all ({rows.length})
+                </Button>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  Same blender, different size? Set line per row below.
+                </span>
               </div>
 
               <div className="border rounded-md max-h-[55vh] overflow-y-auto">
@@ -353,7 +379,7 @@ export function AssemblyListImporter({
                   </TableHeader>
                   <TableBody>
                     {rows.map((r, i) => (
-                      <TableRow key={i} className={!r.sku_id ? "bg-destructive/10" : ""}>
+                      <TableRow key={i} className={!r.sku_id ? "bg-destructive/10" : !r.line ? "bg-amber-500/10" : ""}>
                         <TableCell className="font-mono text-xs">{r.raw_code || "—"}</TableCell>
                         <TableCell className="text-xs">{r.raw_name || "—"}</TableCell>
                         <TableCell className="tabular-nums">{r.qty.toLocaleString()}</TableCell>
