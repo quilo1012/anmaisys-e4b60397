@@ -121,15 +121,24 @@ function LiveClock() {
 }
 
 function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
+  const location = useLocation();
   const groups = ["Operations", "Assets", "Production", "Reports", "Admin"];
   const grouped = groups.map((g) => ({
     label: g,
     items: filteredItems.filter((i) => i.group === g),
   })).filter((g) => g.items.length > 0);
 
-  // When there are very few items (e.g. engineer role), drop group labels for
-  // a cleaner, more professional look.
   const hideLabels = filteredItems.length <= 4;
+
+  // Custom active check: pathname must match AND the item's query string must
+  // match the current URL's search (so /dashboard/engineer and
+  // /dashboard/engineer?focus=tasks don't both highlight at once).
+  const isItemActive = (url: string) => {
+    const [path, query = ""] = url.split("?");
+    if (location.pathname !== path) return false;
+    const itemSearch = query ? `?${query}` : "";
+    return (location.search || "") === itemSearch;
+  };
 
   return (
     <>
@@ -142,21 +151,23 @@ function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
           )}
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
-              {group.items.map((item) => (
-                <SidebarMenuItem key={item.title + item.url}>
-                  <SidebarMenuButton asChild tooltip={item.title} className="h-9 rounded-md">
-                    <NavLink
-                      to={item.url}
-                      end
-                      className="text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                    >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span className="text-sm">{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {group.items.map((item) => {
+                const active = isItemActive(item.url);
+                return (
+                  <SidebarMenuItem key={item.title + item.url}>
+                    <SidebarMenuButton asChild tooltip={item.title} className="h-9 rounded-md">
+                      <NavLink
+                        to={item.url}
+                        end
+                        className={`transition-colors ${active ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"}`}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span className="text-sm">{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -164,6 +175,7 @@ function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
     </>
   );
 }
+
 
 
 const roleTitle: Record<string, string> = {
