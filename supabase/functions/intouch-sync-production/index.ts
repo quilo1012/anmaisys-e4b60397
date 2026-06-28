@@ -409,10 +409,12 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
 function aggregateRows(rows: SkuRow[]) {
   const skuAgg = new Map<string, Agg>();
   for (const row of rows) {
-    const cur = skuAgg.get(row.code) ?? { qty: 0, description: row.description, source: row.source };
+    const cur = skuAgg.get(row.code) ?? { qty: 0, description: row.description, source: row.source, batch: row.batch, actual: 0 };
     cur.qty += Math.max(1, row.qty || 0);
     if (!cur.description || cur.description === row.code) cur.description = row.description;
     cur.source = cur.source === row.source ? cur.source : `${cur.source}+${row.source}`;
+    if (!cur.batch && row.batch) cur.batch = row.batch;
+    if (row.actual > cur.actual) cur.actual = row.actual;
     skuAgg.set(row.code, cur);
   }
   return skuAgg;
