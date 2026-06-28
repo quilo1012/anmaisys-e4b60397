@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, Brain, TrendingUp, AlertTriangle, Check, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
