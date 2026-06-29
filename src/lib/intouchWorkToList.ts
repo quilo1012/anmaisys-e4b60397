@@ -160,9 +160,27 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
       const nonEmpty = cols.map((c, i) => ({ c: c.trim(), i })).filter((x) => x.c);
       if (nonEmpty.length === 1) {
         const v = nonEmpty[0].c;
-        const lineLike = /^(filler(\s*line)?|depal|line|l)\s*\d+[a-z]?$/i.test(v)
+        // Known line/machine word followed by an optional number/suffix
+        // (filler, depal, line, l<n>, capsules, tablet, gel, blender,
+        //  mixer, pallet, robot, can, glass, pet, sachet, pouch).
+        const knownLineLike =
+          /^(filler(\s*line)?|depal|line|l|capsul(?:e|es)?|tablet|gel|blender|mixer|pallet|robot|can|glass|pet|sachet|pouch)\s*\d*[a-z]?$/i.test(v)
           || /^filler\s*line\s*\d+/i.test(v);
-        if (lineLike) {
+        // Generic fallback: a short text cell that looks like a machine name
+        // (1–4 words, has letters, no digits-only, not a header keyword, no
+        // typical data punctuation). This catches custom machine labels the
+        // alias list above doesn't enumerate.
+        const wordCount = v.split(/\s+/).length;
+        const genericLineLike =
+          wordCount <= 4
+          && v.length >= 3 && v.length <= 40
+          && /[a-z]/i.test(v)
+          && !/^\d+$/.test(v)
+          && !/[,;:/\\@#$%]/.test(v)
+          && !/\d{1,2}[:/]\d{1,2}/.test(v)
+          && !isCodeHeader(v) && !isQtyHeader(v) && !isDescHeader(v) && !isLineHeader(v)
+          && !looksLikeSku(v);
+        if (knownLineLike || genericLineLike) {
           current = ensureSection(sections, v);
           header = null;
           continue;
