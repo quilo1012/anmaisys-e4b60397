@@ -91,15 +91,10 @@ export default function Login() {
     return () => window.clearInterval(t);
   }, [rlId]);
 
-  // Hide toggle if no operator accounts exist (clean slate for first install)
+  // Always show the toggle. If the tablet list is still loading or temporarily
+  // empty (e.g. RLS hiccup), the TABLET tab simply shows a loading/empty state
+  // instead of silently flipping the user back to STAFF.
   const hasOperatorAccounts = (operatorAccounts?.length ?? 0) > 0;
-
-  // If user is in Tablet mode but no accounts exist, fall back to Staff
-  useEffect(() => {
-    if (mode === "tablet" && !accountsLoading && !hasOperatorAccounts) {
-      setMode("staff");
-    }
-  }, [mode, accountsLoading, hasOperatorAccounts]);
 
   // Validate stored tablet selection still exists; clear if it doesn't
   useEffect(() => {
@@ -128,7 +123,14 @@ export default function Login() {
 
   const switchMode = (next: Mode) => {
     setMode(next);
-    localStorage.setItem(MODE_KEY, next);
+    try { localStorage.setItem(MODE_KEY, next); } catch { /* ignore */ }
+    // Clear password and any prior identity so switching tabs feels clean.
+    setPassword("");
+    if (next === "staff") {
+      setTabletAccountId("");
+    } else {
+      setEmail("");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
