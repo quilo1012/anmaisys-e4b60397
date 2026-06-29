@@ -269,8 +269,26 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
     });
   }
 
-  // Aggregate by sku_code within each section
+  // Split combined section headers (e.g. "Filler Line 1 / Filler - Line 2",
+  // "Line 3 & Line 4", "Filler 5, Filler 6") into one section per line —
+  // iTouching pairs even/odd lines under a single "Machine:" header, which
+  // previously caused the second (even) line to silently disappear.
+  const expanded: WorkToListSection[] = [];
   for (const s of sections) {
+    const parts = s.line.split(/\s*[\/&+,]\s*/).map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      for (const p of parts) {
+        const sec = ensureSection(expanded, p);
+        sec.items.push(...s.items.map((it) => ({ ...it })));
+      }
+    } else {
+      const sec = ensureSection(expanded, s.line);
+      sec.items.push(...s.items.map((it) => ({ ...it })));
+    }
+  }
+
+  // Aggregate by sku_code within each section
+  for (const s of expanded) {
     const agg = new Map<string, WorkToListRow>();
     for (const it of s.items) {
       const ex = agg.get(it.sku_code);
@@ -279,7 +297,7 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
     }
     s.items = Array.from(agg.values());
   }
-  return sections.filter((s) => s.items.length > 0);
+  return expanded.filter((s) => s.items.length > 0);
 }
 
 // Find the section whose line name matches the selected line (loose match).
