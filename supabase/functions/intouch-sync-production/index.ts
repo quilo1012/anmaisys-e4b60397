@@ -10,6 +10,7 @@ const BodySchema = z.object({
   auto: z.enum(["morning", "evening"]).optional(),
   force: z.boolean().optional(),
   line: z.string().trim().min(1).max(120).optional(),
+  debug_discover: z.boolean().optional(),
 }).strict();
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -540,7 +541,7 @@ function extractLineGoodTotal(raw: unknown, machines: MachineRef[]): number {
   return total;
 }
 
-async function fetchActualsForLine(machines: MachineRef[], startISO: string, endISO: string, context?: { line?: string }) {
+async function fetchActualsForLine(machines: MachineRef[], startISO: string, endISO: string, context?: { line?: string; discoverLivePaths?: boolean }) {
   const ids = machines.map((m) => m.id);
   const merged = new Map<string, number>();
   const scrap = new Map<string, number>();
@@ -607,6 +608,26 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
       mergeLineGood(raw);
       if (lineGood > 0 || merged.size > 0) break;
     }
+  }
+
+  if (ids.length > 0 && context?.discoverLivePaths && lineGood <= 0 && merged.size === 0) {
+    const discoveredPaths = await discoverLiveProductionPaths();
+    logSync("live_path_discovery_candidates", { line: context.line ?? null, count: discoveredPaths.length, paths: discoveredPaths });
+    let attempts = 0;
+    for (const path of discoveredPaths) {
+      for (const req of liveProductionRequests(path, ids, startISO, endISO)) {
+        if (attempts >= 20 || lineGood > 0 || merged.size > 0) break;
+        attempts += 1;
+        const raw = await tryIt(req.path, req.init, { stage: `actuals_discovered_${safeStageName(path)}`, line: context?.line, machines });
+        if (!raw) continue;
+        merge(extractActualsByCode(raw, machines));
+        mergeScrap(extractScrapByCode(raw, machines));
+        mergeMetrics(raw);
+        mergeLineGood(raw);
+      }
+      if (attempts >= 20 || lineGood > 0 || merged.size > 0) break;
+    }
+    logSync("live_path_discovery_result", { line: context.line ?? null, attempts, lineGood, actualCodeCount: merged.size });
   }
 
   // Running jobs (current SKU + live counts)
@@ -973,7 +994,7 @@ Deno.serve(async (req) => {
       // reporting live "Good" production. Create/keep a single synthetic
       // "Live Production" row so the operator screen still shows Actual.
       if (skuAgg.size === 0) {
-        const live = await fetchActualsForLine(machines, startISO, endISO, { line });
+        const live = await fetchActualsForLine(machines, startISO, endISO, { line, discoverLivePaths: body.debug_discover === true });
         if (!(live.lineGood > 0)) {
           warnSync("line_skipped", { line, reason: "no Material Requirements / schedule SKUs found", lineGood: live.lineGood, actualCodes: live.actuals.size });
           results.push({ line, skipped: "no Material Requirements / schedule SKUs found" });
@@ -1084,7 +1105,7 @@ Deno.serve(async (req) => {
       await admin.from("production_items").delete().eq("session_id", session.id);
 
       // Pull live actuals + scrap + shift metrics (run/down/OEE) per SKU from iTouching.
-      const { actuals: actualsByCode, scrap: scrapByCode, lineGood, metrics } = await fetchActualsForLine(machines, startISO, endISO, { line });
+      const { actuals: actualsByCode, scrap: scrapByCode, lineGood, metrics } = await fetchActualsForLine(machines, startISO, endISO, { line, discoverLivePaths: body.debug_discover === true });
 
       const entries = Array.from(skuAgg.entries());
       const totalQty = entries.reduce((sum, [, a]) => sum + Math.max(1, Number(a.qty) || 0), 0) || 1;
