@@ -323,7 +323,9 @@ function OperatorDashboardContent() {
                   onClick={() => {
                     setTargetMode("sealer_printer");
                     setMachineName("");
-                    if (!physicalLineId && lineId && !lineIsSealerPrinter) setPhysicalLineId(lineId);
+                    // Auto-bind the operator's own line; the picker only shows
+                    // when the login itself is a Sealer/Printer placeholder line.
+                    if (lineId && !lineIsSealerPrinter) setPhysicalLineId(lineId);
                   }}
                   className={cn(
                     "flex-1 sm:flex-none px-4 h-11 rounded-sm font-semibold transition-colors",
