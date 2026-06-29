@@ -1547,15 +1547,14 @@ function DayNightTotalSummary({
                     />
                   );
                 };
-                const isDt = row.key === "dtMaint" || row.key === "dtQuality";
-                const dtKind: "MAINT" | "QUALITY" | null =
-                  row.key === "dtMaint" ? "MAINT" : row.key === "dtQuality" ? "QUALITY" : null;
+                const isDt = row.key.startsWith("dt:");
+                const dtBucket: string | null = isDt ? (row.bucket ?? row.key.slice(3)) : null;
                 const isPlan = row.key === "plan";
                 const wrapDt = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
                   if (!isDt || lineFilter.length !== 1) return cellEl;
                   const key = `${ds}|${lineFilter[0]}|${shift}`;
                   const all = autoDtBreakdown?.get(key) ?? [];
-                  const details = dtKind ? all.filter((s) => s.kind === dtKind) : all;
+                  const details = dtBucket ? all.filter((s) => s.kind === dtBucket) : all;
                   if (!details.length) return cellEl;
                   const scrap = cellScrapMap?.get(key) ?? 0;
                   return <DowntimeBreakdownPopover trigger={cellEl} stops={details} dateStr={ds} shift={shift} line={lineFilter[0]} totalScrap={scrap} />;
