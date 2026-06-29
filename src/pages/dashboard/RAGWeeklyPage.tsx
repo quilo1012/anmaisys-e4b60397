@@ -73,7 +73,7 @@ interface StopDetail {
   machine: string | null;
   reason: string | null;
   status?: string | null;
-  kind: "MAINT" | "QUALITY";
+  kind: string; // bucket label, e.g. "MAINT", "Cleaning", "Break", "Changeover", "Quality"
   category?: string | null;
 }
 
@@ -82,6 +82,33 @@ interface ClampedStop extends StopDetail {
   clampedEnd: string;
   minutes: number;
   ongoing: boolean;
+}
+
+// Map a free-text category to a downtime bucket label.
+// Rules (must match RAG Weekly downtime classification spec):
+//   - 'Maintenance' / 'WO Request'                         → MAINT
+//   - 'Break'                                              → Break
+//   - 'Brushing Cleaning' / 'Deep Clean' / 'Drill Clean' /
+//     'Line Clean'                                         → Cleaning
+//   - 'Changeover'                                         → Changeover
+//   - 'Quality'                                            → Quality
+//   - any other non-empty value                            → passed through verbatim
+//   - empty / unknown                                      → MAINT (safe default)
+export function categoryBucket(cat?: string | null): string {
+  const raw = (cat ?? "").toString().trim();
+  if (!raw) return "MAINT";
+  const lc = raw.toLowerCase();
+  if (lc === "maintenance" || lc === "wo request" || lc === "wo_request") return "MAINT";
+  if (lc === "break") return "Break";
+  if (
+    lc === "brushing cleaning" ||
+    lc === "deep clean" ||
+    lc === "drill clean" ||
+    lc === "line clean"
+  ) return "Cleaning";
+  if (lc === "changeover") return "Changeover";
+  if (lc === "quality") return "Quality";
+  return raw;
 }
 
 
