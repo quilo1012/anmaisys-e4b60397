@@ -9,7 +9,7 @@ const BodySchema = z.object({
   shift: z.enum(["DAY", "NIGHT"]).optional(),
   auto: z.enum(["morning", "evening"]).optional(),
   force: z.boolean().optional(),
-  line: z.string().optional(),
+  line: z.string().trim().min(1).max(120).optional(),
 }).strict();
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -619,6 +619,15 @@ Deno.serve(async (req) => {
   try {
     if (!INTOUCH_URL || !INTOUCH_TOKEN) throw new Error("Missing INTOUCH_API_URL/TOKEN");
 
+    const rawBody = await req.json().catch(() => ({}));
+    const parsedBody = BodySchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return new Response(JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const body = parsedBody.data;
+
     const CRON_SECRET = Deno.env.get("CRON_TRIGGER_TOKEN") ?? Deno.env.get("CRON_SECRET") ?? "";
     const providedCron = req.headers.get("x-cron-secret") ?? "";
     const isCron = !!CRON_SECRET && providedCron === CRON_SECRET;
@@ -641,7 +650,25 @@ Deno.serve(async (req) => {
         });
       }
       const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", userId);
-      const ok = (roles ?? []).some((r) => ["admin", "manager"].includes(r.role));
+      const roleNames = (roles ?? []).map((r) => String(r.role));
+      let ok = roleNames.some((role) => ["admin", "manager"].includes(role));
+      if (!ok && roleNames.includes("operator") && body.line) {
+        const { data: operatorAcct } = await admin
+          .from("operator_line_accounts")
+          .select("line_ids")
+          .eq("user_id", userId)
+          .maybeSingle();
+        const allowedLineIds = (operatorAcct?.line_ids ?? []) as string[];
+        if (allowedLineIds.length > 0) {
+          const { data: allowedLine } = await admin
+            .from("lines")
+            .select("id")
+            .in("id", allowedLineIds)
+            .eq("name", body.line)
+            .maybeSingle();
+          ok = !!allowedLine?.id;
+        }
+      }
       if (!ok) {
         return new Response(JSON.stringify({ error: "forbidden" }), {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -673,16 +700,6 @@ Deno.serve(async (req) => {
         .maybeSingle();
       runId = runRow?.id ?? null;
     } catch { /* ignore */ }
-
-
-    const rawBody = await req.json().catch(() => ({}));
-    const parsedBody = BodySchema.safeParse(rawBody);
-    if (!parsedBody.success) {
-      return new Response(JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const body = parsedBody.data;
 
     const explicitPlannerSync = !!body.session_date && !!body.shift;
     const { data: settings } = await admin
@@ -736,6 +753,7 @@ Deno.serve(async (req) => {
 
     const { data: lines } = await admin.from("lines").select("id, name");
     const lineName = new Map((lines ?? []).map((l: any) => [l.id, l.name]));
+    const requestedLine = body.line ? String(body.line).trim() : "";
 
     const byLine = new Map<string, MachineRef[]>();
     for (const m of maps ?? []) {
@@ -756,22 +774,34 @@ Deno.serve(async (req) => {
     for (const [line_id, machines] of byLine) {
       const line = lineName.get(line_id);
       if (!line) continue;
+      if (requestedLine && line !== requestedLine) continue;
+
+      logSync("line_start", {
+        line,
+        session_date,
+        shift,
+        machines: machines.map((m) => ({ id: m.id, name: m.name })),
+        window: { start: startISO, end: endISO },
+      });
 
       const ragPlan = Number(ragPlanByLine.get(line) ?? 0);
       if (ragPlan <= 0) {
+        warnSync("line_skipped", { line, reason: "no RAG Weekly plan" });
         results.push({ line, skipped: "no RAG Weekly plan" });
         continue;
       }
 
       const { rows: skuRows, source } = await fetchSkuRowsForLine(machines, startISO, endISO);
       const skuAgg = aggregateRows(skuRows);
+      logSync("line_schedule_rows", { line, source, rows: skuRows.length, skus: skuAgg.size });
 
       // Fallback path: no SKU schedule from iTouching, but the machines are
       // reporting live "Good" production. Create/keep a single synthetic
       // "Live Production" row so the operator screen still shows Actual.
       if (skuAgg.size === 0) {
-        const live = await fetchActualsForLine(machines, startISO, endISO);
+        const live = await fetchActualsForLine(machines, startISO, endISO, { line });
         if (!(live.lineGood > 0)) {
+          warnSync("line_skipped", { line, reason: "no Material Requirements / schedule SKUs found", lineGood: live.lineGood, actualCodes: live.actuals.size });
           results.push({ line, skipped: "no Material Requirements / schedule SKUs found" });
           continue;
         }
@@ -814,10 +844,16 @@ Deno.serve(async (req) => {
         }]);
 
         // Stamp iTouching live total on the session for the operator UI.
-        await admin.from("production_sessions").update({
+        const { error: stampErr } = await admin.from("production_sessions").update({
           intouch_good_total: Math.round(live.lineGood),
           metrics_synced_at: new Date().toISOString(),
         }).eq("id", session.id);
+        if (stampErr) throw stampErr;
+        const { data: stamped } = await admin.from("production_sessions")
+          .select("intouch_good_total, metrics_synced_at")
+          .eq("id", session.id)
+          .maybeSingle();
+        logSync("session_intouch_good_stamped", { line, session_id: session.id, expected: Math.round(live.lineGood), stored: stamped?.intouch_good_total ?? null, metrics_synced_at: stamped?.metrics_synced_at ?? null });
 
         results.push({ line, skus: 1, rag_plan: ragPlan, source: "live_good", actual_preserved: actual });
         continue;
@@ -874,7 +910,7 @@ Deno.serve(async (req) => {
       await admin.from("production_items").delete().eq("session_id", session.id);
 
       // Pull live actuals + scrap + shift metrics (run/down/OEE) per SKU from iTouching.
-      const { actuals: actualsByCode, scrap: scrapByCode, lineGood, metrics } = await fetchActualsForLine(machines, startISO, endISO);
+      const { actuals: actualsByCode, scrap: scrapByCode, lineGood, metrics } = await fetchActualsForLine(machines, startISO, endISO, { line });
 
       const entries = Array.from(skuAgg.entries());
       const totalQty = entries.reduce((sum, [, a]) => sum + Math.max(1, Number(a.qty) || 0), 0) || 1;
@@ -924,13 +960,21 @@ Deno.serve(async (req) => {
       );
       const hasAnyMetric = metrics.runMin > 0 || metrics.downMin > 0 || metrics.oee !== null || itouchTotal > 0;
       if (hasAnyMetric) {
-        await admin.from("production_sessions").update({
+        const { error: stampErr } = await admin.from("production_sessions").update({
           run_time_min: metrics.runMin > 0 ? Math.round(metrics.runMin) : null,
           down_time_min: metrics.downMin > 0 ? Math.round(metrics.downMin) : null,
           oee_pct: metrics.oee,
           intouch_good_total: itouchTotal > 0 ? itouchTotal : null,
           metrics_synced_at: new Date().toISOString(),
         }).eq("id", session.id);
+        if (stampErr) throw stampErr;
+        const { data: stamped } = await admin.from("production_sessions")
+          .select("intouch_good_total, metrics_synced_at")
+          .eq("id", session.id)
+          .maybeSingle();
+        logSync("session_intouch_good_stamped", { line, session_id: session.id, expected: itouchTotal, stored: stamped?.intouch_good_total ?? null, metrics_synced_at: stamped?.metrics_synced_at ?? null, lineGood, actualCodeCount: actualsByCode.size });
+      } else {
+        warnSync("session_intouch_good_missing", { line, session_id: session.id, lineGood, actualCodeCount: actualsByCode.size, metrics });
       }
 
       results.push({
@@ -943,6 +987,7 @@ Deno.serve(async (req) => {
         run_min: metrics.runMin || null,
         down_min: metrics.downMin || null,
         oee: metrics.oee,
+        intouch_good_total: itouchTotal > 0 ? itouchTotal : null,
       });
     }
 
