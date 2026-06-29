@@ -70,6 +70,7 @@ export default function ShiftHistoryPage() {
   const [editActual, setEditActual] = useState<string>("");
   const [editUnit, setEditUnit] = useState<"tubs" | "bags">("tubs");
   const [editSkuId, setEditSkuId] = useState<string>("");
+  const [importOpen, setImportOpen] = useState(false);
 
 
   const { data: sessions = [] } = useQuery({
