@@ -42,9 +42,16 @@ const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = 
   viewer: Shield,
 };
 
+interface Leader {
+  id: string;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export default function ManageUsers() {
   const [users, setUsers] = useState<Profile[]>([]);
-  const [activeTab, setActiveTab] = useState<"staff" | "tablets" | "engineers">("staff");
+  const [activeTab, setActiveTab] = useState<"staff" | "tablets" | "engineers" | "leaders">("staff");
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
