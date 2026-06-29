@@ -243,13 +243,10 @@ export default function RAGWeeklyPage() {
           machine: r.machine as string | null,
           reason: r.description as string | null,
           status: r.status as string | null,
-          kind: "MAINT" as const,
-          category: "Maintenance",
+          kind: "MAINT",
+          category: "WO Request",
         };
       });
-
-      const classify = (cat?: string | null): "MAINT" | "QUALITY" =>
-        String(cat ?? "").toLowerCase() === "quality" ? "QUALITY" : "MAINT";
 
       const man: StopDetail[] = ((manRes.data ?? []) as any[]).map((r) => ({
         line: r.line as string | null,
@@ -259,7 +256,7 @@ export default function RAGWeeklyPage() {
         ref: null,
         machine: r.machine as string | null,
         reason: r.reason as string | null,
-        kind: classify(r.category),
+        kind: categoryBucket(r.category),
         category: r.category ?? null,
       }));
 
@@ -271,7 +268,7 @@ export default function RAGWeeklyPage() {
         ref: null,
         machine: r.machine as string | null,
         reason: r.reason as string | null,
-        kind: classify(r.category),
+        kind: categoryBucket(r.category),
         category: r.category ?? null,
       }));
 
