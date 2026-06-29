@@ -207,11 +207,23 @@ async function tryIt(path: string, init?: RequestInit, debug?: { stage: string; 
 async function discoverLiveProductionPaths() {
   const defaults = [
     "/api/appapi/getproduction",
+    "/api/appapi/getProduction",
+    "/api/appapi/GetProduction",
     "/api/appapi/getproductioncounts",
     "/api/appapi/getmachineproduction",
+    "/api/appapi/getcurrentproduction",
+    "/api/appapi/getcurrentshiftproduction",
+    "/api/appapi/getshiftproduction",
+    "/api/appapi/getmachinestatus",
+    "/api/appapi/getmachinestatuses",
+    "/api/appapi/getdashboard",
+    "/api/appapi/getdashboarddata",
     "/api/GetProduction",
     "/api/GetProductionCounts",
     "/api/GetMachineProduction",
+    "/api/GetCurrentProduction",
+    "/api/GetCurrentShiftProduction",
+    "/api/GetShiftProduction",
     "/api/GetProductionReport",
     "/api/GetMachineProductionReport",
     "/api/GetImpressions",
@@ -226,7 +238,7 @@ async function discoverLiveProductionPaths() {
     if (paths && typeof paths === "object") {
       discovered = Object.keys(paths).filter((p) => {
         const n = p.toLowerCase();
-        if (!(n.includes("production") || n.includes("impression") || n.includes("count") || n.includes("actual") || n.includes("good"))) return false;
+        if (!(n.includes("production") || n.includes("impression") || n.includes("count") || n.includes("actual") || n.includes("good") || n.includes("shift") || n.includes("dashboard") || n.includes("status"))) return false;
         if (n.includes("product") && !n.includes("production")) return false;
         if (n.includes("schedule") || n.includes("material") || n.includes("downtime") || n.includes("login")) return false;
         return true;
@@ -235,7 +247,7 @@ async function discoverLiveProductionPaths() {
   } catch (e) {
     warnSync("live_path_discovery_failed", { error: (e as Error).message });
   }
-  return Array.from(new Set([...discovered, ...defaults])).slice(0, 12);
+  return Array.from(new Set([...discovered, ...defaults])).slice(0, 24);
 }
 
 function liveProductionRequests(path: string, ids: string[], startISO: string, endISO: string) {
