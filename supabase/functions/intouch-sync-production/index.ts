@@ -584,19 +584,31 @@ function extractActualsByCode(raw: unknown, machines: MachineRef[]): Map<string,
   const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const out = new Map<string, number>();
+  const summed = new Set<string>();
   walkObjectsWithMachine(raw, null, (obj, inheritedMachineRef) => {
     const machineRef = pick(obj, MACHINE_REF_KEYS) ?? inheritedMachineRef;
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
-    const code = cleanCode(pick(obj, [
+    const partNumber = pick(obj, ["PartNumber", "Part Number", "Part_No", "PartNo"]);
+    const code = cleanCode(partNumber ?? pick(obj, [
       "PartCode", "Part Code", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "OrderNumber",
     ]));
     if (!code || code.length < 2) return;
     const produced = num(pick(obj, GOOD_QTY_KEYS));
     if (produced <= 0) return;
-    out.set(code, Math.max(out.get(code) ?? 0, produced));
+    // Per-period segment entries (e.g. PartsMade[] from GetProductionProfilePeriodList)
+    // carry PartNumber + GoodParts together and must be SUMMED across periods.
+    // Cumulative payloads (one row per part) should keep the max reading instead.
+    const isSegment = partNumber !== undefined && pick(obj, SEGMENT_GOOD_QTY_KEYS) !== undefined;
+    if (isSegment) {
+      out.set(code, (out.get(code) ?? 0) + produced);
+      summed.add(code);
+    } else if (!summed.has(code)) {
+      out.set(code, Math.max(out.get(code) ?? 0, produced));
+    }
   });
   return out;
 }
+
 
 // Sum any "Good / Produced" values for the allowed machines regardless of SKU
 // code matching. Fallback used when iTouching SKU codes don't line up with
@@ -1277,9 +1289,17 @@ Deno.serve(async (req) => {
           const weight = Math.max(1, Number(a.qty) || 0) / totalQty;
           const planAuto = Math.round(ragPlan * weight);
           const sku_id = idByCode.get(code);
-          const itouchActual = useLineFallback
-            ? Math.round(lineGood * weight)
-            : Math.max(Math.round(actualsByCode.get(code) ?? 0), Math.round(a.actual ?? 0));
+          const matched = Math.round(actualsByCode.get(code) ?? 0);
+          // Per-SKU iTouching GoodParts (PartsMade[].GoodParts). When the API
+          // didn't return a per-PartNumber value for this SKU, leave it null
+          // rather than splitting the line total proportionally (which made
+          // every card show the same number).
+          const intouch_qty = matched > 0
+            ? matched
+            : (useLineFallback ? null : null);
+          const itouchActual = matched > 0
+            ? matched
+            : Math.max(Math.round(a.actual ?? 0), useLineFallback ? Math.round(lineGood * weight) : 0);
           const prev = sku_id ? (actualBySku.get(sku_id) ?? 0) : 0;
           // Never let an automatic sync drive the actual backwards (covers
           // manual edits + cumulative iTouching counts that may dip).
@@ -1293,14 +1313,16 @@ Deno.serve(async (req) => {
             target_qty: plan,
             planned_qty: plan,
             actual_qty: actual,
+            intouch_qty,
             scrap_qty,
             blender_ref: sku_id ? (blenderBySku.get(sku_id) ?? null) : null,
             target_manual_at: manualTarget != null ? new Date().toISOString() : null,
-            notes: `itouching:${source}${useLineFallback ? "+line_good" : ""}${manualTarget != null ? "+manual_target" : ""}`,
+            notes: `itouching:${source}${matched > 0 ? "+per_sku" : (useLineFallback ? "+line_good" : "")}${manualTarget != null ? "+manual_target" : ""}`,
           };
         })
         .filter((r) => r.sku_id);
       if (rows.length) await admin.from("production_items").insert(rows);
+
 
       // Persist shift-level OEE / run / down + iTouching live good total to the session row.
       const itouchTotal = Math.max(
