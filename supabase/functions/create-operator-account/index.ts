@@ -16,25 +16,70 @@ const bodySchema = z.object({
   line_ids: z.array(z.string().uuid()).min(1).max(50),
 });
 
+class HttpError extends Error {
+  constructor(
+    message: string,
+    public status = 400,
+  ) {
+    super(message);
+    this.name = "HttpError";
+  }
+}
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+async function resolveCallerId(authHeader: string) {
+  if (!authHeader?.startsWith("Bearer ")) {
+    throw new HttpError("Not authenticated", 401);
+  }
+
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!token) throw new HttpError("Not authenticated", 401);
+
+  const userClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    },
+  );
+
+  const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+  const claimsSub = claimsData?.claims?.sub;
+  if (claimsSub) return claimsSub as string;
+
+  // Fallback for environments where JWKS/getClaims cannot validate the token yet.
+  const { data: userData, error: userErr } = await userClient.auth.getUser(token);
+  if (userData?.user?.id) return userData.user.id;
+
+  console.warn("[create-operator-account] auth validation failed", {
+    claimsError: claimsErr?.message,
+    userError: userErr?.message,
+  });
+  throw new HttpError("Not authenticated", 401);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    if (!authHeader) throw new HttpError("Not authenticated", 401);
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const token = authHeader.replace(/^Bearer\s+/i, "");
-    const { data: claimsData, error: claimsErr } = await admin.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims?.sub) throw new Error("Not authenticated");
-    const caller = { id: claimsData.claims.sub as string };
+    const caller = { id: await resolveCallerId(authHeader) };
 
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: caller.id, _role: "admin" });
     const { data: isManager } = await admin.rpc("has_role", { _user_id: caller.id, _role: "manager" });
-    if (!isAdmin && !isManager) throw new Error("Only admins or managers may create operator accounts");
+    if (!isAdmin && !isManager) throw new HttpError("Only admins or managers may create operator accounts", 403);
 
     const { email, password, label, line_ids } = bodySchema.parse(await req.json());
 
@@ -76,15 +121,10 @@ Deno.serve(async (req) => {
     );
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      return new Response(JSON.stringify({ error: error.errors[0].message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: error.errors[0].message }, 400);
     }
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const status = error instanceof HttpError ? error.status : 400;
+    return json({ error: message }, status);
   }
 });
