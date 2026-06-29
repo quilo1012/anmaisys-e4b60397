@@ -2046,6 +2046,7 @@ export type Database = {
           admin_pin: string
           created_at: string
           id: string
+          intouch_auto_wo_enabled: boolean
           intouch_sync_enabled: boolean
           updated_at: string
         }
@@ -2053,6 +2054,7 @@ export type Database = {
           admin_pin?: string
           created_at?: string
           id?: string
+          intouch_auto_wo_enabled?: boolean
           intouch_sync_enabled?: boolean
           updated_at?: string
         }
@@ -2060,6 +2062,7 @@ export type Database = {
           admin_pin?: string
           created_at?: string
           id?: string
+          intouch_auto_wo_enabled?: boolean
           intouch_sync_enabled?: boolean
           updated_at?: string
         }
