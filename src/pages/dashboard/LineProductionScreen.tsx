@@ -595,7 +595,7 @@ export default function LineProductionScreen() {
         </Card>
       )}
 
-      {line && !intouchMapQ.isLoading && !hasItouch && (
+      {line && linesQ.data && currentLineId && intouchMapQ.isFetched && !hasItouch && (
         <Card className="border-primary/40 bg-primary/5">
           <CardContent className="p-10 text-center space-y-2">
             <div className="text-2xl font-semibold">Maintenance terminal</div>
