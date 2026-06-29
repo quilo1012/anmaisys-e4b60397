@@ -741,6 +741,129 @@ export default function ManageUsers() {
         </Card>
           </div>
 
+        <div className={activeTab === "leaders" ? "space-y-4" : "hidden"}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Líderes (PIN Identity)</h2>
+              <p className="text-muted-foreground">Line Leaders authorized to unlock target displays via PIN</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={fetchLeaders} aria-label="Refresh leaders">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Dialog open={ldOpen} onOpenChange={setLdOpen}>
+                <DialogTrigger asChild>
+                  <Button><KeyRound className="h-4 w-4 mr-2" />New Leader</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Create Leader Identity</DialogTitle></DialogHeader>
+                  <form onSubmit={handleCreateLeader} className="space-y-4" autoComplete="off">
+                    <div className="space-y-2"><Label>Leader Name</Label><Input value={ldName} onChange={(e) => setLdName(e.target.value)} required /></div>
+                    <div className="space-y-2">
+                      <Label>PIN (4 digits)</Label>
+                      <Input type="password" value={ldPin} onChange={(e) => setLdPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 1234" minLength={4} maxLength={4} required />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={ldLoading || ldPin.length < 4}>
+                      {ldLoading ? "Creating..." : "Create Leader"}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          <Card>
+            <CardHeader><CardTitle>All Leaders</CardTitle></CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {leaders.map((ld) => (
+                    <TableRow key={ld.id}>
+                      <TableCell className="font-medium">{ld.name}</TableCell>
+                      <TableCell>
+                        <Badge variant={ld.is_active ? "default" : "secondary"}>
+                          {ld.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{new Date(ld.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button size="icon" variant="ghost" onClick={() => openEditLeader(ld)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete leader?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete <strong>{ld.name}</strong>. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteLeader(ld.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  {deleteLdLoading === ld.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {leaders.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">No leaders configured.</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Edit Leader Dialog */}
+        <Dialog open={!!editLd} onOpenChange={(open) => !open && setEditLd(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit Leader</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Leader Name</Label><Input value={editLdName} onChange={(e) => setEditLdName(e.target.value)} /></div>
+              <div className="space-y-2">
+                <Label>New PIN (4 digits)</Label>
+                <Input type="password" value={editLdPin} onChange={(e) => setEditLdPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="Leave blank to keep current" minLength={4} maxLength={4} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label>Active</Label>
+                <Switch checked={editLdActive} onCheckedChange={setEditLdActive} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditLd(null)}>Cancel</Button>
+              <Button onClick={handleEditLeader} disabled={editLdLoading}>
+                {editLdLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+
         {/* Edit User Dialog */}
         <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
           <DialogContent>
