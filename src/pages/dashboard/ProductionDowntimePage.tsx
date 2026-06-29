@@ -83,9 +83,16 @@ export default function ProductionDowntimePage() {
     queryKey: ["lines"],
     queryFn: async () => {
       const { data } = await supabase.from("lines").select("name").order("name");
-      return (data ?? []) as { name: string }[];
+      const rank = (n: string) => {
+        const m = n.match(/(\d+)/);
+        const num = m ? parseInt(m[1], 10) : 999;
+        if (/filler/i.test(n) || /^line/i.test(n)) return num;
+        return 100 + num;
+      };
+      return ((data ?? []) as { name: string }[]).sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
     },
   });
+
 
   const { data: rows = [], isLoading } = useQuery<PDRow[]>({
     queryKey: ["production_downtimes", from, to, lineFilter, shiftFilter, categoryFilter],
