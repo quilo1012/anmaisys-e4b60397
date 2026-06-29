@@ -124,8 +124,16 @@ function findHeaderIndexes(cols: string[]) {
   return { idxCode, idxQty, idxDesc, idxLine, found: idxCode !== -1 && idxQty !== -1 };
 }
 
+function stripAlias(name: string): string {
+  // iTouching headers like "Filler Line 1 / Filler - Line 1" are a single
+  // machine — only the text BEFORE the "/" is the real line name; the part
+  // after is just a display alias. Same for " - " separators.
+  return name.split("/")[0].trim();
+}
+
 function ensureSection(sections: WorkToListSection[], line: string): WorkToListSection {
-  const cleanLine = (line || "Imported Plan").replace(/\s*[-–—]\s*/g, " ").replace(/\s+/g, " ").trim() || "Imported Plan";
+  const base = stripAlias(line || "");
+  const cleanLine = (base || "Imported Plan").replace(/\s*[-–—]\s*/g, " ").replace(/\s+/g, " ").trim() || "Imported Plan";
   let section = sections.find((s) => norm(s.line) === norm(cleanLine));
   if (!section) {
     section = { line: cleanLine, items: [] };
