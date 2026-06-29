@@ -908,6 +908,14 @@ export default function LineProductionScreen() {
         operatorLabel={operatorAcctQ.data?.label || `Tablet ${tabletId}`}
         assetScope={assetScope}
       />
+
+      <PinDialog
+        open={pinOpen}
+        onOpenChange={setPinOpen}
+        title="Unlock Target"
+        description="Enter Line Leader PIN to reveal target & progress for this shift."
+        onSuccess={(eng) => setTargetUnlock(eng)}
+      />
     </div>
   );
 }
