@@ -768,7 +768,7 @@ Deno.serve(async (req) => {
 
       const { data: existingItems } = await admin
         .from("production_items")
-        .select("sku_id, actual_qty, target_qty, target_manual_at")
+        .select("sku_id, actual_qty, target_qty, target_manual_at, blender_ref")
         .eq("session_id", session.id);
       const actualBySku = new Map(
         (existingItems ?? []).map((r: any) => [r.sku_id, Number(r.actual_qty) || 0]),
@@ -778,6 +778,12 @@ Deno.serve(async (req) => {
         (existingItems ?? [])
           .filter((r: any) => r.target_manual_at)
           .map((r: any) => [r.sku_id, Number(r.target_qty) || 0]),
+      );
+      // Preserve manually-entered blender batch refs across syncs.
+      const blenderBySku = new Map(
+        (existingItems ?? [])
+          .filter((r: any) => r.blender_ref)
+          .map((r: any) => [r.sku_id, String(r.blender_ref)]),
       );
 
       await admin.from("production_items").delete().eq("session_id", session.id);
