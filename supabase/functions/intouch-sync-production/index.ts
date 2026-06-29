@@ -435,6 +435,14 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
     if (t > lineGood) lineGood = t;
   };
 
+  // Current machine status is the fastest iTouching endpoint and, on some
+  // installations, is where the live Produced Good / Current Shift counter is exposed.
+  const statuses = await tryIt("/api/getmachineStatuses", { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_machine_statuses", line: context?.line, machines });
+  merge(extractActualsByCode(statuses, machines));
+  mergeScrap(extractScrapByCode(statuses, machines));
+  mergeMetrics(statuses);
+  mergeLineGood(statuses);
+
   // Running jobs (current SKU + live counts)
   const running = await tryIt("/api/GetRunningJobs", { method: "GET" }, { stage: "actuals_running_jobs", line: context?.line, machines });
   merge(extractActualsByCode(running, machines));
