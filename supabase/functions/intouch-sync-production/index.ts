@@ -614,6 +614,100 @@ function extractLineGoodTotal(raw: unknown, machines: MachineRef[]): number {
   return total;
 }
 
+async function probeLiveProductionFallbacks(
+  machines: MachineRef[],
+  startISO: string,
+  endISO: string,
+  context?: { line?: string; discoverLivePaths?: boolean; rawLogs?: boolean },
+) {
+  const ids = machines.map((m) => m.id).filter(Boolean);
+  let bestRaw: unknown = null;
+  let bestPath = "";
+  let bestTotal = 0;
+  let attempts = 0;
+  const paths = context?.discoverLivePaths
+    ? await discoverLiveProductionPaths()
+    : [
+      "/api/appapi/getproduction",
+      "/api/appapi/getProduction",
+      "/api/appapi/GetProduction",
+      "/api/appapi/getproductioncounts",
+      "/api/appapi/getmachineproduction",
+      "/api/appapi/getcurrentproduction",
+      "/api/appapi/getcurrentshiftproduction",
+      "/api/appapi/getshiftproduction",
+      "/api/appapi/getmachinestatus",
+      "/api/appapi/getmachinestatuses",
+      "/api/appapi/getdashboard",
+      "/api/appapi/getdashboarddata",
+      "/api/GetProduction",
+      "/api/GetProductionCounts",
+      "/api/GetMachineProduction",
+      "/api/GetCurrentProduction",
+      "/api/GetCurrentShiftProduction",
+      "/api/GetShiftProduction",
+      "/api/getmachineStatuses",
+    ];
+
+  logSync("live_fallback_start", {
+    line: context?.line ?? null,
+    machines,
+    base_url: sanitizedIntouchBaseUrl(),
+    path_count: paths.length,
+  });
+
+  for (const path of paths) {
+    for (const req of liveProductionRequests(path, ids, startISO, endISO)) {
+      attempts += 1;
+      const raw = await tryIt(req.path, req.init, {
+        stage: `live_fallback_${safeStageName(path)}`,
+        line: context?.line,
+        machines,
+        raw: context?.rawLogs,
+      });
+      if (!raw) continue;
+      const total = extractLineGoodTotal(raw, machines);
+      if (total > bestTotal) {
+        bestTotal = total;
+        bestRaw = raw;
+        bestPath = pathOnly(req.path);
+      }
+      if (total > 0) {
+        logSync("live_fallback_success", {
+          line: context?.line ?? null,
+          attempts,
+          path: pathOnly(req.path),
+          method: req.init.method ?? "GET",
+          lineGood: total,
+          stats: inspectPayload(raw, machines),
+        });
+        if (context?.rawLogs) {
+          logSyncChunks("live_fallback_success_raw", {
+            line: context?.line ?? null,
+            path: pathOnly(req.path),
+            method: req.init.method ?? "GET",
+            raw,
+          });
+        }
+        return { lineGood: total, raw, path: pathOnly(req.path), attempts };
+      }
+      if (!context?.discoverLivePaths && attempts >= 28) break;
+      if (context?.discoverLivePaths && attempts >= 60) break;
+    }
+    if (!context?.discoverLivePaths && attempts >= 28) break;
+    if (context?.discoverLivePaths && attempts >= 60) break;
+  }
+
+  warnSync("live_fallback_no_positive_total", {
+    line: context?.line ?? null,
+    attempts,
+    bestPath: bestPath || null,
+    bestTotal,
+    bestStats: bestRaw ? inspectPayload(bestRaw, machines) : null,
+  });
+  return { lineGood: bestTotal, raw: bestRaw, path: bestPath, attempts };
+}
+
 async function fetchActualsForLine(machines: MachineRef[], startISO: string, endISO: string, context?: { line?: string; discoverLivePaths?: boolean }) {
   const ids = machines.map((m) => m.id);
   const merged = new Map<string, number>();
@@ -662,45 +756,18 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
 
   // Targeted live-production probes. Kept deliberately short and stopped as
   // soon as a positive good total is found to protect the iTouching egress quota.
-  const liveProductionAttempts = [
-    () => tryIt(`/api/appapi/getproduction?MachineID=${encodeURIComponent(ids[0])}`, { method: "GET" }, { stage: "actuals_live_probe_app_production", line: context?.line, machines }),
-    () => tryIt(`/api/appapi/getproductioncounts?MachineID=${encodeURIComponent(ids[0])}`, { method: "GET" }, { stage: "actuals_live_probe_app_production_counts", line: context?.line, machines }),
-    () => tryIt(`/api/appapi/getmachineproduction?MachineID=${encodeURIComponent(ids[0])}`, { method: "GET" }, { stage: "actuals_live_probe_app_machine_production", line: context?.line, machines }),
-    () => tryIt(`/api/GetProduction?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_live_probe_get_production", line: context?.line, machines }),
-    () => tryIt(`/api/GetProductionCounts?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_live_probe_get_production_counts", line: context?.line, machines }),
-    () => tryIt(`/api/GetMachineProduction?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_live_probe_get_machine_production", line: context?.line, machines }),
-    () => tryIt(`/api/Production?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify({ MachineGUIDs: ids, StartTime: startISO, EndTime: endISO }) }, { stage: "actuals_live_probe_production", line: context?.line, machines }),
-  ];
   if (ids.length > 0) {
-    for (const attempt of liveProductionAttempts) {
-      const raw = await attempt();
-      if (!raw) continue;
-      merge(extractActualsByCode(raw, machines));
-      mergeScrap(extractScrapByCode(raw, machines));
-      mergeMetrics(raw);
-      mergeLineGood(raw);
-      if (lineGood > 0 || merged.size > 0) break;
+    const fallback = await probeLiveProductionFallbacks(machines, startISO, endISO, {
+      line: context?.line,
+      discoverLivePaths: context?.discoverLivePaths,
+      rawLogs: context?.discoverLivePaths,
+    });
+    if (fallback.raw) {
+      merge(extractActualsByCode(fallback.raw, machines));
+      mergeScrap(extractScrapByCode(fallback.raw, machines));
+      mergeMetrics(fallback.raw);
+      mergeLineGood(fallback.raw);
     }
-  }
-
-  if (ids.length > 0 && context?.discoverLivePaths && lineGood <= 0 && merged.size === 0) {
-    const discoveredPaths = await discoverLiveProductionPaths();
-    logSync("live_path_discovery_candidates", { line: context.line ?? null, count: discoveredPaths.length, paths: discoveredPaths });
-    let attempts = 0;
-    for (const path of discoveredPaths) {
-      for (const req of liveProductionRequests(path, ids, startISO, endISO)) {
-        if (attempts >= 20 || lineGood > 0 || merged.size > 0) break;
-        attempts += 1;
-        const raw = await tryIt(req.path, req.init, { stage: `actuals_discovered_${safeStageName(path)}`, line: context?.line, machines });
-        if (!raw) continue;
-        merge(extractActualsByCode(raw, machines));
-        mergeScrap(extractScrapByCode(raw, machines));
-        mergeMetrics(raw);
-        mergeLineGood(raw);
-      }
-      if (attempts >= 20 || lineGood > 0 || merged.size > 0) break;
-    }
-    logSync("live_path_discovery_result", { line: context.line ?? null, attempts, lineGood, actualCodeCount: merged.size });
   }
 
   // Running jobs (current SKU + live counts)
