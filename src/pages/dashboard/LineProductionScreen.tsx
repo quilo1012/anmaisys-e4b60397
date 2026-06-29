@@ -333,7 +333,7 @@ export default function LineProductionScreen() {
   const syncSkus = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("intouch-sync-production", {
-        body: { session_date: activeSessionDate, shift, line, force: true },
+        body: { session_date: activeSessionDate, shift, line, force: true, debug_discover: true },
       });
       if (error) throw error;
       return data;
