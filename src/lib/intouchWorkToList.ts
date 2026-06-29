@@ -289,12 +289,15 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
     });
   }
 
-  // Aggregate by sku_code within each section
+  // De-duplicate by sku_code within each section. iTouching XLSX exports
+  // repeat every data row 2-3x consecutively — summing would inflate qty.
+  // Keep the MAX qty per code (identical duplicates collapse; legitimate
+  // multi-batch rows for the same SKU keep the largest planned amount).
   for (const s of sections) {
     const agg = new Map<string, WorkToListRow>();
     for (const it of s.items) {
       const ex = agg.get(it.sku_code);
-      if (ex) ex.qty += it.qty;
+      if (ex) ex.qty = Math.max(ex.qty, it.qty);
       else agg.set(it.sku_code, { ...it });
     }
     s.items = Array.from(agg.values());
