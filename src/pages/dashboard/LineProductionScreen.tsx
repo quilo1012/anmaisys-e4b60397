@@ -110,6 +110,7 @@ export default function LineProductionScreen() {
   const [pad, setPad] = useState<string>("");
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [requestOpen, setRequestOpen] = useState(false);
+  const [assetScope, setAssetScope] = useState<"line" | "sealer_printer">("line");
   const activeSessionDate = useMemo(() => sessionDateForShift(shift, now), [shift, now]);
 
   // Operator is locked to current shift — auto-update as time passes.
@@ -536,6 +537,25 @@ export default function LineProductionScreen() {
           <Badge variant="outline" className="h-10 px-3 text-sm">
             {activeSessionDate}
           </Badge>
+          {/* Asset scope toggle: report problem for Line or Sealer/Printer */}
+          <div className="flex gap-1" data-testid="asset-scope-toggle">
+            <Button
+              size="lg"
+              variant={assetScope === "line" ? "default" : "outline"}
+              onClick={() => setAssetScope("line")}
+              className="h-12 px-4"
+            >
+              Line
+            </Button>
+            <Button
+              size="lg"
+              variant={assetScope === "sealer_printer" ? "default" : "outline"}
+              onClick={() => setAssetScope("sealer_printer")}
+              className="h-12 px-4"
+            >
+              Sealer / Printer
+            </Button>
+          </div>
           {/* Tablet selector removed — each operator login is bound to its own tablet/line */}
 
           <div className="ml-auto flex items-center gap-3">
@@ -854,6 +874,7 @@ export default function LineProductionScreen() {
         onOpenChange={setRequestOpen}
         line={line}
         operatorLabel={operatorAcctQ.data?.label || `Tablet ${tabletId}`}
+        assetScope={assetScope}
       />
     </div>
   );
@@ -921,11 +942,13 @@ function RequestOrderDialog({
   onOpenChange,
   line,
   operatorLabel,
+  assetScope = "line",
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   line: string;
   operatorLabel: string;
+  assetScope?: "line" | "sealer_printer";
 }) {
   const createWO = useCreateWorkOrder();
   const problemsQ = useActiveProblemDescriptions();
@@ -958,6 +981,15 @@ function RequestOrderDialog({
       return (data || []) as { id: string; name: string }[];
     },
   });
+
+  const filteredMachines = useMemo(() => {
+    const list = machinesQ.data || [];
+    const isSP = (n: string) => /sealer|printer/i.test(n);
+    return assetScope === "sealer_printer" ? list.filter((m) => isSP(m.name)) : list.filter((m) => !isSP(m.name));
+  }, [machinesQ.data, assetScope]);
+
+  // Reset machine selection when scope changes
+  useEffect(() => { setMachine(""); }, [assetScope]);
 
   const submit = async () => {
     const description = problem === "__custom__" || !problem ? customDesc.trim() : problem;
@@ -1034,7 +1066,7 @@ function RequestOrderDialog({
               <SelectTrigger className={dialogControlResponsive}><SelectValue placeholder="Any" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">— Any —</SelectItem>
-                {(machinesQ.data || []).map((m) => (
+                {filteredMachines.map((m) => (
                   <SelectItem key={m.id} value={m.name} className="text-base sm:text-lg">{m.name}</SelectItem>
                 ))}
               </SelectContent>
