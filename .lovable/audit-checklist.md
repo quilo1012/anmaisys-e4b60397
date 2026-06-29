@@ -181,7 +181,7 @@ Sistema só é **Production Ready** quando todos os módulos estão 100% aprovad
 ### 5.2 Push & Bell
 - [x] Service Worker `public/sw.js` registra com sucesso
 - [x] Push notification recebida em desktop e mobile
-- [ ] Clique no push abre deep link para WO
+- [x] Clique no push abre deep link para WO (handler `notificationclick` em `public/sw.js`)
 - [x] Bell badge mostra contagem realtime
 - [x] Notifications Center lista histórico ordenado
 
