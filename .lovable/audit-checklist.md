@@ -202,47 +202,47 @@ Sistema só é **Production Ready** quando todos os módulos estão 100% aprovad
 ## 6. INTEGRAÇÕES
 
 ### 6.1 iTouching Polling
-- [ ] Cron `intouch-poll` ativo (a cada 10s, escalonado)
-- [ ] Autenticação via `x-cron-secret` OR admin JWT
-- [ ] Cria WO automática SOMENTE em transição real de stop code
-- [ ] Stop codes com `requires_wo=true`: Maintenance Issue + sub-códigos, Metal Detector Checks
-- [ ] Janela de 4h previne WOs duplicadas para mesma máquina
-- [ ] Baseline limpa quando última WO da máquina é fechada
-- [ ] Não cria SKU automaticamente
+- [x] Cron `intouch-poll` ativo (a cada 10s, escalonado)
+- [x] Autenticação via `x-cron-secret` OR admin JWT
+- [x] Cria WO automática SOMENTE em transição real de stop code
+- [x] Stop codes com `requires_wo=true`: Maintenance Issue + sub-códigos, Metal Detector Checks
+- [x] Janela de 4h previne WOs duplicadas para mesma máquina
+- [x] Baseline limpa quando última WO da máquina é fechada
+- [x] Não cria SKU automaticamente
 
 ### 6.2 iTouching Sync Produção
-- [ ] Cron 06:30 e 18:30 (London) dispara `intouch-sync-production`
-- [ ] Cron a cada 5 min sincroniza actuals
-- [ ] Toggle "Disable current-shift sync" default = ON
-- [ ] Puxa actual_qty, scrap_qty, run_time, down_time, oee
-- [ ] Botão "Sync now" força sincronização imediata
-- [ ] Tabela `intouch_sync_runs` registra status de cada execução
+- [x] Cron 06:30 e 18:30 (London) dispara `intouch-sync-production`
+- [x] Cron a cada 5 min sincroniza actuals
+- [x] Toggle "Disable current-shift sync" default = ON
+- [x] Puxa actual_qty, scrap_qty, run_time, down_time, oee
+- [x] Botão "Sync now" força sincronização imediata
+- [x] Tabela `intouch_sync_runs` registra status de cada execução
 
 ### 6.3 iTouching Machines & SKUs
-- [ ] `intouch-list-machines` retorna GUIDs corretos
-- [ ] "Auto-map all machines" mapeia via Jaccard similarity
-- [ ] `intouch-list-products` com fallback para `production_items`
-- [ ] Import XLSX usa headers exatos do iTouching, calcula `target_per_hour`
-- [ ] SKU Sync Diagnostics polling visibility-aware (30s/120s)
+- [x] `intouch-list-machines` retorna GUIDs corretos
+- [x] "Auto-map all machines" mapeia via Jaccard similarity
+- [x] `intouch-list-products` com fallback para `production_items`
+- [x] Import XLSX usa headers exatos do iTouching, calcula `target_per_hour`
+- [x] SKU Sync Diagnostics polling visibility-aware (30s/120s)
 
 ### 6.4 iTouching Webhook
-- [ ] `intouch-webhook` resolve Line Leader ativo como `requested_by`
-- [ ] Payload validado com Zod
-- [ ] Logado em `intouch_webhook_logs`
+- [x] `intouch-webhook` resolve Line Leader ativo como `requested_by`
+- [x] Payload validado com Zod
+- [x] Logado em `intouch_webhook_logs`
 
 ### 6.5 RAG Weekly Sync
-- [ ] Trigger `trg_sync_rag_actual` soma `production_items.actual_qty` → `rag_weekly_entries.actual_qty`
-- [ ] Trigger `trg_sync_items_target_from_rag` faz auto-rescale de targets
-- [ ] Edição inline (admin) atualiza em <1s via realtime
-- [ ] Downtime no RAG referencia WO # com badge de status
-- [ ] Aviso ⚠ de arredondamento quando soma SKU ≠ total da linha
-- [ ] Toggles diários/turno via `rag_week_exclusions` excluem do cálculo
+- [x] Trigger `trg_sync_rag_actual` soma `production_items.actual_qty` → `rag_weekly_entries.actual_qty`
+- [x] Trigger `trg_sync_items_target_from_rag` faz auto-rescale de targets
+- [x] Edição inline (admin) atualiza em <1s via realtime
+- [x] Downtime no RAG referencia WO # com badge de status
+- [x] Aviso ⚠ de arredondamento quando soma SKU ≠ total da linha
+- [x] Toggles diários/turno via `rag_week_exclusions` excluem do cálculo
 
 ### 6.6 Outras Integrações
-- [ ] SharePoint import via `sharepoint-download-file` Edge Function
-- [ ] `calculate-shift-targets` recalcula targets por SKU (660 min/turno)
-- [ ] Todos os cron jobs estão ativos (verificar `cron.job`)
-- [ ] Nenhum cron job em loop infinito
+- [x] SharePoint import via `sharepoint-download-file` Edge Function
+- [x] `calculate-shift-targets` recalcula targets por SKU (660 min/turno)
+- [x] Todos os cron jobs estão ativos (verificar `cron.job`)
+- [x] Nenhum cron job em loop infinito
 
 ---
 
