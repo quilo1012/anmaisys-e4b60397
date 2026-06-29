@@ -239,7 +239,7 @@ export default function LineProductionScreen() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("id, sku_id, target_qty, actual_qty, sku:sku_products(code, name)")
+        .select("id, sku_id, target_qty, actual_qty, intouch_qty, sku:sku_products(code, name)")
         .eq("session_id", sessionQ.data!.id);
       if (error) throw error;
       return (data || []).map((r: any) => ({
@@ -248,8 +248,10 @@ export default function LineProductionScreen() {
         code: r.sku?.code || "—",
         name: r.sku?.name || "—",
         target_qty: Number(r.target_qty ?? r.planned_qty ?? 0),
-        actual_qty: Number(r.actual_qty ?? 0),
+        actual_qty: Number(r.intouch_qty ?? r.actual_qty ?? 0),
+        intouch_qty: r.intouch_qty == null ? null : Number(r.intouch_qty),
       })) as ItemRow[];
+
     },
     refetchInterval: 15_000,
   });
