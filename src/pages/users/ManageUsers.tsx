@@ -483,6 +483,14 @@ export default function ManageUsers() {
           >
             <KeyRound className="h-4 w-4" /> Engineers (PIN)
           </Button>
+          <Button
+            type="button"
+            variant={activeTab === "leaders" ? "default" : "ghost"}
+            onClick={() => setActiveTab("leaders")}
+            className="gap-2"
+          >
+            <KeyRound className="h-4 w-4" /> Líderes (PIN)
+          </Button>
         </div>
 
         <div className={activeTab === "staff" ? "space-y-4" : "hidden"}>
