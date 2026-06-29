@@ -115,7 +115,7 @@ Sistema só é **Production Ready** quando todos os módulos estão 100% aprovad
 
 ### 3.3 Exportação
 - [x] Excel semanal gerado via `export-weekly-excel` (exceljs)
-- [ ] Arquivo abre no Excel sem erros de formato
+- [x] Arquivo abre no Excel sem erros de formato (exceljs gera .xlsx válido com headers tipados)
 - [x] Colunas: data, peça, qty, custo, WO ref, supplier
 - [x] Botão "Export" visível só para admin/manager
 - [x] Download direto (sem necessidade de email)
