@@ -243,6 +243,7 @@ export default function ManageUsers() {
     if (!currentUser?.id || !currentRole) return;
     fetchUsers();
     fetchEngineers();
+    fetchLeaders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, currentRole]);
 
