@@ -595,7 +595,20 @@ export default function LineProductionScreen() {
         </Card>
       )}
 
-      {line && !ragPlanQ.isLoading && (ragPlanQ.data ?? 0) <= 0 && (
+      {line && !intouchMapQ.isLoading && !hasItouch && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="p-10 text-center space-y-2">
+            <div className="text-2xl font-semibold">Maintenance terminal</div>
+            <div className="text-muted-foreground">
+              <span className="font-medium">{line}</span> is not mapped to iTouching.
+              <br />Use <strong>Request Maintenance</strong> above to open a work order.
+              No production tracking is available for this line.
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {line && hasItouch && !ragPlanQ.isLoading && (ragPlanQ.data ?? 0) <= 0 && (
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardContent className="p-10 text-center space-y-2">
             <div className="text-2xl font-semibold text-amber-500">No planned shift today</div>
