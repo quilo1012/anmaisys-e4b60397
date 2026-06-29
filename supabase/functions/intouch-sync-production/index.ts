@@ -209,6 +209,8 @@ async function tryIt(path: string, init?: RequestInit, debug?: { stage: string; 
 
 async function discoverLiveProductionPaths() {
   const defaults = [
+    "/api/GetProductionProfilePeriodList",
+    "/api/GetProductionProfilePeriod",
     "/api/appapi/getproduction",
     "/api/appapi/getProduction",
     "/api/appapi/GetProduction",
@@ -221,8 +223,6 @@ async function discoverLiveProductionPaths() {
     "/api/appapi/getmachinestatuses",
     "/api/appapi/getdashboard",
     "/api/appapi/getdashboarddata",
-    "/api/GetProductionProfilePeriodList",
-    "/api/GetProductionProfilePeriod",
     "/api/GetProduction",
     "/api/GetProductionCounts",
     "/api/GetMachineProduction",
@@ -641,6 +641,8 @@ async function probeLiveProductionFallbacks(
   const paths = context?.discoverLivePaths
     ? await discoverLiveProductionPaths()
     : [
+      "/api/GetProductionProfilePeriodList",
+      "/api/GetProductionProfilePeriod",
       "/api/appapi/getproduction",
       "/api/appapi/getProduction",
       "/api/appapi/GetProduction",
@@ -653,8 +655,6 @@ async function probeLiveProductionFallbacks(
       "/api/appapi/getmachinestatuses",
       "/api/appapi/getdashboard",
       "/api/appapi/getdashboarddata",
-      "/api/GetProductionProfilePeriodList",
-      "/api/GetProductionProfilePeriod",
       "/api/GetProduction",
       "/api/GetProductionCounts",
       "/api/GetMachineProduction",
