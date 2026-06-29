@@ -942,11 +942,13 @@ function RequestOrderDialog({
   onOpenChange,
   line,
   operatorLabel,
+  assetScope = "line",
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   line: string;
   operatorLabel: string;
+  assetScope?: "line" | "sealer_printer";
 }) {
   const createWO = useCreateWorkOrder();
   const problemsQ = useActiveProblemDescriptions();
