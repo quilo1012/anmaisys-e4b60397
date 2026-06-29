@@ -26,6 +26,39 @@ type SkuRow = { code: string; description: string; qty: number; source: string; 
 type Agg = { qty: number; description: string; source: string; batch: string; actual: number };
 
 const FETCH_TIMEOUT_MS = 10_000;
+const MACHINE_REF_KEYS = [
+  "MachineID", "MachineId", "MachineGUID", "MachineGuid", "MachineGuidID", "Machine Guid", "Machine ID",
+  "Machine", "MachineName", "Line", "LineName",
+];
+const GOOD_QTY_KEYS = [
+  "Good", "GoodQty", "Good Qty", "GoodQuantity", "Good Count", "GoodCount", "GoodUnits", "GoodUnitsProduced",
+  "GoodProduct", "GoodProductCount", "GoodQuantityProduced", "QtyGood", "QuantityGood", "TotalGood", "TotalGoodQty",
+  "TotalGoodQuantity", "ProducedGood", "ProducedGoodQty", "Produced Good", "Produced Good Qty", "GoodPacks",
+  "CurrentShift", "CurrentShiftQty", "CurrentShiftQuantity", "CurrentShiftGood", "ShiftGood", "ShiftGoodQty",
+  "Produced", "ProducedQty", "ProducedQuantity", "ProducedCount", "QuantityProduced",
+  "ActualQty", "ActualQuantity", "Actual", "Output", "OutputQty", "TotalProduced", "CompletedQuantity",
+  "CompletedQty", "AlreadyMade", "QuantityMade", "MadeQuantity", "Made", "MadeQty", "Done", "DoneQty",
+];
+
+function logSync(event: string, details: Record<string, unknown>) {
+  try {
+    console.log(`[intouch-sync-production] ${event}`, JSON.stringify(details).slice(0, 3000));
+  } catch {
+    console.log(`[intouch-sync-production] ${event}`);
+  }
+}
+
+function warnSync(event: string, details: Record<string, unknown>) {
+  try {
+    console.warn(`[intouch-sync-production] ${event}`, JSON.stringify(details).slice(0, 3000));
+  } catch {
+    console.warn(`[intouch-sync-production] ${event}`);
+  }
+}
+
+function pathOnly(path: string) {
+  return path.split("?")[0];
+}
 
 // ── iTouching quota helpers (shared state via intouch_quota_status table) ──
 const __QUOTA_ADMIN = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
@@ -93,8 +126,31 @@ async function it(path: string, init?: RequestInit) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
-async function tryIt(path: string, init?: RequestInit) {
-  try { return await it(path, init); } catch { return null; }
+async function tryIt(path: string, init?: RequestInit, debug?: { stage: string; line?: string; machines?: MachineRef[] }) {
+  try {
+    const raw = await it(path, init);
+    if (debug) {
+      logSync("itouch_response", {
+        stage: debug.stage,
+        line: debug.line ?? null,
+        path: pathOnly(path),
+        method: init?.method ?? "GET",
+        stats: inspectPayload(raw, debug.machines),
+      });
+    }
+    return raw;
+  } catch (e) {
+    if (debug) {
+      warnSync("itouch_request_failed", {
+        stage: debug.stage,
+        line: debug.line ?? null,
+        path: pathOnly(path),
+        method: init?.method ?? "GET",
+        error: (e as Error).message,
+      });
+    }
+    return null;
+  }
 }
 
 
@@ -190,6 +246,39 @@ function sameMachine(value: unknown, allowedIds: Set<string>, allowedNames: Set<
   return allowedIds.has(lower) || allowedNames.has(lower);
 }
 
+function inspectPayload(raw: unknown, machines?: MachineRef[]) {
+  const allowedIds = new Set((machines ?? []).map((m) => (m.id || "").toLowerCase()).filter(Boolean));
+  const allowedNames = new Set((machines ?? []).map((m) => m.name.toLowerCase()).filter(Boolean));
+  let objects = 0;
+  let machineRefs = 0;
+  let matchedMachineRefs = 0;
+  let goodFieldHits = 0;
+  const goodFields = new Set<string>();
+  walkObjects(raw, (obj) => {
+    objects += 1;
+    const machineRef = pick(obj, MACHINE_REF_KEYS);
+    if (machineRef != null && String(machineRef).trim() !== "") {
+      machineRefs += 1;
+      if (!machines || sameMachine(machineRef, allowedIds, allowedNames)) matchedMachineRefs += 1;
+    }
+    for (const key of GOOD_QTY_KEYS) {
+      if (obj?.[key] !== undefined && obj?.[key] !== null && String(obj[key]).trim() !== "") {
+        goodFieldHits += 1;
+        goodFields.add(key);
+      }
+    }
+  });
+  return {
+    objects,
+    machine_refs: machineRefs,
+    matched_machine_refs: matchedMachineRefs,
+    good_field_hits: goodFieldHits,
+    good_fields: Array.from(goodFields).slice(0, 20),
+    extracted_line_good: machines ? extractLineGoodTotal(raw, machines) : undefined,
+    extracted_actual_codes: machines ? extractActualsByCode(raw, machines).size : undefined,
+  };
+}
+
 function extractSkuRows(raw: unknown, source: string, machines: MachineRef[]): SkuRow[] {
   const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
@@ -200,7 +289,7 @@ function extractSkuRows(raw: unknown, source: string, machines: MachineRef[]): S
     const worksOrders = obj?.WorksOrders ?? obj?.WorkOrders ?? obj?.worksOrders ?? obj?.works_orders;
     if (!Array.isArray(worksOrders) || seenJobs.has(obj)) return;
     seenJobs.add(obj);
-    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+      const machineRef = pick(obj, MACHINE_REF_KEYS);
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
     for (const wo of worksOrders) {
       const rawCode = String(pick(wo, ["PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "OrderNumber"]) ?? "").trim();
@@ -217,7 +306,7 @@ function extractSkuRows(raw: unknown, source: string, machines: MachineRef[]): S
   if (rows.length > 0) return rows;
 
   walkObjects(raw, (obj) => {
-    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    const machineRef = pick(obj, MACHINE_REF_KEYS);
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
     const rawCode = String(pick(obj, [
       "PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "FGCode", "FinishedGood",
@@ -247,7 +336,7 @@ function extractScrapByCode(raw: unknown, machines: MachineRef[]): Map<string, n
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const out = new Map<string, number>();
   walkObjects(raw, (obj) => {
-    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    const machineRef = pick(obj, MACHINE_REF_KEYS);
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
     const code = cleanCode(pick(obj, ["PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "OrderNumber"]));
     if (!code || code.length < 2) return;
@@ -266,7 +355,7 @@ function extractShiftMetrics(raw: unknown, machines: MachineRef[]) {
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   let runMin = 0, downMin = 0, oeeSum = 0, oeeN = 0;
   walkObjects(raw, (obj) => {
-    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    const machineRef = pick(obj, MACHINE_REF_KEYS);
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
     const r = num(pick(obj, ["RunTime", "RunTimeMin", "RunTimeMinutes", "Running", "RunningMin", "UpTime", "UpTimeMin"]));
     const d = num(pick(obj, ["DownTime", "DownTimeMin", "DownTimeMinutes", "Downtime", "DowntimeMin", "StoppedTime", "StoppedMin"]));
@@ -292,15 +381,10 @@ function extractActualsByCode(raw: unknown, machines: MachineRef[]): Map<string,
     const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
     const code = cleanCode(pick(obj, [
-      "PartCode", "ProductCode", "SkuCode", "SKU", "ItemCode", "StockCode", "OrderNumber",
+      "PartCode", "Part Code", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "OrderNumber",
     ]));
     if (!code || code.length < 2) return;
-    const produced = num(pick(obj, [
-      "Good", "GoodQty", "GoodQuantity", "GoodCount",
-      "Produced", "ProducedQty", "ProducedQuantity", "ProducedCount",
-      "ActualQty", "ActualQuantity", "Actual", "Output", "OutputQty",
-      "TotalProduced", "QuantityProduced",
-    ]));
+    const produced = num(pick(obj, GOOD_QTY_KEYS));
     if (produced <= 0) return;
     out.set(code, Math.max(out.get(code) ?? 0, produced));
   });
@@ -315,14 +399,9 @@ function extractLineGoodTotal(raw: unknown, machines: MachineRef[]): number {
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const perMachine = new Map<string, number>();
   walkObjects(raw, (obj) => {
-    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+    const machineRef = pick(obj, MACHINE_REF_KEYS);
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
-    const produced = num(pick(obj, [
-      "Good", "GoodQty", "GoodQuantity", "GoodCount",
-      "Produced", "ProducedQty", "ProducedQuantity", "ProducedCount",
-      "ActualQty", "ActualQuantity", "Actual", "Output", "OutputQty",
-      "TotalProduced", "QuantityProduced",
-    ]));
+    const produced = num(pick(obj, GOOD_QTY_KEYS));
     if (produced <= 0) return;
     const key = String(machineRef ?? "_").trim().toLowerCase();
     // Counts are cumulative within the shift — keep the highest reading per machine.
@@ -333,7 +412,7 @@ function extractLineGoodTotal(raw: unknown, machines: MachineRef[]): number {
   return total;
 }
 
-async function fetchActualsForLine(machines: MachineRef[], startISO: string, endISO: string) {
+async function fetchActualsForLine(machines: MachineRef[], startISO: string, endISO: string, context?: { line?: string }) {
   const ids = machines.map((m) => m.id);
   const merged = new Map<string, number>();
   const scrap = new Map<string, number>();
@@ -357,7 +436,7 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
   };
 
   // Running jobs (current SKU + live counts)
-  const running = await tryIt("/api/GetRunningJobs", { method: "GET" });
+  const running = await tryIt("/api/GetRunningJobs", { method: "GET" }, { stage: "actuals_running_jobs", line: context?.line, machines });
   merge(extractActualsByCode(running, machines));
   mergeScrap(extractScrapByCode(running, machines));
   mergeMetrics(running);
@@ -370,7 +449,7 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
     if (mid && jid && ids.includes(mid)) jobIds.add(jid);
   });
   if (jobIds.size > 0) {
-    const jobs = await tryIt("/api/GetJobs", { method: "POST", body: JSON.stringify(Array.from(jobIds)) });
+    const jobs = await tryIt("/api/GetJobs", { method: "POST", body: JSON.stringify(Array.from(jobIds)) }, { stage: "actuals_get_jobs", line: context?.line, machines });
     merge(extractActualsByCode(jobs, machines));
     mergeScrap(extractScrapByCode(jobs, machines));
     mergeMetrics(jobs);
@@ -379,9 +458,9 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
 
   // Jobs ran during the shift window (historical actuals)
   const ranAttempts = [
-    () => tryIt(`/api/GetJobsRan?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
-    () => tryIt("/api/GetJobsRan", { method: "POST", body: JSON.stringify({ MachineGUIDs: ids, StartTime: startISO, EndTime: endISO }) }),
-    () => tryIt(`/api/GetJobsRanDuringPeriod?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
+    () => tryIt(`/api/GetJobsRan?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_jobs_ran_query_array", line: context?.line, machines }),
+    () => tryIt("/api/GetJobsRan", { method: "POST", body: JSON.stringify({ MachineGUIDs: ids, StartTime: startISO, EndTime: endISO }) }, { stage: "actuals_jobs_ran_object", line: context?.line, machines }),
+    () => tryIt(`/api/GetJobsRanDuringPeriod?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_jobs_ran_period", line: context?.line, machines }),
   ];
   for (const attempt of ranAttempts) {
     const raw = await attempt();
@@ -395,9 +474,9 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
 
   // Aggregate shift-level OEE / run / down explicitly when iTouching exposes them.
   const shiftStatsAttempts = [
-    () => tryIt(`/api/GetShiftReport?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
-    () => tryIt(`/api/GetMachineKPIs?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
-    () => tryIt(`/api/GetOEE?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }),
+    () => tryIt(`/api/GetShiftReport?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_shift_report", line: context?.line, machines }),
+    () => tryIt(`/api/GetMachineKPIs?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_machine_kpis", line: context?.line, machines }),
+    () => tryIt(`/api/GetOEE?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_oee", line: context?.line, machines }),
   ];
   for (const attempt of shiftStatsAttempts) {
     const raw = await attempt();
