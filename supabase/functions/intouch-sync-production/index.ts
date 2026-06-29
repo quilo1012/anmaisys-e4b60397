@@ -823,7 +823,7 @@ Deno.serve(async (req) => {
             planned_qty: plan,
             actual_qty: actual,
             scrap_qty,
-            blender_ref: a.batch || null,
+            blender_ref: sku_id ? (blenderBySku.get(sku_id) ?? null) : null,
             target_manual_at: manualTarget != null ? new Date().toISOString() : null,
             notes: `itouching:${source}${useLineFallback ? "+line_good" : ""}${manualTarget != null ? "+manual_target" : ""}`,
           };
