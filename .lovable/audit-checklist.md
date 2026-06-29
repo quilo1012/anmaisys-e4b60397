@@ -99,26 +99,26 @@ Sistema só é **Production Ready** quando todos os módulos estão 100% aprovad
 ## 3. INVENTORY
 
 ### 3.1 Stock
-- [ ] FIFO: usar peça deduz primeiro o lote mais antigo
-- [ ] Dedução automática ao adicionar `parts_used` em WO
-- [ ] Bloqueio com mensagem clara quando saldo zero
-- [ ] Histórico de movimentações lista used/added/adjusted com timestamps
-- [ ] Preços visíveis SOMENTE para admin (testar com manager)
-- [ ] Low stock notification dispara abaixo do `min_qty`
+- [x] FIFO: usar peça deduz primeiro o lote mais antigo
+- [x] Dedução automática ao adicionar `parts_used` em WO
+- [x] Bloqueio com mensagem clara quando saldo zero
+- [x] Histórico de movimentações lista used/added/adjusted com timestamps
+- [x] Preços visíveis SOMENTE para admin (testar com manager)
+- [x] Low stock notification dispara abaixo do `min_qty`
 
 ### 3.2 Suppliers & Purchase Orders
-- [ ] CRUD completo de suppliers
-- [ ] Criar PO com múltiplos itens e fornecedor
+- [x] CRUD completo de suppliers
+- [x] Criar PO com múltiplos itens e fornecedor
 - [ ] Status PO (draft → submitted → received) avança corretamente
 - [ ] Receber PO atualiza saldo de estoque
-- [ ] Hook `useSuppliers` invalida cache após mutação
+- [x] Hook `useSuppliers` invalida cache após mutação
 
 ### 3.3 Exportação
-- [ ] Excel semanal gerado via `export-weekly-excel` (exceljs)
+- [x] Excel semanal gerado via `export-weekly-excel` (exceljs)
 - [ ] Arquivo abre no Excel sem erros de formato
-- [ ] Colunas: data, peça, qty, custo, WO ref, supplier
-- [ ] Botão "Export" visível só para admin/manager
-- [ ] Download direto (sem necessidade de email)
+- [x] Colunas: data, peça, qty, custo, WO ref, supplier
+- [x] Botão "Export" visível só para admin/manager
+- [x] Download direto (sem necessidade de email)
 
 ---
 
