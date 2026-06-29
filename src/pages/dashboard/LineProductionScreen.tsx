@@ -20,7 +20,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save, AlertTriangle, Plus, LogOut } from "lucide-react";
+import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save, AlertTriangle, Plus, LogOut, Lock, Unlock } from "lucide-react";
+import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
