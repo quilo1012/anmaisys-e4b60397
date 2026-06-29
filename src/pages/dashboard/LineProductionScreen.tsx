@@ -560,6 +560,30 @@ export default function LineProductionScreen() {
             </Button>
           </div>
           {/* Tablet selector removed — each operator login is bound to its own tablet/line */}
+          {isOperator && (
+            targetUnlock ? (
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-12 border-green-500/60 text-green-600 dark:text-green-400"
+                onClick={() => setTargetUnlock(null)}
+                title="Click to lock again"
+              >
+                <Unlock className="h-5 w-5 mr-2" />
+                Target ({targetUnlock.name})
+              </Button>
+            ) : (
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-12"
+                onClick={() => setPinOpen(true)}
+              >
+                <Lock className="h-5 w-5 mr-2" />
+                Show Target
+              </Button>
+            )
+          )}
 
           <div className="ml-auto flex items-center gap-3">
             <SyncStatusIndicator
