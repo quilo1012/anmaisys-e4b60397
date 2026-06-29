@@ -55,7 +55,7 @@ function logSync(event: string, details: Record<string, unknown>) {
   }
 }
 
-function logSyncChunks(event: string, details: Record<string, unknown>, maxChars = 16_000) {
+function logSyncChunks(event: string, details: Record<string, unknown>, maxChars = 64_000) {
   let payload = "";
   try {
     payload = JSON.stringify(details).slice(0, maxChars);
