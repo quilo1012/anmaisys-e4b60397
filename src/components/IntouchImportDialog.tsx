@@ -312,14 +312,15 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
         toast.error(msg);
         return;
       }
-      setSections(secs);
+      const withPlan = await applyRagPlans(secs);
+      setSections(withPlan);
       const init: Record<string, { id?: string; name: string }> = {};
       const inc: Record<string, boolean> = {};
-      for (const s of secs) { init[s.line] = { name: "" }; inc[s.line] = true; }
+      for (const s of withPlan) { init[s.line] = { name: "" }; inc[s.line] = true; }
       setLeaderByLine(init);
       setIncludedLines(inc);
       setParsePreview([]);
-      toast.success(`Pulled ${(data as any)?.total_skus ?? 0} SKUs across ${secs.length} line${secs.length > 1 ? "s" : ""}`);
+      toast.success(`Pulled ${(data as any)?.total_skus ?? 0} SKUs across ${withPlan.length} line${withPlan.length > 1 ? "s" : ""} · qty from RAG Weekly`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not pull from iTouching");
     } finally {
