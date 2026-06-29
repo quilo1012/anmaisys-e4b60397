@@ -1,16 +1,20 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { z } from "https://esm.sh/zod@3.23.8";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { z } from "npm:zod@3.23.8";
+
+const MAX_BODY_BYTES = 8 * 1024;
+const REQ_TIMEOUT_MS = 15_000;
 
 const createPendingPinHash = async () => {
   return "temp";
 };
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-  "Access-Control-Max-Age": "86400",
-};
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 const updateUserSchema = z.object({
   userId: z.string().uuid("Invalid user ID"),
@@ -69,10 +73,23 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
+  if (req.method !== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  const timeoutCtl = new AbortController();
+  const timeoutId = setTimeout(() => timeoutCtl.abort(), REQ_TIMEOUT_MS);
 
   try {
+    const cl = Number(req.headers.get("content-length") ?? "0");
+    if (cl && cl > MAX_BODY_BYTES) {
+      return jsonResponse({ error: "Payload too large" }, 413);
+    }
+
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -82,19 +99,26 @@ Deno.serve(async (req) => {
     const token = authHeader.replace(/^Bearer\s+/i, "");
     const { data: claimsData, error: claimsError } = await supabaseAdmin.auth.getClaims(token);
     if (claimsError || !claimsData?.claims?.sub) {
-      return new Response(JSON.stringify({ error: "Not authenticated" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
     const callerId = claimsData.claims.sub as string;
 
     const { data: isAdmin } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "admin" });
     const { data: isManager } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "manager" });
 
-    if (!isAdmin && !isManager) throw new Error("Only managers and admins can update users");
+    if (!isAdmin && !isManager) {
+      return jsonResponse({ error: "Forbidden" }, 403);
+    }
 
-    const body = updateUserSchema.parse(await req.json());
+    const raw = await req.text();
+    if (raw.length > MAX_BODY_BYTES) {
+      return jsonResponse({ error: "Payload too large" }, 413);
+    }
+    let parsedBody: unknown;
+    try { parsedBody = JSON.parse(raw); } catch {
+      return jsonResponse({ error: "Invalid JSON" }, 400);
+    }
+    const body = updateUserSchema.parse(parsedBody);
     const { userId, name, role, shift, active, email, password, labor_rate } = body;
 
     const { data: targetRole } = await supabaseAdmin.rpc("get_user_role", { _user_id: userId });
@@ -236,21 +260,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ success: true }, 200);
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      return new Response(JSON.stringify({ error: error.errors[0].message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: error.errors[0]?.message ?? "Invalid input" }, 400);
     }
-
-    return new Response(JSON.stringify({ error: getReadableErrorMessage(error) }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("update-user error:", error);
+    return jsonResponse({ error: getReadableErrorMessage(error) }, 400);
+  } finally {
+    clearTimeout(timeoutId);
   }
 });
 
