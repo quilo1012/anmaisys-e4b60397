@@ -271,12 +271,10 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       }
       const withPlan = await applyRagPlans(parsed);
       setSections(withPlan);
-      }
-      setSections(parsed);
       // pre-fill leader from active list (first available leader for shift)
       const init: Record<string, { id?: string; name: string }> = {};
       const inc: Record<string, boolean> = {};
-      for (const s of parsed) { init[s.line] = { name: "" }; inc[s.line] = true; }
+      for (const s of withPlan) { init[s.line] = { name: "" }; inc[s.line] = true; }
       setLeaderByLine(init);
       setIncludedLines(inc);
       toast.success(`Detected ${parsed.length} line${parsed.length > 1 ? "s" : ""}`);
