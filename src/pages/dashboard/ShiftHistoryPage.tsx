@@ -86,12 +86,28 @@ export default function ShiftHistoryPage() {
     },
   });
 
+  const lineRank = (name: string) => {
+    const n = (name ?? "").toLowerCase().trim();
+    const m = n.match(/line\s*(\d+)/);
+    if (m) return parseInt(m[1], 10);
+    if (n.includes("capsule")) return 100;
+    return 200;
+  };
+  const sortedLines = useMemo(
+    () => [...lines].sort((a, b) => lineRank(a.name) - lineRank(b.name) || a.name.localeCompare(b.name)),
+    [lines]
+  );
   const filtered = useMemo(() => sessions.filter((s) =>
     (fLine === "__all__" || s.line === fLine) &&
     (fShift === "__all__" || s.shift === fShift) &&
     (fLeader === "__all__" || s.leader_name === fLeader) &&
     (fSku === "__all__" || s.production_items.some((i) => i.sku_id === fSku))
-  ), [sessions, fLine, fShift, fLeader, fSku]);
+  ).sort((a, b) => {
+    if (a.session_date !== b.session_date) return a.session_date < b.session_date ? 1 : -1;
+    const lr = lineRank(a.line) - lineRank(b.line);
+    if (lr !== 0) return lr;
+    return (a.line ?? "").localeCompare(b.line ?? "");
+  }), [sessions, fLine, fShift, fLeader, fSku]);
 
   const trendData = useMemo(() => {
     const byDate = new Map<string, { date: string; DAY: number[]; NIGHT: number[] }>();
@@ -252,7 +268,7 @@ export default function ShiftHistoryPage() {
             <div><Label className="text-xs">Filler Line</Label>
               <Select value={fLine} onValueChange={setFLine}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="__all__">All lines</SelectItem>{lines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+                <SelectContent><SelectItem value="__all__">All lines</SelectItem>{sortedLines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div><Label className="text-xs">Leader</Label>
