@@ -734,6 +734,12 @@ Deno.serve(async (req) => {
           notes: `itouching:live_good`,
         }]);
 
+        // Stamp iTouching live total on the session for the operator UI.
+        await admin.from("production_sessions").update({
+          intouch_good_total: Math.round(live.lineGood),
+          metrics_synced_at: new Date().toISOString(),
+        }).eq("id", session.id);
+
         results.push({ line, skus: 1, rag_plan: ragPlan, source: "live_good", actual_preserved: actual });
         continue;
       }
