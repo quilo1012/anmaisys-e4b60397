@@ -387,7 +387,7 @@ export default function LineProductionScreen() {
 
   const openEditor = useCallback((row: ItemRow) => {
     if (!canEdit) {
-      toast.error("Read-only — only Tablet 1 can edit actuals");
+      toast.error("Read-only");
       return;
     }
     setEditing(row);
