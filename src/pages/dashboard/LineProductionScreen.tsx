@@ -333,12 +333,13 @@ export default function LineProductionScreen() {
   const syncSkus = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("intouch-sync-production", {
-        body: { session_date: activeSessionDate, shift, force: true },
+        body: { session_date: activeSessionDate, shift, line, force: true, debug_discover: true },
       });
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
+      setLastSyncAt(new Date());
       qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
       qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
       toast.success("SKUs synced from iTouching");
