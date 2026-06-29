@@ -91,15 +91,10 @@ export default function Login() {
     return () => window.clearInterval(t);
   }, [rlId]);
 
-  // Hide toggle if no operator accounts exist (clean slate for first install)
+  // Always show the toggle. If the tablet list is still loading or temporarily
+  // empty (e.g. RLS hiccup), the TABLET tab simply shows a loading/empty state
+  // instead of silently flipping the user back to STAFF.
   const hasOperatorAccounts = (operatorAccounts?.length ?? 0) > 0;
-
-  // If user is in Tablet mode but no accounts exist, fall back to Staff
-  useEffect(() => {
-    if (mode === "tablet" && !accountsLoading && !hasOperatorAccounts) {
-      setMode("staff");
-    }
-  }, [mode, accountsLoading, hasOperatorAccounts]);
 
   // Validate stored tablet selection still exists; clear if it doesn't
   useEffect(() => {
@@ -128,7 +123,14 @@ export default function Login() {
 
   const switchMode = (next: Mode) => {
     setMode(next);
-    localStorage.setItem(MODE_KEY, next);
+    try { localStorage.setItem(MODE_KEY, next); } catch { /* ignore */ }
+    // Clear password and any prior identity so switching tabs feels clean.
+    setPassword("");
+    if (next === "staff") {
+      setTabletAccountId("");
+    } else {
+      setEmail("");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -280,12 +282,12 @@ export default function Login() {
               </p>
             </div>
 
-            {/* Mode toggle — only when there's at least one operator account */}
-            {hasOperatorAccounts && (
-              <div className="mb-6 grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5">
+            {/* Mode toggle — always visible so operators can always reach the Tablet form */}
+            <div className="mb-6 grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5">
                 <button
                   type="button"
                   onClick={() => switchMode("staff")}
+                  aria-pressed={mode === "staff"}
                   className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-semibold uppercase tracking-wider transition-all ${
                     mode === "staff"
                       ? "bg-white/[0.09] text-white shadow-sm ring-1 ring-white/15"
@@ -298,6 +300,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => switchMode("tablet")}
+                  aria-pressed={mode === "tablet"}
                   className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-semibold uppercase tracking-wider transition-all ${
                     mode === "tablet"
                       ? "bg-white/[0.09] text-white shadow-sm ring-1 ring-white/15"
@@ -308,7 +311,6 @@ export default function Login() {
                   Tablet
                 </button>
               </div>
-            )}
 
             <form onSubmit={handleSubmit} className="space-y-5" autoComplete="on">
 
@@ -328,7 +330,7 @@ export default function Login() {
                       className="h-14 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
                     >
                       <option value="" disabled className="bg-[hsl(222_47%_10%)] text-white">
-                        Select your tablet…
+                        {accountsLoading ? "Loading tablets…" : hasOperatorAccounts ? "Select your tablet…" : "No tablets configured"}
                       </option>
                       {operatorAccounts?.map((acc) => {
                         const lineNames = acc.line_ids
