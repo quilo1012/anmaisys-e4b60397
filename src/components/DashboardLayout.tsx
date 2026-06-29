@@ -134,17 +134,14 @@ function LiveClock() {
 
 function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
   const location = useLocation();
-  const groups = ["Operations", "Assets", "Production", "Reports", "Admin"];
+  const { state } = useSidebar();
+  const iconCollapsed = state === "collapsed";
+  const groups = ["Overview", "Maintenance", "Assets", "Production", "Planning", "Reports", "Admin"];
   const grouped = groups.map((g) => ({
     label: g,
     items: filteredItems.filter((i) => i.group === g),
   })).filter((g) => g.items.length > 0);
 
-  const hideLabels = filteredItems.length <= 4;
-
-  // Custom active check: pathname must match AND the item's query string must
-  // match the current URL's search (so /dashboard/engineer and
-  // /dashboard/engineer?focus=tasks don't both highlight at once).
   const isItemActive = (url: string) => {
     const [path, query = ""] = url.split("?");
     if (location.pathname !== path) return false;
@@ -152,41 +149,67 @@ function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
     return (location.search || "") === itemSearch;
   };
 
+  const groupHasActive = (items: NavItem[]) => items.some((i) => isItemActive(i.url));
+
+  // Only one group is open at a time. Default to the group containing the active route,
+  // or the first group if none. Operator/engineer with very few items: keep all open.
+  const compact = filteredItems.length > 4;
+  const activeGroup = grouped.find((g) => groupHasActive(g.items))?.label ?? grouped[0]?.label ?? null;
+  const [openGroup, setOpenGroup] = useState<string | null>(activeGroup);
+
+  useEffect(() => {
+    const next = grouped.find((g) => groupHasActive(g.items))?.label;
+    if (next) setOpenGroup(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, location.search]);
+
   return (
     <>
-      {grouped.map((group) => (
-        <SidebarGroup key={group.label} className="px-2">
-          {!hideLabels && (
-            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50 px-2">
-              {group.label}
-            </SidebarGroupLabel>
-          )}
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
-              {group.items.map((item) => {
-                const active = isItemActive(item.url);
-                return (
-                  <SidebarMenuItem key={item.title + item.url}>
-                    <SidebarMenuButton asChild tooltip={item.title} className="h-9 rounded-md">
-                      <NavLink
-                        to={item.url}
-                        end
-                        className={`transition-colors ${active ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"}`}
-                      >
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        <span className="text-sm">{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      ))}
+      {grouped.map((group) => {
+        const isOpen = !compact || iconCollapsed || openGroup === group.label;
+        return (
+          <SidebarGroup key={group.label} className="px-2">
+            {compact && !iconCollapsed && (
+              <button
+                type="button"
+                onClick={() => setOpenGroup((prev) => (prev === group.label ? null : group.label))}
+                className="flex w-full items-center justify-between px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
+                aria-expanded={isOpen}
+              >
+                <span>{group.label}</span>
+                <span className={`transition-transform ${isOpen ? "rotate-90" : ""}`}>›</span>
+              </button>
+            )}
+            {isOpen && (
+              <SidebarGroupContent>
+                <SidebarMenu className="gap-0.5">
+                  {group.items.map((item) => {
+                    const active = isItemActive(item.url);
+                    return (
+                      <SidebarMenuItem key={item.title + item.url}>
+                        <SidebarMenuButton asChild tooltip={item.title} className="h-9 rounded-md">
+                          <NavLink
+                            to={item.url}
+                            end
+                            className={`transition-colors ${active ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"}`}
+                          >
+                            <item.icon className="h-4 w-4 shrink-0" />
+                            <span className="text-sm">{item.title}</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            )}
+          </SidebarGroup>
+        );
+      })}
     </>
   );
 }
+
 
 
 
