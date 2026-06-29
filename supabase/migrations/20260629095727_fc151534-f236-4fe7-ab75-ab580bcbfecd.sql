@@ -1,0 +1,1 @@
+ALTER TABLE public.production_sessions ADD COLUMN IF NOT EXISTS intouch_good_total integer;

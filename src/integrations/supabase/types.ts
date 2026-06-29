@@ -1453,6 +1453,7 @@ export type Database = {
           down_time_min: number | null
           finished_at: string | null
           id: string
+          intouch_good_total: number | null
           leader_id: string | null
           leader_name: string | null
           line: string
@@ -1476,6 +1477,7 @@ export type Database = {
           down_time_min?: number | null
           finished_at?: string | null
           id?: string
+          intouch_good_total?: number | null
           leader_id?: string | null
           leader_name?: string | null
           line: string
@@ -1499,6 +1501,7 @@ export type Database = {
           down_time_min?: number | null
           finished_at?: string | null
           id?: string
+          intouch_good_total?: number | null
           leader_id?: string | null
           leader_name?: string | null
           line?: string

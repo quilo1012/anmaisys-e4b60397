@@ -734,6 +734,12 @@ Deno.serve(async (req) => {
           notes: `itouching:live_good`,
         }]);
 
+        // Stamp iTouching live total on the session for the operator UI.
+        await admin.from("production_sessions").update({
+          intouch_good_total: Math.round(live.lineGood),
+          metrics_synced_at: new Date().toISOString(),
+        }).eq("id", session.id);
+
         results.push({ line, skus: 1, rag_plan: ragPlan, source: "live_good", actual_preserved: actual });
         continue;
       }
@@ -831,13 +837,19 @@ Deno.serve(async (req) => {
         .filter((r) => r.sku_id);
       if (rows.length) await admin.from("production_items").insert(rows);
 
-      // Persist shift-level OEE / run / down to the session row.
-      const hasAnyMetric = metrics.runMin > 0 || metrics.downMin > 0 || metrics.oee !== null;
+      // Persist shift-level OEE / run / down + iTouching live good total to the session row.
+      const itouchTotal = Math.max(
+        Math.round(lineGood || 0),
+        // Sum of per-SKU iTouching matched actuals (independent of operator edits).
+        Array.from(actualsByCode.values()).reduce((s, v) => s + Math.round(v || 0), 0),
+      );
+      const hasAnyMetric = metrics.runMin > 0 || metrics.downMin > 0 || metrics.oee !== null || itouchTotal > 0;
       if (hasAnyMetric) {
         await admin.from("production_sessions").update({
           run_time_min: metrics.runMin > 0 ? Math.round(metrics.runMin) : null,
           down_time_min: metrics.downMin > 0 ? Math.round(metrics.downMin) : null,
           oee_pct: metrics.oee,
+          intouch_good_total: itouchTotal > 0 ? itouchTotal : null,
           metrics_synced_at: new Date().toISOString(),
         }).eq("id", session.id);
       }
