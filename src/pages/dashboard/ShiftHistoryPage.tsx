@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Download, Lock, Unlock, Pencil, Trash2 } from "lucide-react";
+import { Download, Lock, Unlock, Pencil, Trash2, Upload } from "lucide-react";
+import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
@@ -69,6 +70,7 @@ export default function ShiftHistoryPage() {
   const [editActual, setEditActual] = useState<string>("");
   const [editUnit, setEditUnit] = useState<"tubs" | "bags">("tubs");
   const [editSkuId, setEditSkuId] = useState<string>("");
+  const [importOpen, setImportOpen] = useState(false);
 
 
   const { data: sessions = [] } = useQuery({
@@ -196,8 +198,39 @@ export default function ShiftHistoryPage() {
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold">Production Control</h1>
-          <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => {
+                const headers = ["Date","Assembly Number","Work Centre","Product Code","Product Description","Weight","QTY","Start Time","Finish Time","Shift"];
+                const sample = [
+                  ["25/06/2026","ASM-0001","Line 1","SKU-001","Sample Product A","0.500","1200","06:00","14:00","DAY"],
+                  ["25/06/2026","ASM-0002","Line 2","SKU-002","Sample Product B","0.750","850","18:00","02:00","NIGHT"],
+                ];
+                const csv = [headers, ...sample].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+                const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = `production-template-${format(new Date(), "yyyy-MM-dd")}.csv`;
+                a.click(); URL.revokeObjectURL(url);
+              }}>
+                <Download className="h-4 w-4 mr-1" />Export Template
+              </Button>
+            )}
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4 mr-1" />Import Production
+              </Button>
+            )}
+            <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
+          </div>
         </div>
+
+        <ImportProductionDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onImported={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+        />
+
 
         <Card>
           <CardContent className="p-4 grid gap-3 md:grid-cols-6">
