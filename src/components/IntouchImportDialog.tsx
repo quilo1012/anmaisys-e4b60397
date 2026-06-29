@@ -12,6 +12,7 @@ import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { parseIntouchCsvRows, parseIntouchWorkToList, type WorkToListSection } from "@/lib/intouchWorkToList";
 import { useLines, useSkuProducts, useUpsertSession, useSaveItems } from "@/hooks/useProductionPlanner";
+import { rescaleItemTargets } from "@/lib/ragTargetSplit";
 import { format } from "date-fns";
 
 interface Props {
@@ -226,6 +227,32 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     setParsePreview([]);
   };
 
+  // Override per-SKU qty using rag_weekly_entries.plan_qty (source of truth).
+  // The API/XLSX qty is ignored — we rescale items so they sum to the RAG plan.
+  const applyRagPlans = async (secs: WorkToListSection[]): Promise<WorkToListSection[]> => {
+    const matched = secs.map((s) => ({ sec: s, line: matchLine(s.line) }));
+    const lineNames = Array.from(new Set(matched.map((m) => m.line).filter(Boolean) as string[]));
+    if (lineNames.length === 0) return secs;
+    const { data, error } = await supabase
+      .from("rag_weekly_entries")
+      .select("line, plan_qty")
+      .eq("entry_date", date)
+      .eq("shift", shift)
+      .in("line", lineNames);
+    if (error) {
+      console.warn("[applyRagPlans] failed to load RAG plan_qty:", error.message);
+      return secs;
+    }
+    const planByLine = new Map<string, number>();
+    for (const r of data ?? []) planByLine.set((r as { line: string }).line, Number((r as { plan_qty: number }).plan_qty) || 0);
+    return matched.map(({ sec, line }) => {
+      const plan = line ? planByLine.get(line) : undefined;
+      if (!plan || plan <= 0 || sec.items.length === 0) return sec;
+      const newQtys = rescaleItemTargets(sec.items.map((i) => ({ target: i.qty, planned: i.qty })), plan);
+      return { ...sec, items: sec.items.map((it, i) => ({ ...it, qty: newQtys[i] ?? 0 })) };
+    });
+  };
+
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = "";
@@ -242,11 +269,12 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
         toast.error("No valid iTouching products found. Check the preview below and confirm the file has SKU/code and quantity columns.");
         return;
       }
-      setSections(parsed);
+      const withPlan = await applyRagPlans(parsed);
+      setSections(withPlan);
       // pre-fill leader from active list (first available leader for shift)
       const init: Record<string, { id?: string; name: string }> = {};
       const inc: Record<string, boolean> = {};
-      for (const s of parsed) { init[s.line] = { name: "" }; inc[s.line] = true; }
+      for (const s of withPlan) { init[s.line] = { name: "" }; inc[s.line] = true; }
       setLeaderByLine(init);
       setIncludedLines(inc);
       toast.success(`Detected ${parsed.length} line${parsed.length > 1 ? "s" : ""}`);
@@ -284,14 +312,15 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
         toast.error(msg);
         return;
       }
-      setSections(secs);
+      const withPlan = await applyRagPlans(secs);
+      setSections(withPlan);
       const init: Record<string, { id?: string; name: string }> = {};
       const inc: Record<string, boolean> = {};
-      for (const s of secs) { init[s.line] = { name: "" }; inc[s.line] = true; }
+      for (const s of withPlan) { init[s.line] = { name: "" }; inc[s.line] = true; }
       setLeaderByLine(init);
       setIncludedLines(inc);
       setParsePreview([]);
-      toast.success(`Pulled ${(data as any)?.total_skus ?? 0} SKUs across ${secs.length} line${secs.length > 1 ? "s" : ""}`);
+      toast.success(`Pulled ${(data as any)?.total_skus ?? 0} SKUs across ${withPlan.length} line${withPlan.length > 1 ? "s" : ""} · qty from RAG Weekly`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not pull from iTouching");
     } finally {
