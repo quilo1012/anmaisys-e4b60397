@@ -101,7 +101,7 @@ export default function LineProductionScreen() {
   const isOperator = role === "operator";
   const [line, setLine] = useState<string>(() => localStorage.getItem(LS_LINE_KEY) || "");
   const [tabletId, setTabletId] = useState<string>(() => localStorage.getItem(LS_TABLET_KEY) || EDIT_TABLET_ID);
-  const canEdit = tabletId === EDIT_TABLET_ID || isOperator;
+  const canEdit = true; // tablet is fixed via operator account; any paired tablet can edit its own line
   const [shift, setShift] = useState<Shift>(currentShift());
   const [now, setNow] = useState<Date>(new Date());
   const [editing, setEditing] = useState<ItemRow | null>(null);
@@ -387,7 +387,7 @@ export default function LineProductionScreen() {
 
   const openEditor = useCallback((row: ItemRow) => {
     if (!canEdit) {
-      toast.error("Read-only — only Tablet 1 can edit actuals");
+      toast.error("Read-only");
       return;
     }
     setEditing(row);
@@ -470,25 +470,7 @@ export default function LineProductionScreen() {
           <Badge variant="outline" className="h-10 px-3 text-sm">
             {activeSessionDate}
           </Badge>
-          {!isOperator && tabletId !== "0" && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Tablet</span>
-              <Select value={tabletId || "__none__"} onValueChange={(v) => setTabletId(v === "__none__" ? "" : v)}>
-                <SelectTrigger className="h-12 min-w-[110px] text-lg">
-                  <SelectValue placeholder="ID" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Not set</SelectItem>
-                  {["1","2","3","4","5","6","7","8"].map((n) => (
-                    <SelectItem key={n} value={n} className="text-lg">Tablet {n}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Badge variant={canEdit ? "default" : "secondary"} className="h-8 px-2">
-                {canEdit ? "EDIT" : "READ-ONLY"}
-              </Badge>
-            </div>
-          )}
+          {/* Tablet selector removed — each operator login is bound to its own tablet/line */}
 
           <div className="ml-auto flex items-center gap-3">
             <SyncStatusIndicator
