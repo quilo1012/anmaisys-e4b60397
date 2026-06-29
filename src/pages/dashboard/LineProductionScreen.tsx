@@ -620,7 +620,7 @@ export default function LineProductionScreen() {
         </Card>
       )}
 
-      {line && (ragPlanQ.data ?? 0) > 0 && !sessionQ.isLoading && !sessionQ.data && (
+      {line && hasItouch && (ragPlanQ.data ?? 0) > 0 && !sessionQ.isLoading && !sessionQ.data && (
         <Card>
           <CardContent className="p-10 text-center space-y-3">
             <div className="text-xl font-semibold">No session yet for {line} – {shift}</div>
