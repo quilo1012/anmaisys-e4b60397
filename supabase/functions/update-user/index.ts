@@ -260,21 +260,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ success: true }, 200);
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      return new Response(JSON.stringify({ error: error.errors[0].message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: error.errors[0]?.message ?? "Invalid input" }, 400);
     }
-
-    return new Response(JSON.stringify({ error: getReadableErrorMessage(error) }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("update-user error:", error);
+    return jsonResponse({ error: getReadableErrorMessage(error) }, 400);
+  } finally {
+    clearTimeout(timeoutId);
   }
 });
 
