@@ -404,6 +404,29 @@ export default function LineProductionScreen() {
     onError: (e: any) => toast.error(e.message || "Failed to save observations"),
   });
 
+  // Open downtimes for current line/shift/date
+  const openDowntimesQ = useQuery({
+    queryKey: ["lps-open-downtimes", line, shift, activeSessionDate],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("production_downtimes")
+        .select("id, category, reason, started_at, ended_at, occurred_date, shift, line")
+        .eq("line", line)
+        .eq("shift", shift)
+        .eq("occurred_date", activeSessionDate)
+        .is("ended_at", null)
+        .order("started_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        category: string | null;
+        reason: string | null;
+        started_at: string;
+      }>;
+    },
+    refetchInterval: 30_000,
+  });
+
   const openEditor = useCallback((row: ItemRow) => {
     if (!canEdit) {
       toast.error("Read-only");
@@ -693,6 +716,33 @@ export default function LineProductionScreen() {
                   Downtime, problems, notes for this shift
                 </span>
               </div>
+              {(openDowntimesQ.data?.length ?? 0) > 0 && (
+                <div className="space-y-2">
+                  {openDowntimesQ.data!.map((d) => {
+                    const mins = Math.max(0, Math.round((Date.now() - new Date(d.started_at).getTime()) / 60000));
+                    const h = Math.floor(mins / 60);
+                    const m = mins % 60;
+                    return (
+                      <div
+                        key={d.id}
+                        className="flex items-center gap-3 rounded-md border border-orange-500/60 bg-orange-500/10 px-3 py-2"
+                      >
+                        <AlertTriangle className="h-4 w-4 text-orange-400 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {d.category || "Downtime"}
+                            {d.reason ? <span className="text-muted-foreground"> — {d.reason}</span> : null}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {h}h {m}m em andamento
+                          </div>
+                        </div>
+                        <Badge variant="destructive" className="shrink-0">Em andamento</Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
