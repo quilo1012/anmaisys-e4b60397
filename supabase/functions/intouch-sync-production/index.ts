@@ -231,7 +231,16 @@ function num(value: unknown) {
     .replace(/[^\d,.-]/g, "")
     .replace(/,(?=\d{3}(\D|$))/g, "")
     .replace(/\s/g, "");
-  const normalized = cleaned.includes(",") && !cleaned.includes(".") ? cleaned.replace(",", ".") : cleaned;
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  let normalized = cleaned;
+  if (lastComma >= 0 && lastDot >= 0) {
+    normalized = lastComma > lastDot
+      ? cleaned.replace(/\./g, "").replace(",", ".")
+      : cleaned.replace(/,/g, "");
+  } else if (lastComma >= 0) {
+    normalized = cleaned.replace(",", ".");
+  }
   const n = Number(normalized);
   return Number.isFinite(n) ? n : 0;
 }
@@ -415,8 +424,8 @@ function extractActualsByCode(raw: unknown, machines: MachineRef[]): Map<string,
   const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const out = new Map<string, number>();
-  walkObjects(raw, (obj) => {
-    const machineRef = pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid", "Machine", "MachineName"]);
+  walkObjectsWithMachine(raw, null, (obj, inheritedMachineRef) => {
+    const machineRef = pick(obj, MACHINE_REF_KEYS) ?? inheritedMachineRef;
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
     const code = cleanCode(pick(obj, [
       "PartCode", "Part Code", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "OrderNumber",
@@ -436,8 +445,8 @@ function extractLineGoodTotal(raw: unknown, machines: MachineRef[]): number {
   const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const perMachine = new Map<string, number>();
-  walkObjects(raw, (obj) => {
-    const machineRef = pick(obj, MACHINE_REF_KEYS);
+  walkObjectsWithMachine(raw, null, (obj, inheritedMachineRef) => {
+    const machineRef = pick(obj, MACHINE_REF_KEYS) ?? inheritedMachineRef;
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
     const produced = num(pick(obj, GOOD_QTY_KEYS));
     if (produced <= 0) return;
