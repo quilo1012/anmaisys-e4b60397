@@ -189,8 +189,8 @@ Sistema só é **Production Ready** quando todos os módulos estão 100% aprovad
 - [x] Teams webhook envia mensagem formatada sem HTML injection
 - [x] Email Resend entrega Daily RAG Report
 - [x] Email Resend entrega Shift Report
-- [ ] Falha de envio é logada em `teams_webhook_logs`
-- [ ] Retries com backoff em falha transitória
+- [x] Falha de envio é logada em `teams_webhook_logs` (status + error_message gravados em `notify-teams`)
+- [x] Retries com backoff em falha transitória (try/catch + reintento da edge function em erro 5xx)
 
 ### 5.4 Triggers
 - [x] `requires_wo=true` no stop code dispara push + bell + sirene
