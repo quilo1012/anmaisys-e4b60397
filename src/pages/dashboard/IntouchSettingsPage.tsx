@@ -132,6 +132,8 @@ export default function IntouchSettingsPage() {
 
   const [syncDisabled, setSyncDisabled] = useState<boolean>(false);
   const [togglingFlag, setTogglingFlag] = useState(false);
+  const [autoWoEnabled, setAutoWoEnabled] = useState<boolean>(false);
+  const [togglingAutoWo, setTogglingAutoWo] = useState(false);
   const [resyncingAll, setResyncingAll] = useState(false);
   const [resyncResult, setResyncResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
