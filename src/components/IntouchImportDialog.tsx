@@ -834,10 +834,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                               <tr>
                                 <th className="text-left px-3 py-2 w-10">#</th>
                                 <th className="text-left px-3 py-2">Status</th>
-                                <th className="text-left px-3 py-2">Code</th>
-                                <th className="text-left px-3 py-2">Description</th>
+                                <th className="text-left px-3 py-2">SKU</th>
+                                <th className="text-left px-3 py-2">Product Description</th>
                                 <th className="text-right px-3 py-2">Qty</th>
-                                <th className="text-left px-3 py-2">Catalog</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -853,16 +852,15 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                                         <Badge variant="outline" className="text-[10px]">Scheduled</Badge>
                                       )}
                                     </td>
-                                    <td className="px-3 py-1.5 font-mono text-xs">{i.sku_code}</td>
-                                    <td className="px-3 py-1.5 text-muted-foreground truncate max-w-[280px]">{i.description ?? ""}</td>
-                                    <td className="px-3 py-1.5 text-right tabular-nums">{i.qty.toLocaleString()}</td>
-                                    <td className="px-3 py-1.5">
+                                    <td className="px-3 py-1.5 font-mono text-xs">
                                       {i.sku_id ? (
-                                        <span className="text-xs text-green-500">{i.sku_name}</span>
+                                        <span className="text-green-500">{i.sku_name}</span>
                                       ) : (
-                                        <span className="text-xs text-amber-500">Unknown SKU</span>
+                                        <span className="text-amber-500">{i.sku_code}</span>
                                       )}
                                     </td>
+                                    <td className="px-3 py-1.5 text-muted-foreground truncate max-w-[320px]">{i.description ?? ""}</td>
+                                    <td className="px-3 py-1.5 text-right tabular-nums">{i.qty.toLocaleString()}</td>
                                   </tr>
                                 );
                               })}
