@@ -1390,6 +1390,7 @@ export type Database = {
           blender_ref: string | null
           created_at: string
           id: string
+          intouch_qty: number | null
           notes: string | null
           planned_qty: number
           scrap_qty: number
@@ -1405,6 +1406,7 @@ export type Database = {
           blender_ref?: string | null
           created_at?: string
           id?: string
+          intouch_qty?: number | null
           notes?: string | null
           planned_qty?: number
           scrap_qty?: number
@@ -1420,6 +1422,7 @@ export type Database = {
           blender_ref?: string | null
           created_at?: string
           id?: string
+          intouch_qty?: number | null
           notes?: string | null
           planned_qty?: number
           scrap_qty?: number
