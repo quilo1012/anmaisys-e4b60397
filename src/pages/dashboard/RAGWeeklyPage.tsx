@@ -1365,7 +1365,44 @@ function DayNightTotalSummary({
 
 
 
-    const rows: { key: string; label: string; render: (c: Cell) => React.ReactNode; bold?: boolean }[] = [
+    // Discover which downtime buckets actually have minutes in the visible
+    // block (all visible dates, both shifts, all filtered lines). One table
+    // row will be rendered per bucket so categories never collapse into a
+    // single "DOWNTIME · MAINT" line.
+    const visibleBuckets = (() => {
+      const totals = new Map<string, number>();
+      for (const d of weekDates) {
+        const ds = format(d, "yyyy-MM-dd");
+        for (const shift of ["DAY", "NIGHT"] as Shift[]) {
+          for (const ln of lineFilter) {
+            const c = getCell(ds, ln, shift);
+            for (const [b, m] of Object.entries(c.dtBuckets)) {
+              totals.set(b, (totals.get(b) ?? 0) + m);
+            }
+          }
+        }
+      }
+      // Stable display order: MAINT first, then Quality, then alphabetical.
+      const names = Array.from(totals.keys()).filter((b) => (totals.get(b) ?? 0) > 0);
+      const rank = (b: string) => (b === "MAINT" ? 0 : b === "Quality" ? 1 : 2);
+      names.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+      return names;
+    })();
+
+    const bucketClass = (b: string) =>
+      b === "MAINT"
+        ? "text-red-600 dark:text-red-400"
+        : b === "Quality"
+        ? "text-amber-600 dark:text-amber-400"
+        : b === "Break"
+        ? "text-blue-600 dark:text-blue-400"
+        : b === "Cleaning"
+        ? "text-cyan-600 dark:text-cyan-400"
+        : b === "Changeover"
+        ? "text-purple-600 dark:text-purple-400"
+        : "text-slate-600 dark:text-slate-300";
+
+    const rows: { key: string; label: string; render: (c: Cell) => React.ReactNode; bold?: boolean; bucket?: string }[] = [
       { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString() : "—" },
       { key: "actual", label: "Actual", render: (c) => c.actual ? c.actual.toLocaleString() : "—", bold: true },
       {
@@ -1374,16 +1411,15 @@ function DayNightTotalSummary({
         render: (c) => <span className={pctClass(c.actual, c.plan)}>{pct(c.actual, c.plan)}</span>,
       },
       { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : "—") },
-      {
-        key: "dtMaint",
-        label: "Downtime · Maint",
-        render: (c) => <span className={c.dtMaint > 0 ? "text-red-600 dark:text-red-400" : ""}>{fmtHm(c.dtMaint)}</span>,
-      },
-      {
-        key: "dtQuality",
-        label: "Downtime · Quality",
-        render: (c) => <span className={c.dtQuality > 0 ? "text-amber-600 dark:text-amber-400" : ""}>{fmtHm(c.dtQuality)}</span>,
-      },
+      ...visibleBuckets.map((b) => ({
+        key: `dt:${b}`,
+        label: `Downtime · ${b}`,
+        bucket: b,
+        render: (c: Cell) => {
+          const v = c.dtBuckets[b] ?? 0;
+          return <span className={v > 0 ? bucketClass(b) : ""}>{fmtHm(v)}</span>;
+        },
+      })),
     ];
 
     return (
