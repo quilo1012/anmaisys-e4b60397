@@ -227,7 +227,6 @@ function num(value: unknown) {
   }
   const raw = String(value ?? "").trim();
   const firstNumber = raw.match(/-?\d[\d,\.\s]*/)?.[0] ?? raw;
-  const cleaned = String(value ?? "")
   const cleaned = firstNumber
     .replace(/[^\d,.-]/g, "")
     .replace(/,(?=\d{3}(\D|$))/g, "")
