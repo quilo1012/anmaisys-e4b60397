@@ -109,8 +109,8 @@ Sistema só é **Production Ready** quando todos os módulos estão 100% aprovad
 ### 3.2 Suppliers & Purchase Orders
 - [x] CRUD completo de suppliers
 - [x] Criar PO com múltiplos itens e fornecedor
-- [ ] Status PO (draft → submitted → received) avança corretamente
-- [ ] Receber PO atualiza saldo de estoque
+- [x] Status PO (draft → submitted → received) avança corretamente
+- [x] Receber PO atualiza saldo de estoque
 - [x] Hook `useSuppliers` invalida cache após mutação
 
 ### 3.3 Exportação
