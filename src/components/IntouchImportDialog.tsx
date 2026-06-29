@@ -269,6 +269,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
         toast.error("No valid iTouching products found. Check the preview below and confirm the file has SKU/code and quantity columns.");
         return;
       }
+      const withPlan = await applyRagPlans(parsed);
+      setSections(withPlan);
+      }
       setSections(parsed);
       // pre-fill leader from active list (first available leader for shift)
       const init: Record<string, { id?: string; name: string }> = {};
