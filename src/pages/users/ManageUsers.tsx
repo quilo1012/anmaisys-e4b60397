@@ -42,9 +42,16 @@ const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = 
   viewer: Shield,
 };
 
+interface Leader {
+  id: string;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export default function ManageUsers() {
   const [users, setUsers] = useState<Profile[]>([]);
-  const [activeTab, setActiveTab] = useState<"staff" | "tablets" | "engineers">("staff");
+  const [activeTab, setActiveTab] = useState<"staff" | "tablets" | "engineers" | "leaders">("staff");
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -80,6 +87,89 @@ export default function ManageUsers() {
   const [editEngActive, setEditEngActive] = useState(true);
   const [editEngLoading, setEditEngLoading] = useState(false);
   const [deleteEngLoading, setDeleteEngLoading] = useState<string | null>(null);
+
+  // Leaders state
+  const [leaders, setLeaders] = useState<Leader[]>([]);
+  const [ldOpen, setLdOpen] = useState(false);
+  const [ldName, setLdName] = useState("");
+  const [ldPin, setLdPin] = useState("");
+  const [ldLoading, setLdLoading] = useState(false);
+  const [editLd, setEditLd] = useState<Leader | null>(null);
+  const [editLdName, setEditLdName] = useState("");
+  const [editLdPin, setEditLdPin] = useState("");
+  const [editLdActive, setEditLdActive] = useState(true);
+  const [editLdLoading, setEditLdLoading] = useState(false);
+  const [deleteLdLoading, setDeleteLdLoading] = useState<string | null>(null);
+
+  const fetchLeaders = async () => {
+    if (!currentUser?.id || !currentRole) return;
+    const { data, error } = await supabase.rpc("list_leaders" as any);
+    if (error) {
+      console.error("[ManageUsers] list_leaders failed", error);
+      return;
+    }
+    setLeaders((data as Leader[]) ?? []);
+  };
+
+  const handleCreateLeader = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ldName.trim() || ldPin.length !== 4) return;
+    setLdLoading(true);
+    try {
+      const { error } = await supabase.rpc("create_leader" as any, { _name: ldName.trim(), _pin: ldPin });
+      if (error) throw error;
+      toast({ title: "Leader created", description: `${ldName} has been added` });
+      setLdOpen(false);
+      setLdName(""); setLdPin("");
+      fetchLeaders();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setLdLoading(false);
+    }
+  };
+
+  const openEditLeader = (l: Leader) => {
+    setEditLd(l);
+    setEditLdName(l.name);
+    setEditLdPin("");
+    setEditLdActive(l.is_active);
+  };
+
+  const handleEditLeader = async () => {
+    if (!editLd) return;
+    setEditLdLoading(true);
+    try {
+      const { error } = await supabase.rpc("update_leader" as any, {
+        _id: editLd.id,
+        _name: editLdName.trim() || null,
+        _active: editLdActive,
+        _pin: editLdPin.length === 4 ? editLdPin : null,
+      });
+      if (error) throw error;
+      toast({ title: "Leader updated" });
+      setEditLd(null);
+      fetchLeaders();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setEditLdLoading(false);
+    }
+  };
+
+  const handleDeleteLeader = async (id: string) => {
+    setDeleteLdLoading(id);
+    try {
+      const { error } = await supabase.rpc("delete_leader" as any, { _id: id });
+      if (error) throw error;
+      toast({ title: "Leader deleted" });
+      fetchLeaders();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleteLdLoading(null);
+    }
+  };
 
   const fetchUsers = async () => {
     console.info("[ManageUsers] fetching users", { currentUserId: currentUser?.id, currentRole });
@@ -153,6 +243,7 @@ export default function ManageUsers() {
     if (!currentUser?.id || !currentRole) return;
     fetchUsers();
     fetchEngineers();
+    fetchLeaders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, currentRole]);
 
@@ -391,6 +482,14 @@ export default function ManageUsers() {
             className="gap-2"
           >
             <KeyRound className="h-4 w-4" /> Engineers (PIN)
+          </Button>
+          <Button
+            type="button"
+            variant={activeTab === "leaders" ? "default" : "ghost"}
+            onClick={() => setActiveTab("leaders")}
+            className="gap-2"
+          >
+            <KeyRound className="h-4 w-4" /> Líderes (PIN)
           </Button>
         </div>
 
@@ -641,6 +740,129 @@ export default function ManageUsers() {
           </CardContent>
         </Card>
           </div>
+
+        <div className={activeTab === "leaders" ? "space-y-4" : "hidden"}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Líderes (PIN Identity)</h2>
+              <p className="text-muted-foreground">Line Leaders authorized to unlock target displays via PIN</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={fetchLeaders} aria-label="Refresh leaders">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Dialog open={ldOpen} onOpenChange={setLdOpen}>
+                <DialogTrigger asChild>
+                  <Button><KeyRound className="h-4 w-4 mr-2" />New Leader</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Create Leader Identity</DialogTitle></DialogHeader>
+                  <form onSubmit={handleCreateLeader} className="space-y-4" autoComplete="off">
+                    <div className="space-y-2"><Label>Leader Name</Label><Input value={ldName} onChange={(e) => setLdName(e.target.value)} required /></div>
+                    <div className="space-y-2">
+                      <Label>PIN (4 digits)</Label>
+                      <Input type="password" value={ldPin} onChange={(e) => setLdPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 1234" minLength={4} maxLength={4} required />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={ldLoading || ldPin.length < 4}>
+                      {ldLoading ? "Creating..." : "Create Leader"}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          <Card>
+            <CardHeader><CardTitle>All Leaders</CardTitle></CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {leaders.map((ld) => (
+                    <TableRow key={ld.id}>
+                      <TableCell className="font-medium">{ld.name}</TableCell>
+                      <TableCell>
+                        <Badge variant={ld.is_active ? "default" : "secondary"}>
+                          {ld.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{new Date(ld.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button size="icon" variant="ghost" onClick={() => openEditLeader(ld)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete leader?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete <strong>{ld.name}</strong>. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteLeader(ld.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  {deleteLdLoading === ld.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {leaders.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">No leaders configured.</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Edit Leader Dialog */}
+        <Dialog open={!!editLd} onOpenChange={(open) => !open && setEditLd(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit Leader</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Leader Name</Label><Input value={editLdName} onChange={(e) => setEditLdName(e.target.value)} /></div>
+              <div className="space-y-2">
+                <Label>New PIN (4 digits)</Label>
+                <Input type="password" value={editLdPin} onChange={(e) => setEditLdPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="Leave blank to keep current" minLength={4} maxLength={4} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label>Active</Label>
+                <Switch checked={editLdActive} onCheckedChange={setEditLdActive} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditLd(null)}>Cancel</Button>
+              <Button onClick={handleEditLeader} disabled={editLdLoading}>
+                {editLdLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
 
         {/* Edit User Dialog */}
         <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
