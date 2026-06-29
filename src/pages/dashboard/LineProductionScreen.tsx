@@ -537,6 +537,25 @@ export default function LineProductionScreen() {
           <Badge variant="outline" className="h-10 px-3 text-sm">
             {activeSessionDate}
           </Badge>
+          {/* Asset scope toggle: report problem for Line or Sealer/Printer */}
+          <div className="flex gap-1" data-testid="asset-scope-toggle">
+            <Button
+              size="lg"
+              variant={assetScope === "line" ? "default" : "outline"}
+              onClick={() => setAssetScope("line")}
+              className="h-12 px-4"
+            >
+              Line
+            </Button>
+            <Button
+              size="lg"
+              variant={assetScope === "sealer_printer" ? "default" : "outline"}
+              onClick={() => setAssetScope("sealer_printer")}
+              className="h-12 px-4"
+            >
+              Sealer / Printer
+            </Button>
+          </div>
           {/* Tablet selector removed — each operator login is bound to its own tablet/line */}
 
           <div className="ml-auto flex items-center gap-3">
