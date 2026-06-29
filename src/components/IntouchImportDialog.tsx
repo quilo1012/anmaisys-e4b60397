@@ -502,7 +502,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
           if (ex) ex.qty += i.qty;
           else m.items.set(sku_id, { sku_id, qty: i.qty });
         }
-        byLine.set(sec.matched_line, m);
+        byLine.set(targetLine, m);
       }
 
       for (const m of byLine.values()) {
