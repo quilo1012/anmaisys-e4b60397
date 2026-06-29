@@ -588,7 +588,7 @@ export default function LineProductionScreen() {
                   <CircularProgress value={eff} size={120} strokeWidth={10} />
                   <div className="flex-1 min-w-[200px] space-y-1 text-base md:text-lg">
                     <div className="flex justify-between"><span className="text-muted-foreground">Target</span><span className="font-semibold tabular-nums">{totals.target.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Actual</span><span className="font-semibold tabular-nums text-primary">{totals.actual.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Current Shift</span><span className="font-semibold tabular-nums text-primary">{totals.actual.toLocaleString()}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Gap</span><span className={cn("font-semibold tabular-nums", gap >= 0 ? "text-green-500" : "text-red-500")}>{gap.toLocaleString()}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Remaining</span><span className="font-semibold tabular-nums">{totals.remaining.toLocaleString()}</span></div>
                   </div>
