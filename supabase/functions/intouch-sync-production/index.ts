@@ -186,7 +186,8 @@ function walkObjects(value: unknown, visit: (obj: any) => void) {
 function sameMachine(value: unknown, allowedIds: Set<string>, allowedNames: Set<string>) {
   const raw = String(value ?? "").trim();
   if (!raw) return true;
-  return allowedIds.has(raw) || allowedNames.has(raw.toLowerCase());
+  const lower = raw.toLowerCase();
+  return allowedIds.has(lower) || allowedNames.has(lower);
 }
 
 function extractSkuRows(raw: unknown, source: string, machines: MachineRef[]): SkuRow[] {
