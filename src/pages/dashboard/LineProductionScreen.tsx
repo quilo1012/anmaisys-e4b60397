@@ -88,7 +88,9 @@ interface ItemRow {
   name: string;
   target_qty: number;
   actual_qty: number;
+  intouch_qty: number | null;
 }
+
 
 const LS_LINE_KEY = "lps:line";
 const LS_TABLET_KEY = "lps:tablet_id";
