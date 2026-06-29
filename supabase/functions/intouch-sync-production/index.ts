@@ -243,19 +243,38 @@ function liveProductionRequests(path: string, ids: string[], startISO: string, e
   const base = firstId ? fillPath(path, firstId) : path;
   const requests: Array<{ path: string; init: RequestInit }> = [];
   if (firstId) {
+    const queryPairs = [
+      ["MachineID", firstId],
+      ["MachineId", firstId],
+      ["machineId", firstId],
+      ["MachineGUID", firstId],
+      ["MachineGuid", firstId],
+      ["machineGuid", firstId],
+      ["machine", firstId],
+    ];
+    for (const [key, value] of queryPairs) {
+      requests.push({
+        path: `${base}?${key}=${encodeURIComponent(value)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+        init: { method: "GET" },
+      });
+    }
     requests.push({
-      path: `${base}?MachineID=${encodeURIComponent(firstId)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+      path: `${base}?MachineID=${encodeURIComponent(firstId)}&start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`,
       init: { method: "GET" },
     });
     requests.push({
-      path: `${base}?MachineGUID=${encodeURIComponent(firstId)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+      path: `${base}?MachineID=${encodeURIComponent(firstId)}`,
       init: { method: "GET" },
     });
+    requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineID: firstId, StartTime: startISO, EndTime: endISO }) } });
+    requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineId: firstId, StartTime: startISO, EndTime: endISO }) } });
+    requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ machineId: firstId, startTime: startISO, endTime: endISO }) } });
+    requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineGUID: firstId, StartTime: startISO, EndTime: endISO }) } });
+    requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineGuid: firstId, StartTime: startISO, EndTime: endISO }) } });
   }
   requests.push({ path: base, init: { method: "POST", body: JSON.stringify(ids) } });
   requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineGUIDs: ids, StartTime: startISO, EndTime: endISO }) } });
   requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineIDs: ids, StartTime: startISO, EndTime: endISO }) } });
-  if (firstId) requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineID: firstId, StartTime: startISO, EndTime: endISO }) } });
   return requests;
 }
 
