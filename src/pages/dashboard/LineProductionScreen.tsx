@@ -348,6 +348,7 @@ export default function LineProductionScreen() {
 
   // Auto-pull live actuals from iTouching for THIS line/shift so the operator
   // screen reflects real production without waiting for the global cron.
+  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
   useEffect(() => {
     if (!line || !sessionQ.data?.id) return;
     let cancelled = false;
@@ -357,6 +358,9 @@ export default function LineProductionScreen() {
           body: { session_date: activeSessionDate, shift, line, force: true },
         });
         if (!cancelled) {
+          setLastSyncAt(new Date());
+          // Refresh session (intouch_good_total), items and RAG plan.
+          qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
           qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
           qc.invalidateQueries({ queryKey: ["lps-rag-plan", line, shift, activeSessionDate] });
         }
@@ -366,6 +370,12 @@ export default function LineProductionScreen() {
     const t = setInterval(run, 60_000);
     return () => { cancelled = true; clearInterval(t); };
   }, [line, shift, activeSessionDate, sessionQ.data?.id, qc]);
+
+  // True when the sync ran but iTouching did not return a good-count for this line/shift.
+  const intouchGoodMissing =
+    !!sessionQ.data &&
+    !!lastSyncAt &&
+    ((sessionQ.data as any)?.intouch_good_total === null || (sessionQ.data as any)?.intouch_good_total === undefined);
 
   // Per-shift observations (notes on production_sessions)
   const [notes, setNotes] = useState<string>("");
