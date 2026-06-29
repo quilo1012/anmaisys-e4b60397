@@ -527,6 +527,29 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
     mergeLineGood(scheduled);
   }
 
+  // Targeted live-production probes. Kept deliberately short and stopped as
+  // soon as a positive good total is found to protect the iTouching egress quota.
+  const liveProductionAttempts = [
+    () => tryIt(`/api/appapi/getproduction?MachineID=${encodeURIComponent(ids[0])}`, { method: "GET" }, { stage: "actuals_live_probe_app_production", line: context?.line, machines }),
+    () => tryIt(`/api/appapi/getproductioncounts?MachineID=${encodeURIComponent(ids[0])}`, { method: "GET" }, { stage: "actuals_live_probe_app_production_counts", line: context?.line, machines }),
+    () => tryIt(`/api/appapi/getmachineproduction?MachineID=${encodeURIComponent(ids[0])}`, { method: "GET" }, { stage: "actuals_live_probe_app_machine_production", line: context?.line, machines }),
+    () => tryIt(`/api/GetProduction?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_live_probe_get_production", line: context?.line, machines }),
+    () => tryIt(`/api/GetProductionCounts?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_live_probe_get_production_counts", line: context?.line, machines }),
+    () => tryIt(`/api/GetMachineProduction?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_live_probe_get_machine_production", line: context?.line, machines }),
+    () => tryIt(`/api/Production?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify({ MachineGUIDs: ids, StartTime: startISO, EndTime: endISO }) }, { stage: "actuals_live_probe_production", line: context?.line, machines }),
+  ];
+  if (ids.length > 0) {
+    for (const attempt of liveProductionAttempts) {
+      const raw = await attempt();
+      if (!raw) continue;
+      merge(extractActualsByCode(raw, machines));
+      mergeScrap(extractScrapByCode(raw, machines));
+      mergeMetrics(raw);
+      mergeLineGood(raw);
+      if (lineGood > 0 || merged.size > 0) break;
+    }
+  }
+
   // Running jobs (current SKU + live counts)
   const running = await tryIt("/api/GetRunningJobs", { method: "GET" }, { stage: "actuals_running_jobs", line: context?.line, machines });
   merge(extractActualsByCode(running, machines));
