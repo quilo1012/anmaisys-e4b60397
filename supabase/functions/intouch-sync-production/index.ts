@@ -9,6 +9,7 @@ const BodySchema = z.object({
   shift: z.enum(["DAY", "NIGHT"]).optional(),
   auto: z.enum(["morning", "evening"]).optional(),
   force: z.boolean().optional(),
+  line: z.string().optional(),
 }).strict();
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
