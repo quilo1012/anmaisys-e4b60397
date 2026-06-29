@@ -64,6 +64,10 @@ function pathOnly(path: string) {
   return path.split("?")[0];
 }
 
+function safeStageName(path: string) {
+  return pathOnly(path).replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "unknown";
+}
+
 // ── iTouching quota helpers (shared state via intouch_quota_status table) ──
 const __QUOTA_ADMIN = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
 const tomorrowUtcMidnight = () => {
@@ -155,6 +159,61 @@ async function tryIt(path: string, init?: RequestInit, debug?: { stage: string; 
     }
     return null;
   }
+}
+
+async function discoverLiveProductionPaths() {
+  const defaults = [
+    "/api/appapi/getproduction",
+    "/api/appapi/getproductioncounts",
+    "/api/appapi/getmachineproduction",
+    "/api/GetProduction",
+    "/api/GetProductionCounts",
+    "/api/GetMachineProduction",
+    "/api/GetProductionReport",
+    "/api/GetMachineProductionReport",
+    "/api/GetImpressions",
+    "/api/GetMachineImpressions",
+    "/api/Production",
+    "/api/ProductionReport",
+  ];
+  let discovered: string[] = [];
+  try {
+    const docs = await it("/swagger/docs/v1", { method: "GET" });
+    const paths = (docs as any)?.paths;
+    if (paths && typeof paths === "object") {
+      discovered = Object.keys(paths).filter((p) => {
+        const n = p.toLowerCase();
+        if (!(n.includes("production") || n.includes("impression") || n.includes("count") || n.includes("actual") || n.includes("good"))) return false;
+        if (n.includes("product") && !n.includes("production")) return false;
+        if (n.includes("schedule") || n.includes("material") || n.includes("downtime") || n.includes("login")) return false;
+        return true;
+      });
+    }
+  } catch (e) {
+    warnSync("live_path_discovery_failed", { error: (e as Error).message });
+  }
+  return Array.from(new Set([...discovered, ...defaults])).slice(0, 12);
+}
+
+function liveProductionRequests(path: string, ids: string[], startISO: string, endISO: string) {
+  const firstId = ids[0];
+  const base = firstId ? fillPath(path, firstId) : path;
+  const requests: Array<{ path: string; init: RequestInit }> = [];
+  if (firstId) {
+    requests.push({
+      path: `${base}?MachineID=${encodeURIComponent(firstId)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+      init: { method: "GET" },
+    });
+    requests.push({
+      path: `${base}?MachineGUID=${encodeURIComponent(firstId)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+      init: { method: "GET" },
+    });
+  }
+  requests.push({ path: base, init: { method: "POST", body: JSON.stringify(ids) } });
+  requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineGUIDs: ids, StartTime: startISO, EndTime: endISO }) } });
+  requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineIDs: ids, StartTime: startISO, EndTime: endISO }) } });
+  if (firstId) requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineID: firstId, StartTime: startISO, EndTime: endISO }) } });
+  return requests;
 }
 
 
