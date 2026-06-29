@@ -717,6 +717,8 @@ export default function LineProductionScreen() {
             </Card>
           )}
 
+          {/* KPI — Production Performance style (hidden for operators until unlocked by leader PIN) */}
+          {(!isOperator || targetUnlock) && (<>
           {/* KPI — Production Performance style */}
           {(() => {
             const eff = totals.pct;
