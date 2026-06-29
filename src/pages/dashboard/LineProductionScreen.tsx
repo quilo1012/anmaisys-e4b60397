@@ -1066,7 +1066,7 @@ function RequestOrderDialog({
               <SelectTrigger className={dialogControlResponsive}><SelectValue placeholder="Any" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">— Any —</SelectItem>
-                {(machinesQ.data || []).map((m) => (
+                {filteredMachines.map((m) => (
                   <SelectItem key={m.id} value={m.name} className="text-base sm:text-lg">{m.name}</SelectItem>
                 ))}
               </SelectContent>
