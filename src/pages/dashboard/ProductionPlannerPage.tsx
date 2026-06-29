@@ -326,6 +326,7 @@ export default function ProductionPlannerPage() {
           target_qty: r.target_qty || 0,
           planned_qty: r.target_qty || 0,
           actual_qty: r.actual_qty || 0,
+          blender_ref: r.blender_ref?.trim() || null,
           notes: null,
         })),
       });
