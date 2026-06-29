@@ -165,7 +165,7 @@ export default function IntouchSettingsPage() {
     (async () => {
       const { data, error } = await (supabase as any)
         .from("system_settings")
-        .select("id, intouch_sync_enabled")
+        .select("id, intouch_sync_enabled, intouch_auto_wo_enabled")
         .limit(1)
         .maybeSingle();
       if (error) {
@@ -173,9 +173,27 @@ export default function IntouchSettingsPage() {
         toast.error(`Failed to load iTouching settings: ${error.message}`);
         return;
       }
-      if (data) setSyncDisabled(data.intouch_sync_enabled === false);
+      if (data) {
+        setSyncDisabled(data.intouch_sync_enabled === false);
+        setAutoWoEnabled(data.intouch_auto_wo_enabled === true);
+      }
     })();
   }, []);
+
+  const toggleAutoWo = async (enabled: boolean) => {
+    setTogglingAutoWo(true);
+    const { data: row } = await (supabase as any)
+      .from("system_settings").select("id").limit(1).maybeSingle();
+    if (!row?.id) { toast.error("system_settings row missing"); setTogglingAutoWo(false); return; }
+    const { error } = await (supabase as any)
+      .from("system_settings")
+      .update({ intouch_auto_wo_enabled: enabled })
+      .eq("id", row.id);
+    setTogglingAutoWo(false);
+    if (error) { toast.error(error.message); return; }
+    setAutoWoEnabled(enabled);
+    toast.success(enabled ? "Auto WO from iTouching: ON" : "Auto WO from iTouching: OFF");
+  };
 
 
   const toggleSync = async (disabled: boolean) => {
