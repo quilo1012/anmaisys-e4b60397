@@ -12,6 +12,7 @@ import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { parseIntouchCsvRows, parseIntouchWorkToList, type WorkToListSection } from "@/lib/intouchWorkToList";
 import { useLines, useSkuProducts, useUpsertSession, useSaveItems } from "@/hooks/useProductionPlanner";
+import { rescaleItemTargets } from "@/lib/ragTargetSplit";
 import { format } from "date-fns";
 
 interface Props {
