@@ -32,24 +32,60 @@ const MACHINE_REF_KEYS = [
   "Machine", "MachineName", "Line", "LineName",
 ];
 const GOOD_QTY_KEYS = [
+  "GoodParts", "GoodPartQty", "GoodPartCount", "PartsGood", "PartsGoodQty",
   "Good", "GoodQty", "Good Qty", "GoodQuantity", "Good Count", "GoodCount", "GoodUnits", "GoodUnitsProduced",
   "GoodProduct", "GoodProductCount", "GoodQuantityProduced", "QtyGood", "QuantityGood", "TotalGood", "TotalGoodQty",
   "TotalGoodQuantity", "ProducedGood", "ProducedGoodQty", "Produced Good", "Produced Good Qty", "GoodPacks",
   "CurrentShift", "CurrentShiftQty", "CurrentShiftQuantity", "CurrentShiftGood", "ShiftGood", "ShiftGoodQty",
+  "CurrentShiftProduced", "CurrentShiftOutput", "CurrentShiftCount", "CurrentShiftTotal", "TotalCurrentShift",
   "Produced", "ProducedQty", "ProducedQuantity", "ProducedCount", "QuantityProduced",
   "ActualQty", "ActualQuantity", "Actual", "Output", "OutputQty", "TotalProduced", "CompletedQuantity",
   "CompletedQty", "AlreadyMade", "QuantityMade", "MadeQuantity", "Made", "MadeQty", "Done", "DoneQty",
-  "Completed", "CompletedCount", "QtyCompleted", "QuantityCompleted", "TotalCompleted",
+  "Completed", "CompletedCount", "QtyCompleted", "QuantityCompleted", "TotalCompleted", "QtyComplete",
   "Production", "ProductionQty", "ProductionQuantity", "ProductionCount", "ProductionTotal",
   "NetProduction", "NetProductionQty", "NetQuantity", "NetQty", "Accepted", "AcceptedQty",
-  "Packed", "PackedQty", "PackCount", "UnitCount", "UnitsMade", "UnitsProduced", "CountGood",
+  "AcceptedQuantity", "Packed", "PackedQty", "PackCount", "UnitCount", "UnitsMade", "UnitsProduced", "CountGood",
+  "Counter", "CounterValue", "GoodCounter", "CurrentCount", "ShiftCounter", "ShiftOutput", "ShiftTotal", "ShiftCount",
 ];
+const SEGMENT_GOOD_QTY_KEYS = ["GoodParts", "GoodPartQty", "GoodPartCount", "PartsGood", "PartsGoodQty"];
+const SEGMENT_TOTAL_QTY_KEYS = ["PartsProduced", "ProducedParts", "PartCount", "CycleGoodParts"];
 
 function logSync(event: string, details: Record<string, unknown>) {
   try {
     console.log(`[intouch-sync-production] ${event}`, JSON.stringify(details).slice(0, 3000));
   } catch {
     console.log(`[intouch-sync-production] ${event}`);
+  }
+}
+
+function logSyncChunks(event: string, details: Record<string, unknown>, maxChars = 64_000) {
+  let payload = "";
+  try {
+    payload = JSON.stringify(details).slice(0, maxChars);
+  } catch {
+    payload = String(details).slice(0, maxChars);
+  }
+  const chunkSize = 2800;
+  const total = Math.max(1, Math.ceil(payload.length / chunkSize));
+  for (let i = 0; i < total; i += 1) {
+    console.log(`[intouch-sync-production] ${event}`, JSON.stringify({
+      chunk: i + 1,
+      chunks: total,
+      data: payload.slice(i * chunkSize, (i + 1) * chunkSize),
+    }));
+  }
+}
+
+function sanitizedIntouchBaseUrl() {
+  try {
+    const u = new URL(INTOUCH_URL);
+    u.username = "";
+    u.password = "";
+    u.search = "";
+    u.hash = "";
+    return u.toString().replace(/\/+$/, "");
+  } catch {
+    return INTOUCH_URL.replace(/\/\/[^/@]+@/, "//***@").split(/[?#]/)[0].replace(/\/+$/, "");
   }
 }
 
@@ -135,7 +171,7 @@ async function it(path: string, init?: RequestInit) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
-async function tryIt(path: string, init?: RequestInit, debug?: { stage: string; line?: string; machines?: MachineRef[] }) {
+async function tryIt(path: string, init?: RequestInit, debug?: { stage: string; line?: string; machines?: MachineRef[]; raw?: boolean }) {
   try {
     const raw = await it(path, init);
     if (debug) {
@@ -146,6 +182,15 @@ async function tryIt(path: string, init?: RequestInit, debug?: { stage: string; 
         method: init?.method ?? "GET",
         stats: inspectPayload(raw, debug.machines),
       });
+      if (debug.raw) {
+        logSyncChunks("itouch_response_raw", {
+          stage: debug.stage,
+          line: debug.line ?? null,
+          path: pathOnly(path),
+          method: init?.method ?? "GET",
+          raw,
+        });
+      }
     }
     return raw;
   } catch (e) {
@@ -164,12 +209,26 @@ async function tryIt(path: string, init?: RequestInit, debug?: { stage: string; 
 
 async function discoverLiveProductionPaths() {
   const defaults = [
+    "/api/GetProductionProfilePeriodList",
+    "/api/GetProductionProfilePeriod",
     "/api/appapi/getproduction",
+    "/api/appapi/getProduction",
+    "/api/appapi/GetProduction",
     "/api/appapi/getproductioncounts",
     "/api/appapi/getmachineproduction",
+    "/api/appapi/getcurrentproduction",
+    "/api/appapi/getcurrentshiftproduction",
+    "/api/appapi/getshiftproduction",
+    "/api/appapi/getmachinestatus",
+    "/api/appapi/getmachinestatuses",
+    "/api/appapi/getdashboard",
+    "/api/appapi/getdashboarddata",
     "/api/GetProduction",
     "/api/GetProductionCounts",
     "/api/GetMachineProduction",
+    "/api/GetCurrentProduction",
+    "/api/GetCurrentShiftProduction",
+    "/api/GetShiftProduction",
     "/api/GetProductionReport",
     "/api/GetMachineProductionReport",
     "/api/GetImpressions",
@@ -184,7 +243,7 @@ async function discoverLiveProductionPaths() {
     if (paths && typeof paths === "object") {
       discovered = Object.keys(paths).filter((p) => {
         const n = p.toLowerCase();
-        if (!(n.includes("production") || n.includes("impression") || n.includes("count") || n.includes("actual") || n.includes("good"))) return false;
+        if (!(n.includes("production") || n.includes("impression") || n.includes("count") || n.includes("actual") || n.includes("good") || n.includes("shift") || n.includes("dashboard") || n.includes("status"))) return false;
         if (n.includes("product") && !n.includes("production")) return false;
         if (n.includes("schedule") || n.includes("material") || n.includes("downtime") || n.includes("login")) return false;
         return true;
@@ -193,7 +252,7 @@ async function discoverLiveProductionPaths() {
   } catch (e) {
     warnSync("live_path_discovery_failed", { error: (e as Error).message });
   }
-  return Array.from(new Set([...discovered, ...defaults])).slice(0, 12);
+  return Array.from(new Set([...discovered, ...defaults])).slice(0, 24);
 }
 
 function liveProductionRequests(path: string, ids: string[], startISO: string, endISO: string) {
@@ -201,19 +260,38 @@ function liveProductionRequests(path: string, ids: string[], startISO: string, e
   const base = firstId ? fillPath(path, firstId) : path;
   const requests: Array<{ path: string; init: RequestInit }> = [];
   if (firstId) {
+    const queryPairs = [
+      ["MachineID", firstId],
+      ["MachineId", firstId],
+      ["machineId", firstId],
+      ["MachineGUID", firstId],
+      ["MachineGuid", firstId],
+      ["machineGuid", firstId],
+      ["machine", firstId],
+    ];
+    for (const [key, value] of queryPairs) {
+      requests.push({
+        path: `${base}?${key}=${encodeURIComponent(value)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+        init: { method: "GET" },
+      });
+    }
     requests.push({
-      path: `${base}?MachineID=${encodeURIComponent(firstId)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+      path: `${base}?MachineID=${encodeURIComponent(firstId)}&start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`,
       init: { method: "GET" },
     });
     requests.push({
-      path: `${base}?MachineGUID=${encodeURIComponent(firstId)}&StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`,
+      path: `${base}?MachineID=${encodeURIComponent(firstId)}`,
       init: { method: "GET" },
     });
+    requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineID: firstId, StartTime: startISO, EndTime: endISO }) } });
+    requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineId: firstId, StartTime: startISO, EndTime: endISO }) } });
+    requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ machineId: firstId, startTime: startISO, endTime: endISO }) } });
+    requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineGUID: firstId, StartTime: startISO, EndTime: endISO }) } });
+    requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineGuid: firstId, StartTime: startISO, EndTime: endISO }) } });
   }
   requests.push({ path: base, init: { method: "POST", body: JSON.stringify(ids) } });
   requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineGUIDs: ids, StartTime: startISO, EndTime: endISO }) } });
   requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineIDs: ids, StartTime: startISO, EndTime: endISO }) } });
-  if (firstId) requests.push({ path: base, init: { method: "POST", body: JSON.stringify({ MachineID: firstId, StartTime: startISO, EndTime: endISO }) } });
   return requests;
 }
 
@@ -527,18 +605,122 @@ function extractLineGoodTotal(raw: unknown, machines: MachineRef[]): number {
   const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const perMachine = new Map<string, number>();
+  const segmentSums = new Map<string, number>();
   walkObjectsWithMachine(raw, null, (obj, inheritedMachineRef) => {
     const machineRef = pick(obj, MACHINE_REF_KEYS) ?? inheritedMachineRef;
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
+    const key = String(machineRef ?? "_").trim().toLowerCase();
+    const segmentGood = num(pick(obj, SEGMENT_GOOD_QTY_KEYS)) || num(pick(obj, SEGMENT_TOTAL_QTY_KEYS));
+    if (segmentGood > 0) {
+      segmentSums.set(key, (segmentSums.get(key) ?? 0) + segmentGood);
+    }
     const produced = num(pick(obj, GOOD_QTY_KEYS));
     if (produced <= 0) return;
-    const key = String(machineRef ?? "_").trim().toLowerCase();
-    // Counts are cumulative within the shift — keep the highest reading per machine.
+    const hasSegmentCounter = pick(obj, SEGMENT_GOOD_QTY_KEYS) !== undefined || pick(obj, SEGMENT_TOTAL_QTY_KEYS) !== undefined;
+    if (hasSegmentCounter) return;
+    // Counts are usually cumulative within the shift — keep the highest reading per machine.
     perMachine.set(key, Math.max(perMachine.get(key) ?? 0, produced));
   });
   let total = 0;
-  for (const v of perMachine.values()) total += v;
+  const keys = new Set([...perMachine.keys(), ...segmentSums.keys()]);
+  for (const key of keys) total += Math.max(perMachine.get(key) ?? 0, segmentSums.get(key) ?? 0);
   return total;
+}
+
+async function probeLiveProductionFallbacks(
+  machines: MachineRef[],
+  startISO: string,
+  endISO: string,
+  context?: { line?: string; discoverLivePaths?: boolean; rawLogs?: boolean },
+) {
+  const ids = machines.map((m) => m.id).filter(Boolean);
+  let bestRaw: unknown = null;
+  let bestPath = "";
+  let bestTotal = 0;
+  let attempts = 0;
+  const paths = context?.discoverLivePaths
+    ? await discoverLiveProductionPaths()
+    : [
+      "/api/GetProductionProfilePeriodList",
+      "/api/GetProductionProfilePeriod",
+      "/api/appapi/getproduction",
+      "/api/appapi/getProduction",
+      "/api/appapi/GetProduction",
+      "/api/appapi/getproductioncounts",
+      "/api/appapi/getmachineproduction",
+      "/api/appapi/getcurrentproduction",
+      "/api/appapi/getcurrentshiftproduction",
+      "/api/appapi/getshiftproduction",
+      "/api/appapi/getmachinestatus",
+      "/api/appapi/getmachinestatuses",
+      "/api/appapi/getdashboard",
+      "/api/appapi/getdashboarddata",
+      "/api/GetProduction",
+      "/api/GetProductionCounts",
+      "/api/GetMachineProduction",
+      "/api/GetCurrentProduction",
+      "/api/GetCurrentShiftProduction",
+      "/api/GetShiftProduction",
+      "/api/getmachineStatuses",
+    ];
+
+  logSync("live_fallback_start", {
+    line: context?.line ?? null,
+    machines,
+    base_url: sanitizedIntouchBaseUrl(),
+    path_count: paths.length,
+  });
+
+  for (const path of paths) {
+    for (const req of liveProductionRequests(path, ids, startISO, endISO)) {
+      attempts += 1;
+      const raw = await tryIt(req.path, req.init, {
+        stage: `live_fallback_${safeStageName(path)}`,
+        line: context?.line,
+        machines,
+        raw: context?.rawLogs,
+      });
+      if (!raw) continue;
+      const total = extractLineGoodTotal(raw, machines);
+      if (total > bestTotal) {
+        bestTotal = total;
+        bestRaw = raw;
+        bestPath = pathOnly(req.path);
+      }
+      if (total > 0) {
+        logSync("live_fallback_success", {
+          line: context?.line ?? null,
+          attempts,
+          path: pathOnly(req.path),
+          method: req.init.method ?? "GET",
+          lineGood: total,
+          stats: inspectPayload(raw, machines),
+        });
+        if (context?.rawLogs) {
+          logSyncChunks("live_fallback_success_raw", {
+            line: context?.line ?? null,
+            path: pathOnly(req.path),
+            method: req.init.method ?? "GET",
+            raw,
+          });
+        }
+        return { lineGood: total, raw, path: pathOnly(req.path), attempts };
+      }
+      if (!context?.discoverLivePaths && attempts >= 28) break;
+      if (context?.discoverLivePaths && attempts >= 60) break;
+    }
+    if (!context?.discoverLivePaths && attempts >= 28) break;
+    if (context?.discoverLivePaths && attempts >= 60) break;
+  }
+
+  warnSync("live_fallback_no_positive_total", {
+    line: context?.line ?? null,
+    attempts,
+    bestPath: bestPath || null,
+    bestTotal,
+    bestStats: bestRaw ? inspectPayload(bestRaw, machines) : null,
+  });
+  return { lineGood: bestTotal, raw: bestRaw, path: bestPath, attempts };
 }
 
 async function fetchActualsForLine(machines: MachineRef[], startISO: string, endISO: string, context?: { line?: string; discoverLivePaths?: boolean }) {
@@ -589,45 +771,18 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
 
   // Targeted live-production probes. Kept deliberately short and stopped as
   // soon as a positive good total is found to protect the iTouching egress quota.
-  const liveProductionAttempts = [
-    () => tryIt(`/api/appapi/getproduction?MachineID=${encodeURIComponent(ids[0])}`, { method: "GET" }, { stage: "actuals_live_probe_app_production", line: context?.line, machines }),
-    () => tryIt(`/api/appapi/getproductioncounts?MachineID=${encodeURIComponent(ids[0])}`, { method: "GET" }, { stage: "actuals_live_probe_app_production_counts", line: context?.line, machines }),
-    () => tryIt(`/api/appapi/getmachineproduction?MachineID=${encodeURIComponent(ids[0])}`, { method: "GET" }, { stage: "actuals_live_probe_app_machine_production", line: context?.line, machines }),
-    () => tryIt(`/api/GetProduction?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_live_probe_get_production", line: context?.line, machines }),
-    () => tryIt(`/api/GetProductionCounts?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_live_probe_get_production_counts", line: context?.line, machines }),
-    () => tryIt(`/api/GetMachineProduction?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify(ids) }, { stage: "actuals_live_probe_get_machine_production", line: context?.line, machines }),
-    () => tryIt(`/api/Production?StartTime=${encodeURIComponent(startISO)}&EndTime=${encodeURIComponent(endISO)}`, { method: "POST", body: JSON.stringify({ MachineGUIDs: ids, StartTime: startISO, EndTime: endISO }) }, { stage: "actuals_live_probe_production", line: context?.line, machines }),
-  ];
   if (ids.length > 0) {
-    for (const attempt of liveProductionAttempts) {
-      const raw = await attempt();
-      if (!raw) continue;
-      merge(extractActualsByCode(raw, machines));
-      mergeScrap(extractScrapByCode(raw, machines));
-      mergeMetrics(raw);
-      mergeLineGood(raw);
-      if (lineGood > 0 || merged.size > 0) break;
+    const fallback = await probeLiveProductionFallbacks(machines, startISO, endISO, {
+      line: context?.line,
+      discoverLivePaths: context?.discoverLivePaths,
+      rawLogs: context?.discoverLivePaths,
+    });
+    if (fallback.raw) {
+      merge(extractActualsByCode(fallback.raw, machines));
+      mergeScrap(extractScrapByCode(fallback.raw, machines));
+      mergeMetrics(fallback.raw);
+      mergeLineGood(fallback.raw);
     }
-  }
-
-  if (ids.length > 0 && context?.discoverLivePaths && lineGood <= 0 && merged.size === 0) {
-    const discoveredPaths = await discoverLiveProductionPaths();
-    logSync("live_path_discovery_candidates", { line: context.line ?? null, count: discoveredPaths.length, paths: discoveredPaths });
-    let attempts = 0;
-    for (const path of discoveredPaths) {
-      for (const req of liveProductionRequests(path, ids, startISO, endISO)) {
-        if (attempts >= 20 || lineGood > 0 || merged.size > 0) break;
-        attempts += 1;
-        const raw = await tryIt(req.path, req.init, { stage: `actuals_discovered_${safeStageName(path)}`, line: context?.line, machines });
-        if (!raw) continue;
-        merge(extractActualsByCode(raw, machines));
-        mergeScrap(extractScrapByCode(raw, machines));
-        mergeMetrics(raw);
-        mergeLineGood(raw);
-      }
-      if (attempts >= 20 || lineGood > 0 || merged.size > 0) break;
-    }
-    logSync("live_path_discovery_result", { line: context.line ?? null, attempts, lineGood, actualCodeCount: merged.size });
   }
 
   // Running jobs (current SKU + live counts)
