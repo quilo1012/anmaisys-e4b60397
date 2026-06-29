@@ -874,6 +874,7 @@ export default function LineProductionScreen() {
         onOpenChange={setRequestOpen}
         line={line}
         operatorLabel={operatorAcctQ.data?.label || `Tablet ${tabletId}`}
+        assetScope={assetScope}
       />
     </div>
   );
