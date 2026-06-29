@@ -151,6 +151,25 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
     const inlineRe = /^(machine|line|production\s*line|asset|area|resource|work\s*centre|work\s*center|workstation|linha|equipment|plant\s*line)\s*[:=-]\s*(.+)$/i;
     const markerIdx = lower.findIndex((c) => markerRe.test(c) || inlineRe.test(c));
     const possibleHeader = findHeaderIndexes(cols);
+
+    // Standalone line-name row (e.g. a single cell "Filler Line 2", "Filler 2",
+    // "Depal 1", "L3"). iTouching exports sometimes drop the "Machine:" prefix
+    // between sections — without this fallback, those sections silently merge
+    // into the previous one and items appear under the wrong line.
+    if (markerIdx === -1 && !possibleHeader.found) {
+      const nonEmpty = cols.map((c, i) => ({ c: c.trim(), i })).filter((x) => x.c);
+      if (nonEmpty.length === 1) {
+        const v = nonEmpty[0].c;
+        const lineLike = /^(filler(\s*line)?|depal|line|l)\s*\d+[a-z]?$/i.test(v)
+          || /^filler\s*line\s*\d+/i.test(v);
+        if (lineLike) {
+          current = ensureSection(sections, v);
+          header = null;
+          continue;
+        }
+      }
+    }
+
     if (markerIdx !== -1 && !possibleHeader.found) {
       let name = "";
       const inline = cols[markerIdx].match(inlineRe);
