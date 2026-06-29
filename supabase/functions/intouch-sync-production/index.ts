@@ -603,17 +603,25 @@ function extractLineGoodTotal(raw: unknown, machines: MachineRef[]): number {
   const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const perMachine = new Map<string, number>();
+  const segmentSums = new Map<string, number>();
   walkObjectsWithMachine(raw, null, (obj, inheritedMachineRef) => {
     const machineRef = pick(obj, MACHINE_REF_KEYS) ?? inheritedMachineRef;
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
+    const key = String(machineRef ?? "_").trim().toLowerCase();
+    const segmentGood = num(pick(obj, SEGMENT_GOOD_QTY_KEYS)) || num(pick(obj, SEGMENT_TOTAL_QTY_KEYS));
+    if (segmentGood > 0) {
+      segmentSums.set(key, (segmentSums.get(key) ?? 0) + segmentGood);
+    }
     const produced = num(pick(obj, GOOD_QTY_KEYS));
     if (produced <= 0) return;
-    const key = String(machineRef ?? "_").trim().toLowerCase();
-    // Counts are cumulative within the shift — keep the highest reading per machine.
+    const hasSegmentCounter = pick(obj, SEGMENT_GOOD_QTY_KEYS) !== undefined || pick(obj, SEGMENT_TOTAL_QTY_KEYS) !== undefined;
+    if (hasSegmentCounter) return;
+    // Counts are usually cumulative within the shift — keep the highest reading per machine.
     perMachine.set(key, Math.max(perMachine.get(key) ?? 0, produced));
   });
   let total = 0;
-  for (const v of perMachine.values()) total += v;
+  const keys = new Set([...perMachine.keys(), ...segmentSums.keys()]);
+  for (const key of keys) total += Math.max(perMachine.get(key) ?? 0, segmentSums.get(key) ?? 0);
   return total;
 }
 
