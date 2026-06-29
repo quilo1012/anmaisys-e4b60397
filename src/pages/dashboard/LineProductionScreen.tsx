@@ -404,6 +404,29 @@ export default function LineProductionScreen() {
     onError: (e: any) => toast.error(e.message || "Failed to save observations"),
   });
 
+  // Open downtimes for current line/shift/date
+  const openDowntimesQ = useQuery({
+    queryKey: ["lps-open-downtimes", line, shift, activeSessionDate],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("production_downtimes")
+        .select("id, category, reason, started_at, ended_at, occurred_date, shift, line")
+        .eq("line", line)
+        .eq("shift", shift)
+        .eq("occurred_date", activeSessionDate)
+        .is("ended_at", null)
+        .order("started_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        category: string | null;
+        reason: string | null;
+        started_at: string;
+      }>;
+    },
+    refetchInterval: 30_000,
+  });
+
   const openEditor = useCallback((row: ItemRow) => {
     if (!canEdit) {
       toast.error("Read-only");
