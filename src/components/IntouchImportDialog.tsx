@@ -218,7 +218,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   const totalProducts = activeSections.reduce((a, s) => a + s.items.length, 0);
   const totalLines = activeSections.length;
   const canImport = totalProducts > 0
-    && activeSections.every((s) => s.matched_line && (leaderByLine[s.line]?.name?.trim()?.length ?? 0) > 0);
+    && activeSections.every((s) => s.matched_line);
 
   const reset = () => {
     setSections([]);
