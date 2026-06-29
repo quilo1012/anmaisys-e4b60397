@@ -323,7 +323,9 @@ function OperatorDashboardContent() {
                   onClick={() => {
                     setTargetMode("sealer_printer");
                     setMachineName("");
-                    if (!physicalLineId && lineId && !lineIsSealerPrinter) setPhysicalLineId(lineId);
+                    // Auto-bind the operator's own line; the picker only shows
+                    // when the login itself is a Sealer/Printer placeholder line.
+                    if (lineId && !lineIsSealerPrinter) setPhysicalLineId(lineId);
                   }}
                   className={cn(
                     "flex-1 sm:flex-none px-4 h-11 rounded-sm font-semibold transition-colors",
@@ -349,21 +351,23 @@ function OperatorDashboardContent() {
                     }}
                   />
                 </div>
-                <div className="md:col-span-2 space-y-2">
-                  <Label htmlFor="physical-line">Production Line (where the sealer/printer is being used) *</Label>
-                  <Select value={physicalLineId} onValueChange={setPhysicalLineId}>
-                    <SelectTrigger id="physical-line" className="h-12">
-                      <SelectValue placeholder="Select the production line..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(lines || [])
-                        .filter((l: any) => !/sealer|printer/i.test(l.name))
-                        .map((l: any) => (
-                          <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {lineIsSealerPrinter ? (
+                  <div className="md:col-span-2 space-y-2">
+                    <Label htmlFor="physical-line">Production Line (where the sealer/printer is being used) *</Label>
+                    <Select value={physicalLineId} onValueChange={setPhysicalLineId}>
+                      <SelectTrigger id="physical-line" className="h-12">
+                        <SelectValue placeholder="Select the production line..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(lines || [])
+                          .filter((l: any) => !/sealer|printer/i.test(l.name))
+                          .map((l: any) => (
+                            <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
               </>
             )}
 
