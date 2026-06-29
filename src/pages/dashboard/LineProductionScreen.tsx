@@ -648,7 +648,7 @@ export default function LineProductionScreen() {
       )}
 
 
-      {sessionQ.data && (ragPlanQ.data ?? 0) > 0 && (
+      {hasItouch && sessionQ.data && (ragPlanQ.data ?? 0) > 0 && (
         <>
           {intouchGoodMissing && (
             <Card className="mb-3 border-amber-500/50 bg-amber-500/10">
