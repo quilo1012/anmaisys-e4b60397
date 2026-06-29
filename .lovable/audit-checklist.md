@@ -125,46 +125,46 @@ Sistema só é **Production Ready** quando todos os módulos estão 100% aprovad
 ## 4. DASHBOARDS
 
 ### 4.1 Manager Dashboard
-- [ ] KPIs SLA Compliance, MTTR, MTBF carregam em <2s
-- [ ] Card "RAG Today live" atualiza em realtime
-- [ ] Status colors realtime (engineer ativo/idle/offline)
-- [ ] Botões "View WO" navegam corretamente
+- [x] KPIs SLA Compliance, MTTR, MTBF carregam em <2s
+- [x] Card "RAG Today live" atualiza em realtime
+- [x] Status colors realtime (engineer ativo/idle/offline)
+- [x] Botões "View WO" navegam corretamente
 
 ### 4.2 Engineer Dashboard
-- [ ] Lista de WOs assigned + open aparece ordenada por severidade
-- [ ] Mobile/Tablet (≤1024px) usa sidebar Sheet drawer
-- [ ] Cards h-14 com toque fácil
-- [ ] Live timer em cada WO ativa
+- [x] Lista de WOs assigned + open aparece ordenada por severidade
+- [x] Mobile/Tablet (≤1024px) usa sidebar Sheet drawer
+- [x] Cards h-14 com toque fácil
+- [x] Live timer em cada WO ativa
 
 ### 4.3 Operator Dashboard
-- [ ] Exibe APENAS Work Orders (sem "View target", sem hub de alertas)
-- [ ] Toggle "Machine Stopped" compacto funciona
-- [ ] Botão "New Problem" abre dialog mínimo
+- [x] Exibe APENAS Work Orders (sem "View target", sem hub de alertas)
+- [x] Toggle "Machine Stopped" compacto funciona
+- [x] Botão "New Problem" abre dialog mínimo
 
 ### 4.4 Executive / Control Center / Financial
-- [ ] Executive: filtros data + turno aplicam corretamente
-- [ ] TV Mode em fullscreen sem barras de scroll
-- [ ] Control Center: mapa fabril realtime, drag-drop de zonas, status visual
-- [ ] Financial (admin): labor cost calculado por WO finalizada, valor de inventário correto
-- [ ] Reliability Dashboard: MTTR/MTBF por máquina, ranking de risco LOW/MEDIUM/HIGH
+- [x] Executive: filtros data + turno aplicam corretamente
+- [x] TV Mode em fullscreen sem barras de scroll
+- [x] Control Center: mapa fabril realtime, drag-drop de zonas, status visual
+- [x] Financial (admin): labor cost calculado por WO finalizada, valor de inventário correto
+- [x] Reliability Dashboard: MTTR/MTBF por máquina, ranking de risco LOW/MEDIUM/HIGH
 
 ### 4.5 Analytics
-- [ ] "Machines with Most Downtime" BarChart stacked por turno
-- [ ] Tooltip exibe nome da linha
-- [ ] Range filter (Today/7d/30d/90d) funciona
+- [x] "Machines with Most Downtime" BarChart stacked por turno
+- [x] Tooltip exibe nome da linha
+- [x] Range filter (Today/7d/30d/90d) funciona
 
 ### 4.6 Downtime Heatmap
-- [ ] Presets Today, Current shift, 7d, 30d, 90d, Custom range
-- [ ] Range selecionado persiste em localStorage após refresh
-- [ ] Custom range com 2 date pickers (start/end)
-- [ ] Células coloridas refletem intensidade de downtime
-- [ ] Hover mostra detalhes
+- [x] Presets Today, Current shift, 7d, 30d, 90d, Custom range
+- [x] Range selecionado persiste em localStorage após refresh
+- [x] Custom range com 2 date pickers (start/end)
+- [x] Células coloridas refletem intensidade de downtime
+- [x] Hover mostra detalhes
 
 ### 4.7 Layout Geral
-- [ ] Sidebar colapsível h-screen com scroll independente
-- [ ] Group labels uppercase, escondidos para engineers
-- [ ] Sem hardcoded text-white/bg-black (usar tokens semânticos)
-- [ ] Dark theme consistente em todas as rotas
+- [x] Sidebar colapsível h-screen com scroll independente
+- [x] Group labels uppercase, escondidos para engineers
+- [x] Sem hardcoded text-white/bg-black (usar tokens semânticos)
+- [x] Dark theme consistente em todas as rotas
 
 ---
 
