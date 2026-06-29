@@ -227,6 +227,32 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     setParsePreview([]);
   };
 
+  // Override per-SKU qty using rag_weekly_entries.plan_qty (source of truth).
+  // The API/XLSX qty is ignored — we rescale items so they sum to the RAG plan.
+  const applyRagPlans = async (secs: WorkToListSection[]): Promise<WorkToListSection[]> => {
+    const matched = secs.map((s) => ({ sec: s, line: matchLine(s.line) }));
+    const lineNames = Array.from(new Set(matched.map((m) => m.line).filter(Boolean) as string[]));
+    if (lineNames.length === 0) return secs;
+    const { data, error } = await supabase
+      .from("rag_weekly_entries")
+      .select("line, plan_qty")
+      .eq("entry_date", date)
+      .eq("shift", shift)
+      .in("line", lineNames);
+    if (error) {
+      console.warn("[applyRagPlans] failed to load RAG plan_qty:", error.message);
+      return secs;
+    }
+    const planByLine = new Map<string, number>();
+    for (const r of data ?? []) planByLine.set((r as { line: string }).line, Number((r as { plan_qty: number }).plan_qty) || 0);
+    return matched.map(({ sec, line }) => {
+      const plan = line ? planByLine.get(line) : undefined;
+      if (!plan || plan <= 0 || sec.items.length === 0) return sec;
+      const newQtys = rescaleItemTargets(sec.items.map((i) => ({ target: i.qty, planned: i.qty })), plan);
+      return { ...sec, items: sec.items.map((it, i) => ({ ...it, qty: newQtys[i] ?? 0 })) };
+    });
+  };
+
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = "";
