@@ -268,7 +268,7 @@ export default function ShiftHistoryPage() {
             <div><Label className="text-xs">Filler Line</Label>
               <Select value={fLine} onValueChange={setFLine}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="__all__">All lines</SelectItem>{lines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+                <SelectContent><SelectItem value="__all__">All lines</SelectItem>{sortedLines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div><Label className="text-xs">Leader</Label>
