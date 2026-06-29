@@ -282,12 +282,12 @@ export default function Login() {
               </p>
             </div>
 
-            {/* Mode toggle — only when there's at least one operator account */}
-            {hasOperatorAccounts && (
-              <div className="mb-6 grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5">
+            {/* Mode toggle — always visible so operators can always reach the Tablet form */}
+            <div className="mb-6 grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5">
                 <button
                   type="button"
                   onClick={() => switchMode("staff")}
+                  aria-pressed={mode === "staff"}
                   className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-semibold uppercase tracking-wider transition-all ${
                     mode === "staff"
                       ? "bg-white/[0.09] text-white shadow-sm ring-1 ring-white/15"
@@ -300,6 +300,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => switchMode("tablet")}
+                  aria-pressed={mode === "tablet"}
                   className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-semibold uppercase tracking-wider transition-all ${
                     mode === "tablet"
                       ? "bg-white/[0.09] text-white shadow-sm ring-1 ring-white/15"
@@ -310,7 +311,6 @@ export default function Login() {
                   Tablet
                 </button>
               </div>
-            )}
 
             <form onSubmit={handleSubmit} className="space-y-5" autoComplete="on">
 
