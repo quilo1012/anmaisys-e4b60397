@@ -351,11 +351,34 @@ export default function LineProductionScreen() {
     onError: (e: any) => toast.error(e.message || "Sync failed"),
   });
 
+  // Is this line mapped to an iTouching machine? Lines without a mapping
+  // (e.g. Capsules Machine 1/2) are maintenance-only terminals.
+  const currentLineId = useMemo(
+    () => (linesQ.data || []).find((l) => l.name === line)?.id,
+    [linesQ.data, line],
+  );
+  const intouchMapQ = useQuery({
+    enabled: !!currentLineId,
+    queryKey: ["lps-intouch-map", currentLineId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("intouch_machine_map")
+        .select("intouch_machine_id, active")
+        .eq("line_id", currentLineId)
+        .eq("active", true)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { intouch_machine_id: string; active: boolean } | null;
+    },
+  });
+  const hasItouch = !!intouchMapQ.data?.intouch_machine_id;
+
   // Auto-pull live actuals from iTouching for THIS line/shift so the operator
   // screen reflects real production without waiting for the global cron.
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
   useEffect(() => {
-    if (!line || !sessionQ.data?.id) return;
+    if (!line || !sessionQ.data?.id || !hasItouch) return;
     let cancelled = false;
     const run = async () => {
       try {
@@ -374,10 +397,11 @@ export default function LineProductionScreen() {
     run();
     const t = setInterval(run, 60_000);
     return () => { cancelled = true; clearInterval(t); };
-  }, [line, shift, activeSessionDate, sessionQ.data?.id, qc]);
+  }, [line, shift, activeSessionDate, sessionQ.data?.id, hasItouch, qc]);
 
   // True when the sync ran but iTouching did not return a good-count for this line/shift.
   const intouchGoodMissing =
+    hasItouch &&
     !!sessionQ.data &&
     !!lastSyncAt &&
     ((sessionQ.data as any)?.intouch_good_total === null || (sessionQ.data as any)?.intouch_good_total === undefined);
@@ -571,7 +595,20 @@ export default function LineProductionScreen() {
         </Card>
       )}
 
-      {line && !ragPlanQ.isLoading && (ragPlanQ.data ?? 0) <= 0 && (
+      {line && !intouchMapQ.isLoading && !hasItouch && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="p-10 text-center space-y-2">
+            <div className="text-2xl font-semibold">Maintenance terminal</div>
+            <div className="text-muted-foreground">
+              <span className="font-medium">{line}</span> is not mapped to iTouching.
+              <br />Use <strong>Request Maintenance</strong> above to open a work order.
+              No production tracking is available for this line.
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {line && hasItouch && !ragPlanQ.isLoading && (ragPlanQ.data ?? 0) <= 0 && (
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardContent className="p-10 text-center space-y-2">
             <div className="text-2xl font-semibold text-amber-500">No planned shift today</div>
@@ -583,7 +620,7 @@ export default function LineProductionScreen() {
         </Card>
       )}
 
-      {line && (ragPlanQ.data ?? 0) > 0 && !sessionQ.isLoading && !sessionQ.data && (
+      {line && hasItouch && (ragPlanQ.data ?? 0) > 0 && !sessionQ.isLoading && !sessionQ.data && (
         <Card>
           <CardContent className="p-10 text-center space-y-3">
             <div className="text-xl font-semibold">No session yet for {line} – {shift}</div>
@@ -611,7 +648,7 @@ export default function LineProductionScreen() {
       )}
 
 
-      {sessionQ.data && (ragPlanQ.data ?? 0) > 0 && (
+      {hasItouch && sessionQ.data && (ragPlanQ.data ?? 0) > 0 && (
         <>
           {intouchGoodMissing && (
             <Card className="mb-3 border-amber-500/50 bg-amber-500/10">
