@@ -318,20 +318,29 @@ Deno.serve(async (req) => {
     });
   }
 
-  // ⏸️ PAUSED: auto-opening Work Orders from iTouching is temporarily disabled by request.
-  // Re-enable by removing this early return.
-  return new Response(JSON.stringify({
-    ok: true,
-    paused: true,
-    reason: "intouch-poll auto WO creation paused by admin",
-    polled: 0,
-    opened_wos: [],
-    skipped: [],
-    errors: [],
-  }), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  // ⏸️ Toggle controlled by Settings → iTouching (system_settings.intouch_auto_wo_enabled).
+  // When OFF, the cron / manual poll runs but does NOT open any Work Order.
+  try {
+    const { data: ss } = await admin
+      .from("system_settings")
+      .select("intouch_auto_wo_enabled")
+      .limit(1)
+      .maybeSingle();
+    if (!ss?.intouch_auto_wo_enabled) {
+      return new Response(JSON.stringify({
+        ok: true,
+        paused: true,
+        reason: "intouch_auto_wo_enabled is OFF",
+        polled: 0,
+        opened_wos: [],
+        skipped: [],
+        errors: [],
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  } catch (_e) { /* fall through and run normally if flag read fails */ }
 
 
   const results = {
