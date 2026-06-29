@@ -1272,37 +1272,64 @@ function DayNightTotalSummary({
     return "bg-red-500/15 text-red-700 dark:text-red-300 font-semibold rounded px-1.5";
   };
 
-  type Cell = { plan: number; actual: number; dt: number; dtMaint: number; dtQuality: number; upm: number };
-  const empty: Cell = { plan: 0, actual: 0, dt: 0, dtMaint: 0, dtQuality: 0, upm: 0 };
+  type Cell = {
+    plan: number;
+    actual: number;
+    dt: number;
+    dtBuckets: Record<string, number>;
+    upm: number;
+  };
+  const empty: Cell = { plan: 0, actual: 0, dt: 0, dtBuckets: {}, upm: 0 };
+
+  // All non-empty bucket names found anywhere in the auto map.
+  const allBucketNames = useMemo(() => {
+    return Array.from(autoDtBucketMap?.keys() ?? []);
+  }, [autoDtBucketMap]);
 
   const getCell = (dateStr: string, line: string, shift: Shift): Cell => {
     const key = `${dateStr}|${line}|${shift}`;
     const e = entryMap.get(key);
-    const autoMaint = autoDtMaintMap?.get(key) ?? 0;
-    const autoQual = autoDtQualityMap?.get(key) ?? 0;
-    const auto = autoMaint + autoQual;
-    const dtMaint = autoMaint > 0 ? autoMaint : (auto === 0 ? (Number(e?.downtime_min) || 0) : 0);
-    const dtQuality = autoQual;
-    const dt = dtMaint + dtQuality;
-    if (!e) return { ...empty, dt, dtMaint, dtQuality };
+    const dtBuckets: Record<string, number> = {};
+    let auto = 0;
+    for (const bucket of allBucketNames) {
+      const m = autoDtBucketMap?.get(bucket)?.get(key) ?? 0;
+      if (m > 0) {
+        dtBuckets[bucket] = m;
+        auto += m;
+      }
+    }
+    // When there's no auto downtime at all, fall back to the manually entered
+    // total and attribute it to MAINT so the column still shows something.
+    if (auto === 0) {
+      const manual = Number(e?.downtime_min) || 0;
+      if (manual > 0) {
+        dtBuckets["MAINT"] = manual;
+        auto = manual;
+      }
+    }
+    if (!e) return { ...empty, dt: auto, dtBuckets };
     return {
       plan: Number(e.plan_qty) || 0,
       actual: Number(e.actual_qty) || 0,
-      dt,
-      dtMaint,
-      dtQuality,
+      dt: auto,
+      dtBuckets,
       upm: Number(e.upm_actual) || 0,
     };
   };
 
   const sumCells = (cells: Cell[]): Cell => {
     const upms = cells.map((c) => c.upm).filter((v) => v > 0);
+    const dtBuckets: Record<string, number> = {};
+    for (const c of cells) {
+      for (const [b, m] of Object.entries(c.dtBuckets)) {
+        dtBuckets[b] = (dtBuckets[b] ?? 0) + m;
+      }
+    }
     return {
       plan: cells.reduce((s, c) => s + c.plan, 0),
       actual: cells.reduce((s, c) => s + c.actual, 0),
       dt: cells.reduce((s, c) => s + c.dt, 0),
-      dtMaint: cells.reduce((s, c) => s + c.dtMaint, 0),
-      dtQuality: cells.reduce((s, c) => s + c.dtQuality, 0),
+      dtBuckets,
       upm: upms.length ? upms.reduce((s, v) => s + v, 0) / upms.length : 0,
     };
   };
