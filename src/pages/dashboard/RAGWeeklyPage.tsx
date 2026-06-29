@@ -73,7 +73,7 @@ interface StopDetail {
   machine: string | null;
   reason: string | null;
   status?: string | null;
-  kind: "MAINT" | "QUALITY";
+  kind: string; // bucket label, e.g. "MAINT", "Cleaning", "Break", "Changeover", "Quality"
   category?: string | null;
 }
 
@@ -82,6 +82,33 @@ interface ClampedStop extends StopDetail {
   clampedEnd: string;
   minutes: number;
   ongoing: boolean;
+}
+
+// Map a free-text category to a downtime bucket label.
+// Rules (must match RAG Weekly downtime classification spec):
+//   - 'Maintenance' / 'WO Request'                         → MAINT
+//   - 'Break'                                              → Break
+//   - 'Brushing Cleaning' / 'Deep Clean' / 'Drill Clean' /
+//     'Line Clean'                                         → Cleaning
+//   - 'Changeover'                                         → Changeover
+//   - 'Quality'                                            → Quality
+//   - any other non-empty value                            → passed through verbatim
+//   - empty / unknown                                      → MAINT (safe default)
+export function categoryBucket(cat?: string | null): string {
+  const raw = (cat ?? "").toString().trim();
+  if (!raw) return "MAINT";
+  const lc = raw.toLowerCase();
+  if (lc === "maintenance" || lc === "wo request" || lc === "wo_request") return "MAINT";
+  if (lc === "break") return "Break";
+  if (
+    lc === "brushing cleaning" ||
+    lc === "deep clean" ||
+    lc === "drill clean" ||
+    lc === "line clean"
+  ) return "Cleaning";
+  if (lc === "changeover") return "Changeover";
+  if (lc === "quality") return "Quality";
+  return raw;
 }
 
 
@@ -216,13 +243,10 @@ export default function RAGWeeklyPage() {
           machine: r.machine as string | null,
           reason: r.description as string | null,
           status: r.status as string | null,
-          kind: "MAINT" as const,
-          category: "Maintenance",
+          kind: "MAINT",
+          category: "WO Request",
         };
       });
-
-      const classify = (cat?: string | null): "MAINT" | "QUALITY" =>
-        String(cat ?? "").toLowerCase() === "quality" ? "QUALITY" : "MAINT";
 
       const man: StopDetail[] = ((manRes.data ?? []) as any[]).map((r) => ({
         line: r.line as string | null,
@@ -232,7 +256,7 @@ export default function RAGWeeklyPage() {
         ref: null,
         machine: r.machine as string | null,
         reason: r.reason as string | null,
-        kind: classify(r.category),
+        kind: categoryBucket(r.category),
         category: r.category ?? null,
       }));
 
@@ -244,7 +268,7 @@ export default function RAGWeeklyPage() {
         ref: null,
         machine: r.machine as string | null,
         reason: r.reason as string | null,
-        kind: classify(r.category),
+        kind: categoryBucket(r.category),
         category: r.category ?? null,
       }));
 
@@ -286,7 +310,7 @@ export default function RAGWeeklyPage() {
 
 
 
-  const { autoDtMap, autoDtMaintMap, autoDtQualityMap, autoDtBreakdown } = useMemo(() => {
+  const { autoDtMap, autoDtBucketMap, autoDtBreakdown } = useMemo(() => {
     const byLine = new Map<string, StopDetail[]>();
     for (const s of lineStops) {
       const arr = byLine.get(s.line) ?? [];
@@ -294,25 +318,37 @@ export default function RAGWeeklyPage() {
       byLine.set(s.line, arr);
     }
     const out = new Map<string, number>();
-    const outMaint = new Map<string, number>();
-    const outQuality = new Map<string, number>();
+    // bucket -> (cellKey -> minutes)
+    const buckets = new Map<string, Map<string, number>>();
     const breakdown = new Map<string, ClampedStop[]>();
     const now = Date.now();
     for (const line of lines) {
       const stops = byLine.get(line) ?? [];
       if (!stops.length) continue;
-      const maintStops = stops.filter((s) => s.kind === "MAINT");
-      const qualityStops = stops.filter((s) => s.kind === "QUALITY");
+      // Group stops by bucket once per line.
+      const byBucket = new Map<string, StopDetail[]>();
+      for (const s of stops) {
+        const b = s.kind || "MAINT";
+        const arr = byBucket.get(b) ?? [];
+        arr.push(s);
+        byBucket.set(b, arr);
+      }
       for (const d of weekDates) {
         const ds = format(d, "yyyy-MM-dd");
         for (const shift of ["DAY", "NIGHT"] as Shift[]) {
           const [ws, we] = londonShiftWindow(ds, shift);
           const k = `${ds}|${line}|${shift}`;
-          const mMaint = reconcileMinutes(maintStops, ws, we);
-          const mQual = reconcileMinutes(qualityStops, ws, we);
-          if (mMaint > 0) outMaint.set(k, mMaint);
-          if (mQual > 0) outQuality.set(k, mQual);
-          if (mMaint + mQual > 0) out.set(k, mMaint + mQual);
+          let cellTotal = 0;
+          for (const [bucket, bStops] of byBucket.entries()) {
+            const m = reconcileMinutes(bStops, ws, we);
+            if (m > 0) {
+              const map = buckets.get(bucket) ?? new Map<string, number>();
+              map.set(k, m);
+              buckets.set(bucket, map);
+              cellTotal += m;
+            }
+          }
+          if (cellTotal > 0) out.set(k, cellTotal);
           const clamped: ClampedStop[] = [];
           for (const s of stops) {
             const sMs = new Date(s.start).getTime();
@@ -336,7 +372,7 @@ export default function RAGWeeklyPage() {
         }
       }
     }
-    return { autoDtMap: out, autoDtMaintMap: outMaint, autoDtQualityMap: outQuality, autoDtBreakdown: breakdown };
+    return { autoDtMap: out, autoDtBucketMap: buckets, autoDtBreakdown: breakdown };
   }, [lineStops, lines, weekDates]);
 
   // Inconsistency detector: a single WO contributing minutes to multiple (date|line|shift) cells
@@ -913,8 +949,7 @@ export default function RAGWeeklyPage() {
           weekDates={weekDates}
           entryMap={entryMap}
           autoDtMap={autoDtMap}
-          autoDtMaintMap={autoDtMaintMap}
-          autoDtQualityMap={autoDtQualityMap}
+          autoDtBucketMap={autoDtBucketMap}
           autoDtBreakdown={autoDtBreakdown}
           cellScrapMap={cellScrapMap}
           cellItemTargetMap={cellItemTargetMap}
@@ -1139,8 +1174,7 @@ function DayNightTotalSummary({
   weekDates,
   entryMap,
   autoDtMap,
-  autoDtMaintMap,
-  autoDtQualityMap,
+  autoDtBucketMap,
   autoDtBreakdown,
   cellScrapMap,
   cellItemTargetMap,
@@ -1152,8 +1186,7 @@ function DayNightTotalSummary({
   weekDates: Date[];
   entryMap: Map<string, Entry>;
   autoDtMap?: Map<string, number>;
-  autoDtMaintMap?: Map<string, number>;
-  autoDtQualityMap?: Map<string, number>;
+  autoDtBucketMap?: Map<string, Map<string, number>>;
   autoDtBreakdown?: Map<string, ClampedStop[]>;
   cellScrapMap?: Map<string, number>;
   cellItemTargetMap?: Map<string, number>;
@@ -1239,37 +1272,64 @@ function DayNightTotalSummary({
     return "bg-red-500/15 text-red-700 dark:text-red-300 font-semibold rounded px-1.5";
   };
 
-  type Cell = { plan: number; actual: number; dt: number; dtMaint: number; dtQuality: number; upm: number };
-  const empty: Cell = { plan: 0, actual: 0, dt: 0, dtMaint: 0, dtQuality: 0, upm: 0 };
+  type Cell = {
+    plan: number;
+    actual: number;
+    dt: number;
+    dtBuckets: Record<string, number>;
+    upm: number;
+  };
+  const empty: Cell = { plan: 0, actual: 0, dt: 0, dtBuckets: {}, upm: 0 };
+
+  // All non-empty bucket names found anywhere in the auto map.
+  const allBucketNames = useMemo(() => {
+    return Array.from(autoDtBucketMap?.keys() ?? []);
+  }, [autoDtBucketMap]);
 
   const getCell = (dateStr: string, line: string, shift: Shift): Cell => {
     const key = `${dateStr}|${line}|${shift}`;
     const e = entryMap.get(key);
-    const autoMaint = autoDtMaintMap?.get(key) ?? 0;
-    const autoQual = autoDtQualityMap?.get(key) ?? 0;
-    const auto = autoMaint + autoQual;
-    const dtMaint = autoMaint > 0 ? autoMaint : (auto === 0 ? (Number(e?.downtime_min) || 0) : 0);
-    const dtQuality = autoQual;
-    const dt = dtMaint + dtQuality;
-    if (!e) return { ...empty, dt, dtMaint, dtQuality };
+    const dtBuckets: Record<string, number> = {};
+    let auto = 0;
+    for (const bucket of allBucketNames) {
+      const m = autoDtBucketMap?.get(bucket)?.get(key) ?? 0;
+      if (m > 0) {
+        dtBuckets[bucket] = m;
+        auto += m;
+      }
+    }
+    // When there's no auto downtime at all, fall back to the manually entered
+    // total and attribute it to MAINT so the column still shows something.
+    if (auto === 0) {
+      const manual = Number(e?.downtime_min) || 0;
+      if (manual > 0) {
+        dtBuckets["MAINT"] = manual;
+        auto = manual;
+      }
+    }
+    if (!e) return { ...empty, dt: auto, dtBuckets };
     return {
       plan: Number(e.plan_qty) || 0,
       actual: Number(e.actual_qty) || 0,
-      dt,
-      dtMaint,
-      dtQuality,
+      dt: auto,
+      dtBuckets,
       upm: Number(e.upm_actual) || 0,
     };
   };
 
   const sumCells = (cells: Cell[]): Cell => {
     const upms = cells.map((c) => c.upm).filter((v) => v > 0);
+    const dtBuckets: Record<string, number> = {};
+    for (const c of cells) {
+      for (const [b, m] of Object.entries(c.dtBuckets)) {
+        dtBuckets[b] = (dtBuckets[b] ?? 0) + m;
+      }
+    }
     return {
       plan: cells.reduce((s, c) => s + c.plan, 0),
       actual: cells.reduce((s, c) => s + c.actual, 0),
       dt: cells.reduce((s, c) => s + c.dt, 0),
-      dtMaint: cells.reduce((s, c) => s + c.dtMaint, 0),
-      dtQuality: cells.reduce((s, c) => s + c.dtQuality, 0),
+      dtBuckets,
       upm: upms.length ? upms.reduce((s, v) => s + v, 0) / upms.length : 0,
     };
   };
@@ -1305,7 +1365,44 @@ function DayNightTotalSummary({
 
 
 
-    const rows: { key: string; label: string; render: (c: Cell) => React.ReactNode; bold?: boolean }[] = [
+    // Discover which downtime buckets actually have minutes in the visible
+    // block (all visible dates, both shifts, all filtered lines). One table
+    // row will be rendered per bucket so categories never collapse into a
+    // single "DOWNTIME · MAINT" line.
+    const visibleBuckets = (() => {
+      const totals = new Map<string, number>();
+      for (const d of weekDates) {
+        const ds = format(d, "yyyy-MM-dd");
+        for (const shift of ["DAY", "NIGHT"] as Shift[]) {
+          for (const ln of lineFilter) {
+            const c = getCell(ds, ln, shift);
+            for (const [b, m] of Object.entries(c.dtBuckets)) {
+              totals.set(b, (totals.get(b) ?? 0) + m);
+            }
+          }
+        }
+      }
+      // Stable display order: MAINT first, then Quality, then alphabetical.
+      const names = Array.from(totals.keys()).filter((b) => (totals.get(b) ?? 0) > 0);
+      const rank = (b: string) => (b === "MAINT" ? 0 : b === "Quality" ? 1 : 2);
+      names.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+      return names;
+    })();
+
+    const bucketClass = (b: string) =>
+      b === "MAINT"
+        ? "text-red-600 dark:text-red-400"
+        : b === "Quality"
+        ? "text-amber-600 dark:text-amber-400"
+        : b === "Break"
+        ? "text-blue-600 dark:text-blue-400"
+        : b === "Cleaning"
+        ? "text-cyan-600 dark:text-cyan-400"
+        : b === "Changeover"
+        ? "text-purple-600 dark:text-purple-400"
+        : "text-slate-600 dark:text-slate-300";
+
+    const rows: { key: string; label: string; render: (c: Cell) => React.ReactNode; bold?: boolean; bucket?: string }[] = [
       { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString() : "—" },
       { key: "actual", label: "Actual", render: (c) => c.actual ? c.actual.toLocaleString() : "—", bold: true },
       {
@@ -1314,16 +1411,15 @@ function DayNightTotalSummary({
         render: (c) => <span className={pctClass(c.actual, c.plan)}>{pct(c.actual, c.plan)}</span>,
       },
       { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : "—") },
-      {
-        key: "dtMaint",
-        label: "Downtime · Maint",
-        render: (c) => <span className={c.dtMaint > 0 ? "text-red-600 dark:text-red-400" : ""}>{fmtHm(c.dtMaint)}</span>,
-      },
-      {
-        key: "dtQuality",
-        label: "Downtime · Quality",
-        render: (c) => <span className={c.dtQuality > 0 ? "text-amber-600 dark:text-amber-400" : ""}>{fmtHm(c.dtQuality)}</span>,
-      },
+      ...visibleBuckets.map((b) => ({
+        key: `dt:${b}`,
+        label: `Downtime · ${b}`,
+        bucket: b,
+        render: (c: Cell) => {
+          const v = c.dtBuckets[b] ?? 0;
+          return <span className={v > 0 ? bucketClass(b) : ""}>{fmtHm(v)}</span>;
+        },
+      })),
     ];
 
     return (
@@ -1451,15 +1547,14 @@ function DayNightTotalSummary({
                     />
                   );
                 };
-                const isDt = row.key === "dtMaint" || row.key === "dtQuality";
-                const dtKind: "MAINT" | "QUALITY" | null =
-                  row.key === "dtMaint" ? "MAINT" : row.key === "dtQuality" ? "QUALITY" : null;
+                const isDt = row.key.startsWith("dt:");
+                const dtBucket: string | null = isDt ? (row.bucket ?? row.key.slice(3)) : null;
                 const isPlan = row.key === "plan";
                 const wrapDt = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
                   if (!isDt || lineFilter.length !== 1) return cellEl;
                   const key = `${ds}|${lineFilter[0]}|${shift}`;
                   const all = autoDtBreakdown?.get(key) ?? [];
-                  const details = dtKind ? all.filter((s) => s.kind === dtKind) : all;
+                  const details = dtBucket ? all.filter((s) => s.kind === dtBucket) : all;
                   if (!details.length) return cellEl;
                   const scrap = cellScrapMap?.get(key) ?? 0;
                   return <DowntimeBreakdownPopover trigger={cellEl} stops={details} dateStr={ds} shift={shift} line={lineFilter[0]} totalScrap={scrap} />;
