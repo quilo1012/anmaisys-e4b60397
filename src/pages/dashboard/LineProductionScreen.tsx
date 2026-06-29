@@ -982,6 +982,15 @@ function RequestOrderDialog({
     },
   });
 
+  const filteredMachines = useMemo(() => {
+    const list = machinesQ.data || [];
+    const isSP = (n: string) => /sealer|printer/i.test(n);
+    return assetScope === "sealer_printer" ? list.filter((m) => isSP(m.name)) : list.filter((m) => !isSP(m.name));
+  }, [machinesQ.data, assetScope]);
+
+  // Reset machine selection when scope changes
+  useEffect(() => { setMachine(""); }, [assetScope]);
+
   const submit = async () => {
     const description = problem === "__custom__" || !problem ? customDesc.trim() : problem;
     if (!description) {
