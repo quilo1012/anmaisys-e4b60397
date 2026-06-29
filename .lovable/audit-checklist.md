@@ -25,36 +25,36 @@ Sistema só é **Production Ready** quando todos os módulos estão 100% aprovad
 ## 1. AUTH & RBAC
 
 ### 1.1 Fluxos de Login
-- [ ] Login email+senha funciona para Admin, Manager, Engineer, Operator — `/login`
-- [ ] Silent re-login em tablet após refresh (refresh_token em `localStorage.an_tablet_cred`)
-- [ ] PIN engineer válido autentica em <2s — Edge Function `verify-engineer-pin`
-- [ ] PIN inválido bloqueia após N tentativas — tabela `pin_attempts`
-- [ ] Logout explícito wipa `an_tablet_cred` e redireciona para `/login`
-- [ ] Conta desativada (`profiles.active=false`) força sign-out em <5s via realtime
+- [x] Login email+senha funciona para Admin, Manager, Engineer, Operator — `/login`
+- [x] Silent re-login em tablet após refresh (refresh_token em `localStorage.an_tablet_cred`)
+- [x] PIN engineer válido autentica em <2s — Edge Function `verify-engineer-pin`
+- [x] PIN inválido bloqueia após N tentativas — tabela `pin_attempts`
+- [x] Logout explícito wipa `an_tablet_cred` e redireciona para `/login`
+- [x] Conta desativada (`profiles.active=false`) força sign-out em <5s via realtime
 
 ### 1.2 Sessão & Tokens
-- [ ] Refresh token rotaciona a cada 5 min (keep-alive em `AuthContext`)
-- [ ] Mudança de aba (visibility change) NÃO causa sign-out espúrio
-- [ ] Boot inicial tem timeout de 5s para silent re-login
-- [ ] `getClaims(token)` via JWKS retorna 401 com token inválido
-- [ ] Endpoints cron aceitam header `x-cron-secret` (CRON_SECRET env)
+- [x] Refresh token rotaciona a cada 5 min (keep-alive em `AuthContext`)
+- [x] Mudança de aba (visibility change) NÃO causa sign-out espúrio
+- [x] Boot inicial tem timeout de 5s para silent re-login
+- [x] `getClaims(token)` via JWKS retorna 401 com token inválido
+- [x] Endpoints cron aceitam header `x-cron-secret` (CRON_SECRET env)
 
 ### 1.3 RBAC — Matriz Role × Rota
-- [ ] Admin acessa `/users`, `/audit-logs`, `/financial`, `/intouch-settings`
-- [ ] Manager NÃO acessa `/users` (redirect ou Access Denied)
-- [ ] Engineer só acessa `/engineer`, `/work-orders/*`
-- [ ] Operator só acessa `/operator`, `/work-orders/*` (sem "View target")
+- [x] Admin acessa `/users`, `/audit-logs`, `/financial`, `/intouch-settings`
+- [x] Manager NÃO acessa `/users` (redirect ou Access Denied)
+- [x] Engineer só acessa `/engineer`, `/work-orders/*`
+- [x] Operator só acessa `/operator`, `/work-orders/*` (sem "View target")
 - [ ] Viewer é read-only em todos os dashboards permitidos
-- [ ] RLS bloqueia leitura cruzada (testar SELECT direto via SQL com role anon)
-- [ ] `has_role(_user_id, _role)` SECURITY DEFINER sem EXECUTE para anon
+- [x] RLS bloqueia leitura cruzada (testar SELECT direto via SQL com role anon)
+- [x] `has_role(_user_id, _role)` SECURITY DEFINER sem EXECUTE para anon
 
 ### 1.4 Edge Function Auth
-- [ ] `log-audit-event` aceita JWT válido, rejeita ausente
-- [ ] `intouch-poll` aceita cron secret OR admin JWT
-- [ ] `delete-user` somente admin (manager/engineer = 403)
-- [ ] Todas Edge Functions têm Zod validando body e CORS configurado
-- [ ] Nenhuma Edge Function loga `SUPABASE_SERVICE_ROLE_KEY` ou secrets
-- [ ] `tablet-signin` rate-limited por IP/conta
+- [x] `log-audit-event` aceita JWT válido, rejeita ausente
+- [x] `intouch-poll` aceita cron secret OR admin JWT
+- [x] `delete-user` somente admin (manager/engineer = 403)
+- [x] Todas Edge Functions têm Zod validando body e CORS configurado
+- [x] Nenhuma Edge Function loga `SUPABASE_SERVICE_ROLE_KEY` ou secrets
+- [x] `tablet-signin` rate-limited por IP/conta
 
 ---
 
