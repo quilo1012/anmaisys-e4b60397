@@ -318,6 +318,22 @@ Deno.serve(async (req) => {
     });
   }
 
+  // ⏸️ PAUSED: auto-opening Work Orders from iTouching is temporarily disabled by request.
+  // Re-enable by removing this early return.
+  return new Response(JSON.stringify({
+    ok: true,
+    paused: true,
+    reason: "intouch-poll auto WO creation paused by admin",
+    polled: 0,
+    opened_wos: [],
+    skipped: [],
+    errors: [],
+  }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+
   const results = {
     polled: 0,
     opened_wos: [] as Array<{ machine: string; wo: string }>,
