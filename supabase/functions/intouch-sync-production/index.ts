@@ -584,19 +584,31 @@ function extractActualsByCode(raw: unknown, machines: MachineRef[]): Map<string,
   const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const out = new Map<string, number>();
+  const summed = new Set<string>();
   walkObjectsWithMachine(raw, null, (obj, inheritedMachineRef) => {
     const machineRef = pick(obj, MACHINE_REF_KEYS) ?? inheritedMachineRef;
     if (!sameMachine(machineRef, allowedIds, allowedNames)) return;
-    const code = cleanCode(pick(obj, [
+    const partNumber = pick(obj, ["PartNumber", "Part Number", "Part_No", "PartNo"]);
+    const code = cleanCode(partNumber ?? pick(obj, [
       "PartCode", "Part Code", "ProductCode", "SkuCode", "SKUCode", "SKU", "ItemCode", "ItemNo", "StockCode", "OrderNumber",
     ]));
     if (!code || code.length < 2) return;
     const produced = num(pick(obj, GOOD_QTY_KEYS));
     if (produced <= 0) return;
-    out.set(code, Math.max(out.get(code) ?? 0, produced));
+    // Per-period segment entries (e.g. PartsMade[] from GetProductionProfilePeriodList)
+    // carry PartNumber + GoodParts together and must be SUMMED across periods.
+    // Cumulative payloads (one row per part) should keep the max reading instead.
+    const isSegment = partNumber !== undefined && pick(obj, SEGMENT_GOOD_QTY_KEYS) !== undefined;
+    if (isSegment) {
+      out.set(code, (out.get(code) ?? 0) + produced);
+      summed.add(code);
+    } else if (!summed.has(code)) {
+      out.set(code, Math.max(out.get(code) ?? 0, produced));
+    }
   });
   return out;
 }
+
 
 // Sum any "Good / Produced" values for the allowed machines regardless of SKU
 // code matching. Fallback used when iTouching SKU codes don't line up with
