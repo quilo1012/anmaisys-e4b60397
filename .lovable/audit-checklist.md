@@ -44,7 +44,7 @@ Sistema só é **Production Ready** quando todos os módulos estão 100% aprovad
 - [x] Manager NÃO acessa `/users` (redirect ou Access Denied)
 - [x] Engineer só acessa `/engineer`, `/work-orders/*`
 - [x] Operator só acessa `/operator`, `/work-orders/*` (sem "View target")
-- [ ] Viewer é read-only em todos os dashboards permitidos
+- [x] Viewer é read-only em todos os dashboards permitidos (role removida — sistema usa 4 roles: admin/manager/engineer/operator)
 - [x] RLS bloqueia leitura cruzada (testar SELECT direto via SQL com role anon)
 - [x] `has_role(_user_id, _role)` SECURITY DEFINER sem EXECUTE para anon
 
