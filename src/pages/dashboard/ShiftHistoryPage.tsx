@@ -200,18 +200,17 @@ export default function ShiftHistoryPage() {
           <h1 className="text-2xl font-bold">Production Control</h1>
           <div className="flex items-center gap-2 flex-wrap">
             {isAdmin && (
-              <Button variant="outline" size="sm" onClick={() => {
+              <Button variant="outline" size="sm" onClick={async () => {
+                const XLSX = await import("xlsx");
                 const headers = ["Date","Assembly Number","Work Centre","Product Code","Product Description","Weight","QTY","Start Time","Finish Time","Shift"];
                 const sample = [
                   ["25/06/2026","ASM-0001","Line 1","SKU-001","Sample Product A","0.500","1200","06:00","14:00","DAY"],
                   ["25/06/2026","ASM-0002","Line 2","SKU-002","Sample Product B","0.750","850","18:00","02:00","NIGHT"],
                 ];
-                const csv = [headers, ...sample].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-                const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url; a.download = `production-template-${format(new Date(), "yyyy-MM-dd")}.csv`;
-                a.click(); URL.revokeObjectURL(url);
+                const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Template");
+                XLSX.writeFile(wb, `production-template-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
               }}>
                 <Download className="h-4 w-4 mr-1" />Export Template
               </Button>
