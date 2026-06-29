@@ -112,6 +112,8 @@ export default function LineProductionScreen() {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [assetScope, setAssetScope] = useState<"line" | "sealer_printer">("line");
+  const [targetUnlock, setTargetUnlock] = useState<EngineerIdentity | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
   const activeSessionDate = useMemo(() => sessionDateForShift(shift, now), [shift, now]);
 
   // Operator is locked to current shift — auto-update as time passes.
