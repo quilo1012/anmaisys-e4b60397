@@ -351,11 +351,34 @@ export default function LineProductionScreen() {
     onError: (e: any) => toast.error(e.message || "Sync failed"),
   });
 
+  // Is this line mapped to an iTouching machine? Lines without a mapping
+  // (e.g. Capsules Machine 1/2) are maintenance-only terminals.
+  const currentLineId = useMemo(
+    () => (linesQ.data || []).find((l) => l.name === line)?.id,
+    [linesQ.data, line],
+  );
+  const intouchMapQ = useQuery({
+    enabled: !!currentLineId,
+    queryKey: ["lps-intouch-map", currentLineId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("intouch_machine_map")
+        .select("intouch_machine_id, active")
+        .eq("line_id", currentLineId)
+        .eq("active", true)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { intouch_machine_id: string; active: boolean } | null;
+    },
+  });
+  const hasItouch = !!intouchMapQ.data?.intouch_machine_id;
+
   // Auto-pull live actuals from iTouching for THIS line/shift so the operator
   // screen reflects real production without waiting for the global cron.
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
   useEffect(() => {
-    if (!line || !sessionQ.data?.id) return;
+    if (!line || !sessionQ.data?.id || !hasItouch) return;
     let cancelled = false;
     const run = async () => {
       try {
@@ -374,10 +397,11 @@ export default function LineProductionScreen() {
     run();
     const t = setInterval(run, 60_000);
     return () => { cancelled = true; clearInterval(t); };
-  }, [line, shift, activeSessionDate, sessionQ.data?.id, qc]);
+  }, [line, shift, activeSessionDate, sessionQ.data?.id, hasItouch, qc]);
 
   // True when the sync ran but iTouching did not return a good-count for this line/shift.
   const intouchGoodMissing =
+    hasItouch &&
     !!sessionQ.data &&
     !!lastSyncAt &&
     ((sessionQ.data as any)?.intouch_good_total === null || (sessionQ.data as any)?.intouch_good_total === undefined);
