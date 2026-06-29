@@ -487,9 +487,10 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       };
       const byLine = new Map<string, Merged>();
       for (const sec of activeSections) {
-        if (!sec.matched_line) continue;
-        const m = byLine.get(sec.matched_line) ?? {
-          matched_line: sec.matched_line,
+        const targetLine = sec.matched_line ?? sec.line;
+        if (!targetLine) continue;
+        const m = byLine.get(targetLine) ?? {
+          matched_line: targetLine,
           leader: leaderByLine[sec.line],
           items: new Map(),
         };
@@ -501,7 +502,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
           if (ex) ex.qty += i.qty;
           else m.items.set(sku_id, { sku_id, qty: i.qty });
         }
-        byLine.set(sec.matched_line, m);
+        byLine.set(targetLine, m);
       }
 
       for (const m of byLine.values()) {
