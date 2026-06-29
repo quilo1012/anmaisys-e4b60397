@@ -790,6 +790,7 @@ export default function LineProductionScreen() {
                   item={it}
                   effTarget={effTarget}
                   onOpen={openEditor}
+                  hideTarget={isOperator && !targetUnlock}
                 />
               );
             })}
