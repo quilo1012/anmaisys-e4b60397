@@ -51,39 +51,45 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  // Operations
-  { title: "Dashboard", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Operations" },
-  { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"], group: "Operations" },
-  { title: "My Tasks", url: "/dashboard/engineer?focus=tasks", icon: Briefcase, roles: ["engineer"], group: "Operations" },
-  { title: "History", url: "/dashboard/engineer?focus=history", icon: History, roles: ["engineer"], group: "Operations" },
-  { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
-  { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
-  { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
-  { title: "Downtime Heatmap", url: "/dashboard/downtime-map", icon: BarChart3, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
-  { title: "PM Intelligence", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
-  { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager", "maintenance_manager"], group: "Operations" },
+  // Overview
+  { title: "Dashboard", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Overview" },
+  { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"], group: "Overview" },
+  { title: "My Tasks", url: "/dashboard/engineer?focus=tasks", icon: Briefcase, roles: ["engineer"], group: "Overview" },
+  { title: "History", url: "/dashboard/engineer?focus=history", icon: History, roles: ["engineer"], group: "Overview" },
+  { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager", "maintenance_manager"], group: "Overview" },
+  { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager", "maintenance_manager"], group: "Overview" },
+
+  // Maintenance
+  { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "maintenance_manager"], group: "Maintenance" },
+  { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "maintenance_manager"], group: "Maintenance" },
+  { title: "Downtime Heatmap", url: "/dashboard/downtime-map", icon: BarChart3, roles: ["admin", "manager", "maintenance_manager"], group: "Maintenance" },
+  { title: "PM Intelligence", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "maintenance_manager"], group: "Maintenance" },
+
   // Assets
   { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager", "maintenance_manager"], group: "Assets" },
   { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager", "maintenance_manager"], group: "Assets" },
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "maintenance_manager", "engineer"], group: "Assets" },
+
   // Production
   { title: "Planner", url: "/dashboard/planner", icon: Factory, roles: ["admin", "manager"], group: "Production" },
-  { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager"], group: "Production" },
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager"], group: "Production" },
-  { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production" },
-  { title: "SKU Efficiency", url: "/dashboard/sku-efficiency", icon: Trophy, roles: ["admin", "manager"], group: "Production" },
-  { title: "Forecast", url: "/dashboard/forecast", icon: Calculator, roles: ["admin", "manager"], group: "Production" },
-  { title: "Smart Target", url: "/dashboard/smart-target", icon: Brain, roles: ["admin", "manager"], group: "Production" },
-  { title: "Weekly Report", url: "/dashboard/weekly-report", icon: Brain, roles: ["admin", "manager"], group: "Reports" },
-  
-  { title: "Quality Actions", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager"], group: "Production" },
-  
   { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "maintenance_manager"], group: "Production" },
+  { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production" },
   { title: "Prod. Downtime", url: "/dashboard/production-downtime", icon: TimerOff, roles: ["admin", "manager"], group: "Production" },
+  { title: "Quality Actions", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager"], group: "Production" },
+
+  // Planning & Insights
+  { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager"], group: "Planning" },
+  { title: "SKU Efficiency", url: "/dashboard/sku-efficiency", icon: Trophy, roles: ["admin", "manager"], group: "Planning" },
+  { title: "Forecast", url: "/dashboard/forecast", icon: Calculator, roles: ["admin", "manager"], group: "Planning" },
+  { title: "Smart Target", url: "/dashboard/smart-target", icon: Brain, roles: ["admin", "manager"], group: "Planning" },
+
   // Reports
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "maintenance_manager"], group: "Reports" },
   { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin", "manager", "maintenance_manager"], group: "Reports" },
   { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin"], group: "Reports" },
+  { title: "Weekly Report", url: "/dashboard/weekly-report", icon: FileBarChart, roles: ["admin", "manager"], group: "Reports" },
+
   // Admin
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager", "maintenance_manager"], group: "Admin" },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Admin" },
@@ -92,6 +98,7 @@ const navItems: NavItem[] = [
   { title: "Operator Preview", url: "/dashboard/operator-preview", icon: Gauge, roles: ["admin", "manager", "maintenance_manager"], group: "Admin" },
   { title: "Engineer Preview", url: "/dashboard/engineer-preview", icon: Gauge, roles: ["admin", "manager", "maintenance_manager"], group: "Admin" },
 ];
+
 
 function useDarkMode() {
   const [dark, setDark] = useState(() => {
@@ -127,17 +134,14 @@ function LiveClock() {
 
 function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
   const location = useLocation();
-  const groups = ["Operations", "Assets", "Production", "Reports", "Admin"];
+  const { state } = useSidebar();
+  const iconCollapsed = state === "collapsed";
+  const groups = ["Overview", "Maintenance", "Assets", "Production", "Planning", "Reports", "Admin"];
   const grouped = groups.map((g) => ({
     label: g,
     items: filteredItems.filter((i) => i.group === g),
   })).filter((g) => g.items.length > 0);
 
-  const hideLabels = filteredItems.length <= 4;
-
-  // Custom active check: pathname must match AND the item's query string must
-  // match the current URL's search (so /dashboard/engineer and
-  // /dashboard/engineer?focus=tasks don't both highlight at once).
   const isItemActive = (url: string) => {
     const [path, query = ""] = url.split("?");
     if (location.pathname !== path) return false;
@@ -145,41 +149,67 @@ function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
     return (location.search || "") === itemSearch;
   };
 
+  const groupHasActive = (items: NavItem[]) => items.some((i) => isItemActive(i.url));
+
+  // Only one group is open at a time. Default to the group containing the active route,
+  // or the first group if none. Operator/engineer with very few items: keep all open.
+  const compact = filteredItems.length > 4;
+  const activeGroup = grouped.find((g) => groupHasActive(g.items))?.label ?? grouped[0]?.label ?? null;
+  const [openGroup, setOpenGroup] = useState<string | null>(activeGroup);
+
+  useEffect(() => {
+    const next = grouped.find((g) => groupHasActive(g.items))?.label;
+    if (next) setOpenGroup(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, location.search]);
+
   return (
     <>
-      {grouped.map((group) => (
-        <SidebarGroup key={group.label} className="px-2">
-          {!hideLabels && (
-            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50 px-2">
-              {group.label}
-            </SidebarGroupLabel>
-          )}
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
-              {group.items.map((item) => {
-                const active = isItemActive(item.url);
-                return (
-                  <SidebarMenuItem key={item.title + item.url}>
-                    <SidebarMenuButton asChild tooltip={item.title} className="h-9 rounded-md">
-                      <NavLink
-                        to={item.url}
-                        end
-                        className={`transition-colors ${active ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"}`}
-                      >
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        <span className="text-sm">{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      ))}
+      {grouped.map((group) => {
+        const isOpen = !compact || iconCollapsed || openGroup === group.label;
+        return (
+          <SidebarGroup key={group.label} className="px-2">
+            {compact && !iconCollapsed && (
+              <button
+                type="button"
+                onClick={() => setOpenGroup((prev) => (prev === group.label ? null : group.label))}
+                className="flex w-full items-center justify-between px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
+                aria-expanded={isOpen}
+              >
+                <span>{group.label}</span>
+                <span className={`transition-transform ${isOpen ? "rotate-90" : ""}`}>›</span>
+              </button>
+            )}
+            {isOpen && (
+              <SidebarGroupContent>
+                <SidebarMenu className="gap-0.5">
+                  {group.items.map((item) => {
+                    const active = isItemActive(item.url);
+                    return (
+                      <SidebarMenuItem key={item.title + item.url}>
+                        <SidebarMenuButton asChild tooltip={item.title} className="h-9 rounded-md">
+                          <NavLink
+                            to={item.url}
+                            end
+                            className={`transition-colors ${active ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"}`}
+                          >
+                            <item.icon className="h-4 w-4 shrink-0" />
+                            <span className="text-sm">{item.title}</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            )}
+          </SidebarGroup>
+        );
+      })}
     </>
   );
 }
+
 
 
 
