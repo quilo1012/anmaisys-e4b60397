@@ -36,13 +36,15 @@ const GOOD_QTY_KEYS = [
   "GoodProduct", "GoodProductCount", "GoodQuantityProduced", "QtyGood", "QuantityGood", "TotalGood", "TotalGoodQty",
   "TotalGoodQuantity", "ProducedGood", "ProducedGoodQty", "Produced Good", "Produced Good Qty", "GoodPacks",
   "CurrentShift", "CurrentShiftQty", "CurrentShiftQuantity", "CurrentShiftGood", "ShiftGood", "ShiftGoodQty",
+  "CurrentShiftProduced", "CurrentShiftOutput", "CurrentShiftCount", "CurrentShiftTotal", "TotalCurrentShift",
   "Produced", "ProducedQty", "ProducedQuantity", "ProducedCount", "QuantityProduced",
   "ActualQty", "ActualQuantity", "Actual", "Output", "OutputQty", "TotalProduced", "CompletedQuantity",
   "CompletedQty", "AlreadyMade", "QuantityMade", "MadeQuantity", "Made", "MadeQty", "Done", "DoneQty",
-  "Completed", "CompletedCount", "QtyCompleted", "QuantityCompleted", "TotalCompleted",
+  "Completed", "CompletedCount", "QtyCompleted", "QuantityCompleted", "TotalCompleted", "QtyComplete",
   "Production", "ProductionQty", "ProductionQuantity", "ProductionCount", "ProductionTotal",
   "NetProduction", "NetProductionQty", "NetQuantity", "NetQty", "Accepted", "AcceptedQty",
-  "Packed", "PackedQty", "PackCount", "UnitCount", "UnitsMade", "UnitsProduced", "CountGood",
+  "AcceptedQuantity", "Packed", "PackedQty", "PackCount", "UnitCount", "UnitsMade", "UnitsProduced", "CountGood",
+  "Counter", "CounterValue", "GoodCounter", "CurrentCount", "ShiftCounter", "ShiftOutput", "ShiftTotal", "ShiftCount",
 ];
 
 function logSync(event: string, details: Record<string, unknown>) {
@@ -50,6 +52,37 @@ function logSync(event: string, details: Record<string, unknown>) {
     console.log(`[intouch-sync-production] ${event}`, JSON.stringify(details).slice(0, 3000));
   } catch {
     console.log(`[intouch-sync-production] ${event}`);
+  }
+}
+
+function logSyncChunks(event: string, details: Record<string, unknown>, maxChars = 16_000) {
+  let payload = "";
+  try {
+    payload = JSON.stringify(details).slice(0, maxChars);
+  } catch {
+    payload = String(details).slice(0, maxChars);
+  }
+  const chunkSize = 2800;
+  const total = Math.max(1, Math.ceil(payload.length / chunkSize));
+  for (let i = 0; i < total; i += 1) {
+    console.log(`[intouch-sync-production] ${event}`, JSON.stringify({
+      chunk: i + 1,
+      chunks: total,
+      data: payload.slice(i * chunkSize, (i + 1) * chunkSize),
+    }));
+  }
+}
+
+function sanitizedIntouchBaseUrl() {
+  try {
+    const u = new URL(INTOUCH_URL);
+    u.username = "";
+    u.password = "";
+    u.search = "";
+    u.hash = "";
+    return u.toString().replace(/\/+$/, "");
+  } catch {
+    return INTOUCH_URL.replace(/\/\/[^/@]+@/, "//***@").split(/[?#]/)[0].replace(/\/+$/, "");
   }
 }
 
@@ -135,7 +168,7 @@ async function it(path: string, init?: RequestInit) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
-async function tryIt(path: string, init?: RequestInit, debug?: { stage: string; line?: string; machines?: MachineRef[] }) {
+async function tryIt(path: string, init?: RequestInit, debug?: { stage: string; line?: string; machines?: MachineRef[]; raw?: boolean }) {
   try {
     const raw = await it(path, init);
     if (debug) {
@@ -146,6 +179,15 @@ async function tryIt(path: string, init?: RequestInit, debug?: { stage: string; 
         method: init?.method ?? "GET",
         stats: inspectPayload(raw, debug.machines),
       });
+      if (debug.raw) {
+        logSyncChunks("itouch_response_raw", {
+          stage: debug.stage,
+          line: debug.line ?? null,
+          path: pathOnly(path),
+          method: init?.method ?? "GET",
+          raw,
+        });
+      }
     }
     return raw;
   } catch (e) {
