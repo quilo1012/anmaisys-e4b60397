@@ -478,26 +478,47 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
         createdSkus = inserted?.length ?? 0;
       }
 
+      // Merge sections that resolve to the same line so we don't overwrite
+      // items when two parsed machines map to the same DB line.
+      type Merged = {
+        matched_line: string;
+        leader?: { id?: string; name: string };
+        items: Map<string, { sku_id: string; qty: number }>; // key = sku_id
+      };
+      const byLine = new Map<string, Merged>();
       for (const sec of activeSections) {
         if (!sec.matched_line) continue;
-        const lead = leaderByLine[sec.line];
+        const m = byLine.get(sec.matched_line) ?? {
+          matched_line: sec.matched_line,
+          leader: leaderByLine[sec.line],
+          items: new Map(),
+        };
+        if (!m.leader?.name) m.leader = leaderByLine[sec.line] ?? m.leader;
+        for (const i of sec.items) {
+          const sku_id = i.sku_id ?? newSkuMap.get(i.sku_code.trim().toUpperCase());
+          if (!sku_id) continue;
+          const ex = m.items.get(sku_id);
+          if (ex) ex.qty += i.qty;
+          else m.items.set(sku_id, { sku_id, qty: i.qty });
+        }
+        byLine.set(sec.matched_line, m);
+      }
+
+      for (const m of byLine.values()) {
         const session = await upsertSession.mutateAsync({
           session_date: date,
           shift,
-          line: sec.matched_line,
-          leader_id: lead?.id ?? null,
-          leader_name: lead?.name?.trim() || null,
+          line: m.matched_line,
+          leader_id: m.leader?.id ?? null,
+          leader_name: m.leader?.name?.trim() || null,
           staff_planned: 0,
           staff_actual: 0,
           notes: null,
         });
         okSessions++;
-        const items = sec.items
-          .map((i) => {
-            const sku_id = i.sku_id ?? newSkuMap.get(i.sku_code.trim().toUpperCase());
-            return sku_id ? { sku_id, target_qty: i.qty, planned_qty: i.qty, actual_qty: 0, notes: null } : null;
-          })
-          .filter((x): x is NonNullable<typeof x> => !!x);
+        const items = Array.from(m.items.values()).map((i) => ({
+          sku_id: i.sku_id, target_qty: i.qty, planned_qty: i.qty, actual_qty: 0, notes: null,
+        }));
         await saveItems.mutateAsync({ session_id: session.id, items });
         okItems += items.length;
       }
