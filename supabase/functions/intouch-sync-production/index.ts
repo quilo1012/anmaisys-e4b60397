@@ -38,6 +38,10 @@ const GOOD_QTY_KEYS = [
   "Produced", "ProducedQty", "ProducedQuantity", "ProducedCount", "QuantityProduced",
   "ActualQty", "ActualQuantity", "Actual", "Output", "OutputQty", "TotalProduced", "CompletedQuantity",
   "CompletedQty", "AlreadyMade", "QuantityMade", "MadeQuantity", "Made", "MadeQty", "Done", "DoneQty",
+  "Completed", "CompletedCount", "QtyCompleted", "QuantityCompleted", "TotalCompleted",
+  "Production", "ProductionQty", "ProductionQuantity", "ProductionCount", "ProductionTotal",
+  "NetProduction", "NetProductionQty", "NetQuantity", "NetQty", "Accepted", "AcceptedQty",
+  "Packed", "PackedQty", "PackCount", "UnitCount", "UnitsMade", "UnitsProduced", "CountGood",
 ];
 
 function logSync(event: string, details: Record<string, unknown>) {
@@ -290,12 +294,29 @@ function inspectPayload(raw: unknown, machines?: MachineRef[]) {
   let goodFieldHits = 0;
   const goodFields = new Set<string>();
   const samples: Array<{ machineRef: string; matched: boolean; field: string; raw: string; parsed: number }> = [];
+  const matchedNumericSamples: Array<{ machineRef: string; keys: Record<string, number | string> }> = [];
   walkObjectsWithMachine(raw, null, (obj, inheritedMachineRef) => {
     objects += 1;
     const machineRef = pick(obj, MACHINE_REF_KEYS) ?? inheritedMachineRef;
+    const matched = machines ? sameMachine(machineRef, allowedIds, allowedNames) : true;
     if (machineRef != null && String(machineRef).trim() !== "") {
       machineRefs += 1;
-      if (!machines || sameMachine(machineRef, allowedIds, allowedNames)) matchedMachineRefs += 1;
+      if (matched) matchedMachineRefs += 1;
+    }
+    if (matched && matchedNumericSamples.length < 6) {
+      const keys: Record<string, number | string> = {};
+      for (const [key, rawValue] of Object.entries(obj)) {
+        if (rawValue == null || typeof rawValue === "object") continue;
+        if (/id|guid|token|hash|password|pin/i.test(key)) continue;
+        const parsed = num(rawValue);
+        if (parsed > 0 || /qty|quant|good|made|count|total|actual|prod|complete|shift|output|units|balance|target|plan/i.test(key)) {
+          keys[key] = Number.isFinite(parsed) && parsed !== 0 ? parsed : String(rawValue).slice(0, 80);
+        }
+        if (Object.keys(keys).length >= 20) break;
+      }
+      if (Object.keys(keys).length > 0) {
+        matchedNumericSamples.push({ machineRef: String(machineRef ?? "").slice(0, 80), keys });
+      }
     }
     for (const key of GOOD_QTY_KEYS) {
       if (obj?.[key] !== undefined && obj?.[key] !== null && String(obj[key]).trim() !== "") {
@@ -305,7 +326,7 @@ function inspectPayload(raw: unknown, machines?: MachineRef[]) {
           const rawValue = obj[key];
           samples.push({
             machineRef: String(machineRef ?? "").slice(0, 80),
-            matched: machines ? sameMachine(machineRef, allowedIds, allowedNames) : true,
+            matched,
             field: key,
             raw: typeof rawValue === "object" ? JSON.stringify(rawValue).slice(0, 160) : String(rawValue).slice(0, 160),
             parsed: num(rawValue),
@@ -321,6 +342,7 @@ function inspectPayload(raw: unknown, machines?: MachineRef[]) {
     good_field_hits: goodFieldHits,
     good_fields: Array.from(goodFields).slice(0, 20),
     good_samples: samples,
+    matched_numeric_samples: matchedNumericSamples,
     extracted_line_good: machines ? extractLineGoodTotal(raw, machines) : undefined,
     extracted_actual_codes: machines ? extractActualsByCode(raw, machines).size : undefined,
   };
