@@ -575,6 +575,33 @@ export default function IntouchSettingsPage() {
           </Card>
         )}
 
+        <Card className={autoWoEnabled ? "border-emerald-500/50" : "border-amber-500/50"}>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5" />
+                Auto Work Orders from iTouching stop codes
+              </span>
+              <span className={"text-xs font-semibold px-2 py-1 rounded " + (autoWoEnabled ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/15 text-amber-700 dark:text-amber-300")}>
+                {autoWoEnabled ? "ON" : "OFF"}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              When ON, the iTouching poller opens Work Orders automatically when a mapped machine enters a downtime state with an approved stop code. When OFF, the poll still runs but no order is created.
+            </p>
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={autoWoEnabled}
+                onCheckedChange={toggleAutoWo}
+                disabled={togglingAutoWo}
+              />
+              <span className="text-sm">{autoWoEnabled ? "Enabled — orders will be opened automatically" : "Disabled — no automatic orders"}</span>
+            </div>
+          </CardContent>
+        </Card>
+
 
         <Card className="border-primary/40">
           <CardHeader>
