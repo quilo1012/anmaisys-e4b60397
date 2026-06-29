@@ -1,0 +1,1 @@
+ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS intouch_auto_wo_enabled boolean NOT NULL DEFAULT false;

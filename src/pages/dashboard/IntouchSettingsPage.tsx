@@ -132,6 +132,8 @@ export default function IntouchSettingsPage() {
 
   const [syncDisabled, setSyncDisabled] = useState<boolean>(false);
   const [togglingFlag, setTogglingFlag] = useState(false);
+  const [autoWoEnabled, setAutoWoEnabled] = useState<boolean>(false);
+  const [togglingAutoWo, setTogglingAutoWo] = useState(false);
   const [resyncingAll, setResyncingAll] = useState(false);
   const [resyncResult, setResyncResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -163,7 +165,7 @@ export default function IntouchSettingsPage() {
     (async () => {
       const { data, error } = await (supabase as any)
         .from("system_settings")
-        .select("id, intouch_sync_enabled")
+        .select("id, intouch_sync_enabled, intouch_auto_wo_enabled")
         .limit(1)
         .maybeSingle();
       if (error) {
@@ -171,9 +173,27 @@ export default function IntouchSettingsPage() {
         toast.error(`Failed to load iTouching settings: ${error.message}`);
         return;
       }
-      if (data) setSyncDisabled(data.intouch_sync_enabled === false);
+      if (data) {
+        setSyncDisabled(data.intouch_sync_enabled === false);
+        setAutoWoEnabled(data.intouch_auto_wo_enabled === true);
+      }
     })();
   }, []);
+
+  const toggleAutoWo = async (enabled: boolean) => {
+    setTogglingAutoWo(true);
+    const { data: row } = await (supabase as any)
+      .from("system_settings").select("id").limit(1).maybeSingle();
+    if (!row?.id) { toast.error("system_settings row missing"); setTogglingAutoWo(false); return; }
+    const { error } = await (supabase as any)
+      .from("system_settings")
+      .update({ intouch_auto_wo_enabled: enabled })
+      .eq("id", row.id);
+    setTogglingAutoWo(false);
+    if (error) { toast.error(error.message); return; }
+    setAutoWoEnabled(enabled);
+    toast.success(enabled ? "Auto WO from iTouching: ON" : "Auto WO from iTouching: OFF");
+  };
 
 
   const toggleSync = async (disabled: boolean) => {
@@ -554,6 +574,33 @@ export default function IntouchSettingsPage() {
             </CardContent>
           </Card>
         )}
+
+        <Card className={autoWoEnabled ? "border-emerald-500/50" : "border-amber-500/50"}>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5" />
+                Auto Work Orders from iTouching stop codes
+              </span>
+              <span className={"text-xs font-semibold px-2 py-1 rounded " + (autoWoEnabled ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/15 text-amber-700 dark:text-amber-300")}>
+                {autoWoEnabled ? "ON" : "OFF"}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              When ON, the iTouching poller opens Work Orders automatically when a mapped machine enters a downtime state with an approved stop code. When OFF, the poll still runs but no order is created.
+            </p>
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={autoWoEnabled}
+                onCheckedChange={toggleAutoWo}
+                disabled={togglingAutoWo}
+              />
+              <span className="text-sm">{autoWoEnabled ? "Enabled — orders will be opened automatically" : "Disabled — no automatic orders"}</span>
+            </div>
+          </CardContent>
+        </Card>
 
 
         <Card className="border-primary/40">
