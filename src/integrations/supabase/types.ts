@@ -590,6 +590,33 @@ export type Database = {
         }
         Relationships: []
       }
+      leader_pins: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          pin_hash: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          pin_hash: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          pin_hash?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       line_leaders: {
         Row: {
           active: boolean
@@ -2765,6 +2792,7 @@ export type Database = {
         Args: { _entry_date: string; _line: string; _shift: string }
         Returns: Json
       }
+      create_leader: { Args: { _name: string; _pin: string }; Returns: string }
       current_device_line: { Args: never; Returns: string }
       current_device_line_ids: { Args: never; Returns: string[] }
       current_device_token: { Args: never; Returns: string }
@@ -2772,6 +2800,7 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      delete_leader: { Args: { _id: string }; Returns: undefined }
       finish_wo_with_pin: {
         Args: { _pin: string; _signed_by_name?: string; _wo_id: string }
         Returns: Json
@@ -2802,6 +2831,15 @@ export type Database = {
         Args: never
         Returns: {
           id: string
+          name: string
+        }[]
+      }
+      list_leaders: {
+        Args: never
+        Returns: {
+          created_at: string
+          id: string
+          is_active: boolean
           name: string
         }[]
       }
@@ -2872,6 +2910,10 @@ export type Database = {
       }
       touch_device: { Args: { _token: string }; Returns: undefined }
       unpair_device: { Args: { _device_id: string }; Returns: undefined }
+      update_leader: {
+        Args: { _active?: boolean; _id: string; _name?: string; _pin?: string }
+        Returns: undefined
+      }
       verify_admin_pin: { Args: { _pin: string }; Returns: boolean }
       verify_engineer_pin: {
         Args: { _pin: string; _user_id: string }
