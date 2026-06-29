@@ -171,31 +171,31 @@ Sistema só é **Production Ready** quando todos os módulos estão 100% aprovad
 ## 5. ALERTAS & NOTIFICAÇÕES
 
 ### 5.1 Sirene Crítica (CriticalAlertContext)
-- [ ] Sirene toca UMA VEZ por WO (testado em `woAlertGate.test.ts`)
-- [ ] Filtro de linha por engineer: vazio = todas; `line_id=null` sempre alerta
-- [ ] Volume slider 0-100% persiste em localStorage
-- [ ] Toggle On/Off funciona
-- [ ] Botão "Test Siren" reproduz som de teste
-- [ ] Re-unlock fallback: após autoplay bloqueado, primeiro clique resume sirene
+- [x] Sirene toca UMA VEZ por WO (testado em `woAlertGate.test.ts`)
+- [x] Filtro de linha por engineer: vazio = todas; `line_id=null` sempre alerta
+- [x] Volume slider 0-100% persiste em localStorage
+- [x] Toggle On/Off funciona
+- [x] Botão "Test Siren" reproduz som de teste
+- [x] Re-unlock fallback: após autoplay bloqueado, primeiro clique resume sirene
 
 ### 5.2 Push & Bell
-- [ ] Service Worker `public/sw.js` registra com sucesso
-- [ ] Push notification recebida em desktop e mobile
+- [x] Service Worker `public/sw.js` registra com sucesso
+- [x] Push notification recebida em desktop e mobile
 - [ ] Clique no push abre deep link para WO
-- [ ] Bell badge mostra contagem realtime
-- [ ] Notifications Center lista histórico ordenado
+- [x] Bell badge mostra contagem realtime
+- [x] Notifications Center lista histórico ordenado
 
 ### 5.3 Canais Externos
-- [ ] Teams webhook envia mensagem formatada sem HTML injection
-- [ ] Email Resend entrega Daily RAG Report
-- [ ] Email Resend entrega Shift Report
+- [x] Teams webhook envia mensagem formatada sem HTML injection
+- [x] Email Resend entrega Daily RAG Report
+- [x] Email Resend entrega Shift Report
 - [ ] Falha de envio é logada em `teams_webhook_logs`
 - [ ] Retries com backoff em falha transitória
 
 ### 5.4 Triggers
-- [ ] `requires_wo=true` no stop code dispara push + bell + sirene
-- [ ] Low stock dispara notificação para admin
-- [ ] WO crítica nova alerta engineers do turno
+- [x] `requires_wo=true` no stop code dispara push + bell + sirene
+- [x] Low stock dispara notificação para admin
+- [x] WO crítica nova alerta engineers do turno
 
 ---
 
