@@ -834,10 +834,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                               <tr>
                                 <th className="text-left px-3 py-2 w-10">#</th>
                                 <th className="text-left px-3 py-2">Status</th>
-                                <th className="text-left px-3 py-2">Code</th>
-                                <th className="text-left px-3 py-2">Description</th>
+                                <th className="text-left px-3 py-2">SKU</th>
+                                <th className="text-left px-3 py-2">Product Description</th>
                                 <th className="text-right px-3 py-2">Qty</th>
-                                <th className="text-left px-3 py-2">Catalog</th>
                               </tr>
                             </thead>
                             <tbody>
