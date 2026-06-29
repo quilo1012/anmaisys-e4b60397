@@ -114,10 +114,15 @@ export default function IntouchStopCodesPage() {
             <SelectTrigger><SelectValue placeholder="Priority" /></SelectTrigger>
             <SelectContent>{PRIORITIES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
           </Select>
-          <Select value={newRow.category ?? "Other"} onValueChange={(v) => setNewRow({ ...newRow, category: v })}>
-            <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
-            <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-          </Select>
+          <Input
+            list="category-options"
+            placeholder="Category"
+            value={newRow.category ?? ""}
+            onChange={(e) => setNewRow({ ...newRow, category: e.target.value || null })}
+          />
+          <datalist id="category-options">
+            {CATEGORIES.map((c) => <option key={c} value={c} />)}
+          </datalist>
           <Select value={newRow.line_hint ?? "none"} onValueChange={(v) => setNewRow({ ...newRow, line_hint: v === "none" ? null : v })}>
             <SelectTrigger><SelectValue placeholder="Line (optional)" /></SelectTrigger>
             <SelectContent>
@@ -186,12 +191,12 @@ export default function IntouchStopCodesPage() {
                           </Select>
                         </TableCell>
                         <TableCell>
-                          <Select value={m.category ?? "Other"}
-                            onValueChange={(v) => patch(r.id, { category: v })}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>{CATEGORIES.map((c) =>
-                              <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                          </Select>
+                          <Input
+                            list="category-options"
+                            value={m.category ?? ""}
+                            placeholder="Category"
+                            onChange={(e) => patch(r.id, { category: e.target.value || null })}
+                          />
                         </TableCell>
                         <TableCell>
                           <Select value={m.line_hint ?? "none"}
