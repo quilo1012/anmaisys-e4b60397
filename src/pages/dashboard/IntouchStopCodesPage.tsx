@@ -186,12 +186,12 @@ export default function IntouchStopCodesPage() {
                           </Select>
                         </TableCell>
                         <TableCell>
-                          <Select value={m.category ?? "Other"}
-                            onValueChange={(v) => patch(r.id, { category: v })}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>{CATEGORIES.map((c) =>
-                              <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                          </Select>
+                          <Input
+                            list="category-options"
+                            value={m.category ?? ""}
+                            placeholder="Category"
+                            onChange={(e) => patch(r.id, { category: e.target.value || null })}
+                          />
                         </TableCell>
                         <TableCell>
                           <Select value={m.line_hint ?? "none"}
