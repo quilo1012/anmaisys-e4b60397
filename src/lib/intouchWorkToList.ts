@@ -124,8 +124,16 @@ function findHeaderIndexes(cols: string[]) {
   return { idxCode, idxQty, idxDesc, idxLine, found: idxCode !== -1 && idxQty !== -1 };
 }
 
+function stripAlias(name: string): string {
+  // iTouching headers like "Filler Line 1 / Filler - Line 1" are a single
+  // machine — only the text BEFORE the "/" is the real line name; the part
+  // after is just a display alias. Same for " - " separators.
+  return name.split("/")[0].trim();
+}
+
 function ensureSection(sections: WorkToListSection[], line: string): WorkToListSection {
-  const cleanLine = (line || "Imported Plan").replace(/\s*[-–—]\s*/g, " ").replace(/\s+/g, " ").trim() || "Imported Plan";
+  const base = stripAlias(line || "");
+  const cleanLine = (base || "Imported Plan").replace(/\s*[-–—]\s*/g, " ").replace(/\s+/g, " ").trim() || "Imported Plan";
   let section = sections.find((s) => norm(s.line) === norm(cleanLine));
   if (!section) {
     section = { line: cleanLine, items: [] };
@@ -269,26 +277,8 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
     });
   }
 
-  // Split combined section headers (e.g. "Filler Line 1 / Filler - Line 2",
-  // "Line 3 & Line 4", "Filler 5, Filler 6") into one section per line —
-  // iTouching pairs even/odd lines under a single "Machine:" header, which
-  // previously caused the second (even) line to silently disappear.
-  const expanded: WorkToListSection[] = [];
-  for (const s of sections) {
-    const parts = s.line.split(/\s*[\/&+,]\s*/).map((p) => p.trim()).filter(Boolean);
-    if (parts.length > 1) {
-      for (const p of parts) {
-        const sec = ensureSection(expanded, p);
-        sec.items.push(...s.items.map((it) => ({ ...it })));
-      }
-    } else {
-      const sec = ensureSection(expanded, s.line);
-      sec.items.push(...s.items.map((it) => ({ ...it })));
-    }
-  }
-
   // Aggregate by sku_code within each section
-  for (const s of expanded) {
+  for (const s of sections) {
     const agg = new Map<string, WorkToListRow>();
     for (const it of s.items) {
       const ex = agg.get(it.sku_code);
@@ -297,7 +287,7 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
     }
     s.items = Array.from(agg.values());
   }
-  return expanded.filter((s) => s.items.length > 0);
+  return sections.filter((s) => s.items.length > 0);
 }
 
 // Find the section whose line name matches the selected line (loose match).
