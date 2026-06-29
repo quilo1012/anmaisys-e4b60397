@@ -61,38 +61,38 @@ Sistema só é **Production Ready** quando todos os módulos estão 100% aprovad
 ## 2. WORK ORDERS
 
 ### 2.1 Lifecycle
-- [ ] Criar WO via Operator Panel (campos opcionais permitidos)
-- [ ] Criar WO retroativa com data manual passada
-- [ ] Iniciar WO (PIN engineer obrigatório)
-- [ ] Pausar WO com `pause_reason` obrigatório
-- [ ] Retomar WO pausada (timer continua de onde parou)
-- [ ] Finalizar WO (cria `machine_events` row)
-- [ ] Fechar WO finalizada
-- [ ] Reabrir WO como recorrência (`reopen_wo_as_recurrence` reusa mesmo `wo_number`, incrementa `wo_episode`)
-- [ ] Force Action (admin) com confirm dialog grava em audit log
-- [ ] Numeração `WO-YYYY-000XXX` sequencial sem gaps
+- [x] Criar WO via Operator Panel (campos opcionais permitidos)
+- [x] Criar WO retroativa com data manual passada
+- [x] Iniciar WO (PIN engineer obrigatório)
+- [x] Pausar WO com `pause_reason` obrigatório
+- [x] Retomar WO pausada (timer continua de onde parou)
+- [x] Finalizar WO (cria `machine_events` row)
+- [x] Fechar WO finalizada
+- [x] Reabrir WO como recorrência (`reopen_wo_as_recurrence` reusa mesmo `wo_number`, incrementa `wo_episode`)
+- [x] Force Action (admin) com confirm dialog grava em audit log
+- [x] Numeração `WO-YYYY-000XXX` sequencial sem gaps
 
 ### 2.2 Engineer Workflow
-- [ ] PIN persiste em sessionStorage durante a sessão
-- [ ] Live timer auto-atualiza tempo decorrido (segundos)
-- [ ] Upload de foto comprime para ~1MB, salva em bucket `wo-photos`
-- [ ] Foto carrega via Signed URL (não pública)
-- [ ] Assinatura touch (canvas) salva como base64/blob
-- [ ] Adicionar peça deduz estoque automaticamente (FIFO)
-- [ ] Bloqueio quando saldo de peça = 0
+- [x] PIN persiste em sessionStorage durante a sessão
+- [x] Live timer auto-atualiza tempo decorrido (segundos)
+- [x] Upload de foto comprime para ~1MB, salva em bucket `wo-photos`
+- [x] Foto carrega via Signed URL (não pública)
+- [x] Assinatura touch (canvas) salva como base64/blob
+- [x] Adicionar peça deduz estoque automaticamente (FIFO)
+- [x] Bloqueio quando saldo de peça = 0
 
 ### 2.3 SLA & Alertas
-- [ ] SLA Low=2h, Medium=1h, High=30m, Critical=10m
-- [ ] Default ao criar = Medium
-- [ ] WO em "In Progress" há >72h ganha badge laranja "Stale"
-- [ ] Auto-shift filter em `/work-orders` baseado no relógio London (BST/GMT)
-- [ ] Filtro persiste durante a navegação dentro do shift atual
+- [x] SLA Low=2h, Medium=1h, High=30m, Critical=10m
+- [x] Default ao criar = Medium
+- [x] WO em "In Progress" há >72h ganha badge laranja "Stale"
+- [x] Auto-shift filter em `/work-orders` baseado no relógio London (BST/GMT)
+- [x] Filtro persiste durante a navegação dentro do shift atual
 
 ### 2.4 Outros
-- [ ] PDF gerado via `generate-wo-pdf-auth` contém todos os campos + fotos
-- [ ] Audit log registra cada transição de status (`work_order_logs`)
-- [ ] Cascading delete remove `wo_messages`, `wo_photos`, `wo_pauses`, `parts_used`
-- [ ] Tempo total formatado como "Xh Ym" (helper `formatDuration`)
+- [x] PDF gerado via `generate-wo-pdf-auth` contém todos os campos + fotos
+- [x] Audit log registra cada transição de status (`work_order_logs`)
+- [x] Cascading delete remove `wo_messages`, `wo_photos`, `wo_pauses`, `parts_used`
+- [x] Tempo total formatado como "Xh Ym" (helper `formatDuration`)
 
 ---
 
