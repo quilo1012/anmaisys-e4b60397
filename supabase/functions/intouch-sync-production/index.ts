@@ -212,7 +212,23 @@ function cleanCode(value: unknown) {
 }
 
 function num(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "boolean") return value ? 1 : 0;
+  if (Array.isArray(value)) {
+    return value.reduce((max, item) => Math.max(max, num(item)), 0);
+  }
+  if (value && typeof value === "object") {
+    const nested = pick(value as any, [
+      "Value", "value", "Qty", "qty", "Quantity", "quantity", "Count", "count", "Amount", "amount",
+      "Total", "total", "Actual", "actual", "Good", "good", "Produced", "produced", "AlreadyMade", "alreadyMade",
+    ]);
+    if (nested !== undefined) return num(nested);
+    return 0;
+  }
+  const raw = String(value ?? "").trim();
+  const firstNumber = raw.match(/-?\d[\d,\.\s]*/)?.[0] ?? raw;
   const cleaned = String(value ?? "")
+  const cleaned = firstNumber
     .replace(/[^\d,.-]/g, "")
     .replace(/,(?=\d{3}(\D|$))/g, "")
     .replace(/\s/g, "");
@@ -239,6 +255,17 @@ function walkObjects(value: unknown, visit: (obj: any) => void) {
   for (const item of Object.values(value)) walkObjects(item, visit);
 }
 
+function walkObjectsWithMachine(value: unknown, inheritedMachineRef: unknown, visit: (obj: any, machineRef: unknown) => void) {
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    for (const item of value) walkObjectsWithMachine(item, inheritedMachineRef, visit);
+    return;
+  }
+  const currentMachineRef = pick(value as any, MACHINE_REF_KEYS) ?? inheritedMachineRef;
+  visit(value, currentMachineRef);
+  for (const item of Object.values(value)) walkObjectsWithMachine(item, currentMachineRef, visit);
+}
+
 function sameMachine(value: unknown, allowedIds: Set<string>, allowedNames: Set<string>) {
   const raw = String(value ?? "").trim();
   if (!raw) return true;
@@ -254,6 +281,7 @@ function inspectPayload(raw: unknown, machines?: MachineRef[]) {
   let matchedMachineRefs = 0;
   let goodFieldHits = 0;
   const goodFields = new Set<string>();
+  const samples: Array<{ machineRef: string; matched: boolean; field: string; raw: string; parsed: number }> = [];
   walkObjects(raw, (obj) => {
     objects += 1;
     const machineRef = pick(obj, MACHINE_REF_KEYS);
@@ -265,6 +293,16 @@ function inspectPayload(raw: unknown, machines?: MachineRef[]) {
       if (obj?.[key] !== undefined && obj?.[key] !== null && String(obj[key]).trim() !== "") {
         goodFieldHits += 1;
         goodFields.add(key);
+        if (samples.length < 8) {
+          const rawValue = obj[key];
+          samples.push({
+            machineRef: String(machineRef ?? "").slice(0, 80),
+            matched: machines ? sameMachine(machineRef, allowedIds, allowedNames) : true,
+            field: key,
+            raw: typeof rawValue === "object" ? JSON.stringify(rawValue).slice(0, 160) : String(rawValue).slice(0, 160),
+            parsed: num(rawValue),
+          });
+        }
       }
     }
   });
@@ -274,6 +312,7 @@ function inspectPayload(raw: unknown, machines?: MachineRef[]) {
     matched_machine_refs: matchedMachineRefs,
     good_field_hits: goodFieldHits,
     good_fields: Array.from(goodFields).slice(0, 20),
+    good_samples: samples,
     extracted_line_good: machines ? extractLineGoodTotal(raw, machines) : undefined,
     extracted_actual_codes: machines ? extractActualsByCode(raw, machines).size : undefined,
   };
