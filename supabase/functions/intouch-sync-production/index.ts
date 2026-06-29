@@ -290,9 +290,9 @@ function inspectPayload(raw: unknown, machines?: MachineRef[]) {
   let goodFieldHits = 0;
   const goodFields = new Set<string>();
   const samples: Array<{ machineRef: string; matched: boolean; field: string; raw: string; parsed: number }> = [];
-  walkObjects(raw, (obj) => {
+  walkObjectsWithMachine(raw, null, (obj, inheritedMachineRef) => {
     objects += 1;
-    const machineRef = pick(obj, MACHINE_REF_KEYS);
+    const machineRef = pick(obj, MACHINE_REF_KEYS) ?? inheritedMachineRef;
     if (machineRef != null && String(machineRef).trim() !== "") {
       machineRefs += 1;
       if (!machines || sameMachine(machineRef, allowedIds, allowedNames)) matchedMachineRefs += 1;
@@ -489,6 +489,21 @@ async function fetchActualsForLine(machines: MachineRef[], startISO: string, end
   mergeScrap(extractScrapByCode(statuses, machines));
   mergeMetrics(statuses);
   mergeLineGood(statuses);
+
+  // iTouching's tablet/web UI often shows the current-shift Produced Good on
+  // the scheduled-jobs app endpoint, not on the historical JobsRan endpoints.
+  // Query it per machine because this endpoint accepts MachineID only.
+  for (const machine of machines) {
+    const scheduled = await tryIt(
+      `/api/appapi/getscheduledjobs?MachineID=${encodeURIComponent(machine.id)}`,
+      { method: "GET" },
+      { stage: "actuals_app_scheduled_jobs", line: context?.line, machines: [machine] },
+    );
+    merge(extractActualsByCode(scheduled, [machine]));
+    mergeScrap(extractScrapByCode(scheduled, [machine]));
+    mergeMetrics(scheduled);
+    mergeLineGood(scheduled);
+  }
 
   // Running jobs (current SKU + live counts)
   const running = await tryIt("/api/GetRunningJobs", { method: "GET" }, { stage: "actuals_running_jobs", line: context?.line, machines });
