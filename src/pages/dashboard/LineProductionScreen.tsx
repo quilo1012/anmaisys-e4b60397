@@ -304,11 +304,15 @@ export default function LineProductionScreen() {
     const ragTotal = ragPlanQ.data || 0;
     // RAG Weekly plan_qty is the single source of truth for the shift target.
     const target = ragTotal;
-    const actual = items.reduce((s, i) => s + (i.actual_qty || 0), 0);
+    // Current Shift = live iTouching good total (independent of operator edits).
+    // Fall back to the per-SKU sum only until the first iTouching sync stamps the session.
+    const itouchTotal = Number((sessionQ.data as any)?.intouch_good_total ?? 0);
+    const itemsSum = items.reduce((s, i) => s + (i.actual_qty || 0), 0);
+    const actual = itouchTotal > 0 ? itouchTotal : itemsSum;
     const remaining = Math.max(0, target - actual);
     const pct = target > 0 ? (actual / target) * 100 : 0;
     return { target, actual, remaining, pct };
-  }, [items, ragPlanQ.data]);
+  }, [items, ragPlanQ.data, sessionQ.data]);
 
   const updateActual = useMutation({
     mutationFn: async ({ id, value }: { id: string; value: number }) => {
