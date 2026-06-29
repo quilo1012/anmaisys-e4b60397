@@ -101,7 +101,7 @@ export default function LineProductionScreen() {
   const isOperator = role === "operator";
   const [line, setLine] = useState<string>(() => localStorage.getItem(LS_LINE_KEY) || "");
   const [tabletId, setTabletId] = useState<string>(() => localStorage.getItem(LS_TABLET_KEY) || EDIT_TABLET_ID);
-  const canEdit = tabletId === EDIT_TABLET_ID || isOperator;
+  const canEdit = true; // tablet is fixed via operator account; any paired tablet can edit its own line
   const [shift, setShift] = useState<Shift>(currentShift());
   const [now, setNow] = useState<Date>(new Date());
   const [editing, setEditing] = useState<ItemRow | null>(null);
