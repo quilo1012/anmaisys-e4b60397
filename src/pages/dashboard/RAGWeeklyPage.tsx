@@ -310,7 +310,7 @@ export default function RAGWeeklyPage() {
 
 
 
-  const { autoDtMap, autoDtMaintMap, autoDtQualityMap, autoDtBreakdown } = useMemo(() => {
+  const { autoDtMap, autoDtBucketMap, autoDtBreakdown } = useMemo(() => {
     const byLine = new Map<string, StopDetail[]>();
     for (const s of lineStops) {
       const arr = byLine.get(s.line) ?? [];
@@ -318,25 +318,37 @@ export default function RAGWeeklyPage() {
       byLine.set(s.line, arr);
     }
     const out = new Map<string, number>();
-    const outMaint = new Map<string, number>();
-    const outQuality = new Map<string, number>();
+    // bucket -> (cellKey -> minutes)
+    const buckets = new Map<string, Map<string, number>>();
     const breakdown = new Map<string, ClampedStop[]>();
     const now = Date.now();
     for (const line of lines) {
       const stops = byLine.get(line) ?? [];
       if (!stops.length) continue;
-      const maintStops = stops.filter((s) => s.kind === "MAINT");
-      const qualityStops = stops.filter((s) => s.kind === "QUALITY");
+      // Group stops by bucket once per line.
+      const byBucket = new Map<string, StopDetail[]>();
+      for (const s of stops) {
+        const b = s.kind || "MAINT";
+        const arr = byBucket.get(b) ?? [];
+        arr.push(s);
+        byBucket.set(b, arr);
+      }
       for (const d of weekDates) {
         const ds = format(d, "yyyy-MM-dd");
         for (const shift of ["DAY", "NIGHT"] as Shift[]) {
           const [ws, we] = londonShiftWindow(ds, shift);
           const k = `${ds}|${line}|${shift}`;
-          const mMaint = reconcileMinutes(maintStops, ws, we);
-          const mQual = reconcileMinutes(qualityStops, ws, we);
-          if (mMaint > 0) outMaint.set(k, mMaint);
-          if (mQual > 0) outQuality.set(k, mQual);
-          if (mMaint + mQual > 0) out.set(k, mMaint + mQual);
+          let cellTotal = 0;
+          for (const [bucket, bStops] of byBucket.entries()) {
+            const m = reconcileMinutes(bStops, ws, we);
+            if (m > 0) {
+              const map = buckets.get(bucket) ?? new Map<string, number>();
+              map.set(k, m);
+              buckets.set(bucket, map);
+              cellTotal += m;
+            }
+          }
+          if (cellTotal > 0) out.set(k, cellTotal);
           const clamped: ClampedStop[] = [];
           for (const s of stops) {
             const sMs = new Date(s.start).getTime();
@@ -360,7 +372,7 @@ export default function RAGWeeklyPage() {
         }
       }
     }
-    return { autoDtMap: out, autoDtMaintMap: outMaint, autoDtQualityMap: outQuality, autoDtBreakdown: breakdown };
+    return { autoDtMap: out, autoDtBucketMap: buckets, autoDtBreakdown: breakdown };
   }, [lineStops, lines, weekDates]);
 
   // Inconsistency detector: a single WO contributing minutes to multiple (date|line|shift) cells
