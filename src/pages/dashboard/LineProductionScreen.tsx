@@ -220,7 +220,7 @@ export default function LineProductionScreen() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_sessions")
-        .select("id, leader_name, locked, notes")
+        .select("id, leader_name, locked, notes, intouch_good_total")
         .eq("line", line)
         .eq("session_date", activeSessionDate)
         .eq("shift", shift)
