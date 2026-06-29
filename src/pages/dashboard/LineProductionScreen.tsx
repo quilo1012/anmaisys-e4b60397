@@ -20,7 +20,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save, AlertTriangle, Plus, LogOut } from "lucide-react";
+import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save, AlertTriangle, Plus, LogOut, Lock, Unlock } from "lucide-react";
+import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,6 +112,8 @@ export default function LineProductionScreen() {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [assetScope, setAssetScope] = useState<"line" | "sealer_printer">("line");
+  const [targetUnlock, setTargetUnlock] = useState<EngineerIdentity | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
   const activeSessionDate = useMemo(() => sessionDateForShift(shift, now), [shift, now]);
 
   // Operator is locked to current shift — auto-update as time passes.
@@ -557,6 +560,30 @@ export default function LineProductionScreen() {
             </Button>
           </div>
           {/* Tablet selector removed — each operator login is bound to its own tablet/line */}
+          {isOperator && (
+            targetUnlock ? (
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-12 border-green-500/60 text-green-600 dark:text-green-400"
+                onClick={() => setTargetUnlock(null)}
+                title="Click to lock again"
+              >
+                <Unlock className="h-5 w-5 mr-2" />
+                Target ({targetUnlock.name})
+              </Button>
+            ) : (
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-12"
+                onClick={() => setPinOpen(true)}
+              >
+                <Lock className="h-5 w-5 mr-2" />
+                Show Target
+              </Button>
+            )
+          )}
 
           <div className="ml-auto flex items-center gap-3">
             <SyncStatusIndicator
@@ -690,6 +717,8 @@ export default function LineProductionScreen() {
             </Card>
           )}
 
+          {/* KPI — Production Performance style (hidden for operators until unlocked by leader PIN) */}
+          {(!isOperator || targetUnlock) && (<>
           {/* KPI — Production Performance style */}
           {(() => {
             const eff = totals.pct;
@@ -738,6 +767,9 @@ export default function LineProductionScreen() {
               )}
             </CardContent>
           </Card>
+          </>)}
+
+
 
           {/* SKU list */}
           <div className="grid gap-3 md:grid-cols-2">
@@ -875,6 +907,14 @@ export default function LineProductionScreen() {
         line={line}
         operatorLabel={operatorAcctQ.data?.label || `Tablet ${tabletId}`}
         assetScope={assetScope}
+      />
+
+      <PinDialog
+        open={pinOpen}
+        onOpenChange={setPinOpen}
+        title="Unlock Target"
+        description="Enter Line Leader PIN to reveal target & progress for this shift."
+        onSuccess={(eng) => setTargetUnlock(eng)}
       />
     </div>
   );
