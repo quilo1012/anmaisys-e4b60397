@@ -330,7 +330,7 @@ export default function Login() {
                       className="h-14 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
                     >
                       <option value="" disabled className="bg-[hsl(222_47%_10%)] text-white">
-                        Select your tablet…
+                        {accountsLoading ? "Loading tablets…" : hasOperatorAccounts ? "Select your tablet…" : "No tablets configured"}
                       </option>
                       {operatorAccounts?.map((acc) => {
                         const lineNames = acc.line_ids
