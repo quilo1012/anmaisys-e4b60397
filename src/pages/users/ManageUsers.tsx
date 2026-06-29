@@ -88,6 +88,89 @@ export default function ManageUsers() {
   const [editEngLoading, setEditEngLoading] = useState(false);
   const [deleteEngLoading, setDeleteEngLoading] = useState<string | null>(null);
 
+  // Leaders state
+  const [leaders, setLeaders] = useState<Leader[]>([]);
+  const [ldOpen, setLdOpen] = useState(false);
+  const [ldName, setLdName] = useState("");
+  const [ldPin, setLdPin] = useState("");
+  const [ldLoading, setLdLoading] = useState(false);
+  const [editLd, setEditLd] = useState<Leader | null>(null);
+  const [editLdName, setEditLdName] = useState("");
+  const [editLdPin, setEditLdPin] = useState("");
+  const [editLdActive, setEditLdActive] = useState(true);
+  const [editLdLoading, setEditLdLoading] = useState(false);
+  const [deleteLdLoading, setDeleteLdLoading] = useState<string | null>(null);
+
+  const fetchLeaders = async () => {
+    if (!currentUser?.id || !currentRole) return;
+    const { data, error } = await supabase.rpc("list_leaders" as any);
+    if (error) {
+      console.error("[ManageUsers] list_leaders failed", error);
+      return;
+    }
+    setLeaders((data as Leader[]) ?? []);
+  };
+
+  const handleCreateLeader = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ldName.trim() || ldPin.length !== 4) return;
+    setLdLoading(true);
+    try {
+      const { error } = await supabase.rpc("create_leader" as any, { _name: ldName.trim(), _pin: ldPin });
+      if (error) throw error;
+      toast({ title: "Leader created", description: `${ldName} has been added` });
+      setLdOpen(false);
+      setLdName(""); setLdPin("");
+      fetchLeaders();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setLdLoading(false);
+    }
+  };
+
+  const openEditLeader = (l: Leader) => {
+    setEditLd(l);
+    setEditLdName(l.name);
+    setEditLdPin("");
+    setEditLdActive(l.is_active);
+  };
+
+  const handleEditLeader = async () => {
+    if (!editLd) return;
+    setEditLdLoading(true);
+    try {
+      const { error } = await supabase.rpc("update_leader" as any, {
+        _id: editLd.id,
+        _name: editLdName.trim() || null,
+        _active: editLdActive,
+        _pin: editLdPin.length === 4 ? editLdPin : null,
+      });
+      if (error) throw error;
+      toast({ title: "Leader updated" });
+      setEditLd(null);
+      fetchLeaders();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setEditLdLoading(false);
+    }
+  };
+
+  const handleDeleteLeader = async (id: string) => {
+    setDeleteLdLoading(id);
+    try {
+      const { error } = await supabase.rpc("delete_leader" as any, { _id: id });
+      if (error) throw error;
+      toast({ title: "Leader deleted" });
+      fetchLeaders();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleteLdLoading(null);
+    }
+  };
+
   const fetchUsers = async () => {
     console.info("[ManageUsers] fetching users", { currentUserId: currentUser?.id, currentRole });
     // Select explicit columns — labor_rate is admin-only and fetched via RPC below
