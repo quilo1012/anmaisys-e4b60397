@@ -629,11 +629,18 @@ export default function ProductionPlannerPage() {
                       skus={skus}
                       disabled={false}
                     />
-                    {r.blender_ref && <span className="text-xs text-muted-foreground ml-2">· {r.blender_ref}</span>}
                   </div>
                   <div className="md:col-span-3">
-                    <Label>Product Name</Label>
+                    <Label>Product Description</Label>
                     <Input value={r.sku_name} onChange={(e) => updateRow(i, { sku_name: e.target.value })} disabled={locked} />
+                  </div>
+                  <div className="md:col-span-1">
+                    <Label title="Blender batch (e.g. B3)">Batch</Label>
+                    <Input
+                      placeholder="B#"
+                      value={r.blender_ref ?? ""}
+                      onChange={(e) => updateRow(i, { blender_ref: e.target.value })}
+                    />
                   </div>
                   <div className="md:col-span-2">
                     <Label>Target</Label>
@@ -642,11 +649,10 @@ export default function ProductionPlannerPage() {
                       <span className="text-xs text-muted-foreground">units</span>
                     </div>
                   </div>
-                  <div className="md:col-span-2">
+                  <div className="md:col-span-1">
                     <Label>Actual</Label>
                     <div className="flex items-center gap-1">
                       <Input type="number" value={r.actual_qty} onChange={(e) => updateRow(i, { actual_qty: +e.target.value })} disabled={locked} />
-                      <span className="text-xs text-muted-foreground">units</span>
                     </div>
                   </div>
                   <div className="md:col-span-1 flex items-end">
