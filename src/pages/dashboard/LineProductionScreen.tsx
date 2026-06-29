@@ -767,6 +767,9 @@ export default function LineProductionScreen() {
               )}
             </CardContent>
           </Card>
+          </>)}
+
+
 
           {/* SKU list */}
           <div className="grid gap-3 md:grid-cols-2">
