@@ -212,7 +212,9 @@ export default function EngineerDashboard() {
   }
   // ProtectedRoute already enforces role access; if role is missing transiently, just wait
   if (!role) return null;
-  if (role !== "engineer") {
+  // Allow admin/manager/maintenance_manager to view the engineer dashboard
+  // (used by /dashboard/engineer-preview read-only preview).
+  if (!["engineer", "admin", "manager", "maintenance_manager"].includes(role)) {
     return null;
   }
 
