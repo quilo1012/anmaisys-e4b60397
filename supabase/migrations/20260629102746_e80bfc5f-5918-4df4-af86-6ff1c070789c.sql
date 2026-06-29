@@ -1,0 +1,1 @@
+UPDATE public.intouch_machine_map SET active = true, updated_at = now() WHERE line_id IS NOT NULL AND active = false;
