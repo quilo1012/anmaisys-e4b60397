@@ -45,7 +45,7 @@ interface SessionRow {
   leader_id: string | null; leader_name: string | null;
   staff_planned: number | null; staff_actual: number | null;
   locked: boolean; notes: string | null;
-  production_items: { id: string; sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null }[];
+  production_items: { id: string; sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null }[];
 }
 
 export default function ShiftHistoryPage() {
@@ -78,7 +78,7 @@ export default function ShiftHistoryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes)")
+        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes, blender_ref)")
         .gte("session_date", from).lte("session_date", to)
         .order("session_date", { ascending: false });
       if (error) throw error;
@@ -308,7 +308,8 @@ export default function ShiftHistoryPage() {
                     <th className="text-left p-2">Shift</th>
                     <th className="text-left p-2">Filler Line</th>
                     <th className="text-left p-2">SKU</th>
-                    <th className="text-left p-2">Product Code</th>
+                    <th className="text-left p-2">Product Description</th>
+                    <th className="text-left p-2">Batch</th>
                     <th className="text-right p-2">Weight</th>
                     <th className="text-right p-2">Bag</th>
                     <th className="text-right p-2">Tubs</th>
@@ -318,7 +319,7 @@ export default function ShiftHistoryPage() {
                 <tbody className="divide-y">
                   {filtered.flatMap((s) =>
                     (s.production_items.length === 0
-                      ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null }]
+                      ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null }]
                       : s.production_items
                     ).map((i, idx) => {
                       const sku = skuMap.get(i.sku_id);
@@ -340,8 +341,27 @@ export default function ShiftHistoryPage() {
                           <td className="p-2 whitespace-nowrap">{s.session_date}</td>
                           <td className="p-2"><Badge variant="outline">{s.shift}</Badge></td>
                           <td className="p-2 whitespace-nowrap">{s.line}</td>
-                          <td className="p-2">{name}</td>
                           <td className="p-2 font-mono text-xs">{code || "—"}</td>
+                          <td className="p-2">{name}</td>
+                          <td className="p-2">
+                            {i.sku_id && !s.locked ? (
+                              <input
+                                type="text"
+                                defaultValue={i.blender_ref ?? ""}
+                                placeholder="B#"
+                                className="w-16 h-7 px-1 text-xs font-mono rounded border bg-background"
+                                onBlur={async (e) => {
+                                  const v = e.target.value.trim() || null;
+                                  if (v === (i.blender_ref ?? null)) return;
+                                  const { error } = await supabase.from("production_items").update({ blender_ref: v }).eq("id", i.id);
+                                  if (error) toast.error(error.message);
+                                  else { toast.success("Batch saved"); qc.invalidateQueries({ queryKey: ["shift_history"] }); }
+                                }}
+                              />
+                            ) : (
+                              <span className="text-xs font-mono">{i.blender_ref || "—"}</span>
+                            )}
+                          </td>
                           <td className="p-2 text-right tabular-nums">{weight ? weight.toLocaleString() : "—"}</td>
                           <td className="p-2 text-right tabular-nums">{bag ? bag.toLocaleString() : "—"}</td>
                           <td className="p-2 text-right tabular-nums">{tubs ? tubs.toLocaleString() : "—"}</td>
