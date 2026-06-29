@@ -191,7 +191,7 @@ function sameMachine(value: unknown, allowedIds: Set<string>, allowedNames: Set<
 }
 
 function extractSkuRows(raw: unknown, source: string, machines: MachineRef[]): SkuRow[] {
-  const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+  const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const rows: SkuRow[] = [];
   const seenJobs = new Set<any>();
@@ -243,7 +243,7 @@ function extractSkuRows(raw: unknown, source: string, machines: MachineRef[]): S
 
 // Extract { code -> scrap_qty } from any raw iTouching payload.
 function extractScrapByCode(raw: unknown, machines: MachineRef[]): Map<string, number> {
-  const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+  const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const out = new Map<string, number>();
   walkObjects(raw, (obj) => {
@@ -262,7 +262,7 @@ function extractScrapByCode(raw: unknown, machines: MachineRef[]): Map<string, n
 
 // Extract aggregate run/down/oee per machine from any iTouching shift payload.
 function extractShiftMetrics(raw: unknown, machines: MachineRef[]) {
-  const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+  const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   let runMin = 0, downMin = 0, oeeSum = 0, oeeN = 0;
   walkObjects(raw, (obj) => {
@@ -285,7 +285,7 @@ function extractShiftMetrics(raw: unknown, machines: MachineRef[]) {
 }
 
 function extractActualsByCode(raw: unknown, machines: MachineRef[]): Map<string, number> {
-  const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+  const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const out = new Map<string, number>();
   walkObjects(raw, (obj) => {
@@ -311,7 +311,7 @@ function extractActualsByCode(raw: unknown, machines: MachineRef[]): Map<string,
 // code matching. Fallback used when iTouching SKU codes don't line up with
 // our local sku_products.code so the operator UI always shows a live Actual.
 function extractLineGoodTotal(raw: unknown, machines: MachineRef[]): number {
-  const allowedIds = new Set(machines.map((m) => m.id).filter(Boolean));
+  const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()).filter(Boolean));
   const allowedNames = new Set(machines.map((m) => m.name.toLowerCase()).filter(Boolean));
   const perMachine = new Map<string, number>();
   walkObjects(raw, (obj) => {
@@ -480,7 +480,7 @@ async function fetchJobChangeRows(machines: MachineRef[], startISO: string, endI
 
 async function fetchRunningJobRows(machines: MachineRef[]) {
   const running = await tryIt("/api/GetRunningJobs", { method: "GET" });
-  const allowedIds = new Set(machines.map((m) => m.id));
+  const allowedIds = new Set(machines.map((m) => (m.id || "").toLowerCase()));
   const jobIds = new Set<string>();
   walkObjects(running, (obj) => {
     const machineId = String(pick(obj, ["MachineID", "MachineId", "MachineGUID", "MachineGuid"]) ?? "").trim();
