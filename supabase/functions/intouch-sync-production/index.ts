@@ -32,6 +32,7 @@ const MACHINE_REF_KEYS = [
   "Machine", "MachineName", "Line", "LineName",
 ];
 const GOOD_QTY_KEYS = [
+  "GoodParts", "GoodPartQty", "GoodPartCount", "PartsGood", "PartsGoodQty",
   "Good", "GoodQty", "Good Qty", "GoodQuantity", "Good Count", "GoodCount", "GoodUnits", "GoodUnitsProduced",
   "GoodProduct", "GoodProductCount", "GoodQuantityProduced", "QtyGood", "QuantityGood", "TotalGood", "TotalGoodQty",
   "TotalGoodQuantity", "ProducedGood", "ProducedGoodQty", "Produced Good", "Produced Good Qty", "GoodPacks",
@@ -46,6 +47,8 @@ const GOOD_QTY_KEYS = [
   "AcceptedQuantity", "Packed", "PackedQty", "PackCount", "UnitCount", "UnitsMade", "UnitsProduced", "CountGood",
   "Counter", "CounterValue", "GoodCounter", "CurrentCount", "ShiftCounter", "ShiftOutput", "ShiftTotal", "ShiftCount",
 ];
+const SEGMENT_GOOD_QTY_KEYS = ["GoodParts", "GoodPartQty", "GoodPartCount", "PartsGood", "PartsGoodQty"];
+const SEGMENT_TOTAL_QTY_KEYS = ["PartsProduced", "ProducedParts", "PartCount", "CycleGoodParts"];
 
 function logSync(event: string, details: Record<string, unknown>) {
   try {
