@@ -1146,7 +1146,7 @@ Deno.serve(async (req) => {
         window: { start: startISO, end: endISO },
       });
 
-      const ragPlan = Number(ragPlanByLine.get(line) ?? 0);
+      const ragPlan = Number(ragPlanByLine.get(String(line).trim().toLowerCase()) ?? 0);
       if (ragPlan <= 0) {
         warnSync("line_skipped", { line, reason: "no RAG Weekly plan" });
         results.push({ line, skipped: "no RAG Weekly plan" });
