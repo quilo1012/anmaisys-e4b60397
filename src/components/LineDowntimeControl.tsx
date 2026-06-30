@@ -75,7 +75,10 @@ export function LineDowntimeControl({
   engineerId,
   lineId,
   requesterName,
+  woLineStopped,
+  woLineStoppedAt,
 }: LineDowntimeControlProps) {
+
   const { user, role } = useAuth();
   const { data: operatorLineIds } = useOperatorLineIds();
   const { data: lines } = useLines();
