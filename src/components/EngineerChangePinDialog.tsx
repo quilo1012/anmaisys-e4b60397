@@ -28,8 +28,8 @@ export function EngineerChangePinDialog({ open, onOpenChange }: Props) {
       toast.error("Not signed in");
       return;
     }
-    if (pin.length < 6) {
-      toast.error("PIN must be at least 6 digits");
+    if (pin.length < 4) {
+      toast.error("PIN must be 4 digits");
       return;
     }
 
