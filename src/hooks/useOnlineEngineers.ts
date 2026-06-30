@@ -27,7 +27,10 @@ export function useOnlineEngineers() {
   useEffect(() => {
     if (!user) return;
 
-    const channel = supabase.channel("engineers-online", {
+    // Unique topic per mount to avoid reusing a channel that's already
+    // subscribed (which would error when adding presence listeners after subscribe).
+    const topic = `engineers-online:${user.id}:${Math.random().toString(36).slice(2, 8)}`;
+    const channel = supabase.channel(topic, {
       config: { presence: { key: user.id } },
     });
 
