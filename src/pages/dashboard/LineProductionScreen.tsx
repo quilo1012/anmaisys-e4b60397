@@ -443,6 +443,7 @@ export default function LineProductionScreen() {
         .eq("shift", shift)
         .eq("occurred_date", activeSessionDate)
         .is("ended_at", null)
+        .not("category", "in", '("WO Request","Maintenance")')
         .order("started_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Array<{
