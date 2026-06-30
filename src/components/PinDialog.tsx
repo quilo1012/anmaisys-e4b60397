@@ -44,8 +44,8 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
 
   const handleVerify = async () => {
     if (isLocked) return;
-    if (pin.length < 6) {
-      setError("PIN must be at least 6 digits");
+    if (pin.length < 4) {
+      setError("PIN must be 4 digits");
       return;
     }
     setLoading(true);
