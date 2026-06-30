@@ -381,22 +381,41 @@ export default function LineProductionScreen() {
   // Auto-pull live actuals from iTouching for THIS line/shift so the operator
   // screen reflects real production without waiting for the global cron.
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
+  const [missingStreak, setMissingStreak] = useState(0);
   useEffect(() => {
     if (!line || !sessionQ.data?.id || !hasItouch) return;
     let cancelled = false;
-    const run = async () => {
+    const runOnce = async (): Promise<boolean> => {
       try {
         await supabase.functions.invoke("intouch-sync-production", {
-          body: { session_date: activeSessionDate, shift, line, force: true },
+          body: { session_date: activeSessionDate, shift, line: String(line).trim(), force: true },
         });
-        if (!cancelled) {
-          setLastSyncAt(new Date());
-          // Refresh session (intouch_good_total), items and RAG plan.
-          qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
-          qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
-          qc.invalidateQueries({ queryKey: ["lps-rag-plan", line, shift, activeSessionDate] });
-        }
-      } catch { /* ignore — next tick retries */ }
+        if (cancelled) return false;
+        setLastSyncAt(new Date());
+        // Re-read the session row so we can decide whether to retry before
+        // flagging "unavailable".
+        const { data: fresh } = await (supabase as any)
+          .from("production_sessions")
+          .select("intouch_good_total")
+          .eq("id", sessionQ.data!.id)
+          .maybeSingle();
+        const got = fresh?.intouch_good_total;
+        const missing = got === null || got === undefined;
+        setMissingStreak((n) => (missing ? n + 1 : 0));
+        qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
+        qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
+        qc.invalidateQueries({ queryKey: ["lps-rag-plan", line, shift, activeSessionDate] });
+        return missing;
+      } catch { return true; }
+    };
+    const run = async () => {
+      const missing = await runOnce();
+      // One immediate retry when the machine IS mapped but iTouching returned
+      // null — absorbs transient API blips before we show the amber warning.
+      if (missing && !cancelled && hasItouch) {
+        await new Promise((r) => setTimeout(r, 4000));
+        if (!cancelled) await runOnce();
+      }
     };
     run();
     const t = setInterval(run, 60_000);
@@ -404,10 +423,12 @@ export default function LineProductionScreen() {
   }, [line, shift, activeSessionDate, sessionQ.data?.id, hasItouch, qc]);
 
   // True when the sync ran but iTouching did not return a good-count for this line/shift.
+  // Require 2 consecutive misses so a single API blip doesn't flash the warning.
   const intouchGoodMissing =
     hasItouch &&
     !!sessionQ.data &&
     !!lastSyncAt &&
+    missingStreak >= 2 &&
     ((sessionQ.data as any)?.intouch_good_total === null || (sessionQ.data as any)?.intouch_good_total === undefined);
 
   // Per-shift observations (notes on production_sessions)

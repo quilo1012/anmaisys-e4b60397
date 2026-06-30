@@ -1115,7 +1115,7 @@ Deno.serve(async (req) => {
 
     const { data: lines } = await admin.from("lines").select("id, name");
     const lineName = new Map((lines ?? []).map((l: any) => [l.id, l.name]));
-    const requestedLine = body.line ? String(body.line).trim() : "";
+    const requestedLine = body.line ? String(body.line).trim().toLowerCase() : "";
 
     const byLine = new Map<string, MachineRef[]>();
     for (const m of maps ?? []) {
@@ -1130,13 +1130,13 @@ Deno.serve(async (req) => {
       .eq("entry_date", session_date)
       .eq("shift", shift)
       .gt("plan_qty", 0);
-    const ragPlanByLine = new Map((ragRows ?? []).map((r: any) => [String(r.line ?? "").trim(), Number(r.plan_qty ?? 0)]));
+    const ragPlanByLine = new Map((ragRows ?? []).map((r: any) => [String(r.line ?? "").trim().toLowerCase(), Number(r.plan_qty ?? 0)]));
 
     const results: any[] = [];
     for (const [line_id, machines] of byLine) {
       const line = lineName.get(line_id);
       if (!line) continue;
-      if (requestedLine && line !== requestedLine) continue;
+      if (requestedLine && String(line).trim().toLowerCase() !== requestedLine) continue;
 
       logSync("line_start", {
         line,
@@ -1146,7 +1146,7 @@ Deno.serve(async (req) => {
         window: { start: startISO, end: endISO },
       });
 
-      const ragPlan = Number(ragPlanByLine.get(line) ?? 0);
+      const ragPlan = Number(ragPlanByLine.get(String(line).trim().toLowerCase()) ?? 0);
       if (ragPlan <= 0) {
         warnSync("line_skipped", { line, reason: "no RAG Weekly plan" });
         results.push({ line, skipped: "no RAG Weekly plan" });
