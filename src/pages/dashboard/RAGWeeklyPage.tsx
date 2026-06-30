@@ -98,16 +98,24 @@ export function categoryBucket(cat?: string | null): string {
   const raw = (cat ?? "").toString().trim();
   if (!raw) return "MAINT";
   const lc = raw.toLowerCase();
-  if (lc === "maintenance" || lc === "wo request" || lc === "wo_request") return "MAINT";
-  if (lc === "break") return "Break";
   if (
-    lc === "brushing cleaning" ||
-    lc === "deep clean" ||
-    lc === "drill clean" ||
-    lc === "line clean"
-  ) return "Cleaning";
-  if (lc === "changeover") return "Changeover";
-  if (lc === "quality") return "Quality";
+    lc === "maintenance" ||
+    lc === "wo request" ||
+    lc === "wo_request" ||
+    lc === "wo-request" ||
+    lc === "maint" ||
+    lc === "mechanical" ||
+    lc === "electrical" ||
+    lc === "machine" ||
+    lc === "filler" ||
+    lc === "other" ||
+    lc === "unclassified" ||
+    lc === "unknown"
+  ) return "MAINT";
+  if (lc === "break" || lc.includes("break")) return "Break";
+  if (lc.includes("clean")) return "Cleaning";
+  if (lc.includes("changeover")) return "Changeover";
+  if (lc.includes("quality")) return "Quality";
   return raw;
 }
 
