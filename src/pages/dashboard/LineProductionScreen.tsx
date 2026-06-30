@@ -382,18 +382,30 @@ export default function LineProductionScreen() {
   // Is this line mapped to an iTouching machine? Lines without a mapping
   // (e.g. Capsules Machine 1/2) are maintenance-only terminals.
   const intouchMapQ = useQuery({
-    enabled: !!currentLineId,
-    queryKey: ["lps-intouch-map", currentLineId],
+    enabled: !!canonicalLineName,
+    queryKey: ["lps-intouch-map", currentLineId, canonicalLineName],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("intouch_machine_map")
-        .select("intouch_machine_id, active")
-        .eq("line_id", currentLineId)
+        .select("intouch_machine_id, intouch_machine_name, active, line_id, line:lines(id, name)")
         .eq("active", true)
-        .limit(1)
-        .maybeSingle();
+        .not("intouch_machine_id", "is", null);
       if (error) throw error;
-      return data as { intouch_machine_id: string; active: boolean } | null;
+      const rows = (data || []) as Array<{
+        intouch_machine_id: string | null;
+        intouch_machine_name: string | null;
+        active: boolean;
+        line_id: string | null;
+        line?: { id?: string; name?: string } | { id?: string; name?: string }[] | null;
+      }>;
+      return rows.find((row) => {
+        const joined = Array.isArray(row.line) ? row.line[0] : row.line;
+        return (
+          (!!currentLineId && row.line_id === currentLineId) ||
+          lineNamesMatch(joined?.name, canonicalLineName) ||
+          lineNamesMatch(row.intouch_machine_name, canonicalLineName)
+        );
+      }) ?? null;
     },
   });
   const hasItouch = !!intouchMapQ.data?.intouch_machine_id;
@@ -443,7 +455,7 @@ export default function LineProductionScreen() {
   // The "live count unavailable" warning is reserved for lines that have NO
   // iTouching mapping at all. When a mapping exists we trust the next sync tick
   // to fill in `intouch_good_total`; a transient null is not user-facing.
-  const intouchGoodMissing = !!canonicalLineName && !!currentLineId && intouchMapQ.isFetched && !hasItouch;
+  const intouchGoodMissing = !!canonicalLineName && intouchMapQ.isFetched && !hasItouch;
 
   // Per-shift observations (notes on production_sessions)
   const [notes, setNotes] = useState<string>("");
