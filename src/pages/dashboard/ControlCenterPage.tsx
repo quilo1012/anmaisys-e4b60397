@@ -144,17 +144,8 @@ export default function ControlCenterPage() {
 
   const isLoading = machinesLoading || wosLoading;
 
-  const zones = useMemo(() => (machines ? getZones(machines) : []), [machines]);
 
-  const machinesByZone = useMemo(() => {
-    if (!machines) return {} as Record<string, any[]>;
-    const map: Record<string, any[]> = {};
-    machines.forEach((m) => {
-      const zone = getZoneFor(m);
-      (map[zone] ||= []).push(m);
-    });
-    return map;
-  }, [machines]);
+
 
   // All active lines from DB (so newly-added lines like Line 7 always show up).
   const { data: dbLines } = useQuery({
