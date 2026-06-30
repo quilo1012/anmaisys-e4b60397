@@ -424,12 +424,10 @@ export default function LineProductionScreen() {
 
   // True when the sync ran but iTouching did not return a good-count for this line/shift.
   // Require 2 consecutive misses so a single API blip doesn't flash the warning.
-  const intouchGoodMissing =
-    hasItouch &&
-    !!sessionQ.data &&
-    !!lastSyncAt &&
-    missingStreak >= 2 &&
-    ((sessionQ.data as any)?.intouch_good_total === null || (sessionQ.data as any)?.intouch_good_total === undefined);
+  // The "live count unavailable" warning is reserved for lines that have NO
+  // iTouching mapping at all. When a mapping exists we trust the next sync tick
+  // to fill in `intouch_good_total`; a transient null is not user-facing.
+  const intouchGoodMissing = !hasItouch && !!sessionQ.data;
 
   // Per-shift observations (notes on production_sessions)
   const [notes, setNotes] = useState<string>("");
@@ -719,27 +717,21 @@ export default function LineProductionScreen() {
       )}
 
 
+      {intouchGoodMissing && (
+        <Card className="mb-3 border-amber-500/50 bg-amber-500/10">
+          <CardContent className="p-3 flex items-start gap-2 text-sm">
+            <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="flex-1 text-amber-700 dark:text-amber-300">
+              <strong>iTouching machine not mapped</strong> for {line}. Showing manual SKU sums. Ask an admin to map this line in iTouching Settings → Machine Map.
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {hasItouch && sessionQ.data && (ragPlanQ.data ?? 0) > 0 && (
         <>
-          {intouchGoodMissing && (
-            <Card className="mb-3 border-amber-500/50 bg-amber-500/10">
-              <CardContent className="p-3 flex items-start gap-2 text-sm">
-                <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                <div className="flex-1 text-amber-700 dark:text-amber-300">
-                  <strong>iTouching live count unavailable</strong> for {line} · {shift}. Showing manual SKU sums until the next sync returns data.
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0"
-                  onClick={() => syncSkus.mutate()}
-                  disabled={syncSkus.isPending}
-                >
-                  {syncSkus.isPending ? "Syncing…" : "Sync now"}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+
+
 
           {/* KPI — Production Performance style (hidden for operators until unlocked by leader PIN) */}
           {(!isOperator || targetUnlock) && (<>
