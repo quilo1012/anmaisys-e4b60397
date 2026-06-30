@@ -248,6 +248,36 @@ export function LineDowntimeControl({
     );
   }
 
+  // WO is flagged as line-stopped at the work_orders level but no downtime_event exists.
+  // Keep the bottom indicator consistent with the top banner instead of saying "in operation".
+  if (woLineStopped) {
+    const liveDur = woLineStoppedAt
+      ? differenceInMinutes(new Date(), new Date(woLineStoppedAt))
+      : null;
+    return (
+      <div className="rounded-lg border-2 border-red-600 bg-red-600/10 p-3 space-y-2">
+        <p className="text-sm font-semibold text-red-700 flex items-center gap-1.5">
+          <PowerOff className="h-4 w-4" />
+          Line stopped
+          {woLineStoppedAt && ` since ${format(new Date(woLineStoppedAt), "HH:mm")}`}
+          {liveDur !== null && ` (${liveDur}m ago)`}
+        </p>
+        {canControl ? (
+          <Button
+            size="lg"
+            className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700 text-white"
+            onClick={handleResume}
+            disabled={resumeLine.isPending}
+          >
+            <CheckCircle2 className="h-5 w-5 mr-2" /> MACHINE BACK TO WORK
+          </Button>
+        ) : (
+          <PermissionBanner role={role} lineName={lineName} lineId={lineId} />
+        )}
+      </div>
+    );
+  }
+
   // CASE C — never stopped
   return (
     <>
@@ -255,6 +285,7 @@ export function LineDowntimeControl({
         <span className="text-sm text-muted-foreground flex items-center gap-1.5">
           <CheckCircle2 className="h-4 w-4 text-green-600" /> Line in operation · no stoppage
         </span>
+
         {canControl && workOrderStatus === "in_progress" && (
           <Button
             size="sm"
