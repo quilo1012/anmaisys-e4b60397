@@ -338,9 +338,7 @@ export default function LineProductionScreen() {
     const target = ragTotal;
     // Current Shift = live iTouching good total (independent of operator edits).
     // Fall back to the per-SKU sum only until the first iTouching sync stamps the session.
-    const itouchTotal = Number((sessionQ.data as any)?.intouch_good_total ?? 0);
-    const itemsSum = items.reduce((s, i) => s + (i.actual_qty || 0), 0);
-    const actual = itouchTotal > 0 ? itouchTotal : itemsSum;
+    const actual = Number((sessionQ.data as any)?.intouch_good_total ?? 0);
     const remaining = Math.max(0, target - actual);
     const pct = target > 0 ? (actual / target) * 100 : 0;
     return { target, actual, remaining, pct };
@@ -418,14 +416,15 @@ export default function LineProductionScreen() {
         : null;
     },
   });
-  const hasItouch = !!intouchMapQ.data?.has_active_machine;
+  const hasActiveItouchMachine = !!intouchMapQ.data?.has_active_machine;
   const hasItouchMapping = intouchMapQ.data !== null && intouchMapQ.data !== undefined;
+  const hasItouch = hasItouchMapping;
 
   // Auto-pull live actuals from iTouching for THIS line/shift so the operator
   // screen reflects real production without waiting for the global cron.
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
   useEffect(() => {
-    if (!canonicalLineName || !sessionQ.data?.id || !hasItouch) return;
+    if (!canonicalLineName || !sessionQ.data?.id || !hasActiveItouchMachine) return;
     let cancelled = false;
     const runOnce = async (): Promise<boolean> => {
       try {
@@ -453,7 +452,7 @@ export default function LineProductionScreen() {
       const missing = await runOnce();
       // One immediate retry when the machine IS mapped but iTouching returned
       // null — absorbs transient API blips before we show the amber warning.
-      if (missing && !cancelled && hasItouch) {
+      if (missing && !cancelled && hasActiveItouchMachine) {
         await new Promise((r) => setTimeout(r, 4000));
         if (!cancelled) await runOnce();
       }
@@ -461,7 +460,7 @@ export default function LineProductionScreen() {
     run();
     const t = setInterval(run, 60_000);
     return () => { cancelled = true; clearInterval(t); };
-  }, [canonicalLineName, shift, activeSessionDate, sessionQ.data?.id, hasItouch, qc]);
+  }, [canonicalLineName, shift, activeSessionDate, sessionQ.data?.id, hasActiveItouchMachine, qc]);
 
   // The "live count unavailable" warning is reserved for lines that have NO
   // iTouching mapping at all. When any mapping row exists, a null live count is
@@ -701,7 +700,7 @@ export default function LineProductionScreen() {
         </Card>
       )}
 
-      {line && linesQ.data && currentLineId && intouchMapQ.isFetched && !hasItouch && (
+      {line && linesQ.data && currentLineId && intouchMapQ.isFetched && !hasItouchMapping && (
         <Card className="border-primary/40 bg-primary/5">
           <CardContent className="p-10 text-center space-y-2">
             <div className="text-2xl font-semibold">Maintenance terminal</div>
@@ -761,7 +760,7 @@ export default function LineProductionScreen() {
           <CardContent className="p-3 flex items-start gap-2 text-sm">
             <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
             <div className="flex-1 text-amber-700 dark:text-amber-300">
-              <strong>iTouching machine not mapped</strong> for {line}. Showing manual SKU sums. Ask an admin to map this line in iTouching Settings → Machine Map.
+              <strong>iTouching machine not mapped</strong> for {line}. Current Shift will show 0 until this line is mapped in iTouching Settings → Machine Map.
             </div>
           </CardContent>
         </Card>
