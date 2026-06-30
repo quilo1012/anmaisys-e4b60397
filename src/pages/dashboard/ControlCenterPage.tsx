@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,7 +55,7 @@ const formatDowntime = (mins: number) => {
   return `${h}h ${mins % 60}m`;
 };
 
-type LineStatus = "stopped" | "wo_active" | "predictive" | "ok";
+type LineStatus = "stopped" | "wo_active" | "predictive" | "ok" | "no_itouch";
 
 const lineStatusStyles: Record<LineStatus, { card: string; dot: string; label: string; chip: string }> = {
   stopped: {
@@ -82,7 +82,14 @@ const lineStatusStyles: Record<LineStatus, { card: string; dot: string; label: s
     label: "Running",
     chip: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40",
   },
+  no_itouch: {
+    card: "border-border bg-card",
+    dot: "bg-muted-foreground/50",
+    label: "No iTouch",
+    chip: "bg-muted text-muted-foreground border-border",
+  },
 };
+
 
 export default function ControlCenterPage() {
   const { data: machines, isLoading: machinesLoading } = useMachines();
@@ -137,17 +144,57 @@ export default function ControlCenterPage() {
 
   const isLoading = machinesLoading || wosLoading;
 
-  const zones = useMemo(() => (machines ? getZones(machines) : []), [machines]);
+
+
+
+  // All active lines from DB (so newly-added lines like Line 7 always show up).
+  const { data: dbLines } = useQuery({
+    queryKey: ["control-center-lines"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lines")
+        .select("name,active")
+        .eq("active", true);
+      if (error) throw error;
+      return (data ?? []) as Array<{ name: string; active: boolean }>;
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  // Distinct line names that have an iTouching mapping.
+  const { data: itouchLineSet } = useQuery({
+    queryKey: ["control-center-itouch-lines"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("intouch_machine_map")
+        .select("line_id, lines:line_id(name)")
+        .eq("active", true);
+      if (error) throw error;
+      const s = new Set<string>();
+      (data ?? []).forEach((r: any) => {
+        const n = r?.lines?.name;
+        if (n) s.add(String(n).trim().toLowerCase());
+      });
+      return s;
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  const zones = useMemo(() => {
+    const all = new Set<string>(machines ? getZones(machines) : []);
+    (dbLines ?? []).forEach((l) => all.add(l.name));
+    return getZones(Array.from(all).map((name) => ({ line: name })));
+  }, [machines, dbLines]);
 
   const machinesByZone = useMemo(() => {
-    if (!machines) return {} as Record<string, any[]>;
     const map: Record<string, any[]> = {};
-    machines.forEach((m) => {
+    zones.forEach((z) => (map[z] = []));
+    (machines ?? []).forEach((m) => {
       const zone = getZoneFor(m);
       (map[zone] ||= []).push(m);
     });
     return map;
-  }, [machines]);
+  }, [machines, zones]);
 
   const wosByZone = useMemo(() => {
     const map: Record<string, any[]> = {};
@@ -160,6 +207,11 @@ export default function ControlCenterPage() {
     return map;
   }, [workOrders, machines]);
 
+  const hasItouch = useCallback(
+    (zone: string) => !!itouchLineSet?.has(zone.trim().toLowerCase()),
+    [itouchLineSet],
+  );
+
   const lineStatus = useMemo(() => {
     const map: Record<string, LineStatus> = {};
     zones.forEach((z) => {
@@ -171,10 +223,12 @@ export default function ControlCenterPage() {
       if (hasStopped) map[z] = "stopped";
       else if (hasWO) map[z] = "wo_active";
       else if (hasPredictive) map[z] = "predictive";
+      else if (!hasItouch(z)) map[z] = "no_itouch";
       else map[z] = "ok";
     });
     return map;
-  }, [zones, wosByZone, machinesByZone, predictiveMachines]);
+  }, [zones, wosByZone, machinesByZone, predictiveMachines, hasItouch]);
+
 
   // KPIs
   const kpis = useMemo(() => {
