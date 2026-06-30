@@ -103,21 +103,11 @@ export function categoryBucket(cat?: string | null): string {
     lc === "wo request" ||
     lc === "wo_request" ||
     lc === "wo-request" ||
-    lc === "maint" ||
-    lc === "mechanical" ||
-    lc === "electrical" ||
-    lc === "machine" ||
-    lc === "filler" ||
-    lc === "other" ||
-    lc === "unclassified" ||
-    lc === "unknown"
+    lc === "maint"
   ) return "MAINT";
-  if (lc === "break" || lc.includes("break")) return "Break";
-  if (lc.includes("clean")) return "Cleaning";
-  if (lc.includes("changeover")) return "Changeover";
-  if (lc.includes("quality")) return "Quality";
   return raw;
 }
+
 
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
