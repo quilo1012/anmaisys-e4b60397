@@ -222,11 +222,6 @@ export default function RAGWeeklyPage() {
         supabase.from("work_orders")
           .select("wo_number, status, machine, description, line_at_time, line_stopped_at, line_resumed_at, created_at, finished_at, closed_at, operator_id, intouch_stop_code, engineer_id")
           .not("line_stopped_at", "is", null)
-          .not("operator_id", "is", null)
-          .is("intouch_stop_code", null)
-          .not("engineer_id", "is", null)
-          .not("finished_at", "is", null)
-          .in("status", ["finished", "closed", "completed"])
           .gte("line_stopped_at", padStartIso)
           .lte("line_stopped_at", padEndIso),
         (supabase as any).from("downtime")
