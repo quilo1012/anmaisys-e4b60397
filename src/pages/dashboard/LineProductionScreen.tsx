@@ -294,7 +294,7 @@ export default function LineProductionScreen() {
   // Realtime: refresh when RAG Weekly changes for this line/shift/today
   useEffect(() => {
     const channel = supabase
-      .channel(`lps_rag_sync_${line}_${shift}`)
+      .channel(`lps_rag_sync_${canonicalLineName}_${shift}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "rag_weekly_entries" },
@@ -427,8 +427,6 @@ export default function LineProductionScreen() {
     return () => { cancelled = true; clearInterval(t); };
   }, [canonicalLineName, shift, activeSessionDate, sessionQ.data?.id, hasItouch, qc]);
 
-  // True when the sync ran but iTouching did not return a good-count for this line/shift.
-  // Require 2 consecutive misses so a single API blip doesn't flash the warning.
   // The "live count unavailable" warning is reserved for lines that have NO
   // iTouching mapping at all. When a mapping exists we trust the next sync tick
   // to fill in `intouch_good_total`; a transient null is not user-facing.
