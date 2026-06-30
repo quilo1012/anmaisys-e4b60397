@@ -76,6 +76,26 @@ function sessionDateForShift(shift: Shift, date = new Date()): string {
   return shift === "NIGHT" && london.hour < 6 ? previousDate(london.ymd) : london.ymd;
 }
 
+function normalizeLineName(value: string | null | undefined): string {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function lineNumberKey(value: string | null | undefined): string | null {
+  const normalized = normalizeLineName(value);
+  const match = normalized.match(/\bline\s*0*(\d+)\b/);
+  return match ? `line:${Number(match[1])}` : null;
+}
+
+function lineNamesMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const left = normalizeLineName(a);
+  const right = normalizeLineName(b);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const leftKey = lineNumberKey(left);
+  const rightKey = lineNumberKey(right);
+  return !!leftKey && leftKey === rightKey;
+}
+
 function ragColor(pct: number): string {
   if (pct >= 95) return "bg-green-600";
   if (pct >= 80) return "bg-amber-500";
@@ -219,20 +239,25 @@ export default function LineProductionScreen() {
     if (m && m[1] !== tabletId) setTabletId(m[1]);
   }, [isOperator, operatorAcctQ.data?.label]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const currentLineRecord = useMemo(() => {
+    if (!normalizeLineName(line)) return null;
+    return (linesQ.data || []).find((l) => lineNamesMatch(l.name, line)) ?? null;
+  }, [linesQ.data, line]);
+
+  const currentLineId = currentLineRecord?.id ?? null;
+  const canonicalLineName = currentLineRecord?.name ?? line.trim();
 
   const sessionQ = useQuery({
-    enabled: !!line,
-    queryKey: ["lps-session", line, shift, activeSessionDate],
+    enabled: !!canonicalLineName,
+    queryKey: ["lps-session", canonicalLineName, shift, activeSessionDate],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_sessions")
-        .select("id, leader_name, locked, notes, intouch_good_total")
-        .eq("line", line)
+        .select("id, line, leader_name, locked, notes, intouch_good_total")
         .eq("session_date", activeSessionDate)
-        .eq("shift", shift)
-        .maybeSingle();
+        .eq("shift", shift);
       if (error) throw error;
-      return data;
+      return (data || []).find((row: any) => lineNamesMatch(row.line, canonicalLineName)) ?? null;
     },
     refetchInterval: 30_000,
   });
@@ -262,18 +287,17 @@ export default function LineProductionScreen() {
 
   // RAG Weekly plan for this line/shift/today — drives the displayed target
   const ragPlanQ = useQuery({
-    enabled: !!line,
-    queryKey: ["lps-rag-plan", line, shift, activeSessionDate],
+    enabled: !!canonicalLineName,
+    queryKey: ["lps-rag-plan", canonicalLineName, shift, activeSessionDate],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("rag_weekly_entries")
-        .select("plan_qty")
+        .select("line, plan_qty")
         .eq("entry_date", activeSessionDate)
-        .eq("line", line)
-        .eq("shift", shift)
-        .maybeSingle();
+        .eq("shift", shift);
       if (error) throw error;
-      return Number(data?.plan_qty ?? 0);
+      const row = (data || []).find((r: any) => lineNamesMatch(r.line, canonicalLineName));
+      return Number(row?.plan_qty ?? 0);
     },
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
@@ -283,7 +307,7 @@ export default function LineProductionScreen() {
   // Realtime: refresh when RAG Weekly changes for this line/shift/today
   useEffect(() => {
     const channel = supabase
-      .channel(`lps_rag_sync_${line}_${shift}`)
+      .channel(`lps_rag_sync_${canonicalLineName}_${shift}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "rag_weekly_entries" },
@@ -293,8 +317,8 @@ export default function LineProductionScreen() {
             qc.invalidateQueries({ queryKey: ["lps-rag-plan"] });
             return;
           }
-          if (row.entry_date === activeSessionDate && row.line === line && row.shift === shift) {
-            qc.invalidateQueries({ queryKey: ["lps-rag-plan", line, shift, activeSessionDate] });
+          if (row.entry_date === activeSessionDate && lineNamesMatch(row.line, canonicalLineName) && row.shift === shift) {
+            qc.invalidateQueries({ queryKey: ["lps-rag-plan", canonicalLineName, shift, activeSessionDate] });
             qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
             toast.info("Target updated from RAG Weekly");
           }
@@ -304,7 +328,7 @@ export default function LineProductionScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [qc, line, shift, activeSessionDate, sessionQ.data?.id]);
+  }, [qc, canonicalLineName, shift, activeSessionDate, sessionQ.data?.id]);
 
   const items = itemsQ.data || [];
 
@@ -341,14 +365,14 @@ export default function LineProductionScreen() {
   const syncSkus = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("intouch-sync-production", {
-        body: { session_date: activeSessionDate, shift, line, force: true, debug_discover: true },
+        body: { session_date: activeSessionDate, shift, line: canonicalLineName, force: true, debug_discover: true },
       });
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
       setLastSyncAt(new Date());
-      qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
+      qc.invalidateQueries({ queryKey: ["lps-session", canonicalLineName, shift, activeSessionDate] });
       qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
       toast.success("SKUs synced from iTouching");
     },
@@ -357,10 +381,6 @@ export default function LineProductionScreen() {
 
   // Is this line mapped to an iTouching machine? Lines without a mapping
   // (e.g. Capsules Machine 1/2) are maintenance-only terminals.
-  const currentLineId = useMemo(
-    () => (linesQ.data || []).find((l) => l.name === line)?.id,
-    [linesQ.data, line],
-  );
   const intouchMapQ = useQuery({
     enabled: !!currentLineId,
     queryKey: ["lps-intouch-map", currentLineId],
@@ -381,14 +401,13 @@ export default function LineProductionScreen() {
   // Auto-pull live actuals from iTouching for THIS line/shift so the operator
   // screen reflects real production without waiting for the global cron.
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
-  const [missingStreak, setMissingStreak] = useState(0);
   useEffect(() => {
-    if (!line || !sessionQ.data?.id || !hasItouch) return;
+    if (!canonicalLineName || !sessionQ.data?.id || !hasItouch) return;
     let cancelled = false;
     const runOnce = async (): Promise<boolean> => {
       try {
         await supabase.functions.invoke("intouch-sync-production", {
-          body: { session_date: activeSessionDate, shift, line: String(line).trim(), force: true },
+          body: { session_date: activeSessionDate, shift, line: canonicalLineName, force: true },
         });
         if (cancelled) return false;
         setLastSyncAt(new Date());
@@ -401,10 +420,9 @@ export default function LineProductionScreen() {
           .maybeSingle();
         const got = fresh?.intouch_good_total;
         const missing = got === null || got === undefined;
-        setMissingStreak((n) => (missing ? n + 1 : 0));
-        qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
+        qc.invalidateQueries({ queryKey: ["lps-session", canonicalLineName, shift, activeSessionDate] });
         qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
-        qc.invalidateQueries({ queryKey: ["lps-rag-plan", line, shift, activeSessionDate] });
+        qc.invalidateQueries({ queryKey: ["lps-rag-plan", canonicalLineName, shift, activeSessionDate] });
         return missing;
       } catch { return true; }
     };
@@ -420,14 +438,12 @@ export default function LineProductionScreen() {
     run();
     const t = setInterval(run, 60_000);
     return () => { cancelled = true; clearInterval(t); };
-  }, [line, shift, activeSessionDate, sessionQ.data?.id, hasItouch, qc]);
+  }, [canonicalLineName, shift, activeSessionDate, sessionQ.data?.id, hasItouch, qc]);
 
-  // True when the sync ran but iTouching did not return a good-count for this line/shift.
-  // Require 2 consecutive misses so a single API blip doesn't flash the warning.
   // The "live count unavailable" warning is reserved for lines that have NO
   // iTouching mapping at all. When a mapping exists we trust the next sync tick
   // to fill in `intouch_good_total`; a transient null is not user-facing.
-  const intouchGoodMissing = !hasItouch && !!sessionQ.data;
+  const intouchGoodMissing = !!canonicalLineName && !!currentLineId && intouchMapQ.isFetched && !hasItouch;
 
   // Per-shift observations (notes on production_sessions)
   const [notes, setNotes] = useState<string>("");
@@ -445,7 +461,7 @@ export default function LineProductionScreen() {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
+      qc.invalidateQueries({ queryKey: ["lps-session", canonicalLineName, shift, activeSessionDate] });
       toast.success("Observations saved");
     },
     onError: (e: any) => toast.error(e.message || "Failed to save observations"),
@@ -458,7 +474,7 @@ export default function LineProductionScreen() {
       const { data, error } = await (supabase as any)
         .from("production_downtimes")
         .select("id, category, reason, started_at, ended_at, occurred_date, shift, line")
-        .eq("line", line)
+        .eq("line", canonicalLineName)
         .eq("shift", shift)
         .eq("occurred_date", activeSessionDate)
         .is("ended_at", null)
@@ -702,11 +718,11 @@ export default function LineProductionScreen() {
                 const { error } = await (supabase as any)
                   .from("production_sessions")
                   .upsert(
-                    { session_date: activeSessionDate, line, shift, notes: "[Started from tablet]" },
+                    { session_date: activeSessionDate, line: canonicalLineName, shift, notes: "[Started from tablet]" },
                     { onConflict: "session_date,line,shift" },
                   );
                 if (error) { toast.error(error.message); return; }
-                qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
+                qc.invalidateQueries({ queryKey: ["lps-session", canonicalLineName, shift, activeSessionDate] });
                 toast.success("Shift started");
               }}
             >
