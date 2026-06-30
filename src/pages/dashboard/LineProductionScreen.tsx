@@ -82,7 +82,7 @@ function normalizeLineName(value: string | null | undefined): string {
 
 function lineNumberKey(value: string | null | undefined): string | null {
   const normalized = normalizeLineName(value);
-  const match = normalized.match(/\bline\s*0*(\d+)\b/);
+  const match = normalized.match(/\bline\s*0*(\d+)\b/) ?? normalized.match(/\bfiller\s*[-_/ ]*0*(\d+)\b/);
   return match ? `line:${Number(match[1])}` : null;
 }
 
@@ -395,27 +395,31 @@ export default function LineProductionScreen() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("intouch_machine_map")
-        .select("intouch_machine_id, intouch_machine_name, active, line_id")
-        .eq("active", true)
-        .not("intouch_machine_id", "is", null);
+        .select("intouch_machine_id, intouch_machine_name, machine_name, active, line_id");
       if (error) throw error;
       const rows = (data || []) as Array<{
         intouch_machine_id: string | null;
         intouch_machine_name: string | null;
+        machine_name: string | null;
         active: boolean;
         line_id: string | null;
       }>;
-      return rows.find((row) => {
+      const mappedRow = rows.find((row) => {
         const mappedLine = (linesQ.data || []).find((l) => l.id === row.line_id);
         return (
           (!!currentLineId && row.line_id === currentLineId) ||
           lineNamesMatch(mappedLine?.name, canonicalLineName) ||
-          lineNamesMatch(row.intouch_machine_name, canonicalLineName)
+          lineNamesMatch(row.intouch_machine_name, canonicalLineName) ||
+          lineNamesMatch(row.machine_name, canonicalLineName)
         );
-      }) ?? null;
+      });
+      return mappedRow
+        ? { ...mappedRow, has_active_machine: !!mappedRow.active && !!mappedRow.intouch_machine_id }
+        : null;
     },
   });
-  const hasItouch = !!intouchMapQ.data?.intouch_machine_id;
+  const hasItouch = !!intouchMapQ.data?.has_active_machine;
+  const hasItouchMapping = intouchMapQ.data !== null && intouchMapQ.data !== undefined;
 
   // Auto-pull live actuals from iTouching for THIS line/shift so the operator
   // screen reflects real production without waiting for the global cron.
@@ -460,9 +464,9 @@ export default function LineProductionScreen() {
   }, [canonicalLineName, shift, activeSessionDate, sessionQ.data?.id, hasItouch, qc]);
 
   // The "live count unavailable" warning is reserved for lines that have NO
-  // iTouching mapping at all. When a mapping exists we trust the next sync tick
-  // to fill in `intouch_good_total`; a transient null is not user-facing.
-  const intouchGoodMissing = !!canonicalLineName && intouchMapQ.isFetched && !hasItouch;
+  // iTouching mapping at all. When any mapping row exists, a null live count is
+  // treated as a temporary sync condition and must not be shown to operators.
+  const intouchGoodMissing = !!canonicalLineName && intouchMapQ.isFetched && !hasItouchMapping;
 
   // Per-shift observations (notes on production_sessions)
   const [notes, setNotes] = useState<string>("");
