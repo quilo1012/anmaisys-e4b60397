@@ -450,7 +450,7 @@ export default function LineProductionScreen() {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
+      qc.invalidateQueries({ queryKey: ["lps-session", canonicalLineName, shift, activeSessionDate] });
       toast.success("Observations saved");
     },
     onError: (e: any) => toast.error(e.message || "Failed to save observations"),
@@ -463,7 +463,7 @@ export default function LineProductionScreen() {
       const { data, error } = await (supabase as any)
         .from("production_downtimes")
         .select("id, category, reason, started_at, ended_at, occurred_date, shift, line")
-        .eq("line", line)
+        .eq("line", canonicalLineName)
         .eq("shift", shift)
         .eq("occurred_date", activeSessionDate)
         .is("ended_at", null)
@@ -707,11 +707,11 @@ export default function LineProductionScreen() {
                 const { error } = await (supabase as any)
                   .from("production_sessions")
                   .upsert(
-                    { session_date: activeSessionDate, line, shift, notes: "[Started from tablet]" },
+                    { session_date: activeSessionDate, line: canonicalLineName, shift, notes: "[Started from tablet]" },
                     { onConflict: "session_date,line,shift" },
                   );
                 if (error) { toast.error(error.message); return; }
-                qc.invalidateQueries({ queryKey: ["lps-session", line, shift, activeSessionDate] });
+                qc.invalidateQueries({ queryKey: ["lps-session", canonicalLineName, shift, activeSessionDate] });
                 toast.success("Shift started");
               }}
             >
