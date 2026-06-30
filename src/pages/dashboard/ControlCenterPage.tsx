@@ -156,6 +156,55 @@ export default function ControlCenterPage() {
     return map;
   }, [machines]);
 
+  // All active lines from DB (so newly-added lines like Line 7 always show up).
+  const { data: dbLines } = useQuery({
+    queryKey: ["control-center-lines"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lines")
+        .select("name,active")
+        .eq("active", true);
+      if (error) throw error;
+      return (data ?? []) as Array<{ name: string; active: boolean }>;
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  // Distinct line names that have an iTouching mapping.
+  const { data: itouchLineSet } = useQuery({
+    queryKey: ["control-center-itouch-lines"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("intouch_machine_map")
+        .select("line_id, lines:line_id(name)")
+        .eq("active", true);
+      if (error) throw error;
+      const s = new Set<string>();
+      (data ?? []).forEach((r: any) => {
+        const n = r?.lines?.name;
+        if (n) s.add(String(n).trim().toLowerCase());
+      });
+      return s;
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  const zones = useMemo(() => {
+    const all = new Set<string>(machines ? getZones(machines) : []);
+    (dbLines ?? []).forEach((l) => all.add(l.name));
+    return getZones(Array.from(all).map((name) => ({ line: name })));
+  }, [machines, dbLines]);
+
+  const machinesByZone = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    zones.forEach((z) => (map[z] = []));
+    (machines ?? []).forEach((m) => {
+      const zone = getZoneFor(m);
+      (map[zone] ||= []).push(m);
+    });
+    return map;
+  }, [machines, zones]);
+
   const wosByZone = useMemo(() => {
     const map: Record<string, any[]> = {};
     if (!workOrders || !machines) return map;
@@ -166,6 +215,11 @@ export default function ControlCenterPage() {
     });
     return map;
   }, [workOrders, machines]);
+
+  const hasItouch = useCallback(
+    (zone: string) => !!itouchLineSet?.has(zone.trim().toLowerCase()),
+    [itouchLineSet],
+  );
 
   const lineStatus = useMemo(() => {
     const map: Record<string, LineStatus> = {};
@@ -178,10 +232,12 @@ export default function ControlCenterPage() {
       if (hasStopped) map[z] = "stopped";
       else if (hasWO) map[z] = "wo_active";
       else if (hasPredictive) map[z] = "predictive";
+      else if (!hasItouch(z)) map[z] = "no_itouch";
       else map[z] = "ok";
     });
     return map;
-  }, [zones, wosByZone, machinesByZone, predictiveMachines]);
+  }, [zones, wosByZone, machinesByZone, predictiveMachines, hasItouch]);
+
 
   // KPIs
   const kpis = useMemo(() => {
