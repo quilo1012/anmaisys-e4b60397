@@ -98,16 +98,24 @@ export function categoryBucket(cat?: string | null): string {
   const raw = (cat ?? "").toString().trim();
   if (!raw) return "MAINT";
   const lc = raw.toLowerCase();
-  if (lc === "maintenance" || lc === "wo request" || lc === "wo_request") return "MAINT";
-  if (lc === "break") return "Break";
   if (
-    lc === "brushing cleaning" ||
-    lc === "deep clean" ||
-    lc === "drill clean" ||
-    lc === "line clean"
-  ) return "Cleaning";
-  if (lc === "changeover") return "Changeover";
-  if (lc === "quality") return "Quality";
+    lc === "maintenance" ||
+    lc === "wo request" ||
+    lc === "wo_request" ||
+    lc === "wo-request" ||
+    lc === "maint" ||
+    lc === "mechanical" ||
+    lc === "electrical" ||
+    lc === "machine" ||
+    lc === "filler" ||
+    lc === "other" ||
+    lc === "unclassified" ||
+    lc === "unknown"
+  ) return "MAINT";
+  if (lc === "break" || lc.includes("break")) return "Break";
+  if (lc.includes("clean")) return "Cleaning";
+  if (lc.includes("changeover")) return "Changeover";
+  if (lc.includes("quality")) return "Quality";
   return raw;
 }
 
@@ -214,11 +222,6 @@ export default function RAGWeeklyPage() {
         supabase.from("work_orders")
           .select("wo_number, status, machine, description, line_at_time, line_stopped_at, line_resumed_at, created_at, finished_at, closed_at, operator_id, intouch_stop_code, engineer_id")
           .not("line_stopped_at", "is", null)
-          .not("operator_id", "is", null)
-          .is("intouch_stop_code", null)
-          .not("engineer_id", "is", null)
-          .not("finished_at", "is", null)
-          .in("status", ["finished", "closed", "completed"])
           .gte("line_stopped_at", padStartIso)
           .lte("line_stopped_at", padEndIso),
         (supabase as any).from("downtime")
@@ -1252,10 +1255,13 @@ function DayNightTotalSummary({
   const isShiftExcluded = (label: string, ds: string, shift: Shift) =>
     excludedDates.has(`${label}|${ds}`) || excludedDates.has(`${label}|${ds}|${shift}`);
 
+  // All non-empty bucket names found anywhere in the auto map.
+  // IMPORTANT: hook must run on every render — keep it ABOVE any early return.
+  const allBucketNames = useMemo(() => {
+    return Array.from(autoDtBucketMap?.keys() ?? []);
+  }, [autoDtBucketMap]);
 
   if (!lines.length) return null;
-
-
 
   const fmtHm = (min: number) => {
     if (!min || min <= 0) return "—";
@@ -1281,10 +1287,6 @@ function DayNightTotalSummary({
   };
   const empty: Cell = { plan: 0, actual: 0, dt: 0, dtBuckets: {}, upm: 0 };
 
-  // All non-empty bucket names found anywhere in the auto map.
-  const allBucketNames = useMemo(() => {
-    return Array.from(autoDtBucketMap?.keys() ?? []);
-  }, [autoDtBucketMap]);
 
   const getCell = (dateStr: string, line: string, shift: Shift): Cell => {
     const key = `${dateStr}|${line}|${shift}`;
