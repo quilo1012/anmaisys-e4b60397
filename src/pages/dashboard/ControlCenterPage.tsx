@@ -55,7 +55,7 @@ const formatDowntime = (mins: number) => {
   return `${h}h ${mins % 60}m`;
 };
 
-type LineStatus = "stopped" | "wo_active" | "predictive" | "ok";
+type LineStatus = "stopped" | "wo_active" | "predictive" | "ok" | "no_itouch";
 
 const lineStatusStyles: Record<LineStatus, { card: string; dot: string; label: string; chip: string }> = {
   stopped: {
@@ -82,7 +82,14 @@ const lineStatusStyles: Record<LineStatus, { card: string; dot: string; label: s
     label: "Running",
     chip: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40",
   },
+  no_itouch: {
+    card: "border-border bg-card",
+    dot: "bg-muted-foreground/50",
+    label: "No iTouch",
+    chip: "bg-muted text-muted-foreground border-border",
+  },
 };
+
 
 export default function ControlCenterPage() {
   const { data: machines, isLoading: machinesLoading } = useMachines();
