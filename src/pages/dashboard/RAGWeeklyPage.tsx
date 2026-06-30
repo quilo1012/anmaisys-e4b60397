@@ -1255,10 +1255,13 @@ function DayNightTotalSummary({
   const isShiftExcluded = (label: string, ds: string, shift: Shift) =>
     excludedDates.has(`${label}|${ds}`) || excludedDates.has(`${label}|${ds}|${shift}`);
 
+  // All non-empty bucket names found anywhere in the auto map.
+  // IMPORTANT: hook must run on every render — keep it ABOVE any early return.
+  const allBucketNames = useMemo(() => {
+    return Array.from(autoDtBucketMap?.keys() ?? []);
+  }, [autoDtBucketMap]);
 
   if (!lines.length) return null;
-
-
 
   const fmtHm = (min: number) => {
     if (!min || min <= 0) return "—";
@@ -1284,10 +1287,6 @@ function DayNightTotalSummary({
   };
   const empty: Cell = { plan: 0, actual: 0, dt: 0, dtBuckets: {}, upm: 0 };
 
-  // All non-empty bucket names found anywhere in the auto map.
-  const allBucketNames = useMemo(() => {
-    return Array.from(autoDtBucketMap?.keys() ?? []);
-  }, [autoDtBucketMap]);
 
   const getCell = (dateStr: string, line: string, shift: Shift): Cell => {
     const key = `${dateStr}|${line}|${shift}`;
