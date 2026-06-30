@@ -494,14 +494,16 @@ export default function LineProductionScreen() {
   const openDowntimesQ = useQuery({
     queryKey: ["lps-open-downtimes", line, shift, activeSessionDate],
     queryFn: async () => {
-      const { dayStart, nightEnd } = getShiftWindows(activeSessionDate);
+      const { dayStart, dayEnd, nightStart, nightEnd } = getShiftWindows(activeSessionDate);
+      const winStart = shift === "DAY" ? dayStart : nightStart;
+      const winEnd = shift === "DAY" ? dayEnd : nightEnd;
       const { data, error } = await (supabase as any)
         .from("downtime")
         .select("id, category, reason, started_at, line")
         .eq("line", canonicalLineName)
         .is("ended_at", null)
-        .gte("started_at", dayStart.toISOString())
-        .lt("started_at", nightEnd.toISOString())
+        .gte("started_at", winStart.toISOString())
+        .lt("started_at", winEnd.toISOString())
         .not("category", "in", '("WO Request","Maintenance")')
         .order("started_at", { ascending: false });
       if (error) throw error;
