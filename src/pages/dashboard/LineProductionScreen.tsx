@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { getShiftWindows } from "@/hooks/useShiftDowntime";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -493,17 +494,20 @@ export default function LineProductionScreen() {
   const openDowntimesQ = useQuery({
     queryKey: ["lps-open-downtimes", line, shift, activeSessionDate],
     queryFn: async () => {
+      const { dayStart, dayEnd, nightStart, nightEnd } = getShiftWindows(activeSessionDate);
+      const winStart = shift === "DAY" ? dayStart : nightStart;
+      const winEnd = shift === "DAY" ? dayEnd : nightEnd;
       const { data, error } = await (supabase as any)
-        .from("production_downtimes")
-        .select("id, category, reason, started_at, ended_at, occurred_date, shift, line")
+        .from("downtime")
+        .select("id, category, reason, started_at, line")
         .eq("line", canonicalLineName)
-        .eq("shift", shift)
-        .eq("occurred_date", activeSessionDate)
         .is("ended_at", null)
+        .gte("started_at", winStart.toISOString())
+        .lt("started_at", winEnd.toISOString())
         .not("category", "in", '("WO Request","Maintenance")')
         .order("started_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as Array<{
+      return (data ?? []).filter((d: any) => lineNamesMatch(d.line, canonicalLineName)) as Array<{
         id: string;
         category: string | null;
         reason: string | null;
@@ -861,34 +865,15 @@ export default function LineProductionScreen() {
                 </span>
               </div>
               {(openDowntimesQ.data?.length ?? 0) > 0 && (
-                <div className="space-y-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-orange-400">
-                    Open downtimes:
-                  </div>
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Open downtimes:</div>
                   {openDowntimesQ.data!.map((d) => {
                     const started = new Date(d.started_at);
                     const hh = String(started.getHours()).padStart(2, "0");
                     const mm = String(started.getMinutes()).padStart(2, "0");
-                    const mins = Math.max(0, Math.round((Date.now() - started.getTime()) / 60000));
-                    const h = Math.floor(mins / 60);
-                    const m = mins % 60;
                     return (
-                      <div
-                        key={d.id}
-                        className="flex items-center gap-3 rounded-md border border-orange-500/60 bg-orange-500/10 px-3 py-2"
-                      >
-                        <AlertTriangle className="h-4 w-4 text-orange-400 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">
-                            {d.category || "Downtime"}
-                            {d.reason ? <span className="text-muted-foreground"> — {d.reason}</span> : null}
-                            <span className="text-muted-foreground"> — started {hh}:{mm}</span>
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {h}h {m}m em andamento
-                          </div>
-                        </div>
-                        <Badge variant="destructive" className="shrink-0">Em andamento</Badge>
+                      <div key={d.id} className="text-sm text-muted-foreground">
+                        {d.category || "Downtime"} — {d.reason || "—"} — started {hh}:{mm}
                       </div>
                     );
                   })}
