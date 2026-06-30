@@ -80,6 +80,22 @@ function normalizeLineName(value: string | null | undefined): string {
   return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function lineNumberKey(value: string | null | undefined): string | null {
+  const normalized = normalizeLineName(value);
+  const match = normalized.match(/\bline\s*0*(\d+)\b/);
+  return match ? `line:${Number(match[1])}` : null;
+}
+
+function lineNamesMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const left = normalizeLineName(a);
+  const right = normalizeLineName(b);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const leftKey = lineNumberKey(left);
+  const rightKey = lineNumberKey(right);
+  return !!leftKey && leftKey === rightKey;
+}
+
 function ragColor(pct: number): string {
   if (pct >= 95) return "bg-green-600";
   if (pct >= 80) return "bg-amber-500";
@@ -224,9 +240,8 @@ export default function LineProductionScreen() {
   }, [isOperator, operatorAcctQ.data?.label]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentLineRecord = useMemo(() => {
-    const selected = normalizeLineName(line);
-    if (!selected) return null;
-    return (linesQ.data || []).find((l) => normalizeLineName(l.name) === selected) ?? null;
+    if (!normalizeLineName(line)) return null;
+    return (linesQ.data || []).find((l) => lineNamesMatch(l.name, line)) ?? null;
   }, [linesQ.data, line]);
 
   const currentLineId = currentLineRecord?.id ?? null;
@@ -242,8 +257,7 @@ export default function LineProductionScreen() {
         .eq("session_date", activeSessionDate)
         .eq("shift", shift);
       if (error) throw error;
-      const selected = normalizeLineName(canonicalLineName);
-      return (data || []).find((row: any) => normalizeLineName(row.line) === selected) ?? null;
+      return (data || []).find((row: any) => lineNamesMatch(row.line, canonicalLineName)) ?? null;
     },
     refetchInterval: 30_000,
   });
@@ -282,8 +296,7 @@ export default function LineProductionScreen() {
         .eq("entry_date", activeSessionDate)
         .eq("shift", shift);
       if (error) throw error;
-      const selected = normalizeLineName(canonicalLineName);
-      const row = (data || []).find((r: any) => normalizeLineName(r.line) === selected);
+      const row = (data || []).find((r: any) => lineNamesMatch(r.line, canonicalLineName));
       return Number(row?.plan_qty ?? 0);
     },
     refetchInterval: 15_000,
@@ -304,7 +317,7 @@ export default function LineProductionScreen() {
             qc.invalidateQueries({ queryKey: ["lps-rag-plan"] });
             return;
           }
-          if (row.entry_date === activeSessionDate && normalizeLineName(row.line) === normalizeLineName(canonicalLineName) && row.shift === shift) {
+          if (row.entry_date === activeSessionDate && lineNamesMatch(row.line, canonicalLineName) && row.shift === shift) {
             qc.invalidateQueries({ queryKey: ["lps-rag-plan", canonicalLineName, shift, activeSessionDate] });
             qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
             toast.info("Target updated from RAG Weekly");
