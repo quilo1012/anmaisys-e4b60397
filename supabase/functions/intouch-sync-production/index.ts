@@ -97,6 +97,26 @@ function warnSync(event: string, details: Record<string, unknown>) {
   }
 }
 
+function normalizeLineName(value: string | null | undefined): string {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function lineNumberKey(value: string | null | undefined): string | null {
+  const normalized = normalizeLineName(value);
+  const match = normalized.match(/\bline\s*0*(\d+)\b/);
+  return match ? `line:${Number(match[1])}` : null;
+}
+
+function lineNamesMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const left = normalizeLineName(a);
+  const right = normalizeLineName(b);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const leftKey = lineNumberKey(left);
+  const rightKey = lineNumberKey(right);
+  return !!leftKey && leftKey === rightKey;
+}
+
 function pathOnly(path: string) {
   return path.split("?")[0];
 }
@@ -1115,7 +1135,7 @@ Deno.serve(async (req) => {
 
     const { data: lines } = await admin.from("lines").select("id, name");
     const lineName = new Map((lines ?? []).map((l: any) => [l.id, l.name]));
-    const requestedLine = body.line ? String(body.line).trim().toLowerCase() : "";
+    const requestedLine = body.line ? String(body.line).trim() : "";
 
     const byLine = new Map<string, MachineRef[]>();
     for (const m of maps ?? []) {
@@ -1130,13 +1150,15 @@ Deno.serve(async (req) => {
       .eq("entry_date", session_date)
       .eq("shift", shift)
       .gt("plan_qty", 0);
-    const ragPlanByLine = new Map((ragRows ?? []).map((r: any) => [String(r.line ?? "").trim().toLowerCase(), Number(r.plan_qty ?? 0)]));
+    const ragPlanForLine = (line: string) => Number(
+      (ragRows ?? []).find((r: any) => lineNamesMatch(r.line, line))?.plan_qty ?? 0,
+    );
 
     const results: any[] = [];
     for (const [line_id, machines] of byLine) {
       const line = lineName.get(line_id);
       if (!line) continue;
-      if (requestedLine && String(line).trim().toLowerCase() !== requestedLine) continue;
+      if (requestedLine && !lineNamesMatch(line, requestedLine)) continue;
 
       logSync("line_start", {
         line,
@@ -1146,7 +1168,7 @@ Deno.serve(async (req) => {
         window: { start: startISO, end: endISO },
       });
 
-      const ragPlan = Number(ragPlanByLine.get(String(line).trim().toLowerCase()) ?? 0);
+      const ragPlan = ragPlanForLine(line);
       if (ragPlan <= 0) {
         warnSync("line_skipped", { line, reason: "no RAG Weekly plan" });
         results.push({ line, skipped: "no RAG Weekly plan" });
