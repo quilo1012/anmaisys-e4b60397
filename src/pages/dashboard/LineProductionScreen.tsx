@@ -724,20 +724,12 @@ export default function LineProductionScreen() {
               <CardContent className="p-3 flex items-start gap-2 text-sm">
                 <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
                 <div className="flex-1 text-amber-700 dark:text-amber-300">
-                  <strong>iTouching live count unavailable</strong> for {line} · {shift}. Showing manual SKU sums until the next sync returns data.
+                  <strong>iTouching machine not mapped</strong> for {line}. Showing manual SKU sums. Ask an admin to map this line in iTouching Settings → Machine Map.
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0"
-                  onClick={() => syncSkus.mutate()}
-                  disabled={syncSkus.isPending}
-                >
-                  {syncSkus.isPending ? "Syncing…" : "Sync now"}
-                </Button>
               </CardContent>
             </Card>
           )}
+
 
           {/* KPI — Production Performance style (hidden for operators until unlocked by leader PIN) */}
           {(!isOperator || targetUnlock) && (<>
