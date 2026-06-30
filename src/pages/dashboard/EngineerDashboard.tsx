@@ -652,7 +652,10 @@ function EngineerDashboardContent() {
               engineerId={(wo as any).engineer_id}
               lineId={(wo as any).line_id}
               requesterName={wo.requester_name}
+              woLineStopped={(wo as any).line_stopped === true}
+              woLineStoppedAt={(wo as any).line_stopped_at}
             />
+
           )}
 
           {/* Checklist temporarily hidden */}
