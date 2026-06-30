@@ -1700,7 +1700,12 @@ function DowntimeBreakdownPopover({
             <div className="text-sm font-semibold">{stops.length} stop{stops.length === 1 ? "" : "s"} · {totalMin}m total</div>
             {totalScrap > 0 && <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">Scrap: {totalScrap.toLocaleString()}</div>}
           </div>
-          <a href="/dashboard/work-orders" className="text-[11px] text-primary hover:underline">Open Work Orders →</a>
+          <Link
+            to={`/dashboard/engineer?line=${encodeURIComponent(line)}&date=${encodeURIComponent(dateStr)}`}
+            className="text-[11px] text-primary hover:underline"
+          >
+            Open Work Orders →
+          </Link>
         </div>
 
         <div className="max-h-[320px] overflow-y-auto">
