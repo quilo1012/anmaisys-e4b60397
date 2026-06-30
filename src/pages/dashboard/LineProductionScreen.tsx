@@ -381,9 +381,17 @@ export default function LineProductionScreen() {
 
   // Is this line mapped to an iTouching machine? Lines without a mapping
   // (e.g. Capsules Machine 1/2) are maintenance-only terminals.
+  // IMPORTANT: wait for linesQ so name-based matching (Filler Line N ↔ Line N)
+  // can resolve. Re-key on linesQ data length so a late lines fetch re-runs the
+  // matcher rather than leaving a stale "not mapped" verdict cached.
   const intouchMapQ = useQuery({
-    enabled: !!canonicalLineName,
-    queryKey: ["lps-intouch-map", currentLineId, canonicalLineName],
+    enabled: !!canonicalLineName && !linesQ.isLoading,
+    queryKey: [
+      "lps-intouch-map",
+      currentLineId,
+      canonicalLineName,
+      (linesQ.data || []).length,
+    ],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("intouch_machine_map")
