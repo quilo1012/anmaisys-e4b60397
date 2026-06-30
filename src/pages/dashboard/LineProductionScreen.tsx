@@ -387,7 +387,7 @@ export default function LineProductionScreen() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("intouch_machine_map")
-        .select("intouch_machine_id, intouch_machine_name, active, line_id, line:lines(id, name)")
+        .select("intouch_machine_id, intouch_machine_name, active, line_id")
         .eq("active", true)
         .not("intouch_machine_id", "is", null);
       if (error) throw error;
@@ -396,13 +396,12 @@ export default function LineProductionScreen() {
         intouch_machine_name: string | null;
         active: boolean;
         line_id: string | null;
-        line?: { id?: string; name?: string } | { id?: string; name?: string }[] | null;
       }>;
       return rows.find((row) => {
-        const joined = Array.isArray(row.line) ? row.line[0] : row.line;
+        const mappedLine = (linesQ.data || []).find((l) => l.id === row.line_id);
         return (
           (!!currentLineId && row.line_id === currentLineId) ||
-          lineNamesMatch(joined?.name, canonicalLineName) ||
+          lineNamesMatch(mappedLine?.name, canonicalLineName) ||
           lineNamesMatch(row.intouch_machine_name, canonicalLineName)
         );
       }) ?? null;
