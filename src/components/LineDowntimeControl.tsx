@@ -262,18 +262,10 @@ export function LineDowntimeControl({
           {woLineStoppedAt && ` since ${format(new Date(woLineStoppedAt), "HH:mm")}`}
           {liveDur !== null && ` (${liveDur}m ago)`}
         </p>
-        {canControl ? (
-          <Button
-            size="lg"
-            className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700 text-white"
-            onClick={handleResume}
-            disabled={resumeLine.isPending}
-          >
-            <CheckCircle2 className="h-5 w-5 mr-2" /> MACHINE BACK TO WORK
-          </Button>
-        ) : (
-          <PermissionBanner role={role} lineName={lineName} lineId={lineId} />
-        )}
+        <p className="text-xs text-red-700/80">
+          Use the line status banner above to mark the machine back to work.
+        </p>
+
       </div>
     );
   }
