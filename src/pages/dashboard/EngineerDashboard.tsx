@@ -769,6 +769,24 @@ function EngineerDashboardContent() {
   return (
     <DashboardLayout>
       <div className="space-y-4 md:space-y-6">
+        {(lineFilterParam || dateFilterParam) && (
+          <Alert className="flex items-center justify-between gap-2 border-primary/50 bg-primary/5">
+            <div className="flex items-center gap-2">
+              <Focus className="h-4 w-4 text-primary" />
+              <AlertTitle className="m-0 text-sm font-semibold">
+                Showing WOs{lineFilterParam ? ` for ${lineFilterParam}` : ""}
+                {dateFilterParam ? ` · ${format(new Date(dateFilterParam + "T12:00:00"), "d MMM")}` : ""}
+              </AlertTitle>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard/engineer", { replace: true })}
+            >
+              Clear filter ✕
+            </Button>
+          </Alert>
+        )}
         {activeWOs && activeWOs.filter(wo => wo.status === "open").length > 0 && (
           <Alert variant="destructive" className="border-destructive bg-destructive/10 animate-pulse">
             <AlertTriangle className="h-5 w-5" />
