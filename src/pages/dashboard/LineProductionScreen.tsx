@@ -424,12 +424,10 @@ export default function LineProductionScreen() {
 
   // True when the sync ran but iTouching did not return a good-count for this line/shift.
   // Require 2 consecutive misses so a single API blip doesn't flash the warning.
-  const intouchGoodMissing =
-    hasItouch &&
-    !!sessionQ.data &&
-    !!lastSyncAt &&
-    missingStreak >= 2 &&
-    ((sessionQ.data as any)?.intouch_good_total === null || (sessionQ.data as any)?.intouch_good_total === undefined);
+  // The "live count unavailable" warning is reserved for lines that have NO
+  // iTouching mapping at all. When a mapping exists we trust the next sync tick
+  // to fill in `intouch_good_total`; a transient null is not user-facing.
+  const intouchGoodMissing = !hasItouch && !!sessionQ.data;
 
   // Per-shift observations (notes on production_sessions)
   const [notes, setNotes] = useState<string>("");
