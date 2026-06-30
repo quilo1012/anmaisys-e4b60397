@@ -53,7 +53,11 @@ interface LineDowntimeControlProps {
   lineId?: string | null;
   /** Name of the person who originally opened the WO (shown for context). */
   requesterName?: string | null;
+  /** WO-level line_stopped flag from work_orders — keeps bottom indicator consistent with top banner. */
+  woLineStopped?: boolean;
+  woLineStoppedAt?: string | null;
 }
+
 
 /**
  * Multi-cycle line stop/resume control.
