@@ -382,12 +382,29 @@ function EngineerDashboardContent() {
     };
   }, [allCompleted]);
 
+  const lineFilterParam = searchParams.get("line");
+  const dateFilterParam = searchParams.get("date");
+
   const activeWOs = useMemo(() => {
     const all = workOrders?.filter(
       (wo) => wo.status === "open" || ["received", "arrived", "in_progress"].includes(wo.status)
     ) || [];
+    const filtered = all.filter((wo) => {
+      if (lineFilterParam) {
+        const woLine = String((wo as any).line_at_time ?? "").trim().toLowerCase();
+        if (woLine !== lineFilterParam.trim().toLowerCase()) return false;
+      }
+      if (dateFilterParam) {
+        const created = (wo as any).created_at as string | undefined;
+        if (!created) return false;
+        // Match calendar date in Europe/London
+        const woDate = new Date(created).toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+        if (woDate !== dateFilterParam) return false;
+      }
+      return true;
+    });
     // Sort: open (unassigned) first, then by priority, then oldest first
-    const sorted = [...all].sort((a, b) => {
+    const sorted = [...filtered].sort((a, b) => {
       const aOpen = a.status === "open" ? 0 : 1;
       const bOpen = b.status === "open" ? 0 : 1;
       if (aOpen !== bOpen) return aOpen - bOpen;
@@ -400,7 +417,7 @@ function EngineerDashboardContent() {
       return [sorted[0]];
     }
     return sorted;
-  }, [workOrders, focusMode]);
+  }, [workOrders, focusMode, lineFilterParam, dateFilterParam]);
 
   const suggestedEngineer = useMemo(() => {
     if (!onlineEngineers || !workOrders) return null;
