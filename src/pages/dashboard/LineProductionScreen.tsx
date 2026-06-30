@@ -443,6 +443,7 @@ export default function LineProductionScreen() {
         .eq("shift", shift)
         .eq("occurred_date", activeSessionDate)
         .is("ended_at", null)
+        .not("category", "in", '("WO Request","Maintenance")')
         .order("started_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Array<{
@@ -808,8 +809,14 @@ export default function LineProductionScreen() {
               </div>
               {(openDowntimesQ.data?.length ?? 0) > 0 && (
                 <div className="space-y-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-orange-400">
+                    Open downtimes:
+                  </div>
                   {openDowntimesQ.data!.map((d) => {
-                    const mins = Math.max(0, Math.round((Date.now() - new Date(d.started_at).getTime()) / 60000));
+                    const started = new Date(d.started_at);
+                    const hh = String(started.getHours()).padStart(2, "0");
+                    const mm = String(started.getMinutes()).padStart(2, "0");
+                    const mins = Math.max(0, Math.round((Date.now() - started.getTime()) / 60000));
                     const h = Math.floor(mins / 60);
                     const m = mins % 60;
                     return (
@@ -822,6 +829,7 @@ export default function LineProductionScreen() {
                           <div className="text-sm font-medium truncate">
                             {d.category || "Downtime"}
                             {d.reason ? <span className="text-muted-foreground"> — {d.reason}</span> : null}
+                            <span className="text-muted-foreground"> — started {hh}:{mm}</span>
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {h}h {m}m em andamento
