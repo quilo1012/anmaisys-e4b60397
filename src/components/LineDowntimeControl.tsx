@@ -53,7 +53,11 @@ interface LineDowntimeControlProps {
   lineId?: string | null;
   /** Name of the person who originally opened the WO (shown for context). */
   requesterName?: string | null;
+  /** WO-level line_stopped flag from work_orders — keeps bottom indicator consistent with top banner. */
+  woLineStopped?: boolean;
+  woLineStoppedAt?: string | null;
 }
+
 
 /**
  * Multi-cycle line stop/resume control.
@@ -71,7 +75,10 @@ export function LineDowntimeControl({
   engineerId,
   lineId,
   requesterName,
+  woLineStopped,
+  woLineStoppedAt,
 }: LineDowntimeControlProps) {
+
   const { user, role } = useAuth();
   const { data: operatorLineIds } = useOperatorLineIds();
   const { data: lines } = useLines();
@@ -241,6 +248,28 @@ export function LineDowntimeControl({
     );
   }
 
+  // WO is flagged as line-stopped at the work_orders level but no downtime_event exists.
+  // Keep the bottom indicator consistent with the top banner instead of saying "in operation".
+  if (woLineStopped) {
+    const liveDur = woLineStoppedAt
+      ? differenceInMinutes(new Date(), new Date(woLineStoppedAt))
+      : null;
+    return (
+      <div className="rounded-lg border-2 border-red-600 bg-red-600/10 p-3 space-y-2">
+        <p className="text-sm font-semibold text-red-700 flex items-center gap-1.5">
+          <PowerOff className="h-4 w-4" />
+          Line stopped
+          {woLineStoppedAt && ` since ${format(new Date(woLineStoppedAt), "HH:mm")}`}
+          {liveDur !== null && ` (${liveDur}m ago)`}
+        </p>
+        <p className="text-xs text-red-700/80">
+          Use the line status banner above to mark the machine back to work.
+        </p>
+
+      </div>
+    );
+  }
+
   // CASE C — never stopped
   return (
     <>
@@ -248,6 +277,7 @@ export function LineDowntimeControl({
         <span className="text-sm text-muted-foreground flex items-center gap-1.5">
           <CheckCircle2 className="h-4 w-4 text-green-600" /> Line in operation · no stoppage
         </span>
+
         {canControl && workOrderStatus === "in_progress" && (
           <Button
             size="sm"
