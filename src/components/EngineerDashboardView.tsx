@@ -2,6 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -123,7 +124,7 @@ function OrderTable({ list, icon }: { list: WO[]; icon: React.ReactNode }) {
               <TableCell>{o.line_at_time ?? "—"}</TableCell>
               <TableCell>{o.problem_description ?? "—"}</TableCell>
               <TableCell>
-                <Badge variant="outline">{o.status.toUpperCase()}</Badge>
+                <StatusBadge status={o.status} />
               </TableCell>
             </TableRow>
           ))}
