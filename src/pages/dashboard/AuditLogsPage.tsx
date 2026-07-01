@@ -65,10 +65,9 @@ export default function AuditLogsPage() {
           </div>
           {role === "admin" && (
             <Button
-              variant="outline"
+              variant="destructive"
               size="sm"
               onClick={() => setShowClear(true)}
-              className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
             >
               <Trash2 className="h-4 w-4 mr-2" /> Clear Audit Logs
             </Button>

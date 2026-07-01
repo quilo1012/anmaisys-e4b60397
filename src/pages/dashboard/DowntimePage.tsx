@@ -553,7 +553,7 @@ export default function DowntimePage() {
                                 <CheckCircle className="h-4 w-4 mr-1" /> Resolve
                               </Button>
                             )}
-                            <Button size="sm" variant="outline" className="h-10 text-destructive touch-manipulation" onClick={() => setDeleteId(r.id)}>
+                            <Button size="sm" variant="destructive" className="h-10 touch-manipulation" onClick={() => setDeleteId(r.id)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
