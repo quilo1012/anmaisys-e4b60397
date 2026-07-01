@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon, CheckCircle, Zap } from "lucide-react";
+import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon, CheckCircle, Zap, StopCircle, AlertCircle, Factory, Printer } from "lucide-react";
 import { useWorkOrders, useCreateWorkOrder, useCloseWorkOrder } from "@/hooks/useWorkOrders";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -246,21 +246,21 @@ function OperatorDashboardContent() {
           type="button"
           onClick={() => { setLineStopped(true); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
           className={cn(
-            "px-3 h-8 rounded-sm font-medium transition-colors",
+            "px-3 h-8 rounded-sm font-medium transition-colors inline-flex items-center gap-1.5",
             lineStopped ? "bg-red-600 text-white" : "text-muted-foreground hover:bg-accent"
           )}
         >
-          🛑 Stopped
+          <StopCircle className="h-4 w-4" /> Stopped
         </button>
         <button
           type="button"
           onClick={() => { setLineStopped(false); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
           className={cn(
-            "px-3 h-8 rounded-sm font-medium transition-colors",
+            "px-3 h-8 rounded-sm font-medium transition-colors inline-flex items-center gap-1.5",
             !lineStopped ? "bg-amber-500 text-white" : "text-muted-foreground hover:bg-accent"
           )}
         >
-          ⚠️ Running
+          <AlertCircle className="h-4 w-4" /> Running
         </button>
       </div>
 
@@ -279,8 +279,8 @@ function OperatorDashboardContent() {
                 Line: {lineName}
               </Badge>
             )}
-            {lineStopped && <Badge variant="destructive" className="ml-2">🛑 Line Stopped</Badge>}
-            {!lineStopped && (requestedBy || description) && <Badge className="ml-2 bg-amber-500 text-white border-amber-500">⚠️ Line Running</Badge>}
+            {lineStopped && <Badge variant="destructive" className="ml-2 gap-1"><StopCircle className="h-3 w-3" /> Line Stopped</Badge>}
+            {!lineStopped && (requestedBy || description) && <Badge className="ml-2 gap-1 bg-amber-500 text-white border-amber-500"><AlertCircle className="h-3 w-3" /> Line Running</Badge>}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -312,11 +312,11 @@ function OperatorDashboardContent() {
                     setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId("");
                   }}
                   className={cn(
-                    "flex-1 sm:flex-none px-4 h-11 rounded-sm font-semibold transition-colors",
+                    "flex-1 sm:flex-none px-4 h-11 rounded-sm font-semibold transition-colors inline-flex items-center justify-center gap-1.5",
                     targetMode === "line" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"
                   )}
                 >
-                  🏭 {lineName || "Line"}
+                  <Factory className="h-4 w-4" /> {lineName || "Line"}
                 </button>
                 <button
                   type="button"
@@ -328,11 +328,11 @@ function OperatorDashboardContent() {
                     if (lineId && !lineIsSealerPrinter) setPhysicalLineId(lineId);
                   }}
                   className={cn(
-                    "flex-1 sm:flex-none px-4 h-11 rounded-sm font-semibold transition-colors",
+                    "flex-1 sm:flex-none px-4 h-11 rounded-sm font-semibold transition-colors inline-flex items-center justify-center gap-1.5",
                     targetMode === "sealer_printer" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"
                   )}
                 >
-                  🖨️ Sealer / Printer Ink
+                  <Printer className="h-4 w-4" /> Sealer / Printer Ink
                 </button>
               </div>
             </div>
@@ -416,7 +416,7 @@ function OperatorDashboardContent() {
                   if (!m || m.category !== "line_mobile") return null;
                   const at = (m.current_line || "").toString();
                   if (at === lineName) {
-                    return <p className="text-xs text-emerald-600">✓ {m.name} is currently on {lineName}.</p>;
+                    return <p className="text-xs text-emerald-600 inline-flex items-center gap-1"><CheckCircle className="h-3 w-3" /> {m.name} is currently on {lineName}.</p>;
                   }
                   return (
                     <div className="flex items-center gap-2 text-xs">
