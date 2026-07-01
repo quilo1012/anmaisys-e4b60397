@@ -604,7 +604,8 @@ function EngineerDashboardContent() {
                 WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
               </span>
               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
-              <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
+              <StatusBadge status={wo.status} />
+
             </div>
             <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 p-3 border border-amber-300 dark:border-amber-800 flex items-start gap-2">
               <Lock className="h-4 w-4 text-amber-700 mt-0.5 shrink-0" />
@@ -642,7 +643,8 @@ function EngineerDashboardContent() {
             </div>
             <div className="flex gap-1.5 items-center flex-wrap">
               <PriorityBadge priority={(wo as any).priority} />
-              <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
+              <StatusBadge status={wo.status} />
+
               {wo.status === "open" && <WaitTimer createdAt={wo.created_at} />}
               {wo.status === "in_progress" && wo.started_at && <LiveTimer startedAt={wo.started_at} />}
             </div>
@@ -907,9 +909,8 @@ function EngineerDashboardContent() {
                   </thead>
                   <tbody>
                     {activeWOs.map((wo) => {
-                      const cfg = statusConfig[wo.status] || statusConfig.open;
-                      
                       return (
+
                         <>
                           <tr key={wo.id} className={`border-b ${wo.priority === "critical" ? "bg-red-50" : ""}`}>
                             <td className="p-2 font-mono font-medium">
