@@ -330,7 +330,7 @@ export default function WorkOrdersPage() {
           </div>
           <div className="flex gap-2">
             {role === "admin" && (
-              <Button variant="outline" size="sm" onClick={() => setShowClearWOs(true)} className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive">
+              <Button variant="destructive" size="sm" onClick={() => setShowClearWOs(true)}>
                 <AlertTriangle className="h-4 w-4 mr-2" /> Clear WOs
               </Button>
             )}
