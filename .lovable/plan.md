@@ -1,40 +1,34 @@
-## Tablet do Operador (Line Production Screen)
+# Standardize Work Order Status Badges with `<StatusBadge>`
 
-**Travar a linha ao login**
-- Quando o usuário tem registro em `operator_line_accounts` (ex.: line4@…), esconder o seletor de Linha e o seletor de Tablet do header.
-- Forçar `line` = primeira/única linha permitida (auto-select já existe). Hoje o operador ainda vê o dropdown e consegue trocar — vou remover o dropdown e bloquear no useEffect (ignora qualquer valor fora da lista permitida).
-- Travar o seletor de Turno: operadores ficam fixos no `currentShift()` calculado pelo horário de Londres; toggle DAY/NIGHT some para o operador (admin/manager continuam podendo trocar).
-- Travar Tablet ID ao label da conta (`operator_line_accounts.label`, ex.: "Tablet 4") — sem dropdown para o operador.
+Scope: only swap the WO status badge rendering. No other UI, logic, query, or styling change. AuditLogsPage entity-type badges (`work_order`, `downtime`, etc.) stay untouched — they're entity types, not statuses, and the file contains no WO status renders.
 
-**Visual do tablet (cleanup)**
-- Header em uma linha só: `Linha • Shift • Data • Relógio • Status`. Remover botões “Sync SKUs” e “Kiosk” do header e mover Kiosk para canto inferior direito (FAB) — operador não precisa ver Sync.
-- Cards maiores, tipografia maior nas KPIs, menos badges secundários.
+## Files to change
 
-**Botão “Request Order” no tablet**
-- Adicionar botão grande **“🚨 Open Maintenance Order”** logo abaixo do KPI.
-- Abre dialog em tela cheia com campos: Machine (dropdown filtrado pela linha), Problem (categoria + descrição), Priority. Submit cria `work_orders` com `requester_name = operator label`, `line_id` e `line_at_time` da conta, status `open`.
+### 1. `src/pages/dashboard/EngineerDashboard.tsx`
+Add: `import { StatusBadge } from "@/components/ui/StatusBadge";`
 
-## Engenheiro
+Replace the three WO status `<Badge>` renderings (currently driven by `statusConfig[wo.status]` / `woStatusConfig`) with `<StatusBadge status={wo.status} />`:
 
-**Visual no topo**
-- Remover blocos pesados do topo (KPIs grandes, predictive alerts grandes, online engineers chips). Deixar apenas: título “Engineer Console” + 3 KPI cards compactos (Active, Completed today, MTTR). Sidebar continua com a navegação completa.
+- **~line 593–650** (card view): the `<Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>` next to `PriorityBadge` → `<StatusBadge status={wo.status} />`. Remove the now-unused `const cfg = statusConfig[wo.status] || statusConfig.open;` if no longer referenced in that block.
+- **~line 929** (active WO table row): same `<Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>` → `<StatusBadge status={wo.status} />`. Remove the unused `cfg` local.
+- **~line 1037** (completed/history table row): `<Badge variant="outline">{wo.status}</Badge>` → `<StatusBadge status={wo.status} />`.
 
-**Listas visíveis**
-- Seção **Active Work** já lista `open / received / arrived / in_progress`. Vou garantir 3 grupos claros com cabeçalhos:
-  1. 🆕 Open (não aceitas)
-  2. 🔧 In Progress (aceitas/arrived/started)
-  3. ✅ Recently Finished (history — finished/closed/completed, últimas 50)
-- Cada item mostra: WO# · Linha · Máquina · Problema · Status · Requester · Engineer · Tempo.
-- Hoje só a lista “History” existe via scroll; vou trazê-la pra cima e mostrar pra qualquer engenheiro (já está sem filtro por engineer_id desde o último ajuste).
+Leave the `statusConfig` import in place only if still used elsewhere in the file (e.g. `priorityChipClass`); otherwise drop it. Do not touch any other badge, filter, query, or layout.
 
-## Arquivos
+### 2. `src/components/EngineerDashboardView.tsx`
+Add the `StatusBadge` import and replace the single `<Badge variant="outline">{o.status.toUpperCase()}</Badge>` in the table cell with `<StatusBadge status={o.status} />`. Remove the now-unused `Badge` import if nothing else uses it.
 
-- `src/pages/dashboard/LineProductionScreen.tsx` — esconder seletores, fixar shift/line/tablet por conta, novo botão Request Order.
-- `src/components/operator/RequestOrderDialog.tsx` (novo) — formulário de abertura de WO no tablet.
-- `src/pages/dashboard/EngineerDashboard.tsx` — limpar topo, reorganizar seções Open / In Progress / Finished.
+### 3. WorkOrderCard / WorkOrderList components
+None exist in `src/components/` (verified via `rg`). Nothing to change.
 
-## Pontos a confirmar
+### 4. `src/pages/dashboard/AuditLogsPage.tsx`
+Verified: only renders `entity_type` and `action` badges (entity types, not WO statuses). No change per the user's rule.
 
-1. Para o operador, o **Tablet ID** deve vir do campo `label` em `operator_line_accounts` (ex.: "Tablet 4")? Hoje o tablet id é manual no dropdown.
-2. No "Request Order" do tablet, posso reaproveitar a lista de categorias padrão (`problem_descriptions`) ou prefere campos livres simples (Machine + Description)?
-3. Engineer top: posso remover totalmente `EngineerNavCards`, `usePredictiveAlerts` e `useOnlineEngineers` do topo (manter só na sidebar/seções internas)?
+## Out of scope (explicit)
+- `OperatorDashboard.tsx`, `WorkOrdersPage.tsx`, `WorkOrderDetail.tsx`, `ControlCenterPage.tsx` — not listed in the request. Leave their existing `woStatusConfig`-based rendering untouched.
+- `MachineSelector.tsx`, `RecurrenceBadge.tsx` — not WO status badges.
+- No changes to `woStatusConfig.ts`, no changes to colors of unknown statuses (they fall back to neutral gray automatically via `StatusBadge`).
+
+## Verification
+- `tsgo` typecheck.
+- Visual: open Engineer Dashboard, confirm WO status pills render with the new unified palette (open=blue, in_progress=amber, completed/closed/finished=green) and all other UI is unchanged.
