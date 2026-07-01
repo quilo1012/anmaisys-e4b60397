@@ -926,7 +926,7 @@ function EngineerDashboardContent() {
                             <td className="p-2">{wo.machine}</td>
                             <td className="p-2 max-w-[200px] truncate">{wo.description}</td>
                             <td className="p-2 text-muted-foreground">{wo.engineer_name || "—"}</td>
-                            <td className="p-2 space-y-1"><div className="flex items-center gap-1.5 flex-wrap"><PriorityBadge priority={(wo as any).priority} /><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>{wo.status === "open" && <WaitTimer createdAt={wo.created_at} />}{wo.status === "in_progress" && wo.started_at && <LiveTimer startedAt={wo.started_at} />}</div>{((wo as any).line_stopped || (wo as any).line_resumed_at) && (<div className="mt-1"><LineStatusBanner lineStopped={(wo as any).line_stopped === true} lineStoppedAt={(wo as any).line_stopped_at} lineResumedAt={(wo as any).line_resumed_at} /></div>)}</td>
+                            <td className="p-2 space-y-1"><div className="flex items-center gap-1.5 flex-wrap"><PriorityBadge priority={(wo as any).priority} /><StatusBadge status={wo.status} />{wo.status === "open" && <WaitTimer createdAt={wo.created_at} />}{wo.status === "in_progress" && wo.started_at && <LiveTimer startedAt={wo.started_at} />}</div>{((wo as any).line_stopped || (wo as any).line_resumed_at) && (<div className="mt-1"><LineStatusBanner lineStopped={(wo as any).line_stopped === true} lineStoppedAt={(wo as any).line_stopped_at} lineResumedAt={(wo as any).line_resumed_at} /></div>)}</td>
                             <td className="p-2 text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</td>
                             <td className="p-2">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</td>
                             <td className="p-2">
@@ -1034,7 +1034,7 @@ function EngineerDashboardContent() {
                           </td>
                           <td className="p-2">{wo.line_at_time || "—"}</td>
                           <td className="p-2 max-w-[280px] truncate">{wo.description || wo.machine || "—"}</td>
-                          <td className="p-2"><Badge variant="outline">{wo.status}</Badge></td>
+                          <td className="p-2"><StatusBadge status={wo.status} /></td>
                           <td className="p-2">{wo.requester_name || "—"}</td>
                           <td className="p-2">{wo.engineer_name || "—"}</td>
                           <td className="p-2 text-muted-foreground whitespace-nowrap">
