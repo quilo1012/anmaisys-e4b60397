@@ -397,7 +397,7 @@ export default function AnalyticsPage() {
 
         <div className="flex items-center justify-between print:hidden">
           <div>
-            <h2 className="text-3xl font-bold flex items-center gap-2"><BarChart3 className="h-6 w-6" /> Analytics</h2>
+            <h2 className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="h-6 w-6" /> Analytics</h2>
             <p className="text-muted-foreground">KPIs, charts, and performance metrics</p>
           </div>
           <div className="flex gap-2">
