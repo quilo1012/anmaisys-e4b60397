@@ -40,7 +40,7 @@ import { clearAcknowledgedWOLocal } from "@/lib/woAck";
 
 
 
-import { woStatusConfig as statusConfig } from "@/lib/woStatusConfig";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 
 function LiveTimer({ startedAt }: { startedAt: string }) {
@@ -590,7 +590,6 @@ function EngineerDashboardContent() {
 
   // Mobile card with inline checklist
   const MobileWOCard = ({ wo }: { wo: any }) => {
-    const cfg = statusConfig[wo.status] || statusConfig.open;
     const isOpen = wo.status === "open";
     const checklistComplete = useChecklistComplete(wo.description, wo.id);
     const isInProgress = wo.status === "in_progress";
