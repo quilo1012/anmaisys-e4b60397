@@ -603,9 +603,7 @@ export default function ControlCenterPage() {
                                 <span className="font-mono text-[10px] font-bold">
                                   {formatWONumber(wo.wo_number, wo.created_at)}
                                 </span>
-                                <Badge variant="outline" className={cn("text-[9px] py-0 px-1.5", sc.className)}>
-                                  {sc.label}
-                                </Badge>
+                                <StatusBadge status={wo.status} label={sc.label} size="sm" className="text-[9px] py-0 px-1.5" />
                               </div>
                               <p className={cn("truncate font-medium mt-0.5", tvMode ? "text-[10px]" : "text-xs")}>
                                 {wo.machine || "—"}
