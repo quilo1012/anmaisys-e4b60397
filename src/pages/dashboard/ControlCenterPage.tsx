@@ -420,7 +420,7 @@ export default function ControlCenterPage() {
                         <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
                           <TableCell className="font-medium">{machine ? getZoneFor(machine) : "Unassigned"}</TableCell>
                           <TableCell>{wo.machine || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
-                          <TableCell><Badge variant="outline" className={sc.className}>{sc.label}</Badge></TableCell>
+                          <TableCell><StatusBadge status={wo.status} label={sc.label} /></TableCell>
                           <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
                           <TableCell>{wo.engineer_name || "—"}</TableCell>
                           <TableCell className="font-mono">{formatDowntime(downMin)}</TableCell>
