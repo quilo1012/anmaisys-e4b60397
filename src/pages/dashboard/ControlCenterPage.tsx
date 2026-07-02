@@ -553,9 +553,7 @@ export default function ControlCenterPage() {
                                   <span className="font-mono font-bold text-[11px] shrink-0">
                                     {formatWONumber(wo.wo_number, wo.created_at)}
                                   </span>
-                                  <Badge variant="outline" className={cn("text-[10px] shrink-0", sc.className)}>
-                                    {sc.label}
-                                  </Badge>
+                                  <StatusBadge status={wo.status} label={sc.label} size="sm" className="shrink-0 text-[10px]" />
                                   <span className="flex-1 truncate text-muted-foreground">
                                     {wo.machine} · {wo.description}
                                   </span>
