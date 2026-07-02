@@ -5,6 +5,8 @@ import { statusBadgeConfig } from "@/lib/design-tokens";
 export interface StatusBadgeProps {
   /** Status value to display (case-insensitive). */
   status: string;
+  /** Optional label override. Defaults to the status string. */
+  label?: React.ReactNode;
   /** Size variant of the badge. */
   size?: "sm" | "md";
   /** Whether to show a colored dot icon before the label. */
