@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2, Tags } from "lucide-react";
@@ -183,9 +184,9 @@ export default function StockPage() {
                             <p className="text-xs text-muted-foreground font-mono">{p.code}{p.line ? ` · ${p.line}` : ""}</p>
                           </div>
                           {isLow ? (
-                            <Badge variant="destructive">Low</Badge>
+                            <StatusBadge status="low_stock" />
                           ) : (
-                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800">OK</Badge>
+                            <StatusBadge status="normal" />
                           )}
                         </div>
                         <div className="flex items-end justify-between gap-2">
@@ -242,9 +243,9 @@ export default function StockPage() {
                         <TableCell>{p.min_stock}</TableCell>
                         <TableCell>
                           {isLow ? (
-                            <Badge variant="destructive">Low</Badge>
+                            <StatusBadge status="low_stock" />
                           ) : (
-                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800">OK</Badge>
+                            <StatusBadge status="normal" />
                           )}
                         </TableCell>
                         {isManager && (

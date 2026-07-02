@@ -47,13 +47,19 @@ export const borderRadius = {
 // Maps common status values to a unified set of Tailwind className strings.
 // These are the source-of-truth styles used by the StatusBadge component.
 export const statusBadgeConfig = {
-  open: "bg-blue-100 text-blue-800 border border-blue-200",
-  in_progress: "bg-amber-100 text-amber-800 border border-amber-200",
-  completed: "bg-green-100 text-green-800 border border-green-200",
-  cancelled: "bg-gray-100 text-gray-800 border border-gray-200",
-  pending: "bg-yellow-100 text-yellow-800 border border-yellow-200",
-  critical: "bg-red-100 text-red-800 border border-red-200",
-  default: "bg-gray-100 text-gray-800 border border-gray-200",
+  open: "bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800",
+  in_progress: "bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800",
+  completed: "bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800",
+  cancelled: "bg-gray-100 text-gray-800 border border-gray-200 dark:bg-gray-800/60 dark:text-gray-300 dark:border-gray-700",
+  pending: "bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-300 dark:border-yellow-800",
+  critical: "bg-red-100 text-red-800 border border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800",
+  success: "bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800",
+  warning: "bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800",
+  error: "bg-red-100 text-red-800 border border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800",
+  info: "bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800",
+  low_stock: "bg-red-100 text-red-800 border border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800",
+  normal: "bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800",
+  default: "bg-gray-100 text-gray-800 border border-gray-200 dark:bg-gray-800/60 dark:text-gray-300 dark:border-gray-700",
 } as const;
 
 export type StatusBadgeVariant = keyof typeof statusBadgeConfig;

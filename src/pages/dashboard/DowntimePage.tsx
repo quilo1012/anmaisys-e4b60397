@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -522,9 +523,9 @@ export default function DowntimePage() {
                             <p className="text-xs text-muted-foreground">{r.machine || "—"}</p>
                           </div>
                           {active ? (
-                            <Badge className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800">Active</Badge>
+                            <StatusBadge status="active" />
                           ) : (
-                            <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800">Resolved</Badge>
+                            <StatusBadge status="resolved" />
                           )}
                         </div>
                         <p className="text-sm line-clamp-2">{r.reason}</p>
@@ -588,9 +589,9 @@ export default function DowntimePage() {
                       <TableCell className="font-mono text-sm">{getDuration(r)}</TableCell>
                       <TableCell>
                         {r.ended_at ? (
-                          <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800">Resolved</Badge>
+                          <StatusBadge status="resolved" />
                         ) : (
-                          <Badge className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800">Active</Badge>
+                          <StatusBadge status="active" />
                         )}
                       </TableCell>
                       <TableCell>

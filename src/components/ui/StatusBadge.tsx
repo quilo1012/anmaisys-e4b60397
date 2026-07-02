@@ -54,10 +54,24 @@ function getStatusClasses(status: string): string {
     normalized === "critical" ||
     normalized === "high" ||
     normalized === "urgent" ||
-    normalized === "error"
+    normalized === "error" ||
+    normalized === "active" ||
+    normalized === "low" ||
+    normalized === "low_stock"
   ) {
     return statusBadgeConfig.critical;
   }
+  if (
+    normalized === "success" ||
+    normalized === "ok" ||
+    normalized === "normal" ||
+    normalized === "resolved" ||
+    normalized === "healthy"
+  ) {
+    return statusBadgeConfig.success;
+  }
+  if (normalized === "warning") return statusBadgeConfig.warning;
+  if (normalized === "info") return statusBadgeConfig.info;
 
   return statusBadgeConfig.default;
 }
