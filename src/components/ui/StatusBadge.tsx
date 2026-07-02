@@ -106,6 +106,7 @@ function getDotColor(status: string): string {
 
 export function StatusBadge({
   status,
+  label,
   size = "md",
   showIcon = false,
   className,
@@ -124,7 +125,7 @@ export function StatusBadge({
       {showIcon && (
         <span className={cn("h-1.5 w-1.5 rounded-full", getDotColor(status))} aria-hidden="true" />
       )}
-      {status}
+      {label ?? status}
     </span>
   );
 }
