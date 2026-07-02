@@ -5,6 +5,8 @@ import { statusBadgeConfig } from "@/lib/design-tokens";
 export interface StatusBadgeProps {
   /** Status value to display (case-insensitive). */
   status: string;
+  /** Optional label override. Defaults to the status string. */
+  label?: React.ReactNode;
   /** Size variant of the badge. */
   size?: "sm" | "md";
   /** Whether to show a colored dot icon before the label. */
@@ -104,6 +106,7 @@ function getDotColor(status: string): string {
 
 export function StatusBadge({
   status,
+  label,
   size = "md",
   showIcon = false,
   className,
@@ -122,7 +125,7 @@ export function StatusBadge({
       {showIcon && (
         <span className={cn("h-1.5 w-1.5 rounded-full", getDotColor(status))} aria-hidden="true" />
       )}
-      {status}
+      {label ?? status}
     </span>
   );
 }

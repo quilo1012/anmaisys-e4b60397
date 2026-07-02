@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useMachines, useMoveMachine } from "@/hooks/useMachines";
@@ -419,7 +420,7 @@ export default function ControlCenterPage() {
                         <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
                           <TableCell className="font-medium">{machine ? getZoneFor(machine) : "Unassigned"}</TableCell>
                           <TableCell>{wo.machine || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
-                          <TableCell><Badge variant="outline" className={sc.className}>{sc.label}</Badge></TableCell>
+                          <TableCell><StatusBadge status={wo.status} label={sc.label} /></TableCell>
                           <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
                           <TableCell>{wo.engineer_name || "—"}</TableCell>
                           <TableCell className="font-mono">{formatDowntime(downMin)}</TableCell>
@@ -552,9 +553,7 @@ export default function ControlCenterPage() {
                                   <span className="font-mono font-bold text-[11px] shrink-0">
                                     {formatWONumber(wo.wo_number, wo.created_at)}
                                   </span>
-                                  <Badge variant="outline" className={cn("text-[10px] shrink-0", sc.className)}>
-                                    {sc.label}
-                                  </Badge>
+                                  <StatusBadge status={wo.status} label={sc.label} size="sm" className="shrink-0 text-[10px]" />
                                   <span className="flex-1 truncate text-muted-foreground">
                                     {wo.machine} · {wo.description}
                                   </span>
@@ -604,9 +603,7 @@ export default function ControlCenterPage() {
                                 <span className="font-mono text-[10px] font-bold">
                                   {formatWONumber(wo.wo_number, wo.created_at)}
                                 </span>
-                                <Badge variant="outline" className={cn("text-[9px] py-0 px-1.5", sc.className)}>
-                                  {sc.label}
-                                </Badge>
+                                <StatusBadge status={wo.status} label={sc.label} size="sm" className="text-[9px] py-0 px-1.5" />
                               </div>
                               <p className={cn("truncate font-medium mt-0.5", tvMode ? "text-[10px]" : "text-xs")}>
                                 {wo.machine || "—"}
