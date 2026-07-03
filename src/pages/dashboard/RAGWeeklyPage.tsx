@@ -1676,8 +1676,11 @@ function DayNightTotalSummary({
 
   return (
     <Card className="border-l-4 border-l-amber-500 shadow-md">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base uppercase tracking-wider text-muted-foreground">Day / Night / Total Summary</CardTitle>
+        <Button size="sm" variant="outline" onClick={() => setAll(!allCollapsed)}>
+          {allCollapsed ? <><Eye className="h-4 w-4 mr-1" />Expand All</> : <><EyeOff className="h-4 w-4 mr-1" />Collapse All</>}
+        </Button>
       </CardHeader>
       <CardContent>
 
