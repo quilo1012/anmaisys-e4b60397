@@ -286,6 +286,8 @@ function EngineerDashboardContent() {
   const [signName, setSignName] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [pauseDialogWO, setPauseDialogWO] = useState<string | null>(null);
+  const [rejectDialogWO, setRejectDialogWO] = useState<{ id: string; number: number | null } | null>(null);
+
   // BUG 4: state for "line still stopped" modal when trying to finish
   const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string; notes: string } | null>(null);
   const [resumingThenFinish, setResumingThenFinish] = useState(false);
