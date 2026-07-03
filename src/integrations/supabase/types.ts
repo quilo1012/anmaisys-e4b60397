@@ -2085,6 +2085,60 @@ export type Database = {
         }
         Relationships: []
       }
+      sku_production_history: {
+        Row: {
+          created_at: string
+          id: string
+          line_id: string
+          quantity: number
+          run_minutes: number
+          session_date: string
+          shift: string
+          sku_id: string
+          units_per_hour: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          line_id: string
+          quantity?: number
+          run_minutes?: number
+          session_date: string
+          shift: string
+          sku_id: string
+          units_per_hour?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          line_id?: string
+          quantity?: number
+          run_minutes?: number
+          session_date?: string
+          shift?: string
+          sku_id?: string
+          units_per_hour?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sku_production_history_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sku_production_history_sku_id_fkey"
+            columns: ["sku_id"]
+            isOneToOne: false
+            referencedRelation: "sku_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sku_products: {
         Row: {
           active: boolean
@@ -2904,6 +2958,10 @@ export type Database = {
       get_device_line: { Args: { _token: string }; Returns: string }
       get_own_labor_rate: { Args: never; Returns: number }
       get_profile_labor_rate: { Args: { _user_id: string }; Returns: number }
+      get_sku_speed_suggestion: {
+        Args: { _days?: number; _line_id: string; _sku_id: string }
+        Returns: Json
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
