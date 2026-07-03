@@ -617,6 +617,41 @@ export type Database = {
         }
         Relationships: []
       }
+      line_chat_messages: {
+        Row: {
+          created_at: string
+          id: string
+          line_id: string
+          message: string
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          line_id: string
+          message: string
+          user_id: string
+          user_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          line_id?: string
+          message?: string
+          user_id?: string
+          user_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "line_chat_messages_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       line_leaders: {
         Row: {
           active: boolean
@@ -2856,6 +2891,7 @@ export type Database = {
       current_device_line: { Args: never; Returns: string }
       current_device_line_ids: { Args: never; Returns: string[] }
       current_device_token: { Args: never; Returns: string }
+      current_user_line_id: { Args: never; Returns: string }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]

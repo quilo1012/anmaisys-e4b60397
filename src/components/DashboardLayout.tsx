@@ -32,6 +32,7 @@ import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
+import { LineChatButton } from "@/components/LineChatButton";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
@@ -395,6 +396,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   </Button>
                 )}
                 {(role === "engineer" || role === "admin") && <AudioStatusButton />}
+                <LineChatButton />
                 <NotificationPanel />
                 {/* Language toggle removed by request — app stays in English. */}
                 <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className="shrink-0">
