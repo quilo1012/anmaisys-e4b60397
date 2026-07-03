@@ -22,12 +22,15 @@ export function useSkuSpeedSuggestion(
     enabled: !!lineId && !!skuId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_sku_speed_suggestion", {
+      // rpc name added in migration; cast until types regenerate.
+      const { data, error } = await (supabase as unknown as {
+        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+      }).rpc("get_sku_speed_suggestion", {
         _line_id: lineId!,
         _sku_id: skuId!,
         _days: days,
       });
-      if (error) throw error;
+      if (error) throw error as Error;
       return (data ?? null) as SkuSpeedSuggestion | null;
     },
   });
