@@ -1348,6 +1348,54 @@ export type Database = {
         }
         Relationships: []
       }
+      production_blender_entries: {
+        Row: {
+          blender_number: number
+          created_at: string
+          entered_by: string | null
+          id: string
+          production_item_id: string
+          quantity: number
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          blender_number: number
+          created_at?: string
+          entered_by?: string | null
+          id?: string
+          production_item_id: string
+          quantity?: number
+          session_id: string
+          updated_at?: string
+        }
+        Update: {
+          blender_number?: number
+          created_at?: string
+          entered_by?: string | null
+          id?: string
+          production_item_id?: string
+          quantity?: number
+          session_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_blender_entries_production_item_id_fkey"
+            columns: ["production_item_id"]
+            isOneToOne: false
+            referencedRelation: "production_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_blender_entries_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "production_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       production_downtimes: {
         Row: {
           category: string
@@ -1921,6 +1969,7 @@ export type Database = {
       rag_weekly_entries: {
         Row: {
           actual_qty: number
+          actual_updated_by: string | null
           created_at: string
           created_by: string | null
           downtime_min: number
@@ -1936,6 +1985,7 @@ export type Database = {
         }
         Insert: {
           actual_qty?: number
+          actual_updated_by?: string | null
           created_at?: string
           created_by?: string | null
           downtime_min?: number
@@ -1951,6 +2001,7 @@ export type Database = {
         }
         Update: {
           actual_qty?: number
+          actual_updated_by?: string | null
           created_at?: string
           created_by?: string | null
           downtime_min?: number
