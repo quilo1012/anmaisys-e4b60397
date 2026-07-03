@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Check, Target } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Check, Loader2, Save, Target } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
