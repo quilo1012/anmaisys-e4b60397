@@ -132,6 +132,7 @@ function ragColor(actual: number, plan: number): string {
 export default function RAGWeeklyPage() {
   const qc = useQueryClient();
   const { is: isRole } = useRole();
+  const { user, profile } = useAuth();
   const isAdmin = isRole("admin");
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
