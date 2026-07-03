@@ -1666,6 +1666,7 @@ function DayNightTotalSummary({
 
           </table>
         </div>
+        )}
       </div>
     );
   };
