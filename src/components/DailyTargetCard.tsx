@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Check, Target } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Check, Loader2, Save, Target } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
@@ -106,14 +107,22 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
                 value={val}
                 onFocus={() => setEditing(true)}
                 onChange={(e) => setVal(e.target.value)}
-                onBlur={commit}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+                  if (e.key === "Enter") { e.preventDefault(); commit(); }
                   if (e.key === "Escape") { setVal(String(actual)); setEditing(false); (e.target as HTMLInputElement).blur(); }
                 }}
                 className="h-10 w-28 text-lg font-bold tabular-nums text-right px-2"
               />
-              {saved && <Check className="h-4 w-4 text-emerald-500" />}
+              <Button
+                type="button"
+                size="sm"
+                onClick={commit}
+                disabled={!canEdit || saving || Number(val) === actual}
+                className="h-10"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                <span className="ml-1">{saved ? "Saved" : "Save"}</span>
+              </Button>
             </div>
           </div>
           <div>
