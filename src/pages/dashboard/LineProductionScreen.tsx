@@ -718,16 +718,19 @@ export default function LineProductionScreen() {
         </Card>
       )}
 
+      {line && hasItouch && (
+        <DailyTargetCard
+          line={canonicalLineName || line}
+          entryDate={activeSessionDate}
+          shift={shift}
+          canEdit={canEdit}
+        />
+      )}
+
       {line && hasItouch && !ragPlanQ.isLoading && (ragPlanQ.data ?? 0) <= 0 && (
         <Card className="border-amber-500/40 bg-amber-500/5">
-          <CardContent className="p-10 text-center space-y-2">
-            <div className="text-2xl font-semibold text-amber-500">
-              No production plan exists for today
-            </div>
-            <div className="text-muted-foreground">
-              No target has been set in RAG Weekly for <span className="font-medium">{line}</span> · {shift} on {activeSessionDate}.
-              <br />Contact your manager to add the plan, or ask them to import the schedule from iTouching.
-            </div>
+          <CardContent className="p-4 text-sm text-amber-600 dark:text-amber-300">
+            No RAG Weekly target set for <span className="font-medium">{line}</span> · {shift} · {activeSessionDate}. Ask your manager to add it or import from iTouching. You can still record Actual above.
           </CardContent>
         </Card>
       )}
