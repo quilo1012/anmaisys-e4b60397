@@ -1628,8 +1628,14 @@ function DayNightTotalSummary({
       </CardHeader>
       <CardContent>
 
-        {lines.map((line) => <Block key={line} label={line} lineFilter={[line]} />)}
-        <Block label="All Lines" lineFilter={lines} />
+        {lines.map((line) => (
+          <div key={line} id={`rag-line-${line.replace(/\s+/g, "-")}`} className="scroll-mt-24">
+            <Block label={line} lineFilter={[line]} />
+          </div>
+        ))}
+        <div id="rag-line-all" className="scroll-mt-24">
+          <Block label="All Lines" lineFilter={lines} />
+        </div>
 
       </CardContent>
     </Card>
