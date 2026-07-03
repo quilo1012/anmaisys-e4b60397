@@ -295,8 +295,10 @@ export async function exportRagPdf(input: RagExportInput) {
     let prev: { x: number; y: number } | null = null;
     dates.forEach((d, i) => {
       const t = byLine.get(line)!.get(d)!;
-      if (!t.plan) { prev = null; return; }
-      const pct = Math.min(yMax, (t.actual / t.plan) * 100);
+      const p = t.day.plan + t.night.plan;
+      const a = t.day.actual + t.night.actual;
+      if (!p) { prev = null; return; }
+      const pct = Math.min(yMax, (a / p) * 100);
       const x = px(i), y = py(pct);
       if (prev) doc.line(prev.x, prev.y, x, y);
       doc.circle(x, y, 0.6, "F");
