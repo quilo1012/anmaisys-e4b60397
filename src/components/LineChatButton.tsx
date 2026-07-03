@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOperatorLineIds } from "@/hooks/useOperatorLineAccess";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,29 +43,35 @@ export function LineChatButton() {
   const isStaff = role === "admin" || role === "manager" || role === "maintenance_manager";
   const canUse = isStaff || role === "operator" || role === "engineer";
 
-  const { data: lines = [] } = useQuery({
+  const { data: allLines = [] } = useQuery({
     queryKey: ["chat_lines"],
     enabled: !!user && canUse,
     queryFn: async () => {
-      const { data } = await supabase.from("lines").select("id,name").eq("active", true).order("display_order");
-      return (data ?? []) as Line[];
+      const { data } = await supabase.from("lines").select("id,name,active,display_order").eq("active", true).order("display_order");
+      return (data ?? []) as (Line & { active: boolean; display_order: number })[];
     },
   });
 
-  // Determine operator's line
-  const operatorLineId = useMemo(() => {
-    if (isStaff) return null;
-    const name = profile?.production_line;
-    if (!name) return null;
-    return lines.find((l) => l.name === name)?.id ?? null;
-  }, [isStaff, profile?.production_line, lines]);
+  const { data: operatorLineIds = [] } = useOperatorLineIds();
+
+  // Which lines this user can access
+  const lines = useMemo(() => {
+    if (isStaff || role === "engineer") return allLines;
+    if (role === "operator") {
+      // Prefer operator_line_accounts; fallback to profile.production_line by name
+      if (operatorLineIds.length) return allLines.filter((l) => operatorLineIds.includes(l.id));
+      const name = profile?.production_line;
+      if (name) return allLines.filter((l) => l.name === name);
+      return [];
+    }
+    return [];
+  }, [allLines, isStaff, role, operatorLineIds, profile?.production_line]);
 
   // Default active line
   useEffect(() => {
     if (activeLineId) return;
-    if (isStaff && lines.length) setActiveLineId(lines[0].id);
-    else if (operatorLineId) setActiveLineId(operatorLineId);
-  }, [isStaff, lines, operatorLineId, activeLineId]);
+    if (lines.length) setActiveLineId(lines[0].id);
+  }, [lines, activeLineId]);
 
   // Messages for active line
   const { data: messages = [], isLoading } = useQuery({
@@ -123,7 +130,7 @@ export function LineChatButton() {
     queryFn: async () => {
       const seen = readLastSeen();
       const results: Record<string, number> = {};
-      const targets = isStaff ? lines : (operatorLineId ? lines.filter((l) => l.id === operatorLineId) : []);
+      const targets = lines;
       await Promise.all(
         targets.map(async (l) => {
           const since = seen[l.id] ?? "1970-01-01T00:00:00Z";
@@ -180,7 +187,7 @@ export function LineChatButton() {
           <SheetTitle className="flex items-center gap-2"><MessageSquare className="h-4 w-4" /> Line Chat</SheetTitle>
         </SheetHeader>
 
-        {isStaff && (
+        {lines.length > 1 && (
           <div className="border-b overflow-x-auto">
             <div className="flex gap-1 p-2">
               {lines.map((l) => {
