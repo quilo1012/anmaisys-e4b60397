@@ -185,6 +185,10 @@ function OperatorDashboardContent() {
       toast({ title: "Production Line required", description: "Select the line where the sealer/printer is being used.", variant: "destructive" });
       return;
     }
+    if (!isSealerPrinterLine && !machineName) {
+      toast({ title: "Machine required", description: "Please select the machine that needs maintenance.", variant: "destructive" });
+      return;
+    }
     try {
       let created_at: string | undefined;
       if (isRetroactive && retroDate) {
