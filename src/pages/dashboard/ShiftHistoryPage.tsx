@@ -364,15 +364,26 @@ export default function ShiftHistoryPage() {
                             )}
                           </td>
                           <td className="p-2 text-right tabular-nums">{weight ? weight.toLocaleString() : "—"}</td>
-                          <td className="p-2 text-right tabular-nums">{bag ? bag.toLocaleString() : "—"}</td>
-                          <td className="p-2 text-right tabular-nums">{tubs ? tubs.toLocaleString() : "—"}</td>
+                          <td className="p-2 text-right tabular-nums">
+                            {i.id && i.sku_id && !s.locked && effIsBag ? (
+                              <InlineActualInput
+                                itemId={i.id}
+                                value={bag}
+                                invalidateKeys={[["shift_history"]]}
+                              />
+                            ) : (bag ? bag.toLocaleString() : "—")}
+                          </td>
+                          <td className="p-2 text-right tabular-nums">
+                            {i.id && i.sku_id && !s.locked && effIsTub ? (
+                              <InlineActualInput
+                                itemId={i.id}
+                                value={tubs}
+                                invalidateKeys={[["shift_history"]]}
+                              />
+                            ) : (tubs ? tubs.toLocaleString() : "—")}
+                          </td>
                           <td className="p-2">
                             <div className="flex items-center justify-end gap-1">
-                              {!s.locked && i.id && i.sku_id && (
-                                <Button size="icon" variant="ghost" title="Edit actual" onClick={() => { setEditingItem({ id: i.id, sku_id: i.sku_id, code, target: t, actual: a, notes: i.notes }); setEditActual(String(a)); setEditUnit(noteUnit ?? (isBag && !isTub ? "bags" : "tubs")); setEditSkuId(i.sku_id); }}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              )}
                               <Button size="icon" variant="ghost" title="Edit session" onClick={() => setEditing(s)}>
                                 <Pencil className="h-4 w-4 opacity-60" />
                               </Button>
