@@ -130,7 +130,7 @@ export function LineChatButton() {
     queryFn: async () => {
       const seen = readLastSeen();
       const results: Record<string, number> = {};
-      const targets = isStaff ? lines : (operatorLineId ? lines.filter((l) => l.id === operatorLineId) : []);
+      const targets = lines;
       await Promise.all(
         targets.map(async (l) => {
           const since = seen[l.id] ?? "1970-01-01T00:00:00Z";
