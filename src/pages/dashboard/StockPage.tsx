@@ -147,10 +147,11 @@ export default function StockPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold">Stock Management</h2>
-          <p className="text-muted-foreground">View and manage inventory</p>
-        </div>
+        <PageHeader
+          title="Stock Management"
+          description="View and manage inventory"
+          icon={<Package className="h-5 w-5" />}
+        />
 
         {lowStockCount > 0 && (
           <Card className="border-destructive">

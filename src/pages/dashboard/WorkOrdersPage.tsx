@@ -323,20 +323,21 @@ export default function WorkOrdersPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3 border-b pb-4">
-          <div>
-            <h2 className="text-2xl font-semibold tracking-tight flex items-center gap-2"><ClipboardList className="h-6 w-6 text-muted-foreground" /> Work Orders</h2>
-            <p className="text-sm text-muted-foreground mt-1">Manage and track all work orders</p>
-          </div>
-          <div className="flex gap-2">
-            {role === "admin" && (
-              <Button variant="destructive" size="sm" onClick={() => setShowClearWOs(true)}>
-                <AlertTriangle className="h-4 w-4 mr-2" /> Clear WOs
-              </Button>
-            )}
-            <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 mr-2" /> Create WO</Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Work Orders"
+          description="Manage and track all work orders"
+          icon={<ClipboardList className="h-5 w-5" />}
+          actions={
+            <>
+              {role === "admin" && (
+                <Button variant="destructive" size="sm" onClick={() => setShowClearWOs(true)}>
+                  <AlertTriangle className="h-4 w-4 mr-2" /> Clear WOs
+                </Button>
+              )}
+              <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 mr-2" /> Create WO</Button>
+            </>
+          }
+        />
 
         <Card>
           <CardHeader className="space-y-4 border-b bg-muted/30">

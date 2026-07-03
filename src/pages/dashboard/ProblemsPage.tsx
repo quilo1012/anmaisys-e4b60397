@@ -144,13 +144,12 @@ export default function ProblemsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2"><AlertTriangle className="h-6 w-6" /> Problem Descriptions</h2>
-            <p className="text-muted-foreground">Manage standardized problem descriptions for work orders</p>
-          </div>
-          <Button onClick={() => { resetForm(); setShowAdd(true); }}><Plus className="h-4 w-4 mr-2" /> Add Problem</Button>
-        </div>
+        <PageHeader
+          title="Problem Descriptions"
+          description="Manage standardized problem descriptions for work orders"
+          icon={<AlertTriangle className="h-5 w-5" />}
+          actions={<Button onClick={() => { resetForm(); setShowAdd(true); }}><Plus className="h-4 w-4 mr-2" /> Add Problem</Button>}
+        />
 
         {incompleteCount > 0 && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/30 dark:border-yellow-800 px-4 py-3 text-sm">
