@@ -7,6 +7,40 @@ import logoUrl from "@/assets/appliedlogo.jpeg";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+// Match RAG downtime buckets by category keyword. Real data buckets may be
+// named "Maint Downtime (iTouching)", "Brushing Cleaning", "Deep Clean",
+// "Break", etc. — normalize with a case-insensitive keyword match so the
+// export columns aggregate every matching bucket.
+type BucketMatcher = (bucketName: string) => boolean;
+const BUCKET_MATCHERS: Record<string, BucketMatcher> = {
+  "WO Request": (b) => /wo\s*request/i.test(b),
+  MAINT: (b) => {
+    const lc = b.toLowerCase();
+    return lc === "maint" || lc.includes("maintenance") || lc.includes("itouching");
+  },
+  Break: (b) => /break/i.test(b),
+  Cleaning: (b) => /clean/i.test(b),
+};
+
+function sumBucket(
+  autoDtBucketMap: Map<string, Map<string, number>>,
+  category: string,
+  line: string,
+  dates: string[],
+): number {
+  const match = BUCKET_MATCHERS[category] ?? ((b: string) => b === category);
+  let total = 0;
+  for (const [bucketName, cellMap] of autoDtBucketMap.entries()) {
+    if (!match(bucketName)) continue;
+    for (const d of dates) {
+      for (const shift of ["DAY", "NIGHT"] as const) {
+        total += cellMap.get(`${d}|${line}|${shift}`) ?? 0;
+      }
+    }
+  }
+  return total;
+}
+
 export interface RagExportEntry {
   entry_date: string;
   line: string;
