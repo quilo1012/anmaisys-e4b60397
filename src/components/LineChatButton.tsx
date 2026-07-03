@@ -269,7 +269,12 @@ export function LineChatButton() {
                   return (
                     <div key={m.id} className={`flex flex-col ${own ? "items-end" : "items-start"}`}>
                       <div className={`max-w-[85%] rounded-lg px-3 py-2 ${own ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
-                        {!own && <p className="text-[10px] font-semibold opacity-70 mb-0.5">{m.user_name}</p>}
+                        {!own && (
+                          <p className="text-[10px] font-semibold opacity-70 mb-0.5 flex items-center gap-1">
+                            {onlineIds.has(m.user_id) && <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />}
+                            {m.user_name}
+                          </p>
+                        )}
                         <p className="text-sm whitespace-pre-wrap break-words">{m.message}</p>
                       </div>
                       <span className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(m.created_at), "HH:mm")}</span>
