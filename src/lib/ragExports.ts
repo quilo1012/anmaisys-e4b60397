@@ -7,6 +7,40 @@ import logoUrl from "@/assets/appliedlogo.jpeg";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+// Match RAG downtime buckets by category keyword. Real data buckets may be
+// named "Maint Downtime (iTouching)", "Brushing Cleaning", "Deep Clean",
+// "Break", etc. — normalize with a case-insensitive keyword match so the
+// export columns aggregate every matching bucket.
+type BucketMatcher = (bucketName: string) => boolean;
+const BUCKET_MATCHERS: Record<string, BucketMatcher> = {
+  "WO Request": (b) => /wo\s*request/i.test(b),
+  MAINT: (b) => {
+    const lc = b.toLowerCase();
+    return lc === "maint" || lc.includes("maintenance") || lc.includes("itouching");
+  },
+  Break: (b) => /break/i.test(b),
+  Cleaning: (b) => /clean/i.test(b),
+};
+
+function sumBucket(
+  autoDtBucketMap: Map<string, Map<string, number>>,
+  category: string,
+  line: string,
+  dates: string[],
+): number {
+  const match = BUCKET_MATCHERS[category] ?? ((b: string) => b === category);
+  let total = 0;
+  for (const [bucketName, cellMap] of autoDtBucketMap.entries()) {
+    if (!match(bucketName)) continue;
+    for (const d of dates) {
+      for (const shift of ["DAY", "NIGHT"] as const) {
+        total += cellMap.get(`${d}|${line}|${shift}`) ?? 0;
+      }
+    }
+  }
+  return total;
+}
+
 export interface RagExportEntry {
   entry_date: string;
   line: string;
@@ -258,17 +292,7 @@ export async function exportRagPdf(input: RagExportInput) {
   const dtCategories = ["WO Request", "MAINT", "Break", "Cleaning"];
   const dtHead = [["Line", "WO Requests", "Maint Downtime (iTouching)", "Break", "Cleaning"]];
   const dtBody = lines.map((line) => {
-    const cells = dtCategories.map((bucket) => {
-      const m = autoDtBucketMap.get(bucket);
-      if (!m) return 0;
-      let total = 0;
-      for (const d of dates) {
-        for (const shift of ["DAY", "NIGHT"] as const) {
-          total += m.get(`${d}|${line}|${shift}`) ?? 0;
-        }
-      }
-      return total;
-    });
+    const cells = dtCategories.map((bucket) => sumBucket(autoDtBucketMap, bucket, line, dates));
     return [line, ...cells.map((v) => (v ? `${v} min` : "—"))];
   });
 
@@ -425,13 +449,7 @@ export function exportRagExcel(input: RagExportInput) {
   s2.push([]);
   s2.push(["Line", "WO Requests (min)", "Maint Downtime iTouching (min)", "Break (min)", "Cleaning (min)", "Total (min)"]);
   for (const line of lines) {
-    const cells = dtCategories.map((bucket) => {
-      const m = autoDtBucketMap.get(bucket);
-      if (!m) return 0;
-      let total = 0;
-      for (const d of dates) for (const shift of ["DAY", "NIGHT"] as const) total += m.get(`${d}|${line}|${shift}`) ?? 0;
-      return total;
-    });
+    const cells = dtCategories.map((bucket) => sumBucket(autoDtBucketMap, bucket, line, dates));
     s2.push([line, ...cells, cells.reduce((a, b) => a + b, 0)]);
   }
   const ws2 = XLSX.utils.aoa_to_sheet(s2);
