@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { VAPID_PUBLIC_KEY as VAPID_KEY_CONST } from "@/lib/vapid";
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as
-  | string
-  | undefined;
+const VAPID_PUBLIC_KEY =
+  (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) || VAPID_KEY_CONST;
 
 type PermissionState = "default" | "granted" | "denied" | "unsupported";
 
