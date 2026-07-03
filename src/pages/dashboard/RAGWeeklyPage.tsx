@@ -19,6 +19,10 @@ import { toast } from "sonner";
 import { format, startOfWeek, addDays, addWeeks, getISOWeek, startOfMonth, endOfMonth, isSameMonth } from "date-fns";
 import { Link } from "react-router-dom";
 import { ManageLinesDialog } from "@/components/ManageLinesDialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { FileText, FileSpreadsheet } from "lucide-react";
+import { exportRagPdf, exportRagExcel } from "@/lib/ragExports";
+import { useAuth } from "@/contexts/AuthContext";
 
 
 import { Settings2 } from "lucide-react";
@@ -128,6 +132,7 @@ function ragColor(actual: number, plan: number): string {
 export default function RAGWeeklyPage() {
   const qc = useQueryClient();
   const { is: isRole } = useRole();
+  const { user, profile } = useAuth();
   const isAdmin = isRole("admin");
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -874,10 +879,46 @@ export default function RAGWeeklyPage() {
                     <SelectItem value="__all__">All Lines</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button variant="outline" onClick={exportXlsx}><Download className="h-4 w-4 mr-1" />Download current (XLSX)</Button>
-                <Button variant="outline" onClick={() => window.print()} className="print:hidden">
-                  <Printer className="h-4 w-4 mr-1" />Print
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline">
+                      <Download className="h-4 w-4 mr-1" />Export
+                      <ChevronDown className="h-4 w-4 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-popover z-50">
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        try {
+                          await exportRagPdf({
+                            weekStart,
+                            lines,
+                            entries,
+                            autoDtBucketMap,
+                            generatedBy: profile?.name || user?.email || "System",
+                          });
+                        } catch (e) { toast.error((e as Error).message); }
+                      }}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />Download PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        try {
+                          exportRagExcel({
+                            weekStart,
+                            lines,
+                            entries,
+                            autoDtBucketMap,
+                            generatedBy: profile?.name || user?.email || "System",
+                          });
+                        } catch (e) { toast.error((e as Error).message); }
+                      }}
+                    >
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />Download Excel
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap border-t pt-3">
