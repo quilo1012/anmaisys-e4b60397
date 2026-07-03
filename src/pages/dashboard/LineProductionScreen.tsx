@@ -864,7 +864,8 @@ export default function LineProductionScreen() {
                   effTarget={effTarget}
                   onOpen={openEditor}
                   hideTarget={isOperator && !targetUnlock}
-                  lineId={sessionQ.data?.line_id ?? null}
+                  lineId={lineIdQ.data ?? null}
+                  lineName={canonicalLineName}
                 />
               );
             })}
