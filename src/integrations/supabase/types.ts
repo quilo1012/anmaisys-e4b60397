@@ -2432,6 +2432,9 @@ export type Database = {
           priority: string
           received_at: string | null
           recurrence_of_wo_id: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
           reopen_count: number
           requester_name: string
           signed_by_name: string | null
@@ -2484,6 +2487,9 @@ export type Database = {
           priority?: string
           received_at?: string | null
           recurrence_of_wo_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           reopen_count?: number
           requester_name: string
           signed_by_name?: string | null
@@ -2536,6 +2542,9 @@ export type Database = {
           priority?: string
           received_at?: string | null
           recurrence_of_wo_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           reopen_count?: number
           requester_name?: string
           signed_by_name?: string | null
@@ -2891,6 +2900,7 @@ export type Database = {
         Args: { _label?: string; _line_ids: string[]; _token: string }
         Returns: undefined
       }
+      reject_wo: { Args: { _reason: string; _wo_id: string }; Returns: Json }
       reopen_wo_as_recurrence: {
         Args: { _reason: string; _wo_id: string }
         Returns: Json
@@ -2949,6 +2959,7 @@ export type Database = {
         | "arrived"
         | "finished"
         | "closed"
+        | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3096,6 +3107,7 @@ export const Constants = {
         "arrived",
         "finished",
         "closed",
+        "rejected",
       ],
     },
   },
