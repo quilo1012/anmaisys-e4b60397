@@ -1009,11 +1009,15 @@ const SkuCard = memo(function SkuCard({
   effTarget,
   onOpen,
   hideTarget = false,
+  lineId = null,
+  lineName = null,
 }: {
   item: ItemRow;
   effTarget: number;
   onOpen: (row: ItemRow) => void;
   hideTarget?: boolean;
+  lineId?: string | null;
+  lineName?: string | null;
 }) {
   const pct = effTarget > 0 ? (item.actual_qty / effTarget) * 100 : 0;
   const done = pct >= 100;
@@ -1061,6 +1065,14 @@ const SkuCard = memo(function SkuCard({
               style={{ width: `${Math.min(100, pct)}%` }}
             />
           </div>
+        )}
+        {lineId && item.sku_id && (
+          <SkuSpeedPill
+            lineId={lineId}
+            skuId={item.sku_id}
+            currentUph={effTarget > 0 ? effTarget / 8 : null}
+            lineName={lineName}
+          />
         )}
       </CardContent>
     </Card>
