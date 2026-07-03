@@ -292,17 +292,7 @@ export async function exportRagPdf(input: RagExportInput) {
   const dtCategories = ["WO Request", "MAINT", "Break", "Cleaning"];
   const dtHead = [["Line", "WO Requests", "Maint Downtime (iTouching)", "Break", "Cleaning"]];
   const dtBody = lines.map((line) => {
-    const cells = dtCategories.map((bucket) => {
-      const m = autoDtBucketMap.get(bucket);
-      if (!m) return 0;
-      let total = 0;
-      for (const d of dates) {
-        for (const shift of ["DAY", "NIGHT"] as const) {
-          total += m.get(`${d}|${line}|${shift}`) ?? 0;
-        }
-      }
-      return total;
-    });
+    const cells = dtCategories.map((bucket) => sumBucket(autoDtBucketMap, bucket, line, dates));
     return [line, ...cells.map((v) => (v ? `${v} min` : "—"))];
   });
 
