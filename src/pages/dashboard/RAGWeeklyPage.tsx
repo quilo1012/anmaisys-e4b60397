@@ -85,28 +85,32 @@ interface ClampedStop extends StopDetail {
 }
 
 // Map a free-text category to a downtime bucket label.
-// Rules (must match RAG Weekly downtime classification spec):
-//   - 'Maintenance' / 'WO Request'                         → MAINT
-//   - 'Break'                                              → Break
-//   - 'Brushing Cleaning' / 'Deep Clean' / 'Drill Clean' /
-//     'Line Clean'                                         → Cleaning
-//   - 'Changeover'                                         → Changeover
-//   - 'Quality'                                            → Quality
-//   - any other non-empty value                            → passed through verbatim
-//   - empty / unknown                                      → MAINT (safe default)
+// Rules:
+//   - 'WO Request'                                          → WO Request (internal, opened by operator)
+//   - 'Maintenance' / 'Maint Downtime (iTouching)' / 'Maint'→ MAINT (iTouching)
+//   - 'Break'                                               → Break
+//   - 'Brushing Cleaning' / 'Deep Clean' / etc              → Cleaning
+//   - 'Changeover'                                          → Changeover
+//   - 'Quality'                                             → Quality
+//   - any other non-empty value                             → passed through verbatim
+//   - empty / unknown                                       → MAINT (safe default)
 export function categoryBucket(cat?: string | null): string {
   const raw = (cat ?? "").toString().trim();
   if (!raw) return "MAINT";
   const lc = raw.toLowerCase();
   if (
-    lc === "maintenance" ||
     lc === "wo request" ||
     lc === "wo_request" ||
-    lc === "wo-request" ||
-    lc === "maint"
+    lc === "wo-request"
+  ) return "WO Request";
+  if (
+    lc === "maintenance" ||
+    lc === "maint" ||
+    lc.includes("itouching")
   ) return "MAINT";
   return raw;
 }
+
 
 
 
