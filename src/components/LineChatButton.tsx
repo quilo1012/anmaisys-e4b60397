@@ -187,7 +187,7 @@ export function LineChatButton() {
           <SheetTitle className="flex items-center gap-2"><MessageSquare className="h-4 w-4" /> Line Chat</SheetTitle>
         </SheetHeader>
 
-        {isStaff && (
+        {lines.length > 1 && (
           <div className="border-b overflow-x-auto">
             <div className="flex gap-1 p-2">
               {lines.map((l) => {
