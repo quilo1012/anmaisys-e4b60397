@@ -163,27 +163,53 @@ export async function exportRagPdf(input: RagExportInput) {
   const dailyGrand: DayTotals[] = dates.map(() => ({ plan: 0, actual: 0 }));
 
   for (const line of lines) {
-    const row: any[] = [line];
     const m = byLine.get(line)!;
     let lp = 0, la = 0;
-    dates.forEach((d, idx) => {
-      const t = m.get(d)!;
-      lp += t.plan; la += t.actual;
-      dailyGrand[idx].plan += t.plan;
-      dailyGrand[idx].actual += t.actual;
-      const pct = t.plan ? (t.actual / t.plan) * 100 : null;
-      row.push(t.plan || "", t.actual || "", {
-        content: pct === null ? "" : `${pct.toFixed(0)}%`,
-        styles: { fillColor: pctColorRgb(pct), halign: "center" },
+    const shiftRows: Array<{ label: "Day" | "Night"; get: (t: ShiftedDayTotals) => DayTotals }> = [
+      { label: "Day", get: (t) => t.day },
+      { label: "Night", get: (t) => t.night },
+    ];
+    for (const sr of shiftRows) {
+      const row: any[] = [{ content: `${line} · ${sr.label}`, styles: { halign: "left" } }];
+      let rp = 0, ra = 0;
+      dates.forEach((d, idx) => {
+        const t = sr.get(m.get(d)!);
+        rp += t.plan; ra += t.actual;
+        dailyGrand[idx].plan += t.plan;
+        dailyGrand[idx].actual += t.actual;
+        const pct = t.plan ? (t.actual / t.plan) * 100 : null;
+        row.push(t.plan || "", t.actual || "", {
+          content: pct === null ? "" : `${pct.toFixed(0)}%`,
+          styles: { fillColor: pctColorRgb(pct), halign: "center" },
+        });
       });
-    });
+      lp += rp; la += ra;
+      const rpct = rp ? (ra / rp) * 100 : null;
+      row.push(rp || "", ra || "", {
+        content: rpct === null ? "" : `${rpct.toFixed(0)}%`,
+        styles: { fillColor: pctColorRgb(rpct), halign: "center" },
+      });
+      body.push(row);
+    }
     weekTotals.plan += lp; weekTotals.actual += la;
     const wpct = lp ? (la / lp) * 100 : null;
-    row.push(lp || "", la || "", {
+    const totalRow: any[] = [{ content: `${line} · Total`, styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }];
+    dates.forEach((d) => {
+      const t = m.get(d)!;
+      const p = t.day.plan + t.night.plan;
+      const a = t.day.actual + t.night.actual;
+      const pct = p ? (a / p) * 100 : null;
+      totalRow.push(
+        { content: p || "", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } },
+        { content: a || "", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } },
+        { content: pct === null ? "" : `${pct.toFixed(0)}%`, styles: { fillColor: pctColorRgb(pct), fontStyle: "bold", halign: "center" } },
+      );
+    });
+    totalRow.push(lp || "", la || "", {
       content: wpct === null ? "" : `${wpct.toFixed(0)}%`,
       styles: { fillColor: pctColorRgb(wpct), halign: "center", fontStyle: "bold" },
     });
-    body.push(row);
+    body.push(totalRow);
   }
 
   // Totals row
