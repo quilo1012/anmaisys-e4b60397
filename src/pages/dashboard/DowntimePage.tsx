@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -356,29 +357,29 @@ export default function DowntimePage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2"><Clock className="h-6 w-6" /> Downtime & Reliability</h2>
-            <p className="text-muted-foreground">Production stoppages, MTBF/MTTR & machine risk intelligence</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <DateRangeFilter
-              value={{ from: startDate, to: endDate }}
-              preset={datePreset}
-              storageKey="downtime-page"
-              onChange={(range, preset) => {
-                setDatePreset(preset);
-                const r = preset === "all" ? getPresetRange("30d") : range;
-                if (r.from) setStartDate(startOfDay(r.from));
-                if (r.to) setEndDate(endOfDay(r.to));
-              }}
-            />
-
-            <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={openCreate}>
-              <Plus className="h-4 w-4 mr-2" /> Register Downtime
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Downtime & Reliability"
+          description="Production stoppages, MTBF/MTTR & machine risk intelligence"
+          icon={<Clock className="h-5 w-5" />}
+          actions={
+            <>
+              <DateRangeFilter
+                value={{ from: startDate, to: endDate }}
+                preset={datePreset}
+                storageKey="downtime-page"
+                onChange={(range, preset) => {
+                  setDatePreset(preset);
+                  const r = preset === "all" ? getPresetRange("30d") : range;
+                  if (r.from) setStartDate(startOfDay(r.from));
+                  if (r.to) setEndDate(endOfDay(r.to));
+                }}
+              />
+              <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={openCreate}>
+                <Plus className="h-4 w-4 mr-2" /> Register Downtime
+              </Button>
+            </>
+          }
+        />
 
         {debugMode && (
           <Card className="border-amber-500/50 bg-amber-500/5">
