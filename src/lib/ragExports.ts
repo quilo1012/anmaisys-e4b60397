@@ -463,7 +463,7 @@ export function exportRagExcel(input: RagExportInput) {
   }
 
   // Style data rows
-  const totalRowIdx = dataStartRow + lines.length;
+  const totalRowIdx = dataStartRow + lines.length * 3;
   for (let r = dataStartRow; r <= totalRowIdx; r++) {
     const isTotal = r === totalRowIdx;
     const isAlt = !isTotal && ((r - dataStartRow) % 2 === 1);
