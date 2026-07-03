@@ -63,6 +63,10 @@ interface DayTotals {
   plan: number;
   actual: number;
 }
+interface ShiftedDayTotals {
+  day: DayTotals;
+  night: DayTotals;
+}
 
 function pctColorHex(pct: number | null): string {
   if (pct === null) return "FFFFFF";
@@ -79,11 +83,11 @@ function pctColorRgb(pct: number | null): [number, number, number] {
 
 function computeDaily(entries: RagExportEntry[], lines: string[], weekStart: Date) {
   const dates = Array.from({ length: 7 }, (_, i) => format(addDays(weekStart, i), "yyyy-MM-dd"));
-  // line -> date -> {plan, actual}
-  const byLine = new Map<string, Map<string, DayTotals>>();
+  // line -> date -> {day:{plan,actual}, night:{plan,actual}}
+  const byLine = new Map<string, Map<string, ShiftedDayTotals>>();
   for (const l of lines) {
-    const m = new Map<string, DayTotals>();
-    for (const d of dates) m.set(d, { plan: 0, actual: 0 });
+    const m = new Map<string, ShiftedDayTotals>();
+    for (const d of dates) m.set(d, { day: { plan: 0, actual: 0 }, night: { plan: 0, actual: 0 } });
     byLine.set(l, m);
   }
   for (const e of entries) {
@@ -91,8 +95,9 @@ function computeDaily(entries: RagExportEntry[], lines: string[], weekStart: Dat
     if (!m) continue;
     const t = m.get(e.entry_date);
     if (!t) continue;
-    t.plan += Number(e.plan_qty ?? 0);
-    t.actual += Number(e.actual_qty ?? 0);
+    const bucket = e.shift === "NIGHT" ? t.night : t.day;
+    bucket.plan += Number(e.plan_qty ?? 0);
+    bucket.actual += Number(e.actual_qty ?? 0);
   }
   return { dates, byLine };
 }
@@ -158,27 +163,53 @@ export async function exportRagPdf(input: RagExportInput) {
   const dailyGrand: DayTotals[] = dates.map(() => ({ plan: 0, actual: 0 }));
 
   for (const line of lines) {
-    const row: any[] = [line];
     const m = byLine.get(line)!;
     let lp = 0, la = 0;
-    dates.forEach((d, idx) => {
-      const t = m.get(d)!;
-      lp += t.plan; la += t.actual;
-      dailyGrand[idx].plan += t.plan;
-      dailyGrand[idx].actual += t.actual;
-      const pct = t.plan ? (t.actual / t.plan) * 100 : null;
-      row.push(t.plan || "", t.actual || "", {
-        content: pct === null ? "" : `${pct.toFixed(0)}%`,
-        styles: { fillColor: pctColorRgb(pct), halign: "center" },
+    const shiftRows: Array<{ label: "Day" | "Night"; get: (t: ShiftedDayTotals) => DayTotals }> = [
+      { label: "Day", get: (t) => t.day },
+      { label: "Night", get: (t) => t.night },
+    ];
+    for (const sr of shiftRows) {
+      const row: any[] = [{ content: `${line} · ${sr.label}`, styles: { halign: "left" } }];
+      let rp = 0, ra = 0;
+      dates.forEach((d, idx) => {
+        const t = sr.get(m.get(d)!);
+        rp += t.plan; ra += t.actual;
+        dailyGrand[idx].plan += t.plan;
+        dailyGrand[idx].actual += t.actual;
+        const pct = t.plan ? (t.actual / t.plan) * 100 : null;
+        row.push(t.plan || "", t.actual || "", {
+          content: pct === null ? "" : `${pct.toFixed(0)}%`,
+          styles: { fillColor: pctColorRgb(pct), halign: "center" },
+        });
       });
-    });
+      lp += rp; la += ra;
+      const rpct = rp ? (ra / rp) * 100 : null;
+      row.push(rp || "", ra || "", {
+        content: rpct === null ? "" : `${rpct.toFixed(0)}%`,
+        styles: { fillColor: pctColorRgb(rpct), halign: "center" },
+      });
+      body.push(row);
+    }
     weekTotals.plan += lp; weekTotals.actual += la;
     const wpct = lp ? (la / lp) * 100 : null;
-    row.push(lp || "", la || "", {
+    const totalRow: any[] = [{ content: `${line} · Total`, styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }];
+    dates.forEach((d) => {
+      const t = m.get(d)!;
+      const p = t.day.plan + t.night.plan;
+      const a = t.day.actual + t.night.actual;
+      const pct = p ? (a / p) * 100 : null;
+      totalRow.push(
+        { content: p || "", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } },
+        { content: a || "", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } },
+        { content: pct === null ? "" : `${pct.toFixed(0)}%`, styles: { fillColor: pctColorRgb(pct), fontStyle: "bold", halign: "center" } },
+      );
+    });
+    totalRow.push(lp || "", la || "", {
       content: wpct === null ? "" : `${wpct.toFixed(0)}%`,
       styles: { fillColor: pctColorRgb(wpct), halign: "center", fontStyle: "bold" },
     });
-    body.push(row);
+    body.push(totalRow);
   }
 
   // Totals row
@@ -264,8 +295,10 @@ export async function exportRagPdf(input: RagExportInput) {
     let prev: { x: number; y: number } | null = null;
     dates.forEach((d, i) => {
       const t = byLine.get(line)!.get(d)!;
-      if (!t.plan) { prev = null; return; }
-      const pct = Math.min(yMax, (t.actual / t.plan) * 100);
+      const p = t.day.plan + t.night.plan;
+      const a = t.day.actual + t.night.actual;
+      if (!p) { prev = null; return; }
+      const pct = Math.min(yMax, (a / p) * 100);
       const x = px(i), y = py(pct);
       if (prev) doc.line(prev.x, prev.y, x, y);
       doc.circle(x, y, 0.6, "F");
@@ -366,20 +399,36 @@ export function exportRagExcel(input: RagExportInput) {
 
   for (const line of lines) {
     const m = byLine.get(line)!;
-    const row: any[] = [line];
     let lp = 0, la = 0;
-    dates.forEach((d, idx) => {
+    for (const sr of [{ label: "Day", get: (t: ShiftedDayTotals) => t.day }, { label: "Night", get: (t: ShiftedDayTotals) => t.night }] as const) {
+      const row: any[] = [`${line} · ${sr.label}`];
+      let rp = 0, ra = 0;
+      dates.forEach((d, idx) => {
+        const t = sr.get(m.get(d)!);
+        rp += t.plan; ra += t.actual;
+        dailyGrand[idx].plan += t.plan;
+        dailyGrand[idx].actual += t.actual;
+        const pct = t.plan ? t.actual / t.plan : null;
+        row.push(t.plan || 0, t.actual || 0, pct === null ? "" : pct);
+      });
+      const rpct = rp ? ra / rp : null;
+      row.push(rp, ra, rpct === null ? "" : rpct);
+      lp += rp; la += ra;
+      s1.push(row);
+    }
+    // Line total row
+    const totalRow: any[] = [`${line} · Total`];
+    dates.forEach((d) => {
       const t = m.get(d)!;
-      lp += t.plan; la += t.actual;
-      dailyGrand[idx].plan += t.plan;
-      dailyGrand[idx].actual += t.actual;
-      const pct = t.plan ? t.actual / t.plan : null;
-      row.push(t.plan || 0, t.actual || 0, pct === null ? "" : pct);
+      const p = t.day.plan + t.night.plan;
+      const a = t.day.actual + t.night.actual;
+      const pct = p ? a / p : null;
+      totalRow.push(p, a, pct === null ? "" : pct);
     });
     const wpct = lp ? la / lp : null;
-    row.push(lp, la, wpct === null ? "" : wpct);
+    totalRow.push(lp, la, wpct === null ? "" : wpct);
     weekT.plan += lp; weekT.actual += la;
-    s1.push(row);
+    s1.push(totalRow);
   }
   // Totals row
   const totRow: any[] = ["TOTAL"];
@@ -414,10 +463,11 @@ export function exportRagExcel(input: RagExportInput) {
   }
 
   // Style data rows
-  const totalRowIdx = dataStartRow + lines.length;
+  const totalRowIdx = dataStartRow + lines.length * 3;
   for (let r = dataStartRow; r <= totalRowIdx; r++) {
-    const isTotal = r === totalRowIdx;
-    const isAlt = !isTotal && ((r - dataStartRow) % 2 === 1);
+    const isGrand = r === totalRowIdx;
+    const rowOffset = (r - dataStartRow) % 3; // 0=Day, 1=Night, 2=LineTotal
+    const isLineTotal = !isGrand && rowOffset === 2;
     for (let c = 0; c <= 24; c++) {
       const addr = XLSX.utils.encode_cell({ r, c });
       const cell = ws1[addr];
@@ -426,10 +476,10 @@ export function exportRagExcel(input: RagExportInput) {
       const style: any = {
         border,
         alignment: c === 0 ? { horizontal: "left", vertical: "center" } : centerAlign,
-        font: { name: "Calibri", sz: 10, bold: isTotal || c === 0 },
+        font: { name: "Calibri", sz: 10, bold: isGrand || isLineTotal || c === 0 },
       };
-      if (isTotal) style.fill = totalFill;
-      else if (isAlt) style.fill = altRowFill;
+      if (isGrand) style.fill = totalFill;
+      else if (isLineTotal) style.fill = altRowFill;
       if (isPct && typeof cell.v === "number") {
         cell.z = "0%";
         const pctVal = cell.v * 100;
@@ -484,8 +534,10 @@ export function exportRagExcel(input: RagExportInput) {
     let lp = 0, la = 0;
     dates.forEach((d) => {
       const t = m.get(d)!;
-      lp += t.plan; la += t.actual;
-      row.push(t.plan ? t.actual / t.plan : "");
+      const p = t.day.plan + t.night.plan;
+      const a = t.day.actual + t.night.actual;
+      lp += p; la += a;
+      row.push(p ? a / p : "");
     });
     row.push(lp ? la / lp : "");
     s3.push(row);
