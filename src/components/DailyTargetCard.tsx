@@ -94,7 +94,7 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
           <div>
             <div className="text-xs text-muted-foreground">Target</div>
             <div className="text-2xl font-bold tabular-nums">
-              {plan > 0 ? plan.toLocaleString() : "—"}
+              {plan > 0 ? plan.toLocaleString() : "0"}
             </div>
           </div>
           <div>
