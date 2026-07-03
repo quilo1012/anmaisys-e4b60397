@@ -399,20 +399,36 @@ export function exportRagExcel(input: RagExportInput) {
 
   for (const line of lines) {
     const m = byLine.get(line)!;
-    const row: any[] = [line];
     let lp = 0, la = 0;
-    dates.forEach((d, idx) => {
+    for (const sr of [{ label: "Day", get: (t: ShiftedDayTotals) => t.day }, { label: "Night", get: (t: ShiftedDayTotals) => t.night }] as const) {
+      const row: any[] = [`${line} · ${sr.label}`];
+      let rp = 0, ra = 0;
+      dates.forEach((d, idx) => {
+        const t = sr.get(m.get(d)!);
+        rp += t.plan; ra += t.actual;
+        dailyGrand[idx].plan += t.plan;
+        dailyGrand[idx].actual += t.actual;
+        const pct = t.plan ? t.actual / t.plan : null;
+        row.push(t.plan || 0, t.actual || 0, pct === null ? "" : pct);
+      });
+      const rpct = rp ? ra / rp : null;
+      row.push(rp, ra, rpct === null ? "" : rpct);
+      lp += rp; la += ra;
+      s1.push(row);
+    }
+    // Line total row
+    const totalRow: any[] = [`${line} · Total`];
+    dates.forEach((d) => {
       const t = m.get(d)!;
-      lp += t.plan; la += t.actual;
-      dailyGrand[idx].plan += t.plan;
-      dailyGrand[idx].actual += t.actual;
-      const pct = t.plan ? t.actual / t.plan : null;
-      row.push(t.plan || 0, t.actual || 0, pct === null ? "" : pct);
+      const p = t.day.plan + t.night.plan;
+      const a = t.day.actual + t.night.actual;
+      const pct = p ? a / p : null;
+      totalRow.push(p, a, pct === null ? "" : pct);
     });
     const wpct = lp ? la / lp : null;
-    row.push(lp, la, wpct === null ? "" : wpct);
+    totalRow.push(lp, la, wpct === null ? "" : wpct);
     weekT.plan += lp; weekT.actual += la;
-    s1.push(row);
+    s1.push(totalRow);
   }
   // Totals row
   const totRow: any[] = ["TOTAL"];
