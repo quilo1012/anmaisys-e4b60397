@@ -3,6 +3,7 @@ import { getShiftWindows } from "@/hooks/useShiftDowntime";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
+import { SkuSpeedPill } from "@/components/SkuSpeedPill";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -263,6 +264,16 @@ export default function LineProductionScreen() {
       return (data || []).find((row: any) => lineNamesMatch(row.line, canonicalLineName)) ?? null;
     },
     refetchInterval: 30_000,
+  });
+
+  const lineIdQ = useQuery({
+    enabled: !!canonicalLineName,
+    queryKey: ["lps-line-id", canonicalLineName],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("lines").select("id").eq("name", canonicalLineName).maybeSingle();
+      return (data?.id as string) ?? null;
+    },
+    staleTime: 5 * 60_000,
   });
 
   const itemsQ = useQuery({
@@ -854,6 +865,8 @@ export default function LineProductionScreen() {
                   effTarget={effTarget}
                   onOpen={openEditor}
                   hideTarget={isOperator && !targetUnlock}
+                  lineId={lineIdQ.data ?? null}
+                  lineName={canonicalLineName}
                 />
               );
             })}
@@ -997,11 +1010,15 @@ const SkuCard = memo(function SkuCard({
   effTarget,
   onOpen,
   hideTarget = false,
+  lineId = null,
+  lineName = null,
 }: {
   item: ItemRow;
   effTarget: number;
   onOpen: (row: ItemRow) => void;
   hideTarget?: boolean;
+  lineId?: string | null;
+  lineName?: string | null;
 }) {
   const pct = effTarget > 0 ? (item.actual_qty / effTarget) * 100 : 0;
   const done = pct >= 100;
@@ -1049,6 +1066,14 @@ const SkuCard = memo(function SkuCard({
               style={{ width: `${Math.min(100, pct)}%` }}
             />
           </div>
+        )}
+        {lineId && item.sku_id && (
+          <SkuSpeedPill
+            lineId={lineId}
+            skuId={item.sku_id}
+            currentUph={effTarget > 0 ? effTarget / 8 : null}
+            lineName={lineName}
+          />
         )}
       </CardContent>
     </Card>

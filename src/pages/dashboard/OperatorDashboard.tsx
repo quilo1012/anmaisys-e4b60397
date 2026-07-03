@@ -185,6 +185,10 @@ function OperatorDashboardContent() {
       toast({ title: "Production Line required", description: "Select the line where the sealer/printer is being used.", variant: "destructive" });
       return;
     }
+    if (!isSealerPrinterLine && !machineName) {
+      toast({ title: "Machine required", description: "Please select the machine that needs maintenance.", variant: "destructive" });
+      return;
+    }
     try {
       let created_at: string | undefined;
       if (isRetroactive && retroDate) {
@@ -383,13 +387,14 @@ function OperatorDashboardContent() {
             {/* Machine picker — regular lines only (sealer/printer line uses its own asset sub-picker). */}
             {!isSealerPrinterLine && (
               <div className="md:col-span-2 space-y-2">
-                <Label htmlFor="machine">Machine (optional)</Label>
-                <Select value={machineName || "__none__"} onValueChange={(v) => setMachineName(v === "__none__" ? "" : v)}>
-                  <SelectTrigger id="machine" className="h-12">
+                <Label htmlFor="machine">
+                  Machine <span className="text-destructive">*</span>
+                </Label>
+                <Select value={machineName} onValueChange={(v) => setMachineName(v)}>
+                  <SelectTrigger id="machine" className={cn("h-12", !machineName && "border-destructive/60")}>
                     <SelectValue placeholder="Select the machine on this line..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">— No specific machine —</SelectItem>
                     {(machines || [])
                       .filter((m: any) => {
                         if (!lineName && !lineId) return false;
@@ -417,9 +422,13 @@ function OperatorDashboardContent() {
 
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Pick the specific machine so the WO history is accurate. Leave empty if not applicable.
-                </p>
+                {!machineName ? (
+                  <p className="text-xs text-destructive">Please select the machine that needs maintenance.</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Pick the specific machine so the WO history is accurate.
+                  </p>
+                )}
                 {(() => {
                   const m: any = (machines || []).find((x: any) => x.name === machineName);
                   if (!m || m.category !== "line_mobile") return null;

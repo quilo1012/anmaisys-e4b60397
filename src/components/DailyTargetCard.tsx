@@ -94,7 +94,7 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
           <div>
             <div className="text-xs text-muted-foreground">Target</div>
             <div className="text-2xl font-bold tabular-nums">
-              {plan > 0 ? plan.toLocaleString() : "—"}
+              {plan > 0 ? plan.toLocaleString() : "0"}
             </div>
           </div>
           <div>
@@ -127,8 +127,8 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Completion</div>
-            <div className={`text-2xl font-bold tabular-nums ${pct >= 90 ? "text-emerald-500" : pct >= 60 ? "text-amber-500" : "text-rose-500"}`}>
-              {plan > 0 ? `${pct}%` : "—"}
+            <div className={`text-2xl font-bold tabular-nums ${plan > 0 ? (pct >= 90 ? "text-emerald-500" : pct >= 60 ? "text-amber-500" : "text-rose-500") : "text-muted-foreground"}`}>
+              {plan > 0 ? `${pct}%` : "0"}
             </div>
           </div>
         </div>

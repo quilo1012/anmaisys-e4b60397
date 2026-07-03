@@ -26,6 +26,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { format, parseISO, addDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { SkuSpeedPill } from "@/components/SkuSpeedPill";
 
 type Row = { sku_id: string; sku_name: string; target_qty: number; actual_qty: number; blender_ref?: string };
 
@@ -615,6 +616,8 @@ export default function ProductionPlannerPage() {
             )}
             {rows.map((r, i) => {
               const eff = r.target_qty > 0 ? (r.actual_qty / r.target_qty) * 100 : 0;
+              const currentPlanUph = r.target_qty > 0 ? r.target_qty / 8 : 0; // 8h shift baseline
+              const lineIdForRow = lines.find((l: { id: string; name: string }) => l.name === line)?.id ?? null;
               return (
                 <div key={i} className="grid gap-3 md:grid-cols-12 items-end border rounded-lg p-3">
                   <div className="md:col-span-3">
@@ -629,6 +632,16 @@ export default function ProductionPlannerPage() {
                       skus={skus}
                       disabled={false}
                     />
+                    {r.sku_id && lineIdForRow && (
+                      <div className="mt-1">
+                        <SkuSpeedPill
+                          lineId={lineIdForRow}
+                          skuId={r.sku_id}
+                          currentUph={currentPlanUph}
+                          lineName={line}
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="md:col-span-3">
                     <Label>Product Description</Label>
