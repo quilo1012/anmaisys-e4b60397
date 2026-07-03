@@ -19,6 +19,10 @@ import { toast } from "sonner";
 import { format, startOfWeek, addDays, addWeeks, getISOWeek, startOfMonth, endOfMonth, isSameMonth } from "date-fns";
 import { Link } from "react-router-dom";
 import { ManageLinesDialog } from "@/components/ManageLinesDialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { FileText, FileSpreadsheet } from "lucide-react";
+import { exportRagPdf, exportRagExcel } from "@/lib/ragExports";
+import { useAuth } from "@/contexts/AuthContext";
 
 
 import { Settings2 } from "lucide-react";
