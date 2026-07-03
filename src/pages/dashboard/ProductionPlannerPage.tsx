@@ -26,6 +26,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { format, parseISO, addDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { SkuSpeedPill } from "@/components/SkuSpeedPill";
 
 type Row = { sku_id: string; sku_name: string; target_qty: number; actual_qty: number; blender_ref?: string };
 
