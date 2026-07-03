@@ -30,6 +30,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
+import { ProductionInputCard } from "@/components/ProductionInputCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
@@ -853,6 +854,26 @@ export default function LineProductionScreen() {
               );
             })}
           </div>
+
+          {/* Production Input (per-SKU with optional blender split) */}
+          {isOperator && sessionQ.data?.id && (
+            <ProductionInputCard
+              sessionId={sessionQ.data.id as string}
+              sessionDate={activeSessionDate}
+              line={canonicalLineName}
+              shift={shift}
+              ragPlanQty={ragPlanQ.data || 0}
+              items={items.map((i) => ({
+                id: i.id,
+                sku_id: i.sku_id,
+                code: i.code,
+                name: i.name,
+                target_qty: i.target_qty,
+                actual_qty: i.actual_qty,
+              }))}
+              canEdit={canEdit}
+            />
+          )}
 
           {/* Shift observations */}
           <Card className="mt-4">
