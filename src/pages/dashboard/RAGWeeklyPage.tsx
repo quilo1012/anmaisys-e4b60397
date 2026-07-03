@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, AlertOctagon, BarChart3, Printer, CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, AlertOctagon, BarChart3, Printer, CalendarIcon, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -1215,6 +1215,28 @@ function DayNightTotalSummary({
   const fromDate = weekDates.length ? format(weekDates[0], "yyyy-MM-dd") : null;
   const toDate = weekDates.length ? format(weekDates[weekDates.length - 1], "yyyy-MM-dd") : null;
 
+  const COLLAPSE_KEY = "rag-weekly-collapsed-lines";
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem(COLLAPSE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(collapsed)); } catch { /* noop */ }
+  }, [collapsed]);
+  const toggleCollapsed = (label: string) =>
+    setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }));
+  const allLabels = [...lines, "All Lines"];
+  const allCollapsed = allLabels.every((l) => collapsed[l]);
+  const setAll = (val: boolean) => {
+    const next: Record<string, boolean> = {};
+    allLabels.forEach((l) => { next[l] = val; });
+    setCollapsed(next);
+  };
+
   const { data: exclusionRows = [] } = useQuery({
     queryKey: ["rag-exclusions", fromDate, toDate],
     enabled: !!fromDate && !!toDate,
@@ -1446,19 +1468,33 @@ function DayNightTotalSummary({
       })),
     ];
 
+    const isCollapsed = !!collapsed[label];
     return (
       <div key={label} className="mb-6">
         <div className="flex items-center justify-between mb-1 gap-2">
-          <div className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">{label}</div>
-          <div className="flex gap-1 md:hidden">
-            <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => scroll(-220)} aria-label="Scroll left">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => scroll(220)} aria-label="Scroll right">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+          <button
+            type="button"
+            onClick={() => toggleCollapsed(label)}
+            className="flex items-center gap-2 font-semibold text-sm uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+            aria-expanded={!isCollapsed}
+            aria-label={isCollapsed ? `Expand ${label}` : `Collapse ${label}`}
+          >
+            {isCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            <span>{label}</span>
+            {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          </button>
+          {!isCollapsed && (
+            <div className="flex gap-1 md:hidden">
+              <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => scroll(-220)} aria-label="Scroll left">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => scroll(220)} aria-label="Scroll right">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
+        {isCollapsed ? null : (
         <div ref={scrollRef} className="overflow-x-auto -mx-2 px-2 scroll-smooth border rounded-md shadow-sm">
           <table className="text-xs border-collapse min-w-[1000px] w-full tabular-nums">
             <thead className="sticky top-0 z-30 bg-background shadow-[0_2px_0_0_hsl(var(--border))]">
