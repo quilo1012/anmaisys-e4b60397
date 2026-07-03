@@ -1380,9 +1380,10 @@ function DayNightTotalSummary({
           }
         }
       }
-      // Stable display order: MAINT first, then Quality, then alphabetical.
+      // Stable display order: MAINT (iTouching) first, then WO Request, Quality, then alphabetical.
       const names = Array.from(totals.keys()).filter((b) => (totals.get(b) ?? 0) > 0);
-      const rank = (b: string) => (b === "MAINT" ? 0 : b === "Quality" ? 1 : 2);
+      const rank = (b: string) =>
+        b === "MAINT" ? 0 : b === "WO Request" ? 1 : b === "Quality" ? 2 : 3;
       names.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
       return names;
     })();
@@ -1390,6 +1391,8 @@ function DayNightTotalSummary({
     const bucketClass = (b: string) =>
       b === "MAINT"
         ? "text-red-600 dark:text-red-400"
+        : b === "WO Request"
+        ? "text-orange-600 dark:text-orange-400"
         : b === "Quality"
         ? "text-amber-600 dark:text-amber-400"
         : b === "Break"
@@ -1399,6 +1402,7 @@ function DayNightTotalSummary({
         : b === "Changeover"
         ? "text-purple-600 dark:text-purple-400"
         : "text-slate-600 dark:text-slate-300";
+
 
     const rows: { key: string; label: string; render: (c: Cell) => React.ReactNode; bold?: boolean; bucket?: string }[] = [
       { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString() : "—" },
