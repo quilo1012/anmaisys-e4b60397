@@ -151,20 +151,51 @@ export function LineChatButton() {
 
   const totalUnread = Object.values(unreadPerLine).reduce((a, b) => a + b, 0);
 
+  // Presence: track who is viewing the active channel
+  useEffect(() => {
+    if (!open || !activeLineId || !user) { setOnlineIds(new Set()); return; }
+    const channel = supabase.channel(`line_chat_presence_${activeLineId}`, {
+      config: { presence: { key: user.id } },
+    });
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState() as Record<string, unknown[]>;
+        setOnlineIds(new Set(Object.keys(state)));
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({
+            user_id: user.id,
+            name: profile?.name || user.email,
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+    return () => { supabase.removeChannel(channel); };
+  }, [open, activeLineId, user, profile?.name]);
+
   const send = async () => {
     const body = text.trim();
     if (!body || !activeLineId || !user) return;
     setSending(true);
-    const { error } = await supabase.from("line_chat_messages" as any).insert({
-      line_id: activeLineId,
-      user_id: user.id,
-      user_name: profile?.name || user.email || "Unknown",
-      message: body,
-    } as any);
+    const { data: inserted, error } = await supabase
+      .from("line_chat_messages" as any)
+      .insert({
+        line_id: activeLineId,
+        user_id: user.id,
+        user_name: profile?.name || user.email || "Unknown",
+        message: body,
+      } as any)
+      .select("id")
+      .single();
     setSending(false);
     if (error) { toast.error("Failed to send"); return; }
     setText("");
     qc.invalidateQueries({ queryKey: ["line_chat", activeLineId] });
+    // Fire push notifications to other participants (best-effort)
+    void supabase.functions.invoke("notify-line-chat", {
+      body: { line_id: activeLineId, message_id: (inserted as any)?.id },
+    }).catch(() => {});
   };
 
   if (!canUse) return null;
