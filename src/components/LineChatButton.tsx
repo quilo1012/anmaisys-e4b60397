@@ -38,6 +38,7 @@ export function LineChatButton() {
   const [sending, setSending] = useState(false);
   const [lastSeen, setLastSeen] = useState<Record<string, string>>(() => readLastSeen());
   const [unreadTick, setUnreadTick] = useState(0);
+  const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const isStaff = role === "admin" || role === "manager" || role === "maintenance_manager";
@@ -150,20 +151,51 @@ export function LineChatButton() {
 
   const totalUnread = Object.values(unreadPerLine).reduce((a, b) => a + b, 0);
 
+  // Presence: track who is viewing the active channel
+  useEffect(() => {
+    if (!open || !activeLineId || !user) { setOnlineIds(new Set()); return; }
+    const channel = supabase.channel(`line_chat_presence_${activeLineId}`, {
+      config: { presence: { key: user.id } },
+    });
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState() as Record<string, unknown[]>;
+        setOnlineIds(new Set(Object.keys(state)));
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({
+            user_id: user.id,
+            name: profile?.name || user.email,
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+    return () => { supabase.removeChannel(channel); };
+  }, [open, activeLineId, user, profile?.name]);
+
   const send = async () => {
     const body = text.trim();
     if (!body || !activeLineId || !user) return;
     setSending(true);
-    const { error } = await supabase.from("line_chat_messages" as any).insert({
-      line_id: activeLineId,
-      user_id: user.id,
-      user_name: profile?.name || user.email || "Unknown",
-      message: body,
-    } as any);
+    const { data: inserted, error } = await supabase
+      .from("line_chat_messages" as any)
+      .insert({
+        line_id: activeLineId,
+        user_id: user.id,
+        user_name: profile?.name || user.email || "Unknown",
+        message: body,
+      } as any)
+      .select("id")
+      .single();
     setSending(false);
     if (error) { toast.error("Failed to send"); return; }
     setText("");
     qc.invalidateQueries({ queryKey: ["line_chat", activeLineId] });
+    // Fire push notifications to other participants (best-effort)
+    void supabase.functions.invoke("notify-line-chat", {
+      body: { line_id: activeLineId, message_id: (inserted as any)?.id },
+    }).catch(() => {});
   };
 
   if (!canUse) return null;
@@ -216,9 +248,15 @@ export function LineChatButton() {
           </div>
         ) : (
           <>
-            <div className="px-4 py-2 border-b bg-muted/30">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Channel</p>
-              <p className="text-sm font-medium">{activeLine.name}</p>
+            <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Channel</p>
+                <p className="text-sm font-medium">{activeLine.name}</p>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                {onlineIds.size} online
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-muted/20">
               {isLoading ? (
@@ -231,7 +269,12 @@ export function LineChatButton() {
                   return (
                     <div key={m.id} className={`flex flex-col ${own ? "items-end" : "items-start"}`}>
                       <div className={`max-w-[85%] rounded-lg px-3 py-2 ${own ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
-                        {!own && <p className="text-[10px] font-semibold opacity-70 mb-0.5">{m.user_name}</p>}
+                        {!own && (
+                          <p className="text-[10px] font-semibold opacity-70 mb-0.5 flex items-center gap-1">
+                            {onlineIds.has(m.user_id) && <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />}
+                            {m.user_name}
+                          </p>
+                        )}
                         <p className="text-sm whitespace-pre-wrap break-words">{m.message}</p>
                       </div>
                       <span className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(m.created_at), "HH:mm")}</span>
