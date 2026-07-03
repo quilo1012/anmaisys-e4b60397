@@ -399,6 +399,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 {(role === "engineer" || role === "admin") && <AudioStatusButton />}
                 <LineChatButton />
                 <NotificationPanel />
+                <PushOnboarding />
                 {/* Language toggle removed by request — app stays in English. */}
                 <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className="shrink-0">
                   {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
