@@ -265,6 +265,16 @@ export default function LineProductionScreen() {
     refetchInterval: 30_000,
   });
 
+  const lineIdQ = useQuery({
+    enabled: !!canonicalLineName,
+    queryKey: ["lps-line-id", canonicalLineName],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("lines").select("id").eq("name", canonicalLineName).maybeSingle();
+      return (data?.id as string) ?? null;
+    },
+    staleTime: 5 * 60_000,
+  });
+
   const itemsQ = useQuery({
     enabled: !!sessionQ.data?.id,
     queryKey: ["lps-items", sessionQ.data?.id],
