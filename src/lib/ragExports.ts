@@ -533,8 +533,10 @@ export function exportRagExcel(input: RagExportInput) {
     let lp = 0, la = 0;
     dates.forEach((d) => {
       const t = m.get(d)!;
-      lp += t.plan; la += t.actual;
-      row.push(t.plan ? t.actual / t.plan : "");
+      const p = t.day.plan + t.night.plan;
+      const a = t.day.actual + t.night.actual;
+      lp += p; la += a;
+      row.push(p ? a / p : "");
     });
     row.push(lp ? la / lp : "");
     s3.push(row);
