@@ -41,6 +41,8 @@ import { clearAcknowledgedWOLocal } from "@/lib/woAck";
 
 
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { RejectWoDialog } from "@/components/RejectWoDialog";
+
 
 
 function LiveTimer({ startedAt }: { startedAt: string }) {
