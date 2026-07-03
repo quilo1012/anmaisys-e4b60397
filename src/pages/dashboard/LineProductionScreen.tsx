@@ -30,6 +30,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
+import { ProductionInputCard } from "@/components/ProductionInputCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
