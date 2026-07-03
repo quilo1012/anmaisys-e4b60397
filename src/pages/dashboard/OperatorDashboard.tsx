@@ -32,6 +32,7 @@ import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { OperatorNavCards } from "@/components/DashboardNavCards";
+import { DailyTargetCard } from "@/components/DailyTargetCard";
 import { countOpenWOs } from "@/lib/woStatus";
 import { getShift, SHIFT_LABEL, type ShiftCode } from "@/lib/shifts";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -266,6 +267,14 @@ function OperatorDashboardContent() {
 
 
 
+
+      {lineName && (
+        <DailyTargetCard
+          line={lineName}
+          entryDate={format(new Date(), "yyyy-MM-dd")}
+          shift={getShift(new Date()) === "night" ? "NIGHT" : "DAY"}
+        />
+      )}
 
       <div id="wo-form-anchor" />
 
