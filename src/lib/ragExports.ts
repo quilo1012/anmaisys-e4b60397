@@ -449,13 +449,7 @@ export function exportRagExcel(input: RagExportInput) {
   s2.push([]);
   s2.push(["Line", "WO Requests (min)", "Maint Downtime iTouching (min)", "Break (min)", "Cleaning (min)", "Total (min)"]);
   for (const line of lines) {
-    const cells = dtCategories.map((bucket) => {
-      const m = autoDtBucketMap.get(bucket);
-      if (!m) return 0;
-      let total = 0;
-      for (const d of dates) for (const shift of ["DAY", "NIGHT"] as const) total += m.get(`${d}|${line}|${shift}`) ?? 0;
-      return total;
-    });
+    const cells = dtCategories.map((bucket) => sumBucket(autoDtBucketMap, bucket, line, dates));
     s2.push([line, ...cells, cells.reduce((a, b) => a + b, 0)]);
   }
   const ws2 = XLSX.utils.aoa_to_sheet(s2);
