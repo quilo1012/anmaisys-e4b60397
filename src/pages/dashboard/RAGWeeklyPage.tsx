@@ -231,6 +231,7 @@ export default function RAGWeeklyPage() {
 
       const wo: StopDetail[] = ((woRes.data ?? []) as any[]).map((r) => {
         const mapped = mapWoToStop(r);
+        const isItouching = !!r.intouch_stop_code;
         return {
           line: mapped?.line ?? (r.line_at_time as string | null),
           start: (mapped?.start ?? r.line_stopped_at) as string,
@@ -240,10 +241,11 @@ export default function RAGWeeklyPage() {
           machine: r.machine as string | null,
           reason: r.description as string | null,
           status: r.status as string | null,
-          kind: "MAINT",
-          category: "WO Request",
+          kind: isItouching ? "MAINT" : "WO Request",
+          category: isItouching ? "Maint Downtime (iTouching)" : "WO Request",
         };
       });
+
 
       const man: StopDetail[] = ((manRes.data ?? []) as any[]).map((r) => ({
         line: r.line as string | null,
