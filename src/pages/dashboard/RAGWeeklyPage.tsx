@@ -1531,7 +1531,7 @@ function DayNightTotalSummary({
             aria-label={isCollapsed ? `Expand ${label}` : `Collapse ${label}`}
           >
             {isCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            <span>{label}</span>
+            <span>{label === "All Lines" ? label : displayLineLabel(label)}</span>
             {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
           </button>
           {!isCollapsed && (
