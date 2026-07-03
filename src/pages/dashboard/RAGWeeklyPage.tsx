@@ -858,6 +858,22 @@ export default function RAGWeeklyPage() {
                     <Settings2 className="h-4 w-4 mr-1" />Manage Lines
                   </Button>
                 )}
+                <Select
+                  onValueChange={(v) => {
+                    const id = v === "__all__" ? "rag-line-all" : `rag-line-${v.replace(/\s+/g, "-")}`;
+                    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                >
+                  <SelectTrigger className="w-[170px]">
+                    <SelectValue placeholder="Jump to line" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover z-50">
+                    {lines.map((l) => (
+                      <SelectItem key={l} value={l}>{l}</SelectItem>
+                    ))}
+                    <SelectItem value="__all__">All Lines</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button variant="outline" onClick={exportXlsx}><Download className="h-4 w-4 mr-1" />Download current (XLSX)</Button>
                 <Button variant="outline" onClick={() => window.print()} className="print:hidden">
                   <Printer className="h-4 w-4 mr-1" />Print
