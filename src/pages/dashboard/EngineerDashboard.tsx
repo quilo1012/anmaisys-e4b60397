@@ -1172,6 +1172,12 @@ function EngineerDashboardContent() {
       />
 
       <EngineerChangePinDialog open={changePinOpen} onOpenChange={setChangePinOpen} />
+      <RejectWoDialog
+        woId={rejectDialogWO?.id ?? null}
+        woNumber={rejectDialogWO?.number ?? null}
+        onOpenChange={(o) => { if (!o) setRejectDialogWO(null); }}
+      />
+
 
       {/* Add Co-Engineer dialog — PIN-verified */}
       <Dialog open={!!collabDialogWO} onOpenChange={(o) => { if (!o) { setCollabDialogWO(null); setCollabPin(""); } }}>
