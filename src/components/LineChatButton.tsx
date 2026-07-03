@@ -38,6 +38,7 @@ export function LineChatButton() {
   const [sending, setSending] = useState(false);
   const [lastSeen, setLastSeen] = useState<Record<string, string>>(() => readLastSeen());
   const [unreadTick, setUnreadTick] = useState(0);
+  const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const isStaff = role === "admin" || role === "manager" || role === "maintenance_manager";
