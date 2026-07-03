@@ -884,7 +884,7 @@ export default function RAGWeeklyPage() {
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-50">
                     {lines.map((l) => (
-                      <SelectItem key={l} value={l}>{l}</SelectItem>
+                      <SelectItem key={l} value={l}>{displayLineLabel(l)}</SelectItem>
                     ))}
                     <SelectItem value="__all__">All Lines</SelectItem>
                   </SelectContent>
