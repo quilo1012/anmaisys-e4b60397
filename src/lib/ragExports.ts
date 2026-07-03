@@ -465,8 +465,9 @@ export function exportRagExcel(input: RagExportInput) {
   // Style data rows
   const totalRowIdx = dataStartRow + lines.length * 3;
   for (let r = dataStartRow; r <= totalRowIdx; r++) {
-    const isTotal = r === totalRowIdx;
-    const isAlt = !isTotal && ((r - dataStartRow) % 2 === 1);
+    const isGrand = r === totalRowIdx;
+    const rowOffset = (r - dataStartRow) % 3; // 0=Day, 1=Night, 2=LineTotal
+    const isLineTotal = !isGrand && rowOffset === 2;
     for (let c = 0; c <= 24; c++) {
       const addr = XLSX.utils.encode_cell({ r, c });
       const cell = ws1[addr];
@@ -475,10 +476,10 @@ export function exportRagExcel(input: RagExportInput) {
       const style: any = {
         border,
         alignment: c === 0 ? { horizontal: "left", vertical: "center" } : centerAlign,
-        font: { name: "Calibri", sz: 10, bold: isTotal || c === 0 },
+        font: { name: "Calibri", sz: 10, bold: isGrand || isLineTotal || c === 0 },
       };
-      if (isTotal) style.fill = totalFill;
-      else if (isAlt) style.fill = altRowFill;
+      if (isGrand) style.fill = totalFill;
+      else if (isLineTotal) style.fill = altRowFill;
       if (isPct && typeof cell.v === "number") {
         cell.z = "0%";
         const pctVal = cell.v * 100;
