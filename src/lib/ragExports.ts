@@ -63,6 +63,10 @@ interface DayTotals {
   plan: number;
   actual: number;
 }
+interface ShiftedDayTotals {
+  day: DayTotals;
+  night: DayTotals;
+}
 
 function pctColorHex(pct: number | null): string {
   if (pct === null) return "FFFFFF";
@@ -79,11 +83,11 @@ function pctColorRgb(pct: number | null): [number, number, number] {
 
 function computeDaily(entries: RagExportEntry[], lines: string[], weekStart: Date) {
   const dates = Array.from({ length: 7 }, (_, i) => format(addDays(weekStart, i), "yyyy-MM-dd"));
-  // line -> date -> {plan, actual}
-  const byLine = new Map<string, Map<string, DayTotals>>();
+  // line -> date -> {day:{plan,actual}, night:{plan,actual}}
+  const byLine = new Map<string, Map<string, ShiftedDayTotals>>();
   for (const l of lines) {
-    const m = new Map<string, DayTotals>();
-    for (const d of dates) m.set(d, { plan: 0, actual: 0 });
+    const m = new Map<string, ShiftedDayTotals>();
+    for (const d of dates) m.set(d, { day: { plan: 0, actual: 0 }, night: { plan: 0, actual: 0 } });
     byLine.set(l, m);
   }
   for (const e of entries) {
@@ -91,8 +95,9 @@ function computeDaily(entries: RagExportEntry[], lines: string[], weekStart: Dat
     if (!m) continue;
     const t = m.get(e.entry_date);
     if (!t) continue;
-    t.plan += Number(e.plan_qty ?? 0);
-    t.actual += Number(e.actual_qty ?? 0);
+    const bucket = e.shift === "NIGHT" ? t.night : t.day;
+    bucket.plan += Number(e.plan_qty ?? 0);
+    bucket.actual += Number(e.actual_qty ?? 0);
   }
   return { dates, byLine };
 }
