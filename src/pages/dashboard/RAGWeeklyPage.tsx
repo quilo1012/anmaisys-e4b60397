@@ -33,6 +33,16 @@ import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { mapWoToStop } from "@/lib/ragDowntime";
 
+/** Display-only label mapping for line names. Keeps DB identity untouched. */
+function displayLineLabel(name: string): string {
+  const s = (name ?? "").trim();
+  const m = s.match(/^Line\s*0*(\d+)$/i);
+  if (m) return `Filler Line ${m[1]}`;
+  if (/^gel machine$/i.test(s) || /^gel line$/i.test(s)) return "GEL Line";
+  if (/^capsules?\s*&\s*tablets?$/i.test(s)) return "Tablet Line";
+  return s;
+}
+
 /** Compute UTC ms for a London-local time on a given date. */
 function londonUtcMs(dateStr: string, hour: number): number {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -874,7 +884,7 @@ export default function RAGWeeklyPage() {
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-50">
                     {lines.map((l) => (
-                      <SelectItem key={l} value={l}>{l}</SelectItem>
+                      <SelectItem key={l} value={l}>{displayLineLabel(l)}</SelectItem>
                     ))}
                     <SelectItem value="__all__">All Lines</SelectItem>
                   </SelectContent>
@@ -1521,7 +1531,7 @@ function DayNightTotalSummary({
             aria-label={isCollapsed ? `Expand ${label}` : `Collapse ${label}`}
           >
             {isCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            <span>{label}</span>
+            <span>{label === "All Lines" ? label : displayLineLabel(label)}</span>
             {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
           </button>
           {!isCollapsed && (
