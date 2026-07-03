@@ -85,28 +85,32 @@ interface ClampedStop extends StopDetail {
 }
 
 // Map a free-text category to a downtime bucket label.
-// Rules (must match RAG Weekly downtime classification spec):
-//   - 'Maintenance' / 'WO Request'                         → MAINT
-//   - 'Break'                                              → Break
-//   - 'Brushing Cleaning' / 'Deep Clean' / 'Drill Clean' /
-//     'Line Clean'                                         → Cleaning
-//   - 'Changeover'                                         → Changeover
-//   - 'Quality'                                            → Quality
-//   - any other non-empty value                            → passed through verbatim
-//   - empty / unknown                                      → MAINT (safe default)
+// Rules:
+//   - 'WO Request'                                          → WO Request (internal, opened by operator)
+//   - 'Maintenance' / 'Maint Downtime (iTouching)' / 'Maint'→ MAINT (iTouching)
+//   - 'Break'                                               → Break
+//   - 'Brushing Cleaning' / 'Deep Clean' / etc              → Cleaning
+//   - 'Changeover'                                          → Changeover
+//   - 'Quality'                                             → Quality
+//   - any other non-empty value                             → passed through verbatim
+//   - empty / unknown                                       → MAINT (safe default)
 export function categoryBucket(cat?: string | null): string {
   const raw = (cat ?? "").toString().trim();
   if (!raw) return "MAINT";
   const lc = raw.toLowerCase();
   if (
-    lc === "maintenance" ||
     lc === "wo request" ||
     lc === "wo_request" ||
-    lc === "wo-request" ||
-    lc === "maint"
+    lc === "wo-request"
+  ) return "WO Request";
+  if (
+    lc === "maintenance" ||
+    lc === "maint" ||
+    lc.includes("itouching")
   ) return "MAINT";
   return raw;
 }
+
 
 
 
@@ -227,6 +231,7 @@ export default function RAGWeeklyPage() {
 
       const wo: StopDetail[] = ((woRes.data ?? []) as any[]).map((r) => {
         const mapped = mapWoToStop(r);
+        const isItouching = !!r.intouch_stop_code;
         return {
           line: mapped?.line ?? (r.line_at_time as string | null),
           start: (mapped?.start ?? r.line_stopped_at) as string,
@@ -236,10 +241,11 @@ export default function RAGWeeklyPage() {
           machine: r.machine as string | null,
           reason: r.description as string | null,
           status: r.status as string | null,
-          kind: "MAINT",
-          category: "WO Request",
+          kind: isItouching ? "MAINT" : "WO Request",
+          category: isItouching ? "Maint Downtime (iTouching)" : "WO Request",
         };
       });
+
 
       const man: StopDetail[] = ((manRes.data ?? []) as any[]).map((r) => ({
         line: r.line as string | null,
@@ -1374,9 +1380,10 @@ function DayNightTotalSummary({
           }
         }
       }
-      // Stable display order: MAINT first, then Quality, then alphabetical.
+      // Stable display order: MAINT (iTouching) first, then WO Request, Quality, then alphabetical.
       const names = Array.from(totals.keys()).filter((b) => (totals.get(b) ?? 0) > 0);
-      const rank = (b: string) => (b === "MAINT" ? 0 : b === "Quality" ? 1 : 2);
+      const rank = (b: string) =>
+        b === "MAINT" ? 0 : b === "WO Request" ? 1 : b === "Quality" ? 2 : 3;
       names.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
       return names;
     })();
@@ -1384,6 +1391,8 @@ function DayNightTotalSummary({
     const bucketClass = (b: string) =>
       b === "MAINT"
         ? "text-red-600 dark:text-red-400"
+        : b === "WO Request"
+        ? "text-orange-600 dark:text-orange-400"
         : b === "Quality"
         ? "text-amber-600 dark:text-amber-400"
         : b === "Break"
@@ -1393,6 +1402,7 @@ function DayNightTotalSummary({
         : b === "Changeover"
         ? "text-purple-600 dark:text-purple-400"
         : "text-slate-600 dark:text-slate-300";
+
 
     const rows: { key: string; label: string; render: (c: Cell) => React.ReactNode; bold?: boolean; bucket?: string }[] = [
       { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString() : "—" },
@@ -1405,8 +1415,14 @@ function DayNightTotalSummary({
       { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : "—") },
       ...visibleBuckets.map((b) => ({
         key: `dt:${b}`,
-        label: `Downtime · ${b}`,
+        label:
+          b === "MAINT"
+            ? "Maint Downtime (iTouching)"
+            : b === "WO Request"
+            ? "WO Requests (internal)"
+            : `Downtime · ${b}`,
         bucket: b,
+
         render: (c: Cell) => {
           const v = c.dtBuckets[b] ?? 0;
           return <span className={v > 0 ? bucketClass(b) : ""}>{fmtHm(v)}</span>;

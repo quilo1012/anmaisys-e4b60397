@@ -41,6 +41,8 @@ import { clearAcknowledgedWOLocal } from "@/lib/woAck";
 
 
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { RejectWoDialog } from "@/components/RejectWoDialog";
+
 
 
 function LiveTimer({ startedAt }: { startedAt: string }) {
@@ -286,6 +288,8 @@ function EngineerDashboardContent() {
   const [signName, setSignName] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [pauseDialogWO, setPauseDialogWO] = useState<string | null>(null);
+  const [rejectDialogWO, setRejectDialogWO] = useState<{ id: string; number: number | null } | null>(null);
+
   // BUG 4: state for "line still stopped" modal when trying to finish
   const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string; notes: string } | null>(null);
   const [resumingThenFinish, setResumingThenFinish] = useState(false);
@@ -680,10 +684,18 @@ function EngineerDashboardContent() {
 
           <div className="grid grid-cols-2 gap-2 pt-1">
             {wo.status === "open" && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-green-600 hover:bg-green-700 text-white" onClick={() => handleAcceptClick(wo.id)} disabled={acceptWO.isPending}>
-                <CheckCircle className="h-5 w-5 mr-2" /> ACCEPT ORDER
-              </Button>
+              <>
+                <Button size="lg" className={`${(wo as any).intouch_stop_code ? "col-span-2" : ""} h-14 text-base font-bold bg-green-600 hover:bg-green-700 text-white`} onClick={() => handleAcceptClick(wo.id)} disabled={acceptWO.isPending}>
+                  <CheckCircle className="h-5 w-5 mr-2" /> ACCEPT
+                </Button>
+                {!(wo as any).intouch_stop_code && (
+                  <Button size="lg" variant="destructive" className="h-14 text-base font-bold" onClick={() => setRejectDialogWO({ id: wo.id, number: wo.wo_number ?? null })}>
+                    <PowerOff className="h-5 w-5 mr-2" /> REJECT
+                  </Button>
+                )}
+              </>
             )}
+
             {wo.status === "received" && (
               <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleArrivedClick(wo.id)} disabled={arriveWO.isPending || startWO.isPending}>
                 <Activity className="h-5 w-5 mr-2" /> I HAVE ARRIVED & START
@@ -1160,6 +1172,12 @@ function EngineerDashboardContent() {
       />
 
       <EngineerChangePinDialog open={changePinOpen} onOpenChange={setChangePinOpen} />
+      <RejectWoDialog
+        woId={rejectDialogWO?.id ?? null}
+        woNumber={rejectDialogWO?.number ?? null}
+        onOpenChange={(o) => { if (!o) setRejectDialogWO(null); }}
+      />
+
 
       {/* Add Co-Engineer dialog — PIN-verified */}
       <Dialog open={!!collabDialogWO} onOpenChange={(o) => { if (!o) { setCollabDialogWO(null); setCollabPin(""); } }}>
