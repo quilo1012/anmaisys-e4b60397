@@ -895,7 +895,7 @@ export default function RAGWeeklyPage() {
                             lines,
                             entries,
                             autoDtBucketMap,
-                            generatedBy: profile?.full_name || user?.email || "System",
+                            generatedBy: profile?.name || user?.email || "System",
                           });
                         } catch (e) { toast.error((e as Error).message); }
                       }}
@@ -910,7 +910,7 @@ export default function RAGWeeklyPage() {
                             lines,
                             entries,
                             autoDtBucketMap,
-                            generatedBy: profile?.full_name || user?.email || "System",
+                            generatedBy: profile?.name || user?.email || "System",
                           });
                         } catch (e) { toast.error((e as Error).message); }
                       }}
