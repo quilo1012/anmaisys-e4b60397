@@ -1415,8 +1415,14 @@ function DayNightTotalSummary({
       { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : "—") },
       ...visibleBuckets.map((b) => ({
         key: `dt:${b}`,
-        label: `Downtime · ${b}`,
+        label:
+          b === "MAINT"
+            ? "Maint Downtime (iTouching)"
+            : b === "WO Request"
+            ? "WO Requests (internal)"
+            : `Downtime · ${b}`,
         bucket: b,
+
         render: (c: Cell) => {
           const v = c.dtBuckets[b] ?? 0;
           return <span className={v > 0 ? bucketClass(b) : ""}>{fmtHm(v)}</span>;
