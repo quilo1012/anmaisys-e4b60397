@@ -62,7 +62,7 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
     if (q.data?.id) {
       ({ error } = await (supabase as any)
         .from("rag_weekly_entries")
-        .update({ actual_qty: n, actual_updated_at: new Date().toISOString() })
+        .update({ actual_qty: n })
         .eq("id", q.data.id));
     } else {
       ({ error } = await (supabase as any)
