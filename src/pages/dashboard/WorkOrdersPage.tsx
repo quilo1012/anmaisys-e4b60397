@@ -111,6 +111,21 @@ export default function WorkOrdersPage() {
   const woIds = useMemo(() => workOrders?.map((w) => w.id) ?? [], [workOrders]);
   const { data: partsCounts } = usePartsCountByWOs(woIds);
 
+  // Filter out entries whose "name" is actually a line or machine name, then sort alphabetically.
+  const requesterOptions = useMemo(() => {
+    const lineNames = new Set((lines || []).map((l: any) => (l.name || "").toString().toLowerCase()));
+    const machineNames = new Set((machines || []).map((m: any) => (m.name || "").toString().toLowerCase()));
+    return (profileNames || [])
+      .filter((p) => {
+        const n = (p.name || "").trim().toLowerCase();
+        if (!n) return false;
+        return !lineNames.has(n) && !machineNames.has(n);
+      })
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [profileNames, lines, machines]);
+
+
   const [showCreate, setShowCreate] = useState(false);
   const [newRequester, setNewRequester] = useState("");
   const [newLineId, setNewLineId] = useState("");
