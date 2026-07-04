@@ -163,6 +163,7 @@ interface SessionRow {
   leader_id: string | null; leader_name: string | null;
   staff_planned: number | null; staff_actual: number | null;
   tickets: number | null;
+  tickets_unit: "tubs" | "bags" | null;
   locked: boolean; notes: string | null;
   production_items: { id: string; sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null }[];
 }
