@@ -118,9 +118,11 @@ interface SessionRow {
   id: string; session_date: string; shift: string; line: string;
   leader_id: string | null; leader_name: string | null;
   staff_planned: number | null; staff_actual: number | null;
+  tickets: number | null;
   locked: boolean; notes: string | null;
   production_items: { id: string; sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null }[];
 }
+
 
 export default function ShiftHistoryPage() {
   const qc = useQueryClient();
