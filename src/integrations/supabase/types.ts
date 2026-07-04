@@ -377,6 +377,7 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          labor_rate: number
           name: string
           pin_hash: string
         }
@@ -384,6 +385,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          labor_rate?: number
           name: string
           pin_hash: string
         }
@@ -391,6 +393,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          labor_rate?: number
           name?: string
           pin_hash?: string
         }
@@ -2988,6 +2991,14 @@ export type Database = {
         Args: never
         Returns: {
           id: string
+          name: string
+        }[]
+      }
+      list_engineer_labor_rates: {
+        Args: never
+        Returns: {
+          id: string
+          labor_rate: number
           name: string
         }[]
       }
