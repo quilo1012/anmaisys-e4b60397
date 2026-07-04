@@ -13,6 +13,7 @@ const schema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   active: z.boolean().optional(),
   pin: z.string().regex(/^\d{4}$/).optional(),
+  laborRate: z.number().min(0).max(10000).optional(),
 });
 
 Deno.serve(async (req) => {
@@ -32,10 +33,11 @@ Deno.serve(async (req) => {
     const { data: isManager } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "manager" });
     if (!isAdmin && !isManager) throw new Error("Only managers and admins can update engineers");
 
-    const { engineerId, name, active, pin } = schema.parse(await req.json());
+    const { engineerId, name, active, pin, laborRate } = schema.parse(await req.json());
     const update: Record<string, unknown> = {};
     if (name !== undefined) update.name = name;
     if (active !== undefined) update.is_active = active;
+    if (laborRate !== undefined) update.labor_rate = laborRate;
 
     if (Object.keys(update).length > 0) {
       const { error } = await supabaseAdmin.from("engineers").update(update).eq("id", engineerId);
