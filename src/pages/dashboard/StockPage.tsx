@@ -63,8 +63,13 @@ export default function StockPage() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    const priceNum = parseFloat(price);
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      toast({ title: "Price is required", description: "Enter a unit price greater than £0.00.", variant: "destructive" });
+      return;
+    }
     try {
-      const result = await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare", price: parseFloat(price) || 0 });
+      const result = await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare", price: priceNum });
       toast({ title: "Product added" });
       logAuditEvent("create", "product", (result as any)?.id, { name, code });
       setName(""); setProductLine(""); setCode(""); setQty(""); setMinStock(""); setCategory(""); setPrice("");
