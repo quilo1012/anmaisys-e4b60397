@@ -92,11 +92,11 @@ function InlineSessionNumberCell({
     </div>
   );
 }
-/** Inline unit toggle: Tubs / Bags. Saves on click. */
+/** Inline unit toggle: Tubs / Bags. Per-item. Saves on click. */
 function InlineUnitToggle({
-  sessionId, value, disabled, onSaved,
+  itemId, value, disabled, onSaved,
 }: {
-  sessionId: string; value: "tubs" | "bags" | null; disabled?: boolean; onSaved: () => void;
+  itemId: string; value: "tubs" | "bags" | null; disabled?: boolean; onSaved: () => void;
 }) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -105,8 +105,8 @@ function InlineUnitToggle({
   const pick = async (u: "tubs" | "bags") => {
     if (disabled || saving || u === current) return;
     setSaving(true);
-    const { error } = await supabase.from("production_sessions")
-      .update({ tickets_unit: u } as never).eq("id", sessionId);
+    const { error } = await supabase.from("production_items")
+      .update({ tickets_unit: u } as never).eq("id", itemId);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     setCurrent(u);
@@ -134,6 +134,7 @@ function InlineUnitToggle({
     </div>
   );
 }
+
 
 
 
