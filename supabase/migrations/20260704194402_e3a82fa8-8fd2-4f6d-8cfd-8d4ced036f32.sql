@@ -1,0 +1,1 @@
+ALTER TABLE public.production_items ADD COLUMN IF NOT EXISTS tickets_unit text CHECK (tickets_unit IN ('tubs','bags'));

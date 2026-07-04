@@ -92,11 +92,11 @@ function InlineSessionNumberCell({
     </div>
   );
 }
-/** Inline unit toggle: Tubs / Bags. Saves on click. */
+/** Inline unit toggle: Tubs / Bags. Per-item. Saves on click. */
 function InlineUnitToggle({
-  sessionId, value, disabled, onSaved,
+  itemId, value, disabled, onSaved,
 }: {
-  sessionId: string; value: "tubs" | "bags" | null; disabled?: boolean; onSaved: () => void;
+  itemId: string; value: "tubs" | "bags" | null; disabled?: boolean; onSaved: () => void;
 }) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -105,8 +105,8 @@ function InlineUnitToggle({
   const pick = async (u: "tubs" | "bags") => {
     if (disabled || saving || u === current) return;
     setSaving(true);
-    const { error } = await supabase.from("production_sessions")
-      .update({ tickets_unit: u } as never).eq("id", sessionId);
+    const { error } = await supabase.from("production_items")
+      .update({ tickets_unit: u } as never).eq("id", itemId);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     setCurrent(u);
@@ -134,6 +134,7 @@ function InlineUnitToggle({
     </div>
   );
 }
+
 
 
 
@@ -165,7 +166,7 @@ interface SessionRow {
   tickets: number | null;
   tickets_unit: "tubs" | "bags" | null;
   locked: boolean; notes: string | null;
-  production_items: { id: string; sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null }[];
+  production_items: { id: string; sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; tickets_unit: "tubs" | "bags" | null }[];
 }
 
 
@@ -198,7 +199,7 @@ export default function ShiftHistoryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes, blender_ref)")
+        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes, blender_ref, tickets_unit)")
         .gte("session_date", from).lte("session_date", to)
         .order("session_date", { ascending: false });
       if (error) throw error;
@@ -441,7 +442,7 @@ export default function ShiftHistoryPage() {
                       const blob = `${code} ${name}`.toLowerCase();
                       const isTub = /tub/.test(blob);
                       const isBag = /bag|sach|pouch/.test(blob);
-                      const noteUnit = /\[unit:tubs\]/i.test(i.notes ?? "") ? "tubs" : /\[unit:bags\]/i.test(i.notes ?? "") ? "bags" : null;
+                      const noteUnit = i.tickets_unit ?? (/\[unit:tubs\]/i.test(i.notes ?? "") ? "tubs" : /\[unit:bags\]/i.test(i.notes ?? "") ? "bags" : null);
                       const effIsTub = noteUnit ? noteUnit === "tubs" : isTub;
                       // Default to Bag column when the SKU name doesn't hint tub/bag so the qty is still editable.
                       const effIsBag = noteUnit ? noteUnit === "bags" : (isBag || !isTub);
@@ -464,14 +465,16 @@ export default function ShiftHistoryPage() {
                             ) : null}
                           </td>
                           <td className="p-2 text-right tabular-nums">
-                            {idx === 0 ? (
-                              <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center justify-end gap-2">
+                              {i.id && i.sku_id ? (
                                 <InlineUnitToggle
-                                  sessionId={s.id}
-                                  value={s.tickets_unit}
+                                  itemId={i.id}
+                                  value={i.tickets_unit}
                                   disabled={s.locked}
                                   onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
                                 />
+                              ) : null}
+                              {idx === 0 ? (
                                 <InlineSessionNumberCell
                                   sessionId={s.id}
                                   field="tickets"
@@ -480,9 +483,10 @@ export default function ShiftHistoryPage() {
                                   placeholder="0"
                                   onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
                                 />
-                              </div>
-                            ) : null}
+                              ) : null}
+                            </div>
                           </td>
+
 
 
                           <td className="p-2 font-mono text-xs">{code || "—"}</td>
