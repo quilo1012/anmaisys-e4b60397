@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Download, Lock, Unlock, Pencil, Trash2, Upload } from "lucide-react";
+import { Check, Download, Lock, Unlock, Trash2, Upload } from "lucide-react";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { InlineActualInput } from "@/components/InlineActualInput";
 import { toast } from "sonner";
@@ -19,6 +19,76 @@ import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
+
+/** Inline Leader dropdown that saves on selection. */
+function InlineLeaderCell({
+  sessionId, leaderId, leaders, disabled, onSaved,
+}: {
+  sessionId: string; leaderId: string | null;
+  leaders: { id: string; name: string }[]; disabled?: boolean; onSaved: () => void;
+}) {
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const save = async (val: string) => {
+    const leader = leaders.find((l) => l.id === val);
+    setSaving(true);
+    const { error } = await supabase.from("production_sessions").update({
+      leader_id: leader?.id ?? null, leader_name: leader?.name ?? null,
+    }).eq("id", sessionId);
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+    onSaved();
+  };
+  return (
+    <div className="flex items-center gap-1">
+      <Select value={leaderId ?? ""} onValueChange={save} disabled={disabled || saving}>
+        <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+        <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+      </Select>
+      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+    </div>
+  );
+}
+
+/** Inline numeric input that saves on blur/Enter. */
+function InlineStaffCell({
+  sessionId, field, value, disabled, onSaved,
+}: {
+  sessionId: string; field: "staff_planned" | "staff_actual";
+  value: number | null; disabled?: boolean; onSaved: () => void;
+}) {
+  const initial = value == null ? "" : String(value);
+  const [val, setVal] = useState(initial);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setVal(initial); }, [initial]);
+  const commit = async () => {
+    if (val === initial) return;
+    const n = val === "" ? null : Number(val);
+    if (n !== null && (!Number.isFinite(n) || n < 0)) { setVal(initial); return; }
+    setSaving(true);
+    const { error } = await supabase.from("production_sessions").update({ [field]: n }).eq("id", sessionId);
+    setSaving(false);
+    if (error) { toast.error(error.message); setVal(initial); return; }
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+    onSaved();
+  };
+  return (
+    <div className="flex items-center gap-1 justify-end">
+      <Input
+        type="number" inputMode="numeric" disabled={disabled || saving} value={val}
+        onChange={(e) => setVal(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+          if (e.key === "Escape") { setVal(initial); (e.target as HTMLInputElement).blur(); }
+        }}
+        className="h-8 w-20 text-right px-2 tabular-nums"
+      />
+      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+    </div>
+  );
+}
 
 /**
  * Extract package weight from SKU code/name (e.g. "1kg", "500g", "2.5 KG", "750ml", "1L").
