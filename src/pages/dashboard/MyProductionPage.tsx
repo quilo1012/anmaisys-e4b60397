@@ -111,6 +111,20 @@ function MyProductionContent() {
       }));
     },
     refetchInterval: 30_000,
+    select: (rows: any[]) => {
+      // Defensive de-duplication by sku_id: keep MAX of target/planned/actual.
+      const merged = new Map<string, any>();
+      for (const r of rows) {
+        const key = r.sku_id;
+        const prev = merged.get(key);
+        if (!prev) { merged.set(key, { ...r }); continue; }
+        merged.set(key, {
+          ...prev,
+          target_qty: Math.max(Number(prev.target_qty || 0), Number(r.target_qty || 0)),
+          actual_qty: Math.max(Number(prev.actual_qty || 0), Number(r.actual_qty || 0)),
+        });
+      }
+      return Array.from(merged.values());
   });
 
   const ragPlanQ = useQuery({
