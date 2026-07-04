@@ -125,6 +125,7 @@ function MyProductionContent() {
         });
       }
       return Array.from(merged.values());
+    },
   });
 
   const ragPlanQ = useQuery({
