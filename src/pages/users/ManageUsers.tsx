@@ -30,6 +30,7 @@ interface Engineer {
   name: string;
   is_active: boolean;
   created_at: string;
+  labor_rate?: number | null;
 }
 
 const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", maintenance_manager: "Maintenance Manager", engineer: "Engineer", operator: "Operator", viewer: "Viewer" };
