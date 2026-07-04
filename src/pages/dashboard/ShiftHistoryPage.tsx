@@ -15,6 +15,7 @@ import { Check, Download, Lock, Unlock, Trash2, Upload } from "lucide-react";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { InlineActualInput } from "@/components/InlineActualInput";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -91,6 +92,49 @@ function InlineSessionNumberCell({
     </div>
   );
 }
+/** Inline unit toggle: Tubs / Bags. Saves on click. */
+function InlineUnitToggle({
+  sessionId, value, disabled, onSaved,
+}: {
+  sessionId: string; value: "tubs" | "bags" | null; disabled?: boolean; onSaved: () => void;
+}) {
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [current, setCurrent] = useState<"tubs" | "bags" | null>(value);
+  useEffect(() => { setCurrent(value); }, [value]);
+  const pick = async (u: "tubs" | "bags") => {
+    if (disabled || saving || u === current) return;
+    setSaving(true);
+    const { error } = await supabase.from("production_sessions")
+      .update({ tickets_unit: u } as never).eq("id", sessionId);
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    setCurrent(u);
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+    onSaved();
+  };
+  const btn = (u: "tubs" | "bags", label: string) => (
+    <button
+      type="button" disabled={disabled || saving}
+      onClick={() => pick(u)}
+      className={cn(
+        "h-8 w-12 text-xs rounded border font-medium transition-colors",
+        current === u
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-background hover:bg-muted border-input text-muted-foreground",
+        (disabled || saving) && "opacity-50 cursor-not-allowed",
+      )}
+    >{label}</button>
+  );
+  return (
+    <div className="flex items-center gap-1">
+      {btn("tubs", "Tubs")}
+      {btn("bags", "Bags")}
+      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+    </div>
+  );
+}
+
 
 
 /**
@@ -119,6 +163,7 @@ interface SessionRow {
   leader_id: string | null; leader_name: string | null;
   staff_planned: number | null; staff_actual: number | null;
   tickets: number | null;
+  tickets_unit: "tubs" | "bags" | null;
   locked: boolean; notes: string | null;
   production_items: { id: string; sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null }[];
 }
@@ -153,7 +198,7 @@ export default function ShiftHistoryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes, blender_ref)")
+        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes, blender_ref)")
         .gte("session_date", from).lte("session_date", to)
         .order("session_date", { ascending: false });
       if (error) throw error;
@@ -420,16 +465,25 @@ export default function ShiftHistoryPage() {
                           </td>
                           <td className="p-2 text-right tabular-nums">
                             {idx === 0 ? (
-                              <InlineSessionNumberCell
-                                sessionId={s.id}
-                                field="tickets"
-                                value={s.tickets}
-                                disabled={s.locked}
-                                placeholder="0"
-                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
-                              />
+                              <div className="flex items-center justify-end gap-2">
+                                <InlineUnitToggle
+                                  sessionId={s.id}
+                                  value={s.tickets_unit}
+                                  disabled={s.locked}
+                                  onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                                />
+                                <InlineSessionNumberCell
+                                  sessionId={s.id}
+                                  field="tickets"
+                                  value={s.tickets}
+                                  disabled={s.locked}
+                                  placeholder="0"
+                                  onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                                />
+                              </div>
                             ) : null}
                           </td>
+
 
                           <td className="p-2 font-mono text-xs">{code || "—"}</td>
                           <td className="p-2">{name}</td>
