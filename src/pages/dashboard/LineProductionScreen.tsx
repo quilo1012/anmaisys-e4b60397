@@ -350,13 +350,16 @@ export default function LineProductionScreen() {
     const ragTotal = ragPlanQ.data || 0;
     // RAG Weekly plan_qty is the single source of truth for the shift target.
     const target = ragTotal;
-    // Current Shift = live iTouching good total (independent of operator edits).
-    // Fall back to the per-SKU sum only until the first iTouching sync stamps the session.
-    const actual = Number((sessionQ.data as any)?.intouch_good_total ?? 0);
+    // Actual = operator-submitted total (sum of production_items.actual_qty).
+    // iTouching's live estimate is shown separately and never mixed into target/gap/pct.
+    const actual = items.reduce((s, it: any) => s + (Number(it.actual_qty) || 0), 0);
     const remaining = Math.max(0, target - actual);
     const pct = target > 0 ? (actual / target) * 100 : 0;
     return { target, actual, remaining, pct };
-  }, [items, ragPlanQ.data, sessionQ.data]);
+  }, [items, ragPlanQ.data]);
+
+  const intouchLive = Number((sessionQ.data as any)?.intouch_good_total ?? 0);
+
 
   const updateActual = useMutation({
     mutationFn: async ({ id, value }: { id: string; value: number }) => {
@@ -810,7 +813,13 @@ export default function LineProductionScreen() {
                   <CircularProgress value={eff} size={120} strokeWidth={10} />
                   <div className="flex-1 min-w-[200px] space-y-1 text-base md:text-lg">
                     <div className="flex justify-between"><span className="text-muted-foreground">Target</span><span className="font-semibold tabular-nums">{totals.target.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Current Shift</span><span className="font-semibold tabular-nums text-primary">{totals.actual.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Actual Produced</span><span className="font-semibold tabular-nums text-primary">{totals.actual.toLocaleString()}</span></div>
+                    {!isOperator && (
+                      <div className="flex justify-between text-xs pt-1 border-t border-border/50 mt-1">
+                        <span className="text-muted-foreground">Live Count (iTouching)</span>
+                        <span className="font-medium tabular-nums text-muted-foreground">{intouchLive.toLocaleString()}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between"><span className="text-muted-foreground">Gap</span><span className={cn("font-semibold tabular-nums", gap >= 0 ? "text-green-500" : "text-red-500")}>{gap.toLocaleString()}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Remaining</span><span className="font-semibold tabular-nums">{totals.remaining.toLocaleString()}</span></div>
                   </div>
