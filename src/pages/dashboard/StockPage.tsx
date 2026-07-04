@@ -291,7 +291,7 @@ export default function StockPage() {
                      <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1"><Label>Initial Qty</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
                       <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} /></div>
-                      <div className="space-y-1"><Label>Price (£)</Label><Input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+                      <div className="space-y-1"><Label>Price (£) <span className="text-destructive">*</span></Label><Input type="number" step="0.01" min="0.01" required value={price} onChange={(e) => setPrice(e.target.value)} /></div>
                      </div>
                     <div className="space-y-1">
                       <Label>Category</Label>
