@@ -136,7 +136,6 @@ export default function ShiftHistoryPage() {
   const [fLeader, setFLeader] = useState("__all__");
   const [fSku, setFSku] = useState("__all__");
   
-  const [editing, setEditing] = useState<SessionRow | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<{ id: string; sku_id: string; code: string; target: number; actual: number; notes: string | null } | null>(null);
   const [editActual, setEditActual] = useState<string>("");
