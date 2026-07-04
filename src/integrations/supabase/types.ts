@@ -721,6 +721,45 @@ export type Database = {
           },
         ]
       }
+      line_production_baselines: {
+        Row: {
+          active_days: number
+          created_at: string
+          daily_avg_units: number
+          daily_max_units: number
+          daily_p75_units: number
+          daily_p90_units: number
+          data_period: string | null
+          id: string
+          line_name: string
+          updated_at: string
+        }
+        Insert: {
+          active_days: number
+          created_at?: string
+          daily_avg_units: number
+          daily_max_units: number
+          daily_p75_units: number
+          daily_p90_units: number
+          data_period?: string | null
+          id?: string
+          line_name: string
+          updated_at?: string
+        }
+        Update: {
+          active_days?: number
+          created_at?: string
+          daily_avg_units?: number
+          daily_max_units?: number
+          daily_p75_units?: number
+          daily_p90_units?: number
+          data_period?: string | null
+          id?: string
+          line_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       lines: {
         Row: {
           active: boolean
