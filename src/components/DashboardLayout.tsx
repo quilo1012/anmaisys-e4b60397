@@ -445,6 +445,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 ⚠️ You are offline — changes will sync when connection is restored
               </div>
             )}
+            {(role === "admin" || role === "manager" || role === "maintenance_manager") && <AutoWoDisabledBanner />}
             <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0">
               <div className="min-w-0 w-full">{children}</div>
             </div>
