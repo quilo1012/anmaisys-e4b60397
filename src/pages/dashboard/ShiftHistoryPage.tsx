@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Download, Lock, Unlock, Pencil, Trash2, Upload } from "lucide-react";
+import { Check, Download, Lock, Unlock, Trash2, Upload } from "lucide-react";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { InlineActualInput } from "@/components/InlineActualInput";
 import { toast } from "sonner";
@@ -19,6 +19,77 @@ import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
+
+/** Inline Leader dropdown that saves on selection. */
+function InlineLeaderCell({
+  sessionId, leaderId, leaders, disabled, onSaved,
+}: {
+  sessionId: string; leaderId: string | null;
+  leaders: { id: string; name: string }[]; disabled?: boolean; onSaved: () => void;
+}) {
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const save = async (val: string) => {
+    const leader = leaders.find((l) => l.id === val);
+    setSaving(true);
+    const { error } = await supabase.from("production_sessions").update({
+      leader_id: leader?.id ?? null, leader_name: leader?.name ?? null,
+    }).eq("id", sessionId);
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+    onSaved();
+  };
+  return (
+    <div className="flex items-center gap-1">
+      <Select value={leaderId ?? ""} onValueChange={save} disabled={disabled || saving}>
+        <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+        <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+      </Select>
+      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+    </div>
+  );
+}
+
+/** Inline numeric input that saves on blur/Enter. */
+function InlineStaffCell({
+  sessionId, field, value, disabled, onSaved,
+}: {
+  sessionId: string; field: "staff_planned" | "staff_actual";
+  value: number | null; disabled?: boolean; onSaved: () => void;
+}) {
+  const initial = value == null ? "" : String(value);
+  const [val, setVal] = useState(initial);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setVal(initial); }, [initial]);
+  const commit = async () => {
+    if (val === initial) return;
+    const n = val === "" ? null : Number(val);
+    if (n !== null && (!Number.isFinite(n) || n < 0)) { setVal(initial); return; }
+    setSaving(true);
+    const patch: Record<string, number | null> = { [field]: n };
+    const { error } = await supabase.from("production_sessions").update(patch as never).eq("id", sessionId);
+    setSaving(false);
+    if (error) { toast.error(error.message); setVal(initial); return; }
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+    onSaved();
+  };
+  return (
+    <div className="flex items-center gap-1 justify-end">
+      <Input
+        type="number" inputMode="numeric" disabled={disabled || saving} value={val}
+        onChange={(e) => setVal(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+          if (e.key === "Escape") { setVal(initial); (e.target as HTMLInputElement).blur(); }
+        }}
+        className="h-8 w-20 text-right px-2 tabular-nums"
+      />
+      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+    </div>
+  );
+}
 
 /**
  * Extract package weight from SKU code/name (e.g. "1kg", "500g", "2.5 KG", "750ml", "1L").
@@ -65,7 +136,6 @@ export default function ShiftHistoryPage() {
   const [fLeader, setFLeader] = useState("__all__");
   const [fSku, setFSku] = useState("__all__");
   
-  const [editing, setEditing] = useState<SessionRow | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<{ id: string; sku_id: string; code: string; target: number; actual: number; notes: string | null } | null>(null);
   const [editActual, setEditActual] = useState<string>("");
@@ -175,19 +245,6 @@ export default function ShiftHistoryPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const saveEdit = useMutation({
-
-    mutationFn: async (s: SessionRow) => {
-      const { error } = await supabase.from("production_sessions").update({
-        leader_id: s.leader_id, leader_name: s.leader_name,
-        staff_planned: s.staff_planned, staff_actual: s.staff_actual,
-        notes: s.notes,
-      }).eq("id", s.id);
-      if (error) throw error;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setEditing(null); toast.success("Saved"); },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   const exportCSV = () => {
     const rows = [["Date", "Shift", "Line", "Leader", "Staff", "SKU", "Target", "Actual", "Eff%", "Notes"]];
@@ -308,13 +365,16 @@ export default function ShiftHistoryPage() {
                     <th className="text-left p-2">Date</th>
                     <th className="text-left p-2">Shift</th>
                     <th className="text-left p-2">Filler Line</th>
+                    <th className="text-left p-2">Leader</th>
+                    <th className="text-right p-2">Staff Plan</th>
+                    <th className="text-right p-2">Staff Act</th>
                     <th className="text-left p-2">SKU</th>
                     <th className="text-left p-2">Product Description</th>
                     <th className="text-left p-2">Batch</th>
                     <th className="text-right p-2">Weight</th>
                     <th className="text-right p-2">Bag</th>
                     <th className="text-right p-2">Tubs</th>
-                    <th className="text-right p-2 w-32">Actions</th>
+                    <th className="text-right p-2 w-28">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -343,6 +403,39 @@ export default function ShiftHistoryPage() {
                           <td className="p-2 whitespace-nowrap">{s.session_date}</td>
                           <td className="p-2"><Badge variant="outline">{s.shift}</Badge></td>
                           <td className="p-2 whitespace-nowrap">{s.line}</td>
+                          <td className="p-2">
+                            {idx === 0 ? (
+                              <InlineLeaderCell
+                                sessionId={s.id}
+                                leaderId={s.leader_id}
+                                leaders={leaders}
+                                disabled={s.locked}
+                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                              />
+                            ) : null}
+                          </td>
+                          <td className="p-2 text-right tabular-nums">
+                            {idx === 0 ? (
+                              <InlineStaffCell
+                                sessionId={s.id}
+                                field="staff_planned"
+                                value={s.staff_planned}
+                                disabled={s.locked}
+                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                              />
+                            ) : null}
+                          </td>
+                          <td className="p-2 text-right tabular-nums">
+                            {idx === 0 ? (
+                              <InlineStaffCell
+                                sessionId={s.id}
+                                field="staff_actual"
+                                value={s.staff_actual}
+                                disabled={s.locked}
+                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                              />
+                            ) : null}
+                          </td>
                           <td className="p-2 font-mono text-xs">{code || "—"}</td>
                           <td className="p-2">{name}</td>
                           <td className="p-2">
@@ -385,9 +478,6 @@ export default function ShiftHistoryPage() {
                           </td>
                           <td className="p-2">
                             <div className="flex items-center justify-end gap-1">
-                              <Button size="icon" variant="ghost" title="Edit session" onClick={() => setEditing(s)}>
-                                <Pencil className="h-4 w-4 opacity-60" />
-                              </Button>
                               <Button size="icon" variant="ghost" title="Lock/unlock" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
                                 {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                               </Button>
@@ -406,31 +496,6 @@ export default function ShiftHistoryPage() {
           </CardContent>
         </Card>
 
-        <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Edit session</DialogTitle></DialogHeader>
-            {editing && (
-              <div className="space-y-3">
-                <div>
-                  <Label>Leader</Label>
-                  <div className="mt-1 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-                    {editing.leader_name ?? "—"}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div><Label>Staff planned</Label><Input type="number" placeholder="" value={editing.staff_planned == null || editing.staff_planned === 0 ? "" : editing.staff_planned} onChange={(e) => setEditing({ ...editing, staff_planned: e.target.value === "" ? null : +e.target.value })} /></div>
-                  <div><Label>Staff actual</Label><Input type="number" placeholder="" value={editing.staff_actual == null || editing.staff_actual === 0 ? "" : editing.staff_actual} onChange={(e) => setEditing({ ...editing, staff_actual: e.target.value === "" ? null : +e.target.value })} /></div>
-                </div>
-                <div><Label>Notes</Label><Textarea value={editing.notes ?? ""} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} /></div>
-              </div>
-
-            )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
-              <Button onClick={() => editing && saveEdit.mutate(editing)} disabled={saveEdit.isPending}>Save</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
           <AlertDialogContent>
