@@ -132,7 +132,7 @@ export default function WorkOrdersPage() {
   const [newMachine, setNewMachine] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newNotes, setNewNotes] = useState("");
-  const [newPriority, setNewPriority] = useState<string>("medium");
+  
   
 
   const [editWO, setEditWO] = useState<WorkOrder | null>(null);
