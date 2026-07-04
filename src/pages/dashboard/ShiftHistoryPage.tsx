@@ -417,6 +417,39 @@ export default function ShiftHistoryPage() {
                           <td className="p-2 whitespace-nowrap">{s.session_date}</td>
                           <td className="p-2"><Badge variant="outline">{s.shift}</Badge></td>
                           <td className="p-2 whitespace-nowrap">{s.line}</td>
+                          <td className="p-2">
+                            {idx === 0 ? (
+                              <InlineLeaderCell
+                                sessionId={s.id}
+                                leaderId={s.leader_id}
+                                leaders={leaders}
+                                disabled={s.locked}
+                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                              />
+                            ) : null}
+                          </td>
+                          <td className="p-2 text-right tabular-nums">
+                            {idx === 0 ? (
+                              <InlineStaffCell
+                                sessionId={s.id}
+                                field="staff_planned"
+                                value={s.staff_planned}
+                                disabled={s.locked}
+                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                              />
+                            ) : null}
+                          </td>
+                          <td className="p-2 text-right tabular-nums">
+                            {idx === 0 ? (
+                              <InlineStaffCell
+                                sessionId={s.id}
+                                field="staff_actual"
+                                value={s.staff_actual}
+                                disabled={s.locked}
+                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                              />
+                            ) : null}
+                          </td>
                           <td className="p-2 font-mono text-xs">{code || "—"}</td>
                           <td className="p-2">{name}</td>
                           <td className="p-2">
