@@ -248,7 +248,7 @@ export default function ReliabilityDashboard() {
             { label: "WOs (Period)", value: totalWOs, icon: Activity, tint: "text-violet-500", bg: "bg-violet-500/10" },
             { label: "High Risk", value: filteredRisks.filter((r) => r.risk === "HIGH").length, icon: AlertTriangle, tint: "text-red-500", bg: "bg-red-500/10" },
             { label: "Avg MTTR", value: `${avgMTTR} min`, icon: Clock, tint: "text-amber-500", bg: "bg-amber-500/10" },
-            { label: "Avg MTBF", value: `${avgMTBF} hrs`, icon: TrendingUp, tint: "text-emerald-500", bg: "bg-emerald-500/10" },
+            { label: "Avg MTBF", value: formatMTBF(avgMTBF), icon: TrendingUp, tint: "text-emerald-500", bg: "bg-emerald-500/10" },
           ].map((k) => (
             <Card key={k.label}>
               <CardContent className="p-4 flex items-center gap-3">
