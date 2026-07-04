@@ -334,7 +334,7 @@ export default function ReliabilityDashboard() {
                   <TableRow>
                     <TableHead>Machine</TableHead>
                     <TableHead>Failures</TableHead>
-                    <TableHead>MTBF (hrs)</TableHead>
+                    <TableHead>MTBF</TableHead>
                     <TableHead>Risk</TableHead>
                     <TableHead>Last Failure</TableHead>
                     <TableHead>Alerts</TableHead>
