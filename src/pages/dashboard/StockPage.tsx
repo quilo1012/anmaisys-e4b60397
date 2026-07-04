@@ -186,9 +186,9 @@ export default function StockPage() {
                             <p className="text-xs text-muted-foreground font-mono">{p.code}{p.line ? ` · ${p.line}` : ""}</p>
                           </div>
                           {isLow ? (
-                            <StatusBadge status="low_stock" />
+                            <StatusBadge status="warning" label="Low Stock" />
                           ) : (
-                            <StatusBadge status="normal" />
+                            <StatusBadge status="success" label="In Stock" />
                           )}
                         </div>
                         <div className="flex items-end justify-between gap-2">
@@ -245,9 +245,9 @@ export default function StockPage() {
                         <TableCell>{p.min_stock}</TableCell>
                         <TableCell>
                           {isLow ? (
-                            <StatusBadge status="low_stock" />
+                            <StatusBadge status="warning" label="Low Stock" />
                           ) : (
-                            <StatusBadge status="normal" />
+                            <StatusBadge status="success" label="In Stock" />
                           )}
                         </TableCell>
                         {isManager && (
