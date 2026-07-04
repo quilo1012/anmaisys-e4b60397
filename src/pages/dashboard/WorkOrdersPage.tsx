@@ -703,7 +703,8 @@ export default function WorkOrdersPage() {
                 <Select value={newRequester} onValueChange={setNewRequester}>
                   <SelectTrigger><SelectValue placeholder="Select requester..." /></SelectTrigger>
                   <SelectContent>
-                    {profileNames?.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+                    {requesterOptions.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+
                   </SelectContent>
                 </Select>
               </div>
