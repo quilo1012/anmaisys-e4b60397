@@ -169,6 +169,14 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/dashboard/operator/my-production"
+                  element={
+                    <ProtectedRoute allowedRoles={["operator"]}>
+                      <MyProductionPage />
+                    </ProtectedRoute>
+                  }
+                />
 
 
                 <Route
