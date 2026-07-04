@@ -245,19 +245,6 @@ export default function ShiftHistoryPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const saveEdit = useMutation({
-
-    mutationFn: async (s: SessionRow) => {
-      const { error } = await supabase.from("production_sessions").update({
-        leader_id: s.leader_id, leader_name: s.leader_name,
-        staff_planned: s.staff_planned, staff_actual: s.staff_actual,
-        notes: s.notes,
-      }).eq("id", s.id);
-      if (error) throw error;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setEditing(null); toast.success("Saved"); },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   const exportCSV = () => {
     const rows = [["Date", "Shift", "Line", "Leader", "Staff", "SKU", "Target", "Actual", "Eff%", "Notes"]];
