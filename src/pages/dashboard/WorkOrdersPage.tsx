@@ -285,9 +285,10 @@ export default function WorkOrdersPage() {
       return;
     }
     try {
-      await createWO.mutateAsync({ requester_name: newRequester.trim(), line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), priority: newPriority } as any);
+      await createWO.mutateAsync({ requester_name: newRequester.trim(), line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim() } as any);
       toast({ title: "Work Order Created" });
-      setShowCreate(false); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes(""); setNewPriority("medium");
+      setShowCreate(false); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
+
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
 
