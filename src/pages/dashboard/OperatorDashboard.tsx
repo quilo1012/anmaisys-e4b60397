@@ -581,10 +581,16 @@ function OperatorDashboardContent() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5" />
-            My Work Orders
-          </CardTitle>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5" />
+              My Work Orders
+            </CardTitle>
+            <Button size="sm" variant="outline" onClick={() => navigate("/dashboard/operator/my-production")}>
+              <Factory className="h-4 w-4 mr-2" />
+              My Production
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs value={shiftFilter} onValueChange={(v) => setShiftFilter(v as any)} className="mb-3">
