@@ -381,10 +381,11 @@ Deno.serve(async (req) => {
       results.errors.push(`getmachineStatuses: ${msg}`);
       try {
         await admin.from("intouch_sync_runs").insert({
-          kind: "poll",
+          function_name: "intouch-poll",
           status: "error",
-          error: msg,
+          error_message: msg,
           details: results as any,
+          finished_at: new Date().toISOString(),
         });
       } catch (_) { /* best-effort */ }
       return new Response(JSON.stringify({ ok: false, error: msg, ...results }), {
