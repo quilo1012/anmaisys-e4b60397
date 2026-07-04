@@ -240,7 +240,7 @@ function FinancialDashboardContent() {
           <Card>
             <CardHeader><CardTitle className="text-base">Cost by Machine (Top 10)</CardTitle></CardHeader>
             <CardContent>
-              {costByMachine.length ? (
+              {costByMachine.some((c) => c.cost > 0) ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={costByMachine} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" />
@@ -250,14 +250,14 @@ function FinancialDashboardContent() {
                     <Bar dataKey="cost" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              ) : <p className="text-muted-foreground text-center py-8">No cost data yet</p>}
+              ) : <p className="text-muted-foreground text-center py-8">No cost data for this period</p>}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader><CardTitle className="text-base">Cost by Line</CardTitle></CardHeader>
             <CardContent>
-              {costByLine.length ? (
+              {costByLine.some((c) => c.cost > 0) ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={costByLine}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -267,7 +267,7 @@ function FinancialDashboardContent() {
                     <Bar dataKey="cost" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              ) : <p className="text-muted-foreground text-center py-8">No cost data yet</p>}
+              ) : <p className="text-muted-foreground text-center py-8">No cost data for this period</p>}
             </CardContent>
           </Card>
         </div>

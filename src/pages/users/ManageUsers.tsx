@@ -489,7 +489,7 @@ export default function ManageUsers() {
             onClick={() => setActiveTab("leaders")}
             className="gap-2"
           >
-            <KeyRound className="h-4 w-4" /> Líderes (PIN)
+            <KeyRound className="h-4 w-4" /> Leaders (PIN)
           </Button>
         </div>
 
@@ -506,10 +506,10 @@ export default function ManageUsers() {
             <DialogContent>
               <DialogHeader><DialogTitle>Create New User</DialogTitle></DialogHeader>
               <form onSubmit={handleCreateUser} className="space-y-4" autoComplete="off">
-                <div className="space-y-2"><Label>Full Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
-                <div className="space-y-2"><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+                <div className="space-y-2"><Label>Full Name <span className="text-destructive">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
+                <div className="space-y-2"><Label>Email <span className="text-destructive">*</span></Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
                 <div className="space-y-2">
-                  <Label>Password</Label>
+                  <Label>Password <span className="text-destructive">*</span></Label>
                   <Button type="button" variant="outline" size="sm" className="w-full justify-start" onClick={() => fillGeneratedUserPassword("create")}>
                     <KeyRound className="h-4 w-4 mr-2" />Generate strong password
                   </Button>
@@ -527,7 +527,7 @@ export default function ManageUsers() {
                   {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label>Role</Label>
+                  <Label>Role <span className="text-destructive">*</span></Label>
                    <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -660,9 +660,9 @@ export default function ManageUsers() {
             <DialogContent>
               <DialogHeader><DialogTitle>Create Engineer Identity</DialogTitle></DialogHeader>
               <form onSubmit={handleCreateEngineer} className="space-y-4" autoComplete="off">
-                <div className="space-y-2"><Label>Engineer Name</Label><Input value={engName} onChange={(e) => setEngName(e.target.value)} required /></div>
+                <div className="space-y-2"><Label>Engineer Name <span className="text-destructive">*</span></Label><Input value={engName} onChange={(e) => setEngName(e.target.value)} required /></div>
                 <div className="space-y-2">
-                  <Label>PIN (4 digits)</Label>
+                  <Label>PIN (4 digits) <span className="text-destructive">*</span></Label>
                   <Input type="password" value={engPin} onChange={(e) => setEngPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 1234" minLength={4} maxLength={4} required />
                 </div>
                 <Button type="submit" className="w-full" disabled={engLoading || engPin.length < 4}>
@@ -744,7 +744,7 @@ export default function ManageUsers() {
         <div className={activeTab === "leaders" ? "space-y-4" : "hidden"}>
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold">Líderes (PIN Identity)</h2>
+              <h2 className="text-2xl font-bold">Leaders (PIN Identity)</h2>
               <p className="text-muted-foreground">Line Leaders authorized to unlock target displays via PIN</p>
             </div>
             <div className="flex items-center gap-2">
@@ -758,9 +758,9 @@ export default function ManageUsers() {
                 <DialogContent>
                   <DialogHeader><DialogTitle>Create Leader Identity</DialogTitle></DialogHeader>
                   <form onSubmit={handleCreateLeader} className="space-y-4" autoComplete="off">
-                    <div className="space-y-2"><Label>Leader Name</Label><Input value={ldName} onChange={(e) => setLdName(e.target.value)} required /></div>
+                    <div className="space-y-2"><Label>Leader Name <span className="text-destructive">*</span></Label><Input value={ldName} onChange={(e) => setLdName(e.target.value)} required /></div>
                     <div className="space-y-2">
-                      <Label>PIN (4 digits)</Label>
+                      <Label>PIN (4 digits) <span className="text-destructive">*</span></Label>
                       <Input type="password" value={ldPin} onChange={(e) => setLdPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 1234" minLength={4} maxLength={4} required />
                     </div>
                     <Button type="submit" className="w-full" disabled={ldLoading || ldPin.length < 4}>
