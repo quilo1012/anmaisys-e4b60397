@@ -15,6 +15,7 @@ import { Check, Download, Lock, Unlock, Trash2, Upload } from "lucide-react";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { InlineActualInput } from "@/components/InlineActualInput";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
 import { useAuth } from "@/contexts/AuthContext";
