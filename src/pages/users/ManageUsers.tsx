@@ -15,7 +15,8 @@ import { Switch } from "@/components/ui/switch";
 // Tabs replaced by simple button group + conditional render for reliability
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Tablet, Users as UsersIcon } from "lucide-react";
+import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Tablet, Users as UsersIcon, Check } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
 import { TabletBindingsCard } from "@/components/TabletBindingsCard";
@@ -30,6 +31,7 @@ interface Engineer {
   name: string;
   is_active: boolean;
   created_at: string;
+  labor_rate?: number | null;
 }
 
 const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", maintenance_manager: "Maintenance Manager", engineer: "Engineer", operator: "Operator", viewer: "Viewer" };
@@ -48,6 +50,65 @@ interface Leader {
   is_active: boolean;
   created_at: string;
 }
+
+function InlineLaborRateCell({ engineer, onSaved }: { engineer: Engineer; onSaved: () => void }) {
+  const [value, setValue] = useState(String(engineer.labor_rate ?? 0));
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const commit = async () => {
+    const parsed = Number(value);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      setValue(String(engineer.labor_rate ?? 0));
+      return;
+    }
+    if (parsed === Number(engineer.labor_rate ?? 0)) return;
+    setSaving(true);
+    try {
+      const res = await invokeFunction<{ success: boolean }>("update-engineer", {
+        engineerId: engineer.id,
+        laborRate: parsed,
+      });
+      if (res.error) throw new Error(res.error.message);
+      if (!res.data?.success) throw new Error("Failed to save");
+      qc.invalidateQueries({ queryKey: ["engineer_labor_rates"] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+      onSaved();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+      setValue(String(engineer.labor_rate ?? 0));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-muted-foreground text-xs">£</span>
+      <Input
+        type="number"
+        min="0"
+        step="0.01"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") setValue(String(engineer.labor_rate ?? 0));
+        }}
+        disabled={saving}
+        className="h-8 w-24 text-right"
+      />
+      <span className="text-muted-foreground text-xs">/h</span>
+      {saving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+    </div>
+  );
+}
+
 
 export default function ManageUsers() {
   const [users, setUsers] = useState<Profile[]>([]);
@@ -682,6 +743,7 @@ export default function ManageUsers() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Labor Rate</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -695,6 +757,7 @@ export default function ManageUsers() {
                         {eng.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
+                    <TableCell><InlineLaborRateCell engineer={eng} onSaved={fetchEngineers} /></TableCell>
                     <TableCell className="text-muted-foreground">{new Date(eng.created_at).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -732,7 +795,7 @@ export default function ManageUsers() {
                 ))}
                 {engineers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">No engineers configured. Add engineers to enable PIN-based actions.</TableCell>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">No engineers configured. Add engineers to enable PIN-based actions.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
