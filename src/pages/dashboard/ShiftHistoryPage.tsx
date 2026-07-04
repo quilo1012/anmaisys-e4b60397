@@ -492,9 +492,6 @@ export default function ShiftHistoryPage() {
                           </td>
                           <td className="p-2">
                             <div className="flex items-center justify-end gap-1">
-                              <Button size="icon" variant="ghost" title="Edit session" onClick={() => setEditing(s)}>
-                                <Pencil className="h-4 w-4 opacity-60" />
-                              </Button>
                               <Button size="icon" variant="ghost" title="Lock/unlock" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
                                 {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                               </Button>
