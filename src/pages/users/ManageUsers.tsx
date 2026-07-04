@@ -757,6 +757,7 @@ export default function ManageUsers() {
                         {eng.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
+                    <TableCell><InlineLaborRateCell engineer={eng} onSaved={fetchEngineers} /></TableCell>
                     <TableCell className="text-muted-foreground">{new Date(eng.created_at).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
