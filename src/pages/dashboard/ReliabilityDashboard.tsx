@@ -15,6 +15,7 @@ import { useMachines } from "@/hooks/useMachines";
 import { type RiskLevel } from "@/hooks/usePredictiveAlerts";
 import { useRecentMachineEvents } from "@/hooks/useMachineEvents";
 import { format, subDays, differenceInMinutes, endOfDay, startOfDay, startOfWeek, startOfMonth } from "date-fns";
+import { formatMTBF } from "@/lib/formatDuration";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 
@@ -247,7 +248,7 @@ export default function ReliabilityDashboard() {
             { label: "WOs (Period)", value: totalWOs, icon: Activity, tint: "text-violet-500", bg: "bg-violet-500/10" },
             { label: "High Risk", value: filteredRisks.filter((r) => r.risk === "HIGH").length, icon: AlertTriangle, tint: "text-red-500", bg: "bg-red-500/10" },
             { label: "Avg MTTR", value: `${avgMTTR} min`, icon: Clock, tint: "text-amber-500", bg: "bg-amber-500/10" },
-            { label: "Avg MTBF", value: `${avgMTBF} hrs`, icon: TrendingUp, tint: "text-emerald-500", bg: "bg-emerald-500/10" },
+            { label: "Avg MTBF", value: formatMTBF(avgMTBF), icon: TrendingUp, tint: "text-emerald-500", bg: "bg-emerald-500/10" },
           ].map((k) => (
             <Card key={k.label}>
               <CardContent className="p-4 flex items-center gap-3">
@@ -333,7 +334,7 @@ export default function ReliabilityDashboard() {
                   <TableRow>
                     <TableHead>Machine</TableHead>
                     <TableHead>Failures</TableHead>
-                    <TableHead>MTBF (hrs)</TableHead>
+                    <TableHead>MTBF</TableHead>
                     <TableHead>Risk</TableHead>
                     <TableHead>Last Failure</TableHead>
                     <TableHead>Alerts</TableHead>
@@ -347,7 +348,7 @@ export default function ReliabilityDashboard() {
                         <TableRow>
                           <TableCell className="font-medium">{r.machine}</TableCell>
                           <TableCell>{r.failures30d}</TableCell>
-                          <TableCell>{r.mtbfHours ?? "—"}</TableCell>
+                          <TableCell>{formatMTBF(r.mtbfHours)}</TableCell>
                           <TableCell><Badge variant="outline" className={riskBadge[r.risk].className}>{riskBadge[r.risk].label}</Badge></TableCell>
                           <TableCell className="text-sm text-muted-foreground">{r.lastFailure ? format(new Date(r.lastFailure), "dd/MM HH:mm") : "—"}</TableCell>
                           <TableCell>

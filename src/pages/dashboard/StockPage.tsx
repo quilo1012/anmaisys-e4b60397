@@ -63,8 +63,13 @@ export default function StockPage() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    const priceNum = parseFloat(price);
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      toast({ title: "Price is required", description: "Enter a unit price greater than £0.00.", variant: "destructive" });
+      return;
+    }
     try {
-      const result = await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare", price: parseFloat(price) || 0 });
+      const result = await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare", price: priceNum });
       toast({ title: "Product added" });
       logAuditEvent("create", "product", (result as any)?.id, { name, code });
       setName(""); setProductLine(""); setCode(""); setQty(""); setMinStock(""); setCategory(""); setPrice("");
@@ -106,8 +111,13 @@ export default function StockPage() {
 
   const handleEdit = async () => {
     if (!editProduct) return;
+    const priceNum = parseFloat(editPrice);
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      toast({ title: "Price is required", description: "Enter a unit price greater than £0.00.", variant: "destructive" });
+      return;
+    }
     try {
-      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: parseFloat(editPrice) || 0 });
+      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: priceNum });
       toast({ title: "Product updated" });
       logAuditEvent("update", "product", editProduct.id, { name: editName });
       setEditProduct(null);
@@ -281,7 +291,7 @@ export default function StockPage() {
                      <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1"><Label>Initial Qty</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
                       <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} /></div>
-                      <div className="space-y-1"><Label>Price (£)</Label><Input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+                      <div className="space-y-1"><Label>Price (£) <span className="text-destructive">*</span></Label><Input type="number" step="0.01" min="0.01" required value={price} onChange={(e) => setPrice(e.target.value)} /></div>
                      </div>
                     <div className="space-y-1">
                       <Label>Category</Label>
@@ -417,7 +427,7 @@ export default function StockPage() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1"><Label>Quantity</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
                 <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} /></div>
-                <div className="space-y-1"><Label>Price (£)</Label><Input type="number" step="0.01" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>
+                <div className="space-y-1"><Label>Price (£) <span className="text-destructive">*</span></Label><Input type="number" step="0.01" min="0.01" required value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>
               </div>
               <div className="space-y-1">
                 <Label>Category</Label>
