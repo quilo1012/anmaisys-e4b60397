@@ -285,7 +285,7 @@ export default function LineProductionScreen() {
         .select("id, sku_id, target_qty, actual_qty, intouch_qty, sku:sku_products(code, name)")
         .eq("session_id", sessionQ.data!.id);
       if (error) throw error;
-      return (data || []).map((r: any) => ({
+      const rows = (data || []).map((r: any) => ({
         id: r.id,
         sku_id: r.sku_id,
         code: r.sku?.code || "—",
@@ -294,7 +294,20 @@ export default function LineProductionScreen() {
         actual_qty: Number(r.intouch_qty ?? r.actual_qty ?? 0),
         intouch_qty: r.intouch_qty == null ? null : Number(r.intouch_qty),
       })) as ItemRow[];
-
+      // Defensive de-duplication by sku_id: keep MAX of target/actual/intouch
+      // so each SKU is rendered once even if multiple rows exist.
+      const merged = new Map<string, ItemRow>();
+      for (const r of rows) {
+        const prev = merged.get(r.sku_id);
+        if (!prev) { merged.set(r.sku_id, { ...r }); continue; }
+        merged.set(r.sku_id, {
+          ...prev,
+          target_qty: Math.max(prev.target_qty, r.target_qty),
+          actual_qty: Math.max(prev.actual_qty, r.actual_qty),
+          intouch_qty: Math.max(prev.intouch_qty ?? 0, r.intouch_qty ?? 0) || null,
+        });
+      }
+      return Array.from(merged.values());
     },
     refetchInterval: 15_000,
   });

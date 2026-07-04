@@ -1546,7 +1546,19 @@ function DayNightTotalSummary({
           )}
         </div>
         {isCollapsed ? null : (
-        <div ref={scrollRef} className="overflow-x-auto -mx-2 px-2 scroll-smooth border rounded-md shadow-sm">
+        <div
+          ref={scrollRef}
+          className="overflow-x-auto overflow-y-hidden -mx-2 px-2 scroll-smooth border rounded-md shadow-sm"
+          onWheel={(e) => {
+            // Do not trap vertical wheel — forward it to the page so users can
+            // scroll normally with the cursor over the wide table.
+            if (e.deltaY !== 0 && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+              window.scrollBy({ top: e.deltaY });
+              e.preventDefault();
+            }
+          }}
+        >
+
           <table className="text-xs border-collapse min-w-[1000px] w-full tabular-nums">
             <thead className="sticky top-0 z-30 bg-background shadow-[0_2px_0_0_hsl(var(--border))]">
               <tr className="border-b bg-background">
