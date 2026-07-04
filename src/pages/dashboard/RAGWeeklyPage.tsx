@@ -38,8 +38,8 @@ function displayLineLabel(name: string): string {
   const s = (name ?? "").trim();
   const m = s.match(/^Line\s*0*(\d+)$/i);
   if (m) return `Filler Line ${m[1]}`;
-  if (/^gel machine$/i.test(s) || /^gel line$/i.test(s)) return "GEL Line";
-  if (/^capsules?\s*&\s*tablets?$/i.test(s)) return "Tablet Line";
+  if (/^gel machine$/i.test(s) || /^gel line$/i.test(s)) return "GEL Machine";
+  if (/^capsules?\s*&\s*tablets?$/i.test(s) || /^tablet line$/i.test(s)) return "Capsules & Tablets";
   return s;
 }
 
