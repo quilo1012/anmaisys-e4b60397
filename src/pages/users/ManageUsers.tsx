@@ -51,6 +51,65 @@ interface Leader {
   created_at: string;
 }
 
+function InlineLaborRateCell({ engineer, onSaved }: { engineer: Engineer; onSaved: () => void }) {
+  const [value, setValue] = useState(String(engineer.labor_rate ?? 0));
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const commit = async () => {
+    const parsed = Number(value);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      setValue(String(engineer.labor_rate ?? 0));
+      return;
+    }
+    if (parsed === Number(engineer.labor_rate ?? 0)) return;
+    setSaving(true);
+    try {
+      const res = await invokeFunction<{ success: boolean }>("update-engineer", {
+        engineerId: engineer.id,
+        laborRate: parsed,
+      });
+      if (res.error) throw new Error(res.error.message);
+      if (!res.data?.success) throw new Error("Failed to save");
+      qc.invalidateQueries({ queryKey: ["engineer_labor_rates"] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+      onSaved();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+      setValue(String(engineer.labor_rate ?? 0));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-muted-foreground text-xs">£</span>
+      <Input
+        type="number"
+        min="0"
+        step="0.01"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") setValue(String(engineer.labor_rate ?? 0));
+        }}
+        disabled={saving}
+        className="h-8 w-24 text-right"
+      />
+      <span className="text-muted-foreground text-xs">/h</span>
+      {saving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+    </div>
+  );
+}
+
+
 export default function ManageUsers() {
   const [users, setUsers] = useState<Profile[]>([]);
   const [activeTab, setActiveTab] = useState<"staff" | "tablets" | "engineers" | "leaders">("staff");
