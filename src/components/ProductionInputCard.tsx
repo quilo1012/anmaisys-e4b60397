@@ -125,6 +125,79 @@ export function ProductionInputCard({
     if (!manualTotal) setTotalOverride(String(computedTotal));
   }, [computedTotal, manualTotal]);
 
+  // Per-SKU save state: "idle" | "saving" | "saved"
+  const [skuSaveState, setSkuSaveState] = useState<Record<string, "idle" | "saving" | "saved">>({});
+
+  const saveSku = async (code: string, its: Item[]) => {
+    const split = its.length > 1;
+    const itemIdsForSku = its.map((i) => i.id);
+    setSkuSaveState((s) => ({ ...s, [code]: "saving" }));
+    try {
+      if (split) {
+        // Replace blender rows for this SKU's items only
+        const { error: delErr } = await (supabase as any)
+          .from("production_blender_entries")
+          .delete()
+          .in("production_item_id", itemIdsForSku);
+        if (delErr) throw delErr;
+        const rows: any[] = [];
+        for (const it of its) {
+          const v = values[it.id] || {};
+          for (const n of [1, 2, 3, 4]) {
+            const q = Number(v[n] || 0) || 0;
+            if (q > 0) rows.push({
+              session_id: sessionId,
+              production_item_id: it.id,
+              blender_number: n,
+              quantity: q,
+              entered_by: user?.id ?? null,
+            });
+          }
+        }
+        if (rows.length > 0) {
+          const { error: insErr } = await (supabase as any)
+            .from("production_blender_entries")
+            .insert(rows);
+          if (insErr) throw insErr;
+        }
+      } else {
+        const it = its[0];
+        const v = values[it.id] || {};
+        const q = Number(v[1] || 0) || 0;
+        const { error: updErr } = await (supabase as any)
+          .from("production_items")
+          .update({ actual_qty: q })
+          .eq("id", it.id);
+        if (updErr) throw updErr;
+      }
+
+      // Recalculate total from local state and update RAG if no manual override
+      if (!manualTotal && ragQ.data?.id) {
+        let sum = 0;
+        for (const [, gits] of groups) {
+          const gsplit = gits.length > 1;
+          for (const gi of gits) sum += subtotalForItem(gi.id, gsplit);
+        }
+        const { error: ragErr } = await (supabase as any)
+          .from("rag_weekly_entries")
+          .update({ actual_qty: sum, actual_updated_by: user?.id ?? null })
+          .eq("id", ragQ.data.id);
+        if (ragErr) throw ragErr;
+      }
+
+      qc.invalidateQueries({ queryKey: ["blender-entries"] });
+      qc.invalidateQueries({ queryKey: ["rag-actual-stamp"] });
+      qc.invalidateQueries({ queryKey: ["lps-items", sessionId] });
+      qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
+      qc.invalidateQueries({ queryKey: ["lps-rag-plan"] });
+      setSkuSaveState((s) => ({ ...s, [code]: "saved" }));
+      setTimeout(() => setSkuSaveState((s) => ({ ...s, [code]: "idle" })), 2000);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save");
+      setSkuSaveState((s) => ({ ...s, [code]: "idle" }));
+    }
+  };
+
   const saveMut = useMutation({
     mutationFn: async () => {
       // 1) Delete existing blender rows for these items
