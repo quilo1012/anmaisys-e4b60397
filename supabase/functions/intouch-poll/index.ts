@@ -180,26 +180,10 @@ async function syncRunningSkus(
       .select("id, locked").single();
     if (!session || session.locked) continue;
 
-    // Ensure production_items exist (do NOT overwrite target/actual)
-    const skuIds = codes.map((c) => idByCode.get(c)).filter(Boolean) as string[];
-    if (skuIds.length === 0) continue;
-    const { data: existItems } = await admin
-      .from("production_items")
-      .select("sku_id")
-      .eq("session_id", session.id)
-      .in("sku_id", skuIds);
-    const haveSku = new Set((existItems ?? []).map((r: any) => r.sku_id));
-    const rows = skuIds
-      .filter((id) => !haveSku.has(id))
-      .map((id) => ({
-        session_id: session.id,
-        sku_id: id,
-        target_qty: 0,
-        planned_qty: 0,
-        actual_qty: 0,
-        notes: "auto:itouching",
-      }));
-    if (rows.length) await admin.from("production_items").insert(rows);
+    // NOTE: intentionally do NOT insert stubs into production_items here.
+    // GetJobsRanDuringPeriod returns Running/recently-run jobs, not Scheduled,
+    // so inserting them would leak wrong SKUs into the operator's schedule
+    // (same anti-pattern documented in intouch-list-scheduled-jobs).
   }
 }
 
