@@ -361,7 +361,13 @@ export default function DowntimeHeatmapPage() {
                             );
                           }),
                         )}
-                        <td />
+                        <td className="p-2 text-right font-bold tabular-nums">
+                          {(() => {
+                            let g = 0;
+                            for (const c of dayShiftTotals.values()) g += c.minutes;
+                            return g > 0 ? formatMinutes(g) : "—";
+                          })()}
+                        </td>
                       </tr>
                     </tfoot>
                   )}
