@@ -68,7 +68,8 @@ function InlineStaffCell({
     const n = val === "" ? null : Number(val);
     if (n !== null && (!Number.isFinite(n) || n < 0)) { setVal(initial); return; }
     setSaving(true);
-    const { error } = await supabase.from("production_sessions").update({ [field]: n }).eq("id", sessionId);
+    const patch: Record<string, number | null> = { [field]: n };
+    const { error } = await supabase.from("production_sessions").update(patch as never).eq("id", sessionId);
     setSaving(false);
     if (error) { toast.error(error.message); setVal(initial); return; }
     setSaved(true); setTimeout(() => setSaved(false), 2000);
