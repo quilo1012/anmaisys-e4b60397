@@ -44,8 +44,8 @@ Deno.serve(async (req) => {
     }
 
     const { data, error } = await supabaseAdmin
-      .from("engineers_safe")
-      .select("id, name, is_active, created_at")
+      .from("engineers")
+      .select("id, name, is_active, created_at, labor_rate")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
