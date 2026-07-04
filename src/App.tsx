@@ -59,6 +59,7 @@ const SmartTargetPage = lazy(() => import("./pages/dashboard/SmartTargetPage"));
 const WeeklyProductionReportPage = lazy(() => import("./pages/dashboard/WeeklyProductionReportPage"));
 const OperatorPreviewPage = lazy(() => import("./pages/dashboard/OperatorPreviewPage"));
 const EngineerPreviewPage = lazy(() => import("./pages/dashboard/EngineerPreviewPage"));
+const MyProductionPage = lazy(() => import("./pages/dashboard/MyProductionPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -165,6 +166,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]}>
                       <OperatorDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/operator/my-production"
+                  element={
+                    <ProtectedRoute allowedRoles={["operator"]}>
+                      <MyProductionPage />
                     </ProtectedRoute>
                   }
                 />

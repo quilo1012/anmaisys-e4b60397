@@ -6,7 +6,7 @@ import {
   ClipboardList, Cog, Users, BarChart3, Briefcase, DollarSign,
   Monitor, Shield, Package, AlertCircle, Clock, LayoutDashboard,
   Plus, Wrench, Radio, Truck, CalendarRange, Boxes, Gauge, CheckSquare,
-  History, FileBarChart, Trophy, Radar,
+  History, FileBarChart, Trophy, Radar, Factory,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -134,6 +134,7 @@ export function OperatorNavCards({ myOpenWOs }: { myOpenWOs?: number }) {
   const cards: NavCard[] = [
     { title: "New Work Order", description: "Submit a maintenance request", url: "#wo-form-anchor", icon: Plus, accent: "bg-emerald-500/15 text-emerald-600" },
     { title: "My Work Orders", description: "Track your submitted orders", url: "/dashboard/operator", icon: ClipboardList, badge: myOpenWOs },
+    { title: "My Production", description: "Enter today's produced quantities", url: "/dashboard/operator/my-production", icon: Factory, accent: "bg-blue-500/15 text-blue-600" },
   ];
   return <DashboardNavCards cards={cards} />;
 }
