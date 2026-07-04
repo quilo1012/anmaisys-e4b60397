@@ -51,12 +51,12 @@ function InlineLeaderCell({
   );
 }
 
-/** Inline numeric input that saves on blur/Enter. */
-function InlineStaffCell({
-  sessionId, field, value, disabled, onSaved,
+/** Inline numeric input for a numeric session field. Saves on blur/Enter. */
+function InlineSessionNumberCell({
+  sessionId, field, value, disabled, onSaved, placeholder,
 }: {
-  sessionId: string; field: "staff_planned" | "staff_actual";
-  value: number | null; disabled?: boolean; onSaved: () => void;
+  sessionId: string; field: "tickets";
+  value: number | null; disabled?: boolean; onSaved: () => void; placeholder?: string;
 }) {
   const initial = value == null ? "" : String(value);
   const [val, setVal] = useState(initial);
@@ -79,6 +79,7 @@ function InlineStaffCell({
     <div className="flex items-center gap-1 justify-end">
       <Input
         type="number" inputMode="numeric" disabled={disabled || saving} value={val}
+        placeholder={placeholder}
         onChange={(e) => setVal(e.target.value)} onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
@@ -90,6 +91,7 @@ function InlineStaffCell({
     </div>
   );
 }
+
 
 /**
  * Extract package weight from SKU code/name (e.g. "1kg", "500g", "2.5 KG", "750ml", "1L").
