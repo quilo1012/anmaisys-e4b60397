@@ -15,7 +15,8 @@ import { Switch } from "@/components/ui/switch";
 // Tabs replaced by simple button group + conditional render for reliability
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Tablet, Users as UsersIcon } from "lucide-react";
+import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Tablet, Users as UsersIcon, Check } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
 import { TabletBindingsCard } from "@/components/TabletBindingsCard";
