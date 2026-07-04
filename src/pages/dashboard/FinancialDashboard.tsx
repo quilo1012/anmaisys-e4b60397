@@ -75,11 +75,12 @@ function FinancialDashboardContent() {
     },
   });
 
-  // Fetch engineer labor rates via admin-only SECURITY DEFINER RPC
+  // Fetch engineer labor rates via admin/manager SECURITY DEFINER RPC.
+  // work_orders.engineer_id references public.engineers (standalone), NOT profiles.
   const { data: profiles } = useQuery({
-    queryKey: ["profiles_labor_rates"],
+    queryKey: ["engineer_labor_rates"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("list_profile_labor_rates");
+      const { data, error } = await (supabase.rpc as any)("list_engineer_labor_rates");
       if (error) throw error;
       return (data ?? []).map((r: any) => ({
         id: r.id,
