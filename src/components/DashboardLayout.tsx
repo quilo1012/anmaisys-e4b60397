@@ -234,19 +234,37 @@ const roleBadgeClass: Record<string, string> = {
 
 const routeTitles: Record<string, string> = {
   "/dashboard/operator": "Dashboard",
+  "/dashboard/operator/my-production": "My Production",
   "/dashboard/engineer": "Dashboard",
   "/dashboard/manager": "Dashboard",
   "/dashboard/work-orders": "Work Orders",
   "/dashboard/downtime": "Downtime",
+  "/dashboard/downtime-map": "Downtime Heatmap",
+  "/dashboard/pm-intelligence": "PM Intelligence",
   "/dashboard/control-center": "Control Center",
   "/dashboard/machines": "Machines",
   "/dashboard/problems": "Problems",
   "/dashboard/stock": "Stock",
+  "/dashboard/planner": "Planner",
+  "/dashboard/shift-history": "Production Control",
+  "/dashboard/rag-weekly": "RAG Weekly",
+  "/dashboard/production-performance": "Performance",
+  "/dashboard/production-downtime": "Prod. Downtime",
+  "/dashboard/quality": "Quality Actions",
+  "/dashboard/sku-products": "SKU Products",
+  "/dashboard/sku-efficiency": "SKU Efficiency",
+  "/dashboard/forecast": "Forecast",
+  "/dashboard/smart-target": "Smart Target",
   "/dashboard/analytics": "Analytics",
   "/dashboard/financial": "Financial",
   "/dashboard/executive": "Executive",
+  "/dashboard/weekly-report": "Weekly Report",
   "/users/manage": "Users",
   "/dashboard/audit-logs": "Audit Logs",
+  "/dashboard/settings": "Settings",
+  "/dashboard/intouch-settings": "iTouching Sync",
+  "/dashboard/operator-preview": "Operator Preview",
+  "/dashboard/engineer-preview": "Engineer Preview",
 };
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
@@ -374,9 +392,13 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             <header className="h-14 border-b bg-card flex items-center px-2 sm:px-4 gap-2 sm:gap-3 print:hidden">
               <SidebarTrigger aria-label="Toggle menu" className="shrink-0" />
               {currentPageTitle && (
-                <h1 className="hidden sm:block text-sm font-semibold text-foreground truncate" aria-live="polite">
-                  {currentPageTitle}
-                </h1>
+                <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-1.5 text-sm min-w-0">
+                  <span className="text-muted-foreground">Home</span>
+                  <span className="text-muted-foreground/60">/</span>
+                  <span className="font-semibold text-foreground truncate" aria-current="page" aria-live="polite">
+                    {currentPageTitle}
+                  </span>
+                </nav>
               )}
               {(role === "admin" || (role === "manager" || role === "maintenance_manager")) && (
                 <div className="ml-1 sm:ml-2 hidden md:block">
