@@ -712,10 +712,11 @@ Deno.serve(async (req) => {
     console.error("[intouch-poll] fatal:", msg, (e as Error).stack);
     try {
       await admin.from("intouch_sync_runs").insert({
-        kind: "poll",
+        function_name: "intouch-poll",
         status: "error",
-        error: msg.slice(0, 1000),
+        error_message: msg.slice(0, 1000),
         details: results as any,
+        finished_at: new Date().toISOString(),
       });
     } catch (_) { /* best-effort */ }
     return new Response(JSON.stringify({ ok: false, error: msg, ...results }), {
