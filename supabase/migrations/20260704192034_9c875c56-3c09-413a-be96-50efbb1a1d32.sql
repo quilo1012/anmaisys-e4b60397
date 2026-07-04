@@ -1,0 +1,1 @@
+ALTER TABLE public.production_sessions ADD COLUMN IF NOT EXISTS tickets integer;

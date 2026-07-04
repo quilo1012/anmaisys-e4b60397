@@ -1583,6 +1583,7 @@ export type Database = {
           staff_planned: number | null
           started_at: string
           started_by: string | null
+          tickets: number | null
           updated_at: string
         }
         Insert: {
@@ -1607,6 +1608,7 @@ export type Database = {
           staff_planned?: number | null
           started_at?: string
           started_by?: string | null
+          tickets?: number | null
           updated_at?: string
         }
         Update: {
@@ -1631,6 +1633,7 @@ export type Database = {
           staff_planned?: number | null
           started_at?: string
           started_by?: string | null
+          tickets?: number | null
           updated_at?: string
         }
         Relationships: [
