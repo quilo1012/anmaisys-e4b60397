@@ -1584,6 +1584,7 @@ export type Database = {
           started_at: string
           started_by: string | null
           tickets: number | null
+          tickets_unit: string | null
           updated_at: string
         }
         Insert: {
@@ -1609,6 +1610,7 @@ export type Database = {
           started_at?: string
           started_by?: string | null
           tickets?: number | null
+          tickets_unit?: string | null
           updated_at?: string
         }
         Update: {
@@ -1634,6 +1636,7 @@ export type Database = {
           started_at?: string
           started_by?: string | null
           tickets?: number | null
+          tickets_unit?: string | null
           updated_at?: string
         }
         Relationships: [
