@@ -420,26 +420,17 @@ export default function ShiftHistoryPage() {
                           </td>
                           <td className="p-2 text-right tabular-nums">
                             {idx === 0 ? (
-                              <InlineStaffCell
+                              <InlineSessionNumberCell
                                 sessionId={s.id}
-                                field="staff_planned"
-                                value={s.staff_planned}
+                                field="tickets"
+                                value={s.tickets}
                                 disabled={s.locked}
+                                placeholder="0"
                                 onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
                               />
                             ) : null}
                           </td>
-                          <td className="p-2 text-right tabular-nums">
-                            {idx === 0 ? (
-                              <InlineStaffCell
-                                sessionId={s.id}
-                                field="staff_actual"
-                                value={s.staff_actual}
-                                disabled={s.locked}
-                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
-                              />
-                            ) : null}
-                          </td>
+
                           <td className="p-2 font-mono text-xs">{code || "—"}</td>
                           <td className="p-2">{name}</td>
                           <td className="p-2">
