@@ -348,7 +348,7 @@ export default function ReliabilityDashboard() {
                         <TableRow>
                           <TableCell className="font-medium">{r.machine}</TableCell>
                           <TableCell>{r.failures30d}</TableCell>
-                          <TableCell>{r.mtbfHours ?? "—"}</TableCell>
+                          <TableCell>{formatMTBF(r.mtbfHours)}</TableCell>
                           <TableCell><Badge variant="outline" className={riskBadge[r.risk].className}>{riskBadge[r.risk].label}</Badge></TableCell>
                           <TableCell className="text-sm text-muted-foreground">{r.lastFailure ? format(new Date(r.lastFailure), "dd/MM HH:mm") : "—"}</TableCell>
                           <TableCell>
