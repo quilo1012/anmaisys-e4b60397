@@ -465,16 +465,25 @@ export default function ShiftHistoryPage() {
                           </td>
                           <td className="p-2 text-right tabular-nums">
                             {idx === 0 ? (
-                              <InlineSessionNumberCell
-                                sessionId={s.id}
-                                field="tickets"
-                                value={s.tickets}
-                                disabled={s.locked}
-                                placeholder="0"
-                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
-                              />
+                              <div className="flex items-center justify-end gap-2">
+                                <InlineUnitToggle
+                                  sessionId={s.id}
+                                  value={s.tickets_unit}
+                                  disabled={s.locked}
+                                  onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                                />
+                                <InlineSessionNumberCell
+                                  sessionId={s.id}
+                                  field="tickets"
+                                  value={s.tickets}
+                                  disabled={s.locked}
+                                  placeholder="0"
+                                  onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                                />
+                              </div>
                             ) : null}
                           </td>
+
 
                           <td className="p-2 font-mono text-xs">{code || "—"}</td>
                           <td className="p-2">{name}</td>
