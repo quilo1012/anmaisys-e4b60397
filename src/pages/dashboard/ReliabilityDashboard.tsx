@@ -15,6 +15,7 @@ import { useMachines } from "@/hooks/useMachines";
 import { type RiskLevel } from "@/hooks/usePredictiveAlerts";
 import { useRecentMachineEvents } from "@/hooks/useMachineEvents";
 import { format, subDays, differenceInMinutes, endOfDay, startOfDay, startOfWeek, startOfMonth } from "date-fns";
+import { formatMTBF } from "@/lib/formatDuration";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 
