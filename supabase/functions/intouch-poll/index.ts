@@ -678,10 +678,11 @@ Deno.serve(async (req) => {
     // Record successful poll outcome
     try {
       await admin.from("intouch_sync_runs").insert({
-        kind: "poll",
-        status: results.errors.length ? "partial" : "ok",
+        function_name: "intouch-poll",
+        status: results.errors.length ? "error" : "success",
         details: results as any,
-        error: results.errors.length ? results.errors.join(" | ").slice(0, 1000) : null,
+        error_message: results.errors.length ? results.errors.join(" | ").slice(0, 1000) : null,
+        finished_at: new Date().toISOString(),
       });
     } catch (_) { /* best-effort */ }
 
