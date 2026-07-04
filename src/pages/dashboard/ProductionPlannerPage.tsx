@@ -379,7 +379,6 @@ export default function ProductionPlannerPage() {
 
               <Button
                 size="sm"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 onClick={() => setAssemblyOpen(true)}
               >
                 <Sparkles className="h-4 w-4 mr-1" />Assembly List
@@ -394,7 +393,6 @@ export default function ProductionPlannerPage() {
               <Button
                 variant="default"
                 size="sm"
-                className="bg-purple-600 hover:bg-purple-700 text-white"
                 onClick={async () => {
                   try {
                     const { data, error } = await supabase.functions.invoke("calculate-shift-targets", {
@@ -417,7 +415,6 @@ export default function ProductionPlannerPage() {
               <Button
                 variant="default"
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
                 disabled={!line || rows.filter((r) => r.sku_id).length === 0}
                 onClick={async () => {
                   const items = rows
@@ -508,7 +505,7 @@ export default function ProductionPlannerPage() {
           <CardContent>
             <div className="grid gap-4 md:grid-cols-4">
               <div>
-                <Label>Date</Label>
+                <Label>Date <span className="text-destructive">*</span></Label>
                 <div className="flex items-center gap-1">
                   <Button variant="outline" size="icon" onClick={() => setDate(format(subDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronLeft className="h-4 w-4" /></Button>
                   <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1" />
@@ -536,7 +533,7 @@ export default function ProductionPlannerPage() {
                 )}
               </div>
               <div>
-                <Label>Shift</Label>
+                <Label>Shift <span className="text-destructive">*</span></Label>
                 <Select value={shift} onValueChange={setShift}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -546,7 +543,7 @@ export default function ProductionPlannerPage() {
                 </Select>
               </div>
               <div>
-                <Label>Production Line</Label>
+                <Label>Production Line <span className="text-destructive">*</span></Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" role="combobox" disabled={locked} className="w-full justify-between font-normal">

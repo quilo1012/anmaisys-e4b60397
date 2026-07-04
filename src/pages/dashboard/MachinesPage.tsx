@@ -361,7 +361,7 @@ export default function MachinesPage() {
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">General Info</p>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Name *</Label>
+            <Label>Name <span className="text-destructive">*</span></Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Blender 5A" />
             {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
           </div>
@@ -378,7 +378,7 @@ export default function MachinesPage() {
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Classification</p>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Machine Type *</Label>
+            <Label>Machine Type <span className="text-destructive">*</span></Label>
             <Input
               value={machineType}
               onChange={(e) => setMachineType(e.target.value)}
@@ -412,7 +412,7 @@ export default function MachinesPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Side {lineHasSides ? "*" : ""}</Label>
+            <Label>Side {lineHasSides ? <span className="text-destructive">*</span> : ""}</Label>
             {lineHasSides ? (
               <div className="grid grid-cols-3 gap-1">
                 {(["A", "B", "common"] as MachineSide[]).map((s) => (
@@ -453,15 +453,17 @@ export default function MachinesPage() {
   );
 
   const statusBadge = (s: string) => {
+    const label = STATUS_OPTIONS.find((o) => o.value === s)?.label || s || "Active";
+    const isActive = s === "active" || !s;
+    if (isActive) {
+      return <Badge className="bg-green-600 hover:bg-green-600 text-white border-transparent">{label}</Badge>;
+    }
     const map: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
-      active: "default",
       in_use: "secondary",
       maintenance: "destructive",
       idle: "outline",
     };
-    return (
-      <Badge variant={map[s] || "outline"}>{STATUS_OPTIONS.find((o) => o.value === s)?.label || s || "Active"}</Badge>
-    );
+    return <Badge variant={map[s] || "outline"}>{label}</Badge>;
   };
 
   return (

@@ -132,8 +132,8 @@ export default function ProblemsPage() {
 
   const formContent = (
     <div className="space-y-4">
-      <div className="space-y-2"><Label>Problem Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Motor Overheating" required /></div>
-      <div className="space-y-2"><Label>Category *</Label><Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Electrical, Mechanical, Pneumatic" /></div>
+      <div className="space-y-2"><Label>Problem Name <span className="text-destructive">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Motor Overheating" required /></div>
+      <div className="space-y-2"><Label>Category <span className="text-destructive">*</span></Label><Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Electrical, Mechanical, Pneumatic" required /></div>
       <div className="space-y-2"><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Detailed description..." rows={3} /></div>
       <div className="flex items-center gap-2">
         <Switch checked={active} onCheckedChange={setActive} />
