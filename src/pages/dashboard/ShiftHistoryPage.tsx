@@ -442,7 +442,7 @@ export default function ShiftHistoryPage() {
                       const blob = `${code} ${name}`.toLowerCase();
                       const isTub = /tub/.test(blob);
                       const isBag = /bag|sach|pouch/.test(blob);
-                      const noteUnit = /\[unit:tubs\]/i.test(i.notes ?? "") ? "tubs" : /\[unit:bags\]/i.test(i.notes ?? "") ? "bags" : null;
+                      const noteUnit = i.tickets_unit ?? (/\[unit:tubs\]/i.test(i.notes ?? "") ? "tubs" : /\[unit:bags\]/i.test(i.notes ?? "") ? "bags" : null);
                       const effIsTub = noteUnit ? noteUnit === "tubs" : isTub;
                       // Default to Bag column when the SKU name doesn't hint tub/bag so the qty is still editable.
                       const effIsBag = noteUnit ? noteUnit === "bags" : (isBag || !isTub);
