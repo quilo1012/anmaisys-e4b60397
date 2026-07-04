@@ -91,6 +91,49 @@ function InlineSessionNumberCell({
     </div>
   );
 }
+/** Inline unit toggle: Tubs / Bags. Saves on click. */
+function InlineUnitToggle({
+  sessionId, value, disabled, onSaved,
+}: {
+  sessionId: string; value: "tubs" | "bags" | null; disabled?: boolean; onSaved: () => void;
+}) {
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [current, setCurrent] = useState<"tubs" | "bags" | null>(value);
+  useEffect(() => { setCurrent(value); }, [value]);
+  const pick = async (u: "tubs" | "bags") => {
+    if (disabled || saving || u === current) return;
+    setSaving(true);
+    const { error } = await supabase.from("production_sessions")
+      .update({ tickets_unit: u } as never).eq("id", sessionId);
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    setCurrent(u);
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+    onSaved();
+  };
+  const btn = (u: "tubs" | "bags", label: string) => (
+    <button
+      type="button" disabled={disabled || saving}
+      onClick={() => pick(u)}
+      className={cn(
+        "h-8 w-12 text-xs rounded border font-medium transition-colors",
+        current === u
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-background hover:bg-muted border-input text-muted-foreground",
+        (disabled || saving) && "opacity-50 cursor-not-allowed",
+      )}
+    >{label}</button>
+  );
+  return (
+    <div className="flex items-center gap-1">
+      {btn("tubs", "Tubs")}
+      {btn("bags", "Bags")}
+      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+    </div>
+  );
+}
+
 
 
 /**
