@@ -259,6 +259,8 @@ const routeTitles: Record<string, string> = {
   "/dashboard/financial": "Financial",
   "/dashboard/executive": "Executive",
   "/dashboard/weekly-report": "Weekly Report",
+  "/dashboard/reliability": "Reliability Dashboard",
+  "/dashboard/suppliers": "Suppliers & Purchasing",
   "/users/manage": "Users",
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",
