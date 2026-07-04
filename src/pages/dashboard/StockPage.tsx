@@ -111,8 +111,13 @@ export default function StockPage() {
 
   const handleEdit = async () => {
     if (!editProduct) return;
+    const priceNum = parseFloat(editPrice);
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      toast({ title: "Price is required", description: "Enter a unit price greater than £0.00.", variant: "destructive" });
+      return;
+    }
     try {
-      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: parseFloat(editPrice) || 0 });
+      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: priceNum });
       toast({ title: "Product updated" });
       logAuditEvent("update", "product", editProduct.id, { name: editName });
       setEditProduct(null);
