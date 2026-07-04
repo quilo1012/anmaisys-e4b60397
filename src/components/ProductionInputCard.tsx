@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Save, ClipboardList } from "lucide-react";
+import { Save, ClipboardList, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -125,6 +125,79 @@ export function ProductionInputCard({
     if (!manualTotal) setTotalOverride(String(computedTotal));
   }, [computedTotal, manualTotal]);
 
+  // Per-SKU save state: "idle" | "saving" | "saved"
+  const [skuSaveState, setSkuSaveState] = useState<Record<string, "idle" | "saving" | "saved">>({});
+
+  const saveSku = async (code: string, its: Item[]) => {
+    const split = its.length > 1;
+    const itemIdsForSku = its.map((i) => i.id);
+    setSkuSaveState((s) => ({ ...s, [code]: "saving" }));
+    try {
+      if (split) {
+        // Replace blender rows for this SKU's items only
+        const { error: delErr } = await (supabase as any)
+          .from("production_blender_entries")
+          .delete()
+          .in("production_item_id", itemIdsForSku);
+        if (delErr) throw delErr;
+        const rows: any[] = [];
+        for (const it of its) {
+          const v = values[it.id] || {};
+          for (const n of [1, 2, 3, 4]) {
+            const q = Number(v[n] || 0) || 0;
+            if (q > 0) rows.push({
+              session_id: sessionId,
+              production_item_id: it.id,
+              blender_number: n,
+              quantity: q,
+              entered_by: user?.id ?? null,
+            });
+          }
+        }
+        if (rows.length > 0) {
+          const { error: insErr } = await (supabase as any)
+            .from("production_blender_entries")
+            .insert(rows);
+          if (insErr) throw insErr;
+        }
+      } else {
+        const it = its[0];
+        const v = values[it.id] || {};
+        const q = Number(v[1] || 0) || 0;
+        const { error: updErr } = await (supabase as any)
+          .from("production_items")
+          .update({ actual_qty: q })
+          .eq("id", it.id);
+        if (updErr) throw updErr;
+      }
+
+      // Recalculate total from local state and update RAG if no manual override
+      if (!manualTotal && ragQ.data?.id) {
+        let sum = 0;
+        for (const [, gits] of groups) {
+          const gsplit = gits.length > 1;
+          for (const gi of gits) sum += subtotalForItem(gi.id, gsplit);
+        }
+        const { error: ragErr } = await (supabase as any)
+          .from("rag_weekly_entries")
+          .update({ actual_qty: sum, actual_updated_by: user?.id ?? null })
+          .eq("id", ragQ.data.id);
+        if (ragErr) throw ragErr;
+      }
+
+      qc.invalidateQueries({ queryKey: ["blender-entries"] });
+      qc.invalidateQueries({ queryKey: ["rag-actual-stamp"] });
+      qc.invalidateQueries({ queryKey: ["lps-items", sessionId] });
+      qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
+      qc.invalidateQueries({ queryKey: ["lps-rag-plan"] });
+      setSkuSaveState((s) => ({ ...s, [code]: "saved" }));
+      setTimeout(() => setSkuSaveState((s) => ({ ...s, [code]: "idle" })), 2000);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save");
+      setSkuSaveState((s) => ({ ...s, [code]: "idle" }));
+    }
+  };
+
   const saveMut = useMutation({
     mutationFn: async () => {
       // 1) Delete existing blender rows for these items
@@ -229,16 +302,33 @@ export function ProductionInputCard({
           {groups.map(([code, its]) => {
             const split = its.length > 1;
             const first = its[0];
-            const skuTargetTotal = its.reduce((s, i) => s + (i.target_qty || 0), 0);
+            const state = skuSaveState[code] || "idle";
+            const SaveBtn = (
+              <Button
+                type="button"
+                size="sm"
+                variant={state === "saved" ? "default" : "outline"}
+                className={cn("h-9", state === "saved" && "bg-green-600 hover:bg-green-600 text-white")}
+                disabled={!canEdit || state === "saving"}
+                onClick={() => saveSku(code, its)}
+              >
+                {state === "saving" ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4 mr-1" />
+                )}
+                Save
+              </Button>
+            );
+            const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+              if (e.key === "Enter") { e.preventDefault(); saveSku(code, its); }
+            };
             return (
               <div key={code} className="rounded-lg border bg-card/50 p-3">
                 <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
                   <div>
                     <div className="font-mono text-sm font-semibold">{first.code}</div>
                     <div className="text-xs text-muted-foreground">{first.name}</div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Target (RAG): <span className="font-semibold tabular-nums text-foreground">{skuTargetTotal.toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -261,12 +351,15 @@ export function ProductionInputCard({
                                 [it.id]: { ...(prev[it.id] || {}), [n]: e.target.value },
                               }))
                             }
+                            onBlur={() => saveSku(code, its)}
+                            onKeyDown={onKey}
                             disabled={!canEdit}
                           />
                         ))}
                         <span className="text-xs text-muted-foreground ml-auto">
                           Subtotal: <span className="font-semibold tabular-nums">{subtotalForItem(it.id, true).toLocaleString()}</span>
                         </span>
+                        {idx === its.length - 1 && SaveBtn}
                       </div>
                     ))}
                   </div>
@@ -284,8 +377,11 @@ export function ProductionInputCard({
                           [first.id]: { ...(prev[first.id] || {}), 1: e.target.value },
                         }))
                       }
+                      onBlur={() => saveSku(code, its)}
+                      onKeyDown={onKey}
                       disabled={!canEdit}
                     />
+                    <div className="ml-auto">{SaveBtn}</div>
                   </div>
                 )}
               </div>
