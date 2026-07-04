@@ -51,12 +51,12 @@ function InlineLeaderCell({
   );
 }
 
-/** Inline numeric input that saves on blur/Enter. */
-function InlineStaffCell({
-  sessionId, field, value, disabled, onSaved,
+/** Inline numeric input for a numeric session field. Saves on blur/Enter. */
+function InlineSessionNumberCell({
+  sessionId, field, value, disabled, onSaved, placeholder,
 }: {
-  sessionId: string; field: "staff_planned" | "staff_actual";
-  value: number | null; disabled?: boolean; onSaved: () => void;
+  sessionId: string; field: "tickets";
+  value: number | null; disabled?: boolean; onSaved: () => void; placeholder?: string;
 }) {
   const initial = value == null ? "" : String(value);
   const [val, setVal] = useState(initial);
@@ -79,6 +79,7 @@ function InlineStaffCell({
     <div className="flex items-center gap-1 justify-end">
       <Input
         type="number" inputMode="numeric" disabled={disabled || saving} value={val}
+        placeholder={placeholder}
         onChange={(e) => setVal(e.target.value)} onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
@@ -90,6 +91,7 @@ function InlineStaffCell({
     </div>
   );
 }
+
 
 /**
  * Extract package weight from SKU code/name (e.g. "1kg", "500g", "2.5 KG", "750ml", "1L").
@@ -116,9 +118,11 @@ interface SessionRow {
   id: string; session_date: string; shift: string; line: string;
   leader_id: string | null; leader_name: string | null;
   staff_planned: number | null; staff_actual: number | null;
+  tickets: number | null;
   locked: boolean; notes: string | null;
   production_items: { id: string; sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null }[];
 }
+
 
 export default function ShiftHistoryPage() {
   const qc = useQueryClient();
@@ -149,7 +153,7 @@ export default function ShiftHistoryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes, blender_ref)")
+        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes, blender_ref)")
         .gte("session_date", from).lte("session_date", to)
         .order("session_date", { ascending: false });
       if (error) throw error;
@@ -366,9 +370,9 @@ export default function ShiftHistoryPage() {
                     <th className="text-left p-2">Shift</th>
                     <th className="text-left p-2">Filler Line</th>
                     <th className="text-left p-2">Leader</th>
-                    <th className="text-right p-2">Staff Plan</th>
-                    <th className="text-right p-2">Staff Act</th>
+                    <th className="text-right p-2">Tickets</th>
                     <th className="text-left p-2">SKU</th>
+
                     <th className="text-left p-2">Product Description</th>
                     <th className="text-left p-2">Batch</th>
                     <th className="text-right p-2">Weight</th>
@@ -416,26 +420,17 @@ export default function ShiftHistoryPage() {
                           </td>
                           <td className="p-2 text-right tabular-nums">
                             {idx === 0 ? (
-                              <InlineStaffCell
+                              <InlineSessionNumberCell
                                 sessionId={s.id}
-                                field="staff_planned"
-                                value={s.staff_planned}
+                                field="tickets"
+                                value={s.tickets}
                                 disabled={s.locked}
+                                placeholder="0"
                                 onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
                               />
                             ) : null}
                           </td>
-                          <td className="p-2 text-right tabular-nums">
-                            {idx === 0 ? (
-                              <InlineStaffCell
-                                sessionId={s.id}
-                                field="staff_actual"
-                                value={s.staff_actual}
-                                disabled={s.locked}
-                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
-                              />
-                            ) : null}
-                          </td>
+
                           <td className="p-2 font-mono text-xs">{code || "—"}</td>
                           <td className="p-2">{name}</td>
                           <td className="p-2">
