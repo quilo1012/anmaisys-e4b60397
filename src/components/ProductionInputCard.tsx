@@ -302,16 +302,33 @@ export function ProductionInputCard({
           {groups.map(([code, its]) => {
             const split = its.length > 1;
             const first = its[0];
-            const skuTargetTotal = its.reduce((s, i) => s + (i.target_qty || 0), 0);
+            const state = skuSaveState[code] || "idle";
+            const SaveBtn = (
+              <Button
+                type="button"
+                size="sm"
+                variant={state === "saved" ? "default" : "outline"}
+                className={cn("h-9", state === "saved" && "bg-green-600 hover:bg-green-600 text-white")}
+                disabled={!canEdit || state === "saving"}
+                onClick={() => saveSku(code, its)}
+              >
+                {state === "saving" ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4 mr-1" />
+                )}
+                Save
+              </Button>
+            );
+            const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+              if (e.key === "Enter") { e.preventDefault(); saveSku(code, its); }
+            };
             return (
               <div key={code} className="rounded-lg border bg-card/50 p-3">
                 <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
                   <div>
                     <div className="font-mono text-sm font-semibold">{first.code}</div>
                     <div className="text-xs text-muted-foreground">{first.name}</div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Target (RAG): <span className="font-semibold tabular-nums text-foreground">{skuTargetTotal.toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -334,12 +351,15 @@ export function ProductionInputCard({
                                 [it.id]: { ...(prev[it.id] || {}), [n]: e.target.value },
                               }))
                             }
+                            onBlur={() => saveSku(code, its)}
+                            onKeyDown={onKey}
                             disabled={!canEdit}
                           />
                         ))}
                         <span className="text-xs text-muted-foreground ml-auto">
                           Subtotal: <span className="font-semibold tabular-nums">{subtotalForItem(it.id, true).toLocaleString()}</span>
                         </span>
+                        {idx === its.length - 1 && SaveBtn}
                       </div>
                     ))}
                   </div>
@@ -357,8 +377,11 @@ export function ProductionInputCard({
                           [first.id]: { ...(prev[first.id] || {}), 1: e.target.value },
                         }))
                       }
+                      onBlur={() => saveSku(code, its)}
+                      onKeyDown={onKey}
                       disabled={!canEdit}
                     />
+                    <div className="ml-auto">{SaveBtn}</div>
                   </div>
                 )}
               </div>
