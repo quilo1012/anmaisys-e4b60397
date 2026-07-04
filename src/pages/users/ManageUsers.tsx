@@ -795,7 +795,7 @@ export default function ManageUsers() {
                 ))}
                 {engineers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">No engineers configured. Add engineers to enable PIN-based actions.</TableCell>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">No engineers configured. Add engineers to enable PIN-based actions.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
