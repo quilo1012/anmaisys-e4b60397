@@ -111,13 +111,28 @@ export default function WorkOrdersPage() {
   const woIds = useMemo(() => workOrders?.map((w) => w.id) ?? [], [workOrders]);
   const { data: partsCounts } = usePartsCountByWOs(woIds);
 
+  // Filter out entries whose "name" is actually a line or machine name, then sort alphabetically.
+  const requesterOptions = useMemo(() => {
+    const lineNames = new Set((lines || []).map((l: any) => (l.name || "").toString().toLowerCase()));
+    const machineNames = new Set((machines || []).map((m: any) => (m.name || "").toString().toLowerCase()));
+    return (profileNames || [])
+      .filter((p) => {
+        const n = (p.name || "").trim().toLowerCase();
+        if (!n) return false;
+        return !lineNames.has(n) && !machineNames.has(n);
+      })
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [profileNames, lines, machines]);
+
+
   const [showCreate, setShowCreate] = useState(false);
   const [newRequester, setNewRequester] = useState("");
   const [newLineId, setNewLineId] = useState("");
   const [newMachine, setNewMachine] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newNotes, setNewNotes] = useState("");
-  const [newPriority, setNewPriority] = useState<string>("medium");
+  
   
 
   const [editWO, setEditWO] = useState<WorkOrder | null>(null);
@@ -270,9 +285,10 @@ export default function WorkOrdersPage() {
       return;
     }
     try {
-      await createWO.mutateAsync({ requester_name: newRequester.trim(), line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), priority: newPriority } as any);
+      await createWO.mutateAsync({ requester_name: newRequester.trim(), line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim() } as any);
       toast({ title: "Work Order Created" });
-      setShowCreate(false); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes(""); setNewPriority("medium");
+      setShowCreate(false); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
+
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
 
@@ -687,7 +703,8 @@ export default function WorkOrdersPage() {
                 <Select value={newRequester} onValueChange={setNewRequester}>
                   <SelectTrigger><SelectValue placeholder="Select requester..." /></SelectTrigger>
                   <SelectContent>
-                    {profileNames?.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+                    {requesterOptions.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+
                   </SelectContent>
                 </Select>
               </div>
@@ -726,17 +743,6 @@ export default function WorkOrdersPage() {
                 <Select value={newDesc} onValueChange={setNewDesc}>
                   <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
                   <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2"><Label>Priority</Label>
-                <Select value={newPriority} onValueChange={setNewPriority}>
-                  <SelectTrigger><SelectValue placeholder="Select priority..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
-                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2"><Label>Observations (optional)</Label>
