@@ -265,6 +265,10 @@ export default function WorkOrdersPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newMachine.trim()) {
+      toast({ title: "Machine required", description: "Please select a machine before creating the work order.", variant: "destructive" });
+      return;
+    }
     try {
       await createWO.mutateAsync({ requester_name: newRequester.trim(), line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), priority: newPriority } as any);
       toast({ title: "Work Order Created" });
@@ -693,9 +697,9 @@ export default function WorkOrdersPage() {
                   <SelectContent>{lines?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2"><Label>Machine</Label>
+              <div className="space-y-2"><Label>Machine <span className="text-destructive">*</span></Label>
                 <Select value={newMachine} onValueChange={setNewMachine} disabled={!newLineId}>
-                  <SelectTrigger><SelectValue placeholder={newLineId ? "Select machine..." : "Select line first..."} /></SelectTrigger>
+                  <SelectTrigger className={!newMachine ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder={newLineId ? "Select machine..." : "Select line first..."} /></SelectTrigger>
                   <SelectContent>
                     {(() => {
                       const selectedLineName = lines?.find((l: any) => l.id === newLineId)?.name;
@@ -716,6 +720,7 @@ export default function WorkOrdersPage() {
                     })()}
                   </SelectContent>
                 </Select>
+                {!newMachine && <p className="text-xs text-destructive">Machine is required</p>}
               </div>
               <div className="space-y-2"><Label>Problem Description</Label>
                 <Select value={newDesc} onValueChange={setNewDesc}>
