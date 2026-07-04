@@ -90,27 +90,42 @@ export function LineChatButton() {
     },
   });
 
-  // Realtime subscription for ALL line chat messages (so badges update)
+  // Keep latest values in a ref so the realtime effect can read them
+  // without recreating the channel on every render.
+  const ctxRef = useRef({ lines, open, activeLineId, userId: user?.id });
   useEffect(() => {
-    if (!user || !canUse) return;
-    const ch = supabase
-      .channel(`line_chat_${user.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "line_chat_messages" }, (payload) => {
+    ctxRef.current = { lines, open, activeLineId, userId: user?.id };
+  }, [lines, open, activeLineId, user?.id]);
+
+  // Realtime subscription for ALL line chat messages (so badges update).
+  // Keyed only on [user?.id, canUse] so the channel is created ONCE per session.
+  // All .on(...) listeners are registered before .subscribe() and a per-mount
+  // suffix in the topic prevents any stale SUBSCRIBED channel collision.
+  useEffect(() => {
+    if (!user?.id || !canUse) return;
+    const topic = `line_chat_${user.id}_${Math.random().toString(36).slice(2, 8)}`;
+    const ch = supabase.channel(topic);
+    ch.on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "line_chat_messages" },
+      (payload) => {
         const msg = payload.new as Msg;
+        const { lines: curLines, open: curOpen, activeLineId: curActive, userId } = ctxRef.current;
         qc.invalidateQueries({ queryKey: ["line_chat", msg.line_id] });
         setUnreadTick((t) => t + 1);
-        // toast only when not from self and panel closed / different channel
-        if (msg.user_id !== user.id) {
-          const line = lines.find((l) => l.id === msg.line_id);
-          const isViewing = open && activeLineId === msg.line_id;
+        if (msg.user_id !== userId) {
+          const line = curLines.find((l) => l.id === msg.line_id);
+          const isViewing = curOpen && curActive === msg.line_id;
           if (!isViewing) {
             toast.message(`${line?.name ?? "Line"} — ${msg.user_name}`, { description: msg.message.slice(0, 120) });
           }
         }
-      })
-      .subscribe();
+      },
+    );
+    ch.subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [user, canUse, qc, lines, open, activeLineId]);
+  }, [user?.id, canUse, qc]);
+
 
   // Mark active channel as read when panel opens or channel changes
   useEffect(() => {
