@@ -6,7 +6,7 @@ import {
   ClipboardList, Cog, Users, BarChart3, Briefcase, DollarSign,
   Monitor, Shield, Package, AlertCircle, Clock, LayoutDashboard,
   Plus, Wrench, Radio, Truck, CalendarRange, Boxes, Gauge, CheckSquare,
-  History, FileBarChart, Trophy, Radar,
+  History, FileBarChart, Trophy, Radar, Factory,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
