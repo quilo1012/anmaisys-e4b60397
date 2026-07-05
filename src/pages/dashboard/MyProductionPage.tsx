@@ -171,12 +171,12 @@ function MyProductionContent() {
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm">
-                  <Target className="h-4 w-4 mr-2" /> Order Qty
+                  <Target className="h-4 w-4 mr-2" /> Target
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-64">
-                <div className="text-xs text-muted-foreground">Total Order Qty from scheduled SKUs</div>
-                <div className="mt-1 text-2xl font-bold tabular-nums">{totalOrderQty.toLocaleString()}</div>
+                <div className="text-xs text-muted-foreground">Total Target (RAG Weekly)</div>
+                <div className="mt-1 text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
                 <div className="text-xs text-muted-foreground mt-1">{line} · {shiftLabel}</div>
               </PopoverContent>
             </Popover>
