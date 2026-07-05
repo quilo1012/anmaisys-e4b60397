@@ -450,140 +450,194 @@ export default function ShiftHistoryPage() {
 
 
         <Card>
-          <CardContent className="p-0 overflow-x-auto">
+          <CardContent className="p-0">
             {filtered.length === 0 ? (
               <div className="p-6 text-muted-foreground text-center">No sessions</div>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40 text-xs uppercase">
-                  <tr>
-                    <th className="text-left p-2">Date</th>
-                    <th className="text-left p-2">Shift</th>
-                    <th className="text-left p-2">Filler Line</th>
-                    <th className="text-left p-2">Leader</th>
-                    <th className="text-right p-2"></th>
-                    <th className="text-left p-2">SKU</th>
-
-                    <th className="text-left p-2">Product Description</th>
-                    <th className="text-left p-2">Batch</th>
-                    <th className="text-right p-2">Weight</th>
-                    <th className="text-right p-2 w-28">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {filtered.flatMap((s) =>
-                    (s.production_items.length === 0
-                      ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null }]
-                      : s.production_items
-                    ).map((i, idx) => {
-                      const sku = skuMap.get(i.sku_id);
-                      const code = sku?.code ?? "";
-                      const name = sku?.name ?? (i.sku_id ? "Unknown" : "—");
-                      const weight = parseWeightFromSku(code, name, (sku as { weight?: number | null } | undefined)?.weight ?? null);
-                      const a = Number(i.actual_qty ?? 0);
-                      const t = Number(i.target_qty ?? i.planned_qty ?? 0);
-                      const blob = `${code} ${name}`.toLowerCase();
-                      const isTub = /tub/.test(blob);
-                      const isBag = /bag|sach|pouch/.test(blob);
-                      const noteUnit = i.tickets_unit ?? (/\[unit:tubs\]/i.test(i.notes ?? "") ? "tubs" : /\[unit:bags\]/i.test(i.notes ?? "") ? "bags" : null);
-                      const effIsTub = noteUnit ? noteUnit === "tubs" : isTub;
-                      // Default to Bag column when the SKU name doesn't hint tub/bag so the qty is still editable.
-                      const effIsBag = noteUnit ? noteUnit === "bags" : (isBag || !isTub);
-                      const bag = effIsBag ? a : 0;
-                      const tubs = effIsTub ? a : 0;
-                      return (
-                        <tr key={`${s.id}-${i.id ?? idx}`} className="hover:bg-muted/20">
-                          <td className="p-2 whitespace-nowrap">{s.session_date}</td>
-                          <td className="p-2"><Badge variant="outline">{s.shift}</Badge></td>
-                          <td className="p-2 whitespace-nowrap">{s.line}</td>
-                          <td className="p-2">
-                            {idx === 0 ? (
-                              <InlineLeaderCell
-                                sessionId={s.id}
-                                leaderId={s.leader_id}
-                                leaders={leaders}
-                                disabled={s.locked}
-                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
-                              />
-                            ) : null}
-                          </td>
-                          <td className="p-2 text-right tabular-nums">
-                            <div className="flex items-center justify-end gap-2">
-                              {i.id && i.sku_id ? (
-                                <InlineUnitToggle
-                                  itemId={i.id}
-                                  value={i.tickets_unit}
-                                  disabled={s.locked}
-                                  onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
-                                />
-                              ) : null}
-                              {idx === 0 ? (
-                                <InlineSessionNumberCell
-                                  sessionId={s.id}
-                                  field="tickets"
-                                  value={s.tickets}
-                                  disabled={s.locked}
-                                  placeholder="0"
-                                  onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
-                                />
-                              ) : null}
-                            </div>
-                          </td>
-
-
-
-                          <td className="p-2 font-mono text-xs">{code || "—"}</td>
-                          <td className="p-2">{name}</td>
-                          <td className="p-2">
-                            {i.sku_id && !s.locked ? (
-                              <input
-                                type="text"
-                                defaultValue={i.blender_ref ?? ""}
-                                placeholder="B#"
-                                className="w-16 h-7 px-1 text-xs font-mono rounded border bg-background"
-                                onBlur={async (e) => {
-                                  const v = e.target.value.trim() || null;
-                                  if (v === (i.blender_ref ?? null)) return;
-                                  const { error } = await supabase.from("production_items").update({ blender_ref: v }).eq("id", i.id);
-                                  if (error) toast.error(error.message);
-                                  else { toast.success("Batch saved"); qc.invalidateQueries({ queryKey: ["shift_history"] }); }
-                                }}
-                              />
-                            ) : (
-                              <span className="text-xs font-mono">{i.blender_ref || "—"}</span>
-                            )}
-                          </td>
-                          <td className="p-2 text-right tabular-nums">
-                            {weight ? weight.toLocaleString() : "—"}
-                            {i.id && i.sku_id && !s.locked ? (
-                              <div className="mt-1">
-                                <InlineActualInput
-                                  itemId={i.id}
-                                  value={a}
-                                  invalidateKeys={[["shift_history"]]}
-                                />
-                              </div>
-                            ) : (a ? <div className="text-xs text-muted-foreground">{a.toLocaleString()}</div> : null)}
-                          </td>
-                          <td className="p-2">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button size="icon" variant="ghost" title="Lock/unlock" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
-                                {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                              </Button>
-                              <Button size="icon" variant="ghost" title="Delete session" onClick={() => setDeleting(s.id)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+              <TooltipProvider delayDuration={200}>
+                <div className="max-h-[70vh] overflow-auto">
+                  <table className="w-full text-sm border-separate border-spacing-0">
+                    <thead className="sticky top-0 z-10 bg-muted text-[11px] uppercase tracking-wide">
+                      <tr>
+                        <th className="text-left px-3 py-2 border-b">Date</th>
+                        <th className="text-left px-3 py-2 border-b">Shift</th>
+                        <th className="text-left px-3 py-2 border-b">Line</th>
+                        <th className="text-left px-3 py-2 border-b">Leader</th>
+                        <th className="text-left px-3 py-2 border-b">SKU</th>
+                        <th className="text-left px-3 py-2 border-b">Description</th>
+                        <th className="text-left px-3 py-2 border-b">Batch</th>
+                        <th className="text-left px-3 py-2 border-b">Tubs</th>
+                        <th className="text-left px-3 py-2 border-b">Bags</th>
+                        <th className="text-right px-3 py-2 border-b">Units</th>
+                        <th className="text-right px-3 py-2 border-b">Weight (g)</th>
+                        <th className="text-right px-3 py-2 border-b w-24">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const out: React.ReactNode[] = [];
+                        let prevLine: string | null = null;
+                        let zebra = 0;
+                        filtered.forEach((s) => {
+                          const items = s.production_items.length === 0
+                            ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null, tickets_unit: null as "tubs" | "bags" | null }]
+                            : s.production_items;
+                          if (s.line !== prevLine) {
+                            out.push(
+                              <tr key={`sep-${s.id}-${s.line}`} className="bg-primary/5">
+                                <td colSpan={12} className="px-3 py-1.5 text-[11px] uppercase font-semibold tracking-wider text-primary border-b border-primary/20">
+                                  {s.line}
+                                </td>
+                              </tr>
+                            );
+                            prevLine = s.line;
+                          }
+                          items.forEach((i, idx) => {
+                            const sku = skuMap.get(i.sku_id);
+                            const code = sku?.code ?? "";
+                            const name = sku?.name ?? (i.sku_id ? "Unknown" : "—");
+                            const weight = parseWeightFromSku(code, name, (sku as { weight?: number | null } | undefined)?.weight ?? null);
+                            const a = Number(i.actual_qty ?? 0);
+                            const blob = `${code} ${name}`.toLowerCase();
+                            const isTubHint = /tub/.test(blob);
+                            const isBagHint = /bag|sach|pouch/.test(blob);
+                            const noteUnit = i.tickets_unit ?? (/\[unit:tubs\]/i.test(i.notes ?? "") ? "tubs" : /\[unit:bags\]/i.test(i.notes ?? "") ? "bags" : null);
+                            const effUnit: "tubs" | "bags" = noteUnit ?? (isTubHint ? "tubs" : isBagHint ? "bags" : "bags");
+                            const tubsVal = effUnit === "tubs" ? a : 0;
+                            const bagsVal = effUnit === "bags" ? a : 0;
+                            const noLeader = !s.leader_id;
+                            const rowBg = zebra % 2 === 0 ? "bg-background" : "bg-muted/20";
+                            zebra++;
+                            out.push(
+                              <tr
+                                key={`${s.id}-${i.id ?? idx}`}
+                                className={cn(
+                                  "border-b transition-colors hover:bg-muted/40",
+                                  rowBg,
+                                  noLeader && "bg-yellow-500/10 hover:bg-yellow-500/20",
+                                )}
+                              >
+                                <td className="px-3 py-2 whitespace-nowrap text-xs tabular-nums">
+                                  {s.session_date ? format(new Date(s.session_date), "dd/MM") : "—"}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      "text-[10px] font-semibold px-1.5 py-0",
+                                      s.shift === "DAY"
+                                        ? "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                                        : "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300",
+                                    )}
+                                  >
+                                    {s.shift}
+                                  </Badge>
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-xs">
+                                  {s.line.replace(/\s*filler\s*/i, " ").replace(/\s+/g, " ").trim()}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {idx === 0 ? (
+                                    <InlineLeaderCell
+                                      sessionId={s.id}
+                                      leaderId={s.leader_id}
+                                      leaders={leaders}
+                                      disabled={s.locked}
+                                      onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                                    />
+                                  ) : null}
+                                </td>
+                                <td className="px-3 py-2 font-mono text-xs font-bold whitespace-nowrap">{code || "—"}</td>
+                                <td className="px-3 py-2 max-w-[240px]">
+                                  <UITooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="truncate text-xs text-muted-foreground">{name}</div>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-sm">{name}</TooltipContent>
+                                  </UITooltip>
+                                </td>
+                                <td className="px-3 py-2">
+                                  {i.sku_id && !s.locked ? (
+                                    <input
+                                      type="text"
+                                      defaultValue={i.blender_ref ?? ""}
+                                      placeholder="B#"
+                                      className="w-[60px] h-7 px-1 text-xs font-mono rounded border bg-background"
+                                      onBlur={async (e) => {
+                                        const v = e.target.value.trim() || null;
+                                        if (v === (i.blender_ref ?? null)) return;
+                                        const { error } = await supabase.from("production_items").update({ blender_ref: v }).eq("id", i.id);
+                                        if (error) toast.error(error.message);
+                                        else { toast.success("Batch saved"); qc.invalidateQueries({ queryKey: ["shift_history"] }); }
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="text-xs font-mono">{i.blender_ref || "—"}</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {i.id && i.sku_id ? (
+                                    <InlineUnitQtyInput
+                                      itemId={i.id}
+                                      unit="tubs"
+                                      value={tubsVal}
+                                      disabled={s.locked}
+                                      onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                                    />
+                                  ) : null}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {i.id && i.sku_id ? (
+                                    <InlineUnitQtyInput
+                                      itemId={i.id}
+                                      unit="bags"
+                                      value={bagsVal}
+                                      disabled={s.locked}
+                                      onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                                    />
+                                  ) : null}
+                                </td>
+                                <td className="px-3 py-2 text-right tabular-nums text-xs font-semibold">
+                                  {a ? a.toLocaleString() : "—"}
+                                </td>
+                                <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
+                                  {weight ? weight.toLocaleString() : "—"}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <UITooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
+                                          {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>{s.locked ? "Unlock row" : "Lock row"}</TooltipContent>
+                                    </UITooltip>
+                                    <UITooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setDeleting(s.id)}>
+                                          <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Delete session</TooltipContent>
+                                    </UITooltip>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          });
+                        });
+                        return out;
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </TooltipProvider>
             )}
           </CardContent>
         </Card>
+
+
 
 
         <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
