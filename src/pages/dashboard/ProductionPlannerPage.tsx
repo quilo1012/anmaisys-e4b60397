@@ -69,7 +69,7 @@ function SkuCombobox({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const current = skus.find((s) => s.id === value);
-  const filtered = React.useMemo(() => {
+  const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = q
       ? skus.filter((s) =>
