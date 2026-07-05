@@ -1333,7 +1333,6 @@ Deno.serve(async (req) => {
       const { actuals: actualsByCode, scrap: scrapByCode, lineGood, metrics } = await fetchActualsForLine(machines, startISO, endISO, { line, discoverLivePaths: body.debug_discover === true });
 
       const entries = Array.from(skuAgg.entries());
-      const totalQty = entries.reduce((sum, [, a]) => sum + Math.max(1, Number(a.qty) || 0), 0) || 1;
       // Sum of per-SKU iTouching actuals matched by code.
       const matchedActualTotal = entries.reduce(
         (s, [code]) => s + Math.round(actualsByCode.get(code) ?? 0), 0,
@@ -1344,8 +1343,7 @@ Deno.serve(async (req) => {
       const useLineFallback = matchedActualTotal === 0 && lineGood > 0;
       const rows = entries
         .map(([code, a]) => {
-          const weight = Math.max(1, Number(a.qty) || 0) / totalQty;
-          const planAuto = Math.round(ragPlan * weight);
+          const orderQty = Math.round(Math.max(0, Number(a.qty) || 0));
           const sku_id = idByCode.get(code);
           const matched = Math.round(actualsByCode.get(code) ?? 0);
           // Per-SKU iTouching GoodParts (PartsMade[].GoodParts). When the API
@@ -1362,7 +1360,7 @@ Deno.serve(async (req) => {
           // pre-fill or change production_items.actual_qty.
           const actual = prev;
           const manualTarget = sku_id ? manualTargetBySku.get(sku_id) : undefined;
-          const plan = manualTarget != null ? manualTarget : planAuto;
+          const plan = manualTarget != null ? manualTarget : orderQty;
           const scrap_qty = Math.round(scrapByCode.get(code) ?? 0);
           return {
             session_id: session.id,
