@@ -32,6 +32,7 @@ self.addEventListener("push", (event) => {
     body: data.body || "",
     icon: data.icon || "/favicon.ico",
     badge: data.badge || "/favicon.ico",
+    image: data.image || undefined,
     tag: data.tag || "an-maint",
     data: {
       url: data.url || "/",
