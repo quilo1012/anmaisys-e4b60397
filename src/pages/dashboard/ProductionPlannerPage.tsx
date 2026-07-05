@@ -694,10 +694,31 @@ export default function ProductionPlannerPage() {
                       <Progress value={Math.min(100, eff)} className="h-2" />
                     </div>
                   </div>
-                  <div className="md:col-span-1 flex items-end justify-end">
+                  <div className="md:col-span-1 flex items-end justify-end gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => moveRow(i, -1)}
+                      disabled={locked || i === 0}
+                      title="Move up"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => moveRow(i, 1)}
+                      disabled={locked || i === rows.length - 1}
+                      title="Move down"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="destructive"
                       size="icon"
+                      className="h-8 w-8"
                       onClick={() => removeRow(i)}
                       disabled={locked}
                       title="Delete SKU"
