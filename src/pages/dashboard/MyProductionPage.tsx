@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ProductionInputCard } from "@/components/ProductionInputCard";
 import { LineChatButton } from "@/components/LineChatButton";
-import { getShift, SHIFT_LABEL } from "@/lib/shifts";
+import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
 import { Factory, Target, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -63,8 +63,7 @@ function MyProductionContent() {
   const { selectedLineName: line } = useDeviceLineCtx();
   const { profile } = useAuth() as any;
 
-  const today = format(new Date(), "yyyy-MM-dd");
-  const shiftCode = getShift(new Date()); // "day" | "night"
+  const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
   const shift: Shift = shiftCode === "day" ? "DAY" : "NIGHT";
   const shiftLabel = SHIFT_LABEL[shiftCode];
 
