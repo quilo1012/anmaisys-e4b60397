@@ -36,6 +36,12 @@ function ragColor(pct: number): string {
   return "bg-red-600";
 }
 
+function ragText(pct: number): string {
+  if (pct >= 90) return "text-green-600";
+  if (pct >= 70) return "text-amber-500";
+  return "text-red-600";
+}
+
 /**
  * Operator "Production Input" — manual-only per-SKU entry.
  * Shows Order Qty, estimated fill time (from sku_line_speeds.avg_units_per_hour),
@@ -53,18 +59,10 @@ export function ProductionInputCard({
   const qc = useQueryClient();
   const { user: _user } = useAuth() as any;
 
-  // De-duplicate items by SKU code (keep the row with the highest target_qty).
-  const uniqueItems = useMemo(() => {
-    const m = new Map<string, Item>();
-    for (const it of items) {
-      const key = it.code || it.sku_id;
-      const prev = m.get(key);
-      if (!prev || (it.target_qty || 0) > (prev.target_qty || 0)) m.set(key, it);
-    }
-    return Array.from(m.values());
-  }, [items]);
-
-  const skuCodes = uniqueItems.map((i) => i.code).filter(Boolean);
+  const skuCodes = useMemo(
+    () => Array.from(new Set(items.map((i) => i.code).filter(Boolean))),
+    [items],
+  );
 
   // Lookup average units-per-hour from sku_line_speeds for est. fill time.
   const speedsQ = useQuery({
@@ -92,12 +90,12 @@ export function ProductionInputCard({
   useEffect(() => {
     setValues((prev) => {
       const next: Record<string, string> = {};
-      for (const it of uniqueItems) {
+      for (const it of items) {
         next[it.id] = prev[it.id] ?? String(it.actual_qty ?? 0);
       }
       return next;
     });
-  }, [uniqueItems.map((i) => `${i.id}:${i.actual_qty}`).join("|")]);
+  }, [items.map((i) => `${i.id}:${i.actual_qty}`).join("|")]);
 
   const [saveState, setSaveState] = useState<Record<string, "idle" | "saving" | "saved">>({});
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -148,16 +146,18 @@ export function ProductionInputCard({
     }
   };
 
-  if (uniqueItems.length === 0) return null;
+  if (items.length === 0) return null;
 
   return (
     <Card className="mt-4 border-primary/30">
       <CardContent className="p-4 md:p-6 space-y-3">
-        {uniqueItems.map((it) => {
+        {items.map((it) => {
           const state = saveState[it.id] || "idle";
           const uph = speedsQ.data?.get(it.code);
           const orderQty = Number(it.target_qty || 0);
           const fillMinutes = uph && orderQty > 0 ? (orderQty / uph) * 60 : null;
+          const producedQty = Number(values[it.id] ?? it.actual_qty ?? 0) || 0;
+          const pct = orderQty > 0 ? (producedQty / orderQty) * 100 : 0;
 
           return (
             <div key={it.id} className="rounded-lg border bg-card/50 p-3 space-y-3">
@@ -165,12 +165,26 @@ export function ProductionInputCard({
                 <div>
                   <div className="font-mono text-sm font-semibold">{it.code}</div>
                   <div className="text-xs text-muted-foreground">{it.name}</div>
-                  {fillMinutes !== null && (
-                    <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      Est. fill time: <span className="font-medium">{formatMinutes(fillMinutes)}</span>
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <div className="rounded-md border bg-background/60 px-3 py-2">
+                      <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                        <Package className="h-3 w-3" /> Order Qty
+                      </div>
+                      <div className="mt-1 text-base font-bold tabular-nums">{orderQty.toLocaleString()}</div>
                     </div>
-                  )}
+                    <div className="rounded-md border bg-background/60 px-3 py-2">
+                      <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                        <Clock className="h-3 w-3" /> Standard Fill Time
+                      </div>
+                      <div className="mt-1 text-base font-bold tabular-nums">
+                        {fillMinutes !== null ? formatMinutes(fillMinutes) : "—"}
+                      </div>
+                    </div>
+                    <div className="rounded-md border bg-background/60 px-3 py-2 col-span-2 sm:col-span-1">
+                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Completion</div>
+                      <div className={cn("mt-1 text-base font-bold tabular-nums", ragText(pct))}>{pct.toFixed(0)}%</div>
+                    </div>
+                  </div>
                 </div>
                 {canEdit && (
                   <Button
