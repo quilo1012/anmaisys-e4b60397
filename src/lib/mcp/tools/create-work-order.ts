@@ -26,7 +26,6 @@ export default defineTool({
     notes: z.string().optional().describe("Extra context or notes."),
   },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-  needsApproval: true,
   handler: async (input, ctx) => {
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
