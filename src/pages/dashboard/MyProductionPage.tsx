@@ -227,7 +227,7 @@ function MyProductionContent() {
                 </div>
                 <div className="text-muted-foreground">/</div>
                 <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Target</div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Order Qty</div>
                   <div className="text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
                 </div>
                 <Badge className={cn("text-white text-base px-3 py-1", ragColor(overallPct))}>
