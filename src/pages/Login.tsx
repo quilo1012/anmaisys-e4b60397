@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock, Eye, EyeOff, ShieldCheck, Loader2, ArrowRight, Tablet, User as UserIcon, ShieldAlert } from "lucide-react";
@@ -53,6 +53,11 @@ type Mode = "staff" | "tablet";
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Consent flow (and other deep-links) preserve where to send the user
+  // after sign-in. Only same-origin relative paths are honored.
+  const nextParam = searchParams.get("next");
+  const safeNext = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : null;
   const { toast } = useToast();
   const { session, role, loading: authLoading } = useAuth();
   const { data: operatorAccounts, isLoading: accountsLoading } = usePublicTabletAccounts();
@@ -109,9 +114,13 @@ export default function Login() {
   // Redirect when authenticated
   useEffect(() => {
     if (!authLoading && session && role) {
+      if (safeNext) {
+        window.location.href = safeNext;
+        return;
+      }
       navigate(dashMap[role] || "/dashboard/manager", { replace: true });
     }
-  }, [authLoading, navigate, role, session]);
+  }, [authLoading, navigate, role, session, safeNext]);
 
   const lineNameMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -219,6 +228,10 @@ export default function Login() {
           role: roleResult || "unknown",
           mode,
         });
+        if (safeNext) {
+          window.location.href = safeNext;
+          return;
+        }
         navigate(dashMap[roleResult as string] || "/dashboard/manager", { replace: true });
       }
     } catch (error: any) {
