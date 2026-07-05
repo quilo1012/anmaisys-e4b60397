@@ -220,8 +220,8 @@ function MyProductionContent() {
                 </div>
                 <div className="text-muted-foreground">/</div>
                 <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Order Qty</div>
-                  <div className="text-2xl font-bold tabular-nums">{totalOrderQty.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Target (RAG)</div>
+                  <div className="text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
                 </div>
                 <Badge className={cn("text-white text-base px-3 py-1", hasManualProduction ? ragColor(overallPct) : "bg-muted text-muted-foreground")}>
                   {overallPct.toFixed(0)}%
