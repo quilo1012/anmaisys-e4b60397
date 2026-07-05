@@ -146,10 +146,10 @@ function MyProductionContent() {
   });
 
   const items = itemsQ.data || [];
-  const totalTarget = items.reduce((s, i) => s + (i.target_qty || 0), 0);
   const totalActual = items.reduce((s, i) => s + (i.actual_qty || 0), 0);
-  const overallPct = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
   const ragPlan = ragPlanQ.data || 0;
+  const totalTarget = ragPlan;
+  const overallPct = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
 
   const submitShift = () => {
     toast.success("Shift totals submitted", {
