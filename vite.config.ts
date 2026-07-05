@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
+import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
 
 // Security headers also shipped statically via `public/_headers`
 // for hosts that honor the Netlify-style headers file (Netlify, Vercel,
@@ -27,7 +28,7 @@ export default defineConfig(({ mode }) => ({
   preview: {
     headers: securityHeaders,
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), mode === "development" && componentTagger(), mcpPlugin()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

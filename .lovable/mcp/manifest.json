@@ -1,0 +1,196 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://ybtrzqzliepknpzqdajx.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "an-maintenance-mcp",
+      "version": "0.1.0",
+      "title": "AN Maintenance MCP"
+    },
+    "tools": [
+      {
+        "name": "list_work_orders",
+        "title": "List work orders",
+        "description": "List recent maintenance work orders visible to the signed-in user. Optionally filter by status or priority.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "OPEN",
+                "IN_PROGRESS",
+                "PAUSED",
+                "FINISHED",
+                "CANCELLED",
+                "PENDING",
+                "COMPLETED"
+              ],
+              "description": "Filter by work order status."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "description": "Filter by priority."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "description": "Max rows to return (1–100)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_work_order",
+        "title": "Get work order",
+        "description": "Fetch a single work order by its UUID or numeric wo_number.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Work order UUID."
+            },
+            "wo_number": {
+              "type": "integer",
+              "description": "Numeric wo_number (e.g. 1234)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_machines",
+        "title": "List machines",
+        "description": "List equipment/machines in the plant, optionally filtered by production line.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "line_id": {
+              "type": "string",
+              "description": "Optional production line UUID to filter by."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "description": "Max rows to return."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_lines",
+        "title": "List production lines",
+        "description": "List all production lines the signed-in user can see.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "create_work_order",
+        "title": "Create work order",
+        "description": "Create a new maintenance work order as the signed-in user. Requires a description and requester name.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "description": {
+              "type": "string",
+              "minLength": 3,
+              "description": "What is broken or needs maintenance."
+            },
+            "requester_name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name of the person requesting."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "default": "medium",
+              "description": "Priority; defaults to medium."
+            },
+            "machine": {
+              "type": "string",
+              "description": "Machine name (free text)."
+            },
+            "line_id": {
+              "type": "string",
+              "description": "Production line UUID, if applicable."
+            },
+            "notes": {
+              "type": "string",
+              "description": "Extra context or notes."
+            }
+          },
+          "required": [
+            "description",
+            "requester_name"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
