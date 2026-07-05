@@ -67,9 +67,20 @@ function SkuCombobox({
   value, onPick, skus, disabled,
 }: { value: string; onPick: (id: string, name: string) => void; skus: { id: string; code: string; name: string }[]; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const current = skus.find((s) => s.id === value);
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const base = q
+      ? skus.filter((s) =>
+          (s.code ?? "").toLowerCase().includes(q) ||
+          (s.name ?? "").toLowerCase().includes(q),
+        )
+      : skus;
+    return base.slice(0, 200); // cap render only, AFTER filter
+  }, [skus, query]);
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" disabled={disabled} className="w-full justify-between font-normal">
           <span className="flex items-center gap-2 truncate">
@@ -79,18 +90,21 @@ function SkuCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[320px] p-0 pointer-events-auto" align="start">
-        <Command>
-          <CommandInput placeholder="Search by code or name…" />
+        <Command shouldFilter={false}>
+          <CommandInput placeholder="Search by code or name…" value={query} onValueChange={setQuery} />
           <CommandList>
             <CommandEmpty>No SKU found.</CommandEmpty>
             <CommandGroup>
-              {skus.slice(0, 200).map((s) => (
-                <CommandItem key={s.id} value={`${s.code} ${s.name}`} onSelect={() => { onPick(s.id, s.name); setOpen(false); }}>
+              {filtered.map((s) => (
+                <CommandItem key={s.id} value={s.id} onSelect={() => { onPick(s.id, s.name); setOpen(false); }}>
                   <Check className={cn("mr-2 h-4 w-4", value === s.id ? "opacity-100" : "opacity-0")} />
                   <span className="font-mono text-xs mr-2">{s.code}</span>
                   <span className="truncate">{s.name}</span>
                 </CommandItem>
               ))}
+              {query && skus.filter((s) => (s.code ?? "").toLowerCase().includes(query.toLowerCase()) || (s.name ?? "").toLowerCase().includes(query.toLowerCase())).length > 200 && (
+                <div className="px-2 py-1 text-xs text-muted-foreground">Showing first 200 matches — refine your search.</div>
+              )}
             </CommandGroup>
           </CommandList>
         </Command>
