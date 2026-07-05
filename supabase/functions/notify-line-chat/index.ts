@@ -59,20 +59,26 @@ Deno.serve(async (req) => {
       });
     }
 
-    let msg: { message: string; user_name: string; user_id: string } | null = null;
+    let msg: { message: string; user_name: string; user_id: string; line_id: string } | null = null;
     if (message_id) {
       const { data } = await admin
         .from("line_chat_messages")
-        .select("message,user_name,user_id")
+        .select("message,user_name,user_id,line_id")
         .eq("id", message_id)
         .maybeSingle();
       msg = data as any;
+      // Ownership + line-scope check: caller must own the message and it must belong to the given line.
+      if (msg && (msg.user_id !== senderId || msg.line_id !== line_id)) {
+        return new Response(JSON.stringify({ error: "forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
     if (!msg) {
       // fallback: latest message from sender in this line
       const { data } = await admin
         .from("line_chat_messages")
-        .select("message,user_name,user_id")
+        .select("message,user_name,user_id,line_id")
         .eq("line_id", line_id)
         .eq("user_id", senderId)
         .order("created_at", { ascending: false })
@@ -80,6 +86,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
       msg = data as any;
     }
+
     if (!msg) {
       return new Response(JSON.stringify({ error: "message not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -8,12 +8,28 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "https://esm.sh/zod@3.23.8";
 
+// Allow-list of accepted audit actions. Any new action must be added here.
+const ALLOWED_ACTIONS = [
+  "accept_and_start", "adjust_stock", "arrive", "close", "complete", "create",
+  "delete", "finish", "force_close", "line_resumed", "line_stopped", "login",
+  "machine_back_to_work", "move", "pause", "pin_changed", "receive", "resume",
+  "start", "update", "user_created", "user_deleted", "user_role_changed",
+  "wo_recurrence_reopened", "work_orders_cleared",
+] as const;
+
+// Allow-list of accepted entity types.
+const ALLOWED_ENTITY_TYPES = [
+  "engineer", "machine", "problem", "product", "product_category",
+  "system", "user", "work_order",
+] as const;
+
 const BodySchema = z.object({
-  action: z.string().min(1).max(100),
-  entity_type: z.string().min(1).max(100),
+  action: z.enum(ALLOWED_ACTIONS),
+  entity_type: z.enum(ALLOWED_ENTITY_TYPES),
   entity_id: z.string().min(1).max(200).optional().nullable(),
   details: z.record(z.string(), z.unknown()).optional(),
 }).strict();
+
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
