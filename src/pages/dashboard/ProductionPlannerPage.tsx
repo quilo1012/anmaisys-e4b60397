@@ -303,6 +303,15 @@ export default function ProductionPlannerPage() {
     if (!window.confirm(`Delete ${label} from this plan?`)) return;
     setRows((r) => r.filter((_, idx) => idx !== i));
   };
+  const moveRow = (i: number, dir: -1 | 1) => {
+    setRows((r) => {
+      const j = i + dir;
+      if (j < 0 || j >= r.length) return r;
+      const copy = r.slice();
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+      return copy;
+    });
+  };
 
   const save = async () => {
     if (!line) return alert("Pick a production line");
