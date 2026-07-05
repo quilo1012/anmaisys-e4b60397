@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload, Download, FileInput, Sparkles, RefreshCw, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload, Download, FileInput, Sparkles, RefreshCw, X } from "lucide-react";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { IntouchImportDialog } from "@/components/IntouchImportDialog";
 import { AssemblyListImporter } from "@/components/AssemblyListImporter";
@@ -67,9 +67,20 @@ function SkuCombobox({
   value, onPick, skus, disabled,
 }: { value: string; onPick: (id: string, name: string) => void; skus: { id: string; code: string; name: string }[]; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const current = skus.find((s) => s.id === value);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const base = q
+      ? skus.filter((s) =>
+          (s.code ?? "").toLowerCase().includes(q) ||
+          (s.name ?? "").toLowerCase().includes(q),
+        )
+      : skus;
+    return base.slice(0, 200); // cap render only, AFTER filter
+  }, [skus, query]);
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" disabled={disabled} className="w-full justify-between font-normal">
           <span className="flex items-center gap-2 truncate">
@@ -79,18 +90,21 @@ function SkuCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[320px] p-0 pointer-events-auto" align="start">
-        <Command>
-          <CommandInput placeholder="Search by code or name…" />
+        <Command shouldFilter={false}>
+          <CommandInput placeholder="Search by code or name…" value={query} onValueChange={setQuery} />
           <CommandList>
             <CommandEmpty>No SKU found.</CommandEmpty>
             <CommandGroup>
-              {skus.slice(0, 200).map((s) => (
-                <CommandItem key={s.id} value={`${s.code} ${s.name}`} onSelect={() => { onPick(s.id, s.name); setOpen(false); }}>
+              {filtered.map((s) => (
+                <CommandItem key={s.id} value={s.id} onSelect={() => { onPick(s.id, s.name); setOpen(false); }}>
                   <Check className={cn("mr-2 h-4 w-4", value === s.id ? "opacity-100" : "opacity-0")} />
                   <span className="font-mono text-xs mr-2">{s.code}</span>
                   <span className="truncate">{s.name}</span>
                 </CommandItem>
               ))}
+              {query && skus.filter((s) => (s.code ?? "").toLowerCase().includes(query.toLowerCase()) || (s.name ?? "").toLowerCase().includes(query.toLowerCase())).length > 200 && (
+                <div className="px-2 py-1 text-xs text-muted-foreground">Showing first 200 matches — refine your search.</div>
+              )}
             </CommandGroup>
           </CommandList>
         </Command>
@@ -288,6 +302,15 @@ export default function ProductionPlannerPage() {
     const label = row?.sku_name || "this SKU";
     if (!window.confirm(`Delete ${label} from this plan?`)) return;
     setRows((r) => r.filter((_, idx) => idx !== i));
+  };
+  const moveRow = (i: number, dir: -1 | 1) => {
+    setRows((r) => {
+      const j = i + dir;
+      if (j < 0 || j >= r.length) return r;
+      const copy = r.slice();
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+      return copy;
+    });
   };
 
   const save = async () => {
@@ -671,10 +694,31 @@ export default function ProductionPlannerPage() {
                       <Progress value={Math.min(100, eff)} className="h-2" />
                     </div>
                   </div>
-                  <div className="md:col-span-1 flex items-end justify-end">
+                  <div className="md:col-span-1 flex items-end justify-end gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => moveRow(i, -1)}
+                      disabled={locked || i === 0}
+                      title="Move up"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => moveRow(i, 1)}
+                      disabled={locked || i === rows.length - 1}
+                      title="Move down"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="destructive"
                       size="icon"
+                      className="h-8 w-8"
                       onClick={() => removeRow(i)}
                       disabled={locked}
                       title="Delete SKU"
