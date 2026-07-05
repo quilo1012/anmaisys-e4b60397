@@ -47,6 +47,7 @@ export default function SmartTargetPage() {
   const [override, setOverride] = useState<string>("");
   const [accuracy, setAccuracy] = useState<{ avgErr: number; count: number; acc: number } | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [baseline, setBaseline] = useState<{ avg: number; p90: number; days: number; period: string } | null>(null);
 
   const entryDate = useMemo(() => format(date, "yyyy-MM-dd"), [date]);
 
@@ -62,6 +63,29 @@ export default function SmartTargetPage() {
       if (!line && uniq.length) setLine(uniq[0]);
     })();
   }, []);
+
+  // Load line baseline (Apr-Jun 2026 import) whenever the selected line changes
+  useEffect(() => {
+    if (!line) { setBaseline(null); return; }
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("line_production_baselines")
+        .select("daily_avg_units, daily_p90_units, active_days, data_period")
+        .eq("line_name", line)
+        .maybeSingle();
+      if (data) {
+        setBaseline({
+          avg: Number(data.daily_avg_units) || 0,
+          p90: Number(data.daily_p90_units) || 0,
+          days: Number(data.active_days) || 0,
+          period: data.data_period || "",
+        });
+      } else {
+        setBaseline(null);
+      }
+    })();
+  }, [line]);
+
 
   // Compute Smart Target
   async function compute() {
@@ -228,6 +252,46 @@ export default function SmartTargetPage() {
           <Button onClick={compute} disabled={loading}>Recompute</Button>
         </CardContent>
       </Card>
+
+      {/* Baseline reference (Apr-Jun 2026 historical) */}
+      {baseline && (
+        <Card className="border-primary/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">
+              Historical baseline — {line} ({baseline.period}, {baseline.days} active days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-4 items-end">
+            <div>
+              <div className="text-xs text-muted-foreground">Smart Target (daily avg)</div>
+              <div className="text-2xl font-bold">{fmt(baseline.avg)}</div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-1"
+                onClick={() => setOverride(String(baseline.avg))}
+                disabled={!canApply}
+              >
+                Use as target
+              </Button>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Stretch Target (daily P90)</div>
+              <div className="text-2xl font-bold text-emerald-500">{fmt(baseline.p90)}</div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-1"
+                onClick={() => setOverride(String(baseline.p90))}
+                disabled={!canApply}
+              >
+                Use as stretch
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
 
       {/* Result */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -83,7 +83,31 @@ export default function ProductionForecastPage() {
       // target_per_hour is units/hour → convert to units/minute
       const stdUpm = Number(sku.target_per_hour ?? 0) / 60;
 
-      // Pull historical runs for this SKU in last 90 days
+      // 1) Prefer real historical throughput from sku_line_speeds (Apr-Jun 2026 import)
+      const { data: speeds } = await (supabase as any)
+        .from("sku_line_speeds")
+        .select("line_name, shift, avg_units_per_hour, total_sessions")
+        .eq("sku_code", sku.code);
+      const speedByLine = new Map<string, { uph: number; sessions: number }>();
+      for (const s of (speeds ?? []) as Array<{ line_name: string; avg_units_per_hour: number; total_sessions: number | null }>) {
+        const prev = speedByLine.get(s.line_name);
+        // If both DAY and NIGHT exist for a SKU/line, blend by session count
+        if (prev) {
+          const totalSess = prev.sessions + (Number(s.total_sessions) || 0);
+          const totalUnits = prev.uph * prev.sessions + Number(s.avg_units_per_hour) * (Number(s.total_sessions) || 0);
+          speedByLine.set(s.line_name, {
+            uph: totalSess > 0 ? totalUnits / totalSess : Number(s.avg_units_per_hour),
+            sessions: totalSess,
+          });
+        } else {
+          speedByLine.set(s.line_name, {
+            uph: Number(s.avg_units_per_hour) || 0,
+            sessions: Number(s.total_sessions) || 0,
+          });
+        }
+      }
+
+      // 2) Fallback: aggregate from production_sessions/items for the last 90 days
       const { data: sessions } = await supabase
         .from("production_sessions")
         .select("id, line, session_date")
@@ -114,33 +138,35 @@ export default function ProductionForecastPage() {
 
       // Decide which lines to forecast for
       const candidateLines = pickedLine === "any"
-        ? Array.from(new Set([...allLines, ...perLine.keys()]))
+        ? Array.from(new Set([...allLines, ...perLine.keys(), ...speedByLine.keys()]))
         : [pickedLine];
 
       const rows: Estimate[] = [];
       for (const ln of candidateLines) {
+        const hist = speedByLine.get(ln);
         const agg = perLine.get(ln);
-        // Actual UPM = units produced ÷ minutes worked.
-        // We don't store per-item duration, so approximate using SHIFT_MIN per run
-        // (each production_items row maps to one shift session).
-        const actualUpm = agg && agg.runs > 0 && agg.actual > 0
-          ? agg.actual / (agg.runs * SHIFT_MIN)
-          : 0;
-        const useActual = !!agg && agg.runs >= 2 && actualUpm > 0;
-        const upm = useActual ? actualUpm : stdUpm;
+        let upm = 0;
+        let source: "actual" | "standard" = "standard";
+        let runs = 0;
+
+        if (hist && hist.uph > 0) {
+          upm = hist.uph / 60;
+          source = "actual";
+          runs = hist.sessions;
+        } else if (agg && agg.runs >= 2 && agg.actual > 0) {
+          upm = agg.actual / (agg.runs * SHIFT_MIN);
+          source = "actual";
+          runs = agg.runs;
+        } else {
+          upm = stdUpm;
+          source = "standard";
+        }
+
         if (!upm || !isFinite(upm) || upm <= 0) continue;
         const minutes = qty / upm;
         const shifts = Math.ceil(minutes / SHIFT_MIN);
         const remainderMin = shifts * SHIFT_MIN - minutes;
-        rows.push({
-          line: ln,
-          upm,
-          source: useActual ? "actual" : "standard",
-          runs: agg?.runs ?? 0,
-          minutes,
-          shifts,
-          remainderMin,
-        });
+        rows.push({ line: ln, upm, source, runs, minutes, shifts, remainderMin });
       }
 
       rows.sort((a, b) => a.minutes - b.minutes);

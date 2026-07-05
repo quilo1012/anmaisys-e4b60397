@@ -2136,6 +2136,54 @@ export type Database = {
         }
         Relationships: []
       }
+      sku_line_speeds: {
+        Row: {
+          avg_units_per_hour: number
+          created_at: string | null
+          data_source: string | null
+          id: string
+          line_name: string
+          max_units_per_hour: number | null
+          min_units_per_hour: number | null
+          shift: string
+          sku_code: string
+          sku_name: string | null
+          total_qty_produced: number | null
+          total_sessions: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          avg_units_per_hour: number
+          created_at?: string | null
+          data_source?: string | null
+          id?: string
+          line_name: string
+          max_units_per_hour?: number | null
+          min_units_per_hour?: number | null
+          shift?: string
+          sku_code: string
+          sku_name?: string | null
+          total_qty_produced?: number | null
+          total_sessions?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          avg_units_per_hour?: number
+          created_at?: string | null
+          data_source?: string | null
+          id?: string
+          line_name?: string
+          max_units_per_hour?: number | null
+          min_units_per_hour?: number | null
+          shift?: string
+          sku_code?: string
+          sku_name?: string | null
+          total_qty_produced?: number | null
+          total_sessions?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       sku_production_history: {
         Row: {
           created_at: string
