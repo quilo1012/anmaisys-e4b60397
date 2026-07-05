@@ -133,6 +133,7 @@ export function LineChatButton() {
       const next = { ...readLastSeen(), [activeLineId]: new Date().toISOString() };
       writeLastSeen(next);
       setLastSeen(next);
+      setUnreadTick((t) => t + 1);
     }
   }, [open, activeLineId, messages.length]);
 
