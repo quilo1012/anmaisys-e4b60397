@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -21,14 +20,20 @@ import { Navigate } from "react-router-dom";
 type Shift = "DAY" | "NIGHT";
 
 function ragColor(pct: number): string {
-  if (pct >= 95) return "bg-green-600";
-  if (pct >= 80) return "bg-amber-500";
+  if (pct >= 90) return "bg-green-600";
+  if (pct >= 70) return "bg-amber-500";
   return "bg-red-600";
 }
 function ragText(pct: number): string {
-  if (pct >= 95) return "text-green-600";
-  if (pct >= 80) return "text-amber-500";
+  if (pct >= 90) return "text-green-600";
+  if (pct >= 70) return "text-amber-500";
   return "text-red-600";
+}
+
+function manualActualQty(row: any): number {
+  const notes = String(row.notes ?? "");
+  if (notes.startsWith("itouching:")) return 0;
+  return Number(row.actual_qty ?? 0);
 }
 
 export default function MyProductionPage() {
@@ -53,8 +58,7 @@ export default function MyProductionPage() {
 
 function MyProductionContent() {
   const { selectedLineName: line } = useDeviceLineCtx();
-  const { user, profile } = useAuth() as any;
-  const qc = useQueryClient();
+  const { profile } = useAuth() as any;
 
   const today = format(new Date(), "yyyy-MM-dd");
   const shiftCode = getShift(new Date()); // "day" | "night"
@@ -98,8 +102,9 @@ function MyProductionContent() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("id, sku_id, target_qty, planned_qty, actual_qty, sku:sku_products(code, name)")
-        .eq("session_id", sessionId!);
+        .select("id, sku_id, target_qty, planned_qty, actual_qty, notes, created_at, sku:sku_products(code, name)")
+        .eq("session_id", sessionId!)
+        .order("created_at", { ascending: true });
       if (error) throw error;
       return (data || []).map((r: any) => ({
         id: r.id,
@@ -107,25 +112,10 @@ function MyProductionContent() {
         code: r.sku?.code || "—",
         name: r.sku?.name || "—",
         target_qty: Number(r.target_qty ?? r.planned_qty ?? 0),
-        actual_qty: Number(r.actual_qty ?? 0),
+        actual_qty: manualActualQty(r),
       }));
     },
     refetchInterval: 30_000,
-    select: (rows: any[]) => {
-      // Defensive de-duplication by sku_id: keep MAX of target/planned/actual.
-      const merged = new Map<string, any>();
-      for (const r of rows) {
-        const key = r.sku_id;
-        const prev = merged.get(key);
-        if (!prev) { merged.set(key, { ...r }); continue; }
-        merged.set(key, {
-          ...prev,
-          target_qty: Math.max(Number(prev.target_qty || 0), Number(r.target_qty || 0)),
-          actual_qty: Math.max(Number(prev.actual_qty || 0), Number(r.actual_qty || 0)),
-        });
-      }
-      return Array.from(merged.values());
-    },
   });
 
   const ragPlanQ = useQuery({
@@ -148,12 +138,13 @@ function MyProductionContent() {
   const items = itemsQ.data || [];
   const totalActual = items.reduce((s, i) => s + (i.actual_qty || 0), 0);
   const ragPlan = ragPlanQ.data || 0;
-  const totalTarget = ragPlan;
-  const overallPct = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
+  const totalOrderQty = items.reduce((s, i) => s + (i.target_qty || 0), 0);
+  const overallPct = totalOrderQty > 0 ? (totalActual / totalOrderQty) * 100 : 0;
+  const hasManualProduction = totalActual > 0;
 
   const submitShift = () => {
     toast.success("Shift totals submitted", {
-      description: `${totalActual.toLocaleString()} of ${totalTarget.toLocaleString()} recorded for ${line} — ${shiftLabel}.`,
+      description: `${totalActual.toLocaleString()} of ${totalOrderQty.toLocaleString()} recorded for ${line} — ${shiftLabel}.`,
     });
   };
 
@@ -178,12 +169,12 @@ function MyProductionContent() {
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm">
-                  <Target className="h-4 w-4 mr-2" /> View Target
+                  <Target className="h-4 w-4 mr-2" /> Order Qty
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-64">
-                <div className="text-xs text-muted-foreground">RAG Weekly plan for this shift</div>
-                <div className="mt-1 text-2xl font-bold tabular-nums">{ragPlan.toLocaleString()}</div>
+                <div className="text-xs text-muted-foreground">Total Order Qty from scheduled SKUs</div>
+                <div className="mt-1 text-2xl font-bold tabular-nums">{totalOrderQty.toLocaleString()}</div>
                 <div className="text-xs text-muted-foreground mt-1">{line} · {shiftLabel}</div>
               </PopoverContent>
             </Popover>
@@ -212,7 +203,7 @@ function MyProductionContent() {
             sessionDate={today}
             line={line}
             shift={shift}
-            ragPlanQty={ragPlan}
+            ragPlanQty={totalOrderQty}
             items={items}
             canEdit={true}
           />
@@ -227,10 +218,10 @@ function MyProductionContent() {
                 </div>
                 <div className="text-muted-foreground">/</div>
                 <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Target</div>
-                  <div className="text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Order Qty</div>
+                  <div className="text-2xl font-bold tabular-nums">{totalOrderQty.toLocaleString()}</div>
                 </div>
-                <Badge className={cn("text-white text-base px-3 py-1", ragColor(overallPct))}>
+                <Badge className={cn("text-white text-base px-3 py-1", hasManualProduction ? ragColor(overallPct) : "bg-muted text-muted-foreground")}>
                   {overallPct.toFixed(0)}%
                 </Badge>
               </div>
@@ -245,9 +236,11 @@ function MyProductionContent() {
                 style={{ width: `${Math.min(100, overallPct)}%` }}
               />
             </div>
-            <div className={cn("px-6 pb-3 text-xs font-medium", ragText(overallPct))}>
-              {overallPct >= 95 ? "On track" : overallPct >= 80 ? "Slightly behind target" : "Behind target"}
-            </div>
+            {hasManualProduction && (
+              <div className={cn("px-6 pb-3 text-xs font-medium", ragText(overallPct))}>
+                {overallPct >= 90 ? "On track" : overallPct >= 70 ? "Slightly behind order qty" : "Below order qty"}
+              </div>
+            )}
           </Card>
         </>
       )}
