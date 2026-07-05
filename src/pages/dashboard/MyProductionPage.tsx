@@ -120,15 +120,33 @@ function MyProductionContent() {
     refetchInterval: 30_000,
   });
 
+  // Official target comes from RAG Weekly plan_qty for line+date+shift
+  const ragQ = useQuery({
+    enabled: !!line,
+    queryKey: ["my-prod-rag-target", line, today, shift],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("rag_weekly_entries")
+        .select("plan_qty")
+        .eq("entry_date", today)
+        .eq("line", line)
+        .eq("shift", shift);
+      if (error) throw error;
+      return (data || []).reduce((s: number, r: any) => s + Number(r.plan_qty || 0), 0);
+    },
+    refetchInterval: 60_000,
+  });
+
   const items = itemsQ.data || [];
   const totalActual = items.reduce((s, i) => s + (i.actual_qty || 0), 0);
   const totalOrderQty = items.reduce((s, i) => s + (i.target_qty || 0), 0);
-  const overallPct = totalOrderQty > 0 ? (totalActual / totalOrderQty) * 100 : 0;
+  const totalTarget = Number(ragQ.data || 0);
+  const overallPct = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
   const hasManualProduction = totalActual > 0;
 
   const submitShift = () => {
     toast.success("Shift totals submitted", {
-      description: `${totalActual.toLocaleString()} of ${totalOrderQty.toLocaleString()} recorded for ${line} — ${shiftLabel}.`,
+      description: `${totalActual.toLocaleString()} of ${totalTarget.toLocaleString()} recorded for ${line} — ${shiftLabel}.`,
     });
   };
 
@@ -202,8 +220,8 @@ function MyProductionContent() {
                 </div>
                 <div className="text-muted-foreground">/</div>
                 <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Order Qty</div>
-                  <div className="text-2xl font-bold tabular-nums">{totalOrderQty.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Target (RAG)</div>
+                  <div className="text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
                 </div>
                 <Badge className={cn("text-white text-base px-3 py-1", hasManualProduction ? ragColor(overallPct) : "bg-muted text-muted-foreground")}>
                   {overallPct.toFixed(0)}%
