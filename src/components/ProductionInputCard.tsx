@@ -127,6 +127,28 @@ export function ProductionInputCard({
 
   // Per-SKU save state: "idle" | "saving" | "saved"
   const [skuSaveState, setSkuSaveState] = useState<Record<string, "idle" | "saving" | "saved">>({});
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [deletingCode, setDeletingCode] = useState<string | null>(null);
+
+  const deleteSku = async (code: string, its: Item[]) => {
+    setDeletingCode(code);
+    try {
+      const ids = its.map((i) => i.id);
+      // Blender rows first (FK), then production_items.
+      await (supabase as any).from("production_blender_entries").delete().in("production_item_id", ids);
+      const { error } = await (supabase as any).from("production_items").delete().in("id", ids);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
+      qc.invalidateQueries({ queryKey: ["blender-entries"] });
+      qc.invalidateQueries({ queryKey: ["lps-items", sessionId] });
+      toast.success(`Removed ${code} from this shift`);
+      setConfirmDelete(null);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to remove SKU");
+    } finally {
+      setDeletingCode(null);
+    }
+  };
 
   const saveSku = async (code: string, its: Item[]) => {
     const split = its.length > 1;
