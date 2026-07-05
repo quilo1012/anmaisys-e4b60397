@@ -1253,7 +1253,7 @@ Deno.serve(async (req) => {
           sku_id: liveSku.id,
           target_qty: ragPlan,
           planned_qty: ragPlan,
-          actual_qty: actual,
+          actual_qty: prevQty,
           scrap_qty: 0,
           notes: `itouching:live_good`,
         }]);
@@ -1304,10 +1304,15 @@ Deno.serve(async (req) => {
 
       const { data: existingItems } = await admin
         .from("production_items")
-        .select("sku_id, actual_qty, target_qty, target_manual_at, blender_ref")
+        .select("sku_id, actual_qty, target_qty, target_manual_at, blender_ref, notes")
         .eq("session_id", session.id);
       const actualBySku = new Map(
         (existingItems ?? []).map((r: any) => [r.sku_id, Number(r.actual_qty) || 0]),
+      );
+      const notesBySku = new Map(
+        (existingItems ?? [])
+          .filter((r: any) => r.notes)
+          .map((r: any) => [r.sku_id, String(r.notes)]),
       );
       // Preserve manually-edited targets so sync never overwrites them.
       const manualTargetBySku = new Map(
@@ -1350,13 +1355,12 @@ Deno.serve(async (req) => {
           const intouch_qty = matched > 0
             ? matched
             : (useLineFallback ? null : null);
-          const itouchActual = matched > 0
-            ? matched
-            : Math.max(Math.round(a.actual ?? 0), useLineFallback ? Math.round(lineGood * weight) : 0);
           const prev = sku_id ? (actualBySku.get(sku_id) ?? 0) : 0;
-          // Never let an automatic sync drive the actual backwards (covers
-          // manual edits + cumulative iTouching counts that may dip).
-          const actual = Math.max(prev, itouchActual);
+          const prevNotes = sku_id ? notesBySku.get(sku_id) : undefined;
+          // Operator production is manual-only. iTouching may populate schedule,
+          // order quantities, scrap, metrics and intouch_qty, but must never
+          // pre-fill or change production_items.actual_qty.
+          const actual = prev;
           const manualTarget = sku_id ? manualTargetBySku.get(sku_id) : undefined;
           const plan = manualTarget != null ? manualTarget : planAuto;
           const scrap_qty = Math.round(scrapByCode.get(code) ?? 0);
@@ -1370,7 +1374,9 @@ Deno.serve(async (req) => {
             scrap_qty,
             blender_ref: sku_id ? (blenderBySku.get(sku_id) ?? null) : null,
             target_manual_at: manualTarget != null ? new Date().toISOString() : null,
-            notes: `itouching:${source}${matched > 0 ? "+per_sku" : (useLineFallback ? "+line_good" : "")}${manualTarget != null ? "+manual_target" : ""}`,
+            notes: prevNotes === "operator_manual"
+              ? prevNotes
+              : `itouching:${source}${matched > 0 ? "+per_sku" : (useLineFallback ? "+line_good" : "")}${manualTarget != null ? "+manual_target" : ""}`,
           };
         })
         .filter((r) => r.sku_id);

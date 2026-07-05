@@ -4,11 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Save, Check, Loader2, Trash2, X, Clock, Package } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/AuthContext";
 import { formatMinutes } from "@/lib/formatDuration";
 
 type Item = {
@@ -28,12 +26,6 @@ interface Props {
   ragPlanQty: number;
   items: Item[];
   canEdit: boolean;
-}
-
-function ragColor(pct: number): string {
-  if (pct >= 90) return "bg-green-600";
-  if (pct >= 70) return "bg-amber-500";
-  return "bg-red-600";
 }
 
 function ragText(pct: number): string {
@@ -57,7 +49,6 @@ export function ProductionInputCard({
   canEdit,
 }: Props) {
   const qc = useQueryClient();
-  const { user: _user } = useAuth() as any;
 
   const skuCodes = useMemo(
     () => Array.from(new Set(items.map((i) => i.code).filter(Boolean))),
@@ -118,7 +109,7 @@ export function ProductionInputCard({
     setSaveState((s) => ({ ...s, [it.id]: "saving" }));
     const { error } = await (supabase as any)
       .from("production_items")
-      .update({ actual_qty: n })
+      .update({ actual_qty: n, notes: "operator_manual" })
       .eq("id", it.id);
     if (error) {
       toast.error(error.message);
