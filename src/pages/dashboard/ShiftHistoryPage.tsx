@@ -508,24 +508,17 @@ export default function ShiftHistoryPage() {
                               <span className="text-xs font-mono">{i.blender_ref || "—"}</span>
                             )}
                           </td>
-                          <td className="p-2 text-right tabular-nums">{weight ? weight.toLocaleString() : "—"}</td>
                           <td className="p-2 text-right tabular-nums">
-                            {i.id && i.sku_id && !s.locked && effIsBag ? (
-                              <InlineActualInput
-                                itemId={i.id}
-                                value={bag}
-                                invalidateKeys={[["shift_history"]]}
-                              />
-                            ) : (bag ? bag.toLocaleString() : "—")}
-                          </td>
-                          <td className="p-2 text-right tabular-nums">
-                            {i.id && i.sku_id && !s.locked && effIsTub ? (
-                              <InlineActualInput
-                                itemId={i.id}
-                                value={tubs}
-                                invalidateKeys={[["shift_history"]]}
-                              />
-                            ) : (tubs ? tubs.toLocaleString() : "—")}
+                            {weight ? weight.toLocaleString() : "—"}
+                            {i.id && i.sku_id && !s.locked ? (
+                              <div className="mt-1">
+                                <InlineActualInput
+                                  itemId={i.id}
+                                  value={a}
+                                  invalidateKeys={[["shift_history"]]}
+                                />
+                              </div>
+                            ) : (a ? <div className="text-xs text-muted-foreground">{a.toLocaleString()}</div> : null)}
                           </td>
                           <td className="p-2">
                             <div className="flex items-center justify-end gap-1">
