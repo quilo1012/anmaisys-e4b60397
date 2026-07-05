@@ -148,12 +148,26 @@ Deno.serve(async (req) => {
       .select("id,endpoint,p256dh,auth,user_id")
       .in("user_id", userIds);
 
+    // Per-line logo (falls back to favicon). Path is relative to app origin;
+    // the SW resolves it against its own origin when displaying.
+    const LINE_ICONS: Record<string, string> = {
+      "line 1": "/__l5e/assets-v1/06127e1c-d58f-4b7e-a729-3a165f28a9dd/line1.png",
+      "line 2": "/__l5e/assets-v1/408fe0b8-2aa1-4d3a-8513-6a4fb551eeb9/line2.png",
+      "line 3": "/__l5e/assets-v1/f87924d7-cede-40a4-96ec-8456bb12d9cf/line3.png",
+      "line 4": "/__l5e/assets-v1/bda8e82a-6bad-405a-bef0-929961018e4c/line4.png",
+      "line 5": "/__l5e/assets-v1/1dbd0626-102b-4acf-af3e-e768a59568d1/line5.png",
+      "line 6": "/__l5e/assets-v1/bac602da-335e-483a-b2f7-2b98389eeb98/line6.png",
+      "tablet line": "/__l5e/assets-v1/7aef556e-9a8a-435e-a554-a90484b0e14e/tablet.png",
+    };
+    const key = (line.name ?? "").toLowerCase().trim();
+    const icon = LINE_ICONS[key] || "/favicon.ico";
+
     const payload = JSON.stringify({
       title,
       body: bodyText,
       tag: `line-chat-${line_id}`,
-      icon: "/favicon.ico",
-      badge: "/favicon.ico",
+      icon,
+      badge: icon,
       data: { url: "/", line_id },
     });
 
