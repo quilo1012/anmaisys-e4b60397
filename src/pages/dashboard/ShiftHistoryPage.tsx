@@ -136,6 +136,50 @@ function InlineUnitToggle({
   );
 }
 
+/** Inline numeric input tied to a specific unit (tubs|bags). Writes actual_qty
+ *  and tickets_unit atomically on blur. If the row currently stores the OTHER
+ *  unit, editing this one switches unit and overwrites qty. */
+function InlineUnitQtyInput({
+  itemId, unit, value, disabled, onSaved,
+}: {
+  itemId: string; unit: "tubs" | "bags"; value: number;
+  disabled?: boolean; onSaved: () => void;
+}) {
+  const initial = value ? String(value) : "";
+  const [val, setVal] = useState(initial);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setVal(initial); }, [initial]);
+  const commit = async () => {
+    if (val === initial) return;
+    const n = val === "" ? 0 : Number(val);
+    if (!Number.isFinite(n) || n < 0) { setVal(initial); return; }
+    setSaving(true);
+    const { error } = await supabase.from("production_items")
+      .update({ actual_qty: n, tickets_unit: unit } as never).eq("id", itemId);
+    setSaving(false);
+    if (error) { toast.error(error.message); setVal(initial); return; }
+    setSaved(true); setTimeout(() => setSaved(false), 1500);
+    onSaved();
+  };
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-[10px] uppercase text-muted-foreground w-8">{unit === "tubs" ? "Tubs" : "Bags"}</span>
+      <Input
+        type="number" inputMode="numeric" disabled={disabled || saving} value={val}
+        placeholder="0"
+        onChange={(e) => setVal(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+          if (e.key === "Escape") { setVal(initial); (e.target as HTMLInputElement).blur(); }
+        }}
+        className="h-8 w-16 text-right px-1 tabular-nums text-xs"
+      />
+      {saved && <Check className="h-3 w-3 text-emerald-500" />}
+    </div>
+  );
+}
+
 
 
 
