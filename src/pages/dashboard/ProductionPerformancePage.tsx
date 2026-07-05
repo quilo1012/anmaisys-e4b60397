@@ -87,11 +87,26 @@ export default function ProductionPerformancePage() {
         .gte("session_date", range.from).lte("session_date", range.to);
       if (shift !== "all") q = q.eq("shift", shift);
       if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
-      const { data, error } = await q;
+
+      // Target comes from RAG Weekly (plan_qty), NOT from SKU per-item targets.
+      let rq = supabase.from("rag_weekly_entries")
+        .select("entry_date, line, shift, plan_qty")
+        .gte("entry_date", range.from).lte("entry_date", range.to);
+      if (shift !== "all") rq = rq.eq("shift", shift);
+      if (lineFilter !== "__all__") rq = rq.eq("line", lineFilter);
+
+      const [{ data, error }, { data: ragData, error: ragErr }] = await Promise.all([q, rq]);
       if (error) throw error;
+      if (ragErr) throw ragErr;
+
+      const ragMap = new Map<string, number>();
+      for (const r of (ragData ?? []) as { entry_date: string; line: string; shift: string; plan_qty: number | null }[]) {
+        ragMap.set(`${r.entry_date}|${r.line}|${r.shift}`, Number(r.plan_qty ?? 0));
+      }
+
       return (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null }[] }) => {
         const items = s.production_items ?? [];
-        const target = items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
+        const target = ragMap.get(`${s.session_date}|${s.line}|${s.shift}`) ?? 0;
         const actual = items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
         return { id: s.id, session_date: s.session_date, shift: s.shift, line: s.line, leader_name: s.leader_name, locked: s.locked, target, actual, eff: target > 0 ? (actual / target) * 100 : 0, items: items.map((i) => ({ sku_id: i.sku_id, actual: Number(i.actual_qty ?? 0) })) };
       });
