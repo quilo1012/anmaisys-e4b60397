@@ -416,14 +416,12 @@ export default function ShiftHistoryPage() {
                     <th className="text-left p-2">Shift</th>
                     <th className="text-left p-2">Filler Line</th>
                     <th className="text-left p-2">Leader</th>
-                    <th className="text-right p-2">Tickets</th>
+                    <th className="text-right p-2"></th>
                     <th className="text-left p-2">SKU</th>
 
                     <th className="text-left p-2">Product Description</th>
                     <th className="text-left p-2">Batch</th>
                     <th className="text-right p-2">Weight</th>
-                    <th className="text-right p-2">Bag</th>
-                    <th className="text-right p-2">Tubs</th>
                     <th className="text-right p-2 w-28">Actions</th>
                   </tr>
                 </thead>
