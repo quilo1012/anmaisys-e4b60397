@@ -270,6 +270,7 @@ export function ProductionInputCard({
       qc.invalidateQueries({ queryKey: ["blender-entries"] });
       qc.invalidateQueries({ queryKey: ["rag-actual-stamp"] });
       qc.invalidateQueries({ queryKey: ["lps-items", sessionId] });
+      qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
       qc.invalidateQueries({ queryKey: ["lps-rag-plan"] });
     },
     onError: (e: Error) => toast.error(e.message),
