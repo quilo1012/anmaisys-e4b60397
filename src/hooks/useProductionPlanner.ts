@@ -73,7 +73,7 @@ export function useSkuProducts(activeOnly = true) {
   return useQuery({
     queryKey: ["sku_products", activeOnly],
     queryFn: async () => {
-      let q = supabase.from("sku_products").select("*").order("code");
+      let q = supabase.from("sku_products").select("*").order("code").limit(5000);
       if (activeOnly) q = q.eq("active", true);
       const { data, error } = await q;
       if (error) throw error;
