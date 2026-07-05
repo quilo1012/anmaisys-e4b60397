@@ -155,10 +155,8 @@ export function ProductionInputCard({
       <CardContent className="p-4 md:p-6 space-y-3">
         {uniqueItems.map((it) => {
           const state = saveState[it.id] || "idle";
-          const orderQty = Number(it.target_qty || 0);
-          const produced = Number(values[it.id] || 0);
-          const pct = orderQty > 0 ? (produced / orderQty) * 100 : 0;
           const uph = speedsQ.data?.get(it.code);
+          const orderQty = Number(it.target_qty || 0);
           const fillMinutes = uph && orderQty > 0 ? (orderQty / uph) * 60 : null;
 
           return (
@@ -167,6 +165,12 @@ export function ProductionInputCard({
                 <div>
                   <div className="font-mono text-sm font-semibold">{it.code}</div>
                   <div className="text-xs text-muted-foreground">{it.name}</div>
+                  {fillMinutes !== null && (
+                    <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      Est. fill time: <span className="font-medium">{formatMinutes(fillMinutes)}</span>
+                    </div>
+                  )}
                 </div>
                 {canEdit && (
                   <Button
@@ -218,27 +222,6 @@ export function ProductionInputCard({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Order Qty</div>
-                    <div className="font-semibold tabular-nums">{orderQty.toLocaleString()}</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Est. Fill Time</div>
-                    <div className="font-semibold tabular-nums">
-                      {fillMinutes !== null ? formatMinutes(fillMinutes) : (
-                        <span className="text-xs text-muted-foreground font-normal">No historical data</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <div className="flex items-end gap-2 flex-wrap">
                 <div className="flex-1 min-w-[180px]">
                   <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Total Produced</div>
@@ -274,9 +257,6 @@ export function ProductionInputCard({
                   )}
                   {state === "saved" ? "Saved" : "Save"}
                 </Button>
-                <Badge className={cn("h-10 px-3 text-base text-white", ragColor(pct))}>
-                  {pct.toFixed(0)}%
-                </Badge>
               </div>
             </div>
           );
