@@ -272,13 +272,6 @@ function OperatorDashboardContent() {
 
 
 
-      {lineName && (
-        <DailyTargetCard
-          line={lineName}
-          entryDate={format(new Date(), "yyyy-MM-dd")}
-          shift={getShift(new Date()) === "night" ? "NIGHT" : "DAY"}
-        />
-      )}
 
       <div id="wo-form-anchor" />
 
