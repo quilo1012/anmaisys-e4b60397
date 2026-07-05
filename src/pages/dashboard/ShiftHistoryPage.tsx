@@ -45,7 +45,7 @@ function InlineLeaderCell({
   return (
     <div className="flex items-center gap-1">
       <Select value={leaderId ?? ""} onValueChange={save} disabled={disabled || saving}>
-        <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+        <SelectTrigger className={cn("h-8 w-[140px] text-xs", !leaderId && "text-muted-foreground")}><SelectValue placeholder="-- Select --" /></SelectTrigger>
         <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
       </Select>
       {saved && <Check className="h-4 w-4 text-emerald-500" />}
