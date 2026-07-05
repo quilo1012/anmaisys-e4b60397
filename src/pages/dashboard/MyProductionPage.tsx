@@ -32,7 +32,10 @@ function ragText(pct: number): string {
 
 function manualActualQty(row: any): number {
   const notes = String(row.notes ?? "");
-  if (notes.startsWith("itouching:")) return 0;
+  const createdAt = row.created_at ? new Date(row.created_at).getTime() : 0;
+  const updatedAt = row.updated_at ? new Date(row.updated_at).getTime() : 0;
+  const wasEditedAfterSync = createdAt > 0 && updatedAt > createdAt + 1000;
+  if (notes.startsWith("itouching:") && !wasEditedAfterSync) return 0;
   return Number(row.actual_qty ?? 0);
 }
 
@@ -102,7 +105,7 @@ function MyProductionContent() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("id, sku_id, target_qty, planned_qty, actual_qty, notes, created_at, sku:sku_products(code, name)")
+        .select("id, sku_id, target_qty, planned_qty, actual_qty, notes, created_at, updated_at, sku:sku_products(code, name)")
         .eq("session_id", sessionId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
