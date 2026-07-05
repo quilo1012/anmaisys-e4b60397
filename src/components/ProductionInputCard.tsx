@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Save, ClipboardList, Check, Loader2, Trash2, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Save, Check, Loader2, Trash2, X, Clock, Package } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatMinutes } from "@/lib/formatDuration";
 
 type Item = {
   id: string;
@@ -17,8 +19,6 @@ type Item = {
   target_qty: number;
   actual_qty: number;
 };
-
-type BlenderRow = { id: string; production_item_id: string; blender_number: number; quantity: number };
 
 interface Props {
   sessionId: string;
@@ -30,468 +30,257 @@ interface Props {
   canEdit: boolean;
 }
 
+function ragColor(pct: number): string {
+  if (pct >= 90) return "bg-green-600";
+  if (pct >= 70) return "bg-amber-500";
+  return "bg-red-600";
+}
+
 /**
- * Operator "Production Input" — enter per-SKU produced quantities with optional
- * Blender 1..4 split. Writes to production_blender_entries (trigger updates
- * production_items.actual_qty), and optionally overrides rag_weekly_entries.actual_qty.
+ * Operator "Production Input" — manual-only per-SKU entry.
+ * Shows Order Qty, estimated fill time (from sku_line_speeds.avg_units_per_hour),
+ * a Total Produced field (100% manual, no iTouching pre-fill), and % completion.
  */
 export function ProductionInputCard({
   sessionId,
-  sessionDate,
+  sessionDate: _sessionDate,
   line,
   shift,
-  ragPlanQty,
+  ragPlanQty: _ragPlanQty,
   items,
   canEdit,
 }: Props) {
   const qc = useQueryClient();
-  const { user, profile } = useAuth() as any;
+  const { user: _user } = useAuth() as any;
 
-  // Group items by SKU code — if the same SKU appears more than once in the shift, show blender split.
-  const groups = useMemo(() => {
-    const m = new Map<string, Item[]>();
+  // De-duplicate items by SKU code (keep the row with the highest target_qty).
+  const uniqueItems = useMemo(() => {
+    const m = new Map<string, Item>();
     for (const it of items) {
       const key = it.code || it.sku_id;
-      if (!m.has(key)) m.set(key, []);
-      m.get(key)!.push(it);
+      const prev = m.get(key);
+      if (!prev || (it.target_qty || 0) > (prev.target_qty || 0)) m.set(key, it);
     }
-    return Array.from(m.entries());
+    return Array.from(m.values());
   }, [items]);
 
-  const itemIds = items.map((i) => i.id);
+  const skuCodes = uniqueItems.map((i) => i.code).filter(Boolean);
 
-  const blendersQ = useQuery({
-    enabled: itemIds.length > 0,
-    queryKey: ["blender-entries", sessionId, itemIds.join(",")],
+  // Lookup average units-per-hour from sku_line_speeds for est. fill time.
+  const speedsQ = useQuery({
+    enabled: !!line && skuCodes.length > 0,
+    queryKey: ["sku-line-speeds", line, shift, skuCodes.sort().join(",")],
+    staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
-        .from("production_blender_entries")
-        .select("id, production_item_id, blender_number, quantity")
-        .in("production_item_id", itemIds);
+        .from("sku_line_speeds")
+        .select("sku_code, avg_units_per_hour")
+        .eq("line_name", line)
+        .in("sku_code", skuCodes);
       if (error) throw error;
-      return (data || []) as BlenderRow[];
+      const map = new Map<string, number>();
+      for (const r of data || []) {
+        const v = Number(r.avg_units_per_hour || 0);
+        if (v > 0) map.set(r.sku_code, v);
+      }
+      return map;
     },
-    refetchInterval: 30_000,
   });
 
-  const ragQ = useQuery({
-    queryKey: ["rag-actual-stamp", sessionDate, line, shift],
-    queryFn: async () => {
-      const { data } = await (supabase as any)
-        .from("rag_weekly_entries")
-        .select("actual_qty, updated_at, actual_updated_by, id")
-        .eq("entry_date", sessionDate)
-        .eq("line", line)
-        .eq("shift", shift)
-        .maybeSingle();
-      return data as { actual_qty: number; updated_at: string; actual_updated_by: string | null; id: string } | null;
-    },
-    refetchInterval: 30_000,
-  });
-
-  // Local edit state: itemId -> { [blender]: value }
-  const [values, setValues] = useState<Record<string, Record<number, string>>>({});
-  const [totalOverride, setTotalOverride] = useState<string>("");
-  const [manualTotal, setManualTotal] = useState(false);
-
+  // Local editable Total Produced per item.
+  const [values, setValues] = useState<Record<string, string>>({});
   useEffect(() => {
-    const next: Record<string, Record<number, string>> = {};
-    for (const it of items) next[it.id] = {};
-    for (const b of blendersQ.data || []) {
-      if (!next[b.production_item_id]) next[b.production_item_id] = {};
-      next[b.production_item_id][b.blender_number] = String(b.quantity);
-    }
-    setValues(next);
-  }, [blendersQ.data, items.map((i) => i.id).join(",")]);
+    setValues((prev) => {
+      const next: Record<string, string> = {};
+      for (const it of uniqueItems) {
+        next[it.id] = prev[it.id] ?? String(it.actual_qty ?? 0);
+      }
+      return next;
+    });
+  }, [uniqueItems.map((i) => `${i.id}:${i.actual_qty}`).join("|")]);
 
-  const subtotalForItem = (itemId: string, showSplit: boolean) => {
-    const v = values[itemId] || {};
-    if (showSplit) {
-      return [1, 2, 3, 4].reduce((s, n) => s + (Number(v[n] || 0) || 0), 0);
-    }
-    return Number(v[1] || 0) || 0;
+  const [saveState, setSaveState] = useState<Record<string, "idle" | "saving" | "saved">>({});
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
+    qc.invalidateQueries({ queryKey: ["blender-entries"] });
+    qc.invalidateQueries({ queryKey: ["lps-items", sessionId] });
+    qc.invalidateQueries({ queryKey: ["rag-actual-stamp"] });
   };
 
-  const computedTotal = useMemo(() => {
-    let sum = 0;
-    for (const [code, its] of groups) {
-      const split = its.length > 1;
-      for (const it of its) sum += subtotalForItem(it.id, split);
+  const saveItem = async (it: Item) => {
+    const raw = values[it.id];
+    const n = Number(raw ?? 0);
+    if (!Number.isFinite(n) || n < 0) {
+      toast.error("Enter a valid quantity");
+      return;
     }
-    return sum;
-  }, [values, groups]);
+    setSaveState((s) => ({ ...s, [it.id]: "saving" }));
+    const { error } = await (supabase as any)
+      .from("production_items")
+      .update({ actual_qty: n })
+      .eq("id", it.id);
+    if (error) {
+      toast.error(error.message);
+      setSaveState((s) => ({ ...s, [it.id]: "idle" }));
+      return;
+    }
+    setSaveState((s) => ({ ...s, [it.id]: "saved" }));
+    invalidateAll();
+    setTimeout(() => setSaveState((s) => ({ ...s, [it.id]: "idle" })), 2000);
+  };
 
-  useEffect(() => {
-    if (!manualTotal) setTotalOverride(String(computedTotal));
-  }, [computedTotal, manualTotal]);
-
-  // Per-SKU save state: "idle" | "saving" | "saved"
-  const [skuSaveState, setSkuSaveState] = useState<Record<string, "idle" | "saving" | "saved">>({});
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [deletingCode, setDeletingCode] = useState<string | null>(null);
-
-  const deleteSku = async (code: string, its: Item[]) => {
-    setDeletingCode(code);
+  const deleteItem = async (it: Item) => {
+    setDeletingId(it.id);
     try {
-      const ids = its.map((i) => i.id);
-      // Blender rows first (FK), then production_items.
-      await (supabase as any).from("production_blender_entries").delete().in("production_item_id", ids);
-      const { error } = await (supabase as any).from("production_items").delete().in("id", ids);
+      await (supabase as any).from("production_blender_entries").delete().eq("production_item_id", it.id);
+      const { error } = await (supabase as any).from("production_items").delete().eq("id", it.id);
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
-      qc.invalidateQueries({ queryKey: ["blender-entries"] });
-      qc.invalidateQueries({ queryKey: ["lps-items", sessionId] });
-      toast.success(`Removed ${code} from this shift`);
+      toast.success(`Removed ${it.code} from this shift`);
       setConfirmDelete(null);
+      invalidateAll();
     } catch (e: any) {
       toast.error(e.message || "Failed to remove SKU");
     } finally {
-      setDeletingCode(null);
+      setDeletingId(null);
     }
   };
 
-  const saveSku = async (code: string, its: Item[]) => {
-    const split = its.length > 1;
-    const itemIdsForSku = its.map((i) => i.id);
-    setSkuSaveState((s) => ({ ...s, [code]: "saving" }));
-    try {
-      if (split) {
-        // Replace blender rows for this SKU's items only
-        const { error: delErr } = await (supabase as any)
-          .from("production_blender_entries")
-          .delete()
-          .in("production_item_id", itemIdsForSku);
-        if (delErr) throw delErr;
-        const rows: any[] = [];
-        for (const it of its) {
-          const v = values[it.id] || {};
-          for (const n of [1, 2, 3, 4]) {
-            const q = Number(v[n] || 0) || 0;
-            if (q > 0) rows.push({
-              session_id: sessionId,
-              production_item_id: it.id,
-              blender_number: n,
-              quantity: q,
-              entered_by: user?.id ?? null,
-            });
-          }
-        }
-        if (rows.length > 0) {
-          const { error: insErr } = await (supabase as any)
-            .from("production_blender_entries")
-            .insert(rows);
-          if (insErr) throw insErr;
-        }
-      } else {
-        const it = its[0];
-        const v = values[it.id] || {};
-        const q = Number(v[1] || 0) || 0;
-        const { error: updErr } = await (supabase as any)
-          .from("production_items")
-          .update({ actual_qty: q })
-          .eq("id", it.id);
-        if (updErr) throw updErr;
-      }
-
-      // Recalculate total from local state and update RAG if no manual override
-      if (!manualTotal && ragQ.data?.id) {
-        let sum = 0;
-        for (const [, gits] of groups) {
-          const gsplit = gits.length > 1;
-          for (const gi of gits) sum += subtotalForItem(gi.id, gsplit);
-        }
-        const { error: ragErr } = await (supabase as any)
-          .from("rag_weekly_entries")
-          .update({ actual_qty: sum, actual_updated_by: user?.id ?? null })
-          .eq("id", ragQ.data.id);
-        if (ragErr) throw ragErr;
-      }
-
-      qc.invalidateQueries({ queryKey: ["blender-entries"] });
-      qc.invalidateQueries({ queryKey: ["rag-actual-stamp"] });
-      qc.invalidateQueries({ queryKey: ["lps-items", sessionId] });
-      qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
-      qc.invalidateQueries({ queryKey: ["lps-rag-plan"] });
-      setSkuSaveState((s) => ({ ...s, [code]: "saved" }));
-      setTimeout(() => setSkuSaveState((s) => ({ ...s, [code]: "idle" })), 2000);
-    } catch (e: any) {
-      toast.error(e.message || "Failed to save");
-      setSkuSaveState((s) => ({ ...s, [code]: "idle" }));
-    }
-  };
-
-  const saveMut = useMutation({
-    mutationFn: async () => {
-      // 1) Delete existing blender rows for these items
-      if (itemIds.length > 0) {
-        const { error: delErr } = await (supabase as any)
-          .from("production_blender_entries")
-          .delete()
-          .in("production_item_id", itemIds);
-        if (delErr) throw delErr;
-      }
-
-      // 2) Insert fresh rows
-      const rows: any[] = [];
-      for (const [_code, its] of groups) {
-        const split = its.length > 1;
-        for (const it of its) {
-          const v = values[it.id] || {};
-          if (split) {
-            for (const n of [1, 2, 3, 4]) {
-              const q = Number(v[n] || 0) || 0;
-              if (q > 0) rows.push({
-                session_id: sessionId,
-                production_item_id: it.id,
-                blender_number: n,
-                quantity: q,
-                entered_by: user?.id ?? null,
-              });
-            }
-          } else {
-            const q = Number(v[1] || 0) || 0;
-            if (q > 0) rows.push({
-              session_id: sessionId,
-              production_item_id: it.id,
-              blender_number: 1,
-              quantity: q,
-              entered_by: user?.id ?? null,
-            });
-          }
-        }
-      }
-      if (rows.length > 0) {
-        const { error: insErr } = await (supabase as any)
-          .from("production_blender_entries")
-          .insert(rows);
-        if (insErr) throw insErr;
-      }
-
-      // 3) If manual total override differs from computed sum, force RAG actual_qty.
-      const totalToWrite = manualTotal ? Number(totalOverride || 0) : computedTotal;
-      if (manualTotal && ragQ.data?.id) {
-        const { error: ragErr } = await (supabase as any)
-          .from("rag_weekly_entries")
-          .update({
-            actual_qty: totalToWrite,
-            actual_updated_by: user?.id ?? null,
-          })
-          .eq("id", ragQ.data.id);
-        if (ragErr) throw ragErr;
-      } else if (ragQ.data?.id) {
-        // Still stamp who saved
-        await (supabase as any)
-          .from("rag_weekly_entries")
-          .update({ actual_updated_by: user?.id ?? null })
-          .eq("id", ragQ.data.id);
-      }
-    },
-    onSuccess: () => {
-      toast.success("Production saved");
-      setManualTotal(false);
-      qc.invalidateQueries({ queryKey: ["blender-entries"] });
-      qc.invalidateQueries({ queryKey: ["rag-actual-stamp"] });
-      qc.invalidateQueries({ queryKey: ["lps-items", sessionId] });
-      qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
-      qc.invalidateQueries({ queryKey: ["lps-rag-plan"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  if (items.length === 0) return null;
-
-  const stamp = ragQ.data?.updated_at ? new Date(ragQ.data.updated_at) : null;
-  const stampBy = (profile as any)?.name || "";
+  if (uniqueItems.length === 0) return null;
 
   return (
     <Card className="mt-4 border-primary/30">
-      <CardContent className="p-4 md:p-6 space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-muted-foreground" />
-            <span className="text-base font-semibold">Production Input</span>
-          </div>
-          <Button
-            onClick={() => saveMut.mutate()}
-            disabled={!canEdit || saveMut.isPending}
-            className="h-11 px-5"
-          >
-            <Save className="h-4 w-4 mr-2" />
-            Save shift totals
-          </Button>
-        </div>
+      <CardContent className="p-4 md:p-6 space-y-3">
+        {uniqueItems.map((it) => {
+          const state = saveState[it.id] || "idle";
+          const orderQty = Number(it.target_qty || 0);
+          const produced = Number(values[it.id] || 0);
+          const pct = orderQty > 0 ? (produced / orderQty) * 100 : 0;
+          const uph = speedsQ.data?.get(it.code);
+          const fillMinutes = uph && orderQty > 0 ? (orderQty / uph) * 60 : null;
 
-        <div className="space-y-3">
-          {groups.map(([code, its]) => {
-            const split = its.length > 1;
-            const first = its[0];
-            const state = skuSaveState[code] || "idle";
-            const SaveBtn = (
-              <Button
-                type="button"
-                size="sm"
-                variant={state === "saved" ? "default" : "outline"}
-                className={cn("h-9", state === "saved" && "bg-green-600 hover:bg-green-600 text-white")}
-                disabled={!canEdit || state === "saving"}
-                onClick={() => saveSku(code, its)}
-              >
-                {state === "saving" ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <Check className="h-4 w-4 mr-1" />
-                )}
-                Save
-              </Button>
-            );
-            const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-              if (e.key === "Enter") { e.preventDefault(); saveSku(code, its); }
-            };
-            return (
-              <div key={code} className="rounded-lg border bg-card/50 p-3">
-                <div className="flex items-start justify-between flex-wrap gap-2 mb-2">
-                  <div>
-                    <div className="font-mono text-sm font-semibold">{first.code}</div>
-                    <div className="text-xs text-muted-foreground">{first.name}</div>
-                  </div>
-                  {canEdit && (
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => setConfirmDelete(code)}
-                      aria-label={`Remove ${code}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
+          return (
+            <div key={it.id} className="rounded-lg border bg-card/50 p-3 space-y-3">
+              <div className="flex items-start justify-between flex-wrap gap-2">
+                <div>
+                  <div className="font-mono text-sm font-semibold">{it.code}</div>
+                  <div className="text-xs text-muted-foreground">{it.name}</div>
                 </div>
-
-                {confirmDelete === code && (
-                  <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-2">
-                    <div className="text-sm">
-                      Remove this SKU from this shift? This won't affect the schedule in iTouching.
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        className="h-8"
-                        disabled={deletingCode === code}
-                        onClick={() => deleteSku(code, its)}
-                      >
-                        {deletingCode === code ? (
-                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                        ) : (
-                          <Check className="h-4 w-4 mr-1" />
-                        )}
-                        Confirm
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8"
-                        disabled={deletingCode === code}
-                        onClick={() => setConfirmDelete(null)}
-                      >
-                        <X className="h-4 w-4 mr-1" />
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-
-                {split ? (
-                  <div className="space-y-2">
-                    {its.map((it, idx) => (
-                      <div key={it.id} className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs text-muted-foreground min-w-[70px]">Blender {idx + 1}</span>
-                        {[1, 2, 3, 4].map((n) => (
-                          <Input
-                            key={n}
-                            type="number"
-                            inputMode="numeric"
-                            className="h-9 w-24"
-                            placeholder={`B${n}`}
-                            value={values[it.id]?.[n] ?? ""}
-                            onChange={(e) =>
-                              setValues((prev) => ({
-                                ...prev,
-                                [it.id]: { ...(prev[it.id] || {}), [n]: e.target.value },
-                              }))
-                            }
-                            onBlur={() => saveSku(code, its)}
-                            onKeyDown={onKey}
-                            disabled={!canEdit}
-                          />
-                        ))}
-                        <span className="text-xs text-muted-foreground ml-auto">
-                          Subtotal: <span className="font-semibold tabular-nums">{subtotalForItem(it.id, true).toLocaleString()}</span>
-                        </span>
-                        {idx === its.length - 1 && SaveBtn}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Total Produced</span>
-                    <Input
-                      type="number"
-                      inputMode="numeric"
-                      className="h-9 w-32"
-                      value={values[first.id]?.[1] ?? ""}
-                      onChange={(e) =>
-                        setValues((prev) => ({
-                          ...prev,
-                          [first.id]: { ...(prev[first.id] || {}), 1: e.target.value },
-                        }))
-                      }
-                      onBlur={() => saveSku(code, its)}
-                      onKeyDown={onKey}
-                      disabled={!canEdit}
-                    />
-                    <div className="ml-auto">{SaveBtn}</div>
-                  </div>
+                {canEdit && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setConfirmDelete(it.id)}
+                    aria-label={`Remove ${it.code}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 )}
               </div>
-            );
-          })}
-        </div>
 
-        <div className="border-t pt-3 flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold">Total Produced This Shift</span>
-            <Input
-              type="number"
-              inputMode="numeric"
-              className={cn("h-10 w-36 font-semibold tabular-nums", manualTotal && "border-primary ring-2 ring-primary/30")}
-              value={totalOverride}
-              onChange={(e) => {
-                setTotalOverride(e.target.value);
-                setManualTotal(true);
-              }}
-              disabled={!canEdit}
-            />
-            {manualTotal && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs"
-                onClick={() => { setManualTotal(false); setTotalOverride(String(computedTotal)); }}
-              >
-                Reset to sum
-              </Button>
-            )}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {stamp ? (
-              <>Last saved: {stamp.toLocaleString("en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}{stampBy ? ` by ${stampBy}` : ""}</>
-            ) : "Not saved yet"}
-          </div>
-        </div>
+              {confirmDelete === it.id && (
+                <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+                  <div className="text-sm">
+                    Remove this SKU from this shift? This won't affect the schedule in iTouching.
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      className="h-8"
+                      disabled={deletingId === it.id}
+                      onClick={() => deleteItem(it)}
+                    >
+                      {deletingId === it.id ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4 mr-1" />
+                      )}
+                      Confirm
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      disabled={deletingId === it.id}
+                      onClick={() => setConfirmDelete(null)}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Order Qty</div>
+                    <div className="font-semibold tabular-nums">{orderQty.toLocaleString()}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Est. Fill Time</div>
+                    <div className="font-semibold tabular-nums">
+                      {fillMinutes !== null ? formatMinutes(fillMinutes) : (
+                        <span className="text-xs text-muted-foreground font-normal">No historical data</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-end gap-2 flex-wrap">
+                <div className="flex-1 min-w-[180px]">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Total Produced</div>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    className="h-10 w-full tabular-nums"
+                    placeholder="Enter quantity produced..."
+                    value={values[it.id] ?? ""}
+                    onChange={(e) => setValues((prev) => ({ ...prev, [it.id]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); saveItem(it); }
+                    }}
+                    disabled={!canEdit}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  className={cn(
+                    "h-10",
+                    state === "saved" && "bg-green-600 hover:bg-green-600 text-white",
+                  )}
+                  variant={state === "saved" ? "default" : "default"}
+                  disabled={!canEdit || state === "saving"}
+                  onClick={() => saveItem(it)}
+                >
+                  {state === "saving" ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : state === "saved" ? (
+                    <Check className="h-4 w-4 mr-1" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-1" />
+                  )}
+                  {state === "saved" ? "Saved" : "Save"}
+                </Button>
+                <Badge className={cn("h-10 px-3 text-base text-white", ragColor(pct))}>
+                  {pct.toFixed(0)}%
+                </Badge>
+              </div>
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );

@@ -222,12 +222,12 @@ function MyProductionContent() {
             <CardContent className="p-4 md:p-6 flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-4 flex-wrap">
                 <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Produced</div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Produced This Shift</div>
                   <div className="text-2xl font-bold tabular-nums">{totalActual.toLocaleString()}</div>
                 </div>
                 <div className="text-muted-foreground">/</div>
                 <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Target</div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Order Qty</div>
                   <div className="text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
                 </div>
                 <Badge className={cn("text-white text-base px-3 py-1", ragColor(overallPct))}>
