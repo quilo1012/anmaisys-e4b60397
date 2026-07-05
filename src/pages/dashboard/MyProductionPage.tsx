@@ -146,7 +146,7 @@ function MyProductionContent() {
 
   const submitShift = () => {
     toast.success("Shift totals submitted", {
-      description: `${totalActual.toLocaleString()} of ${totalOrderQty.toLocaleString()} recorded for ${line} — ${shiftLabel}.`,
+      description: `${totalActual.toLocaleString()} of ${totalTarget.toLocaleString()} recorded for ${line} — ${shiftLabel}.`,
     });
   };
 
