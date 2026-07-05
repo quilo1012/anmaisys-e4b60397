@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { OperatorLineGuard } from "@/components/OperatorLineGuard";
@@ -118,26 +118,8 @@ function MyProductionContent() {
     refetchInterval: 30_000,
   });
 
-  const ragPlanQ = useQuery({
-    enabled: !!line,
-    queryKey: ["my-prod-rag-plan", line, today, shift],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("rag_weekly_entries")
-        .select("plan_qty")
-        .eq("entry_date", today)
-        .eq("line", line)
-        .eq("shift", shift)
-        .maybeSingle();
-      if (error) throw error;
-      return Number(data?.plan_qty ?? 0);
-    },
-    refetchInterval: 30_000,
-  });
-
   const items = itemsQ.data || [];
   const totalActual = items.reduce((s, i) => s + (i.actual_qty || 0), 0);
-  const ragPlan = ragPlanQ.data || 0;
   const totalOrderQty = items.reduce((s, i) => s + (i.target_qty || 0), 0);
   const overallPct = totalOrderQty > 0 ? (totalActual / totalOrderQty) * 100 : 0;
   const hasManualProduction = totalActual > 0;
