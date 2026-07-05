@@ -953,6 +953,23 @@ async function fetchRunningJobRows(machines: MachineRef[]) {
   return extractSkuRows(raw, "running_jobs", machines);
 }
 
+// Pull the FULL scheduled-jobs queue from iTouching (both Running + Scheduled),
+// without any window filter — the queue represents everything planned for the
+// machine right now, regardless of when each job is expected to start.
+async function fetchScheduledJobsRows(machines: MachineRef[]): Promise<SkuRow[]> {
+  const out: SkuRow[] = [];
+  for (const m of machines) {
+    if (!m.id) continue;
+    const raw = await tryIt(
+      `/api/appapi/getscheduledjobs?MachineID=${encodeURIComponent(m.id)}`,
+      { method: "GET" },
+    );
+    if (!raw) continue;
+    out.push(...extractSkuRows(raw, "scheduled_jobs", [m]));
+  }
+  return out;
+}
+
 async function fetchJobsRanRows(machines: MachineRef[], startISO: string, endISO: string) {
   const ids = machines.map((m) => m.id);
   const attempts = [
@@ -972,8 +989,21 @@ async function fetchSkuRowsForLine(machines: MachineRef[], startISO: string, end
   // Per-line time budget — never let the schedule probe stall the whole sync.
   const BUDGET_MS = 12_000;
   const run = (async () => {
-    const material = await fetchMaterialRows(machines, startISO, endISO);
-    if (material.rows.length) return { rows: material.rows, source: material.sourcePath || "material_requirements" };
+    // Union the two authoritative "planned for this shift" sources so the
+    // operator always sees every scheduled job — not just the currently-running
+    // one. aggregateRows() dedupes by Part Code afterwards.
+    const [material, scheduled] = await Promise.all([
+      fetchMaterialRows(machines, startISO, endISO),
+      fetchScheduledJobsRows(machines),
+    ]);
+    const combined: SkuRow[] = [...material.rows, ...scheduled];
+    if (combined.length) {
+      const sources = [
+        material.rows.length ? (material.sourcePath || "material_requirements") : null,
+        scheduled.length ? "scheduled_jobs" : null,
+      ].filter(Boolean).join("+");
+      return { rows: combined, source: sources || "material_requirements" };
+    }
 
     const jobChange = await fetchJobChangeRows(machines, startISO, endISO);
     if (jobChange.length) return { rows: jobChange, source: "job_change" };
@@ -991,6 +1021,7 @@ async function fetchSkuRowsForLine(machines: MachineRef[], startISO: string, end
   );
   return await Promise.race([run, timeout]);
 }
+
 
 
 Deno.serve(async (req) => {

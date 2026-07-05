@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Save, ClipboardList, Check, Loader2 } from "lucide-react";
+import { Save, ClipboardList, Check, Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -127,6 +127,28 @@ export function ProductionInputCard({
 
   // Per-SKU save state: "idle" | "saving" | "saved"
   const [skuSaveState, setSkuSaveState] = useState<Record<string, "idle" | "saving" | "saved">>({});
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [deletingCode, setDeletingCode] = useState<string | null>(null);
+
+  const deleteSku = async (code: string, its: Item[]) => {
+    setDeletingCode(code);
+    try {
+      const ids = its.map((i) => i.id);
+      // Blender rows first (FK), then production_items.
+      await (supabase as any).from("production_blender_entries").delete().in("production_item_id", ids);
+      const { error } = await (supabase as any).from("production_items").delete().in("id", ids);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
+      qc.invalidateQueries({ queryKey: ["blender-entries"] });
+      qc.invalidateQueries({ queryKey: ["lps-items", sessionId] });
+      toast.success(`Removed ${code} from this shift`);
+      setConfirmDelete(null);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to remove SKU");
+    } finally {
+      setDeletingCode(null);
+    }
+  };
 
   const saveSku = async (code: string, its: Item[]) => {
     const split = its.length > 1;
@@ -326,12 +348,61 @@ export function ProductionInputCard({
             };
             return (
               <div key={code} className="rounded-lg border bg-card/50 p-3">
-                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                <div className="flex items-start justify-between flex-wrap gap-2 mb-2">
                   <div>
                     <div className="font-mono text-sm font-semibold">{first.code}</div>
                     <div className="text-xs text-muted-foreground">{first.name}</div>
                   </div>
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setConfirmDelete(code)}
+                      aria-label={`Remove ${code}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
+
+                {confirmDelete === code && (
+                  <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+                    <div className="text-sm">
+                      Remove this SKU from this shift? This won't affect the schedule in iTouching.
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        className="h-8"
+                        disabled={deletingCode === code}
+                        onClick={() => deleteSku(code, its)}
+                      >
+                        {deletingCode === code ? (
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4 mr-1" />
+                        )}
+                        Confirm
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        disabled={deletingCode === code}
+                        onClick={() => setConfirmDelete(null)}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
 
                 {split ? (
                   <div className="space-y-2">
