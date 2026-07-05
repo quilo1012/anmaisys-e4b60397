@@ -253,6 +253,46 @@ export default function SmartTargetPage() {
         </CardContent>
       </Card>
 
+      {/* Baseline reference (Apr-Jun 2026 historical) */}
+      {baseline && (
+        <Card className="border-primary/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">
+              Historical baseline — {line} ({baseline.period}, {baseline.days} active days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-4 items-end">
+            <div>
+              <div className="text-xs text-muted-foreground">Smart Target (daily avg)</div>
+              <div className="text-2xl font-bold">{fmt(baseline.avg)}</div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-1"
+                onClick={() => setOverride(String(baseline.avg))}
+                disabled={!canApply}
+              >
+                Use as target
+              </Button>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Stretch Target (daily P90)</div>
+              <div className="text-2xl font-bold text-emerald-500">{fmt(baseline.p90)}</div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-1"
+                onClick={() => setOverride(String(baseline.p90))}
+                disabled={!canApply}
+              >
+                Use as stretch
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+
       {/* Result */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
