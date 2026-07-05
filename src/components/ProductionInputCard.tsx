@@ -348,12 +348,61 @@ export function ProductionInputCard({
             };
             return (
               <div key={code} className="rounded-lg border bg-card/50 p-3">
-                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                <div className="flex items-start justify-between flex-wrap gap-2 mb-2">
                   <div>
                     <div className="font-mono text-sm font-semibold">{first.code}</div>
                     <div className="text-xs text-muted-foreground">{first.name}</div>
                   </div>
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setConfirmDelete(code)}
+                      aria-label={`Remove ${code}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
+
+                {confirmDelete === code && (
+                  <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+                    <div className="text-sm">
+                      Remove this SKU from this shift? This won't affect the schedule in iTouching.
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        className="h-8"
+                        disabled={deletingCode === code}
+                        onClick={() => deleteSku(code, its)}
+                      >
+                        {deletingCode === code ? (
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4 mr-1" />
+                        )}
+                        Confirm
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        disabled={deletingCode === code}
+                        onClick={() => setConfirmDelete(null)}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
 
                 {split ? (
                   <div className="space-y-2">
