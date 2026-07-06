@@ -465,6 +465,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
         // If supabase already has a fresh session, sync it silently.
         if (data.session) {
+          lastKnownSessionRef.current = data.session;
           setSession(data.session);
           setUser(data.session.user);
         }
@@ -510,9 +511,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user?.id]);
 
-  const signOut = async () => {
+  const signOut = async (reason = "user-requested") => {
     // Mark this as an explicit user-initiated sign-out so the SIGNED_OUT
     // listener does not attempt a silent Tablet re-login.
+    logAuthSession("explicit signOut requested", {
+      reason,
+      userId: currentUserIdRef.current,
+      stack: new Error().stack,
+    });
     explicitSignOutRef.current = true;
     try {
       // Wipe persisted Tablet credentials on explicit sign-out only.
@@ -520,6 +526,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
     await supabase.auth.signOut();
     currentUserIdRef.current = null;
+    lastKnownSessionRef.current = null;
     setSession(null);
     setUser(null);
     setRole(null);
@@ -539,6 +546,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const sessionResult = await withTimeout(supabase.auth.getSession(), 10_000, null);
       const currentSession = sessionResult?.data?.session;
       if (currentSession?.user) {
+        lastKnownSessionRef.current = currentSession;
         setSession(currentSession);
         setUser(currentSession.user);
         currentUserIdRef.current = currentSession.user.id;
