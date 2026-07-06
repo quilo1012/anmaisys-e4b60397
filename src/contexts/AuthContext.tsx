@@ -18,7 +18,7 @@ interface AuthContextType {
    *  bouncing the user to /login during the recovery window. */
   silentReLoginInFlight: boolean;
   retryAuth: () => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: (reason?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -59,6 +59,19 @@ export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+function logAuthSession(event: string, details: Record<string, unknown> = {}) {
+  if (typeof console === "undefined") return;
+  console.log("[auth-session]", event, {
+    at: new Date().toISOString(),
+    path: typeof window !== "undefined" ? window.location.pathname : "unknown",
+    ...details,
+  });
+}
+
+function isExpired(session: Session | null) {
+  return !!session?.expires_at && session.expires_at * 1000 <= Date.now();
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -70,9 +83,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [silentReLoginInFlight, setSilentReLoginInFlight] = useState(false);
   const currentUserIdRef = useRef<string | null>(null);
   const roleRef = useRef<AppRole | null>(null);
+  const lastKnownSessionRef = useRef<Session | null>(null);
 
   const explicitSignOutRef = useRef(false);
   const reLoginInFlightRef = useRef(false);
+  const implicitSignOutRecoveryRef = useRef(false);
 
   const TABLET_CRED_KEY = "an_tablet_cred";
   const DEACTIVATED_UNTIL_KEY = "an_account_deactivated_until";
@@ -80,6 +95,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     roleRef.current = role;
   }, [role]);
+
+  useEffect(() => {
+    if (session) lastKnownSessionRef.current = session;
+  }, [session]);
 
   /** Race a promise against a hard timeout so a stalled silent re-login can
    *  never keep the boot spinner up indefinitely. */
