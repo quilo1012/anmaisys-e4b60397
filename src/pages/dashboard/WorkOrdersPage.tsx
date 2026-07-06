@@ -748,11 +748,12 @@ export default function WorkOrdersPage() {
                 </Select>
                 {!newMachine && <p className="text-xs text-destructive">Machine is required</p>}
               </div>
-              <div className="space-y-2"><Label>Problem Description</Label>
+              <div className="space-y-2"><Label>Problem Description <span className="text-destructive">*</span></Label>
                 <Select value={newDesc} onValueChange={setNewDesc}>
-                  <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
+                  <SelectTrigger className={!newDesc ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select problem..." /></SelectTrigger>
                   <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
                 </Select>
+                {!newDesc && <p className="text-xs text-destructive">Problem description is required</p>}
               </div>
               <div className="space-y-2"><Label>Observations (optional)</Label>
                 <Textarea value={newNotes} onChange={(e) => setNewNotes(e.target.value)} placeholder="Additional notes..." rows={3} />
