@@ -37,6 +37,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { useNavigate } from "react-router-dom";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { filterWOsByRange, buildMachineHistory, buildMachineRisks } from "@/lib/downtimeReliability";
+import { mapWoToStop } from "@/lib/ragDowntime";
 
 const CATEGORIES = ["Mechanical", "Electrical", "Machine", "Maintenance", "Filler", "Other"] as const;
 const LINES = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"] as const;
