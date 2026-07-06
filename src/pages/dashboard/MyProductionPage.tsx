@@ -265,3 +265,119 @@ function MyProductionContent() {
     </div>
   );
 }
+
+function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existingSkuIds: string[] }) {
+  const qc = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [addingId, setAddingId] = useState<string | null>(null);
+
+  const searchQ = useQuery({
+    enabled: query.trim().length >= 1,
+    queryKey: ["sku-search", query.trim()],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const q = query.trim();
+      const { data, error } = await (supabase as any)
+        .from("sku_products")
+        .select("id, code, name")
+        .or(`code.ilike.%${q}%,name.ilike.%${q}%`)
+        .order("code", { ascending: true })
+        .limit(20);
+      if (error) throw error;
+      return (data || []) as { id: string; code: string; name: string }[];
+    },
+  });
+
+  const existing = useMemo(() => new Set(existingSkuIds), [existingSkuIds]);
+
+  const addSku = async (sku: { id: string; code: string; name: string }) => {
+    if (existing.has(sku.id)) {
+      toast.info(`${sku.code} is already in this shift`);
+      return;
+    }
+    setAddingId(sku.id);
+    const { error } = await (supabase as any).from("production_items").insert({
+      session_id: sessionId,
+      sku_id: sku.id,
+      target_qty: 0,
+      planned_qty: 0,
+      actual_qty: 0,
+      notes: "operator_manual",
+    });
+    setAddingId(null);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`Added ${sku.code} to this shift`);
+    setQuery("");
+    setOpen(false);
+    qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
+  };
+
+  const results = searchQ.data || [];
+
+  return (
+    <Card>
+      <CardContent className="p-4 md:p-6 space-y-2">
+        <div className="text-xs uppercase tracking-wider text-muted-foreground">Add SKU manually</div>
+        <Popover open={open && (results.length > 0 || searchQ.isFetching)} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+                onFocus={() => { if (query.trim()) setOpen(true); }}
+                placeholder="Search SKU by code or name..."
+                className="h-11 pl-9"
+                autoComplete="off"
+              />
+            </div>
+          </PopoverTrigger>
+          <PopoverContent
+            className="p-0 w-[--radix-popover-trigger-width] max-h-72 overflow-auto"
+            align="start"
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
+            {searchQ.isFetching ? (
+              <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Searching...
+              </div>
+            ) : results.length === 0 ? (
+              <div className="p-3 text-sm text-muted-foreground">No SKUs found</div>
+            ) : (
+              <ul className="divide-y">
+                {results.map((sku) => {
+                  const already = existing.has(sku.id);
+                  return (
+                    <li key={sku.id} className="flex items-center justify-between gap-2 p-2">
+                      <div className="min-w-0">
+                        <div className="font-mono text-sm font-semibold truncate">{sku.code}</div>
+                        <div className="text-xs text-muted-foreground truncate">{sku.name}</div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={already ? "outline" : "default"}
+                        disabled={already || addingId === sku.id}
+                        onClick={() => addSku(sku)}
+                      >
+                        {addingId === sku.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <><Plus className="h-4 w-4 mr-1" />{already ? "Added" : "Add"}</>
+                        )}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </PopoverContent>
+        </Popover>
+      </CardContent>
+    </Card>
+  );
+}
