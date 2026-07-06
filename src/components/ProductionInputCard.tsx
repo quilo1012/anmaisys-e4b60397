@@ -156,13 +156,7 @@ export function ProductionInputCard({
                 <div>
                   <div className="font-mono text-sm font-semibold">{it.code}</div>
                   <div className="text-xs text-muted-foreground">{it.name}</div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    <div className="rounded-md border bg-background/60 px-3 py-2">
-                      <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-                        <Package className="h-3 w-3" /> Order Qty
-                      </div>
-                      <div className="mt-1 text-base font-bold tabular-nums">{orderQty.toLocaleString()}</div>
-                    </div>
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div className="rounded-md border bg-background/60 px-3 py-2">
                       <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted-foreground">
                         <Clock className="h-3 w-3" /> Standard Fill Time
@@ -171,7 +165,7 @@ export function ProductionInputCard({
                         {fillMinutes !== null ? formatMinutes(fillMinutes) : "—"}
                       </div>
                     </div>
-                    <div className="rounded-md border bg-background/60 px-3 py-2 col-span-2 sm:col-span-1">
+                    <div className="rounded-md border bg-background/60 px-3 py-2">
                       <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Completion</div>
                       <div className={cn("mt-1 text-base font-bold tabular-nums", ragText(pct))}>{pct.toFixed(0)}%</div>
                     </div>
