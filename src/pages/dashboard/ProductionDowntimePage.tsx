@@ -152,16 +152,19 @@ export default function ProductionDowntimePage() {
   });
 
   const kpis = useMemo(() => {
-    const total = rows.reduce((a, r) => a + r.duration_minutes, 0);
+    // Exclude "No Planned Shift" — those are periods the line wasn't
+    // scheduled to run, not real downtime.
+    const eligible = rows.filter((r) => !isNoPlannedShift(r.reason, r.category));
+    const total = eligible.reduce((a, r) => a + r.duration_minutes, 0);
     const byCat = new Map<string, number>();
     const byLine = new Map<string, number>();
-    for (const r of rows) {
+    for (const r of eligible) {
       byCat.set(r.category, (byCat.get(r.category) ?? 0) + r.duration_minutes);
       byLine.set(r.line, (byLine.get(r.line) ?? 0) + r.duration_minutes);
     }
     const topCat = [...byCat.entries()].sort((a, b) => b[1] - a[1])[0];
     const topLine = [...byLine.entries()].sort((a, b) => b[1] - a[1])[0];
-    return { total, count: rows.length, topCat, topLine };
+    return { total, count: eligible.length, topCat, topLine };
   }, [rows]);
 
   const onExport = () => {
