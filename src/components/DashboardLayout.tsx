@@ -34,6 +34,7 @@ import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { LineChatButton } from "@/components/LineChatButton";
 import { AutoWoDisabledBanner } from "@/components/AutoWoDisabledBanner";
+import { UnmappedLinesBanner } from "@/components/UnmappedLinesBanner";
 import { PushOnboarding } from "@/components/PushOnboarding";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
