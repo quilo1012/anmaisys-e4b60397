@@ -199,6 +199,22 @@ function FinancialDashboardContent() {
             <p className="text-muted-foreground">Cost tracking and financial analysis</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              Fallback £/h
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={fallbackRate}
+                onChange={(e) => {
+                  const v = Math.max(0, Number(e.target.value) || 0);
+                  setFallbackRate(v);
+                  localStorage.setItem("financial:fallback_rate", String(v));
+                }}
+                className="w-20 h-9 rounded-md border bg-background px-2 text-sm"
+                title="Applied when an engineer has no labor rate set"
+              />
+            </label>
             <DateRangeFilter
               value={drRange}
               preset={drPreset}
