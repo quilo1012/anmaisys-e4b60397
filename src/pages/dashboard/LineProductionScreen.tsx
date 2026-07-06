@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save, AlertTriangle, Plus, LogOut, Lock, Unlock } from "lucide-react";
+import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save, AlertTriangle, Plus, LogOut, Lock, Unlock, ChevronUp, ChevronDown, Trash2 } from "lucide-react";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -115,6 +115,7 @@ interface ItemRow {
   target_qty: number;
   actual_qty: number;
   intouch_qty: number | null;
+  display_order: number;
 }
 
 
@@ -284,8 +285,9 @@ export default function LineProductionScreen() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("id, sku_id, target_qty, actual_qty, intouch_qty, created_at, sku:sku_products(code, name)")
+        .select("id, sku_id, target_qty, actual_qty, intouch_qty, display_order, created_at, sku:sku_products(code, name)")
         .eq("session_id", sessionQ.data!.id)
+        .order("display_order", { ascending: true })
         .order("created_at", { ascending: true });
       if (error) throw error;
       // One card per scheduled row (no dedup by sku_id — duplicates were
@@ -303,6 +305,7 @@ export default function LineProductionScreen() {
           target_qty: Number(r.target_qty ?? r.planned_qty ?? 0),
           actual_qty: actualNum > 0 ? actualNum : intouchNum,
           intouch_qty: r.intouch_qty == null ? null : Number(r.intouch_qty),
+          display_order: Number(r.display_order ?? 0),
         } as ItemRow;
       });
     },
@@ -576,6 +579,38 @@ export default function LineProductionScreen() {
     await updateActual.mutateAsync({ id: editing.id, value: v });
     setEditing(null);
   };
+
+  // #12 Reorder / delete SKU cards (admin/manager preview only)
+  const canManageSkus = !isOperator;
+  const deleteItem = useMutation({
+    mutationFn: async (id: string) => {
+      await (supabase as any).from("production_blender_entries").delete().eq("production_item_id", id);
+      const { error } = await (supabase as any).from("production_items").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
+      toast.success("SKU removed from shift");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to remove SKU"),
+  });
+  const moveItem = useMutation({
+    mutationFn: async ({ id, direction }: { id: string; direction: "up" | "down" }) => {
+      const arr = [...(itemsQ.data || [])];
+      const idx = arr.findIndex((r) => r.id === id);
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (idx < 0 || swapIdx < 0 || swapIdx >= arr.length) return;
+      // Assign sequential display_order based on new positions
+      [arr[idx], arr[swapIdx]] = [arr[swapIdx], arr[idx]];
+      await Promise.all(
+        arr.map((r, i) =>
+          (supabase as any).from("production_items").update({ display_order: i }).eq("id", r.id),
+        ),
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] }),
+    onError: (e: any) => toast.error(e.message || "Failed to reorder"),
+  });
 
   return (
     <div className="min-h-screen bg-background p-3 md:p-6 select-none">
@@ -879,7 +914,7 @@ export default function LineProductionScreen() {
                 </CardContent>
               </Card>
             )}
-            {items.map((it) => {
+            {items.map((it, idx) => {
               const effTarget = it.target_qty > 0
                 ? it.target_qty
                 : (items.length > 0 ? Math.round((ragPlanQ.data || 0) / items.length) : 0);
@@ -892,6 +927,12 @@ export default function LineProductionScreen() {
                   hideTarget={isOperator && !targetUnlock}
                   lineId={lineIdQ.data ?? null}
                   lineName={canonicalLineName}
+                  canManage={canManageSkus}
+                  onMoveUp={idx > 0 ? () => moveItem.mutate({ id: it.id, direction: "up" }) : undefined}
+                  onMoveDown={idx < items.length - 1 ? () => moveItem.mutate({ id: it.id, direction: "down" }) : undefined}
+                  onDelete={() => {
+                    if (confirm(`Remove ${it.code} from this shift?`)) deleteItem.mutate(it.id);
+                  }}
                 />
               );
             })}
@@ -1037,6 +1078,10 @@ const SkuCard = memo(function SkuCard({
   hideTarget = false,
   lineId = null,
   lineName = null,
+  canManage = false,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
 }: {
   item: ItemRow;
   effTarget: number;
@@ -1044,17 +1089,55 @@ const SkuCard = memo(function SkuCard({
   hideTarget?: boolean;
   lineId?: string | null;
   lineName?: string | null;
+  canManage?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onDelete?: () => void;
 }) {
   const pct = effTarget > 0 ? (item.actual_qty / effTarget) * 100 : 0;
   const done = pct >= 100;
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
   return (
     <Card
       onClick={() => onOpen({ ...item, target_qty: effTarget })}
       className={cn(
-        "cursor-pointer active:scale-[0.99] transition",
+        "cursor-pointer active:scale-[0.99] transition relative",
         !hideTarget && done && "bg-emerald-500/10 border-emerald-500/40",
       )}
     >
+      {canManage && (
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1" onClick={stop}>
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-7 w-7"
+            disabled={!onMoveUp}
+            onClick={(e) => { e.stopPropagation(); onMoveUp?.(); }}
+            title="Move up"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-7 w-7"
+            disabled={!onMoveDown}
+            onClick={(e) => { e.stopPropagation(); onMoveDown?.(); }}
+            title="Move down"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
+            title="Remove SKU"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
       <CardContent className="p-5 md:p-6 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">

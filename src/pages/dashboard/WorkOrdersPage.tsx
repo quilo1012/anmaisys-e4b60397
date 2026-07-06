@@ -66,12 +66,8 @@ export default function WorkOrdersPage() {
   const [shiftFilter, setShiftFilter] = useState<"ALL" | "DAY" | "NIGHT">("ALL");
   const [lineFilter, setLineFilter] = useState<string>("all");
 
-  useEffect(() => {
-    if (role === "admin" || (role === "manager" || role === "maintenance_manager")) {
-      setDrPreset("all");
-      setDrRange(getPresetRange("all"));
-    }
-  }, [role]);
+  // #12 Default period filter is "Today" for every role — no longer forced to "All"
+  // for admin/manager (that override was hiding today's WOs on first load).
   const [lineStoppedFilter, setLineStoppedFilter] = useState<"all" | "stopped" | "running">("all");
 
   const ALL_COLUMNS = [

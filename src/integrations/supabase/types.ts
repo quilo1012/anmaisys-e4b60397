@@ -1541,6 +1541,7 @@ export type Database = {
           actual_qty: number
           blender_ref: string | null
           created_at: string
+          display_order: number
           id: string
           intouch_qty: number | null
           notes: string | null
@@ -1558,6 +1559,7 @@ export type Database = {
           actual_qty?: number
           blender_ref?: string | null
           created_at?: string
+          display_order?: number
           id?: string
           intouch_qty?: number | null
           notes?: string | null
@@ -1575,6 +1577,7 @@ export type Database = {
           actual_qty?: number
           blender_ref?: string | null
           created_at?: string
+          display_order?: number
           id?: string
           intouch_qty?: number | null
           notes?: string | null
