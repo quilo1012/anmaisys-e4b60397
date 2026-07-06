@@ -164,7 +164,7 @@ export default function DowntimePage() {
           notes: w.wo_number ? `WO #${w.wo_number}` : null,
           work_order_id: w.id,
           reported_by: w.line_stopped_by || null,
-          _source: "wo" as const,
+          source: "wo_event" as const,
         };
       })
       .filter(Boolean) as any[];
