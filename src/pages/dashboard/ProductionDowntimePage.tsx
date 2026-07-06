@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatMinutes } from "@/lib/formatDuration";
+import { isNoPlannedShift } from "@/lib/downtimeBuckets";
 function exportRowsAsCsv(filename: string, rows: Record<string, string | number>[]) {
   if (!rows.length) return;
   const headers = Object.keys(rows[0]);
