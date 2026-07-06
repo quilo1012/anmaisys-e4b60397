@@ -18,7 +18,7 @@ interface AuthContextType {
    *  bouncing the user to /login during the recovery window. */
   silentReLoginInFlight: boolean;
   retryAuth: () => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: (reason?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -59,6 +59,19 @@ export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+function logAuthSession(event: string, details: Record<string, unknown> = {}) {
+  if (typeof console === "undefined") return;
+  console.log("[auth-session]", event, {
+    at: new Date().toISOString(),
+    path: typeof window !== "undefined" ? window.location.pathname : "unknown",
+    ...details,
+  });
+}
+
+function isExpired(session: Session | null) {
+  return !!session?.expires_at && session.expires_at * 1000 <= Date.now();
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -70,9 +83,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [silentReLoginInFlight, setSilentReLoginInFlight] = useState(false);
   const currentUserIdRef = useRef<string | null>(null);
   const roleRef = useRef<AppRole | null>(null);
+  const lastKnownSessionRef = useRef<Session | null>(null);
 
   const explicitSignOutRef = useRef(false);
   const reLoginInFlightRef = useRef(false);
+  const implicitSignOutRecoveryRef = useRef(false);
 
   const TABLET_CRED_KEY = "an_tablet_cred";
   const DEACTIVATED_UNTIL_KEY = "an_account_deactivated_until";
@@ -80,6 +95,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     roleRef.current = role;
   }, [role]);
+
+  useEffect(() => {
+    if (session) lastKnownSessionRef.current = session;
+  }, [session]);
 
   /** Race a promise against a hard timeout so a stalled silent re-login can
    *  never keep the boot spinner up indefinitely. */
@@ -112,6 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     reLoginInFlightRef.current = true;
     setSilentReLoginInFlight(true);
+    logAuthSession("tablet refresh-token recovery started", {
+      userId: currentUserIdRef.current,
+    });
     try {
       const { data, error } = await supabase.auth.refreshSession({
         refresh_token: cred.refresh_token,
@@ -119,6 +141,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error || !data.session) {
         // Refresh token revoked/expired — wipe so we don't loop.
         try { localStorage.removeItem(TABLET_CRED_KEY); } catch { /* ignore */ }
+        logAuthSession("tablet refresh-token recovery failed", {
+          userId: currentUserIdRef.current,
+          error: error?.message || "No session returned",
+        });
         return false;
       }
       // Rotate stored refresh_token to the new one.
@@ -131,8 +157,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }),
         );
       } catch { /* ignore */ }
+      logAuthSession("tablet refresh-token recovery succeeded", {
+        userId: data.session.user.id,
+        expiresAt: data.session.expires_at,
+      });
       return true;
-    } catch {
+    } catch (error) {
+      logAuthSession("tablet refresh-token recovery threw", {
+        userId: currentUserIdRef.current,
+        error: error instanceof Error ? error.message : "unknown",
+      });
       return false;
     } finally {
       reLoginInFlightRef.current = false;
@@ -142,6 +176,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const forceSignOutInactive = async () => {
+    logAuthSession("forced signOut: account deactivated", {
+      userId: currentUserIdRef.current,
+    });
     try {
       // Suppress the silent-relogin path for a minute.
       localStorage.setItem(DEACTIVATED_UNTIL_KEY, String(Date.now() + 60_000));
@@ -154,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ignore
     }
     currentUserIdRef.current = null;
+    lastKnownSessionRef.current = null;
     setSession(null);
     setUser(null);
     setRole(null);
@@ -218,8 +256,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const clearAuthState = () => {
+    const clearAuthState = (reason: string) => {
+      logAuthSession("clearing auth state", {
+        reason,
+        userId: currentUserIdRef.current,
+        hadSession: !!lastKnownSessionRef.current,
+      });
       currentUserIdRef.current = null;
+      lastKnownSessionRef.current = null;
       setSession(null);
       setUser(null);
       setRole(null);
@@ -228,6 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const syncSessionUser = (newSession: Session) => {
+      lastKnownSessionRef.current = newSession;
       setSession(newSession);
       setUser(newSession.user);
       setAuthError(null);
@@ -269,7 +314,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Hard 5s timeout so a slow/stuck refresh never keeps the spinner up.
         const ok = await withTimeout(tryTabletRelogin(), 5000, false);
         if (!ok && mounted) {
-          clearAuthState();
+          clearAuthState("boot:no-session");
         }
         // On success, the SIGNED_IN event will populate state.
 
@@ -287,18 +332,87 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // try to silently re-login using the persisted Tablet credentials so
       // the operator never bounces back to the login screen.
       if (event === "SIGNED_OUT") {
+        const lastSession = lastKnownSessionRef.current;
+        logAuthSession("SIGNED_OUT event received", {
+          explicit: explicitSignOutRef.current,
+          userId: currentUserIdRef.current,
+          hadLastSession: !!lastSession,
+          lastSessionExpired: isExpired(lastSession),
+          inRecovery: implicitSignOutRecoveryRef.current,
+        });
+
         if (explicitSignOutRef.current) {
           explicitSignOutRef.current = false;
-          clearAuthState();
+          clearAuthState("explicit-sign-out");
           setIsReady(true);
+          return;
+        }
+        if (implicitSignOutRecoveryRef.current) {
+          logAuthSession("duplicate implicit SIGNED_OUT ignored during recovery", {
+            userId: currentUserIdRef.current,
+          });
           return;
         }
         // Implicit sign-out (revoked refresh token, expired session, etc.)
         void (async () => {
-          const ok = await withTimeout(tryTabletRelogin(), 5000, false);
-          if (!ok) {
-            clearAuthState();
+          implicitSignOutRecoveryRef.current = true;
+          try {
+            const ok = await withTimeout(tryTabletRelogin(), 5000, false);
+            if (ok) {
+              setIsReady(true);
+              return;
+            }
+
+            const stillValid = !!lastSession && !isExpired(lastSession);
+            if (stillValid) {
+              try {
+                const restored = await withTimeout(
+                  supabase.auth.setSession({
+                    access_token: lastSession.access_token,
+                    refresh_token: lastSession.refresh_token,
+                  }),
+                  10_000,
+                  null,
+                );
+                const restoredSession = restored?.data?.session;
+                if (restoredSession?.user) {
+                  logAuthSession("implicit SIGNED_OUT recovered from last valid session", {
+                    userId: restoredSession.user.id,
+                    expiresAt: restoredSession.expires_at,
+                  });
+                  syncSessionUser(restoredSession);
+                  setIsReady(true);
+                  return;
+                }
+                if (restored?.error) {
+                  logAuthSession("last valid session restore returned error", {
+                    userId: lastSession.user.id,
+                    error: restored.error.message,
+                  });
+                }
+              } catch (error) {
+                logAuthSession("last valid session restore threw", {
+                  userId: lastSession.user.id,
+                  error: error instanceof Error ? error.message : "unknown",
+                });
+              }
+
+              logAuthSession("implicit SIGNED_OUT ignored while access token is still valid", {
+                userId: lastSession.user.id,
+                expiresAt: lastSession.expires_at,
+              });
+              lastKnownSessionRef.current = lastSession;
+              setSession(lastSession);
+              setUser(lastSession.user);
+              setAuthError("Session refresh was interrupted. Keeping the current session active.");
+              setIsReady(true);
+              return;
+            }
+
+            clearAuthState("implicit-sign-out:expired-or-unrecoverable");
             setIsReady(true);
+          } finally {
+            implicitSignOutRecoveryRef.current = false;
           }
           // If ok, the new SIGNED_IN event will re-populate state.
         })();
@@ -309,6 +423,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Token refresh — just sync, never refetch profile or clear
       if (event === "TOKEN_REFRESHED") {
         if (newSession) {
+          lastKnownSessionRef.current = newSession;
           setSession(newSession);
           setUser(newSession.user);
         }
@@ -350,6 +465,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
         // If supabase already has a fresh session, sync it silently.
         if (data.session) {
+          lastKnownSessionRef.current = data.session;
           setSession(data.session);
           setUser(data.session.user);
         }
@@ -395,9 +511,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user?.id]);
 
-  const signOut = async () => {
+  const signOut = async (reason = "user-requested") => {
     // Mark this as an explicit user-initiated sign-out so the SIGNED_OUT
     // listener does not attempt a silent Tablet re-login.
+    logAuthSession("explicit signOut requested", {
+      reason,
+      userId: currentUserIdRef.current,
+      stack: new Error().stack,
+    });
     explicitSignOutRef.current = true;
     try {
       // Wipe persisted Tablet credentials on explicit sign-out only.
@@ -405,6 +526,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
     await supabase.auth.signOut();
     currentUserIdRef.current = null;
+    lastKnownSessionRef.current = null;
     setSession(null);
     setUser(null);
     setRole(null);
@@ -424,6 +546,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const sessionResult = await withTimeout(supabase.auth.getSession(), 10_000, null);
       const currentSession = sessionResult?.data?.session;
       if (currentSession?.user) {
+        lastKnownSessionRef.current = currentSession;
         setSession(currentSession);
         setUser(currentSession.user);
         currentUserIdRef.current = currentSession.user.id;

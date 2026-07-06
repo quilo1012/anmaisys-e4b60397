@@ -6,7 +6,7 @@
 import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.0";
 
 // src/lib/mcp/tools/list-work-orders.ts
-import { createClient } from "npm:@supabase/supabase-js@^2.95.3";
+import { createClient } from "npm:@supabase/supabase-js@^2.110.0";
 import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.0";
 import { z } from "npm:zod@^3.25.76";
 function supabaseForUser(ctx) {
@@ -46,7 +46,7 @@ var list_work_orders_default = defineTool({
 });
 
 // src/lib/mcp/tools/get-work-order.ts
-import { createClient as createClient2 } from "npm:@supabase/supabase-js@^2.95.3";
+import { createClient as createClient2 } from "npm:@supabase/supabase-js@^2.110.0";
 import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.20.0";
 import { z as z2 } from "npm:zod@^3.25.76";
 function supabaseForUser2(ctx) {
@@ -85,7 +85,7 @@ var get_work_order_default = defineTool2({
 });
 
 // src/lib/mcp/tools/list-machines.ts
-import { createClient as createClient3 } from "npm:@supabase/supabase-js@^2.95.3";
+import { createClient as createClient3 } from "npm:@supabase/supabase-js@^2.110.0";
 import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.20.0";
 import { z as z3 } from "npm:zod@^3.25.76";
 function supabaseForUser3(ctx) {
@@ -119,7 +119,7 @@ var list_machines_default = defineTool3({
 });
 
 // src/lib/mcp/tools/list-lines.ts
-import { createClient as createClient4 } from "npm:@supabase/supabase-js@^2.95.3";
+import { createClient as createClient4 } from "npm:@supabase/supabase-js@^2.110.0";
 import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.20.0";
 function supabaseForUser4(ctx) {
   return createClient4(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
@@ -147,7 +147,7 @@ var list_lines_default = defineTool4({
 });
 
 // src/lib/mcp/tools/create-work-order.ts
-import { createClient as createClient5 } from "npm:@supabase/supabase-js@^2.95.3";
+import { createClient as createClient5 } from "npm:@supabase/supabase-js@^2.110.0";
 import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.20.0";
 import { z as z4 } from "npm:zod@^3.25.76";
 function supabaseForUser5(ctx) {
