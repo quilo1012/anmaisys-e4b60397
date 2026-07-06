@@ -187,12 +187,12 @@ function MyProductionContent() {
       </Card>
 
       {/* Body */}
-      {sessionQ.isLoading || itemsQ.isLoading ? (
+      {sessionQ.isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-      ) : !sessionId || items.length === 0 ? (
+      ) : !sessionId ? (
         <Card>
           <CardContent className="p-8 text-center space-y-3">
-            <div className="text-base font-semibold">No SKUs scheduled for this shift.</div>
+            <div className="text-base font-semibold">No active shift session.</div>
             <div className="text-sm text-muted-foreground">Contact your Planner.</div>
             <div className="pt-2 flex items-center justify-center gap-2">
               <span className="text-sm">Message the team:</span>
@@ -202,15 +202,29 @@ function MyProductionContent() {
         </Card>
       ) : (
         <>
-          <ProductionInputCard
+          {/* Manual SKU search — add an SKU to this shift on the fly */}
+          <SkuSearchAdd
             sessionId={sessionId}
-            sessionDate={today}
-            line={line}
-            shift={shift}
-            ragPlanQty={totalOrderQty}
-            items={items}
-            canEdit={true}
+            existingSkuIds={items.map((i) => i.sku_id)}
           />
+
+          {items.length === 0 ? (
+            <Card>
+              <CardContent className="p-6 text-center text-sm text-muted-foreground">
+                No SKUs scheduled for this shift yet. Use the search above to add one manually.
+              </CardContent>
+            </Card>
+          ) : (
+            <ProductionInputCard
+              sessionId={sessionId}
+              sessionDate={today}
+              line={line}
+              shift={shift}
+              ragPlanQty={totalOrderQty}
+              items={items}
+              canEdit={true}
+            />
+          )}
 
           {/* Footer summary */}
           <Card className="border-primary/30">
