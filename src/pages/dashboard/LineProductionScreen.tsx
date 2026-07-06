@@ -993,7 +993,7 @@ export default function LineProductionScreen() {
                 </Button>
               ))}
             </div>
-            <Button variant="outline" className="w-full h-12" onClick={() => setPad("")}>
+            <Button variant="outline" className="w-full h-12" onClick={() => { setPad(""); setPadFresh(false); }}>
               Clear
             </Button>
           </div>
