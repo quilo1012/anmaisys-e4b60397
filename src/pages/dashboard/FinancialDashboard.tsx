@@ -129,7 +129,8 @@ function FinancialDashboardContent() {
       const partsCost = woParts.reduce((sum, p) => sum + (p.product?.price || 0) * p.quantity, 0);
 
       const repairHours = differenceInMinutes(new Date(wo.finished_at!), new Date(wo.started_at!)) / 60;
-      const rate = wo.engineer_id ? laborRateMap[wo.engineer_id] || 0 : 0;
+      const engineerRate = wo.engineer_id ? laborRateMap[wo.engineer_id] || 0 : 0;
+      const rate = engineerRate > 0 ? engineerRate : fallbackRate; // fall back to configurable rate
       const laborCost = repairHours * rate;
 
       const overtimeHours = Math.max(0, repairHours - 8);
