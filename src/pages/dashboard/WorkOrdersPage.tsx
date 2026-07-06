@@ -280,8 +280,16 @@ export default function WorkOrdersPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newRequester.trim()) {
+      toast({ title: "Requester required", description: "Please select who is requesting the work order.", variant: "destructive" });
+      return;
+    }
     if (!newMachine.trim()) {
       toast({ title: "Machine required", description: "Please select a machine before creating the work order.", variant: "destructive" });
+      return;
+    }
+    if (!newDesc.trim()) {
+      toast({ title: "Problem description required", description: "Please describe the problem before creating the work order.", variant: "destructive" });
       return;
     }
     try {
