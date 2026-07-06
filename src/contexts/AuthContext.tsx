@@ -256,8 +256,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const clearAuthState = () => {
+    const clearAuthState = (reason: string) => {
+      logAuthSession("clearing auth state", {
+        reason,
+        userId: currentUserIdRef.current,
+        hadSession: !!lastKnownSessionRef.current,
+      });
       currentUserIdRef.current = null;
+      lastKnownSessionRef.current = null;
       setSession(null);
       setUser(null);
       setRole(null);
@@ -266,6 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const syncSessionUser = (newSession: Session) => {
+      lastKnownSessionRef.current = newSession;
       setSession(newSession);
       setUser(newSession.user);
       setAuthError(null);
@@ -307,7 +314,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Hard 5s timeout so a slow/stuck refresh never keeps the spinner up.
         const ok = await withTimeout(tryTabletRelogin(), 5000, false);
         if (!ok && mounted) {
-          clearAuthState();
+          clearAuthState("boot:no-session");
         }
         // On success, the SIGNED_IN event will populate state.
 
@@ -325,18 +332,87 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // try to silently re-login using the persisted Tablet credentials so
       // the operator never bounces back to the login screen.
       if (event === "SIGNED_OUT") {
+        const lastSession = lastKnownSessionRef.current;
+        logAuthSession("SIGNED_OUT event received", {
+          explicit: explicitSignOutRef.current,
+          userId: currentUserIdRef.current,
+          hadLastSession: !!lastSession,
+          lastSessionExpired: isExpired(lastSession),
+          inRecovery: implicitSignOutRecoveryRef.current,
+        });
+
         if (explicitSignOutRef.current) {
           explicitSignOutRef.current = false;
-          clearAuthState();
+          clearAuthState("explicit-sign-out");
           setIsReady(true);
+          return;
+        }
+        if (implicitSignOutRecoveryRef.current) {
+          logAuthSession("duplicate implicit SIGNED_OUT ignored during recovery", {
+            userId: currentUserIdRef.current,
+          });
           return;
         }
         // Implicit sign-out (revoked refresh token, expired session, etc.)
         void (async () => {
-          const ok = await withTimeout(tryTabletRelogin(), 5000, false);
-          if (!ok) {
-            clearAuthState();
+          implicitSignOutRecoveryRef.current = true;
+          try {
+            const ok = await withTimeout(tryTabletRelogin(), 5000, false);
+            if (ok) {
+              setIsReady(true);
+              return;
+            }
+
+            const stillValid = !!lastSession && !isExpired(lastSession);
+            if (stillValid) {
+              try {
+                const restored = await withTimeout(
+                  supabase.auth.setSession({
+                    access_token: lastSession.access_token,
+                    refresh_token: lastSession.refresh_token,
+                  }),
+                  10_000,
+                  null,
+                );
+                const restoredSession = restored?.data?.session;
+                if (restoredSession?.user) {
+                  logAuthSession("implicit SIGNED_OUT recovered from last valid session", {
+                    userId: restoredSession.user.id,
+                    expiresAt: restoredSession.expires_at,
+                  });
+                  syncSessionUser(restoredSession);
+                  setIsReady(true);
+                  return;
+                }
+                if (restored?.error) {
+                  logAuthSession("last valid session restore returned error", {
+                    userId: lastSession.user.id,
+                    error: restored.error.message,
+                  });
+                }
+              } catch (error) {
+                logAuthSession("last valid session restore threw", {
+                  userId: lastSession.user.id,
+                  error: error instanceof Error ? error.message : "unknown",
+                });
+              }
+
+              logAuthSession("implicit SIGNED_OUT ignored while access token is still valid", {
+                userId: lastSession.user.id,
+                expiresAt: lastSession.expires_at,
+              });
+              lastKnownSessionRef.current = lastSession;
+              setSession(lastSession);
+              setUser(lastSession.user);
+              setAuthError("Session refresh was interrupted. Keeping the current session active.");
+              setIsReady(true);
+              return;
+            }
+
+            clearAuthState("implicit-sign-out:expired-or-unrecoverable");
             setIsReady(true);
+          } finally {
+            implicitSignOutRecoveryRef.current = false;
           }
           // If ok, the new SIGNED_IN event will re-populate state.
         })();
@@ -347,6 +423,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Token refresh — just sync, never refetch profile or clear
       if (event === "TOKEN_REFRESHED") {
         if (newSession) {
+          lastKnownSessionRef.current = newSession;
           setSession(newSession);
           setUser(newSession.user);
         }
