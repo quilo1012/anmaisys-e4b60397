@@ -549,17 +549,21 @@ export default function LineProductionScreen() {
     }
     setEditing(row);
     setPad(String(row.actual_qty || ""));
+    setPadFresh(true); // first key press replaces the pre-filled value (#5)
   }, [canEdit]);
 
   const padPress = useCallback((k: string) => {
-    if (k === "C") return setPad("");
-    if (k === "←") return setPad((p) => p.slice(0, -1));
+    if (k === "C") { setPad(""); setPadFresh(false); return; }
+    if (k === "←") { setPad((p) => p.slice(0, -1)); setPadFresh(false); return; }
     setPad((p) => {
+      // Fresh entry after opening editor: first digit replaces pre-filled value
+      if (padFresh) return k === "." ? "0." : k;
       if (k === "." && p.includes(".")) return p;
       if (p.length >= 9) return p;
       return p === "0" && k !== "." ? k : p + k;
     });
-  }, []);
+    setPadFresh(false);
+  }, [padFresh]);
 
   const saveEditor = async () => {
     if (!editing) return;
