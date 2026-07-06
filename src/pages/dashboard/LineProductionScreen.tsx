@@ -914,7 +914,7 @@ export default function LineProductionScreen() {
                 </CardContent>
               </Card>
             )}
-            {items.map((it) => {
+            {items.map((it, idx) => {
               const effTarget = it.target_qty > 0
                 ? it.target_qty
                 : (items.length > 0 ? Math.round((ragPlanQ.data || 0) / items.length) : 0);
@@ -927,6 +927,12 @@ export default function LineProductionScreen() {
                   hideTarget={isOperator && !targetUnlock}
                   lineId={lineIdQ.data ?? null}
                   lineName={canonicalLineName}
+                  canManage={canManageSkus}
+                  onMoveUp={idx > 0 ? () => moveItem.mutate({ id: it.id, direction: "up" }) : undefined}
+                  onMoveDown={idx < items.length - 1 ? () => moveItem.mutate({ id: it.id, direction: "down" }) : undefined}
+                  onDelete={() => {
+                    if (confirm(`Remove ${it.code} from this shift?`)) deleteItem.mutate(it.id);
+                  }}
                 />
               );
             })}
