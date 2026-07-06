@@ -115,6 +115,7 @@ interface ItemRow {
   target_qty: number;
   actual_qty: number;
   intouch_qty: number | null;
+  display_order: number;
 }
 
 
