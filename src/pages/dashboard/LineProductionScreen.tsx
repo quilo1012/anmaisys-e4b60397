@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { ProductionInputCard } from "@/components/ProductionInputCard";
+import { LineChatButton } from "@/components/LineChatButton";
 import { DailyTargetCard } from "@/components/DailyTargetCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
@@ -133,6 +134,7 @@ export default function LineProductionScreen() {
   const [now, setNow] = useState<Date>(new Date());
   const [editing, setEditing] = useState<ItemRow | null>(null);
   const [pad, setPad] = useState<string>("");
+  const [padFresh, setPadFresh] = useState<boolean>(true);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [assetScope, setAssetScope] = useState<"line" | "sealer_printer">("line");
@@ -282,32 +284,27 @@ export default function LineProductionScreen() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("id, sku_id, target_qty, actual_qty, intouch_qty, sku:sku_products(code, name)")
-        .eq("session_id", sessionQ.data!.id);
+        .select("id, sku_id, target_qty, actual_qty, intouch_qty, created_at, sku:sku_products(code, name)")
+        .eq("session_id", sessionQ.data!.id)
+        .order("created_at", { ascending: true });
       if (error) throw error;
-      const rows = (data || []).map((r: any) => ({
-        id: r.id,
-        sku_id: r.sku_id,
-        code: r.sku?.code || "—",
-        name: r.sku?.name || "—",
-        target_qty: Number(r.target_qty ?? r.planned_qty ?? 0),
-        actual_qty: Number(r.intouch_qty ?? r.actual_qty ?? 0),
-        intouch_qty: r.intouch_qty == null ? null : Number(r.intouch_qty),
-      })) as ItemRow[];
-      // Defensive de-duplication by sku_id: keep MAX of target/actual/intouch
-      // so each SKU is rendered once even if multiple rows exist.
-      const merged = new Map<string, ItemRow>();
-      for (const r of rows) {
-        const prev = merged.get(r.sku_id);
-        if (!prev) { merged.set(r.sku_id, { ...r }); continue; }
-        merged.set(r.sku_id, {
-          ...prev,
-          target_qty: Math.max(prev.target_qty, r.target_qty),
-          actual_qty: Math.max(prev.actual_qty, r.actual_qty),
-          intouch_qty: Math.max(prev.intouch_qty ?? 0, r.intouch_qty ?? 0) || null,
-        });
-      }
-      return Array.from(merged.values());
+      // One card per scheduled row (no dedup by sku_id — duplicates were
+      // hiding scheduled SKUs on lines with repeat orders). Prefer manually
+      // entered actual_qty; fall back to iTouching's live count only when
+      // operator hasn't submitted anything yet so #6 (save syncs KPI + bar).
+      return (data || []).map((r: any) => {
+        const actualNum = Number(r.actual_qty ?? 0);
+        const intouchNum = r.intouch_qty == null ? 0 : Number(r.intouch_qty);
+        return {
+          id: r.id,
+          sku_id: r.sku_id,
+          code: r.sku?.code || "—",
+          name: r.sku?.name || "—",
+          target_qty: Number(r.target_qty ?? r.planned_qty ?? 0),
+          actual_qty: actualNum > 0 ? actualNum : intouchNum,
+          intouch_qty: r.intouch_qty == null ? null : Number(r.intouch_qty),
+        } as ItemRow;
+      });
     },
     refetchInterval: 15_000,
   });
@@ -553,17 +550,21 @@ export default function LineProductionScreen() {
     }
     setEditing(row);
     setPad(String(row.actual_qty || ""));
+    setPadFresh(true); // first key press replaces the pre-filled value (#5)
   }, [canEdit]);
 
   const padPress = useCallback((k: string) => {
-    if (k === "C") return setPad("");
-    if (k === "←") return setPad((p) => p.slice(0, -1));
+    if (k === "C") { setPad(""); setPadFresh(false); return; }
+    if (k === "←") { setPad((p) => p.slice(0, -1)); setPadFresh(false); return; }
     setPad((p) => {
+      // Fresh entry after opening editor: first digit replaces pre-filled value
+      if (padFresh) return k === "." ? "0." : k;
       if (k === "." && p.includes(".")) return p;
       if (p.length >= 9) return p;
       return p === "0" && k !== "." ? k : p + k;
     });
-  }, []);
+    setPadFresh(false);
+  }, [padFresh]);
 
   const saveEditor = async () => {
     if (!editing) return;
@@ -693,6 +694,8 @@ export default function LineProductionScreen() {
               <AlertTriangle className="h-5 w-5 mr-2" />
               Request Maintenance
             </Button>
+            {/* #11 Chat access on Operator screen */}
+            <LineChatButton />
             <Button variant="outline" size="lg" onClick={toggleKiosk} className="h-12">
               {isFullscreen ? <Minimize2 className="h-5 w-5 mr-2" /> : <Maximize2 className="h-5 w-5 mr-2" />}
               {isFullscreen ? "Exit Kiosk" : "Kiosk"}
@@ -993,7 +996,7 @@ export default function LineProductionScreen() {
                 </Button>
               ))}
             </div>
-            <Button variant="outline" className="w-full h-12" onClick={() => setPad("")}>
+            <Button variant="outline" className="w-full h-12" onClick={() => { setPad(""); setPadFresh(false); }}>
               Clear
             </Button>
           </div>

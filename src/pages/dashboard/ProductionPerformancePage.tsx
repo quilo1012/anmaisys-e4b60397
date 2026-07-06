@@ -210,11 +210,13 @@ export default function ProductionPerformancePage() {
           </div>
         </div>
 
-        {/* Overall OEE Panel */}
+        {/* Overall OEE Panel — excludes lines with no RAG Weekly target for the period (#9) */}
         {(() => {
-          const totalTarget = byLine.reduce((a, l) => a + l.target, 0);
-          const totalActual = byLine.reduce((a, l) => a + l.actual, 0);
+          const scored = byLine.filter((l) => l.target > 0);
+          const totalTarget = scored.reduce((a, l) => a + l.target, 0);
+          const totalActual = scored.reduce((a, l) => a + l.actual, 0);
           const overall = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
+          const excludedCount = byLine.length - scored.length;
           return (
             <Card>
               <CardContent className="p-6 flex items-center gap-6 flex-wrap">
@@ -222,7 +224,12 @@ export default function ProductionPerformancePage() {
                 <div className="flex-1 min-w-[200px]">
                   <div className="text-xs uppercase text-muted-foreground">Overall Performance</div>
                   <div className="text-2xl font-bold">{totalActual.toLocaleString()} / {totalTarget.toLocaleString()}</div>
-                  <div className="text-sm text-muted-foreground">{byLine.length} {byLine.length === 1 ? "line" : "lines"} · {sessions.length} sessions</div>
+                  <div className="text-sm text-muted-foreground">
+                    {scored.length} {scored.length === 1 ? "line" : "lines"} scored · {sessions.length} sessions
+                    {excludedCount > 0 && (
+                      <span className="ml-1 text-amber-600 dark:text-amber-400">· {excludedCount} without RAG target excluded</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <Badge className="bg-green-500/15 text-green-600 dark:text-green-400 border border-green-500/40">≥100% Green</Badge>

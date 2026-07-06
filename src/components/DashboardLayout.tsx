@@ -34,6 +34,7 @@ import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { LineChatButton } from "@/components/LineChatButton";
 import { AutoWoDisabledBanner } from "@/components/AutoWoDisabledBanner";
+import { UnmappedLinesBanner } from "@/components/UnmappedLinesBanner";
 import { PushOnboarding } from "@/components/PushOnboarding";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
@@ -447,6 +448,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               </div>
             )}
             {(role === "admin" || role === "manager" || role === "maintenance_manager") && <AutoWoDisabledBanner />}
+            {(role === "admin" || role === "manager" || role === "maintenance_manager") && <UnmappedLinesBanner />}
             <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0">
               <div className="min-w-0 w-full">{children}</div>
             </div>

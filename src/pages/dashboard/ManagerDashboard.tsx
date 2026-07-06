@@ -157,18 +157,27 @@ function ManagerDashboardContent() {
     return { avgResponse, avgActiveRepair, avgLineDowntime };
   }, [woMetrics]);
 
-  // Total downtime aligned with the Downtime page (parallel stoppages counted once).
+  // Total downtime aligned with the Downtime page (#10): includes both manual
+  // downtime rows and Work Order line-stopped windows; parallel stoppages
+  // counted once via reconcileMinutes.
   const totalDowntimeMin = useMemo(() => {
     const recs = downtimeRecords || [];
     const rangeStartMs = startOfDay(kpiRange.from).getTime();
     const rangeEndMs = Math.min(endOfDay(kpiRange.to).getTime(), Date.now());
-    return reconcileMinutes(
-      recs.map((r) => ({ start: r.started_at, end: r.ended_at })),
-      rangeStartMs,
-      rangeEndMs,
-      Date.now(),
-    );
-  }, [downtimeRecords, kpiRange]);
+    const spans: { start: string; end: string | null }[] = recs.map((r) => ({
+      start: r.started_at,
+      end: r.ended_at,
+    }));
+    // Merge in WO-derived line stoppages so both views use the same source.
+    for (const m of woMetrics as any[]) {
+      if (!m?.line_stopped_at) continue;
+      // Skip if a manual downtime already references this WO id (dedup).
+      const woId = (m as any).id || (m as any).work_order_id;
+      if (woId && recs.some((r: any) => r.work_order_id === woId)) continue;
+      spans.push({ start: m.line_stopped_at, end: m.line_resumed_at ?? null });
+    }
+    return reconcileMinutes(spans, rangeStartMs, rangeEndMs, Date.now());
+  }, [downtimeRecords, woMetrics, kpiRange]);
 
   const handleChangePin = async () => {
     if (newPin.length < 4) {
