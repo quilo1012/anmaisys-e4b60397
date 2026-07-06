@@ -262,29 +262,31 @@ export default function RAGWeeklyPage() {
       });
 
 
-      const man: StopDetail[] = ((manRes.data ?? []) as any[]).map((r) => ({
-        line: r.line as string | null,
-        start: r.started_at as string,
-        end: r.ended_at as string | null,
-        source: "Manual" as const,
-        ref: null,
-        machine: r.machine as string | null,
-        reason: r.reason as string | null,
-        kind: categoryBucket(r.category),
-        category: r.category ?? null,
-      }));
+      // Map reason -> bucket. Rows returning `null` (e.g. "No Planned Shift")
+      // are excluded from all downtime calculations.
+      const mapRow = (r: any, source: "Manual" | "Prod"): StopDetail | null => {
+        const bucket = bucketFromReason(r.reason, r.category);
+        if (bucket === null) return null;
+        return {
+          line: r.line as string | null,
+          start: r.started_at as string,
+          end: r.ended_at as string | null,
+          source,
+          ref: null,
+          machine: r.machine as string | null,
+          reason: r.reason as string | null,
+          kind: bucket,
+          category: r.category ?? null,
+        };
+      };
 
-      const prod: StopDetail[] = ((prodRes.data ?? []) as any[]).map((r) => ({
-        line: r.line as string | null,
-        start: r.started_at as string,
-        end: r.ended_at as string | null,
-        source: "Prod" as const,
-        ref: null,
-        machine: r.machine as string | null,
-        reason: r.reason as string | null,
-        kind: categoryBucket(r.category),
-        category: r.category ?? null,
-      }));
+      const man = ((manRes.data ?? []) as any[])
+        .map((r) => mapRow(r, "Manual"))
+        .filter((s): s is StopDetail => s !== null);
+
+      const prod = ((prodRes.data ?? []) as any[])
+        .map((r) => mapRow(r, "Prod"))
+        .filter((s): s is StopDetail => s !== null);
 
       return [...wo, ...man, ...prod].filter((s) => s.line && s.start) as StopDetail[];
     },
