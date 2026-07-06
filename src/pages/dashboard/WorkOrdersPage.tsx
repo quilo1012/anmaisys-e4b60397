@@ -707,14 +707,15 @@ export default function WorkOrdersPage() {
           <DialogContent>
             <DialogHeader><DialogTitle>Create Work Order</DialogTitle><DialogDescription className="sr-only">Fill in work order details</DialogDescription></DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4" autoComplete="off">
-              <div className="space-y-2"><Label>Requested By</Label>
+              <div className="space-y-2"><Label>Requested By <span className="text-destructive">*</span></Label>
                 <Select value={newRequester} onValueChange={setNewRequester}>
-                  <SelectTrigger><SelectValue placeholder="Select requester..." /></SelectTrigger>
+                  <SelectTrigger className={!newRequester ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select requester..." /></SelectTrigger>
                   <SelectContent>
                     {requesterOptions.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
 
                   </SelectContent>
                 </Select>
+                {!newRequester && <p className="text-xs text-destructive">Requester is required</p>}
               </div>
               <div className="space-y-2"><Label>Line</Label>
                 <Select value={newLineId} onValueChange={(v) => { setNewLineId(v); setNewMachine(""); }}>
