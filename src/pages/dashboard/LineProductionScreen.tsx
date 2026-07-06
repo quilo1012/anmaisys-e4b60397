@@ -285,8 +285,9 @@ export default function LineProductionScreen() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("id, sku_id, target_qty, actual_qty, intouch_qty, created_at, sku:sku_products(code, name)")
+        .select("id, sku_id, target_qty, actual_qty, intouch_qty, display_order, created_at, sku:sku_products(code, name)")
         .eq("session_id", sessionQ.data!.id)
+        .order("display_order", { ascending: true })
         .order("created_at", { ascending: true });
       if (error) throw error;
       // One card per scheduled row (no dedup by sku_id — duplicates were
@@ -304,6 +305,7 @@ export default function LineProductionScreen() {
           target_qty: Number(r.target_qty ?? r.planned_qty ?? 0),
           actual_qty: actualNum > 0 ? actualNum : intouchNum,
           intouch_qty: r.intouch_qty == null ? null : Number(r.intouch_qty),
+          display_order: Number(r.display_order ?? 0),
         } as ItemRow;
       });
     },
