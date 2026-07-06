@@ -90,7 +90,7 @@ export default function ProductionPerformancePage() {
 
       // Target comes from RAG Weekly (plan_qty), NOT from SKU per-item targets.
       let rq = supabase.from("rag_weekly_entries")
-        .select("entry_date, line, shift, plan_qty")
+        .select("entry_date, line, shift, plan_qty, actual_qty")
         .gte("entry_date", range.from).lte("entry_date", range.to);
       if (shift !== "all") rq = rq.eq("shift", shift);
       if (lineFilter !== "__all__") rq = rq.eq("line", lineFilter);
@@ -99,15 +99,23 @@ export default function ProductionPerformancePage() {
       if (error) throw error;
       if (ragErr) throw ragErr;
 
-      const ragMap = new Map<string, number>();
-      for (const r of (ragData ?? []) as { entry_date: string; line: string; shift: string; plan_qty: number | null }[]) {
-        ragMap.set(`${r.entry_date}|${r.line}|${r.shift}`, Number(r.plan_qty ?? 0));
+      const ragPlanMap = new Map<string, number>();
+      const ragActualMap = new Map<string, number>();
+      for (const r of (ragData ?? []) as { entry_date: string; line: string; shift: string; plan_qty: number | null; actual_qty: number | null }[]) {
+        const k = `${r.entry_date}|${r.line}|${r.shift}`;
+        ragPlanMap.set(k, Number(r.plan_qty ?? 0));
+        ragActualMap.set(k, Number(r.actual_qty ?? 0));
       }
 
       return (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null }[] }) => {
         const items = s.production_items ?? [];
-        const target = ragMap.get(`${s.session_date}|${s.line}|${s.shift}`) ?? 0;
-        const actual = items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
+        const key = `${s.session_date}|${s.line}|${s.shift}`;
+        const target = ragPlanMap.get(key) ?? 0;
+        const itemsActual = items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
+        // Prefer RAG Weekly actual when it's been recorded (source of truth for the line/shift);
+        // fall back to summed production_items when RAG has no actual yet.
+        const ragActual = ragActualMap.get(key) ?? 0;
+        const actual = ragActual > 0 ? ragActual : itemsActual;
         return { id: s.id, session_date: s.session_date, shift: s.shift, line: s.line, leader_name: s.leader_name, locked: s.locked, target, actual, eff: target > 0 ? (actual / target) * 100 : 0, items: items.map((i) => ({ sku_id: i.sku_id, actual: Number(i.actual_qty ?? 0) })) };
       });
     },
