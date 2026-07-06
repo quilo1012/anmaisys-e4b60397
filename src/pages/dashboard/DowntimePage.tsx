@@ -171,8 +171,15 @@ export default function DowntimePage() {
   }, [allWOs]);
 
   const unifiedRecords = useMemo(() => {
-    const base = (records || []).map((r: any) => ({ ...r, _source: "manual" as const }));
-    return [...base, ...woStops];
+    const base = (records || []).map((r: any) => ({ ...r }));
+    // Only add WO stops that aren't already surfaced by useDowntime
+    // (which loads downtime_events + WO fallback). Prevents double-count
+    // in the visible list while still guaranteeing "Today" matches RAG.
+    const existingWoIds = new Set(
+      base.filter((r) => r.work_order_id).map((r) => r.work_order_id),
+    );
+    const extras = woStops.filter((w) => !existingWoIds.has(w.work_order_id));
+    return [...base, ...extras];
   }, [records, woStops]);
 
   const kpis = useMemo(() => {
