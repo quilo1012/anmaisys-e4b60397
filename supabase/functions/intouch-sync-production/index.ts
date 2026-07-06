@@ -1304,7 +1304,7 @@ Deno.serve(async (req) => {
 
       const { data: existingItems } = await admin
         .from("production_items")
-        .select("sku_id, actual_qty, target_qty, target_manual_at, blender_ref, notes")
+        .select("id, sku_id, actual_qty, target_qty, target_manual_at, blender_ref, notes")
         .eq("session_id", session.id);
       const actualBySku = new Map(
         (existingItems ?? []).map((r: any) => [r.sku_id, Number(r.actual_qty) || 0]),
@@ -1326,8 +1326,11 @@ Deno.serve(async (req) => {
           .filter((r: any) => r.blender_ref)
           .map((r: any) => [r.sku_id, String(r.blender_ref)]),
       );
-
-      await admin.from("production_items").delete().eq("session_id", session.id);
+      // Preserve production_items.id per SKU so operator saves that reference
+      // the row by id keep working after the sync runs.
+      const idBySku = new Map(
+        (existingItems ?? []).map((r: any) => [r.sku_id, String(r.id)]),
+      );
 
       // Pull live actuals + scrap + shift metrics (run/down/OEE) per SKU from iTouching.
       const { actuals: actualsByCode, scrap: scrapByCode, lineGood, metrics } = await fetchActualsForLine(machines, startISO, endISO, { line, discoverLivePaths: body.debug_discover === true });
@@ -1378,7 +1381,29 @@ Deno.serve(async (req) => {
           };
         })
         .filter((r) => r.sku_id);
-      if (rows.length) await admin.from("production_items").insert(rows);
+
+      // Preserve item ids: UPDATE existing rows in place (by session_id+sku_id),
+      // INSERT only brand-new SKUs, DELETE only rows whose SKU is no longer in
+      // the schedule. Delete+reinsert (previous behaviour) rotated ids on every
+      // sync, so operator saves referencing the old id became silent no-ops
+      // and Production Control kept showing 0.
+      const nextSkuIds = new Set(rows.map((r) => r.sku_id as string));
+      const staleIds = (existingItems ?? [])
+        .filter((r: any) => !nextSkuIds.has(r.sku_id))
+        .map((r: any) => r.id as string);
+      if (staleIds.length) {
+        await admin.from("production_items").delete().in("id", staleIds);
+      }
+      const toUpdate = rows.filter((r) => idBySku.has(r.sku_id as string));
+      const toInsertRows = rows.filter((r) => !idBySku.has(r.sku_id as string));
+      for (const r of toUpdate) {
+        const id = idBySku.get(r.sku_id as string)!;
+        const { sku_id: _sku, session_id: _sess, ...patch } = r as any;
+        await admin.from("production_items").update(patch).eq("id", id);
+      }
+      if (toInsertRows.length) {
+        await admin.from("production_items").insert(toInsertRows);
+      }
 
 
       // Persist shift-level OEE / run / down + iTouching live good total to the session row.
