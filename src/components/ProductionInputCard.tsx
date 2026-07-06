@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Save, Check, Loader2, Trash2, X, Clock, Package } from "lucide-react";
+import { Save, Check, Loader2, Trash2, X, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatMinutes } from "@/lib/formatDuration";
