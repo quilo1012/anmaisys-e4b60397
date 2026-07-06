@@ -131,6 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     reLoginInFlightRef.current = true;
     setSilentReLoginInFlight(true);
+    logAuthSession("tablet refresh-token recovery started", {
+      userId: currentUserIdRef.current,
+    });
     try {
       const { data, error } = await supabase.auth.refreshSession({
         refresh_token: cred.refresh_token,
@@ -138,6 +141,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error || !data.session) {
         // Refresh token revoked/expired — wipe so we don't loop.
         try { localStorage.removeItem(TABLET_CRED_KEY); } catch { /* ignore */ }
+        logAuthSession("tablet refresh-token recovery failed", {
+          userId: currentUserIdRef.current,
+          error: error?.message || "No session returned",
+        });
         return false;
       }
       // Rotate stored refresh_token to the new one.
@@ -150,8 +157,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }),
         );
       } catch { /* ignore */ }
+      logAuthSession("tablet refresh-token recovery succeeded", {
+        userId: data.session.user.id,
+        expiresAt: data.session.expires_at,
+      });
       return true;
-    } catch {
+    } catch (error) {
+      logAuthSession("tablet refresh-token recovery threw", {
+        userId: currentUserIdRef.current,
+        error: error instanceof Error ? error.message : "unknown",
+      });
       return false;
     } finally {
       reLoginInFlightRef.current = false;
@@ -161,6 +176,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const forceSignOutInactive = async () => {
+    logAuthSession("forced signOut: account deactivated", {
+      userId: currentUserIdRef.current,
+    });
     try {
       // Suppress the silent-relogin path for a minute.
       localStorage.setItem(DEACTIVATED_UNTIL_KEY, String(Date.now() + 60_000));
@@ -173,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ignore
     }
     currentUserIdRef.current = null;
+    lastKnownSessionRef.current = null;
     setSession(null);
     setUser(null);
     setRole(null);
