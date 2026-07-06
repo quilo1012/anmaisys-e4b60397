@@ -32,6 +32,7 @@ import { useIsFetching } from "@tanstack/react-query";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { mapWoToStop } from "@/lib/ragDowntime";
+import { bucketFromReason, isNoPlannedShift } from "@/lib/downtimeBuckets";
 
 /** Display-only label mapping for line names. Keeps DB identity untouched. */
 function displayLineLabel(name: string): string {
