@@ -1242,21 +1242,37 @@ Deno.serve(async (req) => {
         if (session.locked) { results.push({ line, skipped: "session locked" }); continue; }
 
         const { data: prevItem } = await admin
-          .from("production_items").select("actual_qty")
+          .from("production_items").select("id, actual_qty")
           .eq("session_id", session.id).eq("sku_id", liveSku.id).maybeSingle();
         const prevQty = Number(prevItem?.actual_qty ?? 0);
         const actual = Math.max(prevQty, Math.round(live.lineGood));
 
-        await admin.from("production_items").delete().eq("session_id", session.id);
-        await admin.from("production_items").insert([{
-          session_id: session.id,
-          sku_id: liveSku.id,
-          target_qty: ragPlan,
-          planned_qty: ragPlan,
-          actual_qty: prevQty,
-          scrap_qty: 0,
-          notes: `itouching:live_good`,
-        }]);
+        // Remove only stale rows (different sku) to keep this session's live
+        // row id stable across syncs so operator saves by id keep landing.
+        await admin
+          .from("production_items")
+          .delete()
+          .eq("session_id", session.id)
+          .neq("sku_id", liveSku.id);
+        if (prevItem?.id) {
+          await admin.from("production_items").update({
+            target_qty: ragPlan,
+            planned_qty: ragPlan,
+            actual_qty: prevQty,
+            scrap_qty: 0,
+            notes: `itouching:live_good`,
+          }).eq("id", prevItem.id);
+        } else {
+          await admin.from("production_items").insert([{
+            session_id: session.id,
+            sku_id: liveSku.id,
+            target_qty: ragPlan,
+            planned_qty: ragPlan,
+            actual_qty: prevQty,
+            scrap_qty: 0,
+            notes: `itouching:live_good`,
+          }]);
+        }
 
         // Stamp iTouching live total on the session for the operator UI.
         const { error: stampErr } = await admin.from("production_sessions").update({
