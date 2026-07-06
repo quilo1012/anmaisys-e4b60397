@@ -133,6 +133,7 @@ export default function LineProductionScreen() {
   const [now, setNow] = useState<Date>(new Date());
   const [editing, setEditing] = useState<ItemRow | null>(null);
   const [pad, setPad] = useState<string>("");
+  const [padFresh, setPadFresh] = useState<boolean>(true);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [assetScope, setAssetScope] = useState<"line" | "sealer_printer">("line");
