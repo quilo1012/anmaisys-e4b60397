@@ -280,8 +280,16 @@ export default function WorkOrdersPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newRequester.trim()) {
+      toast({ title: "Requester required", description: "Please select who is requesting the work order.", variant: "destructive" });
+      return;
+    }
     if (!newMachine.trim()) {
       toast({ title: "Machine required", description: "Please select a machine before creating the work order.", variant: "destructive" });
+      return;
+    }
+    if (!newDesc.trim()) {
+      toast({ title: "Problem description required", description: "Please describe the problem before creating the work order.", variant: "destructive" });
       return;
     }
     try {
@@ -699,14 +707,15 @@ export default function WorkOrdersPage() {
           <DialogContent>
             <DialogHeader><DialogTitle>Create Work Order</DialogTitle><DialogDescription className="sr-only">Fill in work order details</DialogDescription></DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4" autoComplete="off">
-              <div className="space-y-2"><Label>Requested By</Label>
+              <div className="space-y-2"><Label>Requested By <span className="text-destructive">*</span></Label>
                 <Select value={newRequester} onValueChange={setNewRequester}>
-                  <SelectTrigger><SelectValue placeholder="Select requester..." /></SelectTrigger>
+                  <SelectTrigger className={!newRequester ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select requester..." /></SelectTrigger>
                   <SelectContent>
                     {requesterOptions.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
 
                   </SelectContent>
                 </Select>
+                {!newRequester && <p className="text-xs text-destructive">Requester is required</p>}
               </div>
               <div className="space-y-2"><Label>Line</Label>
                 <Select value={newLineId} onValueChange={(v) => { setNewLineId(v); setNewMachine(""); }}>
@@ -739,11 +748,12 @@ export default function WorkOrdersPage() {
                 </Select>
                 {!newMachine && <p className="text-xs text-destructive">Machine is required</p>}
               </div>
-              <div className="space-y-2"><Label>Problem Description</Label>
+              <div className="space-y-2"><Label>Problem Description <span className="text-destructive">*</span></Label>
                 <Select value={newDesc} onValueChange={setNewDesc}>
-                  <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
+                  <SelectTrigger className={!newDesc ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select problem..." /></SelectTrigger>
                   <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
                 </Select>
+                {!newDesc && <p className="text-xs text-destructive">Problem description is required</p>}
               </div>
               <div className="space-y-2"><Label>Observations (optional)</Label>
                 <Textarea value={newNotes} onChange={(e) => setNewNotes(e.target.value)} placeholder="Additional notes..." rows={3} />

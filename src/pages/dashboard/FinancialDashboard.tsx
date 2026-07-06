@@ -63,6 +63,14 @@ function FinancialDashboardContent() {
   const startDate = drRange.from ?? startOfDay(subDays(new Date(), 30));
   const endDate = drRange.to ?? endOfDay(new Date());
 
+  // Fallback labor rate applied whenever a specific engineer has no rate
+  // configured. Persisted locally so a manager can tune the estimate
+  // without editing every engineer record. Defaults to £30/h.
+  const [fallbackRate, setFallbackRate] = useState<number>(() => {
+    const stored = Number(localStorage.getItem("financial:fallback_rate") || "30");
+    return Number.isFinite(stored) && stored >= 0 ? stored : 30;
+  });
+
   // Fetch all parts_used with product price
   const { data: allPartsUsed } = useQuery({
     queryKey: ["all_parts_used_with_price"],
@@ -121,7 +129,8 @@ function FinancialDashboardContent() {
       const partsCost = woParts.reduce((sum, p) => sum + (p.product?.price || 0) * p.quantity, 0);
 
       const repairHours = differenceInMinutes(new Date(wo.finished_at!), new Date(wo.started_at!)) / 60;
-      const rate = wo.engineer_id ? laborRateMap[wo.engineer_id] || 0 : 0;
+      const engineerRate = wo.engineer_id ? laborRateMap[wo.engineer_id] || 0 : 0;
+      const rate = engineerRate > 0 ? engineerRate : fallbackRate; // fall back to configurable rate
       const laborCost = repairHours * rate;
 
       const overtimeHours = Math.max(0, repairHours - 8);
@@ -143,7 +152,7 @@ function FinancialDashboardContent() {
         repairHours: Math.round(repairHours * 10) / 10,
       };
     });
-  }, [allWOs, allPartsUsed, laborRateMap, machineLineMap]);
+  }, [allWOs, allPartsUsed, laborRateMap, machineLineMap, fallbackRate]);
 
   // Filter WO costs by selected date range
   const filteredCosts = useMemo(
@@ -190,6 +199,22 @@ function FinancialDashboardContent() {
             <p className="text-muted-foreground">Cost tracking and financial analysis</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              Fallback £/h
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={fallbackRate}
+                onChange={(e) => {
+                  const v = Math.max(0, Number(e.target.value) || 0);
+                  setFallbackRate(v);
+                  localStorage.setItem("financial:fallback_rate", String(v));
+                }}
+                className="w-20 h-9 rounded-md border bg-background px-2 text-sm"
+                title="Applied when an engineer has no labor rate set"
+              />
+            </label>
             <DateRangeFilter
               value={drRange}
               preset={drPreset}

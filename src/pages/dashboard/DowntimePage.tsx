@@ -37,6 +37,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { useNavigate } from "react-router-dom";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { filterWOsByRange, buildMachineHistory, buildMachineRisks } from "@/lib/downtimeReliability";
+import { mapWoToStop } from "@/lib/ragDowntime";
 
 const CATEGORIES = ["Mechanical", "Electrical", "Machine", "Maintenance", "Filler", "Other"] as const;
 const LINES = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"] as const;
@@ -144,23 +145,58 @@ export default function DowntimePage() {
   };
 
   // ── Downtime KPIs (all follow top date range) ─────────────────
+  // Unified source: manual `downtime` records + Work Order-based stops
+  // (same mapping used by RAG Weekly + Admin Dashboard) so the "Today"
+  // filter here never disagrees with those views.
+  const woStops = useMemo(() => {
+    return (allWOs || [])
+      .map((w: any) => {
+        const mapped = mapWoToStop(w);
+        if (!mapped) return null;
+        return {
+          id: `wo-${w.id}`,
+          line: mapped.line || "—",
+          machine: w.machine || null,
+          category: "Machine",
+          reason: w.description || "Line stopped (WO)",
+          started_at: mapped.start as string,
+          ended_at: (mapped.end as string) || null,
+          notes: w.wo_number ? `WO #${w.wo_number}` : null,
+          work_order_id: w.id,
+          reported_by: w.line_stopped_by || null,
+          source: "wo_event" as const,
+        };
+      })
+      .filter(Boolean) as any[];
+  }, [allWOs]);
+
+  const unifiedRecords = useMemo(() => {
+    const base = (records || []).map((r: any) => ({ ...r }));
+    // Only add WO stops that aren't already surfaced by useDowntime
+    // (which loads downtime_events + WO fallback). Prevents double-count
+    // in the visible list while still guaranteeing "Today" matches RAG.
+    const existingWoIds = new Set(
+      base.filter((r) => r.work_order_id).map((r) => r.work_order_id),
+    );
+    const extras = woStops.filter((w) => !existingWoIds.has(w.work_order_id));
+    return [...base, ...extras];
+  }, [records, woStops]);
+
   const kpis = useMemo(() => {
-    const safeRecords = records || [];
     const rangeStartMs = startOfDay(startDate).getTime();
     const rangeEndMs = Math.min(endOfDay(endDate).getTime(), Date.now());
     const nowMs = Date.now();
 
     const totalRange = reconcileMinutes(
-      safeRecords.map((r) => ({ start: r.started_at, end: r.ended_at })),
+      unifiedRecords.map((r) => ({ start: r.started_at, end: r.ended_at })),
       rangeStartMs,
       rangeEndMs,
       nowMs,
     );
 
-    const active = safeRecords.filter(r => !r.ended_at).length;
+    const active = unifiedRecords.filter(r => !r.ended_at).length;
 
-    // Average duration over the selected range (resolved records only)
-    const inRange = safeRecords.filter(r => {
+    const inRange = unifiedRecords.filter(r => {
       const t = new Date(r.started_at).getTime();
       return t >= rangeStartMs && t <= rangeEndMs && r.ended_at;
     });
@@ -168,8 +204,7 @@ export default function DowntimePage() {
       ? Math.round(inRange.reduce((s, r) => s + differenceInMinutes(new Date(r.ended_at!), new Date(r.started_at)), 0) / inRange.length)
       : 0;
 
-    // Most affected line over the selected range
-    const rangeRecords = safeRecords.filter(r => {
+    const rangeRecords = unifiedRecords.filter(r => {
       const t = new Date(r.started_at).getTime();
       return t >= rangeStartMs && t <= rangeEndMs;
     });
@@ -178,14 +213,13 @@ export default function DowntimePage() {
     const mostAffected = Object.entries(lineCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
 
     return { totalRange, active, avgDuration, mostAffected };
-  }, [records, startDate, endDate]);
+  }, [unifiedRecords, startDate, endDate]);
 
 
   const filteredRecords = useMemo(() => {
-    if (!records) return [];
     const from = startOfDay(startDate).getTime();
     const to = endOfDay(endDate).getTime();
-    return records.filter(r => {
+    return unifiedRecords.filter(r => {
       const t = new Date(r.started_at).getTime();
       if (t < from || t > to) return false;
       if (filterLine !== "all" && r.line !== filterLine) return false;
@@ -194,7 +228,7 @@ export default function DowntimePage() {
       if (filterStatus === "resolved" && !r.ended_at) return false;
       return true;
     });
-  }, [records, filterLine, filterCategory, filterStatus, startDate, endDate]);
+  }, [unifiedRecords, filterLine, filterCategory, filterStatus, startDate, endDate]);
 
   const getDuration = (r: DowntimeRecord) => {
     const end = r.ended_at ? new Date(r.ended_at) : new Date();
