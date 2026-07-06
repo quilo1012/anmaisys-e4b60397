@@ -228,7 +228,10 @@ export default function RAGWeeklyPage() {
   const { data: lineStops = [], error: lineStopsError } = useQuery({
     queryKey: ["rag-week-line-stops", weekStartStr],
     queryFn: async () => {
-      const [woRes, manRes, prodRes] = await Promise.all([
+      // Downtime source: WO Request only. iTouching production_downtimes were
+      // pulling in "No Planned Shift" and other stop codes that artificially
+      // inflated downtime — excluded here so RAG reflects operator-reported stops.
+      const [woRes, manRes] = await Promise.all([
         supabase.from("work_orders")
           .select("wo_number, status, machine, description, line_at_time, line_stopped_at, line_resumed_at, created_at, finished_at, closed_at, operator_id, intouch_stop_code, engineer_id")
           .not("line_stopped_at", "is", null)
@@ -237,17 +240,12 @@ export default function RAGWeeklyPage() {
         (supabase as any).from("downtime")
           .select("line, machine, reason, category, started_at, ended_at")
           .gte("started_at", padStartIso).lte("started_at", padEndIso),
-        (supabase as any).from("production_downtimes")
-          .select("line, machine, reason, category, started_at, ended_at")
-          .gte("started_at", padStartIso).lte("started_at", padEndIso),
       ]);
       if (woRes.error) throw woRes.error;
       if ((manRes as any).error) throw (manRes as any).error;
-      if ((prodRes as any).error) throw (prodRes as any).error;
 
       const wo: StopDetail[] = ((woRes.data ?? []) as any[]).map((r) => {
         const mapped = mapWoToStop(r);
-        const isItouching = !!r.intouch_stop_code;
         return {
           line: mapped?.line ?? (r.line_at_time as string | null),
           start: (mapped?.start ?? r.line_stopped_at) as string,
@@ -257,8 +255,8 @@ export default function RAGWeeklyPage() {
           machine: r.machine as string | null,
           reason: r.description as string | null,
           status: r.status as string | null,
-          kind: isItouching ? "MAINT" : "WO Request",
-          category: isItouching ? "Maint Downtime (iTouching)" : "WO Request",
+          kind: "WO Request",
+          category: "WO Request",
         };
       });
 
@@ -285,11 +283,8 @@ export default function RAGWeeklyPage() {
         .map((r) => mapRow(r, "Manual"))
         .filter((s): s is StopDetail => s !== null);
 
-      const prod = ((prodRes.data ?? []) as any[])
-        .map((r) => mapRow(r, "Prod"))
-        .filter((s): s is StopDetail => s !== null);
+      return [...wo, ...man].filter((s) => s.line && s.start) as StopDetail[];
 
-      return [...wo, ...man, ...prod].filter((s) => s.line && s.start) as StopDetail[];
     },
   });
 
