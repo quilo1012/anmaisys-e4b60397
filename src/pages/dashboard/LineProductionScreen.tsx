@@ -580,6 +580,38 @@ export default function LineProductionScreen() {
     setEditing(null);
   };
 
+  // #12 Reorder / delete SKU cards (admin/manager preview only)
+  const canManageSkus = !isOperator;
+  const deleteItem = useMutation({
+    mutationFn: async (id: string) => {
+      await (supabase as any).from("production_blender_entries").delete().eq("production_item_id", id);
+      const { error } = await (supabase as any).from("production_items").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
+      toast.success("SKU removed from shift");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to remove SKU"),
+  });
+  const moveItem = useMutation({
+    mutationFn: async ({ id, direction }: { id: string; direction: "up" | "down" }) => {
+      const arr = [...(itemsQ.data || [])];
+      const idx = arr.findIndex((r) => r.id === id);
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (idx < 0 || swapIdx < 0 || swapIdx >= arr.length) return;
+      // Assign sequential display_order based on new positions
+      [arr[idx], arr[swapIdx]] = [arr[swapIdx], arr[idx]];
+      await Promise.all(
+        arr.map((r, i) =>
+          (supabase as any).from("production_items").update({ display_order: i }).eq("id", r.id),
+        ),
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] }),
+    onError: (e: any) => toast.error(e.message || "Failed to reorder"),
+  });
+
   return (
     <div className="min-h-screen bg-background p-3 md:p-6 select-none">
       {/* Header */}
