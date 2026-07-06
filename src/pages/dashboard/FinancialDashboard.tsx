@@ -63,6 +63,14 @@ function FinancialDashboardContent() {
   const startDate = drRange.from ?? startOfDay(subDays(new Date(), 30));
   const endDate = drRange.to ?? endOfDay(new Date());
 
+  // Fallback labor rate applied whenever a specific engineer has no rate
+  // configured. Persisted locally so a manager can tune the estimate
+  // without editing every engineer record. Defaults to £30/h.
+  const [fallbackRate, setFallbackRate] = useState<number>(() => {
+    const stored = Number(localStorage.getItem("financial:fallback_rate") || "30");
+    return Number.isFinite(stored) && stored >= 0 ? stored : 30;
+  });
+
   // Fetch all parts_used with product price
   const { data: allPartsUsed } = useQuery({
     queryKey: ["all_parts_used_with_price"],
