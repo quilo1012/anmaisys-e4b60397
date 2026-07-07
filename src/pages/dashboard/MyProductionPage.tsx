@@ -270,16 +270,23 @@ function MyProductionContent() {
 
 function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existingSkuIds: string[] }) {
   const qc = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState("");
+  const [debounced, setDebounced] = useState("");
   const [open, setOpen] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
 
+  // 300ms debounce
+  useMemo(() => query, [query]);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffectDebounce(() => setDebounced(query.trim()), 300, [query]);
+
   const searchQ = useQuery({
-    enabled: query.trim().length >= 1,
-    queryKey: ["sku-search", query.trim()],
+    enabled: expanded && debounced.length >= 1,
+    queryKey: ["sku-search", debounced],
     staleTime: 30_000,
     queryFn: async () => {
-      const q = query.trim();
+      const q = debounced;
       const { data, error } = await (supabase as any)
         .from("sku_products")
         .select("id, code, name")
@@ -290,6 +297,7 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
       return (data || []) as { id: string; code: string; name: string }[];
     },
   });
+
 
   const existing = useMemo(() => new Set(existingSkuIds), [existingSkuIds]);
 
