@@ -203,16 +203,10 @@ function MyProductionContent() {
         </Card>
       ) : (
         <>
-          {/* Manual SKU search — add an SKU to this shift on the fly */}
-          <SkuSearchAdd
-            sessionId={sessionId}
-            existingSkuIds={items.map((i) => i.sku_id)}
-          />
-
           {items.length === 0 ? (
             <Card>
               <CardContent className="p-6 text-center text-sm text-muted-foreground">
-                No SKUs scheduled for this shift yet. Use the search above to add one manually.
+                No SKUs scheduled for this shift yet. Use "+ Add SKU" below to add one manually.
               </CardContent>
             </Card>
           ) : (
@@ -226,6 +220,13 @@ function MyProductionContent() {
               canEdit={true}
             />
           )}
+
+          {/* Manual SKU search — add an SKU to this shift on the fly */}
+          <SkuSearchAdd
+            sessionId={sessionId}
+            existingSkuIds={items.map((i) => i.sku_id)}
+          />
+
 
           {/* Footer summary */}
           <Card className="border-primary/30">
