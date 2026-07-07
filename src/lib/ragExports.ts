@@ -57,6 +57,8 @@ export interface RagExportInput {
   /** bucket -> (dateKey "yyyy-MM-dd|line|SHIFT") -> minutes */
   autoDtBucketMap: Map<string, Map<string, number>>;
   generatedBy: string;
+  /** Optional map of line -> comment for the week */
+  comments?: Map<string, string>;
 }
 
 interface DayTotals {
