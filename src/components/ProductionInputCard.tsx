@@ -110,7 +110,7 @@ export function ProductionInputCard({
     setSaveState((s) => ({ ...s, [it.id]: "saving" }));
     const { error } = await (supabase as any)
       .from("production_items")
-      .update({ actual_qty: n, notes: "operator_manual" })
+      .update({ actual_qty: n })
       .eq("id", it.id);
     if (error) {
       toast.error(error.message);
