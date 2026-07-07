@@ -335,7 +335,28 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
   return (
     <Card>
       <CardContent className="p-4 md:p-6 space-y-2">
-        <div className="text-xs uppercase tracking-wider text-muted-foreground">Add SKU manually</div>
+        {!expanded ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full"
+            onClick={() => setExpanded(true)}
+          >
+            <Plus className="h-4 w-4 mr-2" /> Add SKU
+          </Button>
+        ) : (
+          <>
+        <div className="flex items-center justify-between">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Add SKU manually</div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => { setExpanded(false); setQuery(""); setDebounced(""); setOpen(false); }}
+          >
+            Cancel
+          </Button>
+        </div>
         <Popover open={open && (results.length > 0 || searchQ.isFetching)} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <div className="relative">
