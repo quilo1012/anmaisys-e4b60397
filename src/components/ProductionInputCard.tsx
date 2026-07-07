@@ -16,6 +16,7 @@ type Item = {
   name: string;
   target_qty: number;
   actual_qty: number;
+  is_manual?: boolean;
 };
 
 interface Props {
