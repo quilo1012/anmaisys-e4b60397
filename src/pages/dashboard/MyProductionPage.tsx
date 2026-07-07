@@ -304,7 +304,7 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
       target_qty: 0,
       planned_qty: 0,
       actual_qty: 0,
-      notes: "operator_manual",
+      notes: "manual_sku",
     });
     setAddingId(null);
     if (error) {
