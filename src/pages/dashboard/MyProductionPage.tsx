@@ -324,7 +324,9 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
     }
     toast.success(`Added ${sku.code} to this shift`);
     setQuery("");
+    setDebounced("");
     setOpen(false);
+    setExpanded(false);
     qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
   };
 
