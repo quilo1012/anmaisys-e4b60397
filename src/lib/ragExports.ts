@@ -212,6 +212,14 @@ export async function exportRagPdf(input: RagExportInput) {
       styles: { fillColor: pctColorRgb(wpct), halign: "center", fontStyle: "bold" },
     });
     body.push(totalRow);
+    const cmt = comments?.get(line)?.trim();
+    if (cmt) {
+      body.push([{
+        content: `Comments: ${cmt}`,
+        colSpan: 25,
+        styles: { fontStyle: "italic", halign: "left", fillColor: [255, 251, 235], textColor: [92, 65, 8] },
+      }]);
+    }
   }
 
   // Totals row
