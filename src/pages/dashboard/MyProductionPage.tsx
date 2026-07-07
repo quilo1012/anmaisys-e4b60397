@@ -117,6 +117,7 @@ function MyProductionContent() {
         name: r.sku?.name || "—",
         target_qty: Number(r.target_qty ?? r.planned_qty ?? 0),
         actual_qty: manualActualQty(r),
+        is_manual: String(r.notes ?? "").startsWith("manual_sku"),
       }));
     },
     refetchInterval: 30_000,
