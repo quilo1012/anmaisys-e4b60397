@@ -1308,6 +1308,35 @@ function DayNightTotalSummary({
     },
   });
 
+  // Comments per line for the week
+  const { data: commentRows = [] } = useQuery({
+    queryKey: ["rag-comments", weekStartStr],
+    enabled: !!weekStartStr,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("rag_weekly_comments")
+        .select("line, comment")
+        .eq("week_start", weekStartStr!);
+      if (error) throw error;
+      return (data ?? []) as { line: string; comment: string }[];
+    },
+  });
+  const commentMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of commentRows) m.set(r.line, r.comment ?? "");
+    return m;
+  }, [commentRows]);
+  useEffect(() => {
+    if (!weekStartStr) return;
+    const ch = supabase
+      .channel(`rag-comments-${weekStartStr}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "rag_weekly_comments" }, () => {
+        qcExcl.invalidateQueries({ queryKey: ["rag-comments", weekStartStr] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [weekStartStr, qcExcl]);
+
   useEffect(() => {
     if (!fromDate || !toDate) return;
     const ch = supabase
