@@ -1247,6 +1247,8 @@ function DayNightTotalSummary({
   cellScrapMap,
   cellItemTargetMap,
   isAdmin = false,
+  canComment = false,
+  weekStartStr,
   onSave,
   onOpenFull,
 }: {
@@ -1259,6 +1261,8 @@ function DayNightTotalSummary({
   cellScrapMap?: Map<string, number>;
   cellItemTargetMap?: Map<string, number>;
   isAdmin?: boolean;
+  canComment?: boolean;
+  weekStartStr?: string;
   onSave?: (payload: Omit<Entry, "id">) => void;
   onOpenFull?: (date: string, line: string, shift: Shift) => void;
 }) {
