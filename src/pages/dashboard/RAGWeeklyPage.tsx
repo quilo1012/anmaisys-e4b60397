@@ -1020,6 +1020,8 @@ export default function RAGWeeklyPage() {
           cellScrapMap={cellScrapMap}
           cellItemTargetMap={cellItemTargetMap}
           isAdmin={isAdmin}
+          canComment={canComment}
+          weekStartStr={weekStartStr}
           onSave={(payload) => upsertMutation.mutate(payload)}
           onOpenFull={(date, line, shift) => {
             const e = entryMap.get(`${date}|${line}|${shift}`);
