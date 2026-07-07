@@ -500,7 +500,43 @@ export function exportRagExcel(input: RagExportInput) {
     }
   }
 
-  XLSX.utils.book_append_sheet(wb, ws1, "RAG Weekly");
+  // Comments section (below totals)
+  const commentEntries = lines
+    .map((l) => ({ line: l, comment: (comments?.get(l) ?? "").trim() }))
+    .filter((c) => c.comment);
+  if (commentEntries.length) {
+    const startR = s1.length + 1; // blank spacer row
+    s1.push([]);
+    s1.push(["Comments"]);
+    for (const c of commentEntries) s1.push([c.line, c.comment]);
+    // Re-generate sheet with new rows
+    const ws1b = XLSX.utils.aoa_to_sheet(s1);
+    // Copy over previous merges + cols
+    ws1b["!merges"] = ws1["!merges"];
+    ws1b["!cols"] = ws1["!cols"];
+    // Re-apply styles from ws1 to ws1b for existing cells
+    for (const addr of Object.keys(ws1)) {
+      if (addr.startsWith("!")) continue;
+      if (ws1b[addr] && (ws1 as any)[addr].s) (ws1b as any)[addr].s = (ws1 as any)[addr].s;
+    }
+    // Style the Comments header + rows
+    const hdrAddr = XLSX.utils.encode_cell({ r: startR + 1, c: 0 });
+    if (ws1b[hdrAddr]) (ws1b as any)[hdrAddr].s = { fill: headerFill, font: headerFont, alignment: { horizontal: "left", vertical: "center" }, border };
+    ws1b["!merges"] = [...(ws1b["!merges"] ?? []), { s: { r: startR + 1, c: 0 }, e: { r: startR + 1, c: 24 } }];
+    for (let i = 0; i < commentEntries.length; i++) {
+      const r = startR + 2 + i;
+      const a0 = XLSX.utils.encode_cell({ r, c: 0 });
+      const a1 = XLSX.utils.encode_cell({ r, c: 1 });
+      if (ws1b[a0]) (ws1b as any)[a0].s = { border, font: { name: "Calibri", sz: 10, bold: true }, alignment: { horizontal: "left", vertical: "top" } };
+      if (ws1b[a1]) {
+        (ws1b as any)[a1].s = { border, font: { name: "Calibri", sz: 10, italic: true }, alignment: { horizontal: "left", vertical: "top", wrapText: true }, fill: { patternType: "solid", fgColor: { rgb: "FFFBEB" } } };
+      }
+      ws1b["!merges"].push({ s: { r, c: 1 }, e: { r, c: 24 } });
+    }
+    XLSX.utils.book_append_sheet(wb, ws1b, "RAG Weekly");
+  } else {
+    XLSX.utils.book_append_sheet(wb, ws1, "RAG Weekly");
+  }
 
   // =============== Sheet 2: Downtime ===============
   const dtCategories = ["WO Request", "MAINT", "Break", "Cleaning"];
