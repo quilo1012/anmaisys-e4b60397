@@ -145,6 +145,8 @@ export default function RAGWeeklyPage() {
   const { is: isRole } = useRole();
   const { user, profile } = useAuth();
   const isAdmin = isRole("admin");
+  const isManager = isRole("manager");
+  const canComment = isAdmin || isManager;
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
