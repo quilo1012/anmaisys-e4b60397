@@ -905,6 +905,7 @@ export default function RAGWeeklyPage() {
                             lines,
                             entries,
                             autoDtBucketMap,
+                            comments: commentMap,
                             generatedBy: profile?.name || user?.email || "System",
                           });
                         } catch (e) { toast.error((e as Error).message); }
