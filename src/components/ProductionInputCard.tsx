@@ -155,7 +155,14 @@ export function ProductionInputCard({
             <div key={it.id} className="rounded-lg border bg-card/50 p-3 space-y-3">
               <div className="flex items-start justify-between flex-wrap gap-2">
                 <div>
-                  <div className="font-mono text-sm font-semibold">{it.code}</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="font-mono text-sm font-semibold">{it.code}</div>
+                    {it.is_manual && (
+                      <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600">
+                        Manual
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground">{it.name}</div>
                   <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div className="rounded-md border bg-background/60 px-3 py-2">
