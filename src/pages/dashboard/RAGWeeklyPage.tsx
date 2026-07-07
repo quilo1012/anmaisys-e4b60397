@@ -900,12 +900,19 @@ export default function RAGWeeklyPage() {
                     <DropdownMenuItem
                       onClick={async () => {
                         try {
+                          const weekStartStrLocal = format(weekStart, "yyyy-MM-dd");
+                          const { data: cRows } = await (supabase as any)
+                            .from("rag_weekly_comments")
+                            .select("line, comment")
+                            .eq("week_start", weekStartStrLocal);
+                          const cMap = new Map<string, string>();
+                          for (const r of (cRows ?? []) as { line: string; comment: string }[]) cMap.set(r.line, r.comment ?? "");
                           await exportRagPdf({
                             weekStart,
                             lines,
                             entries,
                             autoDtBucketMap,
-                            comments: commentMap,
+                            comments: cMap,
                             generatedBy: profile?.name || user?.email || "System",
                           });
                         } catch (e) { toast.error((e as Error).message); }
@@ -914,13 +921,21 @@ export default function RAGWeeklyPage() {
                       <FileText className="h-4 w-4 mr-2" />Download PDF
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => {
+                      onClick={async () => {
                         try {
+                          const weekStartStrLocal = format(weekStart, "yyyy-MM-dd");
+                          const { data: cRows } = await (supabase as any)
+                            .from("rag_weekly_comments")
+                            .select("line, comment")
+                            .eq("week_start", weekStartStrLocal);
+                          const cMap = new Map<string, string>();
+                          for (const r of (cRows ?? []) as { line: string; comment: string }[]) cMap.set(r.line, r.comment ?? "");
                           exportRagExcel({
                             weekStart,
                             lines,
                             entries,
                             autoDtBucketMap,
+                            comments: cMap,
                             generatedBy: profile?.name || user?.email || "System",
                           });
                         } catch (e) { toast.error((e as Error).message); }
@@ -928,6 +943,7 @@ export default function RAGWeeklyPage() {
                     >
                       <FileSpreadsheet className="h-4 w-4 mr-2" />Download Excel
                     </DropdownMenuItem>
+
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
