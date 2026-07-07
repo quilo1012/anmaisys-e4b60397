@@ -215,7 +215,7 @@ function MyProductionContent() {
               sessionDate={today}
               line={line}
               shift={shift}
-              ragPlanQty={totalOrderQty}
+              ragPlanQty={totalTarget}
               items={items}
               canEdit={true}
             />
