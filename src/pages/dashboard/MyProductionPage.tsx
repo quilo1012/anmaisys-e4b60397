@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -117,6 +117,7 @@ function MyProductionContent() {
         name: r.sku?.name || "—",
         target_qty: Number(r.target_qty ?? r.planned_qty ?? 0),
         actual_qty: manualActualQty(r),
+        is_manual: String(r.notes ?? "").startsWith("manual_sku"),
       }));
     },
     refetchInterval: 30_000,
@@ -202,16 +203,10 @@ function MyProductionContent() {
         </Card>
       ) : (
         <>
-          {/* Manual SKU search — add an SKU to this shift on the fly */}
-          <SkuSearchAdd
-            sessionId={sessionId}
-            existingSkuIds={items.map((i) => i.sku_id)}
-          />
-
           {items.length === 0 ? (
             <Card>
               <CardContent className="p-6 text-center text-sm text-muted-foreground">
-                No SKUs scheduled for this shift yet. Use the search above to add one manually.
+                No SKUs scheduled for this shift yet. Use "+ Add SKU" below to add one manually.
               </CardContent>
             </Card>
           ) : (
@@ -225,6 +220,13 @@ function MyProductionContent() {
               canEdit={true}
             />
           )}
+
+          {/* Manual SKU search — add an SKU to this shift on the fly */}
+          <SkuSearchAdd
+            sessionId={sessionId}
+            existingSkuIds={items.map((i) => i.sku_id)}
+          />
+
 
           {/* Footer summary */}
           <Card className="border-primary/30">
@@ -268,16 +270,25 @@ function MyProductionContent() {
 
 function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existingSkuIds: string[] }) {
   const qc = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState("");
+  const [debounced, setDebounced] = useState("");
   const [open, setOpen] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
 
+  // 300ms debounce
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+
   const searchQ = useQuery({
-    enabled: query.trim().length >= 1,
-    queryKey: ["sku-search", query.trim()],
+    enabled: expanded && debounced.length >= 1,
+    queryKey: ["sku-search", debounced],
     staleTime: 30_000,
     queryFn: async () => {
-      const q = query.trim();
+      const q = debounced;
       const { data, error } = await (supabase as any)
         .from("sku_products")
         .select("id, code, name")
@@ -288,6 +299,7 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
       return (data || []) as { id: string; code: string; name: string }[];
     },
   });
+
 
   const existing = useMemo(() => new Set(existingSkuIds), [existingSkuIds]);
 
@@ -303,7 +315,7 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
       target_qty: 0,
       planned_qty: 0,
       actual_qty: 0,
-      notes: "operator_manual",
+      notes: "manual_sku",
     });
     setAddingId(null);
     if (error) {
@@ -312,7 +324,9 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
     }
     toast.success(`Added ${sku.code} to this shift`);
     setQuery("");
+    setDebounced("");
     setOpen(false);
+    setExpanded(false);
     qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
   };
 
@@ -321,7 +335,28 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
   return (
     <Card>
       <CardContent className="p-4 md:p-6 space-y-2">
-        <div className="text-xs uppercase tracking-wider text-muted-foreground">Add SKU manually</div>
+        {!expanded ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full"
+            onClick={() => setExpanded(true)}
+          >
+            <Plus className="h-4 w-4 mr-2" /> Add SKU
+          </Button>
+        ) : (
+          <>
+        <div className="flex items-center justify-between">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Add SKU manually</div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => { setExpanded(false); setQuery(""); setDebounced(""); setOpen(false); }}
+          >
+            Cancel
+          </Button>
+        </div>
         <Popover open={open && (results.length > 0 || searchQ.isFetching)} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <div className="relative">
@@ -377,6 +412,8 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
             )}
           </PopoverContent>
         </Popover>
+          </>
+        )}
       </CardContent>
     </Card>
   );
