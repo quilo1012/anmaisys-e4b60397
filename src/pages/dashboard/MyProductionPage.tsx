@@ -277,9 +277,11 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
   const [addingId, setAddingId] = useState<string | null>(null);
 
   // 300ms debounce
-  useMemo(() => query, [query]);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  useEffectDebounce(() => setDebounced(query.trim()), 300, [query]);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
 
   const searchQ = useQuery({
     enabled: expanded && debounced.length >= 1,
