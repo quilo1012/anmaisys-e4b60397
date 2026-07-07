@@ -122,7 +122,7 @@ async function loadLogoDataUrl(): Promise<string | null> {
 // PDF
 // ============================================================
 export async function exportRagPdf(input: RagExportInput) {
-  const { weekStart, lines, entries, autoDtBucketMap, generatedBy } = input;
+  const { weekStart, lines, entries, autoDtBucketMap, generatedBy, comments } = input;
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
