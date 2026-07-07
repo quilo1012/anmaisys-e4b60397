@@ -145,6 +145,8 @@ export default function RAGWeeklyPage() {
   const { is: isRole } = useRole();
   const { user, profile } = useAuth();
   const isAdmin = isRole("admin");
+  const isManager = isRole("manager");
+  const canComment = isAdmin || isManager;
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
@@ -1018,6 +1020,8 @@ export default function RAGWeeklyPage() {
           cellScrapMap={cellScrapMap}
           cellItemTargetMap={cellItemTargetMap}
           isAdmin={isAdmin}
+          canComment={canComment}
+          weekStartStr={weekStartStr}
           onSave={(payload) => upsertMutation.mutate(payload)}
           onOpenFull={(date, line, shift) => {
             const e = entryMap.get(`${date}|${line}|${shift}`);
@@ -1243,6 +1247,8 @@ function DayNightTotalSummary({
   cellScrapMap,
   cellItemTargetMap,
   isAdmin = false,
+  canComment = false,
+  weekStartStr,
   onSave,
   onOpenFull,
 }: {
@@ -1255,6 +1261,8 @@ function DayNightTotalSummary({
   cellScrapMap?: Map<string, number>;
   cellItemTargetMap?: Map<string, number>;
   isAdmin?: boolean;
+  canComment?: boolean;
+  weekStartStr?: string;
   onSave?: (payload: Omit<Entry, "id">) => void;
   onOpenFull?: (date: string, line: string, shift: Shift) => void;
 }) {
@@ -1299,6 +1307,35 @@ function DayNightTotalSummary({
       return (data ?? []) as { entry_date: string; line: string; shift: "DAY" | "NIGHT" | "ALL" }[];
     },
   });
+
+  // Comments per line for the week
+  const { data: commentRows = [] } = useQuery({
+    queryKey: ["rag-comments", weekStartStr],
+    enabled: !!weekStartStr,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("rag_weekly_comments")
+        .select("line, comment")
+        .eq("week_start", weekStartStr!);
+      if (error) throw error;
+      return (data ?? []) as { line: string; comment: string }[];
+    },
+  });
+  const commentMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of commentRows) m.set(r.line, r.comment ?? "");
+    return m;
+  }, [commentRows]);
+  useEffect(() => {
+    if (!weekStartStr) return;
+    const ch = supabase
+      .channel(`rag-comments-${weekStartStr}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "rag_weekly_comments" }, () => {
+        qcExcl.invalidateQueries({ queryKey: ["rag-comments", weekStartStr] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [weekStartStr, qcExcl]);
 
   useEffect(() => {
     if (!fromDate || !toDate) return;
@@ -1352,11 +1389,21 @@ function DayNightTotalSummary({
     const m = Math.round(min % 60);
     return `${h}:${m.toString().padStart(2, "0")}`;
   };
-  const pct = (a: number, p: number) => (p > 0 ? `${Math.round(((a - p) / p) * 100)}%` : "—");
+  const pct = (a: number, p: number) => {
+    const plan = Number(p) || 0;
+    const actual = Number(a) || 0;
+    if (plan <= 0 && actual <= 0) return "—";
+    if (plan <= 0 && actual > 0) return "N/A";
+    if (plan > 0 && actual <= 0) return "-100%";
+    return `${Math.round(((actual - plan) / plan) * 100)}%`;
+  };
   const pctClass = (a: number, p: number) => {
-    if (!p) return "text-muted-foreground";
-    if (a >= p) return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold rounded px-1.5";
-    const r = (a / p) * 100;
+    const plan = Number(p) || 0;
+    const actual = Number(a) || 0;
+    if (plan <= 0) return "text-muted-foreground";
+    if (actual <= 0) return "bg-red-500/15 text-red-700 dark:text-red-300 font-semibold rounded px-1.5";
+    if (actual >= plan) return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold rounded px-1.5";
+    const r = (actual / plan) * 100;
     if (r >= 90) return "bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold rounded px-1.5";
     return "bg-red-500/15 text-red-700 dark:text-red-300 font-semibold rounded px-1.5";
   };
@@ -1728,6 +1775,14 @@ function DayNightTotalSummary({
           </table>
         </div>
         )}
+        {!isCollapsed && label !== "All Lines" && weekStartStr && (
+          <LineCommentBox
+            line={label}
+            weekStart={weekStartStr}
+            initialValue={commentMap.get(label) ?? ""}
+            canEdit={canComment}
+          />
+        )}
       </div>
     );
   };
@@ -1758,6 +1813,67 @@ function DayNightTotalSummary({
     </Card>
   );
 }
+
+function LineCommentBox({
+  line,
+  weekStart,
+  initialValue,
+  canEdit,
+}: {
+  line: string;
+  weekStart: string;
+  initialValue: string;
+  canEdit: boolean;
+}) {
+  const qc = useQueryClient();
+  const [value, setValue] = useState<string>(initialValue ?? "");
+  const [saving, setSaving] = useState(false);
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    if (!focusedRef.current) setValue(initialValue ?? "");
+  }, [initialValue, line, weekStart]);
+
+  const commit = async () => {
+    focusedRef.current = false;
+    const next = value.trim();
+    if (next === (initialValue ?? "").trim()) return;
+    if (!canEdit) return;
+    setSaving(true);
+    const { error } = await (supabase as any)
+      .from("rag_weekly_comments")
+      .upsert(
+        { line, week_start: weekStart, comment: next, updated_by: (await supabase.auth.getUser()).data.user?.id ?? null, updated_at: new Date().toISOString() },
+        { onConflict: "line,week_start" },
+      );
+    setSaving(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["rag-comments", weekStart] });
+  };
+
+  return (
+    <div className="mt-2 border rounded-md bg-muted/10 p-3">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Comments</div>
+        {saving && <div className="text-[11px] text-muted-foreground">Saving…</div>}
+      </div>
+      <Textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onFocus={() => { focusedRef.current = true; }}
+        onBlur={commit}
+        disabled={!canEdit}
+        placeholder="Add notes, observations or flags for this line..."
+        rows={2}
+        className="min-h-[48px] resize-y text-sm"
+      />
+    </div>
+  );
+}
+
+
 
 function SummaryInlineInput({
   value,

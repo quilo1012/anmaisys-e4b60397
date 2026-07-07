@@ -2055,6 +2055,36 @@ export type Database = {
         }
         Relationships: []
       }
+      rag_weekly_comments: {
+        Row: {
+          comment: string
+          created_at: string
+          id: string
+          line: string
+          updated_at: string
+          updated_by: string | null
+          week_start: string
+        }
+        Insert: {
+          comment?: string
+          created_at?: string
+          id?: string
+          line: string
+          updated_at?: string
+          updated_by?: string | null
+          week_start: string
+        }
+        Update: {
+          comment?: string
+          created_at?: string
+          id?: string
+          line?: string
+          updated_at?: string
+          updated_by?: string | null
+          week_start?: string
+        }
+        Relationships: []
+      }
       rag_weekly_entries: {
         Row: {
           actual_qty: number
