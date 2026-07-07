@@ -412,6 +412,8 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
             )}
           </PopoverContent>
         </Popover>
+          </>
+        )}
       </CardContent>
     </Card>
   );
