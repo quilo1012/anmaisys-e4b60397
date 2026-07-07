@@ -1775,6 +1775,14 @@ function DayNightTotalSummary({
           </table>
         </div>
         )}
+        {!isCollapsed && label !== "All Lines" && weekStartStr && (
+          <LineCommentBox
+            line={label}
+            weekStart={weekStartStr}
+            initialValue={commentMap.get(label) ?? ""}
+            canEdit={canComment}
+          />
+        )}
       </div>
     );
   };
