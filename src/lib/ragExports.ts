@@ -369,7 +369,7 @@ export async function exportRagPdf(input: RagExportInput) {
 // EXCEL
 // ============================================================
 export function exportRagExcel(input: RagExportInput) {
-  const { weekStart, lines, entries, autoDtBucketMap, generatedBy } = input;
+  const { weekStart, lines, entries, autoDtBucketMap, generatedBy, comments } = input;
   const weekNo = getISOWeek(weekStart);
   const { dates, byLine } = computeDaily(entries, lines, weekStart);
 
