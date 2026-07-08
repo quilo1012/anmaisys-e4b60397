@@ -194,36 +194,62 @@ export default function DowntimeHeatmapPage() {
       const line = r.line || "—";
       const start = new Date(r.started_at).getTime();
       const end = r.ended_at ? new Date(r.ended_at).getTime() : Date.now();
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
       // Overlap with [fromMs, toMs]
-      if (end < fromMs || start > toMs) continue;
+      if (end <= fromMs || start >= toMs) continue;
       const clampedStart = Math.max(start, fromMs);
       const clampedEnd = Math.min(end, toMs);
-      const minutes = Math.max(0, Math.round((clampedEnd - clampedStart) / 60000));
-      if (minutes <= 0) continue;
-
-
-      const { dayIdx, hour } = londonParts(new Date(start));
-      const shift = shiftOf(hour);
-      const key = `${dayIdx}-${shift}`;
+      const totalMinutes = Math.max(0, Math.round((clampedEnd - clampedStart) / 60000));
+      if (totalMinutes <= 0) continue;
 
       const lm = perLine.get(line) ?? new Map<string, Cell>();
-      const cell = lm.get(key) ?? { minutes: 0, count: 0 };
-      cell.minutes += minutes;
-      cell.count += 1;
-      lm.set(key, cell);
       perLine.set(line, lm);
 
-      const dst = dayShiftTotals.get(key) ?? { minutes: 0, count: 0 };
-      dst.minutes += minutes;
-      dst.count += 1;
-      dayShiftTotals.set(key, dst);
+      // Split the event across London-local shift windows so long stops
+      // that cross 06:00 / 18:00 are attributed to the correct (day, shift)
+      // cells rather than dumped entirely into the shift of the start time.
+      let cursor = clampedStart;
+      while (cursor < clampedEnd) {
+        const boundary = Math.min(nextShiftBoundary(cursor), clampedEnd);
+        const segMinutes = Math.max(0, Math.round((boundary - cursor) / 60000));
+        if (segMinutes > 0) {
+          const parts = londonAllParts(new Date(cursor));
+          // 0=Sun..6=Sat from JS; remap to 0=Mon..6=Sun
+          const jsWd = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+          const dayIdx = (jsWd + 6) % 7;
+          const shift = shiftOf(parts.hour);
+          const key = `${dayIdx}-${shift}`;
+
+          const cell = lm.get(key) ?? { minutes: 0, count: 0 };
+          cell.minutes += segMinutes;
+          lm.set(key, cell);
+
+          const dst = dayShiftTotals.get(key) ?? { minutes: 0, count: 0 };
+          dst.minutes += segMinutes;
+          dayShiftTotals.set(key, dst);
+
+          if (cell.minutes > grandMax) grandMax = cell.minutes;
+        }
+        cursor = boundary;
+      }
+
+      // Event count is per-event, attributed to the shift/day the event STARTED in.
+      const startParts = londonAllParts(new Date(clampedStart));
+      const startJsWd = new Date(Date.UTC(startParts.year, startParts.month - 1, startParts.day)).getUTCDay();
+      const startDayIdx = (startJsWd + 6) % 7;
+      const startShift = shiftOf(startParts.hour);
+      const startKey = `${startDayIdx}-${startShift}`;
+      const startCell = lm.get(startKey) ?? { minutes: 0, count: 0 };
+      startCell.count += 1;
+      lm.set(startKey, startCell);
+      const startDst = dayShiftTotals.get(startKey) ?? { minutes: 0, count: 0 };
+      startDst.count += 1;
+      dayShiftTotals.set(startKey, startDst);
 
       const lt = lineTotals.get(line) ?? { minutes: 0, count: 0 };
-      lt.minutes += minutes;
+      lt.minutes += totalMinutes;
       lt.count += 1;
       lineTotals.set(line, lt);
-
-      if (cell.minutes > grandMax) grandMax = cell.minutes;
     }
 
     const lines = Array.from(perLine.keys()).sort((a, b) => {
