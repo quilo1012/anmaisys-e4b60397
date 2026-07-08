@@ -248,25 +248,51 @@ Sistema **Production Ready** — 100% dos itens aprovados, nenhuma falha crític
 
 ## Notas de Auditoria
 
-Use esta seção para registrar achados durante a auditoria.
+Achados coletados via `supabase--linter` (79 issues), `security--run_security_scan` (78 findings) e ripgrep estático em `src/` (255 arquivos, ~29.5k LOC). Data: 2026-07-08.
 
 ### Bugs Encontrados
 | # | Módulo | Severidade | Arquivo:Linha | Descrição | Status |
 |---|--------|------------|---------------|-----------|--------|
-|   |        |            |               |           |        |
+| B1 | Auditoria | Baixa | `src/hooks/useAuditLogs.ts` — `logAuditEvent` | Falha da Edge `log-audit-event` é engolida com `console.error`; evento perdido sem alerta ao usuário/observabilidade. | Aberto |
+| B2 | Estoque | Info | `src/hooks/useAuditLogs.ts` — `useStockAdjustmentHistory` | Sem paginação real; resolve nomes via segundo SELECT — ok até ~10 itens, ruim se ampliado. | Info |
+| B3 | Dashboards / Mobile | Baixa | 20 arquivos com `h-screen` (ex.: `LineDisplayScreen.tsx`, `ManagerDashboard.tsx`, `OperatorDashboard.tsx`) | `h-screen` corta em iOS/Android; deveria ser `h-dvh` conforme diretriz tactile. | Aberto |
+| B4 | Design System | Info | 24 arquivos com `text-white` / `bg-black` / `bg-[#...]` (ex.: `NotificationPanel.tsx`, `LineHubScreen.tsx`) | Cores hardcoded fora de tokens semânticos violam o design system. | Aberto |
+| B5 | Logging | Info | `src/` — 36 `console.*` fora de testes | Ruído em produção e potencial vazamento de contexto. | Aberto |
+
+Nenhum bug crítico funcional foi reproduzido — snapshot do console/network no preview atual está limpo e o checklist runtime segue 142/142.
 
 ### Vulnerabilidades de Segurança
 | # | Tipo (OWASP/CWE) | Severidade | Localização | Descrição | Correção |
 |---|------------------|------------|-------------|-----------|----------|
-|   |                  |            |             |           |          |
+| V1 | CWE-732 · `0028_anon_security_definer_function_executable` | WARN | Schema `public` — ~40 funções `SECURITY DEFINER` | Executáveis por role `anon` (não autenticado). `has_role` precisa disso; outras não. | `REVOKE EXECUTE ... FROM anon` nas que não devem ser públicas, ou mover para schema fora da API. |
+| V2 | CWE-732 · `0029_authenticated_security_definer_function_executable` | WARN | Schema `public` — ~37 funções `SECURITY DEFINER` | Chamáveis por `authenticated` sem restrição de role; risco de escalonamento se `search_path` não fixado. | `REVOKE EXECUTE ... FROM authenticated` nas administrativas; confirmar `SET search_path = public` em todas. |
+| V3 | Config · `0014_extension_in_public` | WARN | 1 extensão no schema `public` | Boa prática Supabase: schema `extensions` dedicado. | `CREATE SCHEMA extensions; ALTER EXTENSION ... SET SCHEMA extensions;` |
+| V4 | Auth / rate-limit | Info | `supabase/functions/tablet-signin`, `verify-engineer-pin` | Checklist afirma rate-limit por IP/conta; falta evidência de consulta a tabela de rate-limit server-side. | Validar que `loginRateLimit` roda dentro da Edge Function, não só no client. |
+| V5 | Observabilidade | Info | `logAuditEvent` (ver B1) | Falha silenciosa em audit trail é vetor de ocultação. | Alertar (Teams/Sentry) em falha; retry com fila local. |
+
+Total: **78 WARN, 0 ERROR** — nenhum crítico automático, mas V1/V2 exigem revisão função-a-função antes de "Production Ready".
 
 ### Problemas de Performance
 | # | Tipo | Localização | Métrica observada | Meta | Plano |
 |---|------|-------------|-------------------|------|-------|
-|   |      |             |                   |      |       |
+| P1 | Polling agressivo | `src/hooks/useWoMetrics.ts` (30s / 60s) e hooks similares | `refetchInterval` em telas de detalhe e listas | Realtime-first, polling como fallback | Trocar por subscription no canal realtime já existente. |
+| P2 | Fetch sem paginação | `useAllWoMetrics` — `.limit(1000)` | Até 1000 linhas × ~20 colunas por request | Paginação server-side ou agregação | Adicionar `range()` ou usar view agregada por dia/turno. |
+| P3 | Bundle | 255 arquivos, ~29.5k LOC | Sem números medidos nesta auditoria | TTI < 2s em 3G rápido | Rodar `scripts/bench-dashboard.mjs` e code-split rotas pesadas. |
+| P4 | Query de auditoria | `useAuditLogs` — `.or(user_name.ilike…, action.ilike…, entity_type.ilike…, entity_id.ilike…)` | Não medido | < 300ms | Confirmar índices em `created_at`/`entity_type`; considerar `pg_trgm` para `ilike`. |
+
+Nenhuma métrica foi medida em runtime — riscos a validar com `bench-dashboard.mjs`.
 
 ### Melhorias Sugeridas
-- [ ] ...
+- [ ] Rodar `bench-dashboard.mjs` e anexar TTFB/TTI/bundle reais aqui.
+- [ ] `REVOKE EXECUTE ... FROM anon, authenticated` em lote nas `SECURITY DEFINER` internas; manter público só `has_role` e verificadores de PIN/tablet.
+- [ ] Mover extensão do schema `public` para `extensions`.
+- [ ] Substituir `h-screen` → `h-dvh` nos 20 arquivos identificados.
+- [ ] Substituir cores hardcoded por tokens semânticos nos 24 arquivos afetados.
+- [ ] Remover ou envelopar em `if (import.meta.env.DEV)` os 36 `console.*` restantes.
+- [ ] Adicionar alertagem (Teams/Sentry) para falhas em `logAuditEvent`.
+- [ ] Trocar polling em `useWoMetrics`/`useAllWoMetrics` por subscription realtime.
+- [ ] Validar server-side rate-limit nas Edge Functions de PIN e `tablet-signin`.
+- [ ] Adicionar E2E: recorrência (`reopen_wo_as_recurrence`), sirene única por WO, RLS cross-role.
 
 ---
 
@@ -274,15 +300,16 @@ Use esta seção para registrar achados durante a auditoria.
 
 | Dimensão         | Nota | Justificativa |
 | ---------------- | ---- | ------------- |
-| Segurança        |      |               |
-| Performance      |      |               |
-| Arquitetura      |      |               |
-| Escalabilidade   |      |               |
-| Confiabilidade   |      |               |
-| Código           |      |               |
-| UX               |      |               |
-| Banco de Dados   |      |               |
-| APIs             |      |               |
-| **Sistema Geral**|      |               |
+| Segurança        |  78  | RLS + `has_role` sólidos, mas 77 funções `SECURITY DEFINER` expostas pedem REVOKE dirigido (V1/V2). |
+| Performance      |  80  | Polling agressivo e queries de 1000 linhas sem métricas reais; sem regressões visíveis. |
+| Arquitetura      |  88  | Camadas hooks/lib/pages claras, Edge Functions com Zod, MCP tools organizados. |
+| Escalabilidade   |  82  | Audit logs paginado server-side; algumas views ainda sem paginação. |
+| Confiabilidade   |  85  | Cron jobs ativos, retries em Teams; `logAuditEvent` engole erro (B1). |
+| Código           |  84  | 24 arquivos com cor hardcoded, 36 `console.*`, `h-screen` em 20 telas. |
+| UX               |  88  | Design system consistente, dialogs async-safe, tactile targets h-14. |
+| Banco de Dados   |  80  | GRANTs corretos, RLS onipresente; funções DEFINER pedem hardening. |
+| APIs             |  87  | Edge Functions com CORS + Zod; falta rate-limit auditável nas de PIN. |
+| **Sistema Geral**|  **83**  | Abaixo do corte de 85 enquanto V1/V2 não forem reduzidas — não "Production Ready" pelo próprio critério do checklist. |
 
 > O sistema só é **Production Ready** com Sistema Geral ≥ 85 e nenhuma falha crítica aberta.
+
