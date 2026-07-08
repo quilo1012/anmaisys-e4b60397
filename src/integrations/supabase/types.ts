@@ -2059,6 +2059,7 @@ export type Database = {
         Row: {
           comment: string
           created_at: string
+          entry_date: string
           id: string
           line: string
           updated_at: string
@@ -2068,6 +2069,7 @@ export type Database = {
         Insert: {
           comment?: string
           created_at?: string
+          entry_date: string
           id?: string
           line: string
           updated_at?: string
@@ -2077,6 +2079,7 @@ export type Database = {
         Update: {
           comment?: string
           created_at?: string
+          entry_date?: string
           id?: string
           line?: string
           updated_at?: string
