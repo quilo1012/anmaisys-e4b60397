@@ -79,6 +79,44 @@ function shiftOf(hour: number): Shift {
   return hour >= 6 && hour < 18 ? "Day" : "Night";
 }
 
+/** London wall-clock parts for a given instant. */
+function londonAllParts(at: Date) {
+  const dtf = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const p = Object.fromEntries(
+    dtf.formatToParts(at).filter((x) => x.type !== "literal").map((x) => [x.type, x.value]),
+  ) as Record<string, string>;
+  return {
+    year: +p.year, month: +p.month, day: +p.day,
+    hour: +p.hour === 24 ? 0 : +p.hour,
+    minute: +p.minute, second: +p.second,
+  };
+}
+
+function londonOffsetMinutes(at: Date): number {
+  const p = londonAllParts(at);
+  const asUTC = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return Math.round((asUTC - at.getTime()) / 60000);
+}
+
+/** Convert a London wall-clock time to a UTC epoch ms. */
+function londonWallToUtc(y: number, mo: number, d: number, h: number): number {
+  const naive = Date.UTC(y, mo - 1, d, h, 0, 0);
+  const off = londonOffsetMinutes(new Date(naive));
+  return naive - off * 60000;
+}
+
+/** Next London 06:00 or 18:00 boundary strictly after `t`. */
+function nextShiftBoundary(t: number): number {
+  const p = londonAllParts(new Date(t));
+  if (p.hour < 6) return londonWallToUtc(p.year, p.month, p.day, 6);
+  if (p.hour < 18) return londonWallToUtc(p.year, p.month, p.day, 18);
+  return londonWallToUtc(p.year, p.month, p.day + 1, 6);
+}
+
 function cellColor(minutes: number, max: number): string {
   if (minutes <= 0) return "bg-background";
   const pct = max > 0 ? minutes / max : 0;
