@@ -629,9 +629,9 @@ export default function AnalyticsPage() {
                         return (
                           <div className="rounded-md border bg-background p-2 text-xs shadow-md">
                             <div className="font-medium mb-1">{d.machine}</div>
-                            <div>Day shift: {d.day} min</div>
-                            <div>Night shift: {d.night} min</div>
-                            <div className="font-medium mt-1">Total: {d.total} min</div>
+                            <div>Day shift: {fmtMin(d.day)}</div>
+                            <div>Night shift: {fmtMin(d.night)}</div>
+                            <div className="font-medium mt-1">Total: {fmtMin(d.total)}</div>
                             <div className="mt-1 text-muted-foreground">Lines: {d.lines}</div>
                           </div>
                         );
