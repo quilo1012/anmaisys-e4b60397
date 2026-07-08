@@ -16,22 +16,19 @@ import { unionMs, type Interval } from "@/lib/downtimeReconcile";
 type RangePreset = "today" | "shift" | "7d" | "30d" | "90d" | "custom";
 const STORAGE_KEY = "downtime-heatmap-range";
 
-function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
-function endOfDay(d: Date) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
-
 function presetRange(preset: Exclude<RangePreset, "custom">): { from: number; to: number } {
   const now = Date.now();
   const DAY = 24 * 60 * 60 * 1000;
   switch (preset) {
-    case "today": return { from: startOfDay(new Date()).getTime(), to: now };
+    case "today": return { from: startOfLondonDay(new Date()), to: now };
     case "shift": {
-      const d = new Date();
-      const h = d.getHours();
-      const start = new Date(d);
-      if (h >= 6 && h < 18) start.setHours(6, 0, 0, 0);
-      else if (h >= 18) start.setHours(18, 0, 0, 0);
-      else { start.setDate(start.getDate() - 1); start.setHours(18, 0, 0, 0); }
-      return { from: start.getTime(), to: now };
+      const p = londonAllParts(new Date(now));
+      const from = p.hour >= 6 && p.hour < 18
+        ? londonWallToUtc(p.year, p.month, p.day, 6)
+        : p.hour >= 18
+          ? londonWallToUtc(p.year, p.month, p.day, 18)
+          : londonWallToUtc(p.year, p.month, p.day - 1, 18);
+      return { from, to: now };
     }
     case "7d": return { from: now - 7 * DAY, to: now };
     case "30d": return { from: now - 30 * DAY, to: now };
@@ -110,6 +107,27 @@ function londonWallToUtc(y: number, mo: number, d: number, h: number): number {
   return naive - off * 60000;
 }
 
+function pickedDateParts(date: Date) {
+  return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() };
+}
+
+function startOfLondonDay(date: Date): number {
+  const p = pickedDateParts(date);
+  return londonWallToUtc(p.year, p.month, p.day, 0);
+}
+
+function endOfLondonDay(date: Date): number {
+  const p = pickedDateParts(date);
+  return londonWallToUtc(p.year, p.month, p.day + 1, 0) - 1;
+}
+
+function unionMinutes(intervals: Interval[]): number {
+  const ms = unionMs(intervals);
+  if (ms <= 0) return 0;
+  // Heatmap has minute-only labels; keep real sub-minute stops visible.
+  return Math.max(1, Math.round(ms / 60_000));
+}
+
 /** Next London 06:00 or 18:00 boundary strictly after `t`. */
 function nextShiftBoundary(t: number): number {
   const p = londonAllParts(new Date(t));
@@ -173,8 +191,8 @@ export default function DowntimeHeatmapPage() {
 
   const { fromMs, toMs } = useMemo(() => {
     if (range === "custom") {
-      const f = customFrom ? startOfDay(customFrom).getTime() : Date.now() - 7 * 86400000;
-      const t = customTo ? endOfDay(customTo).getTime() : Date.now();
+      const f = customFrom ? startOfLondonDay(customFrom) : Date.now() - 7 * 86400000;
+      const t = customTo ? endOfLondonDay(customTo) : Date.now();
       return { fromMs: f, toMs: t };
     }
     const r = presetRange(range);
@@ -246,7 +264,7 @@ export default function DowntimeHeatmapPage() {
       const cells = new Map<string, Cell>();
       const counts = perLineCounts.get(line);
       buckets.forEach((ivs, key) => {
-        const minutes = Math.round(unionMs(ivs) / 60_000);
+        const minutes = unionMinutes(ivs);
         const count = counts?.get(key) ?? 0;
         cells.set(key, { minutes, count });
         if (minutes > grandMax) grandMax = minutes;
@@ -256,7 +274,7 @@ export default function DowntimeHeatmapPage() {
         dayShiftTotals.set(key, dst);
       });
       perLine.set(line, cells);
-      const totalMin = Math.round(unionMs(lineAllIntervals.get(line) ?? []) / 60_000);
+      const totalMin = unionMinutes(lineAllIntervals.get(line) ?? []);
       const totalCount = Array.from(counts?.values() ?? []).reduce((a, b) => a + b, 0);
       lineTotals.set(line, { minutes: totalMin, count: totalCount });
     });
