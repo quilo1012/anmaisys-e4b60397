@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { differenceInMinutes, format } from "date-fns";
+import { differenceInMinutes, differenceInSeconds, format } from "date-fns";
 import { PowerOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDuration } from "@/lib/formatDuration";
 import { useDowntimeEvents } from "@/hooks/useDowntimeEvents";
 
 interface Props {
@@ -27,14 +28,15 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
   if (isLoading) return null;
   if (!events || events.length === 0) return null;
 
-  const completedMinutes = events
-    .filter((e) => e.duration_minutes !== null && e.duration_minutes !== undefined)
-    .reduce((sum, e) => sum + (e.duration_minutes || 0), 0);
+  // Compute durations in seconds from real timestamps — duration_minutes is rounded
+  // in the DB and reports 0 for sub-minute stops (e.g. quick resumes).
+  const eventSeconds = (e: typeof events[number]) =>
+    e.resumed_at
+      ? Math.max(0, differenceInSeconds(new Date(e.resumed_at), new Date(e.stopped_at)))
+      : Math.max(0, differenceInSeconds(new Date(), new Date(e.stopped_at)));
+  const totalSeconds = events.reduce((sum, e) => sum + eventSeconds(e), 0);
   const ongoing = events.find((e) => !e.resumed_at);
-  const ongoingMinutes = ongoing
-    ? differenceInMinutes(new Date(), new Date(ongoing.stopped_at))
-    : 0;
-  const totalMinutes = completedMinutes + ongoingMinutes;
+  const ongoingSeconds = ongoing ? eventSeconds(ongoing) : 0;
 
   return (
     <Card className="print:border print:border-black print:shadow-none print:rounded-none">
@@ -49,9 +51,7 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
         <div className="space-y-3 print:hidden">
           {events.map((e, idx) => {
             const isOpen = !e.resumed_at;
-            const dur = isOpen
-              ? differenceInMinutes(new Date(), new Date(e.stopped_at))
-              : (e.duration_minutes ?? 0);
+            const durSec = eventSeconds(e);
             return (
               <div
                 key={e.id}
@@ -65,12 +65,12 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
                     {isOpen && <span className="ml-2 text-red-600 uppercase text-xs">— in progress</span>}
                   </p>
                   <span className="text-xs font-mono">
-                    {dur}m{isOpen ? " (live)" : ""}
+                    {formatDuration(durSec)}{isOpen ? " (live)" : ""}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {format(new Date(e.stopped_at), "dd/MM HH:mm")}
-                  {e.resumed_at ? ` → ${format(new Date(e.resumed_at), "dd/MM HH:mm")}` : " → now"}
+                  {format(new Date(e.stopped_at), "dd/MM HH:mm:ss")}
+                  {e.resumed_at ? ` → ${format(new Date(e.resumed_at), "dd/MM HH:mm:ss")}` : " → now"}
                 </p>
                 {e.stopped_by_name && (
                   <p className="text-xs mt-1">
@@ -89,8 +89,8 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
             );
           })}
           <div className="border-t pt-2 text-sm font-semibold">
-            TOTAL: {events.length} stop{events.length === 1 ? "" : "s"} · {totalMinutes}m downtime
-            {ongoing && <span className="text-red-600 ml-1">(includes {ongoingMinutes}m ongoing)</span>}
+            TOTAL: {events.length} stop{events.length === 1 ? "" : "s"} · {formatDuration(totalSeconds)} downtime
+            {ongoing && <span className="text-red-600 ml-1">(includes {formatDuration(ongoingSeconds)} ongoing)</span>}
           </div>
         </div>
 
@@ -109,17 +109,15 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
             </thead>
             <tbody>
               {events.map((e, idx) => {
-                const dur = e.resumed_at
-                  ? (e.duration_minutes ?? 0)
-                  : differenceInMinutes(new Date(), new Date(e.stopped_at));
+                const durSec = eventSeconds(e);
                 return (
                   <tr key={e.id}>
                     <td className="border border-black px-2 py-1">{idx + 1}</td>
-                    <td className="border border-black px-2 py-1 font-mono">{format(new Date(e.stopped_at), "dd/MM HH:mm")}</td>
+                    <td className="border border-black px-2 py-1 font-mono">{format(new Date(e.stopped_at), "dd/MM HH:mm:ss")}</td>
                     <td className="border border-black px-2 py-1 font-mono">
-                      {e.resumed_at ? format(new Date(e.resumed_at), "dd/MM HH:mm") : "—"}
+                      {e.resumed_at ? format(new Date(e.resumed_at), "dd/MM HH:mm:ss") : "—"}
                     </td>
-                    <td className="border border-black px-2 py-1">{dur}m</td>
+                    <td className="border border-black px-2 py-1">{formatDuration(durSec)}</td>
                     <td className="border border-black px-2 py-1">{e.stopped_by_name || ""}</td>
                     <td className="border border-black px-2 py-1">{e.stopped_reason || ""}</td>
                   </tr>
@@ -130,7 +128,7 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
                   TOTAL DOWNTIME
                 </td>
                 <td colSpan={3} className="border border-black px-2 py-1 font-bold">
-                  {totalMinutes}m ({events.length} stops)
+                  {formatDuration(totalSeconds)} ({events.length} stops)
                 </td>
               </tr>
             </tbody>

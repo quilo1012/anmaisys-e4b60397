@@ -391,9 +391,11 @@ export default function WorkOrderDetail() {
             : 0;
 
           // Engineer-recorded downtime events (additional stoppages logged during the WO)
+          // Prefer real timestamps over stored duration_minutes (which is rounded and
+          // reports 0 for sub-minute stops).
           const engineerDowntimeSec = downtimeEvents.reduce((acc, e) => {
-            if (e.duration_minutes != null) return acc + e.duration_minutes * 60;
             if (e.resumed_at) return acc + differenceInSeconds(new Date(e.resumed_at), new Date(e.stopped_at));
+            if (e.duration_minutes != null) return acc + e.duration_minutes * 60;
             return acc + differenceInSeconds(new Date(), new Date(e.stopped_at));
           }, 0);
 
