@@ -1325,24 +1325,26 @@ function DayNightTotalSummary({
     },
   });
 
-  // Comments per line for the week
+  // Comments per line per day for the week
   const { data: commentRows = [] } = useQuery({
-    queryKey: ["rag-comments", weekStartStr],
+    queryKey: ["rag-comments", weekStartStr, weekEndStr],
     enabled: !!weekStartStr,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("rag_weekly_comments")
-        .select("line, comment")
-        .eq("week_start", weekStartStr!);
+        .select("line, comment, entry_date")
+        .gte("entry_date", weekStartStr!)
+        .lte("entry_date", weekEndStr);
       if (error) throw error;
-      return (data ?? []) as { line: string; comment: string }[];
+      return (data ?? []) as { line: string; comment: string; entry_date: string }[];
     },
   });
   const commentMap = useMemo(() => {
     const m = new Map<string, string>();
-    for (const r of commentRows) m.set(r.line, r.comment ?? "");
+    for (const r of commentRows) m.set(`${r.line}|${r.entry_date}`, r.comment ?? "");
     return m;
   }, [commentRows]);
+
   useEffect(() => {
     if (!weekStartStr) return;
     const ch = supabase
