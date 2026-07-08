@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { differenceInMinutes, format } from "date-fns";
+import { differenceInMinutes, differenceInSeconds, format } from "date-fns";
 import { PowerOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDuration } from "@/lib/formatDuration";
 import { useDowntimeEvents } from "@/hooks/useDowntimeEvents";
 
 interface Props {
