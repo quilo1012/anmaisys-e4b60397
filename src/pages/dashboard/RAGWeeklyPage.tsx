@@ -1693,7 +1693,7 @@ function DayNightTotalSummary({
                 const wtNight = weekTotal("NIGHT");
                 const wtTot = weekTotal("TOTAL");
                 const cls = `p-1.5 text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
-                const editable = isAdmin && lineFilter.length === 1 && ["plan", "actual"].includes(row.key);
+                const editable = (isAdmin || canComment) && lineFilter.length === 1 && ["plan", "actual"].includes(row.key);
                 const lineName = lineFilter[0];
                 const renderEdit = (ds: string, shift: Shift) => {
                   const existing = entryMap.get(`${ds}|${lineName}|${shift}`);
