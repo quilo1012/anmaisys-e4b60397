@@ -1729,11 +1729,11 @@ function DayNightTotalSummary({
                             entry_date: ds,
                             line: lineName,
                             shift,
-                            plan_qty: field === "plan_qty" ? v : 0,
-                            actual_qty: field === "actual_qty" ? v : 0,
+                            plan_qty: row.key === "plan" ? v : 0,
+                            actual_qty: row.key === "actual" ? v : 0,
                             upm_target: 0,
                             upm_actual: 0,
-                            downtime_min: field === "downtime_min" ? v : 0,
+                            downtime_min: row.key === "dt" ? v : 0,
                             notes: null,
                           });
                         }
