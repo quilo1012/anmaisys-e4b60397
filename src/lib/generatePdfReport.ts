@@ -3,6 +3,9 @@ import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import type { WorkOrder } from "@/hooks/useWorkOrders";
 import { invokeFunction } from "@/lib/invokeFunction";
+import { formatMinutes } from "@/lib/formatDuration";
+
+const fmtMin = (m: number) => (m >= 60 ? formatMinutes(m) : `${m} min`);
 
 /**
  * Server-side authorization for PDF generation.
@@ -75,7 +78,7 @@ export function generatePdfReport(data: ReportData) {
   const kpiY = 52;
   const kpis = [
     [`Total WOs: ${data.kpis.totalWOs}`, `Open WOs: ${data.kpis.openWOs}`],
-    [`Avg Response: ${data.kpis.avgResponse} min`, `Avg MTTR: ${data.kpis.avgMTTR} min`],
+    [`Avg Response: ${fmtMin(data.kpis.avgResponse)}`, `Avg MTTR: ${fmtMin(data.kpis.avgMTTR)}`],
     [`SLA Compliance: ${data.kpis.slaRate}%`, ""],
   ];
   kpis.forEach((row, i) => {
