@@ -1710,16 +1710,16 @@ function DayNightTotalSummary({
                     <SummaryInlineInput
                       value={current}
                       onCommit={async (v) => {
-                        const field =
-                          row.key === "plan" ? "plan_qty"
-                          : row.key === "actual" ? "actual_qty"
-                          : "downtime_min";
+                        const patch: Partial<Entry> =
+                          row.key === "plan" ? { plan_qty: v }
+                          : row.key === "actual" ? { actual_qty: v }
+                          : { downtime_min: v };
                         if (existing?.id) {
                           // Patch ONLY the edited field so we never clobber
                           // sibling values (actual, downtime, notes, etc.).
                           const { error } = await supabase
                             .from("rag_weekly_entries")
-                            .update({ [field]: v })
+                            .update(patch)
                             .eq("id", existing.id);
                           if (error) { toast.error(error.message); return; }
                           toast.success("Saved");
