@@ -109,17 +109,15 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
             </thead>
             <tbody>
               {events.map((e, idx) => {
-                const dur = e.resumed_at
-                  ? (e.duration_minutes ?? 0)
-                  : differenceInMinutes(new Date(), new Date(e.stopped_at));
+                const durSec = eventSeconds(e);
                 return (
                   <tr key={e.id}>
                     <td className="border border-black px-2 py-1">{idx + 1}</td>
-                    <td className="border border-black px-2 py-1 font-mono">{format(new Date(e.stopped_at), "dd/MM HH:mm")}</td>
+                    <td className="border border-black px-2 py-1 font-mono">{format(new Date(e.stopped_at), "dd/MM HH:mm:ss")}</td>
                     <td className="border border-black px-2 py-1 font-mono">
-                      {e.resumed_at ? format(new Date(e.resumed_at), "dd/MM HH:mm") : "—"}
+                      {e.resumed_at ? format(new Date(e.resumed_at), "dd/MM HH:mm:ss") : "—"}
                     </td>
-                    <td className="border border-black px-2 py-1">{dur}m</td>
+                    <td className="border border-black px-2 py-1">{formatDuration(durSec)}</td>
                     <td className="border border-black px-2 py-1">{e.stopped_by_name || ""}</td>
                     <td className="border border-black px-2 py-1">{e.stopped_reason || ""}</td>
                   </tr>
@@ -130,7 +128,7 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
                   TOTAL DOWNTIME
                 </td>
                 <td colSpan={3} className="border border-black px-2 py-1 font-bold">
-                  {totalMinutes}m ({events.length} stops)
+                  {formatDuration(totalSeconds)} ({events.length} stops)
                 </td>
               </tr>
             </tbody>
