@@ -30,7 +30,11 @@ const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444
 const truncLabel = (s: string, max = 20) => s.length > max ? s.slice(0, max - 1) + "…" : s;
 
 /** Show minutes as "N min" under 60, else "Xh Ym". */
-const fmtMin = (m: number) => (m >= 60 ? formatMinutes(m) : `${m} min`);
+const fmtMin = (m: number | null | undefined) => {
+  if (m === null || m === undefined || Number.isNaN(Number(m))) return "—";
+  const minutes = Math.max(0, Math.round(Number(m)));
+  return minutes >= 60 ? formatMinutes(minutes) : `${minutes} min`;
+};
 
 const EmptyChart = () => (
   <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
@@ -388,12 +392,12 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
             <div className="border rounded p-2">
               <p className="text-xs uppercase text-muted-foreground">Total Downtime (Period)</p>
-              <p className="text-base font-bold">{formatMinutes(totalDowntimeMinutes)}</p>
+              <p className="text-base font-bold">{fmtMin(totalDowntimeMinutes)}</p>
             </div>
             <div className="border rounded p-2">
               <p className="text-xs uppercase text-muted-foreground">Most Affected Line</p>
               <p className="text-base font-bold">
-                {mostAffectedLine ? `${mostAffectedLine.name} — ${formatMinutes(mostAffectedLine.minutes)}` : "—"}
+                {mostAffectedLine ? `${mostAffectedLine.name} — ${fmtMin(mostAffectedLine.minutes)}` : "—"}
               </p>
             </div>
           </div>
@@ -464,7 +468,7 @@ export default function AnalyticsPage() {
               <TrendingDown className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{formatMinutes(totalDowntimeMinutes)}</div>
+              <div className="text-3xl font-bold">{fmtMin(totalDowntimeMinutes)}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {hasNoActivity ? "No activity in selected period" : "Wall-clock line stoppage (parallel stoppages counted once)"}
               </p>
@@ -620,7 +624,7 @@ export default function AnalyticsPage() {
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={downtimeByMachine} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" allowDecimals={false} />
+                    <XAxis type="number" allowDecimals={false} tickFormatter={(v: number) => fmtMin(v)} />
                     <YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} />
                     <Tooltip
                       content={({ active, payload }: any) => {
@@ -639,10 +643,10 @@ export default function AnalyticsPage() {
                     />
                     <Legend />
                     <Bar dataKey="day" stackId="s" fill="#f59e0b" name="Day shift (06–18)" radius={[0, 0, 0, 0]}>
-                      <LabelList dataKey="day" position="center" fill="#fff" fontSize={11} formatter={(v: number) => (v > 0 ? `${v}m` : "")} />
+                      <LabelList dataKey="day" position="center" fill="#fff" fontSize={11} formatter={(v: number) => (v > 0 ? fmtMin(v) : "")} />
                     </Bar>
                     <Bar dataKey="night" stackId="s" fill="#6366f1" name="Night shift (18–06)" radius={[0, 4, 4, 0]}>
-                      <LabelList dataKey="night" position="center" fill="#fff" fontSize={11} formatter={(v: number) => (v > 0 ? `${v}m` : "")} />
+                      <LabelList dataKey="night" position="center" fill="#fff" fontSize={11} formatter={(v: number) => (v > 0 ? fmtMin(v) : "")} />
                       <LabelList dataKey="lines" position="right" fill="hsl(var(--foreground))" fontSize={10} formatter={(v: string) => (v && v !== "—" ? v : "")} />
                     </Bar>
                   </BarChart>
