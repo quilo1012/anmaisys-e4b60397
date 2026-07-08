@@ -11,6 +11,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { unionMs, type Interval } from "@/lib/downtimeReconcile";
 
 type RangePreset = "today" | "shift" | "7d" | "30d" | "90d" | "custom";
 const STORAGE_KEY = "downtime-heatmap-range";
