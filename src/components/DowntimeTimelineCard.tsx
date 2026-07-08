@@ -28,14 +28,15 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
   if (isLoading) return null;
   if (!events || events.length === 0) return null;
 
-  const completedMinutes = events
-    .filter((e) => e.duration_minutes !== null && e.duration_minutes !== undefined)
-    .reduce((sum, e) => sum + (e.duration_minutes || 0), 0);
+  // Compute durations in seconds from real timestamps — duration_minutes is rounded
+  // in the DB and reports 0 for sub-minute stops (e.g. quick resumes).
+  const eventSeconds = (e: typeof events[number]) =>
+    e.resumed_at
+      ? Math.max(0, differenceInSeconds(new Date(e.resumed_at), new Date(e.stopped_at)))
+      : Math.max(0, differenceInSeconds(new Date(), new Date(e.stopped_at)));
+  const totalSeconds = events.reduce((sum, e) => sum + eventSeconds(e), 0);
   const ongoing = events.find((e) => !e.resumed_at);
-  const ongoingMinutes = ongoing
-    ? differenceInMinutes(new Date(), new Date(ongoing.stopped_at))
-    : 0;
-  const totalMinutes = completedMinutes + ongoingMinutes;
+  const ongoingSeconds = ongoing ? eventSeconds(ongoing) : 0;
 
   return (
     <Card className="print:border print:border-black print:shadow-none print:rounded-none">
