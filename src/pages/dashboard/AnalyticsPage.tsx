@@ -29,6 +29,9 @@ const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444
 
 const truncLabel = (s: string, max = 20) => s.length > max ? s.slice(0, max - 1) + "…" : s;
 
+/** Show minutes as "N min" under 60, else "Xh Ym". */
+const fmtMin = (m: number) => (m >= 60 ? formatMinutes(m) : `${m} min`);
+
 const EmptyChart = () => (
   <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
     <BarChart3 className="h-8 w-8 mb-2 opacity-50" />
