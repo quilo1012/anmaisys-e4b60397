@@ -79,6 +79,44 @@ function shiftOf(hour: number): Shift {
   return hour >= 6 && hour < 18 ? "Day" : "Night";
 }
 
+/** London wall-clock parts for a given instant. */
+function londonAllParts(at: Date) {
+  const dtf = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const p = Object.fromEntries(
+    dtf.formatToParts(at).filter((x) => x.type !== "literal").map((x) => [x.type, x.value]),
+  ) as Record<string, string>;
+  return {
+    year: +p.year, month: +p.month, day: +p.day,
+    hour: +p.hour === 24 ? 0 : +p.hour,
+    minute: +p.minute, second: +p.second,
+  };
+}
+
+function londonOffsetMinutes(at: Date): number {
+  const p = londonAllParts(at);
+  const asUTC = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return Math.round((asUTC - at.getTime()) / 60000);
+}
+
+/** Convert a London wall-clock time to a UTC epoch ms. */
+function londonWallToUtc(y: number, mo: number, d: number, h: number): number {
+  const naive = Date.UTC(y, mo - 1, d, h, 0, 0);
+  const off = londonOffsetMinutes(new Date(naive));
+  return naive - off * 60000;
+}
+
+/** Next London 06:00 or 18:00 boundary strictly after `t`. */
+function nextShiftBoundary(t: number): number {
+  const p = londonAllParts(new Date(t));
+  if (p.hour < 6) return londonWallToUtc(p.year, p.month, p.day, 6);
+  if (p.hour < 18) return londonWallToUtc(p.year, p.month, p.day, 18);
+  return londonWallToUtc(p.year, p.month, p.day + 1, 6);
+}
+
 function cellColor(minutes: number, max: number): string {
   if (minutes <= 0) return "bg-background";
   const pct = max > 0 ? minutes / max : 0;
@@ -156,36 +194,62 @@ export default function DowntimeHeatmapPage() {
       const line = r.line || "—";
       const start = new Date(r.started_at).getTime();
       const end = r.ended_at ? new Date(r.ended_at).getTime() : Date.now();
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
       // Overlap with [fromMs, toMs]
-      if (end < fromMs || start > toMs) continue;
+      if (end <= fromMs || start >= toMs) continue;
       const clampedStart = Math.max(start, fromMs);
       const clampedEnd = Math.min(end, toMs);
-      const minutes = Math.max(0, Math.round((clampedEnd - clampedStart) / 60000));
-      if (minutes <= 0) continue;
-
-
-      const { dayIdx, hour } = londonParts(new Date(start));
-      const shift = shiftOf(hour);
-      const key = `${dayIdx}-${shift}`;
+      const totalMinutes = Math.max(0, Math.round((clampedEnd - clampedStart) / 60000));
+      if (totalMinutes <= 0) continue;
 
       const lm = perLine.get(line) ?? new Map<string, Cell>();
-      const cell = lm.get(key) ?? { minutes: 0, count: 0 };
-      cell.minutes += minutes;
-      cell.count += 1;
-      lm.set(key, cell);
       perLine.set(line, lm);
 
-      const dst = dayShiftTotals.get(key) ?? { minutes: 0, count: 0 };
-      dst.minutes += minutes;
-      dst.count += 1;
-      dayShiftTotals.set(key, dst);
+      // Split the event across London-local shift windows so long stops
+      // that cross 06:00 / 18:00 are attributed to the correct (day, shift)
+      // cells rather than dumped entirely into the shift of the start time.
+      let cursor = clampedStart;
+      while (cursor < clampedEnd) {
+        const boundary = Math.min(nextShiftBoundary(cursor), clampedEnd);
+        const segMinutes = Math.max(0, Math.round((boundary - cursor) / 60000));
+        if (segMinutes > 0) {
+          const parts = londonAllParts(new Date(cursor));
+          // 0=Sun..6=Sat from JS; remap to 0=Mon..6=Sun
+          const jsWd = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+          const dayIdx = (jsWd + 6) % 7;
+          const shift = shiftOf(parts.hour);
+          const key = `${dayIdx}-${shift}`;
+
+          const cell = lm.get(key) ?? { minutes: 0, count: 0 };
+          cell.minutes += segMinutes;
+          lm.set(key, cell);
+
+          const dst = dayShiftTotals.get(key) ?? { minutes: 0, count: 0 };
+          dst.minutes += segMinutes;
+          dayShiftTotals.set(key, dst);
+
+          if (cell.minutes > grandMax) grandMax = cell.minutes;
+        }
+        cursor = boundary;
+      }
+
+      // Event count is per-event, attributed to the shift/day the event STARTED in.
+      const startParts = londonAllParts(new Date(clampedStart));
+      const startJsWd = new Date(Date.UTC(startParts.year, startParts.month - 1, startParts.day)).getUTCDay();
+      const startDayIdx = (startJsWd + 6) % 7;
+      const startShift = shiftOf(startParts.hour);
+      const startKey = `${startDayIdx}-${startShift}`;
+      const startCell = lm.get(startKey) ?? { minutes: 0, count: 0 };
+      startCell.count += 1;
+      lm.set(startKey, startCell);
+      const startDst = dayShiftTotals.get(startKey) ?? { minutes: 0, count: 0 };
+      startDst.count += 1;
+      dayShiftTotals.set(startKey, startDst);
 
       const lt = lineTotals.get(line) ?? { minutes: 0, count: 0 };
-      lt.minutes += minutes;
+      lt.minutes += totalMinutes;
       lt.count += 1;
       lineTotals.set(line, lt);
-
-      if (cell.minutes > grandMax) grandMax = cell.minutes;
     }
 
     const lines = Array.from(perLine.keys()).sort((a, b) => {
@@ -306,8 +370,9 @@ export default function DowntimeHeatmapPage() {
                     {lines.length === 0 && (
                       <tr>
                         <td colSpan={16} className="p-8 text-center text-muted-foreground">
-                          No downtime recorded in the last 90 days.
+                          No downtime recorded in the selected range ({RANGE_LABEL[range]}).
                         </td>
+
                       </tr>
                     )}
                     {lines.map((line) => {
