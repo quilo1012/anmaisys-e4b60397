@@ -5,7 +5,11 @@ import type { WorkOrder } from "@/hooks/useWorkOrders";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { formatMinutes } from "@/lib/formatDuration";
 
-const fmtMin = (m: number) => (m >= 60 ? formatMinutes(m) : `${m} min`);
+const fmtMin = (m: number | null | undefined) => {
+  if (m === null || m === undefined || Number.isNaN(Number(m))) return "—";
+  const minutes = Math.max(0, Math.round(Number(m)));
+  return minutes >= 60 ? formatMinutes(minutes) : `${minutes} min`;
+};
 
 /**
  * Server-side authorization for PDF generation.
