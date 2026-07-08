@@ -1327,14 +1327,14 @@ function DayNightTotalSummary({
 
   // Comments per line per day for the week
   const { data: commentRows = [] } = useQuery({
-    queryKey: ["rag-comments", weekStartStr, weekEndStr],
-    enabled: !!weekStartStr,
+    queryKey: ["rag-comments", fromDate, toDate],
+    enabled: !!fromDate && !!toDate,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("rag_weekly_comments")
         .select("line, comment, entry_date")
-        .gte("entry_date", weekStartStr!)
-        .lte("entry_date", weekEndStr);
+        .gte("entry_date", fromDate!)
+        .lte("entry_date", toDate!);
       if (error) throw error;
       return (data ?? []) as { line: string; comment: string; entry_date: string }[];
     },
