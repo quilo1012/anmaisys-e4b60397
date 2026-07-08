@@ -1794,13 +1794,25 @@ function DayNightTotalSummary({
           </table>
         </div>
         )}
-        {!isCollapsed && label !== "All Lines" && weekStartStr && (
-          <LineCommentBox
-            line={label}
-            weekStart={weekStartStr}
-            initialValue={commentMap.get(label) ?? ""}
-            canEdit={canComment}
-          />
+        {!isCollapsed && label !== "All Lines" && (
+          <div className="mt-2 border rounded-md bg-muted/10 p-3">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Daily Comments</div>
+            <div className="grid gap-2 md:grid-cols-7">
+              {weekDates.map((d) => {
+                const ds = format(d, "yyyy-MM-dd");
+                return (
+                  <LineCommentBox
+                    key={ds}
+                    line={label}
+                    entryDate={ds}
+                    dayLabel={format(d, "EEE dd/MM")}
+                    initialValue={commentMap.get(`${label}|${ds}`) ?? ""}
+                    canEdit={canComment}
+                  />
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
     );
