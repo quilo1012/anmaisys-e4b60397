@@ -1709,31 +1709,34 @@ function DayNightTotalSummary({
                   return (
                     <SummaryInlineInput
                       value={current}
-                      onCommit={(v) => {
-                        if (!onSave) return;
-                        const base = existing ?? {
-                          entry_date: ds,
-                          line: lineName,
-                          shift,
-                          plan_qty: 0,
-                          actual_qty: 0,
-                          upm_target: 0,
-                          upm_actual: 0,
-                          downtime_min: 0,
-                          notes: null,
-                        };
-                        const payload: Omit<Entry, "id"> = {
-                          entry_date: base.entry_date,
-                          line: base.line,
-                          shift: base.shift,
-                          plan_qty: row.key === "plan" ? v : base.plan_qty,
-                          actual_qty: row.key === "actual" ? v : base.actual_qty,
-                          upm_target: base.upm_target,
-                          upm_actual: base.upm_actual,
-                          downtime_min: row.key === "dt" ? v : base.downtime_min,
-                          notes: base.notes,
-                        };
-                        onSave(payload);
+                      onCommit={async (v) => {
+                        const field =
+                          row.key === "plan" ? "plan_qty"
+                          : row.key === "actual" ? "actual_qty"
+                          : "downtime_min";
+                        if (existing?.id) {
+                          // Patch ONLY the edited field so we never clobber
+                          // sibling values (actual, downtime, notes, etc.).
+                          const { error } = await supabase
+                            .from("rag_weekly_entries")
+                            .update({ [field]: v })
+                            .eq("id", existing.id);
+                          if (error) { toast.error(error.message); return; }
+                          toast.success("Saved");
+                          qcExcl.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+                        } else if (onSave) {
+                          onSave({
+                            entry_date: ds,
+                            line: lineName,
+                            shift,
+                            plan_qty: field === "plan_qty" ? v : 0,
+                            actual_qty: field === "actual_qty" ? v : 0,
+                            upm_target: 0,
+                            upm_actual: 0,
+                            downtime_min: field === "downtime_min" ? v : 0,
+                            notes: null,
+                          });
+                        }
                       }}
                       onOpen={() => onOpenFull?.(ds, lineName, shift)}
                     />
