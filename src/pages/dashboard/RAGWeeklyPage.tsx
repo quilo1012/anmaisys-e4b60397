@@ -146,7 +146,9 @@ export default function RAGWeeklyPage() {
   const { user, profile } = useAuth();
   const isAdmin = isRole("admin");
   const isManager = isRole("manager");
+  const isMaintenanceManager = isRole("maintenance_manager");
   const canComment = isAdmin || isManager;
+  const canEditRagEntries = isAdmin || isManager || isMaintenanceManager;
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
@@ -1037,6 +1039,7 @@ export default function RAGWeeklyPage() {
           cellScrapMap={cellScrapMap}
           cellItemTargetMap={cellItemTargetMap}
           isAdmin={isAdmin}
+          canEditEntries={canEditRagEntries}
           canComment={canComment}
           weekStartStr={weekStartStr}
           onSave={(payload) => upsertMutation.mutate(payload)}
@@ -1264,6 +1267,7 @@ function DayNightTotalSummary({
   cellScrapMap,
   cellItemTargetMap,
   isAdmin = false,
+  canEditEntries = false,
   canComment = false,
   weekStartStr,
   onSave,
@@ -1278,6 +1282,7 @@ function DayNightTotalSummary({
   cellScrapMap?: Map<string, number>;
   cellItemTargetMap?: Map<string, number>;
   isAdmin?: boolean;
+  canEditEntries?: boolean;
   canComment?: boolean;
   weekStartStr?: string;
   onSave?: (payload: Omit<Entry, "id">) => void;
@@ -1693,7 +1698,7 @@ function DayNightTotalSummary({
                 const wtNight = weekTotal("NIGHT");
                 const wtTot = weekTotal("TOTAL");
                 const cls = `p-1.5 text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
-                const editable = (isAdmin || canComment) && lineFilter.length === 1 && ["plan", "actual"].includes(row.key);
+                const editable = canEditEntries && lineFilter.length === 1 && ["plan", "actual"].includes(row.key);
                 const lineName = lineFilter[0];
                 const renderEdit = (ds: string, shift: Shift) => {
                   const existing = entryMap.get(`${ds}|${lineName}|${shift}`);
