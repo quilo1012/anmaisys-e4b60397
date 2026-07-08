@@ -676,9 +676,22 @@ export default function ProductionPlannerPage() {
                     />
                   </div>
                   <div className="md:col-span-2">
-                    <Label>Target</Label>
+                    <Label title="Approximate remaining units for this SKU, derived from the RAG Weekly plan minus actuals across all SKUs on this line/shift.">Avg remaining ~</Label>
                     <div className="flex items-center gap-1">
-                      <Input type="number" value={r.target_qty} onChange={(e) => updateRow(i, { target_qty: +e.target.value })} disabled={locked} />
+                      <Input
+                        type="number"
+                        readOnly
+                        value={Math.max(
+                          0,
+                          Math.round(
+                            (rows.reduce((a, x) => a + (Number(x.target_qty) || 0), 0)
+                              - rows.reduce((a, x) => a + (Number(x.actual_qty) || 0), 0))
+                            / Math.max(1, rows.length),
+                          ),
+                        )}
+                        className="bg-muted/40"
+                        title="Approximate missing per SKU (avg). Total target comes from RAG Weekly, not iTouching."
+                      />
                       <span className="text-xs text-muted-foreground">units</span>
                     </div>
                   </div>
