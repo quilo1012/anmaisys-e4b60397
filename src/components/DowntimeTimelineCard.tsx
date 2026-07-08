@@ -51,9 +51,7 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
         <div className="space-y-3 print:hidden">
           {events.map((e, idx) => {
             const isOpen = !e.resumed_at;
-            const dur = isOpen
-              ? differenceInMinutes(new Date(), new Date(e.stopped_at))
-              : (e.duration_minutes ?? 0);
+            const durSec = eventSeconds(e);
             return (
               <div
                 key={e.id}
@@ -67,12 +65,12 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
                     {isOpen && <span className="ml-2 text-red-600 uppercase text-xs">— in progress</span>}
                   </p>
                   <span className="text-xs font-mono">
-                    {dur}m{isOpen ? " (live)" : ""}
+                    {formatDuration(durSec)}{isOpen ? " (live)" : ""}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {format(new Date(e.stopped_at), "dd/MM HH:mm")}
-                  {e.resumed_at ? ` → ${format(new Date(e.resumed_at), "dd/MM HH:mm")}` : " → now"}
+                  {format(new Date(e.stopped_at), "dd/MM HH:mm:ss")}
+                  {e.resumed_at ? ` → ${format(new Date(e.resumed_at), "dd/MM HH:mm:ss")}` : " → now"}
                 </p>
                 {e.stopped_by_name && (
                   <p className="text-xs mt-1">
@@ -91,8 +89,8 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
             );
           })}
           <div className="border-t pt-2 text-sm font-semibold">
-            TOTAL: {events.length} stop{events.length === 1 ? "" : "s"} · {totalMinutes}m downtime
-            {ongoing && <span className="text-red-600 ml-1">(includes {ongoingMinutes}m ongoing)</span>}
+            TOTAL: {events.length} stop{events.length === 1 ? "" : "s"} · {formatDuration(totalSeconds)} downtime
+            {ongoing && <span className="text-red-600 ml-1">(includes {formatDuration(ongoingSeconds)} ongoing)</span>}
           </div>
         </div>
 
