@@ -3,6 +3,9 @@ import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import type { WorkOrder } from "@/hooks/useWorkOrders";
 import { invokeFunction } from "@/lib/invokeFunction";
+import { formatMinutes } from "@/lib/formatDuration";
+
+const fmtMin = (m: number) => (m >= 60 ? formatMinutes(m) : `${m} min`);
 
 /**
  * Server-side authorization for PDF generation.
