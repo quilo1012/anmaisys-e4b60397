@@ -184,11 +184,12 @@ export default function DowntimeHeatmapPage() {
 
 
   const { matrix, lines, lineTotals, dayShiftTotals, insights, grandMax } = useMemo(() => {
-    type LineMap = Map<string, Cell>; // key: `${dayIdx}-${shift}`
-    const perLine = new Map<string, LineMap>();
-    const dayShiftTotals = new Map<string, Cell>(); // key: `${dayIdx}-${shift}`
-    const lineTotals = new Map<string, Cell>();
-    let grandMax = 0;
+    // Collect intervals per (line, day, shift) and per-line so parallel /
+    // overlapping stops on the same line are UNION'd (counted once), matching
+    // Downtime Records / Shift Breakdown behaviour.
+    const perLineIntervals = new Map<string, Map<string, Interval[]>>(); // line -> key -> intervals
+    const perLineCounts = new Map<string, Map<string, number>>();        // line -> key -> event count
+    const lineAllIntervals = new Map<string, Interval[]>();              // line -> all intervals
 
     for (const r of records ?? []) {
       if (!r.started_at) continue;
@@ -196,62 +197,69 @@ export default function DowntimeHeatmapPage() {
       const start = new Date(r.started_at).getTime();
       const end = r.ended_at ? new Date(r.ended_at).getTime() : Date.now();
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-      // Overlap with [fromMs, toMs]
       if (end <= fromMs || start >= toMs) continue;
       const clampedStart = Math.max(start, fromMs);
       const clampedEnd = Math.min(end, toMs);
-      const totalMinutes = Math.max(0, Math.round((clampedEnd - clampedStart) / 60000));
-      if (totalMinutes <= 0) continue;
+      if (clampedEnd <= clampedStart) continue;
 
-      const lm = perLine.get(line) ?? new Map<string, Cell>();
-      perLine.set(line, lm);
+      const li = perLineIntervals.get(line) ?? new Map<string, Interval[]>();
+      perLineIntervals.set(line, li);
+      const lc = perLineCounts.get(line) ?? new Map<string, number>();
+      perLineCounts.set(line, lc);
 
-      // Split the event across London-local shift windows so long stops
-      // that cross 06:00 / 18:00 are attributed to the correct (day, shift)
-      // cells rather than dumped entirely into the shift of the start time.
+      const allIvs = lineAllIntervals.get(line) ?? [];
+      allIvs.push([clampedStart, clampedEnd]);
+      lineAllIntervals.set(line, allIvs);
+
+      // Split at London 06:00/18:00 shift boundaries so each segment lands in
+      // the correct (weekday, shift) bucket even when a stop crosses shifts.
       let cursor = clampedStart;
       while (cursor < clampedEnd) {
         const boundary = Math.min(nextShiftBoundary(cursor), clampedEnd);
-        const segMinutes = Math.max(0, Math.round((boundary - cursor) / 60000));
-        if (segMinutes > 0) {
+        if (boundary > cursor) {
           const parts = londonAllParts(new Date(cursor));
-          // 0=Sun..6=Sat from JS; remap to 0=Mon..6=Sun
           const jsWd = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
-          const dayIdx = (jsWd + 6) % 7;
+          const dayIdx = (jsWd + 6) % 7; // 0=Mon..6=Sun
           const shift = shiftOf(parts.hour);
           const key = `${dayIdx}-${shift}`;
-
-          const cell = lm.get(key) ?? { minutes: 0, count: 0 };
-          cell.minutes += segMinutes;
-          lm.set(key, cell);
-
-          const dst = dayShiftTotals.get(key) ?? { minutes: 0, count: 0 };
-          dst.minutes += segMinutes;
-          dayShiftTotals.set(key, dst);
-
-          if (cell.minutes > grandMax) grandMax = cell.minutes;
+          const ivs = li.get(key) ?? [];
+          ivs.push([cursor, boundary]);
+          li.set(key, ivs);
         }
         cursor = boundary;
       }
 
-      // Event count is per-event, attributed to the shift/day the event STARTED in.
-      const startParts = londonAllParts(new Date(clampedStart));
-      const startJsWd = new Date(Date.UTC(startParts.year, startParts.month - 1, startParts.day)).getUTCDay();
-      const startDayIdx = (startJsWd + 6) % 7;
-      const startShift = shiftOf(startParts.hour);
-      const startKey = `${startDayIdx}-${startShift}`;
-      const startCell = lm.get(startKey) ?? { minutes: 0, count: 0 };
-      startCell.count += 1;
-      lm.set(startKey, startCell);
-      const startDst = dayShiftTotals.get(startKey) ?? { minutes: 0, count: 0 };
-      startDst.count += 1;
-      dayShiftTotals.set(startKey, startDst);
-
-      const lt = lineTotals.get(line) ?? { minutes: 0, count: 0 };
-      lt.minutes += totalMinutes;
-      lt.count += 1;
-      lineTotals.set(line, lt);
+      // Count each event once, on the shift/day it started in.
+      const sp = londonAllParts(new Date(clampedStart));
+      const sJsWd = new Date(Date.UTC(sp.year, sp.month - 1, sp.day)).getUTCDay();
+      const startKey = `${(sJsWd + 6) % 7}-${shiftOf(sp.hour)}`;
+      lc.set(startKey, (lc.get(startKey) ?? 0) + 1);
     }
+
+    // Reduce intervals -> minutes (union per bucket, per line total).
+    const perLine = new Map<string, Map<string, Cell>>();
+    const dayShiftTotals = new Map<string, Cell>();
+    const lineTotals = new Map<string, Cell>();
+    let grandMax = 0;
+
+    perLineIntervals.forEach((buckets, line) => {
+      const cells = new Map<string, Cell>();
+      const counts = perLineCounts.get(line);
+      buckets.forEach((ivs, key) => {
+        const minutes = Math.round(unionMs(ivs) / 60_000);
+        const count = counts?.get(key) ?? 0;
+        cells.set(key, { minutes, count });
+        if (minutes > grandMax) grandMax = minutes;
+        const dst = dayShiftTotals.get(key) ?? { minutes: 0, count: 0 };
+        dst.minutes += minutes; // per-line unions summed across lines
+        dst.count += count;
+        dayShiftTotals.set(key, dst);
+      });
+      perLine.set(line, cells);
+      const totalMin = Math.round(unionMs(lineAllIntervals.get(line) ?? []) / 60_000);
+      const totalCount = Array.from(counts?.values() ?? []).reduce((a, b) => a + b, 0);
+      lineTotals.set(line, { minutes: totalMin, count: totalCount });
+    });
 
     const lines = Array.from(perLine.keys()).sort((a, b) => {
       const ma = /line\s*(\d+)/i.exec(a)?.[1];
