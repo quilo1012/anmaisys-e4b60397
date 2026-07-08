@@ -1325,24 +1325,26 @@ function DayNightTotalSummary({
     },
   });
 
-  // Comments per line for the week
+  // Comments per line per day for the week
   const { data: commentRows = [] } = useQuery({
-    queryKey: ["rag-comments", weekStartStr],
-    enabled: !!weekStartStr,
+    queryKey: ["rag-comments", fromDate, toDate],
+    enabled: !!fromDate && !!toDate,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("rag_weekly_comments")
-        .select("line, comment")
-        .eq("week_start", weekStartStr!);
+        .select("line, comment, entry_date")
+        .gte("entry_date", fromDate!)
+        .lte("entry_date", toDate!);
       if (error) throw error;
-      return (data ?? []) as { line: string; comment: string }[];
+      return (data ?? []) as { line: string; comment: string; entry_date: string }[];
     },
   });
   const commentMap = useMemo(() => {
     const m = new Map<string, string>();
-    for (const r of commentRows) m.set(r.line, r.comment ?? "");
+    for (const r of commentRows) m.set(`${r.line}|${r.entry_date}`, r.comment ?? "");
     return m;
   }, [commentRows]);
+
   useEffect(() => {
     if (!weekStartStr) return;
     const ch = supabase
@@ -1792,13 +1794,25 @@ function DayNightTotalSummary({
           </table>
         </div>
         )}
-        {!isCollapsed && label !== "All Lines" && weekStartStr && (
-          <LineCommentBox
-            line={label}
-            weekStart={weekStartStr}
-            initialValue={commentMap.get(label) ?? ""}
-            canEdit={canComment}
-          />
+        {!isCollapsed && label !== "All Lines" && (
+          <div className="mt-2 border rounded-md bg-muted/10 p-3">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Daily Comments</div>
+            <div className="grid gap-2 md:grid-cols-7">
+              {weekDates.map((d) => {
+                const ds = format(d, "yyyy-MM-dd");
+                return (
+                  <LineCommentBox
+                    key={ds}
+                    line={label}
+                    entryDate={ds}
+                    dayLabel={format(d, "EEE dd/MM")}
+                    initialValue={commentMap.get(`${label}|${ds}`) ?? ""}
+                    canEdit={canComment}
+                  />
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
     );
@@ -1833,12 +1847,14 @@ function DayNightTotalSummary({
 
 function LineCommentBox({
   line,
-  weekStart,
+  entryDate,
+  dayLabel,
   initialValue,
   canEdit,
 }: {
   line: string;
-  weekStart: string;
+  entryDate: string;
+  dayLabel: string;
   initialValue: string;
   canEdit: boolean;
 }) {
@@ -1848,7 +1864,7 @@ function LineCommentBox({
   const focusedRef = useRef(false);
   useEffect(() => {
     if (!focusedRef.current) setValue(initialValue ?? "");
-  }, [initialValue, line, weekStart]);
+  }, [initialValue, line, entryDate]);
 
   const commit = async () => {
     focusedRef.current = false;
@@ -1859,22 +1875,29 @@ function LineCommentBox({
     const { error } = await (supabase as any)
       .from("rag_weekly_comments")
       .upsert(
-        { line, week_start: weekStart, comment: next, updated_by: (await supabase.auth.getUser()).data.user?.id ?? null, updated_at: new Date().toISOString() },
-        { onConflict: "line,week_start" },
+        {
+          line,
+          entry_date: entryDate,
+          week_start: entryDate,
+          comment: next,
+          updated_by: (await supabase.auth.getUser()).data.user?.id ?? null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "line,entry_date" },
       );
     setSaving(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    qc.invalidateQueries({ queryKey: ["rag-comments", weekStart] });
+    qc.invalidateQueries({ queryKey: ["rag-comments"] });
   };
 
   return (
-    <div className="mt-2 border rounded-md bg-muted/10 p-3">
+    <div className="border rounded-md bg-background p-2">
       <div className="flex items-center justify-between mb-1">
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Comments</div>
-        {saving && <div className="text-[11px] text-muted-foreground">Saving…</div>}
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{dayLabel}</div>
+        {saving && <div className="text-[10px] text-muted-foreground">…</div>}
       </div>
       <Textarea
         value={value}
@@ -1882,9 +1905,9 @@ function LineCommentBox({
         onFocus={() => { focusedRef.current = true; }}
         onBlur={commit}
         disabled={!canEdit}
-        placeholder="Add notes, observations or flags for this line..."
+        placeholder="Notes…"
         rows={2}
-        className="min-h-[48px] resize-y text-sm"
+        className="min-h-[44px] resize-y text-xs"
       />
     </div>
   );
