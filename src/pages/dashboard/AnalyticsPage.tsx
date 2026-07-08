@@ -726,8 +726,8 @@ export default function AnalyticsPage() {
                             <Badge variant={eng.score >= 0 ? "default" : "destructive"}>{eng.score}</Badge>
                           </td>
                           <td className="px-3 py-2 text-center">{eng.completed}</td>
-                          <td className="px-3 py-2 text-center">{eng.avgResponse} min</td>
-                          <td className="px-3 py-2 text-center">{eng.avgMTTR} min</td>
+                          <td className="px-3 py-2 text-center">{fmtMin(eng.avgResponse)}</td>
+                          <td className="px-3 py-2 text-center">{fmtMin(eng.avgMTTR)}</td>
                           <td className="px-3 py-2 text-center">
                             {eng.score > 0 ? <TrendingUp className="h-4 w-4 text-green-500 inline" /> : eng.score < 0 ? <TrendingDown className="h-4 w-4 text-red-500 inline" /> : <span className="text-muted-foreground">—</span>}
                           </td>
