@@ -370,8 +370,9 @@ export default function DowntimeHeatmapPage() {
                     {lines.length === 0 && (
                       <tr>
                         <td colSpan={16} className="p-8 text-center text-muted-foreground">
-                          No downtime recorded in the last 90 days.
+                          No downtime recorded in the selected range ({RANGE_LABEL[range]}).
                         </td>
+
                       </tr>
                     )}
                     {lines.map((line) => {
