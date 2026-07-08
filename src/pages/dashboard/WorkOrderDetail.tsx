@@ -65,7 +65,10 @@ function formatDuration(minutes: number | null) {
 }
 
 function formatShortDuration(seconds: number) {
-  return formatDurationFromSec(seconds);
+  const s = Math.max(0, Math.round(seconds || 0));
+  // Preserve sub-minute stops (e.g. 18s quick resume) instead of rounding to "0h 0m".
+  if (s > 0 && s < 60) return `0h 0m ${s}s`;
+  return formatDurationFromSec(s);
 }
 
 function SignedPhoto({ storagePath, alt }: { storagePath: string; alt: string }) {
