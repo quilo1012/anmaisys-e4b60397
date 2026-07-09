@@ -14,6 +14,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 
 type ComputeResult = {
   base_target: number;
@@ -48,20 +50,33 @@ export default function SmartTargetPage() {
   const [accuracy, setAccuracy] = useState<{ avgErr: number; count: number; acc: number } | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [baseline, setBaseline] = useState<{ avg: number; p90: number; days: number; period: string } | null>(null);
+  const [hasPlan, setHasPlan] = useState<boolean | null>(null);
+  const [latestPlanDate, setLatestPlanDate] = useState<string | null>(null);
 
   const entryDate = useMemo(() => format(date, "yyyy-MM-dd"), [date]);
 
-  // Load distinct lines
+  // Load distinct lines + most recent date that actually has a plan
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from("rag_weekly_entries")
-        .select("line")
-        .order("line");
-      const uniq = Array.from(new Set((data ?? []).map((r: any) => r.line).filter(Boolean))).sort();
+        .select("line, entry_date, plan_qty")
+        .gt("plan_qty", 0)
+        .order("entry_date", { ascending: false });
+      const rows = data ?? [];
+      const uniq = Array.from(new Set(rows.map((r: any) => r.line).filter(Boolean))).sort();
       setLines(uniq);
       if (!line && uniq.length) setLine(uniq[0]);
+      const latest = rows[0]?.entry_date as string | undefined;
+      if (latest) {
+        setLatestPlanDate(latest);
+        // Default to latest planned date if today has no plan yet
+        const today = format(new Date(), "yyyy-MM-dd");
+        const hasToday = rows.some((r: any) => r.entry_date === today);
+        if (!hasToday) setDate(new Date(latest + "T12:00:00"));
+      }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load line baseline (Apr-Jun 2026 import) whenever the selected line changes
@@ -92,6 +107,17 @@ export default function SmartTargetPage() {
     if (!line) return;
     setLoading(true);
     try {
+      // Check plan existence first (drives empty-state UI)
+      const { data: planRow } = await supabase
+        .from("rag_weekly_entries")
+        .select("plan_qty")
+        .eq("entry_date", entryDate)
+        .eq("line", line)
+        .eq("shift", shift)
+        .maybeSingle();
+      const planExists = !!planRow && Number(planRow.plan_qty ?? 0) > 0;
+      setHasPlan(planExists);
+
       const { data, error } = await supabase.rpc("compute_smart_target", {
         _entry_date: entryDate,
         _line: line,
@@ -100,7 +126,7 @@ export default function SmartTargetPage() {
       if (error) throw error;
       const r = data as unknown as ComputeResult;
       setResult(r);
-      setOverride(String(Math.round(r.predicted_target)));
+      setOverride(String(Math.round(r?.predicted_target ?? 0)));
     } catch (e: any) {
       toast.error(e.message ?? "Failed to compute");
     } finally {
@@ -252,6 +278,30 @@ export default function SmartTargetPage() {
           <Button onClick={compute} disabled={loading}>Recompute</Button>
         </CardContent>
       </Card>
+
+      {/* Empty-state: no plan for this date/shift/line */}
+      {hasPlan === false && !loading && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>No plan found for {entryDate} · {shift} · {line}</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>
+              Smart Target reads the plan from RAG Weekly. Without a plan for this shift, all values show 0.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {latestPlanDate && latestPlanDate !== entryDate && (
+                <Button size="sm" variant="outline" onClick={() => setDate(new Date(latestPlanDate + "T12:00:00"))}>
+                  Jump to latest planned date ({latestPlanDate})
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={() => navigate("/dashboard/rag-weekly")}>
+                Open RAG Weekly
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
 
       {/* Baseline reference (Apr-Jun 2026 historical) */}
       {baseline && (
