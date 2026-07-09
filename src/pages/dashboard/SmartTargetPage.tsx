@@ -157,21 +157,26 @@ export default function SmartTargetPage() {
 
         // Historical average per SKU on this line (may be sparse — often just 1 run)
         if (rows.length) {
-          const { data: hist } = await supabase
-            .from("sku_production_history")
-            .select("sku_id, actual_qty")
-            .eq("line", line)
-            .in("sku_id", rows.map((r) => r.sku_id));
-          const acc = new Map<string, { sum: number; n: number }>();
-          for (const h of hist ?? []) {
-            const a = acc.get((h as any).sku_id) ?? { sum: 0, n: 0 };
-            a.sum += Number((h as any).actual_qty ?? 0);
-            a.n += 1;
-            acc.set((h as any).sku_id, a);
-          }
-          for (const r of rows) {
-            const a = acc.get(r.sku_id);
-            if (a && a.n > 0) { r.hist_avg = a.sum / a.n; r.hist_runs = a.n; }
+          const { data: lineRow } = await supabase
+            .from("lines").select("id").eq("name", line).maybeSingle();
+          const lineId = (lineRow as any)?.id;
+          if (lineId) {
+            const { data: hist } = await supabase
+              .from("sku_production_history")
+              .select("sku_id, quantity")
+              .eq("line_id", lineId)
+              .in("sku_id", rows.map((r) => r.sku_id));
+            const acc = new Map<string, { sum: number; n: number }>();
+            for (const h of hist ?? []) {
+              const a = acc.get((h as any).sku_id) ?? { sum: 0, n: 0 };
+              a.sum += Number((h as any).quantity ?? 0);
+              a.n += 1;
+              acc.set((h as any).sku_id, a);
+            }
+            for (const r of rows) {
+              const a = acc.get(r.sku_id);
+              if (a && a.n > 0) { r.hist_avg = a.sum / a.n; r.hist_runs = a.n; }
+            }
           }
         }
         setSkuRows(rows);
