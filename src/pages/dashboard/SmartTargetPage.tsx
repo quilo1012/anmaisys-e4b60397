@@ -17,6 +17,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
+import { rescaleItemTargets } from "@/lib/ragTargetSplit";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+type SkuRow = {
+  sku_id: string;
+  code: string;
+  name: string;
+  planned_qty: number;
+  actual_qty: number;
+  target_qty: number;
+  hist_avg: number | null;
+  hist_runs: number;
+};
 
 type ComputeResult = {
   base_target: number;
