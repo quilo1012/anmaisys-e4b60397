@@ -6,9 +6,10 @@ import { useOperatorLineIds } from "@/hooks/useOperatorLineAccess";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, Loader2 } from "lucide-react";
+import { MessageSquare, Send, Loader2, Target, History } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { getShift, getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
 
 interface Line { id: string; name: string; }
 interface Msg {
