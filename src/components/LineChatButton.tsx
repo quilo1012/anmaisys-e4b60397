@@ -40,7 +40,10 @@ export function LineChatButton() {
   const [lastSeen, setLastSeen] = useState<Record<string, string>>(() => readLastSeen());
   const [unreadTick, setUnreadTick] = useState(0);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+  const [showAllShifts, setShowAllShifts] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const { sessionDate, shiftCode } = getCurrentFactoryShift();
 
   const isStaff = role === "admin" || role === "manager" || role === "maintenance_manager";
   const canUse = isStaff || role === "operator" || role === "engineer";
