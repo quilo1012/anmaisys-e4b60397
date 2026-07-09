@@ -273,10 +273,6 @@ export default function SmartTargetPage() {
           </p>
         </CardContent>
       </Card>
-        <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Back to menu
-        </Button>
-      </div>
 
       {/* Filters */}
       <Card>
