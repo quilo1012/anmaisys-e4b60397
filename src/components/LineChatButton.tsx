@@ -6,9 +6,10 @@ import { useOperatorLineIds } from "@/hooks/useOperatorLineAccess";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, Loader2 } from "lucide-react";
+import { MessageSquare, Send, Loader2, Target, History } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { getShift, getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
 
 interface Line { id: string; name: string; }
 interface Msg {
@@ -39,7 +40,10 @@ export function LineChatButton() {
   const [lastSeen, setLastSeen] = useState<Record<string, string>>(() => readLastSeen());
   const [unreadTick, setUnreadTick] = useState(0);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+  const [showAllShifts, setShowAllShifts] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const { sessionDate, shiftCode } = getCurrentFactoryShift();
 
   const isStaff = role === "admin" || role === "manager" || role === "maintenance_manager";
   const canUse = isStaff || role === "operator" || role === "engineer";
@@ -87,6 +91,34 @@ export function LineChatButton() {
         .limit(200);
       if (error) throw error;
       return (data ?? []) as unknown as Msg[];
+    },
+  });
+
+  // Filter messages to the current shift unless user opts in to full history.
+  const visibleMessages = useMemo(() => {
+    if (showAllShifts) return messages;
+    const cutoff = Date.now() - 12 * 3600 * 1000;
+    return messages.filter((m) => {
+      const t = new Date(m.created_at).getTime();
+      return t >= cutoff && getShift(m.created_at) === shiftCode;
+    });
+  }, [messages, showAllShifts, shiftCode]);
+
+  // Shift target (RAG plan/actual) for the active line.
+  const activeLineName = lines.find((l) => l.id === activeLineId)?.name ?? null;
+  const { data: shiftTarget } = useQuery({
+    queryKey: ["line_chat_target", activeLineName, sessionDate, shiftCode],
+    enabled: !!activeLineName,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("rag_weekly_entries")
+        .select("plan_qty,actual_qty")
+        .eq("entry_date", sessionDate)
+        .eq("line", activeLineName!)
+        .eq("shift", shiftCode.toUpperCase())
+        .maybeSingle();
+      return (data ?? null) as { plan_qty: number | null; actual_qty: number | null } | null;
     },
   });
 
@@ -266,7 +298,7 @@ export function LineChatButton() {
           <>
             <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Channel</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Channel · {SHIFT_LABEL[shiftCode]}</p>
                 <p className="text-sm font-medium">{activeLine.name}</p>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -274,13 +306,43 @@ export function LineChatButton() {
                 {onlineIds.size} online
               </div>
             </div>
+            <div className="px-4 py-2 border-b bg-primary/5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Target className="h-4 w-4 text-primary shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Shift Target</p>
+                  <p className="text-sm font-semibold truncate">
+                    {shiftTarget?.plan_qty != null ? (
+                      <>
+                        {(shiftTarget.actual_qty ?? 0).toLocaleString()} / {shiftTarget.plan_qty.toLocaleString()}
+                        <span className="text-xs font-normal text-muted-foreground ml-1">
+                          ({shiftTarget.plan_qty > 0 ? Math.round(((shiftTarget.actual_qty ?? 0) / shiftTarget.plan_qty) * 100) : 0}%)
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground font-normal">No RAG target set</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAllShifts((v) => !v)}
+                className="shrink-0 inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border hover:bg-accent"
+                title={showAllShifts ? "Show only current shift" : "Show all shifts"}
+              >
+                <History className="h-3 w-3" />
+                {showAllShifts ? "Current shift" : "All history"}
+              </button>
+            </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-muted/20">
               {isLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-              ) : messages.length === 0 ? (
-                <p className="text-xs text-center text-muted-foreground py-8">No messages yet. Start the conversation.</p>
+              ) : visibleMessages.length === 0 ? (
+                <p className="text-xs text-center text-muted-foreground py-8">
+                  {showAllShifts ? "No messages yet. Start the conversation." : "No messages this shift yet. Start the conversation."}
+                </p>
               ) : (
-                messages.map((m) => {
+                visibleMessages.map((m) => {
                   const own = m.user_id === user?.id;
                   return (
                     <div key={m.id} className={`flex flex-col ${own ? "items-end" : "items-start"}`}>
