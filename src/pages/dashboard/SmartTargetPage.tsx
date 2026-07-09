@@ -17,6 +17,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
+import { rescaleItemTargets } from "@/lib/ragTargetSplit";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+type SkuRow = {
+  sku_id: string;
+  code: string;
+  name: string;
+  planned_qty: number;
+  actual_qty: number;
+  target_qty: number;
+  hist_avg: number | null;
+  hist_runs: number;
+};
 
 type ComputeResult = {
   base_target: number;
@@ -53,6 +66,8 @@ export default function SmartTargetPage() {
   const [baseline, setBaseline] = useState<{ avg: number; p90: number; days: number; period: string } | null>(null);
   const [hasPlan, setHasPlan] = useState<boolean | null>(null);
   const [latestPlanDate, setLatestPlanDate] = useState<string | null>(null);
+  const [skuRows, setSkuRows] = useState<SkuRow[]>([]);
+  const [skuLoading, setSkuLoading] = useState(false);
 
   const entryDate = useMemo(() => format(date, "yyyy-MM-dd"), [date]);
 
@@ -101,6 +116,77 @@ export default function SmartTargetPage() {
       }
     })();
   }, [line]);
+
+  // Load per-SKU rows for this session (date + line + shift) + historical avg
+  useEffect(() => {
+    if (!line) { setSkuRows([]); return; }
+    (async () => {
+      setSkuLoading(true);
+      try {
+        const { data: sessions } = await supabase
+          .from("production_sessions")
+          .select("id")
+          .eq("session_date", entryDate)
+          .eq("line", line)
+          .eq("shift", shift);
+        const sessionIds = (sessions ?? []).map((s: any) => s.id);
+        if (!sessionIds.length) { setSkuRows([]); return; }
+
+        const { data: items } = await supabase
+          .from("production_items")
+          .select("sku_id, planned_qty, actual_qty, target_qty, sku_products(code,name)")
+          .in("session_id", sessionIds);
+
+        const grouped = new Map<string, SkuRow>();
+        for (const it of items ?? []) {
+          const sku = (it as any).sku_products;
+          if (!it.sku_id) continue;
+          const cur = grouped.get(it.sku_id) ?? {
+            sku_id: it.sku_id,
+            code: sku?.code ?? "—",
+            name: sku?.name ?? "",
+            planned_qty: 0, actual_qty: 0, target_qty: 0,
+            hist_avg: null, hist_runs: 0,
+          };
+          cur.planned_qty += Number(it.planned_qty ?? 0);
+          cur.actual_qty += Number(it.actual_qty ?? 0);
+          cur.target_qty += Number(it.target_qty ?? 0);
+          grouped.set(it.sku_id, cur);
+        }
+        const rows = Array.from(grouped.values());
+
+        // Historical average per SKU on this line (may be sparse — often just 1 run)
+        if (rows.length) {
+          const { data: lineRow } = await supabase
+            .from("lines").select("id").eq("name", line).maybeSingle();
+          const lineId = (lineRow as any)?.id;
+          if (lineId) {
+            const { data: hist } = await supabase
+              .from("sku_production_history")
+              .select("sku_id, quantity")
+              .eq("line_id", lineId)
+              .in("sku_id", rows.map((r) => r.sku_id));
+            const acc = new Map<string, { sum: number; n: number }>();
+            for (const h of hist ?? []) {
+              const a = acc.get((h as any).sku_id) ?? { sum: 0, n: 0 };
+              a.sum += Number((h as any).quantity ?? 0);
+              a.n += 1;
+              acc.set((h as any).sku_id, a);
+            }
+            for (const r of rows) {
+              const a = acc.get(r.sku_id);
+              if (a && a.n > 0) { r.hist_avg = a.sum / a.n; r.hist_runs = a.n; }
+            }
+          }
+        }
+        setSkuRows(rows);
+      } finally {
+        setSkuLoading(false);
+      }
+    })();
+  }, [entryDate, shift, line]);
+
+
 
 
   // Compute Smart Target
@@ -458,6 +544,107 @@ export default function SmartTargetPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Per-SKU breakdown */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            Per-SKU target breakdown
+            <KpiInfoTooltip text="The line target above is split proportionally across the SKUs of this shift. Weights use existing planned_qty (fallback: target_qty; then historical avg on this line; else even split). Not a per-SKU forecast — many SKUs have too little history for that." />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {skuLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : skuRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No SKUs found for this shift. SKUs appear once a production session exists for {entryDate} · {shift} · {line}.
+            </p>
+          ) : (() => {
+            const applied = Number(override) || Number(result?.predicted_target ?? 0);
+            // Choose weights: planned_qty → target_qty → hist_avg → even
+            let weights = skuRows.map((r) => r.planned_qty);
+            let source: "planned" | "target" | "history" | "even" = "planned";
+            if (weights.every((w) => !w)) {
+              weights = skuRows.map((r) => r.target_qty);
+              source = "target";
+            }
+            if (weights.every((w) => !w)) {
+              weights = skuRows.map((r) => r.hist_avg ?? 0);
+              source = "history";
+            }
+            if (weights.every((w) => !w)) {
+              weights = skuRows.map(() => 1);
+              source = "even";
+            }
+            const split = rescaleItemTargets(
+              weights.map((w) => ({ target: w, planned: null })),
+              applied,
+            );
+            const sourceLabel = {
+              planned: "current planned_qty",
+              target: "current target_qty",
+              history: "historical avg on this line",
+              even: "even split (no signal)",
+            }[source];
+            return (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Splitting <span className="font-medium text-foreground">{fmt(applied)}</span> across {skuRows.length} SKU{skuRows.length > 1 ? "s" : ""} by <span className="font-medium">{sourceLabel}</span>.
+                </p>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>SKU</TableHead>
+                        <TableHead className="text-right">Planned</TableHead>
+                        <TableHead className="text-right">Actual</TableHead>
+                        <TableHead className="text-right">Hist. avg</TableHead>
+                        <TableHead className="text-right">Suggested target</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {skuRows.map((r, i) => (
+                        <TableRow key={r.sku_id}>
+                          <TableCell>
+                            <div className="font-mono text-xs">{r.code}</div>
+                            <div className="text-xs text-muted-foreground truncate max-w-[240px]">{r.name}</div>
+                          </TableCell>
+                          <TableCell className="text-right">{fmt(r.planned_qty)}</TableCell>
+                          <TableCell className="text-right">{fmt(r.actual_qty)}</TableCell>
+                          <TableCell className="text-right">
+                            {r.hist_avg == null ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              <span>
+                                {fmt(r.hist_avg)}
+                                <Badge variant="secondary" className="ml-1 text-[10px]">n={r.hist_runs}</Badge>
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-primary">{fmt(split[i])}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow>
+                        <TableCell className="font-medium">Total</TableCell>
+                        <TableCell className="text-right font-medium">{fmt(skuRows.reduce((a, r) => a + r.planned_qty, 0))}</TableCell>
+                        <TableCell className="text-right font-medium">{fmt(skuRows.reduce((a, r) => a + r.actual_qty, 0))}</TableCell>
+                        <TableCell className="text-right" />
+                        <TableCell className="text-right font-bold text-primary">{fmt(split.reduce((a, b) => a + b, 0))}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Note: this is a proportional split, not a per-SKU statistical forecast. Many SKUs only have 1 recorded run, so history is used as a hint, not a prediction.
+                </p>
+              </div>
+            );
+          })()}
+        </CardContent>
+      </Card>
+
+
 
       {/* Accuracy */}
       <Card>
