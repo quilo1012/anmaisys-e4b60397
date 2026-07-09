@@ -55,17 +55,28 @@ export default function SmartTargetPage() {
 
   const entryDate = useMemo(() => format(date, "yyyy-MM-dd"), [date]);
 
-  // Load distinct lines
+  // Load distinct lines + most recent date that actually has a plan
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from("rag_weekly_entries")
-        .select("line")
-        .order("line");
-      const uniq = Array.from(new Set((data ?? []).map((r: any) => r.line).filter(Boolean))).sort();
+        .select("line, entry_date, plan_qty")
+        .gt("plan_qty", 0)
+        .order("entry_date", { ascending: false });
+      const rows = data ?? [];
+      const uniq = Array.from(new Set(rows.map((r: any) => r.line).filter(Boolean))).sort();
       setLines(uniq);
       if (!line && uniq.length) setLine(uniq[0]);
+      const latest = rows[0]?.entry_date as string | undefined;
+      if (latest) {
+        setLatestPlanDate(latest);
+        // Default to latest planned date if today has no plan yet
+        const today = format(new Date(), "yyyy-MM-dd");
+        const hasToday = rows.some((r: any) => r.entry_date === today);
+        if (!hasToday) setDate(new Date(latest + "T12:00:00"));
+      }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load line baseline (Apr-Jun 2026 import) whenever the selected line changes
