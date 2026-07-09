@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
+import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
 
 type ComputeResult = {
   base_target: number;
