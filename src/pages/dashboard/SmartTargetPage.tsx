@@ -545,6 +545,107 @@ export default function SmartTargetPage() {
         </CardContent>
       </Card>
 
+      {/* Per-SKU breakdown */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            Per-SKU target breakdown
+            <KpiInfoTooltip text="The line target above is split proportionally across the SKUs of this shift. Weights use existing planned_qty (fallback: target_qty; then historical avg on this line; else even split). Not a per-SKU forecast — many SKUs have too little history for that." />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {skuLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : skuRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No SKUs found for this shift. SKUs appear once a production session exists for {entryDate} · {shift} · {line}.
+            </p>
+          ) : (() => {
+            const applied = Number(override) || Number(result?.predicted_target ?? 0);
+            // Choose weights: planned_qty → target_qty → hist_avg → even
+            let weights = skuRows.map((r) => r.planned_qty);
+            let source: "planned" | "target" | "history" | "even" = "planned";
+            if (weights.every((w) => !w)) {
+              weights = skuRows.map((r) => r.target_qty);
+              source = "target";
+            }
+            if (weights.every((w) => !w)) {
+              weights = skuRows.map((r) => r.hist_avg ?? 0);
+              source = "history";
+            }
+            if (weights.every((w) => !w)) {
+              weights = skuRows.map(() => 1);
+              source = "even";
+            }
+            const split = rescaleItemTargets(
+              weights.map((w) => ({ target: w, planned: null })),
+              applied,
+            );
+            const sourceLabel = {
+              planned: "current planned_qty",
+              target: "current target_qty",
+              history: "historical avg on this line",
+              even: "even split (no signal)",
+            }[source];
+            return (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Splitting <span className="font-medium text-foreground">{fmt(applied)}</span> across {skuRows.length} SKU{skuRows.length > 1 ? "s" : ""} by <span className="font-medium">{sourceLabel}</span>.
+                </p>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>SKU</TableHead>
+                        <TableHead className="text-right">Planned</TableHead>
+                        <TableHead className="text-right">Actual</TableHead>
+                        <TableHead className="text-right">Hist. avg</TableHead>
+                        <TableHead className="text-right">Suggested target</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {skuRows.map((r, i) => (
+                        <TableRow key={r.sku_id}>
+                          <TableCell>
+                            <div className="font-mono text-xs">{r.code}</div>
+                            <div className="text-xs text-muted-foreground truncate max-w-[240px]">{r.name}</div>
+                          </TableCell>
+                          <TableCell className="text-right">{fmt(r.planned_qty)}</TableCell>
+                          <TableCell className="text-right">{fmt(r.actual_qty)}</TableCell>
+                          <TableCell className="text-right">
+                            {r.hist_avg == null ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              <span>
+                                {fmt(r.hist_avg)}
+                                <Badge variant="secondary" className="ml-1 text-[10px]">n={r.hist_runs}</Badge>
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-primary">{fmt(split[i])}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow>
+                        <TableCell className="font-medium">Total</TableCell>
+                        <TableCell className="text-right font-medium">{fmt(skuRows.reduce((a, r) => a + r.planned_qty, 0))}</TableCell>
+                        <TableCell className="text-right font-medium">{fmt(skuRows.reduce((a, r) => a + r.actual_qty, 0))}</TableCell>
+                        <TableCell className="text-right" />
+                        <TableCell className="text-right font-bold text-primary">{fmt(split.reduce((a, b) => a + b, 0))}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Note: this is a proportional split, not a per-SKU statistical forecast. Many SKUs only have 1 recorded run, so history is used as a hint, not a prediction.
+                </p>
+              </div>
+            );
+          })()}
+        </CardContent>
+      </Card>
+
+
+
       {/* Accuracy */}
       <Card>
         <CardHeader>
