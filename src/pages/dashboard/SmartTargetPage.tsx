@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
+import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
 
 type ComputeResult = {
   base_target: number;
@@ -239,6 +240,40 @@ export default function SmartTargetPage() {
         </Button>
       </div>
 
+      {/* How it works */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Info className="h-4 w-4 text-primary" /> How Smart Target works
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-2">
+          <p>
+            Smart Target suggests a realistic shift target by combining three signals:
+          </p>
+          <ol className="list-decimal pl-5 space-y-1">
+            <li>
+              <span className="font-medium text-foreground">Base target</span> — the plan already
+              entered in RAG Weekly for this date · shift · line.
+            </li>
+            <li>
+              <span className="font-medium text-emerald-500">Carry-over (+)</span> — 50% of the
+              previous shift's deficit (plan − actual) is rolled forward, so misses aren't lost.
+            </li>
+            <li>
+              <span className="font-medium text-amber-500">MTBF risk (−)</span> — if the line has
+              overdue preventive maintenance, a reliability discount is applied to keep the target
+              achievable.
+            </li>
+          </ol>
+          <p>
+            The final <span className="font-medium text-foreground">Suggested target</span> can be
+            overridden and applied to RAG Weekly. Model accuracy below tracks how close past
+            suggestions were to the real actuals.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Filters */}
       <Card>
         <CardContent className="p-4 flex flex-wrap gap-3 items-end">
@@ -346,7 +381,12 @@ export default function SmartTargetPage() {
       {/* Result */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Base target</CardTitle></CardHeader>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground flex items-center gap-1">
+              Base target
+              <KpiInfoTooltip text="The plan_qty entered in RAG Weekly for this date · shift · line. If empty, no plan was published yet." />
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             {loading ? <Skeleton className="h-8 w-24" /> :
               <div className="text-3xl font-bold">{fmt(result?.base_target)}</div>}
@@ -358,6 +398,7 @@ export default function SmartTargetPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground flex items-center gap-1">
               <TrendingUp className="h-4 w-4" /> Carry-over (+)
+              <KpiInfoTooltip text="50% of the previous shift's deficit (plan − actual) rolled forward. Recovers part of what was missed without over-loading the next shift." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -373,6 +414,7 @@ export default function SmartTargetPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground flex items-center gap-1">
               <AlertTriangle className="h-4 w-4" /> MTBF risk (−)
+              <KpiInfoTooltip text="Reliability discount based on overdue preventive maintenance. More overdue PMs → higher expected downtime → target reduced to stay achievable." />
             </CardTitle>
           </CardHeader>
           <CardContent>
