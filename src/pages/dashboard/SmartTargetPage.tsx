@@ -107,6 +107,17 @@ export default function SmartTargetPage() {
     if (!line) return;
     setLoading(true);
     try {
+      // Check plan existence first (drives empty-state UI)
+      const { data: planRow } = await supabase
+        .from("rag_weekly_entries")
+        .select("plan_qty")
+        .eq("entry_date", entryDate)
+        .eq("line", line)
+        .eq("shift", shift)
+        .maybeSingle();
+      const planExists = !!planRow && Number(planRow.plan_qty ?? 0) > 0;
+      setHasPlan(planExists);
+
       const { data, error } = await supabase.rpc("compute_smart_target", {
         _entry_date: entryDate,
         _line: line,
@@ -115,7 +126,7 @@ export default function SmartTargetPage() {
       if (error) throw error;
       const r = data as unknown as ComputeResult;
       setResult(r);
-      setOverride(String(Math.round(r.predicted_target)));
+      setOverride(String(Math.round(r?.predicted_target ?? 0)));
     } catch (e: any) {
       toast.error(e.message ?? "Failed to compute");
     } finally {
