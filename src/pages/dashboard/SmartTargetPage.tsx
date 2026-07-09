@@ -381,7 +381,12 @@ export default function SmartTargetPage() {
       {/* Result */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Base target</CardTitle></CardHeader>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground flex items-center gap-1">
+              Base target
+              <KpiInfoTooltip text="The plan_qty entered in RAG Weekly for this date · shift · line. If empty, no plan was published yet." />
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             {loading ? <Skeleton className="h-8 w-24" /> :
               <div className="text-3xl font-bold">{fmt(result?.base_target)}</div>}
@@ -393,6 +398,7 @@ export default function SmartTargetPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground flex items-center gap-1">
               <TrendingUp className="h-4 w-4" /> Carry-over (+)
+              <KpiInfoTooltip text="50% of the previous shift's deficit (plan − actual) rolled forward. Recovers part of what was missed without over-loading the next shift." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -408,6 +414,7 @@ export default function SmartTargetPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground flex items-center gap-1">
               <AlertTriangle className="h-4 w-4" /> MTBF risk (−)
+              <KpiInfoTooltip text="Reliability discount based on overdue preventive maintenance. More overdue PMs → higher expected downtime → target reduced to stay achievable." />
             </CardTitle>
           </CardHeader>
           <CardContent>
