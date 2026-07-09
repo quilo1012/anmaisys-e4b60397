@@ -94,6 +94,34 @@ export function LineChatButton() {
     },
   });
 
+  // Filter messages to the current shift unless user opts in to full history.
+  const visibleMessages = useMemo(() => {
+    if (showAllShifts) return messages;
+    const cutoff = Date.now() - 12 * 3600 * 1000;
+    return messages.filter((m) => {
+      const t = new Date(m.created_at).getTime();
+      return t >= cutoff && getShift(m.created_at) === shiftCode;
+    });
+  }, [messages, showAllShifts, shiftCode]);
+
+  // Shift target (RAG plan/actual) for the active line.
+  const activeLineName = lines.find((l) => l.id === activeLineId)?.name ?? null;
+  const { data: shiftTarget } = useQuery({
+    queryKey: ["line_chat_target", activeLineName, sessionDate, shiftCode],
+    enabled: !!activeLineName,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("rag_weekly_entries")
+        .select("plan_qty,actual_qty")
+        .eq("entry_date", sessionDate)
+        .eq("line", activeLineName!)
+        .eq("shift", shiftCode.toUpperCase())
+        .maybeSingle();
+      return (data ?? null) as { plan_qty: number | null; actual_qty: number | null } | null;
+    },
+  });
+
   // Keep latest values in a ref so the realtime effect can read them
   // without recreating the channel on every render.
   const ctxRef = useRef({ lines, open, activeLineId, userId: user?.id });
