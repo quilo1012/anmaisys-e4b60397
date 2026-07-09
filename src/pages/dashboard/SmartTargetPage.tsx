@@ -50,6 +50,8 @@ export default function SmartTargetPage() {
   const [accuracy, setAccuracy] = useState<{ avgErr: number; count: number; acc: number } | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [baseline, setBaseline] = useState<{ avg: number; p90: number; days: number; period: string } | null>(null);
+  const [hasPlan, setHasPlan] = useState<boolean | null>(null);
+  const [latestPlanDate, setLatestPlanDate] = useState<string | null>(null);
 
   const entryDate = useMemo(() => format(date, "yyyy-MM-dd"), [date]);
 
