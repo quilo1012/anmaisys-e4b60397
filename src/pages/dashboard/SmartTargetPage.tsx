@@ -279,6 +279,30 @@ export default function SmartTargetPage() {
         </CardContent>
       </Card>
 
+      {/* Empty-state: no plan for this date/shift/line */}
+      {hasPlan === false && !loading && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>No plan found for {entryDate} · {shift} · {line}</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>
+              Smart Target reads the plan from RAG Weekly. Without a plan for this shift, all values show 0.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {latestPlanDate && latestPlanDate !== entryDate && (
+                <Button size="sm" variant="outline" onClick={() => setDate(new Date(latestPlanDate + "T12:00:00"))}>
+                  Jump to latest planned date ({latestPlanDate})
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={() => navigate("/dashboard/rag-weekly")}>
+                Open RAG Weekly
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+
       {/* Baseline reference (Apr-Jun 2026 historical) */}
       {baseline && (
         <Card className="border-primary/20">
