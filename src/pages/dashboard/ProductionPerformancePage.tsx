@@ -76,6 +76,14 @@ export default function ProductionPerformancePage() {
     },
   });
 
+  const { data: leaders = [] } = useQuery({
+    queryKey: ["line_leaders_active"],
+    queryFn: async () => {
+      const { data } = await supabase.from("line_leaders").select("name").eq("active", true).order("name");
+      return (data ?? []) as { name: string }[];
+    },
+  });
+
   const { data: skus = [] } = useQuery({
     queryKey: ["sku_products_min"],
     queryFn: async () => {
