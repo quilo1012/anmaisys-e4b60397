@@ -59,8 +59,14 @@ export default function ProductionPerformancePage() {
     const d = parseISO(date);
     if (period === "day") return { from: date, to: date };
     if (period === "week") return { from: format(startOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd"), to: format(endOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd") };
-    return { from: format(startOfMonth(d), "yyyy-MM-dd"), to: format(endOfMonth(d), "yyyy-MM-dd") };
-  }, [date, period]);
+    if (period === "month") return { from: format(startOfMonth(d), "yyyy-MM-dd"), to: format(endOfMonth(d), "yyyy-MM-dd") };
+    if (period === "quarter") return { from: format(startOfQuarter(d), "yyyy-MM-dd"), to: format(endOfQuarter(d), "yyyy-MM-dd") };
+    if (period === "year") return { from: format(startOfYear(d), "yyyy-MM-dd"), to: format(endOfYear(d), "yyyy-MM-dd") };
+    // custom
+    const from = date <= endDate ? date : endDate;
+    const to = date <= endDate ? endDate : date;
+    return { from, to };
+  }, [date, endDate, period]);
 
   const { data: lines = [] } = useQuery({
     queryKey: ["lines"],
