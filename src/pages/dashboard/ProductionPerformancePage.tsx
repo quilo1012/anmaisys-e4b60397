@@ -215,11 +215,24 @@ export default function ProductionPerformancePage() {
           <h1 className="text-2xl font-bold">Production Performance</h1>
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="icon" onClick={() => setDate(format(subDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronLeft className="h-4 w-4" /></Button>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" />
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40" />
+            {period === "custom" && (
+              <>
+                <span className="text-xs text-muted-foreground">to</span>
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-40" />
+              </>
+            )}
             <Button variant="outline" size="icon" onClick={() => setDate(format(addDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronRight className="h-4 w-4" /></Button>
             <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
-              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="day">Day</SelectItem><SelectItem value="week">Week</SelectItem><SelectItem value="month">Month</SelectItem></SelectContent>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="day">Day</SelectItem>
+                <SelectItem value="week">Week</SelectItem>
+                <SelectItem value="month">Month</SelectItem>
+                <SelectItem value="quarter">Quarter</SelectItem>
+                <SelectItem value="year">Year</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
             </Select>
             <Select value={shift} onValueChange={(v) => setShift(v as "all" | "DAY" | "NIGHT")}>
               <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
@@ -230,6 +243,13 @@ export default function ProductionPerformancePage() {
               <SelectContent>
                 <SelectItem value="__all__">All lines</SelectItem>
                 {sortedLines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={leaderFilter} onValueChange={setLeaderFilter}>
+              <SelectTrigger className="w-44"><SelectValue placeholder="All leaders" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All leaders</SelectItem>
+                {leaders.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
