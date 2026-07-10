@@ -580,8 +580,11 @@ export default function LineProductionScreen() {
     setEditing(null);
   };
 
-  // #12 Reorder / delete SKU cards (admin/manager preview only)
-  const canManageSkus = !isOperator;
+  // #12 Reorder / delete SKU cards — admin / manager only.
+  // Operators must NOT be able to change the production sequence,
+  // since it silently alters what iTouching shows as the next job.
+  const canManageSkus = role === "admin" || role === "manager" || role === "maintenance_manager";
+  const canReorderSkus = canManageSkus;
   const deleteItem = useMutation({
     mutationFn: async (id: string) => {
       await (supabase as any).from("production_blender_entries").delete().eq("production_item_id", id);
