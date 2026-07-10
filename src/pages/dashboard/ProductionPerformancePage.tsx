@@ -86,7 +86,7 @@ export default function ProductionPerformancePage() {
   const skuMap = useMemo(() => new Map(skus.map((s) => [s.id, s])), [skus]);
 
   const { data: sessions = [] } = useQuery<SessionAgg[]>({
-    queryKey: ["oee", range.from, range.to, shift, lineFilter],
+    queryKey: ["oee", range.from, range.to, shift, lineFilter, leaderFilter],
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     queryFn: async () => {
@@ -95,6 +95,7 @@ export default function ProductionPerformancePage() {
         .gte("session_date", range.from).lte("session_date", range.to);
       if (shift !== "all") q = q.eq("shift", shift);
       if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
+      if (leaderFilter !== "__all__") q = q.eq("leader_name", leaderFilter);
 
       // Target comes from RAG Weekly (plan_qty), NOT from SKU per-item targets.
       let rq = supabase.from("rag_weekly_entries")
