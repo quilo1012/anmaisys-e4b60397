@@ -464,9 +464,20 @@ function OperatorDashboardContent() {
               <Select value={description} onValueChange={setDescription}>
                 <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
                 <SelectContent>
-                  {problemDescriptions?.map((pd) => (
-                    <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
-                  ))}
+                  {(() => {
+                    const hasPrinter = !!secondaryAssetId;
+                    const hasSealer = !!mobileAssetId;
+                    const filtered = (problemDescriptions || []).filter((pd: any) => {
+                      if (!hasPrinter && !hasSealer) return true;
+                      const n = String(pd.name || "").toLowerCase();
+                      if (hasPrinter && /printer|ink|label/.test(n)) return true;
+                      if (hasSealer && /sealer|bag/.test(n)) return true;
+                      return false;
+                    });
+                    return filtered.map((pd: any) => (
+                      <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
+                    ));
+                  })()}
                 </SelectContent>
               </Select>
             </div>
