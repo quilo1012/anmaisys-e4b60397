@@ -931,11 +931,11 @@ export default function LineProductionScreen() {
                   lineId={lineIdQ.data ?? null}
                   lineName={canonicalLineName}
                   canManage={canManageSkus}
-                  onMoveUp={idx > 0 ? () => moveItem.mutate({ id: it.id, direction: "up" }) : undefined}
-                  onMoveDown={idx < items.length - 1 ? () => moveItem.mutate({ id: it.id, direction: "down" }) : undefined}
-                  onDelete={() => {
+                  onMoveUp={canReorderSkus && idx > 0 ? () => moveItem.mutate({ id: it.id, direction: "up" }) : undefined}
+                  onMoveDown={canReorderSkus && idx < items.length - 1 ? () => moveItem.mutate({ id: it.id, direction: "down" }) : undefined}
+                  onDelete={canManageSkus ? () => {
                     if (confirm(`Remove ${it.code} from this shift?`)) deleteItem.mutate(it.id);
-                  }}
+                  } : undefined}
                 />
               );
             })}
