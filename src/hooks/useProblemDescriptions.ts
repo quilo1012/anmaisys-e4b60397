@@ -46,8 +46,35 @@ export function useAddProblemDescription() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (problem: { name: string; category?: string; severity?: string; description?: string; active?: boolean }) => {
-      const { error } = await (supabase as any).from("problem_descriptions").insert(problem);
-      if (error) throw error;
+      const name = problem.name?.trim();
+      if (!name) throw new Error("Name is required");
+
+      // Name has a UNIQUE constraint — if a row exists (even inactive), reactivate/update instead of failing
+      const { data: existing, error: selErr } = await (supabase as any)
+        .from("problem_descriptions")
+        .select("id")
+        .ilike("name", name)
+        .maybeSingle();
+      if (selErr) throw selErr;
+
+      if (existing) {
+        const { error } = await (supabase as any)
+          .from("problem_descriptions")
+          .update({ ...problem, name, active: problem.active ?? true })
+          .eq("id", existing.id);
+        if (error) throw error;
+        return;
+      }
+
+      const { error } = await (supabase as any)
+        .from("problem_descriptions")
+        .insert({ ...problem, name });
+      if (error) {
+        if ((error as any).code === "23505") {
+          throw new Error("A problem with this name already exists");
+        }
+        throw error;
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["problem_descriptions"] }),
   });
