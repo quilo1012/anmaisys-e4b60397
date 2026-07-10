@@ -12,7 +12,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { Badge } from "@/components/ui/badge";
 
-type Period = "day" | "week" | "month";
+type Period = "day" | "week" | "month" | "quarter" | "year" | "custom";
 
 interface SessionAgg {
   id: string; session_date: string; shift: string; line: string;
