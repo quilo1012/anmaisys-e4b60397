@@ -23,9 +23,11 @@ interface SessionAgg {
 
 export default function ProductionPerformancePage() {
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [period, setPeriod] = useState<Period>("day");
   const [shift, setShift] = useState<"all" | "DAY" | "NIGHT">("all");
   const [lineFilter, setLineFilter] = useState<string>("__all__");
+  const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
   const qc = useQueryClient();
 
   // Pull latest actuals from iTouching every 60s while page is open
