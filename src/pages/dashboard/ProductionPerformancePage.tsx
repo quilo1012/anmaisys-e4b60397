@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight, Medal } from "lucide-react";
-import { format, parseISO, addDays, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { format, parseISO, addDays, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { Badge } from "@/components/ui/badge";
 
-type Period = "day" | "week" | "month";
+type Period = "day" | "week" | "month" | "quarter" | "year" | "custom";
 
 interface SessionAgg {
   id: string; session_date: string; shift: string; line: string;
@@ -23,9 +23,11 @@ interface SessionAgg {
 
 export default function ProductionPerformancePage() {
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [period, setPeriod] = useState<Period>("day");
   const [shift, setShift] = useState<"all" | "DAY" | "NIGHT">("all");
   const [lineFilter, setLineFilter] = useState<string>("__all__");
+  const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
   const qc = useQueryClient();
 
   // Pull latest actuals from iTouching every 60s while page is open
@@ -57,13 +59,27 @@ export default function ProductionPerformancePage() {
     const d = parseISO(date);
     if (period === "day") return { from: date, to: date };
     if (period === "week") return { from: format(startOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd"), to: format(endOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd") };
-    return { from: format(startOfMonth(d), "yyyy-MM-dd"), to: format(endOfMonth(d), "yyyy-MM-dd") };
-  }, [date, period]);
+    if (period === "month") return { from: format(startOfMonth(d), "yyyy-MM-dd"), to: format(endOfMonth(d), "yyyy-MM-dd") };
+    if (period === "quarter") return { from: format(startOfQuarter(d), "yyyy-MM-dd"), to: format(endOfQuarter(d), "yyyy-MM-dd") };
+    if (period === "year") return { from: format(startOfYear(d), "yyyy-MM-dd"), to: format(endOfYear(d), "yyyy-MM-dd") };
+    // custom
+    const from = date <= endDate ? date : endDate;
+    const to = date <= endDate ? endDate : date;
+    return { from, to };
+  }, [date, endDate, period]);
 
   const { data: lines = [] } = useQuery({
     queryKey: ["lines"],
     queryFn: async () => {
       const { data } = await supabase.from("lines").select("name").order("name");
+      return (data ?? []) as { name: string }[];
+    },
+  });
+
+  const { data: leaders = [] } = useQuery({
+    queryKey: ["line_leaders_active"],
+    queryFn: async () => {
+      const { data } = await supabase.from("line_leaders").select("name").eq("active", true).order("name");
       return (data ?? []) as { name: string }[];
     },
   });
@@ -78,7 +94,7 @@ export default function ProductionPerformancePage() {
   const skuMap = useMemo(() => new Map(skus.map((s) => [s.id, s])), [skus]);
 
   const { data: sessions = [] } = useQuery<SessionAgg[]>({
-    queryKey: ["oee", range.from, range.to, shift, lineFilter],
+    queryKey: ["oee", range.from, range.to, shift, lineFilter, leaderFilter],
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     queryFn: async () => {
@@ -87,6 +103,7 @@ export default function ProductionPerformancePage() {
         .gte("session_date", range.from).lte("session_date", range.to);
       if (shift !== "all") q = q.eq("shift", shift);
       if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
+      if (leaderFilter !== "__all__") q = q.eq("leader_name", leaderFilter);
 
       // Target comes from RAG Weekly (plan_qty), NOT from SKU per-item targets.
       let rq = supabase.from("rag_weekly_entries")
@@ -198,11 +215,24 @@ export default function ProductionPerformancePage() {
           <h1 className="text-2xl font-bold">Production Performance</h1>
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="icon" onClick={() => setDate(format(subDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronLeft className="h-4 w-4" /></Button>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" />
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40" />
+            {period === "custom" && (
+              <>
+                <span className="text-xs text-muted-foreground">to</span>
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-40" />
+              </>
+            )}
             <Button variant="outline" size="icon" onClick={() => setDate(format(addDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronRight className="h-4 w-4" /></Button>
             <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
-              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="day">Day</SelectItem><SelectItem value="week">Week</SelectItem><SelectItem value="month">Month</SelectItem></SelectContent>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="day">Day</SelectItem>
+                <SelectItem value="week">Week</SelectItem>
+                <SelectItem value="month">Month</SelectItem>
+                <SelectItem value="quarter">Quarter</SelectItem>
+                <SelectItem value="year">Year</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
             </Select>
             <Select value={shift} onValueChange={(v) => setShift(v as "all" | "DAY" | "NIGHT")}>
               <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
@@ -213,6 +243,13 @@ export default function ProductionPerformancePage() {
               <SelectContent>
                 <SelectItem value="__all__">All lines</SelectItem>
                 {sortedLines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={leaderFilter} onValueChange={setLeaderFilter}>
+              <SelectTrigger className="w-44"><SelectValue placeholder="All leaders" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All leaders</SelectItem>
+                {leaders.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
