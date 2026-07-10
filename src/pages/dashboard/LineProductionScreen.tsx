@@ -584,7 +584,8 @@ export default function LineProductionScreen() {
   // Operators must NOT be able to change the production sequence,
   // since it silently alters what iTouching shows as the next job.
   const canManageSkus = role === "admin" || role === "manager" || role === "maintenance_manager";
-  const canReorderSkus = canManageSkus;
+  // Operators are allowed to reorder SKUs on their line so they can sequence the next job themselves.
+  const canReorderSkus = canManageSkus || role === "operator";
   const deleteItem = useMutation({
     mutationFn: async (id: string) => {
       await (supabase as any).from("production_blender_entries").delete().eq("production_item_id", id);
