@@ -37,13 +37,13 @@ export function AudioStatusButton() {
     <Popover>
       <PopoverTrigger asChild>
         <Button
-          variant={audioEnabled ? "outline" : "destructive"}
+          variant={effectivelyOn ? "outline" : "destructive"}
           size="sm"
-          aria-label={audioEnabled ? `Alert sound on at ${pct}%` : "Alert sound muted — tap to configure"}
-          aria-pressed={audioEnabled}
+          aria-label={effectivelyOn ? `Alert sound on at ${pct}%` : "Alert sound muted — tap to configure"}
+          aria-pressed={effectivelyOn}
           className={cn(
             "shrink-0 gap-1.5 h-9 font-bold uppercase tracking-wide",
-            audioEnabled
+            effectivelyOn
               ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
               : "animate-pulse"
           )}
@@ -53,7 +53,7 @@ export function AudioStatusButton() {
           <span
             className={cn(
               "h-2 w-2 rounded-full",
-              audioEnabled ? "bg-emerald-500" : "bg-destructive-foreground"
+              effectivelyOn ? "bg-emerald-500" : "bg-destructive-foreground"
             )}
             aria-hidden="true"
           />
@@ -71,14 +71,17 @@ export function AudioStatusButton() {
           </div>
           <Switch
             id="alert-audio-toggle"
-            checked={audioEnabled}
+            checked={effectivelyOn}
             onCheckedChange={(on) => {
               if (on) {
-                try { sessionStorage.removeItem("an_audio_prompted"); } catch { /* ignore */ }
-                promptEnableAudio();
+                // Restore audible volume; if audio was never unlocked, prompt.
+                if (volume === 0) setVolume(1);
+                if (!audioEnabled) {
+                  try { sessionStorage.removeItem("an_audio_prompted"); } catch { /* ignore */ }
+                  promptEnableAudio();
+                }
               } else {
-                // Setting volume to 0 effectively silences the siren without
-                // losing the unlock state on this device.
+                // Mute without losing unlock state on this device.
                 setVolume(0);
               }
             }}
@@ -111,6 +114,7 @@ export function AudioStatusButton() {
               promptEnableAudio();
               return;
             }
+            if (volume === 0) setVolume(1);
             testSound();
           }}
         >
