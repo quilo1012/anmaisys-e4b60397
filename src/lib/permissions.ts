@@ -122,3 +122,8 @@ export function canAny(role: Role | null | undefined, actions: Action[]): boolea
 export function canAll(role: Role | null | undefined, actions: Action[]): boolean {
   return actions.every((a) => can(role, a));
 }
+
+/** Line Chat visibility — operators and admins only. */
+export function canUseLineChat(role: Role | null | undefined): boolean {
+  return role === "operator" || role === "admin";
+}
