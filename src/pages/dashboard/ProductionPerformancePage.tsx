@@ -214,15 +214,23 @@ export default function ProductionPerformancePage() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold">Production Performance</h1>
           <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="icon" onClick={() => setDate(format(subDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronLeft className="h-4 w-4" /></Button>
+            <Button variant="outline" size="icon" onClick={() => {
+              const d = parseISO(date);
+              const step = period === "week" ? subDays(d, 7) : period === "month" ? addMonths(d, -1) : period === "quarter" ? addQuarters(d, -1) : period === "year" ? addYears(d, -1) : subDays(d, 1);
+              setDate(format(step, "yyyy-MM-dd"));
+            }}><ChevronLeft className="h-4 w-4" /></Button>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40" />
             {period === "custom" && (
               <>
                 <span className="text-xs text-muted-foreground">to</span>
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-40" />
+                <Input type="date" value={endDate} min={date} onChange={(e) => setEndDate(e.target.value)} className="w-40" />
               </>
             )}
-            <Button variant="outline" size="icon" onClick={() => setDate(format(addDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronRight className="h-4 w-4" /></Button>
+            <Button variant="outline" size="icon" onClick={() => {
+              const d = parseISO(date);
+              const step = period === "week" ? addDays(d, 7) : period === "month" ? addMonths(d, 1) : period === "quarter" ? addQuarters(d, 1) : period === "year" ? addYears(d, 1) : addDays(d, 1);
+              setDate(format(step, "yyyy-MM-dd"));
+            }}><ChevronRight className="h-4 w-4" /></Button>
             <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
               <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
               <SelectContent>
