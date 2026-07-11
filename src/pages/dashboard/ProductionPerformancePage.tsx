@@ -231,7 +231,11 @@ export default function ProductionPerformancePage() {
               const step = period === "week" ? addDays(d, 7) : period === "month" ? addMonths(d, 1) : period === "quarter" ? addQuarters(d, 1) : period === "year" ? addYears(d, 1) : addDays(d, 1);
               setDate(format(step, "yyyy-MM-dd"));
             }}><ChevronRight className="h-4 w-4" /></Button>
-            <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
+            <Select value={period} onValueChange={(v) => {
+              const p = v as Period;
+              if (p === "custom" && endDate < date) setEndDate(date);
+              setPeriod(p);
+            }}>
               <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="day">Day</SelectItem>
@@ -242,6 +246,9 @@ export default function ProductionPerformancePage() {
                 <SelectItem value="custom">Custom</SelectItem>
               </SelectContent>
             </Select>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {range.from === range.to ? format(parseISO(range.from), "dd MMM yyyy") : `${format(parseISO(range.from), "dd MMM")} → ${format(parseISO(range.to), "dd MMM yyyy")}`}
+            </span>
             <Select value={shift} onValueChange={(v) => setShift(v as "all" | "DAY" | "NIGHT")}>
               <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
