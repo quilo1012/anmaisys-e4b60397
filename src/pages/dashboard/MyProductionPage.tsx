@@ -198,7 +198,7 @@ function MyProductionContent() {
             <div className="text-sm text-muted-foreground">Contact your Planner.</div>
             <div className="pt-2 flex items-center justify-center gap-2">
               <span className="text-sm">Message the team:</span>
-              <LineChatButton />
+              {canUseLineChat(role) && <LineChatButton />}
             </div>
           </CardContent>
         </Card>
