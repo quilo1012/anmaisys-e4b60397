@@ -391,7 +391,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   };
 
   // ── Auto-create missing tablets (one per line) ───────────
-  const DEFAULT_TABLET_PASSWORD = "Tablet@AN2026!";
+  const DEFAULT_TABLET_PASSWORD = "Tablet@AN2026";
   const [autoOpen, setAutoOpen] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
   const [autoResults, setAutoResults] = useState<
