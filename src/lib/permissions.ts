@@ -96,6 +96,7 @@ export const roleDashMap: Record<Role, string> = {
   manager: "/dashboard/manager",
   maintenance_manager: "/dashboard/manager",
   engineer: "/dashboard/engineer",
+  co_engineer: "/dashboard/engineer",
   operator: "/dashboard/operator",
   viewer: "/dashboard/manager",
 };
