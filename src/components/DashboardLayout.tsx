@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { LineChatButton } from "@/components/LineChatButton";
+import { canUseLineChat } from "@/lib/permissions";
 import { AutoWoDisabledBanner } from "@/components/AutoWoDisabledBanner";
 import { UnmappedLinesBanner } from "@/components/UnmappedLinesBanner";
 import { PushOnboarding } from "@/components/PushOnboarding";
@@ -427,7 +428,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   </Button>
                 )}
                 {(effectiveRole === "engineer" || effectiveRole === "admin") && <AudioStatusButton />}
-                <LineChatButton />
+                {canUseLineChat(effectiveRole) && <LineChatButton />}
                 <NotificationPanel />
                 <PushOnboarding />
                 {/* Language toggle removed by request — app stays in English. */}
