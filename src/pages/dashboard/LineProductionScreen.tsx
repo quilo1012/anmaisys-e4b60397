@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { ProductionInputCard } from "@/components/ProductionInputCard";
 import { LineChatButton } from "@/components/LineChatButton";
+import { canUseLineChat } from "@/lib/permissions";
 import { DailyTargetCard } from "@/components/DailyTargetCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
