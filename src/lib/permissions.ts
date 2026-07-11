@@ -39,7 +39,7 @@ export type Action =
   | "system.clear"
   | "system.settings";
 
-const ALL: Role[] = ["admin", "manager", "maintenance_manager", "engineer", "operator", "viewer"];
+const ALL: Role[] = ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator", "viewer"];
 
 /**
  * Permission matrix — single source of truth.
@@ -47,28 +47,28 @@ const ALL: Role[] = ["admin", "manager", "maintenance_manager", "engineer", "ope
  */
 const MATRIX: Record<Action, Role[]> = {
   // Work Orders
-  "wo.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "viewer"],
+  "wo.view": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator", "viewer"],
   "wo.create": ["admin", "manager", "maintenance_manager", "operator"],
-  "wo.update": ["admin", "manager", "maintenance_manager", "engineer"],
+  "wo.update": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer"],
   "wo.delete": ["admin"], // manager loses delete in Phase 5
-  "wo.close": ["admin", "manager", "maintenance_manager", "engineer"],
+  "wo.close": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer"],
   "wo.force": ["admin"],
   "wo.print": ["admin", "manager", "maintenance_manager"],
 
   // Downtime
   "downtime.view": ALL,
-  "downtime.manage": ["admin", "manager", "maintenance_manager", "engineer"],
+  "downtime.manage": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer"],
 
   // Machines
-  "machines.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "viewer"],
+  "machines.view": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator", "viewer"],
   "machines.manage": ["admin", "manager", "maintenance_manager"],
 
   // Problems
-  "problems.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "viewer"],
+  "problems.view": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator", "viewer"],
   "problems.manage": ["admin", "manager", "maintenance_manager"],
 
   // Stock
-  "stock.view": ["admin", "manager", "maintenance_manager", "engineer"],
+  "stock.view": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer"],
   "stock.manage": ["admin", "manager", "maintenance_manager"],
   "stock.pricing": ["admin"],
 
@@ -96,6 +96,7 @@ export const roleDashMap: Record<Role, string> = {
   manager: "/dashboard/manager",
   maintenance_manager: "/dashboard/manager",
   engineer: "/dashboard/engineer",
+  co_engineer: "/dashboard/engineer",
   operator: "/dashboard/operator",
   viewer: "/dashboard/manager",
 };

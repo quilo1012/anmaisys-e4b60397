@@ -3236,6 +3236,7 @@ export type Database = {
         | "manager"
         | "viewer"
         | "maintenance_manager"
+        | "co_engineer"
       machine_category: "line_fixed" | "line_mobile" | "support"
       mobile_asset_type: "printer" | "bag_sealer"
       po_status: "draft" | "sent" | "received" | "cancelled"
@@ -3383,6 +3384,7 @@ export const Constants = {
         "manager",
         "viewer",
         "maintenance_manager",
+        "co_engineer",
       ],
       machine_category: ["line_fixed", "line_mobile", "support"],
       mobile_asset_type: ["printer", "bag_sealer"],

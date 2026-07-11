@@ -25,7 +25,7 @@ const createUserSchema = z.object({
   email: z.string().email("Invalid email format").max(255),
   password: z.string().min(8, "Password must be at least 8 characters").max(128),
   name: z.string().trim().min(1, "Name is required").max(100),
-  role: z.enum(["admin", "manager", "maintenance_manager", "engineer", "operator"], { errorMap: () => ({ message: "Invalid role" }) }),
+  role: z.enum(["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator"], { errorMap: () => ({ message: "Invalid role" }) }),
   shift: z.string().max(50).optional(),
 });
 
@@ -88,9 +88,9 @@ Deno.serve(async (req) => {
     const body = createUserSchema.parse(parsedBody);
     const { email, password, name, role, shift } = body;
 
-    // Managers can only create engineers
-    if (isManager && !isAdmin && role !== "engineer") {
-      return jsonResponse({ error: "Managers can only create Engineer users" }, 403);
+    // Managers can only create engineer / co_engineer
+    if (isManager && !isAdmin && role !== "engineer" && role !== "co_engineer") {
+      return jsonResponse({ error: "Managers can only create Engineer or Co-Engineer users" }, 403);
     }
 
     // Only admins can create admin, manager, or maintenance_manager users
@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
         .insert({ user_id: newUser.user.id, role });
     }
 
-    if (role === "engineer") {
+    if (role === "engineer" || role === "co_engineer") {
       const { data: existingEngineer, error: existingEngineerError } = await supabaseAdmin
         .from("engineers")
         .select("id")
