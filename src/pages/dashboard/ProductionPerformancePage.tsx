@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight, Medal } from "lucide-react";
-import { format, parseISO, addDays, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
+import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { Badge } from "@/components/ui/badge";
@@ -214,16 +214,28 @@ export default function ProductionPerformancePage() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold">Production Performance</h1>
           <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="icon" onClick={() => setDate(format(subDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronLeft className="h-4 w-4" /></Button>
+            <Button variant="outline" size="icon" onClick={() => {
+              const d = parseISO(date);
+              const step = period === "week" ? subDays(d, 7) : period === "month" ? addMonths(d, -1) : period === "quarter" ? addQuarters(d, -1) : period === "year" ? addYears(d, -1) : subDays(d, 1);
+              setDate(format(step, "yyyy-MM-dd"));
+            }}><ChevronLeft className="h-4 w-4" /></Button>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40" />
             {period === "custom" && (
               <>
                 <span className="text-xs text-muted-foreground">to</span>
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-40" />
+                <Input type="date" value={endDate} min={date} onChange={(e) => setEndDate(e.target.value)} className="w-40" />
               </>
             )}
-            <Button variant="outline" size="icon" onClick={() => setDate(format(addDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronRight className="h-4 w-4" /></Button>
-            <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
+            <Button variant="outline" size="icon" onClick={() => {
+              const d = parseISO(date);
+              const step = period === "week" ? addDays(d, 7) : period === "month" ? addMonths(d, 1) : period === "quarter" ? addQuarters(d, 1) : period === "year" ? addYears(d, 1) : addDays(d, 1);
+              setDate(format(step, "yyyy-MM-dd"));
+            }}><ChevronRight className="h-4 w-4" /></Button>
+            <Select value={period} onValueChange={(v) => {
+              const p = v as Period;
+              if (p === "custom" && endDate < date) setEndDate(date);
+              setPeriod(p);
+            }}>
               <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="day">Day</SelectItem>
@@ -234,6 +246,9 @@ export default function ProductionPerformancePage() {
                 <SelectItem value="custom">Custom</SelectItem>
               </SelectContent>
             </Select>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {range.from === range.to ? format(parseISO(range.from), "dd MMM yyyy") : `${format(parseISO(range.from), "dd MMM")} → ${format(parseISO(range.to), "dd MMM yyyy")}`}
+            </span>
             <Select value={shift} onValueChange={(v) => setShift(v as "all" | "DAY" | "NIGHT")}>
               <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
