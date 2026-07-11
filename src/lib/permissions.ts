@@ -39,7 +39,7 @@ export type Action =
   | "system.clear"
   | "system.settings";
 
-const ALL: Role[] = ["admin", "manager", "maintenance_manager", "engineer", "operator", "viewer"];
+const ALL: Role[] = ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator", "viewer"];
 
 /**
  * Permission matrix — single source of truth.
