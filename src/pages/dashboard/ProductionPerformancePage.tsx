@@ -215,18 +215,34 @@ export default function ProductionPerformancePage() {
           <h1 className="text-2xl font-bold">Production Performance</h1>
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="icon" onClick={() => {
+              if (period === "custom") {
+                const from = parseISO(date), to = parseISO(endDate);
+                const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
+                setDate(format(subDays(from, days), "yyyy-MM-dd"));
+                setEndDate(format(subDays(to, days), "yyyy-MM-dd"));
+                return;
+              }
               const d = parseISO(date);
               const step = period === "week" ? subDays(d, 7) : period === "month" ? addMonths(d, -1) : period === "quarter" ? addQuarters(d, -1) : period === "year" ? addYears(d, -1) : subDays(d, 1);
               setDate(format(step, "yyyy-MM-dd"));
             }}><ChevronLeft className="h-4 w-4" /></Button>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40" />
-            {period === "custom" && (
-              <>
-                <span className="text-xs text-muted-foreground">to</span>
-                <Input type="date" value={endDate} min={date} onChange={(e) => setEndDate(e.target.value)} className="w-40" />
-              </>
-            )}
+            <Input type="date" value={date} onChange={(e) => {
+              setDate(e.target.value);
+              if (period !== "custom") { setPeriod("custom"); if (endDate < e.target.value) setEndDate(e.target.value); }
+            }} className="w-40" />
+            <span className="text-xs text-muted-foreground">to</span>
+            <Input type="date" value={endDate} min={date} onChange={(e) => {
+              setEndDate(e.target.value);
+              if (period !== "custom") setPeriod("custom");
+            }} className="w-40" />
             <Button variant="outline" size="icon" onClick={() => {
+              if (period === "custom") {
+                const from = parseISO(date), to = parseISO(endDate);
+                const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
+                setDate(format(addDays(from, days), "yyyy-MM-dd"));
+                setEndDate(format(addDays(to, days), "yyyy-MM-dd"));
+                return;
+              }
               const d = parseISO(date);
               const step = period === "week" ? addDays(d, 7) : period === "month" ? addMonths(d, 1) : period === "quarter" ? addQuarters(d, 1) : period === "year" ? addYears(d, 1) : addDays(d, 1);
               setDate(format(step, "yyyy-MM-dd"));
@@ -234,6 +250,7 @@ export default function ProductionPerformancePage() {
             <Select value={period} onValueChange={(v) => {
               const p = v as Period;
               if (p === "custom" && endDate < date) setEndDate(date);
+              if (p !== "custom") setEndDate(date);
               setPeriod(p);
             }}>
               <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
