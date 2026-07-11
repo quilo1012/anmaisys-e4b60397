@@ -27,8 +27,11 @@ export function AudioStatusButton() {
   } = useCriticalAlert();
 
   const pct = Math.round(volume * 100);
-  const Icon = !audioEnabled || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
-  const label = audioEnabled ? `AUDIO ${pct}%` : "AUDIO OFF";
+  // Treat "audio on with 0% volume" as effectively muted so the icon & switch
+  // reflect reality.
+  const effectivelyOn = audioEnabled && volume > 0;
+  const Icon = !effectivelyOn ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+  const label = effectivelyOn ? `AUDIO ${pct}%` : "AUDIO OFF";
 
   return (
     <Popover>
