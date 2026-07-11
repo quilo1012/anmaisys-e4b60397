@@ -253,8 +253,14 @@ export function LineChatButton() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative shrink-0" title="Line chat" aria-label="Line chat">
-          <MessageSquare className="h-5 w-5" />
+        <Button
+          variant="default"
+          className="relative shrink-0 gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md h-10 px-3 sm:px-4"
+          title="Send a message or report an issue"
+          aria-label="Line chat"
+        >
+          <MessageSquare className="h-6 w-6" />
+          <span className="hidden sm:inline font-semibold">Message</span>
           {totalUnread > 0 && (
             <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1">
               {totalUnread > 99 ? "99+" : totalUnread}
