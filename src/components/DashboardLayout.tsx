@@ -303,17 +303,16 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   // navigates straight to /dashboard/work-orders never unlocks audio and
   // misses the critical-WO siren.
   const { audioEnabled, promptEnableAudio } = useCriticalAlert();
+  // co_engineer inherits engineer's UI (nav items, audio unlock prompt, etc.)
+  const effectiveRole = role === "co_engineer" ? "engineer" : role;
   useEffect(() => {
-    if ((role !== "engineer" && role !== "admin") || audioEnabled) return;
-    // Once per browser session — sessionStorage clears on tab/window close, so
-    // a fresh login still gets prompted, but mid-session route changes don't
-    // re-open the modal after the user dismissed it.
+    if ((effectiveRole !== "engineer" && effectiveRole !== "admin") || audioEnabled) return;
     try {
       if (sessionStorage.getItem("an_audio_prompted") === "1") return;
       sessionStorage.setItem("an_audio_prompted", "1");
     } catch { /* sessionStorage unavailable — fall through and prompt */ }
     promptEnableAudio();
-  }, [role, audioEnabled, promptEnableAudio]);
+  }, [effectiveRole, audioEnabled, promptEnableAudio]);
 
   // Browser tab title
   useEffect(() => {
@@ -321,12 +320,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     document.title = `AN Maintenance | ${pageName}`;
   }, [location.pathname]);
 
-  const filteredItems = navItems.filter((item) => role && item.roles.includes(role));
-  const showStoppedBadge = stoppedLinesCount > 0 && (role === "engineer" || (role === "manager" || role === "maintenance_manager") || role === "admin");
-  const stoppedTarget = role === "engineer" ? "/dashboard/engineer" : "/dashboard/work-orders";
+  const filteredItems = navItems.filter((item) => effectiveRole && item.roles.includes(effectiveRole as AppRole));
+  const showStoppedBadge = stoppedLinesCount > 0 && (effectiveRole === "engineer" || effectiveRole === "manager" || effectiveRole === "maintenance_manager" || effectiveRole === "admin");
+  const stoppedTarget = effectiveRole === "engineer" ? "/dashboard/engineer" : "/dashboard/work-orders";
 
-  // Sidebar opens by default on desktop/tablet (≥ md breakpoint). On phones
-  // it stays closed and the user opens it via the trigger.
+  // Sidebar opens by default on desktop (≥1024). Tablet portrait & phones stay
+  // collapsed so content isn't clipped in narrow/landscape-short viewports.
   const defaultSidebarOpen = typeof window !== "undefined" && window.innerWidth >= 1024;
   const currentPageTitle = routeTitles[location.pathname] ?? "";
 
@@ -427,7 +426,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     <span className="hidden sm:inline text-xs">line{stoppedLinesCount > 1 ? "s" : ""} stopped</span>
                   </Button>
                 )}
-                {(role === "engineer" || role === "admin") && <AudioStatusButton />}
+                {(effectiveRole === "engineer" || effectiveRole === "admin") && <AudioStatusButton />}
                 <LineChatButton />
                 <NotificationPanel />
                 <PushOnboarding />
