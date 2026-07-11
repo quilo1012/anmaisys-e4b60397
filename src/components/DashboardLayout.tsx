@@ -221,7 +221,9 @@ function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
 const roleTitle: Record<string, string> = {
   admin: "Admin",
   manager: "Manager",
+  maintenance_manager: "Maintenance Manager",
   engineer: "Engineer",
+  co_engineer: "Co-Engineer",
   operator: "Operator",
   viewer: "Viewer",
 };
@@ -229,7 +231,9 @@ const roleTitle: Record<string, string> = {
 const roleBadgeClass: Record<string, string> = {
   admin: "bg-red-500/15 text-red-600 border-red-500/30",
   manager: "bg-purple-500/15 text-purple-600 border-purple-500/30",
+  maintenance_manager: "bg-purple-500/15 text-purple-600 border-purple-500/30",
   engineer: "bg-blue-500/15 text-blue-600 border-blue-500/30",
+  co_engineer: "bg-blue-500/15 text-blue-600 border-blue-500/30",
   operator: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
   viewer: "bg-muted text-muted-foreground border-border",
 };

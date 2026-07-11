@@ -119,7 +119,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   // Role loaded but not authorized for this route — show access denied
-  if (allowedRoles && !allowedRoles.includes(role)) {
+  // co_engineer inherits engineer's access everywhere
+  const effectiveRole = role === "co_engineer" ? "engineer" : role;
+  if (allowedRoles && !allowedRoles.includes(effectiveRole)) {
     const homePath = roleDashMap[role] || "/login";
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">

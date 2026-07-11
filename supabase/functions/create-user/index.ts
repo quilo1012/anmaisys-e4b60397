@@ -25,7 +25,7 @@ const createUserSchema = z.object({
   email: z.string().email("Invalid email format").max(255),
   password: z.string().min(8, "Password must be at least 8 characters").max(128),
   name: z.string().trim().min(1, "Name is required").max(100),
-  role: z.enum(["admin", "manager", "maintenance_manager", "engineer", "operator"], { errorMap: () => ({ message: "Invalid role" }) }),
+  role: z.enum(["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator"], { errorMap: () => ({ message: "Invalid role" }) }),
   shift: z.string().max(50).optional(),
 });
 
