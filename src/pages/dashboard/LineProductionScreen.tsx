@@ -735,7 +735,7 @@ export default function LineProductionScreen() {
               Request Maintenance
             </Button>
             {/* #11 Chat access on Operator screen */}
-            <LineChatButton />
+            {canUseLineChat(role) && <LineChatButton />}
             <Button variant="outline" size="lg" onClick={toggleKiosk} className="h-12">
               {isFullscreen ? <Minimize2 className="h-5 w-5 mr-2" /> : <Maximize2 className="h-5 w-5 mr-2" />}
               {isFullscreen ? "Exit Kiosk" : "Kiosk"}
