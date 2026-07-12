@@ -632,6 +632,7 @@ export type Database = {
           id: string
           is_active: boolean
           line: string | null
+          lines: string[]
           name: string
           pin_hash: string
           updated_at: string
@@ -641,6 +642,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           line?: string | null
+          lines?: string[]
           name: string
           pin_hash: string
           updated_at?: string
@@ -650,6 +652,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           line?: string | null
+          lines?: string[]
           name?: string
           pin_hash?: string
           updated_at?: string
@@ -3173,7 +3176,7 @@ export type Database = {
       create_leader:
         | { Args: { _name: string; _pin: string }; Returns: string }
         | {
-            Args: { _line?: string; _name: string; _pin: string }
+            Args: { _lines?: string[]; _name: string; _pin: string }
             Returns: string
           }
       current_device_line: { Args: never; Returns: string }
@@ -3264,6 +3267,7 @@ export type Database = {
           id: string
           is_active: boolean
           line: string
+          lines: string[]
           name: string
         }[]
       }
@@ -3350,7 +3354,7 @@ export type Database = {
             Args: {
               _active?: boolean
               _id: string
-              _line?: string
+              _lines?: string[]
               _name?: string
               _pin?: string
             }

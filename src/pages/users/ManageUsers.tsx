@@ -136,8 +136,10 @@ interface Leader {
   name: string;
   is_active: boolean;
   line: string | null;
+  lines: string[] | null;
   created_at: string;
 }
+
 
 function InlineLaborRateCell({ engineer, onSaved }: { engineer: Engineer; onSaved: () => void }) {
   const [value, setValue] = useState(String(engineer.labor_rate ?? 0));
@@ -271,12 +273,17 @@ export default function ManageUsers() {
     setLeaders((data as Leader[]) ?? []);
   };
 
+  const parseLines = (raw: string): string[] =>
+    Array.from(new Set(
+      raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0)
+    ));
+
   const handleCreateLeader = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ldName.trim() || ldPin.length !== 4) return;
     setLdLoading(true);
     try {
-      const { error } = await supabase.rpc("create_leader" as any, { _name: ldName.trim(), _pin: ldPin, _line: ldLine.trim() || null });
+      const { error } = await supabase.rpc("create_leader" as any, { _name: ldName.trim(), _pin: ldPin, _lines: parseLines(ldLine) });
       if (error) throw error;
       toast({ title: "Leader created", description: `${ldName} has been added` });
       setLdOpen(false);
@@ -294,7 +301,7 @@ export default function ManageUsers() {
     setEditLdName(l.name);
     setEditLdPin("");
     setEditLdActive(l.is_active);
-    setEditLdLine(l.line ?? "");
+    setEditLdLine((l.lines && l.lines.length > 0 ? l.lines : (l.line ? [l.line] : [])).join(", "));
   };
 
   const handleEditLeader = async () => {
@@ -306,7 +313,7 @@ export default function ManageUsers() {
         _name: editLdName.trim() || null,
         _active: editLdActive,
         _pin: editLdPin.length === 4 ? editLdPin : null,
-        _line: editLdLine.trim(),
+        _lines: parseLines(editLdLine),
       });
       if (error) throw error;
       toast({ title: "Leader updated" });
@@ -318,6 +325,7 @@ export default function ManageUsers() {
       setEditLdLoading(false);
     }
   };
+
 
   const handleDeleteLeader = async (id: string) => {
     setDeleteLdLoading(id);
@@ -919,10 +927,11 @@ export default function ManageUsers() {
                   <form onSubmit={handleCreateLeader} className="space-y-4" autoComplete="off">
                     <div className="space-y-2"><Label>Leader Name <span className="text-destructive">*</span></Label><Input value={ldName} onChange={(e) => setLdName(e.target.value)} required /></div>
                     <div className="space-y-2">
-                      <Label>Line</Label>
-                      <Input value={ldLine} onChange={(e) => setLdLine(e.target.value)} placeholder="e.g. Line 1" />
-                      <p className="text-xs text-muted-foreground">Leader will only be able to unlock Target for this line.</p>
+                      <Label>Lines</Label>
+                      <Input value={ldLine} onChange={(e) => setLdLine(e.target.value)} placeholder="e.g. Line 1, Line 2" />
+                      <p className="text-xs text-muted-foreground">Comma-separated. Leader will unlock Target for any of these lines.</p>
                     </div>
+
                     <div className="space-y-2">
                       <Label>PIN (4 digits) <span className="text-destructive">*</span></Label>
                       <Input type="password" value={ldPin} onChange={(e) => setLdPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 1234" minLength={4} maxLength={4} required />
@@ -943,7 +952,7 @@ export default function ManageUsers() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead>Line</TableHead>
+                    <TableHead>Lines</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Actions</TableHead>
@@ -953,7 +962,8 @@ export default function ManageUsers() {
                   {leaders.map((ld) => (
                     <TableRow key={ld.id}>
                       <TableCell className="font-medium">{ld.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{ld.line || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{(ld.lines && ld.lines.length > 0 ? ld.lines.join(", ") : (ld.line || "—"))}</TableCell>
+
                       <TableCell>
                         <Badge variant={ld.is_active ? "default" : "secondary"}>
                           {ld.is_active ? "Active" : "Inactive"}
@@ -1012,10 +1022,11 @@ export default function ManageUsers() {
             <div className="space-y-4">
               <div className="space-y-2"><Label>Leader Name</Label><Input value={editLdName} onChange={(e) => setEditLdName(e.target.value)} /></div>
               <div className="space-y-2">
-                <Label>Line</Label>
-                <Input value={editLdLine} onChange={(e) => setEditLdLine(e.target.value)} placeholder="e.g. Line 1" />
-                <p className="text-xs text-muted-foreground">Leader will only be able to unlock Target for this line.</p>
+                <Label>Lines</Label>
+                <Input value={editLdLine} onChange={(e) => setEditLdLine(e.target.value)} placeholder="e.g. Line 1, Line 2" />
+                <p className="text-xs text-muted-foreground">Comma-separated. Leader will unlock Target for any of these lines.</p>
               </div>
+
               <div className="space-y-2">
                 <Label>New PIN (4 digits)</Label>
                 <Input type="password" value={editLdPin} onChange={(e) => setEditLdPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="Leave blank to keep current" minLength={4} maxLength={4} />
