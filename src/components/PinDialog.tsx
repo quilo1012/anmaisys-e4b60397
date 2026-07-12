@@ -69,12 +69,18 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
 
       if (engineerId) {
         setRemaining(null);
+        const rawLines = obj?.leader_lines ?? arrMatch?.leader_lines;
+        const linesArr: string[] = Array.isArray(rawLines)
+          ? rawLines.filter((x: any) => typeof x === "string" && x.trim() !== "")
+          : [];
         const engineer: EngineerIdentity = {
           id: engineerId as string,
           name: engineerName as string,
           is_leader: !!(obj?.is_leader ?? arrMatch?.is_leader),
-          leader_line: (obj?.leader_line ?? arrMatch?.leader_line ?? null) as string | null,
+          leader_line: (obj?.leader_line ?? arrMatch?.leader_line ?? linesArr[0] ?? null) as string | null,
+          leader_lines: linesArr,
         };
+
         try {
           await onSuccess(engineer);
           toast.success(`✅ ${engineer.name} verified`);
