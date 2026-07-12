@@ -309,7 +309,7 @@ export default function Login() {
 
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-[hsl(222_47%_8%)]/80 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.75)] backdrop-blur-2xl">
             {/* Brand header strip */}
-            <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.02] px-4 py-3 sm:px-6 sm:py-4">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-white/10 bg-white/[0.02] px-3 py-3 sm:px-6 sm:py-4">
               <img
                 src={
                   (mode === "tablet" && selectedAccount?.favicon_url) ||
@@ -318,15 +318,15 @@ export default function Login() {
                 }
                 alt=""
                 aria-hidden="true"
-                className="h-10 w-10 shrink-0 rounded-lg object-contain ring-1 ring-white/10"
+                className="h-9 w-9 shrink-0 rounded-lg object-contain ring-1 ring-white/10 sm:h-10 sm:w-10"
               />
-              <div className="flex min-w-0 flex-1 flex-col leading-tight">
+              <div className="flex min-w-0 flex-1 basis-0 flex-col leading-tight">
                 <span className="truncate text-[13px] font-semibold tracking-tight text-white">Applied Nutrition</span>
                 <span className="truncate text-[11px] text-white/50">Maintenance Platform</span>
               </div>
 
               <span
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider ring-1 ${
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wider ring-1 ${
                   mode === "tablet"
                     ? "bg-amber-400/10 text-amber-300 ring-amber-400/25"
                     : "bg-sky-400/10 text-sky-300 ring-sky-400/25"
@@ -336,7 +336,7 @@ export default function Login() {
                 {mode === "tablet" ? "Tablet" : "Staff"}
               </span>
 
-              <span className="hidden items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-emerald-300/90 sm:inline-flex">
+              <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-emerald-300/90 sm:inline-flex">
                 <ShieldCheck className="h-3 w-3" /> Secure
               </span>
             </div>
