@@ -1076,6 +1076,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           email: string
+          favicon_url: string | null
           id: string
           label: string
           line_ids: string[]
@@ -1087,6 +1088,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           email: string
+          favicon_url?: string | null
           id?: string
           label: string
           line_ids?: string[]
@@ -1098,6 +1100,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           email?: string
+          favicon_url?: string | null
           id?: string
           label?: string
           line_ids?: string[]
@@ -3180,6 +3183,7 @@ export type Database = {
       list_tablet_accounts_public: {
         Args: never
         Returns: {
+          favicon_url: string
           id: string
           label: string
           line_ids: string[]

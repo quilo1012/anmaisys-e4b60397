@@ -292,7 +292,11 @@ export default function Login() {
             <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.02] px-6 py-4">
               <div className="relative">
                 <img
-                  src={branding?.[mode]?.url || "/favicon.png"}
+                  src={
+                    (mode === "tablet" && selectedAccount?.favicon_url) ||
+                    branding?.[mode]?.url ||
+                    "/favicon.png"
+                  }
                   alt=""
                   aria-hidden="true"
                   className="h-9 w-9 rounded-lg object-contain ring-1 ring-white/10"
