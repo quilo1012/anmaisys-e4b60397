@@ -790,6 +790,27 @@ export type Database = {
         }
         Relationships: []
       }
+      login_branding: {
+        Row: {
+          mode: string
+          updated_at: string
+          updated_by: string | null
+          url: string
+        }
+        Insert: {
+          mode: string
+          updated_at?: string
+          updated_by?: string | null
+          url: string
+        }
+        Update: {
+          mode?: string
+          updated_at?: string
+          updated_by?: string | null
+          url?: string
+        }
+        Relationships: []
+      }
       machine_assignments: {
         Row: {
           assigned_from: string
