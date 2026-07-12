@@ -194,7 +194,7 @@ const App = () => (
                 <Route
                   path="/dashboard/manager"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager", "viewer"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner", "viewer"]}>
                       <ManagerDashboard />
                     </ProtectedRoute>
                   }
@@ -203,7 +203,7 @@ const App = () => (
                 <Route
                   path="/dashboard/analytics"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager"]}>
                       <AnalyticsPage />
                     </ProtectedRoute>
                   }
@@ -211,7 +211,7 @@ const App = () => (
                 <Route
                   path="/dashboard/financial"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
                       <FinancialDashboard />
                     </ProtectedRoute>
                   }
@@ -219,7 +219,7 @@ const App = () => (
                 <Route
                   path="/dashboard/work-orders"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
                       <WorkOrdersPage />
                     </ProtectedRoute>
                   }
@@ -227,7 +227,7 @@ const App = () => (
                 <Route
                   path="/dashboard/machines"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
                       <MachinesPage />
                     </ProtectedRoute>
                   }
@@ -235,7 +235,7 @@ const App = () => (
                 <Route
                   path="/dashboard/problems"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
                       <ProblemsPage />
                     </ProtectedRoute>
                   }
@@ -307,7 +307,7 @@ const App = () => (
                 <Route
                   path="/dashboard/stock"
                   element={
-                    <ProtectedRoute allowedRoles={["engineer", "admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["engineer", "co_engineer", "admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
                       <StockPage />
                     </ProtectedRoute>
                   }
@@ -347,7 +347,7 @@ const App = () => (
                 <Route
                   path="/dashboard/planner"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "planner"]}>
                       <ProductionPlannerPage />
                     </ProtectedRoute>
                   }
@@ -428,7 +428,7 @@ const App = () => (
                 <Route
                   path="/dashboard/rag-weekly"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
                       <RAGWeeklyPage />
                     </ProtectedRoute>
                   }
@@ -510,7 +510,7 @@ const App = () => (
                 <Route
                   path="/dashboard/messages"
                   element={
-                    <ProtectedRoute allowedRoles={["operator", "manager", "maintenance_manager", "admin"]}>
+                    <ProtectedRoute allowedRoles={["operator", "manager", "supervisor", "maintenance_manager", "planner", "admin"]}>
                       <DirectMessagesPage />
                     </ProtectedRoute>
                   }

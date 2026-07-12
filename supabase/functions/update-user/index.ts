@@ -19,7 +19,7 @@ function jsonResponse(body: unknown, status = 200) {
 const updateUserSchema = z.object({
   userId: z.string().uuid("Invalid user ID"),
   name: z.string().trim().min(1).max(100).optional(),
-  role: z.enum(["admin", "manager", "maintenance_manager", "engineer", "operator"]).optional(),
+  role: z.enum(["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"]).optional(),
   shift: z.string().max(50).optional(),
   active: z.boolean().optional(),
   email: z.preprocess(
@@ -123,15 +123,15 @@ Deno.serve(async (req) => {
 
     const { data: targetRole } = await supabaseAdmin.rpc("get_user_role", { _user_id: userId });
 
-    if (isManager && !isAdmin && (targetRole === "admin" || targetRole === "manager" || targetRole === "maintenance_manager")) {
-      throw new Error("Managers cannot modify Admin, Manager or Maintenance Manager users");
+    if (isManager && !isAdmin && (targetRole === "admin" || targetRole === "manager" || targetRole === "supervisor" || targetRole === "maintenance_manager" || targetRole === "planner")) {
+      throw new Error("Managers cannot modify Admin, Manager, Supervisor, Maintenance Manager or Planner users");
     }
 
-    if (isManager && !isAdmin && role && role !== "engineer" && role !== "operator") {
-      throw new Error("Managers can only assign Engineer or Operator roles");
+    if (isManager && !isAdmin && role && role !== "engineer" && role !== "co_engineer" && role !== "operator") {
+      throw new Error("Managers can only assign Engineer, Co-Engineer or Operator roles");
     }
 
-    if ((role === "admin" || role === "maintenance_manager") && !isAdmin) throw new Error("Only admins can assign Admin or Maintenance Manager roles");
+    if ((role === "admin" || role === "manager" || role === "supervisor" || role === "maintenance_manager" || role === "planner" || role === "viewer") && !isAdmin) throw new Error("Only admins can assign Admin, Manager, Supervisor, Maintenance Manager, Planner or Viewer roles");
     if (labor_rate !== undefined && !isAdmin) {
       throw new Error("Only admins can modify labor rates");
     }
@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
         if (roleError) throw roleError;
       }
 
-      if (role === "engineer") {
+      if (role === "engineer" || role === "co_engineer") {
         const { data: existingEngineer, error: existingEngineerError } = await supabaseAdmin
           .from("engineers")
           .select("id")

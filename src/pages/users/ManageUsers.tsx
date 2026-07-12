@@ -22,6 +22,7 @@ import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
 import { TabletBindingsCard } from "@/components/TabletBindingsCard";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 import type { Database } from "@/integrations/supabase/types";
+import { can, type Action } from "@/lib/permissions";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"] & { role?: AppRole };
@@ -46,6 +47,89 @@ const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = 
   operator: HardHat,
   viewer: Shield,
 };
+
+const adminRoleOptions: AppRole[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
+const managerCreateRoleOptions: AppRole[] = ["engineer", "co_engineer"];
+const managerEditRoleOptions: AppRole[] = ["engineer", "co_engineer", "operator"];
+const protectedStaffRoles: AppRole[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner"];
+
+const permissionActions: { action: Action; label: string }[] = [
+  { action: "wo.view", label: "View WOs" },
+  { action: "wo.create", label: "Create WOs" },
+  { action: "wo.update", label: "Update WOs" },
+  { action: "wo.close", label: "Close WOs" },
+  { action: "wo.delete", label: "Delete WOs" },
+  { action: "wo.force", label: "Force close" },
+  { action: "downtime.manage", label: "Manage downtime" },
+  { action: "machines.manage", label: "Manage machines" },
+  { action: "problems.manage", label: "Manage problems" },
+  { action: "stock.manage", label: "Manage stock" },
+  { action: "users.manage", label: "Manage users" },
+  { action: "audit.view", label: "Audit logs" },
+  { action: "reports.analytics", label: "Analytics" },
+  { action: "reports.financial", label: "Financial" },
+  { action: "system.settings", label: "Settings" },
+];
+
+function roleBadgeClass(role?: AppRole) {
+  if (role === "admin") return "border-destructive/30 bg-destructive/10 text-destructive";
+  if (role === "manager") return "border-primary/30 bg-primary/10 text-primary";
+  if (role === "supervisor") return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  if (role === "maintenance_manager" || role === "planner") return "border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300";
+  if (role === "engineer" || role === "co_engineer") return "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300";
+  return "border-muted-foreground/30 bg-muted text-muted-foreground";
+}
+
+function RolePermissionPreview({ selectedRole }: { selectedRole: AppRole }) {
+  const allowed = permissionActions.filter(({ action }) => can(selectedRole, action));
+  const blockedRestricted = permissionActions.filter(({ action }) => !can(selectedRole, action) && ["wo.delete", "wo.force", "reports.financial", "system.settings"].includes(action));
+
+  return (
+    <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">Permissions for {roleLabels[selectedRole]}</p>
+        <Badge variant="outline" className={roleBadgeClass(selectedRole)}>{roleLabels[selectedRole]}</Badge>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {allowed.map(({ action, label }) => (
+          <Badge key={action} variant="secondary" className="text-xs">{label}</Badge>
+        ))}
+      </div>
+      {blockedRestricted.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Restricted: {blockedRestricted.map(({ label }) => label).join(", ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function RolePermissionsMatrix() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Shield className="h-4 w-4" /> Role permissions
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {adminRoleOptions.map((roleOption) => {
+          const allowed = permissionActions.filter(({ action }) => can(roleOption, action));
+          return (
+            <div key={roleOption} className="rounded-md border border-border p-3 space-y-2">
+              <Badge variant="outline" className={roleBadgeClass(roleOption)}>{roleLabels[roleOption]}</Badge>
+              <div className="flex flex-wrap gap-1.5">
+                {allowed.length > 0 ? allowed.map(({ action, label }) => (
+                  <Badge key={action} variant="secondary" className="text-xs">{label}</Badge>
+                )) : <span className="text-xs text-muted-foreground">View-only access</span>}
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
 
 interface Leader {
   id: string;
@@ -125,6 +209,8 @@ export default function ManageUsers() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { user: currentUser, role: currentRole } = useAuth();
+  const createRoleOptions = currentRole === "admin" ? adminRoleOptions : managerCreateRoleOptions;
+  const editRoleOptions = currentRole === "admin" ? adminRoleOptions : managerEditRoleOptions;
 
   // Edit user state
   const [editUser, setEditUser] = useState<Profile | null>(null);
@@ -164,6 +250,13 @@ export default function ManageUsers() {
   const [editLdActive, setEditLdActive] = useState(true);
   const [editLdLoading, setEditLdLoading] = useState(false);
   const [deleteLdLoading, setDeleteLdLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!createRoleOptions.includes(role)) {
+      setRole(createRoleOptions[0] ?? "engineer");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRole]);
 
   const fetchLeaders = async () => {
     if (!currentUser?.id || !currentRole) return;
@@ -595,13 +688,12 @@ export default function ManageUsers() {
                    <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {currentRole === "admin" && <SelectItem value="operator">Operator</SelectItem>}
-                      <SelectItem value="engineer">Engineer</SelectItem>
-                      {currentRole === "admin" && <SelectItem value="manager">Manager</SelectItem>}
-                      {currentRole === "admin" && <SelectItem value="maintenance_manager">Maintenance Manager</SelectItem>}
-                      {currentRole === "admin" && <SelectItem value="admin">Admin</SelectItem>}
+                      {createRoleOptions.map((roleOption) => (
+                        <SelectItem key={roleOption} value={roleOption}>{roleLabels[roleOption]}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  <RolePermissionPreview selectedRole={role} />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Creating..." : "Create User"}
@@ -610,6 +702,8 @@ export default function ManageUsers() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {currentRole === "admin" && <RolePermissionsMatrix />}
 
         <Card>
           <CardHeader><CardTitle>Staff Members</CardTitle></CardHeader>
@@ -628,7 +722,7 @@ export default function ManageUsers() {
                 {users.map((user) => {
                   const RoleIcon = user.role ? roleIcons[user.role] : Shield;
                   const isCurrentUser = user.id === currentUser?.id;
-                  const managerBlockedTarget = (currentRole === "manager" || currentRole === "maintenance_manager") && (user.role === "manager" || user.role === "maintenance_manager" || user.role === "admin");
+                  const managerBlockedTarget = currentRole !== "admin" && !!user.role && protectedStaffRoles.includes(user.role);
                   return (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.name}</TableCell>
@@ -636,13 +730,7 @@ export default function ManageUsers() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <RoleIcon className="h-4 w-4" />
-                          <Badge variant="outline" className={
-                            user.role === "admin" ? "bg-red-100 text-red-800 border-red-200" :
-                            user.role === "manager" ? "bg-purple-100 text-purple-800 border-purple-200" :
-                            user.role === "maintenance_manager" ? "bg-indigo-100 text-indigo-800 border-indigo-200" :
-                            user.role === "engineer" ? "bg-blue-100 text-blue-800 border-blue-200" :
-                            "bg-gray-100 text-gray-800 border-gray-200"
-                          }>
+                          <Badge variant="outline" className={roleBadgeClass(user.role)}>
                             {user.role ? roleLabels[user.role] : "No role"}
                           </Badge>
                         </div>
@@ -961,13 +1049,12 @@ export default function ManageUsers() {
                 <Select value={editRole} onValueChange={(v) => setEditRole(v as AppRole)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="operator">Operator</SelectItem>
-                    <SelectItem value="engineer">Engineer</SelectItem>
-                    {currentRole === "admin" && <SelectItem value="manager">Manager</SelectItem>}
-                    {currentRole === "admin" && <SelectItem value="maintenance_manager">Maintenance Manager</SelectItem>}
-                    {currentRole === "admin" && <SelectItem value="admin">Admin</SelectItem>}
+                    {editRoleOptions.map((roleOption) => (
+                      <SelectItem key={roleOption} value={roleOption}>{roleLabels[roleOption]}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                <RolePermissionPreview selectedRole={editRole} />
               </div>
               <div className="flex items-center justify-between">
                 <Label>Active</Label>
