@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -466,10 +466,100 @@ export default function DowntimePage() {
   };
 
 
+  // ── Print: expand collapsed sections before printing, restore after ─────
+  const printRootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const expandedTriggers: HTMLElement[] = [];
+    const beforePrint = () => {
+      const root = printRootRef.current;
+      if (!root) return;
+      const triggers = root.querySelectorAll<HTMLElement>(
+        '[data-state="closed"][aria-controls], button[aria-expanded="false"][data-state="closed"]',
+      );
+      triggers.forEach((t) => {
+        try { t.click(); expandedTriggers.push(t); } catch { /* noop */ }
+      });
+    };
+    const afterPrint = () => {
+      expandedTriggers.splice(0).forEach((t) => {
+        try { t.click(); } catch { /* noop */ }
+      });
+    };
+    window.addEventListener("beforeprint", beforePrint);
+    window.addEventListener("afterprint", afterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", beforePrint);
+      window.removeEventListener("afterprint", afterPrint);
+    };
+  }, []);
+
+  const handlePrint = () => {
+    // Trigger native print; beforeprint listener above expands collapsibles.
+    setTimeout(() => window.print(), 50);
+  };
+
+  const printGeneratedAt = format(new Date(), "yyyy-MM-dd HH:mm");
+  const printRangeLabel = `${format(startDate, "PP")} — ${format(endDate, "PP")}`;
 
   return (
     <DashboardLayout>
+      {/* Print-only scoped styles for Downtime & Reliability */}
+      <style>{`
+        @media print {
+          @page { size: A4 landscape; margin: 12mm; }
+          html, body { background: #fff !important; }
+          body * { visibility: hidden !important; }
+          .downtime-print-root, .downtime-print-root * { visibility: visible !important; }
+          .downtime-print-root {
+            position: absolute; left: 0; top: 0; width: 100%;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .downtime-print-root .print-only { display: block !important; }
+          .downtime-print-root .no-print { display: none !important; }
+          .downtime-print-root table { width: 100% !important; border-collapse: collapse !important; font-size: 10px !important; }
+          .downtime-print-root thead { display: table-header-group !important; }
+          .downtime-print-root tfoot { display: table-footer-group !important; }
+          .downtime-print-root tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+          .downtime-print-root th, .downtime-print-root td {
+            border: 1px solid #999 !important; padding: 4px 6px !important;
+            color: #000 !important; background: #fff !important;
+          }
+          .downtime-print-root th { background: #f0f0f0 !important; font-weight: 700 !important; }
+          .downtime-print-root .print-page-break { page-break-before: always !important; break-before: page !important; }
+          .downtime-print-root [hidden] { display: revert !important; }
+          .downtime-print-root [data-state="closed"] { display: revert !important; }
+          .downtime-print-root .recharts-wrapper { page-break-inside: avoid !important; }
+          .downtime-print-footer {
+            position: fixed; bottom: 4mm; left: 0; right: 0;
+            font-size: 9px; color: #555; text-align: center;
+            border-top: 1px solid #ccc; padding-top: 2px;
+          }
+        }
+        .print-only { display: none; }
+      `}</style>
+      <div className="downtime-print-root" ref={printRootRef}>
       <div className="space-y-6">
+        {/* Print-only report header */}
+        <div className="print-only" style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #000", paddingBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <img src="/favicon.png" alt="AN" style={{ height: 36, width: 36 }} />
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>Downtime & Reliability</div>
+                <div style={{ fontSize: 10, color: "#333" }}>Range: {printRangeLabel}</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 10, textAlign: "right", color: "#333" }}>
+              <div>Line: {filterLine === "all" ? "All" : filterLine}</div>
+              <div>Category: {filterCategory === "all" ? "All" : filterCategory}</div>
+              <div>Status: {filterStatus === "all" ? "All" : filterStatus}</div>
+              <div>Generated: {printGeneratedAt}</div>
+            </div>
+          </div>
+        </div>
+
         <PageHeader
           title="Downtime & Reliability"
           description="Production stoppages, MTBF/MTTR & machine risk intelligence"
@@ -494,9 +584,10 @@ export default function DowntimePage() {
                 <Button size="sm" variant="ghost" onClick={handleExportXlsx} title="Export Excel">
                   <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Excel
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => window.print()} title="Print">
+                <Button size="sm" variant="ghost" onClick={handlePrint} title="Print">
                   <Printer className="h-4 w-4 mr-1.5" /> Print
                 </Button>
+
               </div>
               <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={openCreate}>
                 <Plus className="h-4 w-4 mr-2" /> Register Downtime
@@ -789,7 +880,7 @@ export default function DowntimePage() {
         </Card>
 
         {/* Machine Risk Assessment */}
-        <Card>
+        <Card className="print-page-break">
           <CardHeader><CardTitle className="flex items-center gap-2"><Cog className="h-5 w-5" />Machine Risk Assessment</CardTitle></CardHeader>
           <CardContent>
             {filteredRisks.length === 0 ? (
@@ -948,7 +1039,14 @@ export default function DowntimePage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Print-only footer */}
+        <div className="print-only downtime-print-footer">
+          Downtime & Reliability · Generated {printGeneratedAt}
+        </div>
+      </div>
       </div>
     </DashboardLayout>
+
   );
 }
