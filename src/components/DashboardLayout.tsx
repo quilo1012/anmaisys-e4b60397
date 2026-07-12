@@ -430,7 +430,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   </Button>
                 )}
                 {(effectiveRole === "engineer" || effectiveRole === "admin") && <AudioStatusButton />}
-                {canUseLineChat(effectiveRole) && <LineChatButton />}
+                
                 <NotificationPanel />
                 <PushOnboarding />
                 {/* Language toggle removed by request — app stays in English. */}
