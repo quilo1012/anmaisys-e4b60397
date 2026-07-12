@@ -343,7 +343,9 @@ export default function Login() {
                 </button>
               </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5" autoComplete="on">
+            <form onSubmit={handleSubmit} className="space-y-5" autoComplete="on" aria-busy={loading}>
+              <fieldset disabled={loading || authed} className="space-y-5 contents">
+
 
               {mode === "tablet" ? (
                 /* ── Tablet selector ─────────────────────────── */
