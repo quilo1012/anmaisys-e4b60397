@@ -123,7 +123,7 @@ export function canAll(role: Role | null | undefined, actions: Action[]): boolea
   return actions.every((a) => can(role, a));
 }
 
-/** Line Chat visibility — admin only. Operators and engineers no longer see messages. */
+/** Line Chat visibility — operator and admin only. */
 export function canUseLineChat(role: Role | null | undefined): boolean {
-  return role === "admin";
+  return role === "admin" || role === "operator";
 }
