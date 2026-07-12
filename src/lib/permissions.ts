@@ -50,35 +50,35 @@ const MATRIX: Record<Action, Role[]> = {
   "wo.view": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator", "viewer"],
   "wo.create": ["admin", "manager", "maintenance_manager", "operator"],
   "wo.update": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer"],
-  "wo.delete": ["admin"], // manager loses delete in Phase 5
-  "wo.close": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer"],
+  "wo.delete": ["admin"],
+  "wo.close": ["admin", "manager", "engineer", "co_engineer"],
   "wo.force": ["admin"],
   "wo.print": ["admin", "manager", "maintenance_manager"],
 
-  // Downtime
+  // Downtime — planner sees but does not manage
   "downtime.view": ALL,
-  "downtime.manage": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer"],
+  "downtime.manage": ["admin", "manager", "engineer", "co_engineer"],
 
-  // Machines
+  // Machines — planner view only
   "machines.view": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator", "viewer"],
-  "machines.manage": ["admin", "manager", "maintenance_manager"],
+  "machines.manage": ["admin", "manager"],
 
-  // Problems
+  // Problems — planner view only
   "problems.view": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator", "viewer"],
-  "problems.manage": ["admin", "manager", "maintenance_manager"],
+  "problems.manage": ["admin", "manager"],
 
-  // Stock
+  // Stock — planner view only
   "stock.view": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer"],
-  "stock.manage": ["admin", "manager", "maintenance_manager"],
+  "stock.manage": ["admin", "manager"],
   "stock.pricing": ["admin"],
 
-  // Users / Audit
-  "users.view": ["admin", "manager", "maintenance_manager"],
-  "users.manage": ["admin", "manager", "maintenance_manager"],
-  "audit.view": ["admin", "manager", "maintenance_manager"],
+  // Users / Audit — planner NOT allowed
+  "users.view": ["admin", "manager"],
+  "users.manage": ["admin", "manager"],
+  "audit.view": ["admin", "manager"],
 
-  // Reports
-  "reports.analytics": ["admin", "manager", "maintenance_manager"],
+  // Reports — planner NOT allowed
+  "reports.analytics": ["admin", "manager"],
   "reports.financial": ["admin"],
   "reports.executive": ["admin"],
 
