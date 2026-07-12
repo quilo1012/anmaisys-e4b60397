@@ -475,7 +475,7 @@ export default function DowntimePage() {
           description="Production stoppages, MTBF/MTTR & machine risk intelligence"
           icon={<Clock className="h-5 w-5" />}
           actions={
-            <>
+            <div className="flex flex-wrap items-center gap-2 justify-end">
               <DateRangeFilter
                 value={{ from: startDate, to: endDate }}
                 preset={datePreset}
@@ -487,21 +487,23 @@ export default function DowntimePage() {
                   if (r.to) setEndDate(endOfDay(r.to));
                 }}
               />
-              <Button variant="outline" onClick={handleExportPdf}>
-                <FileText className="h-4 w-4 mr-2" /> PDF
-              </Button>
-              <Button variant="outline" onClick={handleExportXlsx}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
-              </Button>
-              <Button variant="outline" onClick={() => window.print()}>
-                <Printer className="h-4 w-4 mr-2" /> Print
-              </Button>
+              <div className="flex items-center gap-1 rounded-md border bg-muted/30 p-1">
+                <Button size="sm" variant="ghost" onClick={handleExportPdf} title="Export PDF">
+                  <FileText className="h-4 w-4 mr-1.5" /> PDF
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleExportXlsx} title="Export Excel">
+                  <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Excel
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => window.print()} title="Print">
+                  <Printer className="h-4 w-4 mr-1.5" /> Print
+                </Button>
+              </div>
               <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={openCreate}>
                 <Plus className="h-4 w-4 mr-2" /> Register Downtime
               </Button>
-
-            </>
+            </div>
           }
+
         />
 
         {debugMode && (
