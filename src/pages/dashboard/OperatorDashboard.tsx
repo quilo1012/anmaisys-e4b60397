@@ -383,38 +383,54 @@ function OperatorDashboardContent() {
                 <Label htmlFor="machine">
                   Machine <span className="text-destructive">*</span>
                 </Label>
-                <Select value={machineName} onValueChange={(v) => setMachineName(v)}>
-                  <SelectTrigger id="machine" className={cn("h-12", !machineName && "border-destructive/60")}>
-                    <SelectValue placeholder="Select the machine on this line..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(machines || [])
-                      .filter((m: any) => {
-                        if (!lineName && !lineId) return false;
-                        // Exclude Sealer/Printer — those are selected via the dedicated
-                        // "Sealer / Printer Ink" toggle above, not from this machine list.
-                        if (m.category === "line_mobile") return false;
-                        // Prefer authoritative line_id match (machines.line_id === bound line).
-                        if (lineId && m.line_id && m.line_id === lineId) return true;
-                        const base = (m.current_line || m.fixed_line || m.line || "").toString();
-                        if (!base) return false;
-                        const withSide = (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
-                        return withSide === lineName || base === lineName;
-                      })
-                      .map((m: any) => {
-                        const isUuid = typeof m.code === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.code);
-                        const showCode = m.code && !isUuid;
-                        return (
-                          <SelectItem key={m.id} value={m.name}>
-                            {m.name}{showCode ? ` (${m.code})` : ""}
-                          </SelectItem>
-                        );
-                      })}
+                {(() => {
+                  const filtered = (machines || []).filter((m: any) => {
+                    if (!lineName && !lineId) return false;
+                    if (m.category === "line_mobile") return false;
+                    if (lineId && m.line_id && m.line_id === lineId) return true;
+                    const base = (m.current_line || m.fixed_line || m.line || "").toString();
+                    if (!base) return false;
+                    const withSide = (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
+                    return withSide === lineName || base === lineName;
+                  });
+                  // Fallback: if this line has no machines mapped, show all non-mobile
+                  // machines so the operator is never blocked from creating a WO.
+                  const showList = filtered.length > 0
+                    ? filtered
+                    : (machines || []).filter((m: any) => m.category !== "line_mobile");
+                  const usingFallback = filtered.length === 0 && showList.length > 0;
+                  return (
+                    <>
+                      <Select value={machineName} onValueChange={(v) => setMachineName(v)}>
+                        <SelectTrigger id="machine" className={cn("h-12", !machineName && "border-destructive/60")}>
+                          <SelectValue placeholder="Select the machine on this line..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[60vh]">
+                          {showList.map((m: any) => {
+                            const isUuid = typeof m.code === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.code);
+                            const showCode = m.code && !isUuid;
+                            return (
+                              <SelectItem key={m.id} value={m.name}>
+                                {m.name}{showCode ? ` (${m.code})` : ""}
+                              </SelectItem>
+                            );
+                          })}
+                          {showList.length === 0 && (
+                            <div className="p-3 text-xs text-muted-foreground">
+                              No machines registered. Ask admin to add machines for this line.
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      {usingFallback && (
+                        <p className="text-xs text-amber-600">
+                          No machines are mapped to {lineName || "this line"} yet — showing all machines so you can still create the WO.
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
 
-
-
-                  </SelectContent>
-                </Select>
                 {!machineName ? (
                   <p className="text-xs text-destructive">Please select the machine that needs maintenance.</p>
                 ) : (
