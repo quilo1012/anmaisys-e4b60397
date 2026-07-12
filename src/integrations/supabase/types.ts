@@ -3096,6 +3096,10 @@ export type Database = {
           paired_at: string
         }[]
       }
+      admin_update_auth_email: {
+        Args: { _new_email: string; _user_id: string }
+        Returns: undefined
+      }
       compute_smart_target: {
         Args: { _entry_date: string; _line: string; _shift: string }
         Returns: Json

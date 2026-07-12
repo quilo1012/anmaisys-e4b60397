@@ -42,24 +42,24 @@ const getReadableErrorMessage = (error: unknown) => {
 };
 
 async function updateAuthEmailWithVerification(admin: ReturnType<typeof createClient>, userId: string, newEmail: string) {
-  // Updating email + email_confirm in the same Auth Admin call can surface
-  // retryable 500/{} errors in GoTrue. Keep this operation minimal, then
-  // verify the persisted user before treating retryable errors as fatal.
   const { error: authErr } = await admin.auth.admin.updateUserById(userId, { email: newEmail });
   if (!authErr) return;
 
-  const { data: verifyData, error: verifyErr } = await admin.auth.admin.getUserById(userId);
-  const persistedEmail = verifyData?.user?.email?.trim().toLowerCase();
-  if (!verifyErr && persistedEmail === newEmail) return;
+  // Sometimes GoTrue returns 500 even when the change persisted — verify first.
+  const { data: verifyData } = await admin.auth.admin.getUserById(userId);
+  if (verifyData?.user?.email?.trim().toLowerCase() === newEmail) return;
 
-  console.error("[update-operator-email] auth email update did not persist", {
-    userId,
-    newEmail,
-    persistedEmail,
-    authErr,
-    verifyErr,
+  // Fallback: bypass the flaky GoTrue admin API by updating auth.users
+  // directly via a SECURITY DEFINER RPC that re-checks admin/manager role.
+  console.warn("[update-operator-email] auth admin API failed, using SQL fallback", { userId, authErr });
+  const { error: rpcErr } = await admin.rpc("admin_update_auth_email", {
+    _user_id: userId,
+    _new_email: newEmail,
   });
-  throw authErr;
+  if (rpcErr) {
+    console.error("[update-operator-email] SQL fallback failed", { userId, rpcErr, authErr });
+    throw rpcErr;
+  }
 }
 
 Deno.serve(async (req) => {
