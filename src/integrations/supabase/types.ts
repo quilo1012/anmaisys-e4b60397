@@ -3189,9 +3189,10 @@ export type Database = {
       list_dm_admins: {
         Args: never
         Returns: {
-          full_name: string
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
+          email: string
+          line_labels: string
+          name: string
+          user_id: string
         }[]
       }
       list_dm_operators: {
