@@ -330,6 +330,15 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/dashboard/permissions"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <PermissionsMatrixPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
                   path="/dashboard/settings"
                   element={
                     <ProtectedRoute allowedRoles={["admin"]}>
