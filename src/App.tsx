@@ -186,7 +186,7 @@ const App = () => (
                 <Route
                   path="/dashboard/engineer"
                   element={
-                    <ProtectedRoute allowedRoles={["engineer", "admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["engineer", "co_engineer", "admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
                       <EngineerDashboard />
                     </ProtectedRoute>
                   }
@@ -203,7 +203,7 @@ const App = () => (
                 <Route
                   path="/dashboard/analytics"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]}>
                       <AnalyticsPage />
                     </ProtectedRoute>
                   }
@@ -211,7 +211,7 @@ const App = () => (
                 <Route
                   path="/dashboard/financial"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
+                    <ProtectedRoute allowedRoles={["admin"]}>
                       <FinancialDashboard />
                     </ProtectedRoute>
                   }
@@ -243,7 +243,7 @@ const App = () => (
                 <Route
                   path="/dashboard/control-center"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
                       <ControlCenterPage />
                     </ProtectedRoute>
                   }
@@ -283,7 +283,7 @@ const App = () => (
                 <Route
                   path="/dashboard/preventive"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "engineer", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "engineer", "co_engineer", "maintenance_manager", "planner"]}>
                       <PreventiveMaintenancePage />
                     </ProtectedRoute>
                   }
@@ -291,7 +291,7 @@ const App = () => (
                 <Route
                   path="/dashboard/reliability"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
                       <ReliabilityDashboard />
                     </ProtectedRoute>
                   }
@@ -299,7 +299,7 @@ const App = () => (
                 <Route
                   path="/dashboard/wo/:id"
                   element={
-                    <ProtectedRoute allowedRoles={["operator", "engineer", "admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["operator", "engineer", "co_engineer", "admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
                       <WorkOrderDetail />
                     </ProtectedRoute>
                   }
@@ -315,7 +315,7 @@ const App = () => (
                 <Route
                   path="/users/manage"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
                       <ManageUsers />
                     </ProtectedRoute>
                   }
@@ -396,7 +396,7 @@ const App = () => (
                 <Route
                   path="/dashboard/production-downtime"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "engineer", "operator", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "engineer", "co_engineer", "operator", "maintenance_manager", "planner"]}>
                       <ProductionDowntimePage />
                     </ProtectedRoute>
                   }
@@ -436,7 +436,7 @@ const App = () => (
                 <Route
                   path="/dashboard/line-production"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "engineer", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "engineer", "co_engineer", "maintenance_manager", "planner"]}>
                       <LineProductionScreen />
                     </ProtectedRoute>
                   }
@@ -446,7 +446,7 @@ const App = () => (
                 <Route
                   path="/dashboard/line-display"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "operator", "engineer", "co_engineer", "maintenance_manager", "planner"]}>
                       <LineDisplayScreen />
                     </ProtectedRoute>
                   }
@@ -478,7 +478,7 @@ const App = () => (
                 <Route
                   path="/dashboard/downtime-map"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
                       <DowntimeHeatmapPage />
                     </ProtectedRoute>
                   }
@@ -486,7 +486,7 @@ const App = () => (
                 <Route
                   path="/dashboard/pm-intelligence"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
                       <PMIntelligencePage />
                     </ProtectedRoute>
                   }
