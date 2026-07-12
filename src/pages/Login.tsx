@@ -133,6 +133,26 @@ export default function Login() {
 
   const selectedAccount = operatorAccounts?.find((a) => a.id === tabletAccountId) ?? null;
 
+  // Reflect the active per-tablet / per-mode favicon in the browser tab too,
+  // not just inside the card. Restores the default on unmount.
+  useEffect(() => {
+    const url =
+      (mode === "tablet" && selectedAccount?.favicon_url) ||
+      branding?.[mode]?.url ||
+      "/favicon.png";
+    let link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
+    const previous = link?.href;
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = url;
+    return () => {
+      if (link && previous) link.href = previous;
+    };
+  }, [mode, selectedAccount?.favicon_url, branding]);
+
   const switchMode = (next: Mode) => {
     setMode(next);
     try { localStorage.setItem(MODE_KEY, next); } catch { /* ignore */ }
