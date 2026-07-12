@@ -39,7 +39,7 @@ export type Action =
   | "system.clear"
   | "system.settings";
 
-const ALL: Role[] = ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator", "viewer"];
+const ALL: Role[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
 
 /**
  * Permission matrix — single source of truth.
@@ -47,38 +47,38 @@ const ALL: Role[] = ["admin", "manager", "maintenance_manager", "engineer", "co_
  */
 const MATRIX: Record<Action, Role[]> = {
   // Work Orders
-  "wo.view": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator", "viewer"],
-  "wo.create": ["admin", "manager", "maintenance_manager", "operator"],
-  "wo.update": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer"],
+  "wo.view": ALL,
+  "wo.create": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
+  "wo.update": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
   "wo.delete": ["admin"],
-  "wo.close": ["admin", "manager", "engineer", "co_engineer"],
+  "wo.close": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
   "wo.force": ["admin"],
-  "wo.print": ["admin", "manager", "maintenance_manager"],
+  "wo.print": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
 
-  // Downtime — planner sees but does not manage
+  // Downtime — planner/supervisor view; supervisor manages
   "downtime.view": ALL,
-  "downtime.manage": ["admin", "manager", "engineer", "co_engineer"],
+  "downtime.manage": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
 
-  // Machines — planner view only
-  "machines.view": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator", "viewer"],
-  "machines.manage": ["admin", "manager"],
+  // Machines
+  "machines.view": ALL,
+  "machines.manage": ["admin", "manager", "supervisor"],
 
-  // Problems — planner view only
-  "problems.view": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator", "viewer"],
-  "problems.manage": ["admin", "manager"],
+  // Problems
+  "problems.view": ALL,
+  "problems.manage": ["admin", "manager", "supervisor"],
 
-  // Stock — planner view only
-  "stock.view": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer"],
-  "stock.manage": ["admin", "manager"],
+  // Stock
+  "stock.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
+  "stock.manage": ["admin", "manager", "supervisor"],
   "stock.pricing": ["admin"],
 
-  // Users / Audit — planner NOT allowed
+  // Users / Audit
   "users.view": ["admin", "manager"],
   "users.manage": ["admin", "manager"],
-  "audit.view": ["admin", "manager"],
+  "audit.view": ["admin", "manager", "supervisor"],
 
-  // Reports — planner NOT allowed
-  "reports.analytics": ["admin", "manager"],
+  // Reports
+  "reports.analytics": ["admin", "manager", "supervisor"],
   "reports.financial": ["admin"],
   "reports.executive": ["admin"],
 
@@ -94,7 +94,9 @@ const MATRIX: Record<Action, Role[]> = {
 export const roleDashMap: Record<Role, string> = {
   admin: "/dashboard/manager",
   manager: "/dashboard/manager",
+  supervisor: "/dashboard/manager",
   maintenance_manager: "/dashboard/manager",
+  planner: "/dashboard/manager",
   engineer: "/dashboard/engineer",
   co_engineer: "/dashboard/engineer",
   operator: "/dashboard/operator",
