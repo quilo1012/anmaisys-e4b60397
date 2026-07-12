@@ -303,14 +303,14 @@ export default function Login() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_70%,hsl(222_55%_4%/0.7)_100%)]" />
 
       {/* ── Center card ─────────────────────────────────── */}
-      <main className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
-        <div className="w-full max-w-[480px]">
-          <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[460px] w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(214_100%_55%)] opacity-20 blur-[140px]" />
+      <main className="relative z-10 flex min-h-screen items-center justify-center px-3 py-6 sm:px-6 sm:py-8">
+        <div className="w-full max-w-[440px] sm:max-w-[480px]">
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[320px] w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(214_100%_55%)] opacity-20 blur-[120px] sm:h-[460px] sm:w-[460px] sm:blur-[140px]" />
 
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-[hsl(222_47%_8%)]/80 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.75)] backdrop-blur-2xl">
             {/* Brand header strip */}
-            <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.02] px-6 py-4">
-              <div className="relative">
+            <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.02] px-4 py-3 sm:px-6 sm:py-4">
+              <div className="relative shrink-0">
                 <img
                   src={
                     (mode === "tablet" && selectedAccount?.favicon_url) ||
@@ -330,10 +330,10 @@ export default function Login() {
                   {mode === "tablet" ? <Tablet className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
                 </span>
               </div>
-              <div className="flex flex-1 flex-col leading-tight">
-                <span className="text-[13px] font-semibold tracking-tight text-white">Applied Nutrition</span>
-                <span className="text-[11px] text-white/50">
-                  Maintenance Platform · {mode === "tablet" ? "Tablet sign-in" : "Staff sign-in"}
+              <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                <span className="truncate text-[13px] font-semibold tracking-tight text-white">Applied Nutrition</span>
+                <span className="truncate text-[11px] text-white/50">
+                  Maintenance · {mode === "tablet" ? "Tablet sign-in" : "Staff sign-in"}
                 </span>
               </div>
 
@@ -342,14 +342,16 @@ export default function Login() {
               </span>
             </div>
 
-            <div className="px-6 pb-8 pt-7 sm:px-8">
+            <div className="px-4 pb-6 pt-5 sm:px-8 sm:pb-8 sm:pt-7">
+
             {/* Title */}
-            <div className="mb-6">
-              <h1 className="text-[22px] font-semibold tracking-tight text-white">Sign in</h1>
+            <div className="mb-5 sm:mb-6">
+              <h1 className="text-xl font-semibold tracking-tight text-white sm:text-[22px]">Sign in</h1>
               <p className="mt-1 text-xs text-white/50">
                 Use your work account or select a shared tablet
               </p>
             </div>
+
 
 
             {/* Mode toggle — always visible so operators can always reach the Tablet form */}
@@ -399,7 +401,7 @@ export default function Login() {
                       value={tabletAccountId}
                       onChange={(e) => setTabletAccountId(e.target.value)}
                       required
-                      className="h-14 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
+                      className="h-12 sm:h-14 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
                     >
                       <option value="" disabled className="bg-[hsl(222_47%_10%)] text-white">
                         {accountsLoading ? "Loading tablets…" : hasOperatorAccounts ? "Select your tablet…" : "No tablets configured"}
@@ -441,7 +443,7 @@ export default function Login() {
                       placeholder="you@appliednutrition.com"
                       required
                       autoComplete="email"
-                      className="h-14 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all placeholder:text-white/30 hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
+                      className="h-12 sm:h-14 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all placeholder:text-white/30 hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
                     />
                   </div>
                 </div>
@@ -463,7 +465,7 @@ export default function Login() {
                     minLength={6}
                     required
                     autoComplete="current-password"
-                    className="h-14 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-12 text-sm text-white transition-all placeholder:text-white/30 hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
+                    className="h-12 sm:h-14 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-12 text-sm text-white transition-all placeholder:text-white/30 hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
                   />
                   <button
                     type="button"
@@ -482,7 +484,7 @@ export default function Login() {
                 type="submit"
                 disabled={loading || authed || lockedMsLeft > 0}
                 aria-live="polite"
-                className={`group relative mt-2 inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-xl text-sm font-semibold text-white shadow-[0_10px_30px_-10px_hsl(214_90%_50%/0.7)] ring-1 ring-white/10 transition-all active:scale-[0.99] disabled:pointer-events-none ${
+                className={`group relative mt-2 inline-flex h-12 sm:h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-xl text-sm font-semibold text-white shadow-[0_10px_30px_-10px_hsl(214_90%_50%/0.7)] ring-1 ring-white/10 transition-all active:scale-[0.99] disabled:pointer-events-none ${
                   authed
                     ? "bg-gradient-to-b from-emerald-500 to-emerald-600"
                     : "bg-gradient-to-b from-[hsl(214_90%_56%)] to-[hsl(214_90%_44%)] hover:from-[hsl(214_90%_60%)] hover:to-[hsl(214_90%_48%)] hover:shadow-[0_14px_36px_-10px_hsl(214_90%_55%/0.8)] disabled:opacity-60"
