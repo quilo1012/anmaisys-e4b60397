@@ -175,7 +175,7 @@ function MyProductionContent() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} />
+            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} onUnlockChange={setTargetUnlocked} />
           </div>
         </CardContent>
       </Card>
