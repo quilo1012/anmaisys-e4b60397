@@ -283,6 +283,12 @@ export default function Login() {
             {/* Brand */}
             <div className="mb-7 flex flex-col items-center text-center">
               <img
+                src="/favicon.png"
+                alt=""
+                aria-hidden="true"
+                className="mb-3 h-12 w-12 rounded-xl object-contain shadow-lg ring-1 ring-white/10"
+              />
+              <img
                 src={appliedLogo}
                 alt="Applied Nutrition"
                 className="mb-5 w-3/4 max-w-[260px] h-auto object-contain"
