@@ -9,6 +9,8 @@ import { toast } from "sonner";
 export interface EngineerIdentity {
   id: string;
   name: string;
+  is_leader?: boolean;
+  leader_line?: string | null;
 }
 
 interface PinDialogProps {
