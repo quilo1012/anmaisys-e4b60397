@@ -273,19 +273,43 @@ export default function ManageUsers() {
     setLeaders((data as Leader[]) ?? []);
   };
 
-  const parseLines = (raw: string): string[] =>
-    Array.from(new Set(
-      raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0)
-    ));
+  // Normalize a single line label: trim, collapse inner whitespace,
+  // Title-case the "line" word so "line 1" / "LINE  1" both become "Line 1".
+  const normalizeLine = (raw: string): string => {
+    const clean = raw.replace(/\s+/g, " ").trim();
+    if (!clean) return "";
+    return clean.replace(/^line\s+/i, "Line ");
+  };
+
+  // Accept comma OR semicolon separated input, normalize each value,
+  // dedupe case-insensitively while preserving first-seen casing.
+  const parseLines = (raw: string): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const part of raw.split(/[,;]/)) {
+      const norm = normalizeLine(part);
+      if (!norm) continue;
+      const key = norm.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(norm);
+    }
+    return out;
+  };
 
   const handleCreateLeader = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ldName.trim() || ldPin.length !== 4) return;
+    const lines = parseLines(ldLine);
+    if (lines.length === 0) {
+      toast({ title: "Lines required", description: "Enter at least one line (comma-separated).", variant: "destructive" });
+      return;
+    }
     setLdLoading(true);
     try {
-      const { error } = await supabase.rpc("create_leader" as any, { _name: ldName.trim(), _pin: ldPin, _lines: parseLines(ldLine) });
+      const { error } = await supabase.rpc("create_leader" as any, { _name: ldName.trim(), _pin: ldPin, _lines: lines });
       if (error) throw error;
-      toast({ title: "Leader created", description: `${ldName} has been added` });
+      toast({ title: "Leader created", description: `${ldName} · ${lines.join(", ")}` });
       setLdOpen(false);
       setLdName(""); setLdPin(""); setLdLine("");
       fetchLeaders();
