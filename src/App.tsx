@@ -16,6 +16,12 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { roleDashMap } from "@/lib/permissions";
+import { usePermissionOverridesSync } from "@/hooks/usePermissionOverrides";
+
+function PermissionOverridesSync() {
+  usePermissionOverridesSync();
+  return null;
+}
 
 const OperatorDashboard = lazyWithReload(() => import("./pages/dashboard/OperatorDashboard"));
 const EngineerDashboard = lazyWithReload(() => import("./pages/dashboard/EngineerDashboard"));
