@@ -93,9 +93,9 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Managers can only create Engineer or Co-Engineer users" }, 403);
     }
 
-    // Only admins can create admin, manager, or maintenance_manager users
-    if ((role === "admin" || role === "manager" || role === "maintenance_manager") && !isAdmin) {
-      return jsonResponse({ error: "Only admins can assign Admin, Manager or Maintenance Manager roles" }, 403);
+    // Only admins can create admin, manager, supervisor, maintenance_manager, or planner users
+    if ((role === "admin" || role === "manager" || role === "supervisor" || role === "maintenance_manager" || role === "planner") && !isAdmin) {
+      return jsonResponse({ error: "Only admins can assign Admin, Manager, Supervisor, Maintenance Manager or Planner roles" }, 403);
     }
 
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
