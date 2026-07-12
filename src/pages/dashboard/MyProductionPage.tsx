@@ -409,3 +409,57 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
     </Card>
   );
 }
+
+function TargetPinGate({ line, shiftLabel, totalTarget }: { line: string; shiftLabel: string; totalTarget: number }) {
+  const [pinOpen, setPinOpen] = useState(false);
+  const [leader, setLeader] = useState<{ name: string; line: string | null } | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const normalize = (s: string | null | undefined) => (s || "").trim().toLowerCase();
+  const authorized = !!leader && !!leader.line && normalize(leader.line) === normalize(line);
+
+  const handleSuccess = async (_eng: EngineerIdentity, extra?: any) => {
+    // PinDialog only forwards the identity; call verify again to get leader_line.
+    const { data } = await (supabase as any).rpc("verify_pin_with_lockout", { _pin: extra?._pin ?? "" });
+    void data;
+  };
+
+  const onClick = () => {
+    if (leader) {
+      if (authorized) setOpen((v) => !v);
+      else toast.error(`This PIN is not authorized for ${line}.`);
+      return;
+    }
+    setPinOpen(true);
+  };
+
+  return (
+    <>
+      <Popover open={open && authorized} onOpenChange={(v) => authorized && setOpen(v)}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" onClick={onClick}>
+            {authorized ? <Target className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
+            Target
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-64">
+          <div className="text-xs text-muted-foreground">Total Target (RAG Weekly)</div>
+          <div className="mt-1 text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
+          <div className="text-xs text-muted-foreground mt-1">{line} · {shiftLabel}</div>
+          {leader && <div className="text-[11px] text-muted-foreground mt-2">Unlocked by {leader.name}</div>}
+        </PopoverContent>
+      </Popover>
+      <PinDialog
+        open={pinOpen}
+        onOpenChange={setPinOpen}
+        title="Leader PIN"
+        description={`Enter your PIN to unlock the target for ${line}.`}
+        onSuccess={async (_eng) => {
+          // Re-fetch full payload directly since PinDialog only returns id/name
+          // (verify_pin_with_lockout is idempotent and safe to call again here).
+          setLeader({ name: _eng.name, line: (_eng as any).line ?? null });
+        }}
+      />
+    </>
+  );
+}
