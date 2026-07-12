@@ -66,6 +66,8 @@ export default function MyProductionPage() {
 function MyProductionContent() {
   const { selectedLineName: line } = useDeviceLineCtx();
   const { profile, role } = useAuth() as any;
+  const [targetUnlocked, setTargetUnlocked] = useState(false);
+
 
   const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
   const shift: Shift = shiftCode === "day" ? "DAY" : "NIGHT";
