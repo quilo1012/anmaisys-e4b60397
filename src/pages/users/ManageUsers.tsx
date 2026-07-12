@@ -273,12 +273,17 @@ export default function ManageUsers() {
     setLeaders((data as Leader[]) ?? []);
   };
 
+  const parseLines = (raw: string): string[] =>
+    Array.from(new Set(
+      raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0)
+    ));
+
   const handleCreateLeader = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ldName.trim() || ldPin.length !== 4) return;
     setLdLoading(true);
     try {
-      const { error } = await supabase.rpc("create_leader" as any, { _name: ldName.trim(), _pin: ldPin, _line: ldLine.trim() || null });
+      const { error } = await supabase.rpc("create_leader" as any, { _name: ldName.trim(), _pin: ldPin, _lines: parseLines(ldLine) });
       if (error) throw error;
       toast({ title: "Leader created", description: `${ldName} has been added` });
       setLdOpen(false);
@@ -296,7 +301,7 @@ export default function ManageUsers() {
     setEditLdName(l.name);
     setEditLdPin("");
     setEditLdActive(l.is_active);
-    setEditLdLine(l.line ?? "");
+    setEditLdLine((l.lines && l.lines.length > 0 ? l.lines : (l.line ? [l.line] : [])).join(", "));
   };
 
   const handleEditLeader = async () => {
@@ -308,7 +313,7 @@ export default function ManageUsers() {
         _name: editLdName.trim() || null,
         _active: editLdActive,
         _pin: editLdPin.length === 4 ? editLdPin : null,
-        _line: editLdLine.trim(),
+        _lines: parseLines(editLdLine),
       });
       if (error) throw error;
       toast({ title: "Leader updated" });
@@ -320,6 +325,7 @@ export default function ManageUsers() {
       setEditLdLoading(false);
     }
   };
+
 
   const handleDeleteLeader = async (id: string) => {
     setDeleteLdLoading(id);
