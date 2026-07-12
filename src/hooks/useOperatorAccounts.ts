@@ -9,6 +9,7 @@ export interface OperatorLineAccount {
   label: string;
   line_ids: string[];
   created_at: string;
+  favicon_url?: string | null;
 }
 
 /** Public, anon-safe tablet listing — NO email, NO user_id. Used on the Login screen. */
@@ -16,6 +17,7 @@ export interface PublicTabletAccount {
   id: string;
   label: string;
   line_ids: string[];
+  favicon_url?: string | null;
 }
 
 export function usePublicTabletAccounts() {
@@ -36,7 +38,7 @@ export function useOperatorAccounts() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("operator_line_accounts")
-        .select("id, user_id, email, label, line_ids, created_at")
+        .select("id, user_id, email, label, line_ids, created_at, favicon_url")
         .order("label", { ascending: true });
       if (error) throw error;
       return (data ?? []) as OperatorLineAccount[];
@@ -82,6 +84,23 @@ export function useUpdateOperatorAccountEmail() {
       return data as { success: true; email: string };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["operator_line_accounts"] }),
+  });
+}
+
+export function useUpdateOperatorAccountFavicon() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; favicon_url: string | null }) => {
+      const { error } = await (supabase as any)
+        .from("operator_line_accounts")
+        .update({ favicon_url: input.favicon_url })
+        .eq("id", input.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["operator_line_accounts"] });
+      qc.invalidateQueries({ queryKey: ["public_tablet_accounts"] });
+    },
   });
 }
 
