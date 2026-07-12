@@ -63,6 +63,7 @@ const OperatorPreviewPage = lazyWithReload(() => import("./pages/dashboard/Opera
 const EngineerPreviewPage = lazyWithReload(() => import("./pages/dashboard/EngineerPreviewPage"));
 const MyProductionPage = lazyWithReload(() => import("./pages/dashboard/MyProductionPage"));
 const DirectMessagesPage = lazyWithReload(() => import("./pages/dashboard/DirectMessagesPage"));
+const PermissionsMatrixPage = lazyWithReload(() => import("./pages/dashboard/PermissionsMatrixPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
