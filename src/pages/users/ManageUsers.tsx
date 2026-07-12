@@ -244,11 +244,13 @@ export default function ManageUsers() {
   const [ldOpen, setLdOpen] = useState(false);
   const [ldName, setLdName] = useState("");
   const [ldPin, setLdPin] = useState("");
+  const [ldLine, setLdLine] = useState("");
   const [ldLoading, setLdLoading] = useState(false);
   const [editLd, setEditLd] = useState<Leader | null>(null);
   const [editLdName, setEditLdName] = useState("");
   const [editLdPin, setEditLdPin] = useState("");
   const [editLdActive, setEditLdActive] = useState(true);
+  const [editLdLine, setEditLdLine] = useState("");
   const [editLdLoading, setEditLdLoading] = useState(false);
   const [deleteLdLoading, setDeleteLdLoading] = useState<string | null>(null);
 
