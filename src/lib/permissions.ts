@@ -109,11 +109,39 @@ export function dashboardPathFor(role: Role | null | undefined): string {
   return roleDashMap[role] ?? "/login";
 }
 
+/**
+ * Runtime overrides loaded from `public.role_permission_overrides`.
+ * Key format: `${role}:${action}` → boolean (true=allow, false=deny).
+ */
+let OVERRIDES: Record<string, boolean> = {};
+const overrideListeners = new Set<() => void>();
+
+export function setPermissionOverrides(map: Record<string, boolean>) {
+  OVERRIDES = map ?? {};
+  overrideListeners.forEach((l) => l());
+}
+export function subscribePermissionOverrides(fn: () => void) {
+  overrideListeners.add(fn);
+  return () => overrideListeners.delete(fn);
+}
+export function isPermissionOverridden(role: Role, action: Action): boolean {
+  return `${role}:${action}` in OVERRIDES;
+}
+export function defaultCan(role: Role, action: Action): boolean {
+  return MATRIX[action]?.includes(role) ?? false;
+}
+
 /** Returns true if the given role can perform the action. Null role → false. */
 export function can(role: Role | null | undefined, action: Action): boolean {
   if (!role) return false;
+  const key = `${role}:${action}`;
+  if (key in OVERRIDES) return OVERRIDES[key];
   return MATRIX[action]?.includes(role) ?? false;
 }
+
+/** All known actions (for admin UIs). */
+export const ALL_ACTIONS: Action[] = Object.keys(MATRIX) as Action[];
+export const ALL_ROLES: Role[] = ALL;
 
 /** Returns true if the role can perform ANY of the listed actions. */
 export function canAny(role: Role | null | undefined, actions: Action[]): boolean {
