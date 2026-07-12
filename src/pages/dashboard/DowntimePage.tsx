@@ -880,7 +880,7 @@ export default function DowntimePage() {
         </Card>
 
         {/* Machine Risk Assessment */}
-        <Card>
+        <Card className="print-page-break">
           <CardHeader><CardTitle className="flex items-center gap-2"><Cog className="h-5 w-5" />Machine Risk Assessment</CardTitle></CardHeader>
           <CardContent>
             {filteredRisks.length === 0 ? (
