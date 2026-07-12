@@ -269,6 +269,7 @@ const routeTitles: Record<string, string> = {
   "/dashboard/weekly-report": "Weekly Report",
   "/dashboard/reliability": "Reliability Dashboard",
   "/dashboard/suppliers": "Suppliers & Purchasing",
+  "/dashboard/messages": "Messages",
   "/users/manage": "Users",
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",
