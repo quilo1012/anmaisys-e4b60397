@@ -412,13 +412,15 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
   );
 }
 
-function TargetPinGate({ line, shiftLabel, totalTarget }: { line: string; shiftLabel: string; totalTarget: number }) {
+function TargetPinGate({ line, shiftLabel, totalTarget, onUnlockChange }: { line: string; shiftLabel: string; totalTarget: number; onUnlockChange?: (v: boolean) => void }) {
   const [pinOpen, setPinOpen] = useState(false);
   const [leader, setLeader] = useState<{ name: string; line: string | null } | null>(null);
   const [open, setOpen] = useState(false);
 
   const normalize = (s: string | null | undefined) => (s || "").trim().toLowerCase();
   const authorized = !!leader && !!leader.line && normalize(leader.line) === normalize(line);
+  useEffect(() => { onUnlockChange?.(authorized); }, [authorized, onUnlockChange]);
+
 
   const onClick = () => {
     if (leader) {
