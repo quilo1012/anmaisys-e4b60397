@@ -631,6 +631,7 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          line: string | null
           name: string
           pin_hash: string
           updated_at: string
@@ -639,6 +640,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          line?: string | null
           name: string
           pin_hash: string
           updated_at?: string
@@ -647,6 +649,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          line?: string | null
           name?: string
           pin_hash?: string
           updated_at?: string
@@ -3167,7 +3170,12 @@ export type Database = {
         Args: { _entry_date: string; _line: string; _shift: string }
         Returns: Json
       }
-      create_leader: { Args: { _name: string; _pin: string }; Returns: string }
+      create_leader:
+        | { Args: { _name: string; _pin: string }; Returns: string }
+        | {
+            Args: { _line?: string; _name: string; _pin: string }
+            Returns: string
+          }
       current_device_line: { Args: never; Returns: string }
       current_device_line_ids: { Args: never; Returns: string[] }
       current_device_token: { Args: never; Returns: string }
@@ -3255,6 +3263,7 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          line: string
           name: string
         }[]
       }
@@ -3327,10 +3336,26 @@ export type Database = {
       }
       touch_device: { Args: { _token: string }; Returns: undefined }
       unpair_device: { Args: { _device_id: string }; Returns: undefined }
-      update_leader: {
-        Args: { _active?: boolean; _id: string; _name?: string; _pin?: string }
-        Returns: undefined
-      }
+      update_leader:
+        | {
+            Args: {
+              _active?: boolean
+              _id: string
+              _name?: string
+              _pin?: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              _active?: boolean
+              _id: string
+              _line?: string
+              _name?: string
+              _pin?: string
+            }
+            Returns: undefined
+          }
       verify_admin_pin: { Args: { _pin: string }; Returns: boolean }
       verify_engineer_pin: {
         Args: { _pin: string; _user_id: string }

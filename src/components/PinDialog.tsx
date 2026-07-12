@@ -9,6 +9,8 @@ import { toast } from "sonner";
 export interface EngineerIdentity {
   id: string;
   name: string;
+  is_leader?: boolean;
+  leader_line?: string | null;
 }
 
 interface PinDialogProps {
@@ -65,7 +67,12 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
 
       if (engineerId) {
         setRemaining(null);
-        const engineer = { id: engineerId as string, name: engineerName as string };
+        const engineer: EngineerIdentity = {
+          id: engineerId as string,
+          name: engineerName as string,
+          is_leader: !!(obj?.is_leader ?? arrMatch?.is_leader),
+          leader_line: (obj?.leader_line ?? arrMatch?.leader_line ?? null) as string | null,
+        };
         try {
           await onSuccess(engineer);
           toast.success(`✅ ${engineer.name} verified`);
