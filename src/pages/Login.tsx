@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePublicTabletAccounts } from "@/hooks/useOperatorAccounts";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { useLines } from "@/hooks/useMachines";
+import { useLoginBranding } from "@/hooks/useLoginBranding";
 import {
   clearLoginLockout,
   getLoginLockout,
@@ -62,6 +63,7 @@ export default function Login() {
   const { session, role, loading: authLoading } = useAuth();
   const { data: operatorAccounts, isLoading: accountsLoading } = usePublicTabletAccounts();
   const { data: lines } = useLines();
+  const { data: branding } = useLoginBranding();
 
   // ── Mode state (Staff vs Tablet) ────────────────────────────
   const [mode, setMode] = useState<Mode>(() => {
@@ -290,7 +292,7 @@ export default function Login() {
             <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.02] px-6 py-4">
               <div className="relative">
                 <img
-                  src="/favicon.png"
+                  src={branding?.[mode]?.url || "/favicon.png"}
                   alt=""
                   aria-hidden="true"
                   className="h-9 w-9 rounded-lg object-contain ring-1 ring-white/10"
