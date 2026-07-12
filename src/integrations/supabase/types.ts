@@ -3120,6 +3120,14 @@ export type Database = {
         Returns: Json
       }
       get_device_line: { Args: { _token: string }; Returns: string }
+      get_login_branding: {
+        Args: never
+        Returns: {
+          mode: string
+          updated_at: string
+          url: string
+        }[]
+      }
       get_own_labor_rate: { Args: never; Returns: number }
       get_profile_labor_rate: { Args: { _user_id: string }; Returns: number }
       get_sku_speed_suggestion: {
