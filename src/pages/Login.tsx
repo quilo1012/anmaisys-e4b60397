@@ -441,13 +441,22 @@ export default function Login() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading || lockedMsLeft > 0}
-                className="group relative mt-2 inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-b from-[hsl(214_90%_56%)] to-[hsl(214_90%_44%)] text-sm font-semibold text-white shadow-[0_10px_30px_-10px_hsl(214_90%_50%/0.7)] ring-1 ring-white/10 transition-all hover:from-[hsl(214_90%_60%)] hover:to-[hsl(214_90%_48%)] hover:shadow-[0_14px_36px_-10px_hsl(214_90%_55%/0.8)] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-60"
+                disabled={loading || authed || lockedMsLeft > 0}
+                aria-live="polite"
+                className={`group relative mt-2 inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-xl text-sm font-semibold text-white shadow-[0_10px_30px_-10px_hsl(214_90%_50%/0.7)] ring-1 ring-white/10 transition-all active:scale-[0.99] disabled:pointer-events-none ${
+                  authed
+                    ? "bg-gradient-to-b from-emerald-500 to-emerald-600"
+                    : "bg-gradient-to-b from-[hsl(214_90%_56%)] to-[hsl(214_90%_44%)] hover:from-[hsl(214_90%_60%)] hover:to-[hsl(214_90%_48%)] hover:shadow-[0_14px_36px_-10px_hsl(214_90%_55%/0.8)] disabled:opacity-60"
+                }`}
               >
                 <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
                 {lockedMsLeft > 0 ? (
                   <>
                     <ShieldAlert className="h-4 w-4" /> Locked — wait {Math.ceil(lockedMsLeft / 1000)}s
+                  </>
+                ) : authed ? (
+                  <>
+                    <CheckCircle2 className="h-5 w-5" /> Signed in · Redirecting…
                   </>
                 ) : loading ? (
                   <>
@@ -459,6 +468,7 @@ export default function Login() {
                   </>
                 )}
               </button>
+
 
               {/* Remaining-attempts hint */}
               {lockedMsLeft === 0 && remaining < 5 && (
