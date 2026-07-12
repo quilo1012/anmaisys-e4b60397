@@ -418,12 +418,6 @@ function TargetPinGate({ line, shiftLabel, totalTarget }: { line: string; shiftL
   const normalize = (s: string | null | undefined) => (s || "").trim().toLowerCase();
   const authorized = !!leader && !!leader.line && normalize(leader.line) === normalize(line);
 
-  const handleSuccess = async (_eng: EngineerIdentity, extra?: any) => {
-    // PinDialog only forwards the identity; call verify again to get leader_line.
-    const { data } = await (supabase as any).rpc("verify_pin_with_lockout", { _pin: extra?._pin ?? "" });
-    void data;
-  };
-
   const onClick = () => {
     if (leader) {
       if (authorized) setOpen((v) => !v);
@@ -454,10 +448,22 @@ function TargetPinGate({ line, shiftLabel, totalTarget }: { line: string; shiftL
         onOpenChange={setPinOpen}
         title="Leader PIN"
         description={`Enter your PIN to unlock the target for ${line}.`}
-        onSuccess={async (_eng) => {
-          // Re-fetch full payload directly since PinDialog only returns id/name
-          // (verify_pin_with_lockout is idempotent and safe to call again here).
-          setLeader({ name: _eng.name, line: (_eng as any).line ?? null });
+        onSuccess={async (eng) => {
+          if (!eng.is_leader) {
+            toast.error("Only Line Leader PINs can unlock the target.");
+            return;
+          }
+          const ldLine = eng.leader_line ?? null;
+          setLeader({ name: eng.name, line: ldLine });
+          if (!ldLine) {
+            toast.error("This leader has no line assigned. Ask an admin to assign one.");
+            return;
+          }
+          if (normalize(ldLine) !== normalize(line)) {
+            toast.error(`This leader is assigned to "${ldLine}", not ${line}.`);
+            return;
+          }
+          setOpen(true);
         }}
       />
     </>
