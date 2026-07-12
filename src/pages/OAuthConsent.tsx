@@ -88,7 +88,8 @@ export default function OAuthConsent() {
   }
   if (!details) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-[hsl(222_47%_6%)] text-white">
+      <main className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[hsl(222_47%_6%)] text-white">
+        <img src="/favicon.png" alt="" aria-hidden="true" className="h-12 w-12 rounded-xl object-contain shadow-lg ring-1 ring-white/10" />
         <Loader2 className="h-6 w-6 animate-spin" />
       </main>
     );
