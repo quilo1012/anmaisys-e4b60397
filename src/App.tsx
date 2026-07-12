@@ -510,7 +510,7 @@ const App = () => (
                 <Route
                   path="/dashboard/messages"
                   element={
-                    <ProtectedRoute allowedRoles={["operator"]}>
+                    <ProtectedRoute allowedRoles={["operator", "manager", "maintenance_manager", "admin"]}>
                       <DirectMessagesPage />
                     </ProtectedRoute>
                   }

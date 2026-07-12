@@ -123,7 +123,7 @@ export function canAll(role: Role | null | undefined, actions: Action[]): boolea
   return actions.every((a) => can(role, a));
 }
 
-/** Line Chat visibility — operator only (messages manager/planner). */
+/** Direct Messages visibility — operator sends; manager/planner/admin receive. */
 export function canUseLineChat(role: Role | null | undefined): boolean {
-  return role === "operator";
+  return role === "operator" || role === "manager" || role === "maintenance_manager" || role === "admin";
 }
