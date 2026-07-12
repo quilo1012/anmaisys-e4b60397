@@ -3,18 +3,9 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { ImageIcon, Upload, X, Loader2 } from "lucide-react";
 import { useUpdateOperatorAccountFavicon, type OperatorLineAccount } from "@/hooks/useOperatorAccounts";
+import { fileToFaviconDataUrl } from "@/lib/faviconResize";
 
-const MAX_BYTES = 200 * 1024;
 const ACCEPT = "image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon";
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onerror = () => reject(r.error);
-    r.onload = () => resolve(String(r.result));
-    r.readAsDataURL(file);
-  });
-}
 
 export function OperatorAccountFaviconCell({ acc }: { acc: OperatorLineAccount }) {
   const { toast } = useToast();
@@ -24,17 +15,9 @@ export function OperatorAccountFaviconCell({ acc }: { acc: OperatorLineAccount }
 
   const onPick = async (file: File | undefined) => {
     if (!file) return;
-    if (file.size > MAX_BYTES) {
-      toast({
-        title: "Image too large",
-        description: "Max 200KB. Use a small favicon (e.g. 128×128).",
-        variant: "destructive",
-      });
-      return;
-    }
     setBusy(true);
     try {
-      const url = await fileToDataUrl(file);
+      const url = await fileToFaviconDataUrl(file);
       await save.mutateAsync({ id: acc.id, favicon_url: url });
       toast({ title: "Favicon updated", description: acc.label });
     } catch (e: any) {

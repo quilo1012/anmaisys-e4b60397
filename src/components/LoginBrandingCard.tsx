@@ -10,18 +10,9 @@ import {
   type LoginMode,
 } from "@/hooks/useLoginBranding";
 import { useAuth } from "@/contexts/AuthContext";
+import { fileToFaviconDataUrl } from "@/lib/faviconResize";
 
-const MAX_BYTES = 200 * 1024; // 200KB
 const ACCEPT = "image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon";
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onerror = () => reject(r.error);
-    r.onload = () => resolve(String(r.result));
-    r.readAsDataURL(file);
-  });
-}
 
 function BrandingRow({ mode, label, icon }: { mode: LoginMode; label: string; icon: React.ReactNode }) {
   const { data } = useLoginBranding();
@@ -34,13 +25,9 @@ function BrandingRow({ mode, label, icon }: { mode: LoginMode; label: string; ic
 
   const onPick = async (file: File | undefined) => {
     if (!file) return;
-    if (file.size > MAX_BYTES) {
-      toast({ title: "Image too large", description: "Max 200KB. Use a small favicon (e.g. 128×128).", variant: "destructive" });
-      return;
-    }
     setBusy(true);
     try {
-      const url = await fileToDataUrl(file);
+      const url = await fileToFaviconDataUrl(file);
       await save.mutateAsync({ mode, url });
       toast({ title: "Favicon updated", description: `Applied to ${label} sign-in.` });
     } catch (e: any) {
