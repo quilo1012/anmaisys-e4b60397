@@ -135,6 +135,7 @@ interface Leader {
   id: string;
   name: string;
   is_active: boolean;
+  line: string | null;
   created_at: string;
 }
 
