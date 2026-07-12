@@ -650,9 +650,9 @@ function OperatorDashboardContent() {
                    const shift = getShift(wo.created_at);
                    return (
                      <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-                       <TableCell className="font-mono font-medium">
+                       <TableCell className="font-mono font-medium whitespace-nowrap">
                          <div className="flex items-center gap-2">
-                           <span>WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</span>
+                           <span className="text-xs sm:text-sm">WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</span>
                            <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
                          </div>
                        </TableCell>
