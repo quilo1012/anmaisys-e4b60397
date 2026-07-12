@@ -11,7 +11,9 @@ export interface EngineerIdentity {
   name: string;
   is_leader?: boolean;
   leader_line?: string | null;
+  leader_lines?: string[];
 }
+
 
 interface PinDialogProps {
   open: boolean;
