@@ -952,7 +952,7 @@ export default function ManageUsers() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead>Line</TableHead>
+                    <TableHead>Lines</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Actions</TableHead>
@@ -962,7 +962,8 @@ export default function ManageUsers() {
                   {leaders.map((ld) => (
                     <TableRow key={ld.id}>
                       <TableCell className="font-medium">{ld.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{ld.line || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{(ld.lines && ld.lines.length > 0 ? ld.lines.join(", ") : (ld.line || "—"))}</TableCell>
+
                       <TableCell>
                         <Badge variant={ld.is_active ? "default" : "secondary"}>
                           {ld.is_active ? "Active" : "Inactive"}
