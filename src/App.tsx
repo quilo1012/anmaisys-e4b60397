@@ -168,6 +168,7 @@ const App = () => (
           <LanguageProvider>
           <CriticalAlertProvider>
             <ErrorBoundary>
+            <PermissionOverridesSync />
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
