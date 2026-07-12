@@ -49,7 +49,7 @@ export function useDMPartners(role: string | null | undefined) {
   return useQuery({
     queryKey: ["dm_partners", role],
     queryFn: async () => {
-      const rpc = role === "admin" ? "list_dm_operators" : "list_dm_admins";
+      const rpc = role === "admin" || role === "supervisor" ? "list_dm_operators" : "list_dm_admins";
       const { data, error } = await supabase.rpc(rpc as any);
       if (error) throw error;
       return (data ?? []) as DMPartner[];
