@@ -449,11 +449,11 @@ function TargetPinGate({ line, shiftLabel, totalTarget }: { line: string; shiftL
         title="Leader PIN"
         description={`Enter your PIN to unlock the target for ${line}.`}
         onSuccess={async (eng) => {
-          if (!eng.is_leader) {
+          const ldLine = eng.leader_line ?? null;
+          if (eng.is_leader === false && ldLine === null) {
             toast.error("Only Line Leader PINs can unlock the target.");
             return;
           }
-          const ldLine = eng.leader_line ?? null;
           setLeader({ name: eng.name, line: ldLine });
           if (!ldLine) {
             toast.error("This leader has no line assigned. Ask an admin to assign one.");
