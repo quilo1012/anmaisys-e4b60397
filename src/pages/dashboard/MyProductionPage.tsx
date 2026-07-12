@@ -469,6 +469,19 @@ function TargetPinGate({ line, shiftLabel, totalTarget, onUnlockChange }: { line
           <div className="mt-1 text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
           <div className="text-xs text-muted-foreground mt-1">{line} · {shiftLabel}</div>
           {leader && <div className="text-[11px] text-muted-foreground mt-2">Unlocked by {leader.name}</div>}
+          <Button
+            variant="secondary"
+            size="sm"
+            className="w-full mt-3"
+            onClick={() => {
+              setLeader(null);
+              setOpen(false);
+              toast.success("Target locked");
+            }}
+          >
+            <Lock className="h-4 w-4 mr-2" />
+            Lock target
+          </Button>
         </PopoverContent>
       </Popover>
       <PinDialog
