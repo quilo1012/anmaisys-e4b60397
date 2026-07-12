@@ -288,16 +288,29 @@ export default function Login() {
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-[hsl(222_47%_8%)]/80 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.75)] backdrop-blur-2xl">
             {/* Brand header strip */}
             <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.02] px-6 py-4">
-              <img
-                src="/favicon.png"
-                alt=""
-                aria-hidden="true"
-                className="h-9 w-9 rounded-lg object-contain ring-1 ring-white/10"
-              />
+              <div className="relative">
+                <img
+                  src="/favicon.png"
+                  alt=""
+                  aria-hidden="true"
+                  className="h-9 w-9 rounded-lg object-contain ring-1 ring-white/10"
+                />
+                <span
+                  className={`absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full ring-2 ring-[hsl(222_47%_8%)] ${
+                    mode === "tablet" ? "bg-amber-500 text-black" : "bg-[hsl(214_90%_50%)] text-white"
+                  }`}
+                  aria-hidden="true"
+                >
+                  {mode === "tablet" ? <Tablet className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
+                </span>
+              </div>
               <div className="flex flex-1 flex-col leading-tight">
                 <span className="text-[13px] font-semibold tracking-tight text-white">Applied Nutrition</span>
-                <span className="text-[11px] text-white/50">Maintenance Platform</span>
+                <span className="text-[11px] text-white/50">
+                  Maintenance Platform · {mode === "tablet" ? "Tablet sign-in" : "Staff sign-in"}
+                </span>
               </div>
+
               <span className="hidden items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-emerald-300/90 sm:inline-flex">
                 <ShieldCheck className="h-3 w-3" /> Secure
               </span>
