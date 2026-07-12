@@ -487,9 +487,19 @@ export default function DowntimePage() {
                   if (r.to) setEndDate(endOfDay(r.to));
                 }}
               />
+              <Button variant="outline" onClick={handleExportPdf}>
+                <FileText className="h-4 w-4 mr-2" /> PDF
+              </Button>
+              <Button variant="outline" onClick={handleExportXlsx}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+              </Button>
+              <Button variant="outline" onClick={() => window.print()}>
+                <Printer className="h-4 w-4 mr-2" /> Print
+              </Button>
               <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={openCreate}>
                 <Plus className="h-4 w-4 mr-2" /> Register Downtime
               </Button>
+
             </>
           }
         />
