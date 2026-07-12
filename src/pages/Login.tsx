@@ -198,6 +198,9 @@ export default function Login() {
 
       // Success — wipe the rate-limit counter for this identity.
       clearLoginLockout(rlId);
+      setAuthed(true);
+      toast({ title: "Signed in", description: "Redirecting to your dashboard…" });
+
 
       // Persist mode + tablet selection on success
       localStorage.setItem(MODE_KEY, mode);
