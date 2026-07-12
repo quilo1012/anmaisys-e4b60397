@@ -1,31 +1,31 @@
 import { describe, it, expect } from "vitest";
 import { can, canAny, canAll, type Role, type Action } from "./permissions";
 
-const ROLES: Role[] = ["admin", "manager", "engineer", "operator", "viewer"];
+const ROLES: Role[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
 
 // Expected MATRIX — kept in sync manually with permissions.ts. If someone
 // edits permissions.ts without updating this table, the diff fails loudly.
 const EXPECTED: Record<Action, Role[]> = {
-  "wo.view": ["admin", "manager", "engineer", "operator", "viewer"],
-  "wo.create": ["admin", "manager", "operator"],
-  "wo.update": ["admin", "manager", "engineer"],
+  "wo.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
+  "wo.create": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
+  "wo.update": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
   "wo.delete": ["admin"],
-  "wo.close": ["admin", "manager", "engineer"],
+  "wo.close": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
   "wo.force": ["admin"],
-  "wo.print": ["admin", "manager"],
-  "downtime.view": ["admin", "manager", "engineer", "operator", "viewer"],
-  "downtime.manage": ["admin", "manager", "engineer"],
-  "machines.view": ["admin", "manager", "engineer", "operator", "viewer"],
-  "machines.manage": ["admin", "manager"],
-  "problems.view": ["admin", "manager", "engineer", "operator", "viewer"],
-  "problems.manage": ["admin", "manager"],
-  "stock.view": ["admin", "manager", "engineer"],
-  "stock.manage": ["admin", "manager"],
+  "wo.print": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
+  "downtime.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
+  "downtime.manage": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
+  "machines.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
+  "machines.manage": ["admin", "manager", "supervisor"],
+  "problems.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
+  "problems.manage": ["admin", "manager", "supervisor"],
+  "stock.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
+  "stock.manage": ["admin", "manager", "supervisor"],
   "stock.pricing": ["admin"],
   "users.view": ["admin", "manager"],
   "users.manage": ["admin", "manager"],
-  "audit.view": ["admin", "manager"],
-  "reports.analytics": ["admin", "manager"],
+  "audit.view": ["admin", "manager", "supervisor"],
+  "reports.analytics": ["admin", "manager", "supervisor"],
   "reports.financial": ["admin"],
   "reports.executive": ["admin"],
   "system.clear": ["admin"],

@@ -59,29 +59,29 @@ const navItems: NavItem[] = [
   // Overview
   { title: "Dashboard", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Overview" },
   { title: "My Production", url: "/dashboard/operator/my-production", icon: Factory, roles: ["operator"], group: "Overview" },
-  { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"], group: "Overview" },
-  { title: "My Tasks", url: "/dashboard/engineer?focus=tasks", icon: Briefcase, roles: ["engineer"], group: "Overview" },
-  { title: "History", url: "/dashboard/engineer?focus=history", icon: History, roles: ["engineer"], group: "Overview" },
-  { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager", "maintenance_manager"], group: "Overview" },
+  { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer", "co_engineer"], group: "Overview" },
+  { title: "My Tasks", url: "/dashboard/engineer?focus=tasks", icon: Briefcase, roles: ["engineer", "co_engineer"], group: "Overview" },
+  { title: "History", url: "/dashboard/engineer?focus=history", icon: History, roles: ["engineer", "co_engineer"], group: "Overview" },
+  { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Overview" },
   { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager", "maintenance_manager"], group: "Overview" },
 
   // Maintenance
-  { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "maintenance_manager"], group: "Maintenance" },
-  { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "maintenance_manager"], group: "Maintenance" },
-  { title: "Downtime Heatmap", url: "/dashboard/downtime-map", icon: BarChart3, roles: ["admin", "manager", "maintenance_manager"], group: "Maintenance" },
-  { title: "PM Intelligence", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "maintenance_manager"], group: "Maintenance" },
+  { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance" },
+  { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance" },
+  { title: "Downtime Heatmap", url: "/dashboard/downtime-map", icon: BarChart3, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance" },
+  { title: "PM Intelligence", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance" },
 
   // Assets
-  { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager", "maintenance_manager"], group: "Assets" },
-  { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager", "maintenance_manager"], group: "Assets" },
-  { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "maintenance_manager", "engineer"], group: "Assets" },
+  { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Assets" },
+  { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Assets" },
+  { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"], group: "Assets" },
 
   // Production
-  { title: "Planner", url: "/dashboard/planner", icon: Factory, roles: ["admin", "manager"], group: "Production" },
+  { title: "Planner", url: "/dashboard/planner", icon: Factory, roles: ["admin", "manager", "planner"], group: "Production" },
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager"], group: "Production" },
-  { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "maintenance_manager"], group: "Production" },
+  { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Production" },
   { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production" },
-  { title: "Prod. Downtime", url: "/dashboard/production-downtime", icon: TimerOff, roles: ["admin", "manager"], group: "Production" },
+  { title: "Prod. Downtime", url: "/dashboard/production-downtime", icon: TimerOff, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Production" },
   { title: "Quality Actions", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager"], group: "Production" },
 
   // Planning & Insights
@@ -91,19 +91,19 @@ const navItems: NavItem[] = [
   { title: "Smart Target", url: "/dashboard/smart-target", icon: Brain, roles: ["admin", "manager"], group: "Planning" },
 
   // Reports
-  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "maintenance_manager"], group: "Reports" },
-  { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin", "manager", "maintenance_manager"], group: "Reports" },
+  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "supervisor"], group: "Reports" },
+  { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin"], group: "Reports" },
   { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin"], group: "Reports" },
   { title: "Weekly Report", url: "/dashboard/weekly-report", icon: FileBarChart, roles: ["admin", "manager"], group: "Reports" },
 
   // Admin
-  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "operator"], group: "Admin" },
-  { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager", "maintenance_manager"], group: "Admin" },
+  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"], group: "Admin" },
+  { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Admin" },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Admin" },
   { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "Admin" },
   { title: "iTouching Sync", url: "/dashboard/intouch-settings", icon: Radar, roles: ["admin"], group: "Admin" },
-  { title: "Operator Preview", url: "/dashboard/operator-preview", icon: Gauge, roles: ["admin", "manager", "maintenance_manager"], group: "Admin" },
-  { title: "Engineer Preview", url: "/dashboard/engineer-preview", icon: Gauge, roles: ["admin", "manager", "maintenance_manager"], group: "Admin" },
+  { title: "Operator Preview", url: "/dashboard/operator-preview", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Admin" },
+  { title: "Engineer Preview", url: "/dashboard/engineer-preview", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Admin" },
 ];
 
 
