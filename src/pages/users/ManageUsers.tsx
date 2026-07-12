@@ -330,6 +330,11 @@ export default function ManageUsers() {
 
   const handleEditLeader = async () => {
     if (!editLd) return;
+    const lines = parseLines(editLdLine);
+    if (lines.length === 0) {
+      toast({ title: "Lines required", description: "Enter at least one line (comma-separated).", variant: "destructive" });
+      return;
+    }
     setEditLdLoading(true);
     try {
       const { error } = await supabase.rpc("update_leader" as any, {
@@ -337,10 +342,10 @@ export default function ManageUsers() {
         _name: editLdName.trim() || null,
         _active: editLdActive,
         _pin: editLdPin.length === 4 ? editLdPin : null,
-        _lines: parseLines(editLdLine),
+        _lines: lines,
       });
       if (error) throw error;
-      toast({ title: "Leader updated" });
+      toast({ title: "Leader updated", description: lines.join(", ") });
       setEditLd(null);
       fetchLeaders();
     } catch (err: any) {
