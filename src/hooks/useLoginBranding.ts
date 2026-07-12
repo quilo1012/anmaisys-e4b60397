@@ -13,12 +13,10 @@ export function useLoginBranding() {
   return useQuery({
     queryKey: ["login-branding"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("login_branding")
-        .select("mode,url,updated_at");
+      const { data, error } = await (supabase as any).rpc("get_login_branding");
       if (error) throw error;
       const map: Partial<Record<LoginMode, LoginBrandingRow>> = {};
-      (data ?? []).forEach((r) => {
+      (data ?? []).forEach((r: any) => {
         map[r.mode as LoginMode] = r as LoginBrandingRow;
       });
       return map;
