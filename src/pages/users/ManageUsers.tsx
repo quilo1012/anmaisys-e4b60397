@@ -276,11 +276,11 @@ export default function ManageUsers() {
     if (!ldName.trim() || ldPin.length !== 4) return;
     setLdLoading(true);
     try {
-      const { error } = await supabase.rpc("create_leader" as any, { _name: ldName.trim(), _pin: ldPin });
+      const { error } = await supabase.rpc("create_leader" as any, { _name: ldName.trim(), _pin: ldPin, _line: ldLine.trim() || null });
       if (error) throw error;
       toast({ title: "Leader created", description: `${ldName} has been added` });
       setLdOpen(false);
-      setLdName(""); setLdPin("");
+      setLdName(""); setLdPin(""); setLdLine("");
       fetchLeaders();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
