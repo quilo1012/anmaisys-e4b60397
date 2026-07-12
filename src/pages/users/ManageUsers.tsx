@@ -919,6 +919,11 @@ export default function ManageUsers() {
                   <form onSubmit={handleCreateLeader} className="space-y-4" autoComplete="off">
                     <div className="space-y-2"><Label>Leader Name <span className="text-destructive">*</span></Label><Input value={ldName} onChange={(e) => setLdName(e.target.value)} required /></div>
                     <div className="space-y-2">
+                      <Label>Line</Label>
+                      <Input value={ldLine} onChange={(e) => setLdLine(e.target.value)} placeholder="e.g. Line 1" />
+                      <p className="text-xs text-muted-foreground">Leader will only be able to unlock Target for this line.</p>
+                    </div>
+                    <div className="space-y-2">
                       <Label>PIN (4 digits) <span className="text-destructive">*</span></Label>
                       <Input type="password" value={ldPin} onChange={(e) => setLdPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 1234" minLength={4} maxLength={4} required />
                     </div>
