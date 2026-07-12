@@ -279,27 +279,33 @@ export default function Login() {
         <div className="w-full max-w-[480px]">
           <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[460px] w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(214_100%_55%)] opacity-20 blur-[140px]" />
 
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] backdrop-blur-2xl sm:p-10">
-            {/* Brand */}
-            <div className="mb-7 flex flex-col items-center text-center">
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[hsl(222_47%_8%)]/80 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.75)] backdrop-blur-2xl">
+            {/* Brand header strip */}
+            <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.02] px-6 py-4">
               <img
                 src="/favicon.png"
                 alt=""
                 aria-hidden="true"
-                className="mb-3 h-12 w-12 rounded-xl object-contain shadow-lg ring-1 ring-white/10"
+                className="h-9 w-9 rounded-lg object-contain ring-1 ring-white/10"
               />
-              <img
-                src={appliedLogo}
-                alt="Applied Nutrition"
-                className="mb-5 w-3/4 max-w-[260px] h-auto object-contain"
-              />
-              <h1 className="text-lg font-semibold tracking-tight text-white/90">
-                Maintenance Platform
-              </h1>
-              <p className="mt-1 text-xs text-white/45">
-                Sign in to continue
+              <div className="flex flex-1 flex-col leading-tight">
+                <span className="text-[13px] font-semibold tracking-tight text-white">Applied Nutrition</span>
+                <span className="text-[11px] text-white/50">Maintenance Platform</span>
+              </div>
+              <span className="hidden items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-emerald-300/90 sm:inline-flex">
+                <ShieldCheck className="h-3 w-3" /> Secure
+              </span>
+            </div>
+
+            <div className="px-6 pb-8 pt-7 sm:px-8">
+            {/* Title */}
+            <div className="mb-6">
+              <h1 className="text-[22px] font-semibold tracking-tight text-white">Sign in</h1>
+              <p className="mt-1 text-xs text-white/50">
+                Use your work account or select a shared tablet
               </p>
             </div>
+
 
             {/* Mode toggle — always visible so operators can always reach the Tablet form */}
             <div className="mb-6 grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5">
@@ -459,7 +465,9 @@ export default function Login() {
                 <span>Encrypted connection · Audited access</span>
               </div>
             </form>
+            </div>
           </div>
+
 
           <p className="mt-6 text-center text-[11px] text-white/35">
             © {year} Applied Nutrition Ltd. · Maintenance Platform v1.0
