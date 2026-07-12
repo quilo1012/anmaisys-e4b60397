@@ -426,7 +426,7 @@ export default function ManageUsers() {
       toast({ title: "User created", description: `${name} has been added as ${roleLabels[role]}` });
       logAuditEvent("user_created", "user", undefined, { name: name.trim(), email: email.trim().toLowerCase(), role });
       setOpen(false);
-      setEmail(""); setPassword(""); setPasswordError(null); setName(""); setRole("operator");
+      setEmail(""); setPassword(""); setPasswordError(null); setName(""); setRole(createRoleOptions[0] ?? "engineer");
       await Promise.all([fetchUsers(), fetchEngineers()]);
     } catch (error: any) {
       const message = describePasswordError(error.message);
