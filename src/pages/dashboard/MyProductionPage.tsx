@@ -66,6 +66,8 @@ export default function MyProductionPage() {
 function MyProductionContent() {
   const { selectedLineName: line } = useDeviceLineCtx();
   const { profile, role } = useAuth() as any;
+  const [targetUnlocked, setTargetUnlocked] = useState(false);
+
 
   const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
   const shift: Shift = shiftCode === "day" ? "DAY" : "NIGHT";
@@ -173,7 +175,7 @@ function MyProductionContent() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} />
+            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} onUnlockChange={setTargetUnlocked} />
           </div>
         </CardContent>
       </Card>
@@ -230,11 +232,14 @@ function MyProductionContent() {
                 <div className="text-muted-foreground">/</div>
                 <div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Target (RAG)</div>
-                  <div className="text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
+                  <div className="text-2xl font-bold tabular-nums flex items-center gap-1">
+                    {targetUnlocked ? totalTarget.toLocaleString() : <><Lock className="h-4 w-4 text-muted-foreground" /><span className="text-muted-foreground">•••</span></>}
+                  </div>
                 </div>
-                <Badge className={cn("text-white text-base px-3 py-1", hasManualProduction ? ragColor(overallPct) : "bg-muted text-muted-foreground")}>
-                  {overallPct.toFixed(0)}%
+                <Badge className={cn("text-white text-base px-3 py-1", targetUnlocked && hasManualProduction ? ragColor(overallPct) : "bg-muted text-muted-foreground")}>
+                  {targetUnlocked ? `${overallPct.toFixed(0)}%` : "—"}
                 </Badge>
+
               </div>
               <Button size="lg" className="h-11" onClick={submitShift}>
                 <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -410,13 +415,15 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
   );
 }
 
-function TargetPinGate({ line, shiftLabel, totalTarget }: { line: string; shiftLabel: string; totalTarget: number }) {
+function TargetPinGate({ line, shiftLabel, totalTarget, onUnlockChange }: { line: string; shiftLabel: string; totalTarget: number; onUnlockChange?: (v: boolean) => void }) {
   const [pinOpen, setPinOpen] = useState(false);
   const [leader, setLeader] = useState<{ name: string; line: string | null } | null>(null);
   const [open, setOpen] = useState(false);
 
   const normalize = (s: string | null | undefined) => (s || "").trim().toLowerCase();
   const authorized = !!leader && !!leader.line && normalize(leader.line) === normalize(line);
+  useEffect(() => { onUnlockChange?.(authorized); }, [authorized, onUnlockChange]);
+
 
   const onClick = () => {
     if (leader) {
