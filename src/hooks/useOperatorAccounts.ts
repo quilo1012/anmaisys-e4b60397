@@ -28,7 +28,10 @@ export function usePublicTabletAccounts() {
       if (error) throw error;
       return (data ?? []) as PublicTabletAccount[];
     },
-    staleTime: 2 * 60_000,
+    // Login screen must reflect newly uploaded per-tablet favicons on the
+    // very next visit — no stale cache, always refetch on mount.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
