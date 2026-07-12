@@ -173,18 +173,7 @@ function MyProductionContent() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Target className="h-4 w-4 mr-2" /> Target
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-64">
-                <div className="text-xs text-muted-foreground">Total Target (RAG Weekly)</div>
-                <div className="mt-1 text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
-                <div className="text-xs text-muted-foreground mt-1">{line} · {shiftLabel}</div>
-              </PopoverContent>
-            </Popover>
+            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} />
           </div>
         </CardContent>
       </Card>
