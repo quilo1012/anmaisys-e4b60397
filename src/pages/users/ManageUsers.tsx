@@ -1022,10 +1022,11 @@ export default function ManageUsers() {
             <div className="space-y-4">
               <div className="space-y-2"><Label>Leader Name</Label><Input value={editLdName} onChange={(e) => setEditLdName(e.target.value)} /></div>
               <div className="space-y-2">
-                <Label>Line</Label>
-                <Input value={editLdLine} onChange={(e) => setEditLdLine(e.target.value)} placeholder="e.g. Line 1" />
-                <p className="text-xs text-muted-foreground">Leader will only be able to unlock Target for this line.</p>
+                <Label>Lines</Label>
+                <Input value={editLdLine} onChange={(e) => setEditLdLine(e.target.value)} placeholder="e.g. Line 1, Line 2" />
+                <p className="text-xs text-muted-foreground">Comma-separated. Leader will unlock Target for any of these lines.</p>
               </div>
+
               <div className="space-y-2">
                 <Label>New PIN (4 digits)</Label>
                 <Input type="password" value={editLdPin} onChange={(e) => setEditLdPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="Leave blank to keep current" minLength={4} maxLength={4} />
