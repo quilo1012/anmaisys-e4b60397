@@ -3,6 +3,29 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
+/** Play a short two-tone chime for incoming DMs. */
+function playDMNotification() {
+  try {
+    const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const now = ctx.currentTime;
+    [880, 1320].forEach((freq, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, now + i * 0.18);
+      g.gain.exponentialRampToValueAtTime(0.18, now + i * 0.18 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.18 + 0.22);
+      o.connect(g).connect(ctx.destination);
+      o.start(now + i * 0.18);
+      o.stop(now + i * 0.18 + 0.24);
+    });
+    setTimeout(() => ctx.close().catch(() => {}), 800);
+  } catch {}
+}
+
 export interface DMPartner {
   user_id: string;
   name: string;
@@ -159,7 +182,16 @@ export function useDMUnreadCount() {
       .channel(`dm_unread_${user.id}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "direct_messages", filter: `recipient_id=eq.${user.id}` },
+        { event: "INSERT", schema: "public", table: "direct_messages", filter: `recipient_id=eq.${user.id}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["dm_unread", user.id] });
+          queryClient.invalidateQueries({ queryKey: ["dm_thread"] });
+          playDMNotification();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "direct_messages", filter: `recipient_id=eq.${user.id}` },
         () => queryClient.invalidateQueries({ queryKey: ["dm_unread", user.id] }),
       )
       .subscribe();
