@@ -294,6 +294,7 @@ export default function ManageUsers() {
     setEditLdName(l.name);
     setEditLdPin("");
     setEditLdActive(l.is_active);
+    setEditLdLine(l.line ?? "");
   };
 
   const handleEditLeader = async () => {
@@ -305,6 +306,7 @@ export default function ManageUsers() {
         _name: editLdName.trim() || null,
         _active: editLdActive,
         _pin: editLdPin.length === 4 ? editLdPin : null,
+        _line: editLdLine.trim(),
       });
       if (error) throw error;
       toast({ title: "Leader updated" });
