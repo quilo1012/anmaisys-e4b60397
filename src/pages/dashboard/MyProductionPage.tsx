@@ -417,18 +417,39 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
 
 function TargetPinGate({ line, shiftLabel, totalTarget, onUnlockChange }: { line: string; shiftLabel: string; totalTarget: number; onUnlockChange?: (v: boolean) => void }) {
   const [pinOpen, setPinOpen] = useState(false);
-  const [leader, setLeader] = useState<{ name: string; line: string | null } | null>(null);
+  const [leader, setLeader] = useState<{ name: string; matched: boolean } | null>(null);
   const [open, setOpen] = useState(false);
 
-  const normalize = (s: string | null | undefined) => (s || "").trim().toLowerCase();
-  const authorized = !!leader && !!leader.line && normalize(leader.line) === normalize(line);
-  useEffect(() => { onUnlockChange?.(authorized); }, [authorized, onUnlockChange]);
+  const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
+  const shift: Shift = shiftCode === "day" ? "DAY" : "NIGHT";
 
+  const normalize = (s: string | null | undefined) => (s || "").trim().toLowerCase();
+
+  // Leader assigned to THIS line/date/shift on production_sessions.
+  const assignedQ = useQuery({
+    enabled: !!line,
+    queryKey: ["target-gate-leader", line, today, shift],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("production_sessions")
+        .select("leader_name")
+        .eq("session_date", today)
+        .eq("line", line)
+        .eq("shift", shift)
+        .maybeSingle();
+      return (data?.leader_name as string | null) ?? null;
+    },
+    refetchInterval: 60_000,
+  });
+  const assignedLeader = assignedQ.data;
+
+  const authorized = !!leader?.matched;
+  useEffect(() => { onUnlockChange?.(authorized); }, [authorized, onUnlockChange]);
 
   const onClick = () => {
     if (leader) {
       if (authorized) setOpen((v) => !v);
-      else toast.error(`This PIN is not authorized for ${line}.`);
+      else toast.error(`This PIN is not the leader assigned to ${line} for this shift.`);
       return;
     }
     setPinOpen(true);
@@ -456,29 +477,25 @@ function TargetPinGate({ line, shiftLabel, totalTarget, onUnlockChange }: { line
         title="Leader PIN"
         description={`Enter your PIN to unlock the target for ${line}.`}
         onSuccess={async (eng) => {
-          const ldLines = (eng.leader_lines ?? []).filter(Boolean);
-          const singleLine = eng.leader_line ?? null;
-          const allLines = ldLines.length > 0 ? ldLines : (singleLine ? [singleLine] : []);
-          if (eng.is_leader === false && allLines.length === 0) {
+          if (eng.is_leader === false) {
             toast.error("Only Line Leader PINs can unlock the target.");
             return;
           }
-          if (allLines.length === 0) {
-            setLeader({ name: eng.name, line: null });
-            toast.error("This leader has no line assigned. Ask an admin to assign one.");
+          if (!assignedLeader) {
+            setLeader({ name: eng.name, matched: false });
+            toast.error(`No leader is assigned to ${line} · ${shiftLabel} yet. Ask the planner to assign one.`);
             return;
           }
-          const match = allLines.find((l) => normalize(l) === normalize(line));
-          if (!match) {
-            setLeader({ name: eng.name, line: allLines[0] });
-            toast.error(`This leader is assigned to ${allLines.join(", ")}, not ${line}.`);
+          const matched = normalize(assignedLeader) === normalize(eng.name);
+          setLeader({ name: eng.name, matched });
+          if (!matched) {
+            toast.error(`${eng.name} is not the leader for ${line} today (${assignedLeader} is).`);
             return;
           }
-          setLeader({ name: eng.name, line: match });
           setOpen(true);
         }}
-
       />
     </>
   );
 }
+
