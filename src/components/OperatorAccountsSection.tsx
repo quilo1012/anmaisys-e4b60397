@@ -56,6 +56,7 @@ import {
 } from "@/hooks/useOperatorAccounts";
 import { format } from "date-fns";
 import { checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
+import { OperatorAccountFaviconCell } from "@/components/OperatorAccountFaviconCell";
 
 const EMAIL_DOMAIN = "@anmaisys.local";
 
@@ -507,6 +508,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[80px]">Icon</TableHead>
                 <TableHead>Label</TableHead>
                 <TableHead>Lines covered</TableHead>
                 <TableHead>Created</TableHead>
@@ -516,6 +518,9 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
             <TableBody>
               {accounts.map((acc) => (
                 <TableRow key={acc.id} className="hover:bg-muted/30 transition-colors">
+                  <TableCell className="py-3">
+                    <OperatorAccountFaviconCell acc={acc} />
+                  </TableCell>
                   <TableCell className="py-3 font-medium">{acc.label}</TableCell>
                   <TableCell className="py-3">
                     <div className="flex flex-wrap gap-1">
