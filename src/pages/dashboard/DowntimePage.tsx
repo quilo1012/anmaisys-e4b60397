@@ -18,8 +18,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Clock, Loader2, Plus, Pencil, Trash2, CheckCircle, AlertTriangle, Activity,
-  TrendingUp, CalendarIcon, ChevronDown, History, Cog,
+  TrendingUp, CalendarIcon, ChevronDown, History, Cog, Printer, FileText, FileSpreadsheet,
 } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
 import { DateRangeFilter, type DateRangePreset, getPresetRange } from "@/components/DateRangeFilter";
 import { useDowntime, useCreateDowntime, useUpdateDowntime, useDeleteDowntime, type DowntimeRecord } from "@/hooks/useDowntime";
@@ -388,6 +391,82 @@ export default function DowntimePage() {
     </div>
   );
 
+  const rangeLabel = `${format(startDate, "yyyy-MM-dd")}_to_${format(endDate, "yyyy-MM-dd")}`;
+
+  const buildExportRows = () =>
+    filteredRecords.map((r) => ({
+      Line: r.line || "",
+      Machine: r.machine || "",
+      Category: r.category || "",
+      Reason: r.reason || "",
+      Start: r.started_at ? format(new Date(r.started_at), "yyyy-MM-dd HH:mm") : "",
+      End: r.ended_at ? format(new Date(r.ended_at), "yyyy-MM-dd HH:mm") : "Ongoing",
+      Duration: getDuration(r),
+      Notes: r.notes || "",
+    }));
+
+  const handleExportPdf = () => {
+    const doc = new jsPDF({ orientation: "landscape" });
+    doc.setFontSize(14);
+    doc.text("Downtime & Reliability Report", 14, 14);
+    doc.setFontSize(10);
+    doc.text(
+      `Range: ${format(startDate, "PP")} — ${format(endDate, "PP")}   |   Records: ${filteredRecords.length}   |   Avg MTTR: ${avgMTTR}m   |   Avg MTBF: ${avgMTBF}h`,
+      14, 21,
+    );
+    const rows = buildExportRows();
+    autoTable(doc, {
+      startY: 26,
+      head: [["Line", "Machine", "Category", "Reason", "Start", "End", "Duration", "Notes"]],
+      body: rows.map((r) => [r.Line, r.Machine, r.Category, r.Reason, r.Start, r.End, r.Duration, r.Notes]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [234, 88, 12] },
+    });
+    if (filteredRisks.length) {
+      autoTable(doc, {
+        head: [["Machine", "Failures", "MTBF (h)", "MTTR (m)", "Risk"]],
+        body: filteredRisks.map((r: any) => [r.machine, r.count, r.mtbfHours ?? "—", r.mttrMinutes ?? "—", r.risk]),
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [59, 130, 246] },
+      });
+    }
+    doc.save(`downtime-reliability_${rangeLabel}.pdf`);
+  };
+
+  const handleExportXlsx = () => {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(buildExportRows()), "Downtime Records");
+    if (filteredRisks.length) {
+      XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet(
+          filteredRisks.map((r: any) => ({
+            Machine: r.machine,
+            Failures: r.count,
+            "MTBF (h)": r.mtbfHours ?? "",
+            "MTTR (m)": r.mttrMinutes ?? "",
+            Risk: r.risk,
+          })),
+        ),
+        "Machine Risk",
+      );
+    }
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet([
+        { Metric: "Range Start", Value: format(startDate, "yyyy-MM-dd") },
+        { Metric: "Range End", Value: format(endDate, "yyyy-MM-dd") },
+        { Metric: "Records", Value: filteredRecords.length },
+        { Metric: "Avg MTTR (min)", Value: avgMTTR },
+        { Metric: "Avg MTBF (h)", Value: avgMTBF },
+      ]),
+      "Summary",
+    );
+    XLSX.writeFile(wb, `downtime-reliability_${rangeLabel}.xlsx`);
+  };
+
+
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -408,9 +487,19 @@ export default function DowntimePage() {
                   if (r.to) setEndDate(endOfDay(r.to));
                 }}
               />
+              <Button variant="outline" onClick={handleExportPdf}>
+                <FileText className="h-4 w-4 mr-2" /> PDF
+              </Button>
+              <Button variant="outline" onClick={handleExportXlsx}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+              </Button>
+              <Button variant="outline" onClick={() => window.print()}>
+                <Printer className="h-4 w-4 mr-2" /> Print
+              </Button>
               <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={openCreate}>
                 <Plus className="h-4 w-4 mr-2" /> Register Downtime
               </Button>
+
             </>
           }
         />
