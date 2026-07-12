@@ -247,10 +247,12 @@ export default function Login() {
         ? `Too many attempts — locked for ${Math.ceil(after.lockedMsLeft / 1000)}s.`
         : `${error.message}${after.remaining > 0 ? ` · ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} remaining` : ""}`;
       toast({ title: "Sign-in failed", description, variant: "destructive" });
+      setAuthed(false);
     } finally {
       setLoading(false);
     }
   };
+
 
   const year = new Date().getFullYear();
 
