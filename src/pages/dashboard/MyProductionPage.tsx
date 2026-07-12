@@ -456,22 +456,28 @@ function TargetPinGate({ line, shiftLabel, totalTarget, onUnlockChange }: { line
         title="Leader PIN"
         description={`Enter your PIN to unlock the target for ${line}.`}
         onSuccess={async (eng) => {
-          const ldLine = eng.leader_line ?? null;
-          if (eng.is_leader === false && ldLine === null) {
+          const ldLines = (eng.leader_lines ?? []).filter(Boolean);
+          const singleLine = eng.leader_line ?? null;
+          const allLines = ldLines.length > 0 ? ldLines : (singleLine ? [singleLine] : []);
+          if (eng.is_leader === false && allLines.length === 0) {
             toast.error("Only Line Leader PINs can unlock the target.");
             return;
           }
-          setLeader({ name: eng.name, line: ldLine });
-          if (!ldLine) {
+          if (allLines.length === 0) {
+            setLeader({ name: eng.name, line: null });
             toast.error("This leader has no line assigned. Ask an admin to assign one.");
             return;
           }
-          if (normalize(ldLine) !== normalize(line)) {
-            toast.error(`This leader is assigned to "${ldLine}", not ${line}.`);
+          const match = allLines.find((l) => normalize(l) === normalize(line));
+          if (!match) {
+            setLeader({ name: eng.name, line: allLines[0] });
+            toast.error(`This leader is assigned to ${allLines.join(", ")}, not ${line}.`);
             return;
           }
+          setLeader({ name: eng.name, line: match });
           setOpen(true);
         }}
+
       />
     </>
   );
