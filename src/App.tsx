@@ -62,6 +62,7 @@ const WeeklyProductionReportPage = lazyWithReload(() => import("./pages/dashboar
 const OperatorPreviewPage = lazyWithReload(() => import("./pages/dashboard/OperatorPreviewPage"));
 const EngineerPreviewPage = lazyWithReload(() => import("./pages/dashboard/EngineerPreviewPage"));
 const MyProductionPage = lazyWithReload(() => import("./pages/dashboard/MyProductionPage"));
+const DirectMessagesPage = lazyWithReload(() => import("./pages/dashboard/DirectMessagesPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
