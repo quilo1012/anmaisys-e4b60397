@@ -136,8 +136,10 @@ interface Leader {
   name: string;
   is_active: boolean;
   line: string | null;
+  lines: string[] | null;
   created_at: string;
 }
+
 
 function InlineLaborRateCell({ engineer, onSaved }: { engineer: Engineer; onSaved: () => void }) {
   const [value, setValue] = useState(String(engineer.labor_rate ?? 0));
