@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, Eye, EyeOff, ShieldCheck, Loader2, ArrowRight, Tablet, User as UserIcon, ShieldAlert } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ShieldCheck, Loader2, ArrowRight, Tablet, User as UserIcon, ShieldAlert, CheckCircle2 } from "lucide-react";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/contexts/AuthContext";
@@ -76,6 +76,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [authed, setAuthed] = useState(false);
 
   // ── Rate limit state ────────────────────────────────────────
   // Identity used as the rate-limit key (email or tablet account id).
@@ -197,6 +198,9 @@ export default function Login() {
 
       // Success — wipe the rate-limit counter for this identity.
       clearLoginLockout(rlId);
+      setAuthed(true);
+      toast({ title: "Signed in", description: "Redirecting to your dashboard…" });
+
 
       // Persist mode + tablet selection on success
       localStorage.setItem(MODE_KEY, mode);
@@ -243,10 +247,12 @@ export default function Login() {
         ? `Too many attempts — locked for ${Math.ceil(after.lockedMsLeft / 1000)}s.`
         : `${error.message}${after.remaining > 0 ? ` · ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} remaining` : ""}`;
       toast({ title: "Sign-in failed", description, variant: "destructive" });
+      setAuthed(false);
     } finally {
       setLoading(false);
     }
   };
+
 
   const year = new Date().getFullYear();
 
@@ -337,7 +343,9 @@ export default function Login() {
                 </button>
               </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5" autoComplete="on">
+            <form onSubmit={handleSubmit} className={`space-y-5 ${loading || authed ? "pointer-events-none opacity-70" : ""}`} autoComplete="on" aria-busy={loading}>
+
+
 
               {mode === "tablet" ? (
                 /* ── Tablet selector ─────────────────────────── */
@@ -433,13 +441,22 @@ export default function Login() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading || lockedMsLeft > 0}
-                className="group relative mt-2 inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-b from-[hsl(214_90%_56%)] to-[hsl(214_90%_44%)] text-sm font-semibold text-white shadow-[0_10px_30px_-10px_hsl(214_90%_50%/0.7)] ring-1 ring-white/10 transition-all hover:from-[hsl(214_90%_60%)] hover:to-[hsl(214_90%_48%)] hover:shadow-[0_14px_36px_-10px_hsl(214_90%_55%/0.8)] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-60"
+                disabled={loading || authed || lockedMsLeft > 0}
+                aria-live="polite"
+                className={`group relative mt-2 inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-xl text-sm font-semibold text-white shadow-[0_10px_30px_-10px_hsl(214_90%_50%/0.7)] ring-1 ring-white/10 transition-all active:scale-[0.99] disabled:pointer-events-none ${
+                  authed
+                    ? "bg-gradient-to-b from-emerald-500 to-emerald-600"
+                    : "bg-gradient-to-b from-[hsl(214_90%_56%)] to-[hsl(214_90%_44%)] hover:from-[hsl(214_90%_60%)] hover:to-[hsl(214_90%_48%)] hover:shadow-[0_14px_36px_-10px_hsl(214_90%_55%/0.8)] disabled:opacity-60"
+                }`}
               >
                 <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
                 {lockedMsLeft > 0 ? (
                   <>
                     <ShieldAlert className="h-4 w-4" /> Locked — wait {Math.ceil(lockedMsLeft / 1000)}s
+                  </>
+                ) : authed ? (
+                  <>
+                    <CheckCircle2 className="h-5 w-5" /> Signed in · Redirecting…
                   </>
                 ) : loading ? (
                   <>
@@ -451,6 +468,7 @@ export default function Login() {
                   </>
                 )}
               </button>
+
 
               {/* Remaining-attempts hint */}
               {lockedMsLeft === 0 && remaining < 5 && (
