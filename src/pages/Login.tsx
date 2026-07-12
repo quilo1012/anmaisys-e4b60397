@@ -401,7 +401,7 @@ export default function Login() {
                       value={tabletAccountId}
                       onChange={(e) => setTabletAccountId(e.target.value)}
                       required
-                      className="h-14 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
+                      className="h-12 sm:h-14 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
                     >
                       <option value="" disabled className="bg-[hsl(222_47%_10%)] text-white">
                         {accountsLoading ? "Loading tablets…" : hasOperatorAccounts ? "Select your tablet…" : "No tablets configured"}
@@ -443,7 +443,7 @@ export default function Login() {
                       placeholder="you@appliednutrition.com"
                       required
                       autoComplete="email"
-                      className="h-14 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all placeholder:text-white/30 hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
+                      className="h-12 sm:h-14 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all placeholder:text-white/30 hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
                     />
                   </div>
                 </div>
@@ -465,7 +465,7 @@ export default function Login() {
                     minLength={6}
                     required
                     autoComplete="current-password"
-                    className="h-14 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-12 text-sm text-white transition-all placeholder:text-white/30 hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
+                    className="h-12 sm:h-14 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-12 text-sm text-white transition-all placeholder:text-white/30 hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
                   />
                   <button
                     type="button"
