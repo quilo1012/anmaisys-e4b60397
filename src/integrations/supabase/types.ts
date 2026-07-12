@@ -214,6 +214,39 @@ export type Database = {
           },
         ]
       }
+      direct_messages: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string | null
+          message: string
+          read_at: string | null
+          recipient_id: string
+          sender_id: string
+          sender_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          message?: string
+          read_at?: string | null
+          recipient_id: string
+          sender_id: string
+          sender_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          message?: string
+          read_at?: string | null
+          recipient_id?: string
+          sender_id?: string
+          sender_name?: string
+        }
+        Relationships: []
+      }
       downtime: {
         Row: {
           category: string
@@ -3151,6 +3184,23 @@ export type Database = {
         Returns: {
           id: string
           name: string
+        }[]
+      }
+      list_dm_admins: {
+        Args: never
+        Returns: {
+          email: string
+          name: string
+          user_id: string
+        }[]
+      }
+      list_dm_operators: {
+        Args: never
+        Returns: {
+          email: string
+          line_labels: string
+          name: string
+          user_id: string
         }[]
       }
       list_engineer_labor_rates: {

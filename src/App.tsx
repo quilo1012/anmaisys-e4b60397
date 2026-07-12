@@ -62,6 +62,7 @@ const WeeklyProductionReportPage = lazyWithReload(() => import("./pages/dashboar
 const OperatorPreviewPage = lazyWithReload(() => import("./pages/dashboard/OperatorPreviewPage"));
 const EngineerPreviewPage = lazyWithReload(() => import("./pages/dashboard/EngineerPreviewPage"));
 const MyProductionPage = lazyWithReload(() => import("./pages/dashboard/MyProductionPage"));
+const DirectMessagesPage = lazyWithReload(() => import("./pages/dashboard/DirectMessagesPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -503,6 +504,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "maintenance_manager"]}>
                       <EngineerPreviewPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/messages"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "operator"]}>
+                      <DirectMessagesPage />
                     </ProtectedRoute>
                   }
                 />
