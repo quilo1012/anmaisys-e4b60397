@@ -584,9 +584,10 @@ export default function DowntimePage() {
                 <Button size="sm" variant="ghost" onClick={handleExportXlsx} title="Export Excel">
                   <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Excel
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => window.print()} title="Print">
+                <Button size="sm" variant="ghost" onClick={handlePrint} title="Print">
                   <Printer className="h-4 w-4 mr-1.5" /> Print
                 </Button>
+
               </div>
               <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={openCreate}>
                 <Plus className="h-4 w-4 mr-2" /> Register Downtime
