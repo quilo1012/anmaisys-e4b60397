@@ -272,6 +272,7 @@ const routeTitles: Record<string, string> = {
   "/dashboard/suppliers": "Suppliers & Purchasing",
   "/dashboard/messages": "Messages",
   "/users/manage": "Users",
+  "/dashboard/permissions": "Permissions",
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",
   "/dashboard/intouch-settings": "iTouching Sync",
