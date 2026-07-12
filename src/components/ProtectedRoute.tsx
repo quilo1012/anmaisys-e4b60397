@@ -113,6 +113,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <div className="flex flex-col items-center gap-3 text-center text-muted-foreground">
+          <img src="/favicon.png" alt="" aria-hidden="true" className="h-12 w-12 rounded-xl object-contain shadow-lg ring-1 ring-white/10" />
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <span className="text-sm">Loading permissions…</span>
         </div>
