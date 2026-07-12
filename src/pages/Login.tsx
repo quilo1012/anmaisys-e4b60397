@@ -343,8 +343,8 @@ export default function Login() {
                 </button>
               </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5" autoComplete="on" aria-busy={loading}>
-              <fieldset disabled={loading || authed} className="space-y-5 contents">
+            <form onSubmit={handleSubmit} className={`space-y-5 ${loading || authed ? "pointer-events-none opacity-70" : ""}`} autoComplete="on" aria-busy={loading}>
+
 
 
               {mode === "tablet" ? (
