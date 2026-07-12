@@ -1038,7 +1038,14 @@ export default function DowntimePage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Print-only footer */}
+        <div className="print-only downtime-print-footer">
+          Downtime & Reliability · Generated {printGeneratedAt}
+        </div>
+      </div>
       </div>
     </DashboardLayout>
+
   );
 }
