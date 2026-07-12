@@ -345,12 +345,13 @@ export default function Login() {
             <div className="px-4 pb-6 pt-5 sm:px-8 sm:pb-8 sm:pt-7">
 
             {/* Title */}
-            <div className="mb-6">
-              <h1 className="text-[22px] font-semibold tracking-tight text-white">Sign in</h1>
+            <div className="mb-5 sm:mb-6">
+              <h1 className="text-xl font-semibold tracking-tight text-white sm:text-[22px]">Sign in</h1>
               <p className="mt-1 text-xs text-white/50">
                 Use your work account or select a shared tablet
               </p>
             </div>
+
 
 
             {/* Mode toggle — always visible so operators can always reach the Tablet form */}
