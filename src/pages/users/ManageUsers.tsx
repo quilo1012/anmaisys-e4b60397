@@ -34,11 +34,13 @@ interface Engineer {
   labor_rate?: number | null;
 }
 
-const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", maintenance_manager: "Maintenance Manager", engineer: "Engineer", co_engineer: "Co-Engineer", operator: "Operator", viewer: "Viewer" };
+const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", supervisor: "Supervisor", maintenance_manager: "Maintenance Manager", planner: "Planner", engineer: "Engineer", co_engineer: "Co-Engineer", operator: "Operator", viewer: "Viewer" };
 const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = {
   admin: Shield,
   manager: Shield,
+  supervisor: Shield,
   maintenance_manager: WrenchIcon,
+  planner: WrenchIcon,
   engineer: WrenchIcon,
   co_engineer: WrenchIcon,
   operator: HardHat,
