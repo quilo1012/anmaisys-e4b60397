@@ -401,7 +401,7 @@ export default function ShiftHistoryPage() {
 
 
         <Card>
-          <CardContent className="p-4 grid gap-3 md:grid-cols-6">
+          <CardContent className="p-3 sm:p-4 grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-6">
             <div className="md:col-span-1">
               <Label className="text-xs">Date (single)</Label>
               <Input
