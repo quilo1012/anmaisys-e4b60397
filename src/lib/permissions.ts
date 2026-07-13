@@ -153,7 +153,7 @@ export function canAll(role: Role | null | undefined, actions: Action[]): boolea
   return actions.every((a) => can(role, a));
 }
 
-/** Direct Messages visibility — operator sends; manager/planner/admin receive. */
+/** Direct Messages visibility — operator temporarily disabled while adjustments are in progress. */
 export function canUseLineChat(role: Role | null | undefined): boolean {
-  return role === "operator" || role === "manager" || role === "supervisor" || role === "maintenance_manager" || role === "planner" || role === "admin";
+  return role === "manager" || role === "supervisor" || role === "maintenance_manager" || role === "planner" || role === "admin";
 }
