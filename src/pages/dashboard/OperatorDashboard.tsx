@@ -606,10 +606,11 @@ function OperatorDashboardContent() {
               <ClipboardList className="h-5 w-5" />
               My Work Orders
             </CardTitle>
+            {/* My Production temporarily disabled for operators
             <Button size="sm" variant="outline" onClick={() => navigate("/dashboard/operator/my-production")}>
               <Factory className="h-4 w-4 mr-2" />
               My Production
-            </Button>
+            </Button> */}
           </div>
         </CardHeader>
         <CardContent>

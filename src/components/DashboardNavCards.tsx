@@ -134,7 +134,7 @@ export function OperatorNavCards({ myOpenWOs }: { myOpenWOs?: number }) {
   const cards: NavCard[] = [
     { title: "New Work Order", description: "Submit a maintenance request", url: "#wo-form-anchor", icon: Plus, accent: "bg-emerald-500/15 text-emerald-600" },
     { title: "My Work Orders", description: "Track your submitted orders", url: "/dashboard/operator", icon: ClipboardList, badge: myOpenWOs },
-    { title: "My Production", description: "Enter today's produced quantities", url: "/dashboard/operator/my-production", icon: Factory, accent: "bg-blue-500/15 text-blue-600" },
+    // { title: "My Production", description: "Enter today's produced quantities", url: "/dashboard/operator/my-production", icon: Factory, accent: "bg-blue-500/15 text-blue-600" },
   ];
   return <DashboardNavCards cards={cards} />;
 }

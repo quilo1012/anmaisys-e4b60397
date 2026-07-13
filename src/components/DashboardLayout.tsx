@@ -58,7 +58,8 @@ interface NavItem {
 const navItems: NavItem[] = [
   // Overview
   { title: "Dashboard", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Overview" },
-  { title: "My Production", url: "/dashboard/operator/my-production", icon: Factory, roles: ["operator"], group: "Overview" },
+  // Temporarily disabled for operators while adjustments are in progress
+  // { title: "My Production", url: "/dashboard/operator/my-production", icon: Factory, roles: ["operator"], group: "Overview" },
   { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer", "co_engineer"], group: "Overview" },
   { title: "My Tasks", url: "/dashboard/engineer?focus=tasks", icon: Briefcase, roles: ["engineer", "co_engineer"], group: "Overview" },
   { title: "History", url: "/dashboard/engineer?focus=history", icon: History, roles: ["engineer", "co_engineer"], group: "Overview" },
@@ -97,7 +98,7 @@ const navItems: NavItem[] = [
   { title: "Weekly Report", url: "/dashboard/weekly-report", icon: FileBarChart, roles: ["admin", "manager"], group: "Reports" },
 
   // Admin
-  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"], group: "Admin" },
+  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Admin" },
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Admin" },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Admin" },
   { title: "Permissions", url: "/dashboard/permissions", icon: ShieldCheck, roles: ["admin"], group: "Admin" },
