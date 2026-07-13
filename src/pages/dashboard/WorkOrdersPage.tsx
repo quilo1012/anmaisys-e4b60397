@@ -459,9 +459,9 @@ export default function WorkOrdersPage() {
             </div>
 
             {/* Row 3 — Dropdown filters */}
-            <div className="flex items-center gap-2 flex-wrap filters-section">
+            <div className="grid grid-cols-2 md:flex md:items-center gap-2 md:flex-wrap filters-section">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] sm:w-[150px] h-9 bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectTrigger className="w-full md:w-[150px] h-9 bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
@@ -475,27 +475,28 @@ export default function WorkOrdersPage() {
                 </SelectContent>
               </Select>
               <Select value={lineFilter} onValueChange={setLineFilter}>
-                <SelectTrigger className="w-[140px] sm:w-[150px] h-9 bg-background"><SelectValue placeholder="Line" /></SelectTrigger>
+                <SelectTrigger className="w-full md:w-[150px] h-9 bg-background"><SelectValue placeholder="Line" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Lines</SelectItem>
                   {distinctLines.map((line) => <SelectItem key={line} value={line}>{line}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={problemFilter} onValueChange={setProblemFilter}>
-                <SelectTrigger className="w-[150px] sm:w-[170px] h-9 bg-background"><SelectValue placeholder="Problem" /></SelectTrigger>
+                <SelectTrigger className="w-full md:w-[170px] h-9 bg-background"><SelectValue placeholder="Problem" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Problems</SelectItem>
                   {problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={machineFilter} onValueChange={setMachineFilter}>
-                <SelectTrigger className="w-[150px] sm:w-[170px] h-9 bg-background"><SelectValue placeholder="Machine" /></SelectTrigger>
+                <SelectTrigger className="w-full md:w-[170px] h-9 bg-background"><SelectValue placeholder="Machine" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Machines</SelectItem>
                   {machines?.map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+
           </CardHeader>
           <CardContent>
             {/* Print-only header */}

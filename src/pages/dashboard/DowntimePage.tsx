@@ -690,25 +690,25 @@ export default function DowntimePage() {
         {/* Filters + Downtime records */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <CardTitle className="text-base">Downtime Records</CardTitle>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="grid grid-cols-3 sm:flex sm:items-center sm:flex-wrap gap-2">
                 <Select value={filterLine} onValueChange={setFilterLine}>
-                  <SelectTrigger className="w-[140px]"><SelectValue placeholder="Line" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[140px]"><SelectValue placeholder="Line" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Lines</SelectItem>
                     {lineOptions.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={filterCategory} onValueChange={setFilterCategory}>
-                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="Category" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="Category" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
                     {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
@@ -717,6 +717,7 @@ export default function DowntimePage() {
                 </Select>
               </div>
             </div>
+
           </CardHeader>
           <CardContent>
             {isLoading ? (

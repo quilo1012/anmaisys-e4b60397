@@ -1,34 +1,58 @@
-## Findings — Downtime Heatmap "Pattern Matrix" visibility (read-only audit)
+# Plano — Corrigir responsividade (mobile + tablet estreito)
 
-### 1) Component & data source
-- **Component:** `src/pages/dashboard/DowntimeHeatmapPage.tsx` (route `dashboard/downtime-map`). The matrix is rendered inline in this file — the `<Card>` with title "Pattern Matrix" starts at ~line 368 and the `<table>` at ~line 376.
-- **Data hook:** `useDowntime()` in `src/hooks/useDowntime.ts`. It merges 3 sources into a unified `DowntimeRecord[]`:
-  - `downtime_events` (per-WO stops) joined with `work_orders → lines`
-  - `work_orders` rows with `line_stopped_at` populated but no matching event (fallback)
-  - `downtime` (manual records)
-  Fields used by the matrix: `line`, `started_at`, `ended_at` (open stops treated as `ended_at = now`). Query is capped at last 90 days.
-- **Aggregation:** `useMemo` inside `DowntimeHeatmapPage.tsx` (lines ~204–310). Builds `perLineIntervals` keyed by `${weekdayIdx}-${Day|Night}`, then converts to minutes via `unionMinutes` → `unionMs` from `src/lib/downtimeReconcile.ts`.
+Alvo: funcionar bem em **≤640px (mobile)** e **~500–800px (tablet retrato / janela dividida)**, como no print (Shift History a 506px).
 
-### 2) How each cell total & color are computed
-- **Total (minutes) per cell:** UNION of intervals in that bucket (parallel/overlapping stops on the same line are counted once), then `Math.round(ms/60_000)` with a floor of 1 min for any non-zero interval (`unionMinutes`, lines 124–129).
-- **Color scale:** `cellColor(minutes, max)` at lines 139–146 — a **relative** scale using `pct = minutes / grandMax` where `grandMax` is the **single largest cell across the whole matrix** (not a per-line or per-row max, not a percentile, not capped):
-  - `<15%` emerald, `<35%` amber, `<65%` orange, `≥65%` red.
-- **Why a 7h41 stop can look "similar" to smaller ones:** the scale is dominated by the current `grandMax`. If Line 5 Thu Night = 461 min *is itself* `grandMax`, it renders red — but every other cell shrinks against it, so a 60-min cell becomes emerald (60/461 ≈ 13%). Conversely, if another bucket has an even longer stop, the 7h41 can drop into amber/orange. There is no absolute anchor (e.g. "≥120 min = red"), no per-line normalization, and no outlier cap, so a single very long stop distorts the whole map's contrast.
+## Escopo — telas de maior impacto
 
-### 3) Tooltip / cell detail
-- Only a native browser `title` attribute on each `<td>` (line 418): `"{line} • {Day} {D|N}: {Xh Ym} ({N} events)"`.
-- There is **no** click/hover detail panel, no list of individual stop events, no WO numbers, no start/end times per stop. `count` is the number of events that *started* in that bucket (lines 250–254), not the number of segments; a single overnight stop counts as `1×` even if split across two shifts.
+1. **ShiftHistoryPage** (tela atual do print)
+2. **ProductionPerformancePage** (filtros de data duplos + tabela larga)
+3. **DowntimePage** (filtros + tabela + botões Print/PDF/XLSX)
+4. **WorkOrdersPage** (lista + filtros + bulk actions)
+5. **AnalyticsPage / ExecutiveDashboard** (grids de KPI e cards)
+6. **ManagerDashboard / EngineerDashboard** (cards de resumo)
+7. **RAGWeeklyPage** e **ProductionPlannerPage** (grids semanais)
 
-### 4) Cross-midnight / shift-boundary handling
-- Correctly split. Lines 232–248 walk each stop with `nextShiftBoundary(cursor)` (from lines 132–137) which returns the next London 06:00 or 18:00 boundary, and each segment is placed in its own `(weekdayIdx, shift)` bucket using `londonAllParts` (Europe/London TZ via `Intl.DateTimeFormat`). So a stop running Thu 22:00 → Fri 07:00 contributes Thu-Night (22:00–Fri 06:00) + Fri-Day (06:00–07:00).
-- Weekday derived from London wall-clock parts (lines 238–240), so DST and midnight crossings land on the correct London day.
-- Range clamping to `[fromMs, toMs]` also happens before splitting (lines 219–221), so stops overlapping the selected range boundary are trimmed rather than mis-attributed.
-- **Caveat (not a bug in split logic):** the event `count` is attributed only to the *start* bucket (lines 250–254). An overnight stop shows `1×` in the shift it started in and `0×` in the next shift, even though minutes appear in both. This is a display choice, not a duration miscalculation.
+Fora do escopo desta rodada: telas do Operador (já otimizadas para tablet), Login, Control Center (TV mode).
 
-### Summary of what limits visibility of long stops today
-- Relative color scale anchored on `grandMax` with no absolute threshold and no cap → contrast is driven by the single worst cell.
-- Only a native `title` tooltip; no drill-down to the underlying WO/manual downtime rows.
-- Cell shows aggregated `Xh Ym` and `N×` only; no indication that the total came from one long stop vs many small ones (e.g. no max-single-stop badge).
-- No visual marker for "single stop ≥ threshold" (e.g. ≥ 2h) that would make outliers pop regardless of scale.
+## Correções padrão aplicadas em cada tela
 
-No code, DB, or config changes were made.
+**Headers de página**
+- `flex-wrap` + `gap-2` no header; título quebra antes dos botões
+- Botões de ação: `w-full sm:w-auto` em mobile; ícones sem texto abaixo de 400px (`hidden xs:inline`)
+
+**Barras de filtro**
+- Trocar `flex` linear por `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3`
+- Inputs de data lado-a-lado: `grid-cols-2` já em mobile (From/To sempre juntos)
+- Selects: `w-full` em mobile, largura fixa apenas em `md+`
+- Botões Today/Reset em linha própria full-width no mobile
+
+**Tabelas largas**
+- Wrapper `overflow-x-auto -mx-4 sm:mx-0` para permitir scroll sem cortar padding
+- Manter colunas essenciais visíveis; colunas secundárias `hidden md:table-cell`
+- Em mobile, converter linhas críticas (ex: WorkOrders, ShiftHistory) para **card list** abaixo de `sm` usando `hidden sm:block` na tabela + `sm:hidden` no card stack
+
+**Grids de KPI / cards**
+- Padronizar: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`
+- Números grandes: `text-2xl md:text-3xl` (não vazar container)
+- Paddings responsivos: `p-3 md:p-6`
+
+**Dialogs / Popovers**
+- `max-w-[95vw]` em `DialogContent` para não cortar
+- Popovers com `w-[--radix-popover-trigger-width]` já usados; auditar os que têm largura fixa
+
+**Sidebar / Layout**
+- Confirmar que `DashboardLayout` esconde sidebar em `<md` e mostra hamburguer (já feito recentemente, apenas validar nas telas listadas)
+
+## Detalhes técnicos
+
+- Adicionar breakpoint `xs: 480px` no `tailwind.config.ts` para o tier extra apertado (500px como no print).
+- Nenhuma mudança de lógica de negócio, dados, RLS ou queries. Só classes Tailwind + reordenação JSX.
+- Sem novos componentes; reutilizar `Card`, `Button`, `Select` existentes.
+- Validação: rodar Playwright em 375px, 506px e 768px em cada uma das 7 telas listadas, capturar screenshot e conferir que nada estoura horizontalmente e todos os controles são clicáveis.
+
+## Entrega em 2 passos
+
+1. **Passo 1** — ShiftHistory, ProductionPerformance, Downtime, WorkOrders (as 4 mais usadas / mais quebradas).
+2. **Passo 2** — Analytics, Executive, Manager, Engineer, RAG Weekly, Planner.
+
+Posso emendar os dois passos numa entrega só se preferir. Confirma que sigo?
