@@ -430,20 +430,21 @@ export default function ShiftHistoryPage() {
                 <SelectContent><SelectItem value="__all__">All leaders</SelectItem>{leaders.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="md:col-span-5"><Label className="text-xs">SKU</Label>
+            <div className="col-span-2 sm:col-span-3 md:col-span-5"><Label className="text-xs">SKU</Label>
               <Select value={fSku} onValueChange={setFSku}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="__all__">All SKUs</SelectItem>{skus.map((s) => <SelectItem key={s.id} value={s.id}>{s.code} — {s.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="flex items-end gap-2">
-              <Button variant="outline" size="sm" className="w-full" onClick={() => {
+            <div className="col-span-2 sm:col-span-3 md:col-span-1 flex items-end gap-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => {
                 const t = format(new Date(), "yyyy-MM-dd"); setFrom(t); setTo(t); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
               }}>Today</Button>
-              <Button variant="ghost" size="sm" className="w-full" onClick={() => {
+              <Button variant="ghost" size="sm" className="flex-1" onClick={() => {
                 setFrom(format(subDays(new Date(), 14), "yyyy-MM-dd")); setTo(format(new Date(), "yyyy-MM-dd")); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
               }}>Reset</Button>
             </div>
+
           </CardContent>
         </Card>
 
