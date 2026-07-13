@@ -211,81 +211,86 @@ export default function ProductionPerformancePage() {
   return (
     <DashboardLayout>
       <div className="p-4 md:p-6 space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-bold">Production Performance</h1>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="icon" onClick={() => {
-              if (period === "custom") {
-                const from = parseISO(date), to = parseISO(endDate);
-                const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
-                setDate(format(subDays(from, days), "yyyy-MM-dd"));
-                setEndDate(format(subDays(to, days), "yyyy-MM-dd"));
-                return;
-              }
-              const d = parseISO(date);
-              const step = period === "week" ? subDays(d, 7) : period === "month" ? addMonths(d, -1) : period === "quarter" ? addQuarters(d, -1) : period === "year" ? addYears(d, -1) : subDays(d, 1);
-              setDate(format(step, "yyyy-MM-dd"));
-            }}><ChevronLeft className="h-4 w-4" /></Button>
-            <Input type="date" value={date} onChange={(e) => {
-              setDate(e.target.value);
-              if (period !== "custom") { setPeriod("custom"); if (endDate < e.target.value) setEndDate(e.target.value); }
-            }} className="w-40" />
-            <span className="text-xs text-muted-foreground">to</span>
-            <Input type="date" value={endDate} min={date} onChange={(e) => {
-              setEndDate(e.target.value);
-              if (period !== "custom") setPeriod("custom");
-            }} className="w-40" />
-            <Button variant="outline" size="icon" onClick={() => {
-              if (period === "custom") {
-                const from = parseISO(date), to = parseISO(endDate);
-                const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
-                setDate(format(addDays(from, days), "yyyy-MM-dd"));
-                setEndDate(format(addDays(to, days), "yyyy-MM-dd"));
-                return;
-              }
-              const d = parseISO(date);
-              const step = period === "week" ? addDays(d, 7) : period === "month" ? addMonths(d, 1) : period === "quarter" ? addQuarters(d, 1) : period === "year" ? addYears(d, 1) : addDays(d, 1);
-              setDate(format(step, "yyyy-MM-dd"));
-            }}><ChevronRight className="h-4 w-4" /></Button>
-            <Select value={period} onValueChange={(v) => {
-              const p = v as Period;
-              if (p === "custom" && endDate < date) setEndDate(date);
-              if (p !== "custom") setEndDate(date);
-              setPeriod(p);
-            }}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="day">Day</SelectItem>
-                <SelectItem value="week">Week</SelectItem>
-                <SelectItem value="month">Month</SelectItem>
-                <SelectItem value="quarter">Quarter</SelectItem>
-                <SelectItem value="year">Year</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
-              </SelectContent>
-            </Select>
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
+        <div className="space-y-3">
+          <h1 className="text-xl md:text-2xl font-bold">Production Performance</h1>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" className="shrink-0" onClick={() => {
+                if (period === "custom") {
+                  const from = parseISO(date), to = parseISO(endDate);
+                  const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
+                  setDate(format(subDays(from, days), "yyyy-MM-dd"));
+                  setEndDate(format(subDays(to, days), "yyyy-MM-dd"));
+                  return;
+                }
+                const d = parseISO(date);
+                const step = period === "week" ? subDays(d, 7) : period === "month" ? addMonths(d, -1) : period === "quarter" ? addQuarters(d, -1) : period === "year" ? addYears(d, -1) : subDays(d, 1);
+                setDate(format(step, "yyyy-MM-dd"));
+              }}><ChevronLeft className="h-4 w-4" /></Button>
+              <Input type="date" value={date} onChange={(e) => {
+                setDate(e.target.value);
+                if (period !== "custom") { setPeriod("custom"); if (endDate < e.target.value) setEndDate(e.target.value); }
+              }} className="flex-1 sm:w-40 sm:flex-none min-w-0" />
+              <span className="text-xs text-muted-foreground shrink-0">to</span>
+              <Input type="date" value={endDate} min={date} onChange={(e) => {
+                setEndDate(e.target.value);
+                if (period !== "custom") setPeriod("custom");
+              }} className="flex-1 sm:w-40 sm:flex-none min-w-0" />
+              <Button variant="outline" size="icon" className="shrink-0" onClick={() => {
+                if (period === "custom") {
+                  const from = parseISO(date), to = parseISO(endDate);
+                  const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
+                  setDate(format(addDays(from, days), "yyyy-MM-dd"));
+                  setEndDate(format(addDays(to, days), "yyyy-MM-dd"));
+                  return;
+                }
+                const d = parseISO(date);
+                const step = period === "week" ? addDays(d, 7) : period === "month" ? addMonths(d, 1) : period === "quarter" ? addQuarters(d, 1) : period === "year" ? addYears(d, 1) : addDays(d, 1);
+                setDate(format(step, "yyyy-MM-dd"));
+              }}><ChevronRight className="h-4 w-4" /></Button>
+            </div>
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+              <Select value={period} onValueChange={(v) => {
+                const p = v as Period;
+                if (p === "custom" && endDate < date) setEndDate(date);
+                if (p !== "custom") setEndDate(date);
+                setPeriod(p);
+              }}>
+                <SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="day">Day</SelectItem>
+                  <SelectItem value="week">Week</SelectItem>
+                  <SelectItem value="month">Month</SelectItem>
+                  <SelectItem value="quarter">Quarter</SelectItem>
+                  <SelectItem value="year">Year</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={shift} onValueChange={(v) => setShift(v as "all" | "DAY" | "NIGHT")}>
+                <SelectTrigger className="w-full sm:w-28"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
+              </Select>
+              <Select value={lineFilter} onValueChange={setLineFilter}>
+                <SelectTrigger className="w-full sm:w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All lines</SelectItem>
+                  {sortedLines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={leaderFilter} onValueChange={setLeaderFilter}>
+                <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="All leaders" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All leaders</SelectItem>
+                  {leaders.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <span className="text-xs text-muted-foreground whitespace-nowrap sm:ml-auto">
               {range.from === range.to ? format(parseISO(range.from), "dd MMM yyyy") : `${format(parseISO(range.from), "dd MMM")} → ${format(parseISO(range.to), "dd MMM yyyy")}`}
             </span>
-            <Select value={shift} onValueChange={(v) => setShift(v as "all" | "DAY" | "NIGHT")}>
-              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
-            </Select>
-            <Select value={lineFilter} onValueChange={setLineFilter}>
-              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All lines</SelectItem>
-                {sortedLines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={leaderFilter} onValueChange={setLeaderFilter}>
-              <SelectTrigger className="w-44"><SelectValue placeholder="All leaders" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All leaders</SelectItem>
-                {leaders.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
           </div>
         </div>
+
 
         {/* Overall OEE Panel — excludes lines with no RAG Weekly target for the period (#9) */}
         {(() => {
