@@ -23,7 +23,7 @@ import { TabletBindingsCard } from "@/components/TabletBindingsCard";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 import type { Database } from "@/integrations/supabase/types";
 import { can, type Action } from "@/lib/permissions";
-import PermissionsMatrixPage from "@/pages/dashboard/PermissionsMatrixPage";
+
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"] & { role?: AppRole };
@@ -748,13 +748,16 @@ export default function ManageUsers() {
 
         {currentRole === "admin" && (
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Shield className="h-4 w-4" /> Role permissions (editable)
+                <Shield className="h-4 w-4" /> Role permissions
               </CardTitle>
+              <Button asChild size="sm" variant="outline">
+                <a href="/dashboard/permissions">Edit permissions</a>
+              </Button>
             </CardHeader>
-            <CardContent className="p-0">
-              <PermissionsMatrixPage />
+            <CardContent>
+              <RolePermissionsMatrix />
             </CardContent>
           </Card>
         )}
