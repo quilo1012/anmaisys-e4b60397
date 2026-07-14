@@ -204,7 +204,9 @@ export function setPermissionOverrides(map: Record<string, boolean>) {
 }
 export function subscribePermissionOverrides(fn: () => void) {
   overrideListeners.add(fn);
-  return () => overrideListeners.delete(fn);
+  return () => {
+    overrideListeners.delete(fn);
+  };
 }
 export function isPermissionOverridden(role: Role, action: Action): boolean {
   return `${role}:${action}` in OVERRIDES;
