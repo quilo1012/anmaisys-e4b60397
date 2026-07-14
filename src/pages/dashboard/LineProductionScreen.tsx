@@ -1070,8 +1070,24 @@ export default function LineProductionScreen() {
         onOpenChange={setPinOpen}
         title="Unlock Target"
         description="Enter Line Leader PIN to reveal target & progress for this shift."
-        onSuccess={(eng) => setTargetUnlock(eng)}
+        onSuccess={(eng) => {
+          const assigned = [
+            ...(eng.leader_lines ?? []),
+            ...(eng.leader_line ? [eng.leader_line] : []),
+          ];
+          const isLeaderForThisLine =
+            !!eng.is_leader &&
+            assigned.some((l) => lineNamesMatch(l, canonicalLineName));
+          if (!isLeaderForThisLine) {
+            toast.error(
+              `PIN not authorized for ${canonicalLineName}. Only the assigned Line Leader can unlock this target.`
+            );
+            return;
+          }
+          setTargetUnlock(eng);
+        }}
       />
+
     </div>
   );
 }
