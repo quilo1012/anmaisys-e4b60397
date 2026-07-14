@@ -82,8 +82,10 @@ export function useLineShiftTarget(params: UseLineShiftTargetParams): UseLineShi
     gap,
     rowId: q.data?.rowId ?? null,
     isLoading: q.isLoading,
+    isFetching: q.isFetching,
     isError: q.isError,
     error: q.error,
+    data: target,
     queryKey,
     refetch: () => q.refetch(),
   };
