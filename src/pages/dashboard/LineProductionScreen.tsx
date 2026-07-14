@@ -35,6 +35,7 @@ import { ProductionInputCard } from "@/components/ProductionInputCard";
 import { LineChatButton } from "@/components/LineChatButton";
 import { canUseLineChat } from "@/lib/permissions";
 import { DailyTargetCard } from "@/components/DailyTargetCard";
+import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
@@ -314,22 +315,12 @@ export default function LineProductionScreen() {
   });
 
   // RAG Weekly plan for this line/shift/today — drives the displayed target
-  const ragPlanQ = useQuery({
-    enabled: !!canonicalLineName,
-    queryKey: ["lps-rag-plan", canonicalLineName, shift, activeSessionDate],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("rag_weekly_entries")
-        .select("line, plan_qty")
-        .eq("entry_date", activeSessionDate)
-        .eq("shift", shift);
-      if (error) throw error;
-      const row = (data || []).find((r: any) => lineNamesMatch(r.line, canonicalLineName));
-      return Number(row?.plan_qty ?? 0);
-    },
-    refetchInterval: 15_000,
-    refetchOnWindowFocus: true,
-    staleTime: 0,
+  const ragPlanQ = useLineShiftTarget({
+    line: canonicalLineName,
+    date: activeSessionDate,
+    shift,
+    matchLine: (rowLine) => lineNamesMatch(rowLine, canonicalLineName),
+    refetchIntervalMs: 15_000,
   });
 
   // Realtime: refresh when RAG Weekly changes for this line/shift/today
@@ -342,11 +333,11 @@ export default function LineProductionScreen() {
         (payload) => {
           const row: any = (payload as any).new ?? (payload as any).old ?? {};
           if (!row.entry_date) {
-            qc.invalidateQueries({ queryKey: ["lps-rag-plan"] });
+            qc.invalidateQueries({ queryKey: ragPlanQ.queryKey as unknown as unknown[] });
             return;
           }
           if (row.entry_date === activeSessionDate && lineNamesMatch(row.line, canonicalLineName) && row.shift === shift) {
-            qc.invalidateQueries({ queryKey: ["lps-rag-plan", canonicalLineName, shift, activeSessionDate] });
+            qc.invalidateQueries({ queryKey: ragPlanQ.queryKey as unknown as unknown[] });
             qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
             toast.info("Target updated from RAG Weekly");
           }

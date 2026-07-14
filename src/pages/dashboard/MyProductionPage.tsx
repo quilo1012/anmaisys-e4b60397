@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Navigate } from "react-router-dom";
+import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
 
 type Shift = "DAY" | "NIGHT";
 
@@ -128,26 +129,18 @@ function MyProductionContent() {
   });
 
   // Official target comes from RAG Weekly plan_qty for line+date+shift
-  const ragQ = useQuery({
-    enabled: !!line,
-    queryKey: ["my-prod-rag-target", line, today, shift],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("rag_weekly_entries")
-        .select("plan_qty")
-        .eq("entry_date", today)
-        .eq("line", line)
-        .eq("shift", shift);
-      if (error) throw error;
-      return (data || []).reduce((s: number, r: any) => s + Number(r.plan_qty || 0), 0);
-    },
-    refetchInterval: 60_000,
+  const ragQ = useLineShiftTarget({
+    line,
+    date: today,
+    shift,
+    matchLine: (rowLine) => rowLine === line,
+    refetchIntervalMs: 60_000,
   });
 
   const items = itemsQ.data || [];
   const totalActual = items.reduce((s, i) => s + (i.actual_qty || 0), 0);
   const totalOrderQty = items.reduce((s, i) => s + (i.target_qty || 0), 0);
-  const totalTarget = Number(ragQ.data || 0);
+  const totalTarget = ragQ.target;
   const overallPct = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
   const hasManualProduction = totalActual > 0;
 
