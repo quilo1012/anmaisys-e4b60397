@@ -62,6 +62,11 @@ const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] = [
   { key: "system", label: "System", actions: ["system.clear", "system.settings", "permissions.manage"] },
 ];
 
+const ACTION_LABELS: Partial<Record<Action, string>> = {
+  "chat.line": "Line Chat",
+  "chat.dm": "Contact Supervisor / Manager",
+};
+
 const keyOf = (r: Role, a: Action) => `${r}:${a}`;
 
 export default function PermissionsMatrixPage() {
@@ -320,7 +325,7 @@ export default function PermissionsMatrixPage() {
                             className={`border-b last:border-0 ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"} hover:bg-muted/30`}
                           >
                             <td className="sticky left-0 z-10 min-w-[220px] bg-inherit p-2">
-                              <div className="font-medium">{a.split(".").slice(1).join(".")}</div>
+                              <div className="font-medium">{ACTION_LABELS[a] ?? a.split(".").slice(1).join(".")}</div>
                               <div className="font-mono text-[10px] text-muted-foreground">{a}</div>
                             </td>
                             {rolesToShow.map((r) => {

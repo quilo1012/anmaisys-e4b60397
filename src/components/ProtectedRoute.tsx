@@ -1,24 +1,26 @@
 import { Navigate, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Database } from "@/integrations/supabase/types";
 import { Loader2, RefreshCw, ShieldAlert, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { roleDashMap } from "@/lib/permissions";
+import { can, roleDashMap, subscribePermissionOverrides, type Action } from "@/lib/permissions";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: AppRole[];
+  requiredAction?: Action;
 }
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  allowedRoles?: AppRole[];
-}
-
-export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, allowedRoles, requiredAction }: ProtectedRouteProps) {
   const { session, role, profile, loading, authError, silentReLoginInFlight, retryAuth, signOut } = useAuth();
+  const [, setPermissionVersion] = useState(0);
+
+  useEffect(() => {
+    return subscribePermissionOverrides(() => setPermissionVersion((v) => v + 1));
+  }, []);
 
   if (authError && session && !role) {
     return (
@@ -124,7 +126,10 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   // Role loaded but not authorized for this route — show access denied
   // co_engineer inherits engineer's access everywhere
   const effectiveRole = role === "co_engineer" ? "engineer" : role;
-  if (allowedRoles && !allowedRoles.includes(effectiveRole)) {
+  if (
+    (allowedRoles && !allowedRoles.includes(effectiveRole)) ||
+    (requiredAction && !can(effectiveRole, requiredAction))
+  ) {
     const homePath = roleDashMap[role] || "/login";
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
