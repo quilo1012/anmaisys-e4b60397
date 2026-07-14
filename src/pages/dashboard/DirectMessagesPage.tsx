@@ -73,7 +73,7 @@ export default function DirectMessagesPage() {
   const title =
     role === "admin" || role === "supervisor" || role === "manager"
       ? "Chat with Operators"
-      : "Chat with Supervisor / Manager";
+      : "Chat with Supervisor";
 
   return (
     <DashboardLayout>
