@@ -832,7 +832,7 @@ function EngineerDashboardContent() {
             return t >= start;
           }).length;
           return (
-            <div className="grid gap-3 grid-cols-3">
+            <div className="grid gap-3 grid-cols-1 xs:grid-cols-3">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
                   <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Active</CardTitle>

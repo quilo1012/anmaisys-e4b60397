@@ -195,7 +195,7 @@ export default function ExecutiveDashboard() {
         </div>
 
         {/* KPI Grid */}
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 [&_p.text-3xl]:text-2xl [&_p.text-3xl]:sm:text-3xl">
           <Card className="border-l-4 border-l-blue-500">
             <CardContent className="pt-4 pb-3">
               <div className="flex items-center gap-2 text-muted-foreground mb-1">
