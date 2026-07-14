@@ -32,8 +32,7 @@ import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
-import { LineChatButton } from "@/components/LineChatButton";
-import { canUseLineChat } from "@/lib/permissions";
+import { can, subscribePermissionOverrides, type Action } from "@/lib/permissions";
 import { AutoWoDisabledBanner } from "@/components/AutoWoDisabledBanner";
 import { UnmappedLinesBanner } from "@/components/UnmappedLinesBanner";
 import { PushOnboarding } from "@/components/PushOnboarding";
@@ -53,6 +52,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   roles: AppRole[];
   group: string;
+  action?: Action;
 }
 
 const navItems: NavItem[] = [
@@ -98,7 +98,7 @@ const navItems: NavItem[] = [
   { title: "Weekly Report", url: "/dashboard/weekly-report", icon: FileBarChart, roles: ["admin", "manager"], group: "Reports" },
 
   // Admin
-  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"], group: "Admin" },
+  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"], group: "Admin", action: "chat.dm" },
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Admin" },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Admin" },
   { title: "Permissions", url: "/dashboard/permissions", icon: ShieldCheck, roles: ["admin"], group: "Admin" },
@@ -291,6 +291,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { language, toggle: toggleLanguage } = useLanguage();
   const [changePwdOpen, setChangePwdOpen] = useState(false);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
+  const [, setPermissionVersion] = useState(0);
 
   const performSignOut = async () => {
     try {
@@ -303,6 +304,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   };
 
   useHeartbeat();
+
+  useEffect(() => {
+    return subscribePermissionOverrides(() => setPermissionVersion((v) => v + 1));
+  }, []);
 
   // Engineer/Admin: auto-prompt the "Enable Alerts" gesture on any dashboard
   // route, not only the engineer dashboard. Without this, an engineer who
@@ -326,7 +331,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     document.title = `AN Maintenance | ${pageName}`;
   }, [location.pathname]);
 
-  const filteredItems = navItems.filter((item) => effectiveRole && item.roles.includes(effectiveRole as AppRole));
+  const filteredItems = navItems.filter(
+    (item) =>
+      effectiveRole &&
+      item.roles.includes(effectiveRole as AppRole) &&
+      (!item.action || can(effectiveRole as AppRole, item.action)),
+  );
   const showStoppedBadge = stoppedLinesCount > 0 && (effectiveRole === "engineer" || effectiveRole === "manager" || effectiveRole === "maintenance_manager" || effectiveRole === "admin");
   const stoppedTarget = effectiveRole === "engineer" ? "/dashboard/engineer" : "/dashboard/work-orders";
 

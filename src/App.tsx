@@ -527,7 +527,7 @@ const App = () => (
                 <Route
                   path="/dashboard/messages"
                   element={
-                    <ProtectedRoute allowedRoles={["operator", "manager", "supervisor", "maintenance_manager", "planner", "admin"]}>
+                    <ProtectedRoute allowedRoles={["operator", "manager", "supervisor", "maintenance_manager", "planner", "admin"]} requiredAction="chat.dm">
                       <DirectMessagesPage />
                     </ProtectedRoute>
                   }

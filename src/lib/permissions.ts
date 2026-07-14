@@ -204,7 +204,9 @@ export function setPermissionOverrides(map: Record<string, boolean>) {
 }
 export function subscribePermissionOverrides(fn: () => void) {
   overrideListeners.add(fn);
-  return () => overrideListeners.delete(fn);
+  return () => {
+    overrideListeners.delete(fn);
+  };
 }
 export function isPermissionOverridden(role: Role, action: Action): boolean {
   return `${role}:${action}` in OVERRIDES;
@@ -235,14 +237,12 @@ export function canAll(role: Role | null | undefined, actions: Action[]): boolea
   return actions.every((a) => can(role, a));
 }
 
-/** Direct Messages visibility. */
+/** Line chat visibility (floating line-level chat). */
 export function canUseLineChat(role: Role | null | undefined): boolean {
-  return (
-    role === "manager" ||
-    role === "supervisor" ||
-    role === "maintenance_manager" ||
-    role === "planner" ||
-    role === "admin" ||
-    role === "operator"
-  );
+  return can(role, "chat.line");
+}
+
+/** Direct Messages visibility (Contact supervisor/manager). */
+export function canUseDirectMessages(role: Role | null | undefined): boolean {
+  return can(role, "chat.dm");
 }
