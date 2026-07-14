@@ -228,6 +228,7 @@ export default function PermissionsMatrixPage() {
       }
       setPermissionOverrides(map);
       setDirty(new Set());
+      setPreviewOpen(false);
       toast({ title: "Permissions saved", description: `${toUpsert.length + toDelete.length} change(s) applied.` });
     } catch (e: any) {
       toast({ title: "Save failed", description: e?.message ?? String(e), variant: "destructive" });
