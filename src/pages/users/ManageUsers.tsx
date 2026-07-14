@@ -762,6 +762,9 @@ export default function ManageUsers() {
           </Card>
         )}
 
+        {currentRole === "admin" && <PermissionAuditLog />}
+
+
         <Card>
           <CardHeader><CardTitle>Staff Members</CardTitle></CardHeader>
           <CardContent>
