@@ -471,6 +471,71 @@ export default function PermissionsMatrixPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <Dialog open={previewOpen} onOpenChange={(o) => !saving && setPreviewOpen(o)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-4 w-4" /> Review permission changes
+            </DialogTitle>
+            <DialogDescription>
+              {pendingChanges.length} change(s) will be applied. Review each row before saving —
+              new value overwrites the current one for that role.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[50vh] overflow-y-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-muted/40 text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="p-2 text-left">Role</th>
+                  <th className="p-2 text-left">Action</th>
+                  <th className="p-2 text-center">From</th>
+                  <th className="p-2 text-center">To</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingChanges.map((c) => (
+                  <tr key={c.key} className="border-t">
+                    <td className="p-2">
+                      <Badge variant="outline" className="text-[10px]">{ROLE_LABELS[c.role]}</Badge>
+                    </td>
+                    <td className="p-2">
+                      <div className="font-medium">{ACTION_LABELS[c.action] ?? c.action}</div>
+                      {ACTION_DESCRIPTIONS[c.action] && (
+                        <div className="text-[11px] text-muted-foreground">{ACTION_DESCRIPTIONS[c.action]}</div>
+                      )}
+                      {c.isReset && (
+                        <Badge variant="secondary" className="mt-1 text-[10px]">Reset to default</Badge>
+                      )}
+                    </td>
+                    <td className="p-2 text-center">
+                      <Badge variant="outline" className={c.from ? "border-emerald-500/40 text-emerald-600" : "border-border text-muted-foreground"}>
+                        {c.from ? "Allowed" : "Denied"}
+                      </Badge>
+                    </td>
+                    <td className="p-2 text-center">
+                      <Badge variant="outline" className={c.to ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600" : "border-destructive/40 bg-destructive/5 text-destructive"}>
+                        {c.to ? "Allowed" : "Denied"}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={save} disabled={saving || pendingChanges.length === 0}>
+              {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+              Confirm & Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
