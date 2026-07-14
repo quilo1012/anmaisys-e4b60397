@@ -50,11 +50,11 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
     if (n === actual) return;
     setSaving(true);
     let error: any = null;
-    if (q.data?.id) {
+    if (rowId) {
       ({ error } = await (supabase as any)
         .from("rag_weekly_entries")
         .update({ actual_qty: n })
-        .eq("id", q.data.id));
+        .eq("id", rowId));
     } else {
       ({ error } = await (supabase as any)
         .from("rag_weekly_entries")
@@ -65,7 +65,7 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
     setSaved(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setSaved(false), 2000);
-    qc.invalidateQueries({ queryKey: key });
+    qc.invalidateQueries({ queryKey: q.queryKey as unknown as unknown[] });
   };
 
   return (
