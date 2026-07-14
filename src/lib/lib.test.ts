@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { formatDuration, formatMinutes } from "@/lib/formatDuration";
 import { isWoOpen, countOpenWOs, WO_TERMINAL_STATUSES } from "@/lib/woStatus";
 import { formatWONumber } from "@/lib/woFormat";
@@ -134,6 +134,11 @@ describe("woAck local acknowledgement tracker", () => {
 
 // ─── shifts ────────────────────────────────────────────────────────────────
 describe("getShift", () => {
+  // Garante que "hora local" do teste seja a mesma referência que getShift usa (Europe/London)
+  beforeAll(() => {
+    process.env.TZ = "Europe/London";
+  });
+  
   function at(hour: number, minute = 0): Date {
     const d = new Date();
     d.setHours(hour, minute, 0, 0);
