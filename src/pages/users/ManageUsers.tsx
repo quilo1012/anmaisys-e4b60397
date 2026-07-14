@@ -20,6 +20,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
 import { TabletBindingsCard } from "@/components/TabletBindingsCard";
+import { PermissionAuditLog } from "@/components/PermissionAuditLog";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 import type { Database } from "@/integrations/supabase/types";
 import { can, type Action } from "@/lib/permissions";
