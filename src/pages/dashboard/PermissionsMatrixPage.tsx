@@ -35,9 +35,21 @@ const ACTION_GROUPS: { label: string; actions: Action[] }[] = [
   { label: "Downtime", actions: ["downtime.view", "downtime.manage"] },
   { label: "Machines & Problems", actions: ["machines.view", "machines.manage", "problems.view", "problems.manage"] },
   { label: "Stock", actions: ["stock.view", "stock.manage", "stock.pricing"] },
+  { label: "Production", actions: ["production.view", "production.manage", "production.target.view", "production.target.manage", "production.performance.view"] },
+  { label: "Planner & SKU", actions: ["planner.view", "planner.manage", "sku.view", "sku.manage"] },
+  { label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
+  { label: "Smart Target", actions: ["smarttarget.view"] },
+  { label: "Quality", actions: ["quality.view", "quality.manage"] },
+  { label: "Preventive Maintenance", actions: ["pm.view", "pm.manage"] },
+  { label: "Engineers & Leaders", actions: ["engineers.view", "engineers.manage", "leaders.view", "leaders.manage"] },
+  { label: "Chat & Messages", actions: ["chat.line", "chat.dm"] },
+  { label: "Notifications", actions: ["notifications.view", "notifications.manage"] },
+  { label: "iTouching Integration", actions: ["intouch.view", "intouch.manage"] },
+  { label: "Control Center & Assets", actions: ["controlcenter.view", "assets.manage"] },
+  { label: "Dashboards", actions: ["dashboard.executive", "dashboard.manager", "dashboard.engineer", "dashboard.operator"] },
   { label: "Users & Audit", actions: ["users.view", "users.manage", "audit.view"] },
   { label: "Reports", actions: ["reports.analytics", "reports.financial", "reports.executive"] },
-  { label: "System", actions: ["system.clear", "system.settings"] },
+  { label: "System & Permissions", actions: ["system.clear", "system.settings", "permissions.manage"] },
 ];
 
 const keyOf = (r: Role, a: Action) => `${r}:${a}`;
