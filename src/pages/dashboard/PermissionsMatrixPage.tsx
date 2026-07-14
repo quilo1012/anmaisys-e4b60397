@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, X, ShieldCheck, Info, Save, RotateCcw, Loader2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Check, X, ShieldCheck, Info, Save, RotateCcw, Loader2, Search, Filter } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
 import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,34 +32,34 @@ const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
   manager: "Manager",
   supervisor: "Supervisor",
-  maintenance_manager: "Maint. Manager",
+  maintenance_manager: "Maint.",
   planner: "Planner",
   engineer: "Engineer",
-  co_engineer: "Co-Engineer",
+  co_engineer: "Co-Eng.",
   operator: "Operator",
   viewer: "Viewer",
 };
 
-const ACTION_GROUPS: { label: string; actions: Action[] }[] = [
-  { label: "Work Orders", actions: ["wo.view", "wo.create", "wo.update", "wo.close", "wo.delete", "wo.force", "wo.print"] },
-  { label: "Downtime", actions: ["downtime.view", "downtime.manage"] },
-  { label: "Machines & Problems", actions: ["machines.view", "machines.manage", "problems.view", "problems.manage"] },
-  { label: "Stock", actions: ["stock.view", "stock.manage", "stock.pricing"] },
-  { label: "Production", actions: ["production.view", "production.manage", "production.target.view", "production.target.manage", "production.performance.view"] },
-  { label: "Planner & SKU", actions: ["planner.view", "planner.manage", "sku.view", "sku.manage"] },
-  { label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
-  { label: "Smart Target", actions: ["smarttarget.view"] },
-  { label: "Quality", actions: ["quality.view", "quality.manage"] },
-  { label: "Preventive Maintenance", actions: ["pm.view", "pm.manage"] },
-  { label: "Engineers & Leaders", actions: ["engineers.view", "engineers.manage", "leaders.view", "leaders.manage"] },
-  { label: "Chat & Messages", actions: ["chat.line", "chat.dm"] },
-  { label: "Notifications", actions: ["notifications.view", "notifications.manage"] },
-  { label: "iTouching Integration", actions: ["intouch.view", "intouch.manage"] },
-  { label: "Control Center & Assets", actions: ["controlcenter.view", "assets.manage"] },
-  { label: "Dashboards", actions: ["dashboard.executive", "dashboard.manager", "dashboard.engineer", "dashboard.operator"] },
-  { label: "Users & Audit", actions: ["users.view", "users.manage", "audit.view"] },
-  { label: "Reports", actions: ["reports.analytics", "reports.financial", "reports.executive"] },
-  { label: "System & Permissions", actions: ["system.clear", "system.settings", "permissions.manage"] },
+const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] = [
+  { key: "wo", label: "Work Orders", actions: ["wo.view", "wo.create", "wo.update", "wo.close", "wo.delete", "wo.force", "wo.print"] },
+  { key: "downtime", label: "Downtime", actions: ["downtime.view", "downtime.manage"] },
+  { key: "machines", label: "Machines & Problems", actions: ["machines.view", "machines.manage", "problems.view", "problems.manage"] },
+  { key: "stock", label: "Stock", actions: ["stock.view", "stock.manage", "stock.pricing"] },
+  { key: "production", label: "Production", actions: ["production.view", "production.manage", "production.target.view", "production.target.manage", "production.performance.view"] },
+  { key: "planner", label: "Planner & SKU", actions: ["planner.view", "planner.manage", "sku.view", "sku.manage"] },
+  { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
+  { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
+  { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage"] },
+  { key: "pm", label: "Preventive Maint.", actions: ["pm.view", "pm.manage"] },
+  { key: "eng", label: "Engineers & Leaders", actions: ["engineers.view", "engineers.manage", "leaders.view", "leaders.manage"] },
+  { key: "chat", label: "Chat & Messages", actions: ["chat.line", "chat.dm"] },
+  { key: "notif", label: "Notifications", actions: ["notifications.view", "notifications.manage"] },
+  { key: "intouch", label: "iTouching", actions: ["intouch.view", "intouch.manage"] },
+  { key: "cc", label: "Control Center", actions: ["controlcenter.view", "assets.manage"] },
+  { key: "dash", label: "Dashboards", actions: ["dashboard.executive", "dashboard.manager", "dashboard.engineer", "dashboard.operator"] },
+  { key: "users", label: "Users & Audit", actions: ["users.view", "users.manage", "audit.view"] },
+  { key: "reports", label: "Reports", actions: ["reports.analytics", "reports.financial", "reports.executive"] },
+  { key: "system", label: "System", actions: ["system.clear", "system.settings", "permissions.manage"] },
 ];
 
 const keyOf = (r: Role, a: Action) => `${r}:${a}`;
@@ -58,13 +68,16 @@ export default function PermissionsMatrixPage() {
   const { role } = useRole();
   const isAdmin = role === "admin";
 
-  // Draft = current effective value per cell (true/false), mutated by admin clicks.
   const [draft, setDraft] = useState<Record<string, boolean>>({});
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Hydrate draft from current effective state (defaults + overrides).
+  const [search, setSearch] = useState("");
+  const [tab, setTab] = useState<string>("all");
+  const [onlyChanged, setOnlyChanged] = useState(false);
+  const [visibleRoles, setVisibleRoles] = useState<Set<Role>>(new Set(ALL_ROLES));
+
   useEffect(() => {
     const init: Record<string, boolean> = {};
     for (const r of ALL_ROLES) for (const a of ALL_ACTIONS) init[keyOf(r, a)] = can(r, a);
@@ -90,7 +103,6 @@ export default function PermissionsMatrixPage() {
     setDraft((prev) => ({ ...prev, [k]: defaultCan(r, a) }));
     setDirty((prev) => {
       const next = new Set(prev);
-      // Mark as change if current DB has an override or the reset value differs from override
       if (isPermissionOverridden(r, a) || can(r, a) !== defaultCan(r, a)) next.add(k);
       else next.delete(k);
       return next;
@@ -98,9 +110,8 @@ export default function PermissionsMatrixPage() {
   };
 
   const overriddenCount = useMemo(
-    () =>
-      ALL_ROLES.reduce((sum, r) => sum + ALL_ACTIONS.filter((a) => isPermissionOverridden(r, a)).length, 0),
-    [draft]
+    () => ALL_ROLES.reduce((sum, r) => sum + ALL_ACTIONS.filter((a) => isPermissionOverridden(r, a)).length, 0),
+    []
   );
 
   const save = async () => {
@@ -115,7 +126,6 @@ export default function PermissionsMatrixPage() {
         if (val === defaultCan(r, a)) toDelete.push({ role: r, action: a });
         else toUpsert.push({ role: r, action: a, allowed: val });
       }
-
       if (toUpsert.length) {
         const { error } = await (supabase as any)
           .from("role_permission_overrides")
@@ -130,8 +140,6 @@ export default function PermissionsMatrixPage() {
           .eq("action", d.action);
         if (error) throw error;
       }
-
-      // Refetch and apply overrides globally.
       const { data } = await (supabase as any)
         .from("role_permission_overrides")
         .select("role, action, allowed");
@@ -156,119 +164,214 @@ export default function PermissionsMatrixPage() {
     setDirty(new Set());
   };
 
+  const rolesToShow = ALL_ROLES.filter((r) => visibleRoles.has(r));
+
+  const filteredGroups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return ACTION_GROUPS
+      .filter((g) => tab === "all" || g.key === tab)
+      .map((g) => ({
+        ...g,
+        actions: g.actions.filter((a) => {
+          if (q && !a.toLowerCase().includes(q) && !g.label.toLowerCase().includes(q)) return false;
+          if (onlyChanged) {
+            return rolesToShow.some((r) => dirty.has(keyOf(r, a)) || isPermissionOverridden(r, a));
+          }
+          return true;
+        }),
+      }))
+      .filter((g) => g.actions.length > 0);
+  }, [search, tab, onlyChanged, dirty, rolesToShow]);
+
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="h-7 w-7 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Permissions Matrix</h1>
-            <p className="text-sm text-muted-foreground">
-              {isAdmin
-                ? "Click any cell to toggle ✓/✗. Changes save to the database and apply live."
-                : "Read-only view. Only admins can edit."}
-            </p>
+    <div className="space-y-4 p-4 md:p-6">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-20 -mx-4 md:-mx-6 border-b bg-background/95 px-4 py-3 backdrop-blur md:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="h-6 w-6 text-primary" />
+            <div>
+              <h1 className="text-xl font-bold leading-tight">Permissions Matrix</h1>
+              <p className="text-xs text-muted-foreground">
+                {isAdmin ? "Click any cell to toggle. Changes apply live after save." : "Read-only view."}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="text-xs">{overriddenCount} override(s)</Badge>
+            {dirty.size > 0 && <Badge variant="secondary" className="text-xs">{dirty.size} unsaved</Badge>}
+            {isAdmin && (
+              <>
+                <Button variant="outline" size="sm" onClick={discard} disabled={saving || dirty.size === 0}>
+                  <RotateCcw className="mr-1.5 h-4 w-4" /> Discard
+                </Button>
+                <Button size="sm" onClick={save} disabled={saving || dirty.size === 0}>
+                  {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+                  Save
+                </Button>
+              </>
+            )}
           </div>
         </div>
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">{overriddenCount} override(s)</Badge>
-            {dirty.size > 0 && <Badge variant="secondary">{dirty.size} unsaved</Badge>}
-            <Button variant="outline" size="sm" onClick={discard} disabled={saving || dirty.size === 0}>
-              <RotateCcw className="mr-1.5 h-4 w-4" /> Discard
-            </Button>
-            <Button size="sm" onClick={save} disabled={saving || dirty.size === 0}>
-              {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-              Save
-            </Button>
+
+        {/* Filters row */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search action or group…"
+              className="h-9 pl-8"
+            />
           </div>
-        )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9">
+                <Filter className="mr-1.5 h-4 w-4" /> Roles ({visibleRoles.size}/{ALL_ROLES.length})
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 bg-popover">
+              <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {ALL_ROLES.map((r) => (
+                <DropdownMenuCheckboxItem
+                  key={r}
+                  checked={visibleRoles.has(r)}
+                  onCheckedChange={(v) => {
+                    setVisibleRoles((prev) => {
+                      const next = new Set(prev);
+                      v ? next.add(r) : next.delete(r);
+                      if (next.size === 0) next.add(r);
+                      return next;
+                    });
+                  }}
+                >
+                  {ROLE_LABELS[r]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant={onlyChanged ? "default" : "outline"}
+            size="sm"
+            className="h-9"
+            onClick={() => setOnlyChanged((v) => !v)}
+          >
+            Only changed
+          </Button>
+        </div>
       </div>
 
-      <Alert>
+      <Alert className="py-2">
         <Info className="h-4 w-4" />
-        <AlertTitle>How overrides work</AlertTitle>
-        <AlertDescription>
-          Each cell shows the effective permission. Toggling a cell writes an override to the
-          database that supersedes the default matrix. Reset a cell to its default with the small
-          ↺ button that appears when it differs.
+        <AlertTitle className="text-sm">Overrides</AlertTitle>
+        <AlertDescription className="text-xs">
+          Toggling a cell writes a database override. Use ↺ to reset to the code default.
         </AlertDescription>
       </Alert>
 
-      {loading ? (
-        <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-      ) : (
-        ACTION_GROUPS.map((group) => (
-          <Card key={group.label}>
-            <CardHeader>
-              <CardTitle className="text-lg">{group.label}</CardTitle>
-              <CardDescription>{group.actions.length} action(s)</CardDescription>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <table className="w-full min-w-[820px] border-collapse text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="sticky left-0 z-10 bg-card p-2 text-left font-medium">Action</th>
-                    {ALL_ROLES.map((r) => (
-                      <th key={r} className="p-2 text-center font-medium">
-                        <Badge variant="outline" className="whitespace-nowrap">{ROLE_LABELS[r]}</Badge>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.actions.map((a) => (
-                    <tr key={a} className="border-b last:border-0 hover:bg-muted/40">
-                      <td className="sticky left-0 z-10 bg-card p-2">
-                        <div className="font-medium">{a.split(".")[1]}</div>
-                        <div className="text-xs text-muted-foreground">{a}</div>
-                      </td>
-                      {ALL_ROLES.map((r) => {
-                        const k = keyOf(r, a);
-                        const allowed = draft[k] ?? can(r, a);
-                        const isDirty = dirty.has(k);
-                        const differsFromDefault = allowed !== defaultCan(r, a);
-                        return (
-                          <td key={r} className="p-1 text-center align-middle">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => toggle(r, a)}
-                                disabled={!isAdmin}
-                                aria-label={`${allowed ? "allowed" : "denied"} — click to toggle`}
-                                className={[
-                                  "inline-flex h-8 w-8 items-center justify-center rounded-md border transition",
-                                  allowed
-                                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20"
-                                    : "border-muted bg-muted/30 text-muted-foreground/60 hover:bg-muted",
-                                  isDirty ? "ring-2 ring-primary" : "",
-                                  !isAdmin ? "cursor-not-allowed opacity-70" : "cursor-pointer",
-                                ].join(" ")}
-                              >
-                                {allowed ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
-                              </button>
-                              {isAdmin && differsFromDefault && (
-                                <button
-                                  type="button"
-                                  title="Reset to default"
-                                  onClick={() => resetCell(r, a)}
-                                  className="text-xs text-muted-foreground hover:text-foreground"
-                                >
-                                  ↺
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        ))
-      )}
+      {/* Group tabs */}
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-muted/50 p-1">
+          <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
+          {ACTION_GROUPS.map((g) => (
+            <TabsTrigger key={g.key} value={g.key} className="text-xs">
+              {g.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <TabsContent value={tab} className="mt-4 space-y-4">
+          {loading ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : filteredGroups.length === 0 ? (
+            <div className="rounded-md border p-6 text-center text-sm text-muted-foreground">
+              No actions match your filters.
+            </div>
+          ) : (
+            filteredGroups.map((group) => (
+              <Card key={group.key} className="overflow-hidden">
+                <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2">
+                  <div className="text-sm font-semibold">{group.label}</div>
+                  <Badge variant="outline" className="text-[10px]">{group.actions.length}</Badge>
+                </div>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-sm">
+                      <thead className="bg-muted/20">
+                        <tr>
+                          <th className="sticky left-0 z-10 min-w-[220px] border-b bg-muted/20 p-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Action
+                          </th>
+                          {rolesToShow.map((r) => (
+                            <th key={r} className="border-b p-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              {ROLE_LABELS[r]}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.actions.map((a, idx) => (
+                          <tr
+                            key={a}
+                            className={`border-b last:border-0 ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"} hover:bg-muted/30`}
+                          >
+                            <td className="sticky left-0 z-10 min-w-[220px] bg-inherit p-2">
+                              <div className="font-medium">{a.split(".").slice(1).join(".")}</div>
+                              <div className="font-mono text-[10px] text-muted-foreground">{a}</div>
+                            </td>
+                            {rolesToShow.map((r) => {
+                              const k = keyOf(r, a);
+                              const allowed = draft[k] ?? can(r, a);
+                              const isDirty = dirty.has(k);
+                              const differsFromDefault = allowed !== defaultCan(r, a);
+                              return (
+                                <td key={r} className="p-1 text-center align-middle">
+                                  <div className="relative inline-flex items-center justify-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggle(r, a)}
+                                      disabled={!isAdmin}
+                                      aria-label={`${allowed ? "allowed" : "denied"} — toggle`}
+                                      className={[
+                                        "inline-flex h-7 w-7 items-center justify-center rounded-md border transition",
+                                        allowed
+                                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
+                                          : "border-border bg-muted/40 text-muted-foreground/60 hover:bg-muted",
+                                        isDirty ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : "",
+                                        !isAdmin ? "cursor-not-allowed opacity-70" : "cursor-pointer",
+                                      ].join(" ")}
+                                    >
+                                      {allowed ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                                    </button>
+                                    {isAdmin && differsFromDefault && (
+                                      <button
+                                        type="button"
+                                        title="Reset to default"
+                                        onClick={() => resetCell(r, a)}
+                                        className="absolute -right-3 -top-1 rounded-full bg-background text-[10px] text-muted-foreground hover:text-foreground"
+                                      >
+                                        ↺
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
