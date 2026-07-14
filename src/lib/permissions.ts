@@ -37,16 +37,58 @@ export type Action =
   | "reports.executive"
   // System
   | "system.clear"
-  | "system.settings";
+  | "system.settings"
+  // Production
+  | "production.view"
+  | "production.manage"
+  | "production.target.view"
+  | "production.target.manage"
+  | "production.performance.view"
+  // Planner / Scheduling
+  | "planner.view"
+  | "planner.manage"
+  | "sku.view"
+  | "sku.manage"
+  // RAG Weekly
+  | "rag.view"
+  | "rag.manage"
+  | "rag.comment"
+  // Smart Target
+  | "smarttarget.view"
+  // Quality
+  | "quality.view"
+  | "quality.manage"
+  // Preventive Maintenance
+  | "pm.view"
+  | "pm.manage"
+  // Engineers / Leaders
+  | "engineers.view"
+  | "engineers.manage"
+  | "leaders.view"
+  | "leaders.manage"
+  // Chat / DM
+  | "chat.line"
+  | "chat.dm"
+  // Notifications
+  | "notifications.view"
+  | "notifications.manage"
+  // iTouching Sync
+  | "intouch.view"
+  | "intouch.manage"
+  // Control Center / Assets
+  | "controlcenter.view"
+  | "assets.manage"
+  // Dashboards
+  | "dashboard.executive"
+  | "dashboard.manager"
+  | "dashboard.engineer"
+  | "dashboard.operator"
+  // Permissions matrix
+  | "permissions.manage";
 
 const ALL: Role[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
 
-/**
- * Permission matrix — single source of truth.
- * Roles listed for each action are the ones allowed to perform it.
- */
 const MATRIX: Record<Action, Role[]> = {
-  // Work Orders
   "wo.view": ALL,
   "wo.create": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
   "wo.update": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
@@ -55,36 +97,76 @@ const MATRIX: Record<Action, Role[]> = {
   "wo.force": ["admin"],
   "wo.print": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
 
-  // Downtime — planner/supervisor view; supervisor manages
   "downtime.view": ALL,
   "downtime.manage": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
 
-  // Machines
   "machines.view": ALL,
   "machines.manage": ["admin", "manager", "supervisor"],
 
-  // Problems
   "problems.view": ALL,
   "problems.manage": ["admin", "manager", "supervisor"],
 
-  // Stock
   "stock.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
   "stock.manage": ["admin", "manager", "supervisor"],
   "stock.pricing": ["admin"],
 
-  // Users / Audit
   "users.view": ["admin", "manager"],
   "users.manage": ["admin", "manager"],
   "audit.view": ["admin", "manager", "supervisor"],
 
-  // Reports
   "reports.analytics": ["admin", "manager", "supervisor"],
   "reports.financial": ["admin"],
   "reports.executive": ["admin"],
 
-  // System
   "system.clear": ["admin"],
   "system.settings": ["admin"],
+
+  "production.view": ALL,
+  "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
+  "production.target.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
+  "production.target.manage": ["admin", "manager", "supervisor", "planner"],
+  "production.performance.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
+
+  "planner.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
+  "planner.manage": ["admin", "manager", "planner"],
+  "sku.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
+  "sku.manage": ["admin", "manager", "planner"],
+
+  "rag.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
+  "rag.manage": ["admin", "manager", "planner"],
+  "rag.comment": ["admin", "manager", "supervisor", "planner"],
+
+  "smarttarget.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
+
+  "quality.view": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
+  "quality.manage": ["admin", "manager", "supervisor"],
+
+  "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "engineer", "co_engineer"],
+  "pm.manage": ["admin", "manager", "maintenance_manager"],
+
+  "engineers.view": ["admin", "manager", "supervisor", "maintenance_manager"],
+  "engineers.manage": ["admin", "manager", "maintenance_manager"],
+  "leaders.view": ["admin", "manager", "supervisor"],
+  "leaders.manage": ["admin", "manager"],
+
+  "chat.line": ["admin", "operator"],
+  "chat.dm": ["admin", "manager", "supervisor", "operator"],
+
+  "notifications.view": ALL,
+  "notifications.manage": ["admin", "manager"],
+
+  "intouch.view": ["admin", "manager", "maintenance_manager", "planner"],
+  "intouch.manage": ["admin", "maintenance_manager"],
+
+  "controlcenter.view": ["admin", "manager", "supervisor", "maintenance_manager"],
+  "assets.manage": ["admin", "manager", "maintenance_manager"],
+
+  "dashboard.executive": ["admin", "manager"],
+  "dashboard.manager": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "viewer"],
+  "dashboard.engineer": ["admin", "engineer", "co_engineer"],
+  "dashboard.operator": ["admin", "operator"],
+
+  "permissions.manage": ["admin"],
 };
 
 /**
