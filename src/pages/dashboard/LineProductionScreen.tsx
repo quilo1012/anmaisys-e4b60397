@@ -35,6 +35,7 @@ import { ProductionInputCard } from "@/components/ProductionInputCard";
 import { LineChatButton } from "@/components/LineChatButton";
 import { canUseLineChat } from "@/lib/permissions";
 import { DailyTargetCard } from "@/components/DailyTargetCard";
+import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
