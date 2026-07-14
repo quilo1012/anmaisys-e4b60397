@@ -746,7 +746,18 @@ export default function ManageUsers() {
           </Dialog>
         </div>
 
-        {currentRole === "admin" && <RolePermissionsMatrix />}
+        {currentRole === "admin" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Shield className="h-4 w-4" /> Role permissions (editable)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <PermissionsMatrixPage />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader><CardTitle>Staff Members</CardTitle></CardHeader>
