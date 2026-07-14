@@ -65,11 +65,19 @@ async def audit_page(page, vw):
     bad = await page.evaluate(
         """(vw) => {
             const sel = 'button, a[href], input, select, textarea, [role=button]';
+            const insideScroller = (el) => {
+                for (let n = el.parentElement; n; n = n.parentElement) {
+                    const s = getComputedStyle(n);
+                    if (['auto','scroll'].includes(s.overflowX)) return true;
+                    if (n.hasAttribute('data-radix-portal') || n.getAttribute('role') === 'dialog') return true;
+                }
+                return false;
+            };
             const out = [];
             for (const el of document.querySelectorAll(sel)) {
                 const r = el.getBoundingClientRect();
                 if (r.width === 0 && r.height === 0) continue;
-                if (r.right > vw + 1) {
+                if (r.right > vw + 1 && !insideScroller(el)) {
                     out.push({ tag: el.tagName.toLowerCase(),
                         label: (el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 40),
                         right: Math.round(r.right) });
