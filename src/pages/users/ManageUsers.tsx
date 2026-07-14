@@ -23,7 +23,7 @@ import { TabletBindingsCard } from "@/components/TabletBindingsCard";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 import type { Database } from "@/integrations/supabase/types";
 import { can, type Action } from "@/lib/permissions";
-import PermissionsMatrixPage from "@/pages/dashboard/PermissionsMatrixPage";
+
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"] & { role?: AppRole };
