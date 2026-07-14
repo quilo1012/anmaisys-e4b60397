@@ -183,6 +183,16 @@ export default function PermissionsMatrixPage() {
     []
   );
 
+  const pendingChanges = useMemo(() => {
+    return Array.from(dirty).map((k) => {
+      const [r, a] = k.split(":") as [Role, Action];
+      const next = draft[k];
+      const prev = can(r, a);
+      const isReset = next === defaultCan(r, a);
+      return { key: k, role: r, action: a, from: prev, to: next, isReset };
+    });
+  }, [dirty, draft]);
+
   const save = async () => {
     if (!isAdmin || dirty.size === 0) return;
     setSaving(true);
