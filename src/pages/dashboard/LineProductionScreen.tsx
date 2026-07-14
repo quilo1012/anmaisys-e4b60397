@@ -333,11 +333,11 @@ export default function LineProductionScreen() {
         (payload) => {
           const row: any = (payload as any).new ?? (payload as any).old ?? {};
           if (!row.entry_date) {
-            qc.invalidateQueries({ queryKey: ["lps-rag-plan"] });
+            qc.invalidateQueries({ queryKey: ragPlanQ.queryKey as unknown as unknown[] });
             return;
           }
           if (row.entry_date === activeSessionDate && lineNamesMatch(row.line, canonicalLineName) && row.shift === shift) {
-            qc.invalidateQueries({ queryKey: ["lps-rag-plan", canonicalLineName, shift, activeSessionDate] });
+            qc.invalidateQueries({ queryKey: ragPlanQ.queryKey as unknown as unknown[] });
             qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
             toast.info("Target updated from RAG Weekly");
           }
