@@ -140,6 +140,7 @@ export default function PermissionsMatrixPage() {
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<string>("all");
