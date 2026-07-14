@@ -285,9 +285,9 @@ export default function PermissionsMatrixPage() {
                 <Button variant="outline" size="sm" onClick={discard} disabled={saving || dirty.size === 0}>
                   <RotateCcw className="mr-1.5 h-4 w-4" /> Discard
                 </Button>
-                <Button size="sm" onClick={save} disabled={saving || dirty.size === 0}>
-                  {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-                  Save
+                <Button size="sm" onClick={() => setPreviewOpen(true)} disabled={saving || dirty.size === 0}>
+                  <Eye className="mr-1.5 h-4 w-4" />
+                  Review & Save
                 </Button>
               </>
             )}
