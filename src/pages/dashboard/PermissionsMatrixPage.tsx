@@ -227,6 +227,30 @@ export default function PermissionsMatrixPage() {
         map[`${r.role}:${r.action}`] = r.allowed;
       }
       setPermissionOverrides(map);
+
+      // Audit log: one entry per changed cell with From → To
+      try {
+        const { logAuditEvent } = await import("@/hooks/useAuditLogs");
+        await Promise.all(
+          pendingChanges.map((c) =>
+            logAuditEvent(
+              "permission.change",
+              "role_permission",
+              `${c.role}:${c.action}`,
+              {
+                role: c.role,
+                action: c.action,
+                from: c.from ? "allowed" : "denied",
+                to: c.to ? "allowed" : "denied",
+                reset_to_default: c.isReset,
+              }
+            )
+          )
+        );
+      } catch (auditErr) {
+        console.warn("permission audit log failed", auditErr);
+      }
+
       setDirty(new Set());
       setPreviewOpen(false);
       toast({ title: "Permissions saved", description: `${toUpsert.length + toDelete.length} change(s) applied.` });
