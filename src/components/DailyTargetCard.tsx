@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Check, Loader2, Save, Target } from "lucide-react";
 import { toast } from "sonner";
+import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
 
 interface Props {
   line: string;
@@ -21,27 +22,17 @@ interface Props {
  */
 export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Props) {
   const qc = useQueryClient();
-  const key = ["daily-target-card", line, entryDate, shift];
 
-  const q = useQuery({
-    enabled: !!line,
-    queryKey: key,
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("rag_weekly_entries")
-        .select("id, line, plan_qty, actual_qty")
-        .eq("entry_date", entryDate)
-        .eq("shift", shift);
-      if (error) throw error;
-      const norm = (s: string) => (s || "").toLowerCase().replace(/\s+/g, "");
-      const row = (data || []).find((r: any) => norm(r.line) === norm(line));
-      return row ?? null;
-    },
-    refetchInterval: 15_000,
+  const q = useLineShiftTarget({
+    line,
+    date: entryDate,
+    shift,
+    refetchIntervalMs: 15_000,
   });
 
-  const plan = Number(q.data?.plan_qty ?? 0);
-  const actual = Number(q.data?.actual_qty ?? 0);
+  const plan = q.target;
+  const actual = q.actual;
+  const rowId = q.rowId;
   const pct = plan > 0 ? Math.min(100, Math.round((actual / plan) * 100)) : 0;
 
   const [val, setVal] = useState<string>(String(actual));
