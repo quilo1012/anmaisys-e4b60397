@@ -24,8 +24,11 @@ export interface UseLineShiftTargetResult {
   gap: number;
   rowId: string | null;
   isLoading: boolean;
+  isFetching: boolean;
   isError: boolean;
   error: unknown;
+  /** Alias for `target` — kept so callers that previously read `ragPlanQ.data` (a number) still work. */
+  data: number;
   queryKey: readonly unknown[];
   refetch: () => void;
 }
