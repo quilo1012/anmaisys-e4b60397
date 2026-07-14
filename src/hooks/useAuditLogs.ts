@@ -128,6 +128,12 @@ export function useStockAdjustmentHistory(limit: number = 10) {
 
 export async function logAuditEvent(action: string, entityType: string, entityId?: string, details?: Record<string, any>) {
   try {
+    // Skip when there's no active session — the audit function requires a valid JWT
+    // and would otherwise return 401 (e.g. right after sign-out or token revocation).
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+
     // Route through the edge function so the server captures the real client IP
     // from x-real-ip / x-forwarded-for. The browser cannot send a trustworthy IP.
     const { invokeFunction } = await import("@/lib/invokeFunction");
@@ -137,7 +143,12 @@ export async function logAuditEvent(action: string, entityType: string, entityId
       entity_id: entityId || null,
       details: details || {},
     });
-    if (error) throw error;
+    if (error) {
+      // Silently ignore auth-related failures — expected after sign-out / token rotation.
+      const msg = String(error?.message || "").toLowerCase();
+      if (msg.includes("invalid_token") || msg.includes("missing_authorization")) return;
+      throw error;
+    }
   } catch (err) {
     console.error("Audit log failed:", err);
   }
