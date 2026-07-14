@@ -399,9 +399,28 @@ export default function PermissionsMatrixPage() {
                             key={a}
                             className={`border-b last:border-0 ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"} hover:bg-muted/30`}
                           >
-                            <td className="sticky left-0 z-10 min-w-[220px] bg-inherit p-2">
-                              <div className="font-medium">{ACTION_LABELS[a] ?? a.split(".").slice(1).join(".")}</div>
-                              <div className="font-mono text-[10px] text-muted-foreground">{a}</div>
+                            <td className="sticky left-0 z-10 min-w-[260px] bg-inherit p-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-medium">{ACTION_LABELS[a] ?? a.split(".").slice(1).join(".")}</span>
+                                {ACTION_DESCRIPTIONS[a] && (
+                                  <TooltipProvider delayDuration={150}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground/70 hover:text-foreground" />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="right" className="max-w-xs text-xs">
+                                        {ACTION_DESCRIPTIONS[a]}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </div>
+                              {ACTION_DESCRIPTIONS[a] && (
+                                <div className="mt-0.5 text-[11px] leading-tight text-muted-foreground line-clamp-2">
+                                  {ACTION_DESCRIPTIONS[a]}
+                                </div>
+                              )}
+                              <div className="font-mono text-[10px] text-muted-foreground/70">{a}</div>
                             </td>
                             {rolesToShow.map((r) => {
                               const k = keyOf(r, a);
