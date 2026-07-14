@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, X, ShieldCheck, Info, Save, RotateCcw, Loader2, Search, Filter } from "lucide-react";
+import { Check, X, ShieldCheck, Info, Save, RotateCcw, Loader2, Search, Filter, Eye } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -67,6 +69,67 @@ const ACTION_LABELS: Partial<Record<Action, string>> = {
   "chat.dm": "Contact Supervisor / Manager",
 };
 
+const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
+  "wo.view": "See the Work Orders list and details.",
+  "wo.create": "Open new Work Orders / maintenance requests.",
+  "wo.update": "Edit fields, assign engineers, change status.",
+  "wo.close": "Mark Work Orders as completed.",
+  "wo.delete": "Permanently remove Work Orders.",
+  "wo.force": "Force-close a WO bypassing normal flow (admin action).",
+  "wo.print": "Print or export Work Orders to PDF.",
+  "downtime.view": "See downtime events and history.",
+  "downtime.manage": "Create, edit and close downtime events.",
+  "machines.view": "Browse the machines registry.",
+  "machines.manage": "Add, edit or archive machines.",
+  "problems.view": "See the catalogue of standard problems.",
+  "problems.manage": "Add, edit or archive problem descriptions.",
+  "stock.view": "See parts inventory and balances.",
+  "stock.manage": "Add, adjust or consume parts and suppliers.",
+  "stock.pricing": "See and edit part unit prices and financial values.",
+  "production.view": "See production sessions and current runs.",
+  "production.manage": "Start, edit or close production sessions.",
+  "production.target.view": "See production targets per line/shift.",
+  "production.target.manage": "Create and edit production targets.",
+  "production.performance.view": "Access the Production Performance dashboard.",
+  "planner.view": "Open the Planner and see the plan.",
+  "planner.manage": "Edit the plan and schedule SKUs.",
+  "sku.view": "Browse SKU catalogue and line speeds.",
+  "sku.manage": "Create, edit or import SKUs and speeds.",
+  "rag.view": "Open the RAG Weekly board.",
+  "rag.manage": "Edit RAG entries and status.",
+  "rag.comment": "Add comments on RAG weekly entries.",
+  "smarttarget.view": "Access the Smart Target analytics page.",
+  "quality.view": "See quality actions and issues.",
+  "quality.manage": "Create and close quality actions.",
+  "pm.view": "See preventive maintenance schedules.",
+  "pm.manage": "Create schedules and register executions.",
+  "engineers.view": "See the engineers list.",
+  "engineers.manage": "Add, edit or deactivate engineers.",
+  "leaders.view": "See line leaders and their PINs.",
+  "leaders.manage": "Add, edit or deactivate line leaders.",
+  "chat.line": "Use the per-line chat button and screen.",
+  "chat.dm": "Send direct messages to Supervisor / Manager.",
+  "notifications.view": "See the notifications center.",
+  "notifications.manage": "Configure and clear notifications.",
+  "intouch.view": "Open the iTouching monitoring pages.",
+  "intouch.manage": "Configure iTouching mappings and imports.",
+  "controlcenter.view": "Access the live factory Control Center.",
+  "assets.manage": "Manage mobile assets and machine locations.",
+  "dashboard.executive": "Access the Executive dashboard.",
+  "dashboard.manager": "Access the Manager dashboard.",
+  "dashboard.engineer": "Access the Engineer dashboard.",
+  "dashboard.operator": "Access the Operator dashboard.",
+  "users.view": "See the Staff Members list.",
+  "users.manage": "Create, edit or deactivate users and roles.",
+  "audit.view": "See the audit log of security-sensitive events.",
+  "reports.analytics": "Open the Analytics reports.",
+  "reports.financial": "See financial reports (labour cost, stock value).",
+  "reports.executive": "Access executive-level reports.",
+  "system.clear": "Bulk-clear operational data (dangerous, admin only).",
+  "system.settings": "Change system-wide settings.",
+  "permissions.manage": "Edit this Permissions Matrix.",
+};
+
 const keyOf = (r: Role, a: Action) => `${r}:${a}`;
 
 export default function PermissionsMatrixPage() {
@@ -77,6 +140,7 @@ export default function PermissionsMatrixPage() {
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<string>("all");
@@ -119,6 +183,16 @@ export default function PermissionsMatrixPage() {
     []
   );
 
+  const pendingChanges = useMemo(() => {
+    return Array.from(dirty).map((k) => {
+      const [r, a] = k.split(":") as [Role, Action];
+      const next = draft[k];
+      const prev = can(r, a);
+      const isReset = next === defaultCan(r, a);
+      return { key: k, role: r, action: a, from: prev, to: next, isReset };
+    });
+  }, [dirty, draft]);
+
   const save = async () => {
     if (!isAdmin || dirty.size === 0) return;
     setSaving(true);
@@ -154,6 +228,7 @@ export default function PermissionsMatrixPage() {
       }
       setPermissionOverrides(map);
       setDirty(new Set());
+      setPreviewOpen(false);
       toast({ title: "Permissions saved", description: `${toUpsert.length + toDelete.length} change(s) applied.` });
     } catch (e: any) {
       toast({ title: "Save failed", description: e?.message ?? String(e), variant: "destructive" });
@@ -210,9 +285,9 @@ export default function PermissionsMatrixPage() {
                 <Button variant="outline" size="sm" onClick={discard} disabled={saving || dirty.size === 0}>
                   <RotateCcw className="mr-1.5 h-4 w-4" /> Discard
                 </Button>
-                <Button size="sm" onClick={save} disabled={saving || dirty.size === 0}>
-                  {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-                  Save
+                <Button size="sm" onClick={() => setPreviewOpen(true)} disabled={saving || dirty.size === 0}>
+                  <Eye className="mr-1.5 h-4 w-4" />
+                  Review & Save
                 </Button>
               </>
             )}
@@ -324,9 +399,28 @@ export default function PermissionsMatrixPage() {
                             key={a}
                             className={`border-b last:border-0 ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"} hover:bg-muted/30`}
                           >
-                            <td className="sticky left-0 z-10 min-w-[220px] bg-inherit p-2">
-                              <div className="font-medium">{ACTION_LABELS[a] ?? a.split(".").slice(1).join(".")}</div>
-                              <div className="font-mono text-[10px] text-muted-foreground">{a}</div>
+                            <td className="sticky left-0 z-10 min-w-[260px] bg-inherit p-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-medium">{ACTION_LABELS[a] ?? a.split(".").slice(1).join(".")}</span>
+                                {ACTION_DESCRIPTIONS[a] && (
+                                  <TooltipProvider delayDuration={150}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground/70 hover:text-foreground" />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="right" className="max-w-xs text-xs">
+                                        {ACTION_DESCRIPTIONS[a]}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </div>
+                              {ACTION_DESCRIPTIONS[a] && (
+                                <div className="mt-0.5 text-[11px] leading-tight text-muted-foreground line-clamp-2">
+                                  {ACTION_DESCRIPTIONS[a]}
+                                </div>
+                              )}
+                              <div className="font-mono text-[10px] text-muted-foreground/70">{a}</div>
                             </td>
                             {rolesToShow.map((r) => {
                               const k = keyOf(r, a);
@@ -377,6 +471,71 @@ export default function PermissionsMatrixPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <Dialog open={previewOpen} onOpenChange={(o) => !saving && setPreviewOpen(o)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-4 w-4" /> Review permission changes
+            </DialogTitle>
+            <DialogDescription>
+              {pendingChanges.length} change(s) will be applied. Review each row before saving —
+              new value overwrites the current one for that role.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[50vh] overflow-y-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-muted/40 text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="p-2 text-left">Role</th>
+                  <th className="p-2 text-left">Action</th>
+                  <th className="p-2 text-center">From</th>
+                  <th className="p-2 text-center">To</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingChanges.map((c) => (
+                  <tr key={c.key} className="border-t">
+                    <td className="p-2">
+                      <Badge variant="outline" className="text-[10px]">{ROLE_LABELS[c.role]}</Badge>
+                    </td>
+                    <td className="p-2">
+                      <div className="font-medium">{ACTION_LABELS[c.action] ?? c.action}</div>
+                      {ACTION_DESCRIPTIONS[c.action] && (
+                        <div className="text-[11px] text-muted-foreground">{ACTION_DESCRIPTIONS[c.action]}</div>
+                      )}
+                      {c.isReset && (
+                        <Badge variant="secondary" className="mt-1 text-[10px]">Reset to default</Badge>
+                      )}
+                    </td>
+                    <td className="p-2 text-center">
+                      <Badge variant="outline" className={c.from ? "border-emerald-500/40 text-emerald-600" : "border-border text-muted-foreground"}>
+                        {c.from ? "Allowed" : "Denied"}
+                      </Badge>
+                    </td>
+                    <td className="p-2 text-center">
+                      <Badge variant="outline" className={c.to ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600" : "border-destructive/40 bg-destructive/5 text-destructive"}>
+                        {c.to ? "Allowed" : "Denied"}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={save} disabled={saving || pendingChanges.length === 0}>
+              {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+              Confirm & Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
