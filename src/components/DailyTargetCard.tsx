@@ -123,11 +123,28 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Completion</div>
-            <div className={`text-2xl font-bold tabular-nums ${plan > 0 ? (pct >= 90 ? "text-emerald-500" : pct >= 60 ? "text-amber-500" : "text-rose-500") : "text-muted-foreground"}`}>
-              {plan > 0 ? `${pct}%` : "0"}
-            </div>
+            {q.isLoading ? (
+              <Skeleton className="h-8 w-16 mt-1" />
+            ) : (
+              <div className={`text-2xl font-bold tabular-nums ${plan > 0 ? (pct >= 90 ? "text-emerald-500" : pct >= 60 ? "text-amber-500" : "text-rose-500") : "text-muted-foreground"}`}>
+                {plan > 0 ? `${pct}%` : "0"}
+              </div>
+            )}
           </div>
         </div>
+
+        {!q.isLoading && plan === 0 && !q.isError && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground border border-dashed rounded-md px-3 py-2">
+            <AlertCircle className="h-3.5 w-3.5" />
+            No target planned yet for this line/shift.
+          </div>
+        )}
+        {q.isError && (
+          <div className="flex items-center gap-2 text-xs text-destructive border border-destructive/40 rounded-md px-3 py-2">
+            <AlertCircle className="h-3.5 w-3.5" />
+            Failed to load target. Retrying…
+          </div>
+        )}
 
         <Progress value={pct} className="h-2" />
       </CardContent>
