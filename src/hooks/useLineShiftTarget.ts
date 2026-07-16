@@ -1,4 +1,6 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 export type LineShiftTargetShift = "DAY" | "NIGHT" | string;
@@ -71,6 +73,20 @@ export function useLineShiftTarget(params: UseLineShiftTargetParams): UseLineShi
     },
     refetchInterval: refetchIntervalMs,
   });
+
+  // Consistent error surfacing across all consumers — one toast per error transition.
+  const lastErrorRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (q.isError) {
+      const msg = (q.error as any)?.message || "Failed to load target";
+      if (lastErrorRef.current !== msg) {
+        lastErrorRef.current = msg;
+        toast.error(`Target sync error: ${msg}`);
+      }
+    } else if (!q.isFetching) {
+      lastErrorRef.current = null;
+    }
+  }, [q.isError, q.error, q.isFetching]);
 
   const target = Number(q.data?.target ?? 0);
   const actual = Number(q.data?.actual ?? 0);
