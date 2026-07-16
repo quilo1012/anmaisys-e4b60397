@@ -505,6 +505,67 @@ describe("useLineShiftTarget — multiple lines & machines in the same period", 
   });
 });
 
+// ── Performance ─────────────────────────────────────────────────────────────
+// Guardrail so future changes to the aggregation logic don't accidentally
+// introduce O(n²) work. We seed a large mock dataset (many lines × machines ×
+// rows sharing the same date/shift) and assert the hook resolves quickly.
+describe("useLineShiftTarget — performance under load", () => {
+  it("computes target/actual/gap in reasonable time for ~10k rows across many lines & machines", async () => {
+    const LINES = 50;
+    const MACHINES_PER_LINE = 4;
+    const ROWS_PER_MACHINE = 50; // 50 * 4 * 50 = 10,000 rows
+
+    const rows: Row[] = [];
+    for (let l = 1; l <= LINES; l++) {
+      for (let m = 1; m <= MACHINES_PER_LINE; m++) {
+        for (let r = 0; r < ROWS_PER_MACHINE; r++) {
+          rows.push({
+            id: `L${l}-M${m}-R${r}`,
+            line: `Line ${l} :: Machine-${m}`,
+            plan_qty: 10,
+            actual_qty: 4,
+            entry_date: "2026-07-16",
+            shift: "DAY",
+          });
+        }
+      }
+    }
+    mockRows = rows;
+
+    // Target one specific machine on one specific line.
+    const targetLine = "Line 25";
+    const targetMachine = "Machine-3";
+    const expectedRows = ROWS_PER_MACHINE;
+    const expectedTarget = expectedRows * 10; // 500
+    const expectedActual = expectedRows * 4;  // 200
+
+    const start = performance.now();
+    const { result } = renderHook(
+      () =>
+        useLineShiftTarget({
+          line: targetMachine,
+          date: "2026-07-16",
+          shift: "DAY",
+          matchLine: (rowLine) =>
+            (rowLine ?? "").includes(targetLine) && (rowLine ?? "").includes(targetMachine),
+        }),
+      { wrapper: wrapper() },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const elapsed = performance.now() - start;
+
+    expect(result.current.target).toBe(expectedTarget);
+    expect(result.current.actual).toBe(expectedActual);
+    expect(result.current.gap).toBe(expectedTarget - expectedActual);
+    expect(result.current.rowId).toBeNull(); // many rows aggregated
+
+    // Generous budget so the test is stable on slower CI runners while still
+    // catching pathological regressions (e.g. O(n²) or repeated deep clones).
+    expect(elapsed).toBeLessThan(1500);
+  });
+});
+
+
 
 
 
