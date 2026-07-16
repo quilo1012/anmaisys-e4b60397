@@ -355,4 +355,156 @@ describe("useLineShiftTarget — partial rows across the shift turn-over", () =>
   });
 });
 
+// ── Concurrency: multiple lines & machines in the same period ───────────────
+// The hook is shared by DailyTargetCard, MyProductionPage and LineProductionScreen,
+// which run side-by-side for different lines/machines at the same (date, shift).
+// Each hook instance MUST see only its own line's totals and its own rowId,
+// even when many other lines/machines have rows for the exact same period.
+describe("useLineShiftTarget — multiple lines & machines in the same period", () => {
+  it("isolates target/actual/gap per line when many lines share (date, shift)", async () => {
+    // 4 lines running in parallel on the same DAY / same date.
+    mockRows = [
+      { id: "l1a", line: "Line 1", plan_qty: 400, actual_qty: 150, entry_date: "2026-07-16", shift: "DAY" },
+      { id: "l1b", line: "Line 1", plan_qty: 100, actual_qty: 50,  entry_date: "2026-07-16", shift: "DAY" },
+      { id: "l2",  line: "Line 2", plan_qty: 300, actual_qty: 300, entry_date: "2026-07-16", shift: "DAY" },
+      { id: "l3",  line: "Line 3", plan_qty: 250, actual_qty: 100, entry_date: "2026-07-16", shift: "DAY" },
+      { id: "l4",  line: "Line 4", plan_qty: 999, actual_qty: 10,  entry_date: "2026-07-16", shift: "DAY" },
+    ];
+
+    const h1 = renderHook(
+      () => useLineShiftTarget({ line: "Line 1", date: "2026-07-16", shift: "DAY" }),
+      { wrapper: wrapper() },
+    );
+    const h2 = renderHook(
+      () => useLineShiftTarget({ line: "Line 2", date: "2026-07-16", shift: "DAY" }),
+      { wrapper: wrapper() },
+    );
+    const h3 = renderHook(
+      () => useLineShiftTarget({ line: "Line 3", date: "2026-07-16", shift: "DAY" }),
+      { wrapper: wrapper() },
+    );
+
+    await waitFor(() => expect(h1.result.current.isLoading).toBe(false));
+    await waitFor(() => expect(h2.result.current.isLoading).toBe(false));
+    await waitFor(() => expect(h3.result.current.isLoading).toBe(false));
+
+    // Line 1: two rows aggregated → rowId null
+    expect(h1.result.current.target).toBe(500);
+    expect(h1.result.current.actual).toBe(200);
+    expect(h1.result.current.gap).toBe(300);
+    expect(h1.result.current.rowId).toBeNull();
+
+    // Line 2: single row, actual meets target → gap 0, rowId set
+    expect(h2.result.current.target).toBe(300);
+    expect(h2.result.current.actual).toBe(300);
+    expect(h2.result.current.gap).toBe(0);
+    expect(h2.result.current.rowId).toBe("l2");
+
+    // Line 3: single row, partial actual
+    expect(h3.result.current.target).toBe(250);
+    expect(h3.result.current.actual).toBe(100);
+    expect(h3.result.current.gap).toBe(150);
+    expect(h3.result.current.rowId).toBe("l3");
+  });
+
+  it("isolates DAY and NIGHT across multiple lines running simultaneously", async () => {
+    // Two lines, both running DAY and NIGHT on the same date.
+    mockRows = [
+      { id: "l1-day",   line: "Line 1", plan_qty: 200, actual_qty: 80,  entry_date: "2026-07-16", shift: "DAY" },
+      { id: "l1-night", line: "Line 1", plan_qty: 500, actual_qty: 450, entry_date: "2026-07-16", shift: "NIGHT" },
+      { id: "l2-day",   line: "Line 2", plan_qty: 350, actual_qty: 350, entry_date: "2026-07-16", shift: "DAY" },
+      { id: "l2-night", line: "Line 2", plan_qty: 700, actual_qty: 200, entry_date: "2026-07-16", shift: "NIGHT" },
+    ];
+
+    const l1Day = renderHook(
+      () => useLineShiftTarget({ line: "Line 1", date: "2026-07-16", shift: "DAY" }),
+      { wrapper: wrapper() },
+    );
+    const l2Night = renderHook(
+      () => useLineShiftTarget({ line: "Line 2", date: "2026-07-16", shift: "NIGHT" }),
+      { wrapper: wrapper() },
+    );
+
+    await waitFor(() => expect(l1Day.result.current.isLoading).toBe(false));
+    await waitFor(() => expect(l2Night.result.current.isLoading).toBe(false));
+
+    expect(l1Day.result.current.target).toBe(200);
+    expect(l1Day.result.current.actual).toBe(80);
+    expect(l1Day.result.current.gap).toBe(120);
+    expect(l1Day.result.current.rowId).toBe("l1-day");
+
+    expect(l2Night.result.current.target).toBe(700);
+    expect(l2Night.result.current.actual).toBe(200);
+    expect(l2Night.result.current.gap).toBe(500);
+    expect(l2Night.result.current.rowId).toBe("l2-night");
+  });
+
+  it("scopes totals per machine via matchLine when several machines share a line label", async () => {
+    // Same physical line hosts two machines (e.g. Sealer-A, Sealer-B) that
+    // each publish their own RAG rows. The hook must scope by the caller's
+    // matcher so machine A ≠ machine B, even at the same date/shift.
+    mockRows = [
+      { id: "mA1", line: "Line 5 :: Sealer-A", plan_qty: 200, actual_qty: 90,  entry_date: "2026-07-16", shift: "DAY" },
+      { id: "mA2", line: "Line 5 :: Sealer-A", plan_qty: 100, actual_qty: 40,  entry_date: "2026-07-16", shift: "DAY" },
+      { id: "mB1", line: "Line 5 :: Sealer-B", plan_qty: 400, actual_qty: 400, entry_date: "2026-07-16", shift: "DAY" },
+      // Same date/shift, unrelated line — must never leak into either machine.
+      { id: "xx",  line: "Line 9 :: Printer",  plan_qty: 999, actual_qty: 999, entry_date: "2026-07-16", shift: "DAY" },
+    ];
+
+    const machineA = renderHook(
+      () =>
+        useLineShiftTarget({
+          line: "Sealer-A",
+          date: "2026-07-16",
+          shift: "DAY",
+          matchLine: (rowLine) => (rowLine ?? "").includes("Sealer-A"),
+        }),
+      { wrapper: wrapper() },
+    );
+    const machineB = renderHook(
+      () =>
+        useLineShiftTarget({
+          line: "Sealer-B",
+          date: "2026-07-16",
+          shift: "DAY",
+          matchLine: (rowLine) => (rowLine ?? "").includes("Sealer-B"),
+        }),
+      { wrapper: wrapper() },
+    );
+
+    await waitFor(() => expect(machineA.result.current.isLoading).toBe(false));
+    await waitFor(() => expect(machineB.result.current.isLoading).toBe(false));
+
+    // Machine A: two rows aggregated
+    expect(machineA.result.current.target).toBe(300);
+    expect(machineA.result.current.actual).toBe(130);
+    expect(machineA.result.current.gap).toBe(170);
+    expect(machineA.result.current.rowId).toBeNull();
+
+    // Machine B: single row, target met
+    expect(machineB.result.current.target).toBe(400);
+    expect(machineB.result.current.actual).toBe(400);
+    expect(machineB.result.current.gap).toBe(0);
+    expect(machineB.result.current.rowId).toBe("mB1");
+  });
+
+  it("a line with no rows returns zeros even when other lines are busy in the same period", async () => {
+    mockRows = [
+      { id: "busy1", line: "Line 1", plan_qty: 500, actual_qty: 300, entry_date: "2026-07-16", shift: "DAY" },
+      { id: "busy2", line: "Line 2", plan_qty: 500, actual_qty: 400, entry_date: "2026-07-16", shift: "DAY" },
+    ];
+    const idle = renderHook(
+      () => useLineShiftTarget({ line: "Line 7", date: "2026-07-16", shift: "DAY" }),
+      { wrapper: wrapper() },
+    );
+    await waitFor(() => expect(idle.result.current.isLoading).toBe(false));
+    expect(idle.result.current.target).toBe(0);
+    expect(idle.result.current.actual).toBe(0);
+    expect(idle.result.current.gap).toBe(0);
+    expect(idle.result.current.rowId).toBeNull();
+  });
+});
+
+
+
 
