@@ -5,7 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Check, Loader2, Save, Target } from "lucide-react";
+import { Check, Loader2, Save, Target, AlertCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
 
@@ -84,9 +85,13 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
         <div className="grid grid-cols-3 gap-3">
           <div>
             <div className="text-xs text-muted-foreground">Target</div>
-            <div className="text-2xl font-bold tabular-nums">
-              {plan > 0 ? plan.toLocaleString() : "0"}
-            </div>
+            {q.isLoading ? (
+              <Skeleton className="h-8 w-20 mt-1" />
+            ) : (
+              <div className="text-2xl font-bold tabular-nums">
+                {plan > 0 ? plan.toLocaleString() : "0"}
+              </div>
+            )}
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Actual</div>
