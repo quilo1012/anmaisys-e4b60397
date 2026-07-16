@@ -279,3 +279,80 @@ describe("useLineShiftTarget — shift boundary", () => {
   });
 });
 
+// ── Partial-data tests: target without actual (and vice-versa) ──────────────
+// Around the shift turn-over the target is often published before any actual
+// output is recorded (and, less commonly, actual is logged before the plan is
+// finalized). Both branches must produce a sensible gap and rowId.
+describe("useLineShiftTarget — partial rows across the shift turn-over", () => {
+  it("target present, actual missing (actual_qty = 0) → gap equals target, single rowId", async () => {
+    // Fresh DAY shift right after NIGHT ended: plan published, no output yet.
+    mockRows = [
+      { id: "n", line: "Line 5", plan_qty: 500, actual_qty: 500, entry_date: "2026-07-16", shift: "NIGHT" },
+      { id: "d", line: "Line 5", plan_qty: 400, actual_qty: 0,   entry_date: "2026-07-16", shift: "DAY" },
+    ];
+    const { result } = renderHook(
+      () => useLineShiftTarget({ line: "Line 5", date: "2026-07-16", shift: "DAY" }),
+      { wrapper: wrapper() },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.target).toBe(400);
+    expect(result.current.actual).toBe(0);
+    expect(result.current.gap).toBe(400);
+    expect(result.current.rowId).toBe("d");
+  });
+
+  it("treats null plan_qty / actual_qty as 0 without crashing", async () => {
+    mockRows = [
+      // Plan is set but actual hasn't been logged (null instead of 0).
+      { id: "p", line: "Line 6", plan_qty: 250, actual_qty: null as any, entry_date: "2026-07-16", shift: "DAY" },
+    ];
+    const { result } = renderHook(
+      () => useLineShiftTarget({ line: "Line 6", date: "2026-07-16", shift: "DAY" }),
+      { wrapper: wrapper() },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.target).toBe(250);
+    expect(result.current.actual).toBe(0);
+    expect(result.current.gap).toBe(250);
+    expect(result.current.rowId).toBe("p");
+  });
+
+  it("actual present, target missing → gap clamps to 0, rowId still returned", async () => {
+    // NIGHT rows exist for the previous day; the DAY row was created for
+    // actual logging before the plan was published (plan_qty = 0).
+    mockRows = [
+      { id: "prev-night", line: "Line 7", plan_qty: 600, actual_qty: 550, entry_date: "2026-07-15", shift: "NIGHT" },
+      { id: "d", line: "Line 7", plan_qty: 0, actual_qty: 180, entry_date: "2026-07-16", shift: "DAY" },
+    ];
+    const { result } = renderHook(
+      () => useLineShiftTarget({ line: "Line 7", date: "2026-07-16", shift: "DAY" }),
+      { wrapper: wrapper() },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.target).toBe(0);
+    expect(result.current.actual).toBe(180);
+    expect(result.current.gap).toBe(0); // clamped
+    expect(result.current.rowId).toBe("d");
+  });
+
+  it("aggregates target when NIGHT has multiple rows with only some actuals filled → rowId is null", async () => {
+    // Mid-shift on NIGHT: two entries planned, only the first has actual output.
+    mockRows = [
+      { id: "n1", line: "Line 8", plan_qty: 300, actual_qty: 120, entry_date: "2026-07-16", shift: "NIGHT" },
+      { id: "n2", line: "Line 8", plan_qty: 300, actual_qty: 0,   entry_date: "2026-07-16", shift: "NIGHT" },
+      // DAY row for the same date must NOT be counted.
+      { id: "d",  line: "Line 8", plan_qty: 999, actual_qty: 999, entry_date: "2026-07-16", shift: "DAY" },
+    ];
+    const { result } = renderHook(
+      () => useLineShiftTarget({ line: "Line 8", date: "2026-07-16", shift: "NIGHT" }),
+      { wrapper: wrapper() },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.target).toBe(600);
+    expect(result.current.actual).toBe(120);
+    expect(result.current.gap).toBe(480);
+    expect(result.current.rowId).toBeNull(); // >1 row → no single edit target
+  });
+});
+
+
