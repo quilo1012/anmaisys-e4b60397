@@ -6,24 +6,47 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // ── Mocks ───────────────────────────────────────────────────────────────────
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-type Row = { id: string; line: string; plan_qty: number; actual_qty: number };
+type Row = {
+  id: string;
+  line: string;
+  plan_qty: number;
+  actual_qty: number;
+  entry_date?: string;
+  shift?: string;
+};
 let mockRows: Row[] = [];
 let mockError: any = null;
 const lastFilters: { entry_date?: string; shift?: string } = {};
 
 vi.mock("@/integrations/supabase/client", () => {
-  const builder: any = {
-    select: vi.fn(() => builder),
-    eq: vi.fn((col: string, val: string) => {
-      if (col === "entry_date") lastFilters.entry_date = val;
-      if (col === "shift") lastFilters.shift = val;
-      return builder;
-    }),
-    then: (resolve: any) => resolve({ data: mockError ? null : mockRows, error: mockError }),
-  };
+  function makeBuilder() {
+    const filters: Record<string, string> = {};
+    const builder: any = {
+      select: vi.fn(() => builder),
+      eq: vi.fn((col: string, val: string) => {
+        filters[col] = val;
+        if (col === "entry_date") lastFilters.entry_date = val;
+        if (col === "shift") lastFilters.shift = val;
+        return builder;
+      }),
+      then: (resolve: any) => {
+        if (mockError) return resolve({ data: null, error: mockError });
+        // Only apply date/shift filters if the row actually declares them,
+        // so pre-existing tests that omit those fields keep working.
+        const rows = mockRows.filter((r) => {
+          if (r.entry_date != null && filters.entry_date && r.entry_date !== filters.entry_date)
+            return false;
+          if (r.shift != null && filters.shift && r.shift !== filters.shift) return false;
+          return true;
+        });
+        return resolve({ data: rows, error: null });
+      },
+    };
+    return builder;
+  }
   return {
     supabase: {
-      from: vi.fn(() => builder),
+      from: vi.fn(() => makeBuilder()),
     },
   };
 });
