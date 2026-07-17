@@ -345,7 +345,9 @@ export default function IntouchSettingsPage() {
     setLoadingMachines(false);
     if (error) {
       setMachineErr(error.message || "Failed to load machines");
-      toast.error("Failed to load machines");
+      toast.error("Failed to load machines", {
+        action: { label: "Retry", onClick: () => loadMachines() },
+      });
       return;
     }
     // Normalized: { machines: [{ guid, name, line, raw }] }. Fallback to legacy shapes.
