@@ -24,7 +24,9 @@ import { TabletBindingsCard } from "@/components/TabletBindingsCard";
 import { PermissionAuditLog } from "@/components/PermissionAuditLog";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 import type { Database } from "@/integrations/supabase/types";
-import { can, type Action } from "@/lib/permissions";
+import { can, isPermissionOverridden, ALL_ACTIONS, ALL_ROLES, type Action } from "@/lib/permissions";
+import { Link } from "react-router-dom";
+
 
 
 type AppRole = Database["public"]["Enums"]["app_role"];
