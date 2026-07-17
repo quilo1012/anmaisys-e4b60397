@@ -97,15 +97,19 @@ const navItems: NavItem[] = [
   { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin"], group: "Reports" },
   { title: "Weekly Report", url: "/dashboard/weekly-report", icon: FileBarChart, roles: ["admin", "manager"], group: "Reports" },
 
-  // Admin
-  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"], group: "Admin", action: "chat.dm" },
-  { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Admin" },
-  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Admin" },
-  { title: "Permissions", url: "/dashboard/permissions", icon: ShieldCheck, roles: ["admin"], group: "Admin" },
-  { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "Admin" },
-  { title: "iTouching Sync", url: "/dashboard/intouch-settings", icon: Radar, roles: ["admin"], group: "Admin" },
-  { title: "Operator Preview", url: "/dashboard/operator-preview", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Admin" },
-  { title: "Engineer Preview", url: "/dashboard/engineer-preview", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Admin" },
+  // Communication
+  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"], group: "Communication", action: "chat.dm" },
+
+  // Administration
+  { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Administration" },
+  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Administration" },
+
+  // System
+  { title: "Permissions", url: "/dashboard/permissions", icon: ShieldCheck, roles: ["admin"], group: "System" },
+  { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "System" },
+  { title: "iTouching Sync", url: "/dashboard/intouch-settings", icon: Radar, roles: ["admin"], group: "System" },
+  { title: "Operator Preview", url: "/dashboard/operator-preview", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "System" },
+  { title: "Engineer Preview", url: "/dashboard/engineer-preview", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "System" },
 ];
 
 
@@ -145,7 +149,7 @@ function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
   const location = useLocation();
   const { state } = useSidebar();
   const iconCollapsed = state === "collapsed";
-  const groups = ["Overview", "Maintenance", "Assets", "Production", "Planning", "Reports", "Admin"];
+  const groups = ["Overview", "Maintenance", "Assets", "Production", "Planning", "Reports", "Communication", "Administration", "System"];
   const grouped = groups.map((g) => ({
     label: g,
     items: filteredItems.filter((i) => i.group === g),
