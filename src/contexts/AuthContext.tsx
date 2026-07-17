@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /** Race a promise against a hard timeout so a stalled silent re-login can
    *  never keep the boot spinner up indefinitely. */
-  const withTimeout = <T, F = T>(p: Promise<T>, ms: number, fallback: F): Promise<T | F> =>
+  const raceWithFallback = <T, F = T>(p: Promise<T>, ms: number, fallback: F): Promise<T | F> =>
     Promise.race([
       p,
       new Promise<F>((resolve) => setTimeout(() => resolve(fallback), ms)),
@@ -207,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoleLoading(true);
     setAuthError(null);
     try {
-      const result = await withTimeout(
+      const result = await raceWithFallback(
         Promise.all([
           supabase
             .from("profiles")
@@ -287,7 +287,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Try to get the current session first
       let currentSession: Session | null = null;
       try {
-        const sessionResult = await withTimeout(supabase.auth.getSession(), 10_000, null);
+        const sessionResult = await raceWithFallback(supabase.auth.getSession(), 10_000, null);
         currentSession = sessionResult?.data?.session ?? null;
       } catch {
         currentSession = null;
@@ -297,7 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // This handles transient refresh-token failures across tabs/devices without logging out
       if (!currentSession) {
         try {
-          const refreshedResult = await withTimeout(supabase.auth.refreshSession(), 10_000, null);
+          const refreshedResult = await raceWithFallback(supabase.auth.refreshSession(), 10_000, null);
           const refreshed = refreshedResult?.data;
           if (refreshed?.session) currentSession = refreshed.session;
         } catch {
@@ -312,7 +312,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         // No session at boot: attempt silent Tablet re-login before giving up.
         // Hard 5s timeout so a slow/stuck refresh never keeps the spinner up.
-        const ok = await withTimeout(tryTabletRelogin(), 5000, false);
+        const ok = await raceWithFallback(tryTabletRelogin(), 5000, false);
         if (!ok && mounted) {
           clearAuthState("boot:no-session");
         }
@@ -357,7 +357,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         void (async () => {
           implicitSignOutRecoveryRef.current = true;
           try {
-            const ok = await withTimeout(tryTabletRelogin(), 5000, false);
+            const ok = await raceWithFallback(tryTabletRelogin(), 5000, false);
+            if (!mounted) return;
             if (ok) {
               setIsReady(true);
               return;
@@ -366,7 +367,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const stillValid = !!lastSession && !isExpired(lastSession);
             if (stillValid) {
               try {
-                const restored = await withTimeout(
+                const restored = await raceWithFallback(
                   supabase.auth.setSession({
                     access_token: lastSession.access_token,
                     refresh_token: lastSession.refresh_token,
@@ -374,6 +375,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   10_000,
                   null,
                 );
+                if (!mounted) return;
                 const restoredSession = restored?.data?.session;
                 if (restoredSession?.user) {
                   logAuthSession("implicit SIGNED_OUT recovered from last valid session", {
@@ -543,7 +545,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const sessionResult = await withTimeout(supabase.auth.getSession(), 10_000, null);
+      const sessionResult = await raceWithFallback(supabase.auth.getSession(), 10_000, null);
       const currentSession = sessionResult?.data?.session;
       if (currentSession?.user) {
         lastKnownSessionRef.current = currentSession;
