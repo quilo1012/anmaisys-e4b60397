@@ -1,20 +1,19 @@
 import { useMemo, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines } from "@/hooks/useMachines";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
 import { useAllWoMetrics } from "@/hooks/useWoMetrics";
-import { differenceInMinutes, subDays, format, startOfDay, endOfDay } from "date-fns";
-import { useDowntime } from "@/hooks/useDowntime";
-import { reconcileMinutes } from "@/lib/downtimeReconcile";
+import { differenceInMinutes, subDays, format, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Timer, Activity, Trophy, TrendingUp, BarChart3 } from "lucide-react";
+import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Activity, Trophy, BarChart3, TrendingDown } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { countOpenWOs } from "@/lib/woStatus";
 import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
 import { ShiftFilter } from "@/components/ShiftFilter";
+import { SLA_TARGETS } from "@/lib/sla";
 
 export default function ExecutiveDashboard() {
   const { data: workOrders = [] } = useWorkOrders();
