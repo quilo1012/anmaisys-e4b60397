@@ -32,7 +32,7 @@ import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
-import { can, subscribePermissionOverrides, type Action } from "@/lib/permissions";
+import { can, subscribePermissionOverrides, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, type Action } from "@/lib/permissions";
 import { AutoWoDisabledBanner } from "@/components/AutoWoDisabledBanner";
 import { UnmappedLinesBanner } from "@/components/UnmappedLinesBanner";
 import { PushOnboarding } from "@/components/PushOnboarding";
@@ -145,7 +145,7 @@ function LiveClock() {
   );
 }
 
-function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
+function SidebarNav({ filteredItems, permissionOverrideCount }: { filteredItems: NavItem[]; permissionOverrideCount: number }) {
   const location = useLocation();
   const { state } = useSidebar();
   const iconCollapsed = state === "collapsed";
@@ -208,6 +208,11 @@ function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
                           >
                             <item.icon className="h-4 w-4 shrink-0" />
                             <span className="text-sm">{item.title}</span>
+                            {item.title === "Permissions" && permissionOverrideCount > 0 && (
+                              <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-0 text-[10px] font-medium text-primary">
+                                {permissionOverrideCount} custom
+                              </span>
+                            )}
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -295,7 +300,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { language, toggle: toggleLanguage } = useLanguage();
   const [changePwdOpen, setChangePwdOpen] = useState(false);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
-  const [, setPermissionVersion] = useState(0);
+  const [permissionVersion, setPermissionVersion] = useState(0);
 
   const performSignOut = async () => {
     try {
@@ -341,6 +346,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       item.roles.includes(effectiveRole as AppRole) &&
       (!item.action || can(effectiveRole as AppRole, item.action)),
   );
+  const permissionOverrideCount = ALL_ROLES.reduce(
+    (sum, role) => sum + ALL_ACTIONS.filter((action) => isPermissionOverridden(role, action)).length,
+    0,
+  );
   const showStoppedBadge = stoppedLinesCount > 0 && (effectiveRole === "engineer" || effectiveRole === "manager" || effectiveRole === "maintenance_manager" || effectiveRole === "admin");
   const stoppedTarget = effectiveRole === "engineer" ? "/dashboard/engineer" : "/dashboard/work-orders";
 
@@ -368,7 +377,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               />
             </div>
             <SidebarContent>
-              <SidebarNav filteredItems={filteredItems} />
+              <SidebarNav filteredItems={filteredItems} permissionOverrideCount={permissionOverrideCount} />
             </SidebarContent>
             <div className="mt-auto border-t border-sidebar-border p-4 group-data-[collapsible=icon]:p-2">
               <div className="mb-3 flex items-center gap-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mb-2">
@@ -384,6 +393,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   </div>
                 </div>
               </div>
+              {filteredItems.some((i) => i.title === "Permissions") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Permissions"
+                  className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 mb-1"
+                  onClick={() => navigate("/dashboard/permissions")}
+                >
+                  <ShieldCheck className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
+                  <span className="group-data-[collapsible=icon]:hidden">Permissions</span>
+                </Button>
+              )}
               {role !== "operator" && role !== "viewer" && (
                 <Button
                   variant="ghost"
