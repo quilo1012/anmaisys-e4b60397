@@ -58,24 +58,6 @@ const managerCreateRoleOptions: AppRole[] = ["engineer", "co_engineer"];
 const managerEditRoleOptions: AppRole[] = ["engineer", "co_engineer", "operator"];
 const protectedStaffRoles: AppRole[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner"];
 
-const permissionActions: { action: Action; label: string }[] = [
-  { action: "wo.view", label: "View WOs" },
-  { action: "wo.create", label: "Create WOs" },
-  { action: "wo.update", label: "Update WOs" },
-  { action: "wo.close", label: "Close WOs" },
-  { action: "wo.delete", label: "Delete WOs" },
-  { action: "wo.force", label: "Force close" },
-  { action: "downtime.manage", label: "Manage downtime" },
-  { action: "machines.manage", label: "Manage machines" },
-  { action: "problems.manage", label: "Manage problems" },
-  { action: "stock.manage", label: "Manage stock" },
-  { action: "users.manage", label: "Manage users" },
-  { action: "audit.view", label: "Audit logs" },
-  { action: "reports.analytics", label: "Analytics" },
-  { action: "reports.financial", label: "Financial" },
-  { action: "system.settings", label: "Settings" },
-];
-
 function roleBadgeClass(role?: AppRole) {
   if (role === "admin") return "border-destructive/30 bg-destructive/10 text-destructive";
   if (role === "manager") return "border-primary/30 bg-primary/10 text-primary";
@@ -86,47 +68,55 @@ function roleBadgeClass(role?: AppRole) {
 }
 
 function RolePermissionPreview({ selectedRole }: { selectedRole: AppRole }) {
-  const allowed = permissionActions.filter(({ action }) => can(selectedRole, action));
-  const blockedRestricted = permissionActions.filter(({ action }) => !can(selectedRole, action) && ["wo.delete", "wo.force", "reports.financial", "system.settings"].includes(action));
-
   return (
     <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium">Permissions for {roleLabels[selectedRole]}</p>
         <Badge variant="outline" className={roleBadgeClass(selectedRole)}>{roleLabels[selectedRole]}</Badge>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {allowed.map(({ action, label }) => (
-          <Badge key={action} variant="secondary" className="text-xs">{label}</Badge>
-        ))}
-      </div>
-      {blockedRestricted.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Restricted: {blockedRestricted.map(({ label }) => label).join(", ")}
-        </p>
-      )}
+      <p className="text-xs text-muted-foreground">
+        This role inherits the standard permissions.{" "}
+        <Link to="/dashboard/permissions" className="font-medium text-primary underline underline-offset-2">
+          View full list
+        </Link>
+      </p>
     </div>
   );
 }
 
-function RolePermissionsMatrix() {
+function RolePermissionsSummary() {
+  const total = ALL_ACTIONS.length;
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <Shield className="h-4 w-4" /> Role permissions
         </CardTitle>
+        <Button asChild size="sm" variant="outline">
+          <Link to="/dashboard/permissions">Open Permissions Matrix</Link>
+        </Button>
       </CardHeader>
-      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {adminRoleOptions.map((roleOption) => {
-          const allowed = permissionActions.filter(({ action }) => can(roleOption, action));
+      <CardContent className="space-y-2">
+        {ALL_ROLES.map((roleOption) => {
+          const allowedCount = ALL_ACTIONS.filter((a) => can(roleOption, a)).length;
+          const overrideCount = ALL_ACTIONS.filter((a) => isPermissionOverridden(roleOption, a)).length;
           return (
-            <div key={roleOption} className="rounded-md border border-border p-3 space-y-2">
-              <Badge variant="outline" className={roleBadgeClass(roleOption)}>{roleLabels[roleOption]}</Badge>
-              <div className="flex flex-wrap gap-1.5">
-                {allowed.length > 0 ? allowed.map(({ action, label }) => (
-                  <Badge key={action} variant="secondary" className="text-xs">{label}</Badge>
-                )) : <span className="text-xs text-muted-foreground">View-only access</span>}
+            <div
+              key={roleOption}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3"
+            >
+              <Badge variant="outline" className={roleBadgeClass(roleOption)}>
+                {roleLabels[roleOption]}
+              </Badge>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="text-muted-foreground">
+                  <span className="font-medium text-foreground">{allowedCount}</span> / {total} allowed
+                </span>
+                {overrideCount > 0 && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {overrideCount} override{overrideCount === 1 ? "" : "s"}
+                  </Badge>
+                )}
               </div>
             </div>
           );
@@ -135,6 +125,7 @@ function RolePermissionsMatrix() {
     </Card>
   );
 }
+
 
 interface Leader {
   id: string;
