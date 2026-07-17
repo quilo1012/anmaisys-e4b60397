@@ -23,7 +23,6 @@ export default function ExecutiveDashboard() {
   const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("today"));
   const [shiftFilter, setShiftFilter] = useState<"ALL" | "DAY" | "NIGHT">("ALL");
   const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
-  const { data: downtimeRecords = [] } = useDowntime();
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const toggleFullscreen = useCallback(() => {
@@ -79,29 +78,17 @@ export default function ExecutiveDashboard() {
       : 0;
 
     // SLA Compliance — respect the selected period
-    const slaTargets: Record<string, number> = { critical: 10, high: 30, medium: 60, low: 120 };
     const closedWOs = filteredWOs.filter((w) => ["closed", "completed"].includes(w.status) && w.received_at);
     const withinSLA = closedWOs.filter((w) => {
-      const target = slaTargets[w.priority || "medium"] || 60;
+      const target = SLA_TARGETS[w.priority || "medium"] || 60;
       return differenceInMinutes(new Date(w.received_at!), new Date(w.created_at)) <= target;
     }).length;
     const slaPercent = closedWOs.length ? Math.round((withinSLA / closedWOs.length) * 100) : 100;
 
-    // Total Line Downtime within selected period — aligned with Downtime page
-    // (wall-clock; parallel stoppages counted once).
-    const rangeStartMs = startOfDay(kpiRange.from).getTime();
-    const rangeEndMs = Math.min(endOfDay(kpiRange.to).getTime(), Date.now());
-    const lineDowntimeTodayMin = reconcileMinutes(
-      (downtimeRecords || []).filter((r: any) => inShift(r.started_at)).map((r: any) => ({ start: r.started_at, end: r.ended_at })),
-      rangeStartMs,
-      rangeEndMs,
-      Date.now(),
-    );
-
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
 
-    return { openWOs, avgResponse, avgMTTR, slaPercent, lineDowntimeTodayMin, machinesAtRisk };
-  }, [workOrders, filteredWOs, machines, woMetrics, downtimeRecords, kpiRange, inShift]);
+    return { openWOs, avgResponse, avgMTTR, slaPercent, machinesAtRisk };
+  }, [workOrders, filteredWOs, machines, woMetrics, inShift]);
 
   // WOs per day across the selected period (defaults to last 7 days when range is empty).
   const wosPerDay = useMemo(() => {
