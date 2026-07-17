@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { format, startOfWeek, addDays, addWeeks, getISOWeek, startOfMonth, endOfMonth, isSameMonth } from "date-fns";
 import { Link } from "react-router-dom";
 import { ManageLinesDialog } from "@/components/ManageLinesDialog";
+import { EmptyState } from "@/components/EmptyState";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { FileText, FileSpreadsheet } from "lucide-react";
 import { exportRagPdf, exportRagExcel } from "@/lib/ragExports";
@@ -1839,14 +1840,23 @@ function DayNightTotalSummary({
       </CardHeader>
       <CardContent>
 
-        {lines.map((line) => (
-          <div key={line} id={`rag-line-${line.replace(/\s+/g, "-")}`} className="scroll-mt-24">
-            <Block label={line} lineFilter={[line]} />
-          </div>
-        ))}
-        <div id="rag-line-all" className="scroll-mt-24">
-          <Block label="All Lines" lineFilter={lines} />
-        </div>
+        {lines.length === 0 ? (
+          <EmptyState
+            title="No lines to display"
+            description="No lines match the current filters for the selected week. Adjust the week or line filter above to see the RAG summary."
+          />
+        ) : (
+          <>
+            {lines.map((line) => (
+              <div key={line} id={`rag-line-${line.replace(/\s+/g, "-")}`} className="scroll-mt-24">
+                <Block label={line} lineFilter={[line]} />
+              </div>
+            ))}
+            <div id="rag-line-all" className="scroll-mt-24">
+              <Block label="All Lines" lineFilter={lines} />
+            </div>
+          </>
+        )}
 
       </CardContent>
     </Card>

@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Medal } from "lucide-react";
+import { ChevronLeft, ChevronRight, Medal, BarChart3 } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
 import { CircularProgress } from "@/components/ui/circular-progress";
@@ -324,8 +325,18 @@ export default function ProductionPerformancePage() {
         })()}
 
         {/* Line status cards */}
+        {sortedByLine.length === 0 ? (
+          <Card>
+            <CardContent className="p-0">
+              <EmptyState
+                icon={BarChart3}
+                title="No production data for this period"
+                description="No line sessions match the current filters. Try adjusting the date range, shift or line filter."
+              />
+            </CardContent>
+          </Card>
+        ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {sortedByLine.length === 0 && <Card><CardContent className="p-4 text-muted-foreground">No data</CardContent></Card>}
           {sortedByLine.map((l) => {
 
             const headerBg = l.eff >= 100 ? "bg-green-500/15" : l.eff >= 80 ? "bg-amber-500/15" : "bg-red-500/15";
@@ -348,6 +359,7 @@ export default function ProductionPerformancePage() {
             );
           })}
         </div>
+        )}
       </div>
     </DashboardLayout>
 
