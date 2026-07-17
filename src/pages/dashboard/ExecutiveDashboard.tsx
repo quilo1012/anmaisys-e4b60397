@@ -110,39 +110,6 @@ export default function ExecutiveDashboard() {
     return days;
   }, [workOrders, kpiRange.from, kpiRange.to]);
 
-  // Top 3 lines by downtime — respect the selected period (filter by created_at).
-  const topLines = useMemo(() => {
-    const lineMap: Record<string, number> = {};
-    filteredWOs.forEach((w) => {
-      if (w.started_at && (w.finished_at || w.completed_at)) {
-        const snapshot = ((w as any).line_at_time ?? "").toString().trim();
-        const machine = machines.find((m) => m.name === w.machine);
-        const liveLine = (machine?.line ?? "").toString().trim();
-        const line = snapshot && !/^removed$/i.test(snapshot)
-          ? snapshot
-          : (liveLine || "—");
-        const mins = differenceInMinutes(new Date(w.finished_at || w.completed_at!), new Date(w.started_at!));
-        lineMap[line] = (lineMap[line] || 0) + mins;
-      }
-    });
-    return Object.entries(lineMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([line, mins]) => ({ line, mins }));
-  }, [filteredWOs, machines]);
-
-  // Top 3 recurring problems — respect the selected period
-  const topProblems = useMemo(() => {
-    const probMap: Record<string, number> = {};
-    filteredWOs.forEach((w) => {
-      probMap[w.description] = (probMap[w.description] || 0) + 1;
-    });
-    return Object.entries(probMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([desc, count]) => ({ desc, count }));
-  }, [filteredWOs]);
-
   // Top 3 engineers
   const topEngineers = useMemo(() => {
     return engineerScores.slice(0, 3);
