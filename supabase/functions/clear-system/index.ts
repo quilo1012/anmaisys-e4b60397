@@ -31,18 +31,31 @@ Deno.serve(async (req) => {
     // Use service role to delete everything
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    const deleteAll = async (table: string) => {
+      const { error } = await adminClient.from(table).delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      if (error) {
+        return new Response(
+          JSON.stringify({ error: `Failed to delete ${table}: ${error.message || error.details || JSON.stringify(error)}` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      return null;
+    };
+
     // Delete in dependency order
-    await adminClient.from("wo_messages").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    await adminClient.from("wo_photos").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    await adminClient.from("parts_used").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    await adminClient.from("work_orders").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    await adminClient.from("engineer_scores").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    let deleteResult;
+    deleteResult = await deleteAll("wo_messages"); if (deleteResult) return deleteResult;
+    deleteResult = await deleteAll("wo_photos"); if (deleteResult) return deleteResult;
+    deleteResult = await deleteAll("parts_used"); if (deleteResult) return deleteResult;
+    deleteResult = await deleteAll("work_orders"); if (deleteResult) return deleteResult;
+    deleteResult = await deleteAll("engineer_scores"); if (deleteResult) return deleteResult;
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    const message = error instanceof Error ? error.message : String(error);
+    return new Response(JSON.stringify({ error: message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
