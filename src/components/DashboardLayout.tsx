@@ -32,7 +32,7 @@ import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
-import { can, subscribePermissionOverrides, type Action } from "@/lib/permissions";
+import { can, subscribePermissionOverrides, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, type Action } from "@/lib/permissions";
 import { AutoWoDisabledBanner } from "@/components/AutoWoDisabledBanner";
 import { UnmappedLinesBanner } from "@/components/UnmappedLinesBanner";
 import { PushOnboarding } from "@/components/PushOnboarding";
