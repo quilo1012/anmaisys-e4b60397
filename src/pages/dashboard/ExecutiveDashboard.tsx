@@ -135,18 +135,16 @@ export default function ExecutiveDashboard() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3 print:hidden">
-          <span className="text-sm font-medium text-muted-foreground">KPI period filter</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <DateRangeFilter
-              value={kpiRange}
-              preset={kpiPreset}
-              onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
-              storageKey="executive-dashboard"
-            />
-            <ShiftFilter value={shiftFilter} onChange={setShiftFilter} />
-          </div>
-        </div>
+        <ReportsFilterBar
+          dateRange={kpiRange}
+          datePreset={kpiPreset}
+          onDateChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
+          shift={shiftFilter}
+          onShiftChange={setShiftFilter}
+          storageKey="executive-dashboard"
+        >
+          <span className="text-xs text-muted-foreground">KPI period filter</span>
+        </ReportsFilterBar>
 
         {/* KPI Grid */}
         <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 [&_p.text-3xl]:text-2xl [&_p.text-3xl]:sm:text-3xl">
