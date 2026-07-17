@@ -91,7 +91,11 @@ export default function IntouchSettingsPage() {
     } catch (e: any) {
       const msg = e?.message || "Failed to load diagnostics";
       setDiagError(msg);
-      if (!opts.silent) toast.error(msg);
+      if (!opts.silent) {
+        toast.error(msg, {
+          action: { label: "Retry", onClick: () => loadDiag() },
+        });
+      }
     } finally {
       if (!opts.silent) setLoadingDiag(false);
     }
