@@ -1840,14 +1840,23 @@ function DayNightTotalSummary({
       </CardHeader>
       <CardContent>
 
-        {lines.map((line) => (
-          <div key={line} id={`rag-line-${line.replace(/\s+/g, "-")}`} className="scroll-mt-24">
-            <Block label={line} lineFilter={[line]} />
-          </div>
-        ))}
-        <div id="rag-line-all" className="scroll-mt-24">
-          <Block label="All Lines" lineFilter={lines} />
-        </div>
+        {lines.length === 0 ? (
+          <EmptyState
+            title="No lines to display"
+            description="No lines match the current filters for the selected week. Adjust the week or line filter above to see the RAG summary."
+          />
+        ) : (
+          <>
+            {lines.map((line) => (
+              <div key={line} id={`rag-line-${line.replace(/\s+/g, "-")}`} className="scroll-mt-24">
+                <Block label={line} lineFilter={[line]} />
+              </div>
+            ))}
+            <div id="rag-line-all" className="scroll-mt-24">
+              <Block label="All Lines" lineFilter={lines} />
+            </div>
+          </>
+        )}
 
       </CardContent>
     </Card>
