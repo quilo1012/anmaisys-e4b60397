@@ -251,46 +251,21 @@ export default function ExecutiveDashboard() {
           </Card>
         </div>
 
-        {/* Bottom row: Top Lines + Top Problems */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-destructive" /> Most Impacted Lines
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {topLines.map((l, i) => (
-                  <div key={l.line} className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{i + 1}. {l.line}</span>
-                    <span className="text-sm font-bold text-destructive">{formatMins(l.mins)}</span>
-                  </div>
-                ))}
-                {!topLines.length && <p className="text-sm text-muted-foreground">No downtime data</p>}
+        {/* Downtime & Reliability shortcut — details live on the dedicated page */}
+        <Link to="/dashboard/downtime" className="block">
+          <Card className="hover:border-primary transition-colors">
+            <CardContent className="pt-4 pb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <TrendingDown className="h-5 w-5 text-destructive" />
+                <div>
+                  <p className="text-sm font-semibold">Downtime & Reliability</p>
+                  <p className="text-xs text-muted-foreground">Most impacted lines, recurring problems and totals — open the dedicated page.</p>
+                </div>
               </div>
+              <span className="text-xs font-medium text-primary">Open →</span>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" /> Most Recurring Problems
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {topProblems.map((p, i) => (
-                  <div key={p.desc} className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium truncate">{i + 1}. {p.desc}</span>
-                    <span className="text-sm font-bold shrink-0">{p.count}x</span>
-                  </div>
-                ))}
-                {!topProblems.length && <p className="text-sm text-muted-foreground">No data</p>}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        </Link>
       </div>
     </DashboardLayout>
   );
