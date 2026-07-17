@@ -1061,17 +1061,33 @@ export default function LineProductionScreen() {
         onOpenChange={setPinOpen}
         title="Unlock Target"
         description="Enter Line Leader PIN to reveal target & progress for this shift."
-        onSuccess={(eng) => {
-          const assigned = [
-            ...(eng.leader_lines ?? []),
-            ...(eng.leader_line ? [eng.leader_line] : []),
-          ];
-          const isLeaderForThisLine =
-            !!eng.is_leader &&
-            assigned.some((l) => lineNamesMatch(l, canonicalLineName));
-          if (!isLeaderForThisLine) {
+        onSuccess={async (eng) => {
+          // Validate against the actual production_sessions record for this
+          // exact line + date + shift (same source as the RAG target shown).
+          // Only the leader assigned to THAT specific session can unlock.
+          const { data: sessions, error } = await (supabase as any)
+            .from("production_sessions")
+            .select("line, leader_name")
+            .eq("session_date", activeSessionDate)
+            .eq("shift", shift);
+          if (error) {
+            toast.error(`Could not verify session leader: ${error.message}`);
+            return;
+          }
+          const sessionRow = (sessions || []).find((r: any) =>
+            lineNamesMatch(r.line, canonicalLineName)
+          );
+          if (!sessionRow) {
             toast.error(
-              `PIN not authorized for ${canonicalLineName}. Only the assigned Line Leader can unlock this target.`
+              `No production session found for ${canonicalLineName} on this shift. Ask a supervisor to assign the shift leader first.`
+            );
+            return;
+          }
+          const sessionLeader = String(sessionRow.leader_name ?? "").trim().toLowerCase();
+          const pinLeader = String(eng.name ?? "").trim().toLowerCase();
+          if (!sessionLeader || sessionLeader !== pinLeader) {
+            toast.error(
+              `PIN not authorized for ${canonicalLineName} on this shift. Only the leader assigned to this shift can unlock the target.`
             );
             return;
           }
