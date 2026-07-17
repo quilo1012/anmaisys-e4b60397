@@ -453,19 +453,18 @@ export default function AnalyticsPage() {
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg MTBF</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-3xl font-bold">{formatMTBF(kpis.avgMTBF / 60)}</div><p className="text-xs text-muted-foreground">{hasNoActivity ? "No activity in selected period" : "Mean Time Between Failures"}</p></CardContent></Card>
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">SLA Compliance</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-3xl font-bold ${slaCompliance.rate < 80 ? "text-destructive" : "text-green-600"}`}>{slaCompliance.rate}%</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Downtime (Selected Range)</CardTitle>
-              <TrendingDown className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{fmtMin(totalDowntimeMinutes)}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {hasNoActivity ? "No activity in selected period" : "Wall-clock line stoppage (parallel stoppages counted once)"}
-              </p>
-            </CardContent>
-          </Card>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 print:hidden">
+          <Link to="/dashboard/downtime" className="block">
+            <Card className="hover:border-primary transition-colors h-full">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Downtime & Reliability</CardTitle>
+                <TrendingDown className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Open the dedicated downtime page for totals, records and the heatmap.</p>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
 
