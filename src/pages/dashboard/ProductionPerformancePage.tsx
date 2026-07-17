@@ -325,8 +325,18 @@ export default function ProductionPerformancePage() {
         })()}
 
         {/* Line status cards */}
+        {sortedByLine.length === 0 ? (
+          <Card>
+            <CardContent className="p-0">
+              <EmptyState
+                icon={BarChart3}
+                title="No production data for this period"
+                description="No line sessions match the current filters. Try adjusting the date range, shift or line filter."
+              />
+            </CardContent>
+          </Card>
+        ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {sortedByLine.length === 0 && <Card><CardContent className="p-4 text-muted-foreground">No data</CardContent></Card>}
           {sortedByLine.map((l) => {
 
             const headerBg = l.eff >= 100 ? "bg-green-500/15" : l.eff >= 80 ? "bg-amber-500/15" : "bg-red-500/15";
