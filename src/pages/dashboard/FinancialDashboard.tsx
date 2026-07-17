@@ -186,68 +186,37 @@ function FinancialDashboardContent() {
             <h2 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="h-6 w-6" /> Financial Dashboard</h2>
             <p className="text-muted-foreground">Cost tracking and financial analysis</p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <label className="flex items-center gap-1 text-xs text-muted-foreground">
-              Fallback £/h
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={fallbackRate}
-                onChange={(e) => {
-                  const v = Math.max(0, Number(e.target.value) || 0);
-                  setFallbackRate(v);
-                  localStorage.setItem("financial:fallback_rate", String(v));
-                }}
-                className="w-20 h-9 rounded-md border bg-background px-2 text-sm"
-                title="Applied when an engineer has no labor rate set"
-              />
-            </label>
-            <DateRangeFilter
-              value={drRange}
-              preset={drPreset}
-              onChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
-              storageKey="financial-dashboard"
+          <label className="flex items-center gap-1 text-xs text-muted-foreground">
+            Fallback £/h
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={fallbackRate}
+              onChange={(e) => {
+                const v = Math.max(0, Number(e.target.value) || 0);
+                setFallbackRate(v);
+                localStorage.setItem("financial:fallback_rate", String(v));
+              }}
+              className="w-20 h-9 rounded-md border bg-background px-2 text-sm"
+              title="Applied when an engineer has no labor rate set"
             />
-          </div>
+          </label>
         </div>
 
+        <ReportsFilterBar
+          dateRange={drRange}
+          datePreset={drPreset}
+          onDateChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
+          storageKey="financial-dashboard"
+        />
+
         <div className="grid gap-4 md:grid-cols-5">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Today's Cost</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{fmt(todayCost)}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Period Cost</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{fmt(periodCost)}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Parts Cost</CardTitle>
-              <Wrench className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{fmt(totalParts)}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Labor Cost</CardTitle>
-              <Factory className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{fmt(totalLabor)}</div></CardContent>
-          </Card>
-          <Card className="border-primary/30">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Stock Inventory Value</CardTitle>
-              <Wrench className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold text-primary">{fmt(stockValue)}</div></CardContent>
-          </Card>
+          <KpiCard accent="green" icon={<DollarSign className="h-4 w-4" />} label="Today's Cost" value={fmt(todayCost)} valueClassName="text-2xl" />
+          <KpiCard accent="blue" icon={<TrendingUp className="h-4 w-4" />} label="Period Cost" value={fmt(periodCost)} valueClassName="text-2xl" />
+          <KpiCard accent="amber" icon={<Wrench className="h-4 w-4" />} label="Total Parts Cost" value={fmt(totalParts)} valueClassName="text-2xl" />
+          <KpiCard accent="indigo" icon={<Factory className="h-4 w-4" />} label="Total Labor Cost" value={fmt(totalLabor)} valueClassName="text-2xl" />
+          <KpiCard accent="purple" icon={<Wrench className="h-4 w-4" />} label="Stock Inventory Value" value={fmt(stockValue)} valueClassName="text-2xl text-primary" />
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
