@@ -148,53 +148,38 @@ export default function ExecutiveDashboard() {
 
         {/* KPI Grid */}
         <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 [&_p.text-3xl]:text-2xl [&_p.text-3xl]:sm:text-3xl">
-          <Card className="border-l-4 border-l-blue-500">
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <Activity className="h-4 w-4" />
-                <span className="text-xs font-medium">Open WOs</span>
-              </div>
-              <p className="text-3xl font-bold">{kpis.openWOs}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-l-indigo-500">
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <Clock className="h-4 w-4" />
-                <span className="text-xs font-medium">Avg Response Time</span>
-              </div>
-              <p className="text-3xl font-bold">{formatMins(kpis.avgResponse)}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">created → accepted</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-l-amber-500">
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <Gauge className="h-4 w-4" />
-                <span className="text-xs font-medium">Avg Active Repair</span>
-              </div>
-              <p className="text-3xl font-bold">{formatMins(kpis.avgMTTR)}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">MTTR — pauses excluded</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-l-green-500">
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <ShieldCheck className="h-4 w-4" />
-                <span className="text-xs font-medium">SLA Compliance</span>
-              </div>
-              <p className="text-3xl font-bold">{kpis.slaPercent}%</p>
-            </CardContent>
-          </Card>
-          <Card className={`border-l-4 ${kpis.machinesAtRisk > 0 ? "border-l-destructive" : "border-l-green-500"}`}>
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <AlertTriangle className="h-4 w-4" />
-                <span className="text-xs font-medium">Machines at Risk</span>
-              </div>
-              <p className="text-3xl font-bold">{kpis.machinesAtRisk}</p>
-            </CardContent>
-          </Card>
+          <KpiCard
+            accent="blue"
+            icon={<Activity className="h-4 w-4" />}
+            label="Open WOs"
+            value={kpis.openWOs}
+          />
+          <KpiCard
+            accent="indigo"
+            icon={<Clock className="h-4 w-4" />}
+            label="Avg Response Time"
+            value={formatMins(kpis.avgResponse)}
+            sublabel="created → accepted"
+          />
+          <KpiCard
+            accent="amber"
+            icon={<Gauge className="h-4 w-4" />}
+            label="Avg Active Repair"
+            value={formatMins(kpis.avgMTTR)}
+            sublabel="MTTR — pauses excluded"
+          />
+          <KpiCard
+            accent="green"
+            icon={<ShieldCheck className="h-4 w-4" />}
+            label="SLA Compliance"
+            value={`${kpis.slaPercent}%`}
+          />
+          <KpiCard
+            accent={kpis.machinesAtRisk > 0 ? "red" : "green"}
+            icon={<AlertTriangle className="h-4 w-4" />}
+            label="Machines at Risk"
+            value={kpis.machinesAtRisk}
+          />
         </div>
 
         {/* Charts + Rankings */}
