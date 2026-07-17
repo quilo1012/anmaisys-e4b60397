@@ -187,16 +187,6 @@ export default function ExecutiveDashboard() {
               <p className="text-3xl font-bold">{kpis.slaPercent}%</p>
             </CardContent>
           </Card>
-          <Card className="border-l-4 border-l-orange-500">
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <Timer className="h-4 w-4" />
-                <span className="text-xs font-medium">Line Downtime (period)</span>
-              </div>
-              <p className="text-3xl font-bold">{formatMins(kpis.lineDowntimeTodayMin)}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">minutes lines were stopped</p>
-            </CardContent>
-          </Card>
           <Card className={`border-l-4 ${kpis.machinesAtRisk > 0 ? "border-l-destructive" : "border-l-green-500"}`}>
             <CardContent className="pt-4 pb-3">
               <div className="flex items-center gap-2 text-muted-foreground mb-1">
