@@ -21,10 +21,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMinutes } from "@/lib/formatDuration";
-import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
+import { DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
 import { Link } from "react-router-dom";
 import { SLA_TARGETS } from "@/lib/sla";
 import { resolveLine } from "@/lib/resolveLine";
+import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
+import { KpiCard } from "@/components/reports/KpiCard";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#10b981", "#6b7280"];
@@ -414,15 +416,14 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Date Range Filters */}
-        <div className="flex items-center gap-3 flex-wrap print:hidden">
-          <DateRangeFilter
-            value={drRange}
-            preset={drPreset}
-            onChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
-            storageKey="analytics-page"
-          />
+        <ReportsFilterBar
+          dateRange={drRange}
+          datePreset={drPreset}
+          onDateChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
+          storageKey="analytics-page"
+        >
           <Badge variant="secondary" className="text-xs">{allWOs?.length ?? 0} WOs in range</Badge>
-        </div>
+        </ReportsFilterBar>
 
         {(woLoading || machinesLoading || metricsLoading || scoresLoading || productsLoading) && !rawWOs && (
           <div className="space-y-6 print:hidden" aria-busy="true" aria-label="Loading analytics">
@@ -442,16 +443,16 @@ export default function AnalyticsPage() {
 
         {/* KPI cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Open WOs</CardTitle><ClipboardList className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-3xl font-bold">{openCount}</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">In Progress</CardTitle><LayoutDashboard className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-3xl font-bold">{inProgressCount}</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Completed Today</CardTitle><ClipboardList className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-3xl font-bold">{completedToday}</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Users</CardTitle><Users className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-3xl font-bold">{userCount ?? 0}</div></CardContent></Card>
+          <KpiCard accent="blue" icon={<ClipboardList className="h-4 w-4" />} label="Open WOs" value={openCount} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
+          <KpiCard accent="indigo" icon={<LayoutDashboard className="h-4 w-4" />} label="In Progress" value={inProgressCount} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
+          <KpiCard accent="green" icon={<ClipboardList className="h-4 w-4" />} label="Completed Today" value={completedToday} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
+          <KpiCard accent="muted" icon={<Users className="h-4 w-4" />} label="Total Users" value={userCount ?? 0} />
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg Response</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-3xl font-bold">{fmtMin(kpis.avgResponse)}</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg MTTR</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-3xl font-bold">{fmtMin(kpis.avgMTTR)}</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg MTBF</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-3xl font-bold">{formatMTBF(kpis.avgMTBF / 60)}</div><p className="text-xs text-muted-foreground">{hasNoActivity ? "No activity in selected period" : "Mean Time Between Failures"}</p></CardContent></Card>
-          <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">SLA Compliance</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-3xl font-bold ${slaCompliance.rate < 80 ? "text-destructive" : "text-green-600"}`}>{slaCompliance.rate}%</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
+          <KpiCard accent="indigo" icon={<Timer className="h-4 w-4" />} label="Avg Response" value={fmtMin(kpis.avgResponse)} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
+          <KpiCard accent="amber" icon={<Activity className="h-4 w-4" />} label="Avg MTTR" value={fmtMin(kpis.avgMTTR)} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
+          <KpiCard accent="purple" icon={<Activity className="h-4 w-4" />} label="Avg MTBF" value={formatMTBF(kpis.avgMTBF / 60)} sublabel={hasNoActivity ? "No activity in selected period" : "Mean Time Between Failures"} />
+          <KpiCard accent={slaCompliance.rate < 80 ? "red" : "green"} icon={<Timer className="h-4 w-4" />} label="SLA Compliance" value={`${slaCompliance.rate}%`} valueClassName={slaCompliance.rate < 80 ? "text-destructive" : "text-green-600"} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 print:hidden">
           <Link to="/dashboard/downtime" className="block">
