@@ -208,6 +208,11 @@ function SidebarNav({ filteredItems, permissionOverrideCount }: { filteredItems:
                           >
                             <item.icon className="h-4 w-4 shrink-0" />
                             <span className="text-sm">{item.title}</span>
+                            {item.title === "Permissions" && permissionOverrideCount > 0 && (
+                              <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-0 text-[10px] font-medium text-primary">
+                                {permissionOverrideCount} custom
+                              </span>
+                            )}
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
