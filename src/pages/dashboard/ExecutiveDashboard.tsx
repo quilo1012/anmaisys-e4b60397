@@ -11,9 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Activity, Trophy, BarChart3, TrendingDown } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { countOpenWOs } from "@/lib/woStatus";
-import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
-import { ShiftFilter } from "@/components/ShiftFilter";
+import { DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
 import { SLA_TARGETS } from "@/lib/sla";
+import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
+import { KpiCard } from "@/components/reports/KpiCard";
 
 export default function ExecutiveDashboard() {
   const { data: workOrders = [] } = useWorkOrders();
