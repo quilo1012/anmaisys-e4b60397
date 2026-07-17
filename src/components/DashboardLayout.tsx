@@ -295,7 +295,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { language, toggle: toggleLanguage } = useLanguage();
   const [changePwdOpen, setChangePwdOpen] = useState(false);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
-  const [, setPermissionVersion] = useState(0);
+  const [permissionVersion, setPermissionVersion] = useState(0);
 
   const performSignOut = async () => {
     try {
