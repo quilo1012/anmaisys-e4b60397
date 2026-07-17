@@ -497,7 +497,9 @@ export default function IntouchSettingsPage() {
     setLoadingProducts(false);
     if (error) {
       setProductsErr(error.message || "Failed to load products");
-      toast.error("Failed to load products");
+      toast.error("Failed to load products", {
+        action: { label: "Retry", onClick: () => loadProducts() },
+      });
       return;
     }
     const list = Array.isArray(data?.products) ? data.products : [];
