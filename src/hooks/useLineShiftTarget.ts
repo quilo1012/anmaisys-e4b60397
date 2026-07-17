@@ -81,7 +81,7 @@ export function useLineShiftTarget(params: UseLineShiftTargetParams): UseLineShi
       const msg = (q.error as any)?.message || "Failed to load target";
       if (lastErrorRef.current !== msg) {
         lastErrorRef.current = msg;
-        toast.error(`Target sync error: ${msg}`);
+        toast.error(`Target sync error: ${msg}`, { id: 'line-shift-target' });
       }
     } else if (!q.isFetching) {
       lastErrorRef.current = null;
