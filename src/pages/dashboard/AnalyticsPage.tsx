@@ -416,15 +416,14 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Date Range Filters */}
-        <div className="flex items-center gap-3 flex-wrap print:hidden">
-          <DateRangeFilter
-            value={drRange}
-            preset={drPreset}
-            onChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
-            storageKey="analytics-page"
-          />
+        <ReportsFilterBar
+          dateRange={drRange}
+          datePreset={drPreset}
+          onDateChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
+          storageKey="analytics-page"
+        >
           <Badge variant="secondary" className="text-xs">{allWOs?.length ?? 0} WOs in range</Badge>
-        </div>
+        </ReportsFilterBar>
 
         {(woLoading || machinesLoading || metricsLoading || scoresLoading || productsLoading) && !rawWOs && (
           <div className="space-y-6 print:hidden" aria-busy="true" aria-label="Loading analytics">
