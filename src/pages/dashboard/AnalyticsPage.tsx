@@ -22,9 +22,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMinutes } from "@/lib/formatDuration";
 import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
+import { Link } from "react-router-dom";
+import { SLA_TARGETS } from "@/lib/sla";
+import { resolveLine } from "@/lib/resolveLine";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
-const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
 const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#10b981", "#6b7280"];
 
 const truncLabel = (s: string, max = 20) => s.length > max ? s.slice(0, max - 1) + "…" : s;
@@ -149,19 +151,9 @@ export default function AnalyticsPage() {
 
   const lineProblems = useMemo(() => {
     if (!allWOs) return [];
-    // Build a fast machine→line lookup from the live machines table
-    const machineToLine: Record<string, string> = {};
-    machines?.forEach((m: any) => {
-      const name = (m?.line ?? "").toString().trim();
-      if (m?.name && name) machineToLine[m.name] = name;
-    });
     const lc: Record<string, number> = {};
     allWOs.forEach((w) => {
-      const snapshot = ((w as any).line_at_time ?? "").toString().trim();
-      const live = machineToLine[w.machine];
-      const line = snapshot && !/^removed$/i.test(snapshot)
-        ? snapshot
-        : (live && live.trim() ? live : "No Line");
+      const line = resolveLine(w, machines, "No Line");
       lc[line] = (lc[line] || 0) + 1;
     });
     return Object.entries(lc)
