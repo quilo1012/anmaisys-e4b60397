@@ -149,7 +149,7 @@ function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
   const location = useLocation();
   const { state } = useSidebar();
   const iconCollapsed = state === "collapsed";
-  const groups = ["Overview", "Maintenance", "Assets", "Production", "Planning", "Reports", "Admin"];
+  const groups = ["Overview", "Maintenance", "Assets", "Production", "Planning", "Reports", "Communication", "Administration", "System"];
   const grouped = groups.map((g) => ({
     label: g,
     items: filteredItems.filter((i) => i.group === g),
