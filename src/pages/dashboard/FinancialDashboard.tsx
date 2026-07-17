@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { differenceInMinutes, startOfDay, endOfDay, subDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
+import { resolveLine as resolveLineShared } from "@/lib/resolveLine";
 
 type PeriodPreset = "7d" | "30d" | "90d" | "custom";
 
@@ -98,22 +99,7 @@ function FinancialDashboardContent() {
     },
   });
 
-  const machineLineMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    machines?.forEach((m) => { if (m.line) map[m.name] = m.line; });
-    return map;
-  }, [machines]);
-
-  // Resolve a friendly line label using the WO snapshot (line_at_time) first,
-  // then the live machine→line mapping, and finally an em-dash placeholder
-  // for WOs created without a line or whose line was deleted.
-  const resolveLine = (wo: any): string => {
-    const snapshot = (wo?.line_at_time ?? "").toString().trim();
-    if (snapshot && !/^removed$/i.test(snapshot)) return snapshot;
-    const live = machineLineMap[wo?.machine];
-    if (live && live.trim()) return live;
-    return "—";
-  };
+  const resolveLine = (wo: any): string => resolveLineShared(wo, machines);
 
   const laborRateMap = useMemo(() => {
     const map: Record<string, number> = {};
@@ -152,7 +138,7 @@ function FinancialDashboardContent() {
         repairHours: Math.round(repairHours * 10) / 10,
       };
     });
-  }, [allWOs, allPartsUsed, laborRateMap, machineLineMap, fallbackRate]);
+  }, [allWOs, allPartsUsed, laborRateMap, machines, fallbackRate]);
 
   // Filter WO costs by selected date range
   const filteredCosts = useMemo(

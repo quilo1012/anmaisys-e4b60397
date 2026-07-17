@@ -1,20 +1,19 @@
 import { useMemo, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines } from "@/hooks/useMachines";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
 import { useAllWoMetrics } from "@/hooks/useWoMetrics";
-import { differenceInMinutes, subDays, format, startOfDay, endOfDay } from "date-fns";
-import { useDowntime } from "@/hooks/useDowntime";
-import { reconcileMinutes } from "@/lib/downtimeReconcile";
+import { differenceInMinutes, subDays, format, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Timer, Activity, Trophy, TrendingUp, BarChart3 } from "lucide-react";
+import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Activity, Trophy, BarChart3, TrendingDown } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { countOpenWOs } from "@/lib/woStatus";
 import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
 import { ShiftFilter } from "@/components/ShiftFilter";
+import { SLA_TARGETS } from "@/lib/sla";
 
 export default function ExecutiveDashboard() {
   const { data: workOrders = [] } = useWorkOrders();
@@ -24,7 +23,6 @@ export default function ExecutiveDashboard() {
   const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("today"));
   const [shiftFilter, setShiftFilter] = useState<"ALL" | "DAY" | "NIGHT">("ALL");
   const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
-  const { data: downtimeRecords = [] } = useDowntime();
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const toggleFullscreen = useCallback(() => {
@@ -80,29 +78,17 @@ export default function ExecutiveDashboard() {
       : 0;
 
     // SLA Compliance — respect the selected period
-    const slaTargets: Record<string, number> = { critical: 10, high: 30, medium: 60, low: 120 };
     const closedWOs = filteredWOs.filter((w) => ["closed", "completed"].includes(w.status) && w.received_at);
     const withinSLA = closedWOs.filter((w) => {
-      const target = slaTargets[w.priority || "medium"] || 60;
+      const target = SLA_TARGETS[w.priority || "medium"] || 60;
       return differenceInMinutes(new Date(w.received_at!), new Date(w.created_at)) <= target;
     }).length;
     const slaPercent = closedWOs.length ? Math.round((withinSLA / closedWOs.length) * 100) : 100;
 
-    // Total Line Downtime within selected period — aligned with Downtime page
-    // (wall-clock; parallel stoppages counted once).
-    const rangeStartMs = startOfDay(kpiRange.from).getTime();
-    const rangeEndMs = Math.min(endOfDay(kpiRange.to).getTime(), Date.now());
-    const lineDowntimeTodayMin = reconcileMinutes(
-      (downtimeRecords || []).filter((r: any) => inShift(r.started_at)).map((r: any) => ({ start: r.started_at, end: r.ended_at })),
-      rangeStartMs,
-      rangeEndMs,
-      Date.now(),
-    );
-
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
 
-    return { openWOs, avgResponse, avgMTTR, slaPercent, lineDowntimeTodayMin, machinesAtRisk };
-  }, [workOrders, filteredWOs, machines, woMetrics, downtimeRecords, kpiRange, inShift]);
+    return { openWOs, avgResponse, avgMTTR, slaPercent, machinesAtRisk };
+  }, [workOrders, filteredWOs, machines, woMetrics, inShift]);
 
   // WOs per day across the selected period (defaults to last 7 days when range is empty).
   const wosPerDay = useMemo(() => {
@@ -123,39 +109,6 @@ export default function ExecutiveDashboard() {
     }
     return days;
   }, [workOrders, kpiRange.from, kpiRange.to]);
-
-  // Top 3 lines by downtime — respect the selected period (filter by created_at).
-  const topLines = useMemo(() => {
-    const lineMap: Record<string, number> = {};
-    filteredWOs.forEach((w) => {
-      if (w.started_at && (w.finished_at || w.completed_at)) {
-        const snapshot = ((w as any).line_at_time ?? "").toString().trim();
-        const machine = machines.find((m) => m.name === w.machine);
-        const liveLine = (machine?.line ?? "").toString().trim();
-        const line = snapshot && !/^removed$/i.test(snapshot)
-          ? snapshot
-          : (liveLine || "—");
-        const mins = differenceInMinutes(new Date(w.finished_at || w.completed_at!), new Date(w.started_at!));
-        lineMap[line] = (lineMap[line] || 0) + mins;
-      }
-    });
-    return Object.entries(lineMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([line, mins]) => ({ line, mins }));
-  }, [filteredWOs, machines]);
-
-  // Top 3 recurring problems — respect the selected period
-  const topProblems = useMemo(() => {
-    const probMap: Record<string, number> = {};
-    filteredWOs.forEach((w) => {
-      probMap[w.description] = (probMap[w.description] || 0) + 1;
-    });
-    return Object.entries(probMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([desc, count]) => ({ desc, count }));
-  }, [filteredWOs]);
 
   // Top 3 engineers
   const topEngineers = useMemo(() => {
@@ -234,16 +187,6 @@ export default function ExecutiveDashboard() {
               <p className="text-3xl font-bold">{kpis.slaPercent}%</p>
             </CardContent>
           </Card>
-          <Card className="border-l-4 border-l-orange-500">
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <Timer className="h-4 w-4" />
-                <span className="text-xs font-medium">Line Downtime (period)</span>
-              </div>
-              <p className="text-3xl font-bold">{formatMins(kpis.lineDowntimeTodayMin)}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">minutes lines were stopped</p>
-            </CardContent>
-          </Card>
           <Card className={`border-l-4 ${kpis.machinesAtRisk > 0 ? "border-l-destructive" : "border-l-green-500"}`}>
             <CardContent className="pt-4 pb-3">
               <div className="flex items-center gap-2 text-muted-foreground mb-1">
@@ -308,46 +251,21 @@ export default function ExecutiveDashboard() {
           </Card>
         </div>
 
-        {/* Bottom row: Top Lines + Top Problems */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-destructive" /> Most Impacted Lines
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {topLines.map((l, i) => (
-                  <div key={l.line} className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{i + 1}. {l.line}</span>
-                    <span className="text-sm font-bold text-destructive">{formatMins(l.mins)}</span>
-                  </div>
-                ))}
-                {!topLines.length && <p className="text-sm text-muted-foreground">No downtime data</p>}
+        {/* Downtime & Reliability shortcut — details live on the dedicated page */}
+        <Link to="/dashboard/downtime" className="block">
+          <Card className="hover:border-primary transition-colors">
+            <CardContent className="pt-4 pb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <TrendingDown className="h-5 w-5 text-destructive" />
+                <div>
+                  <p className="text-sm font-semibold">Downtime & Reliability</p>
+                  <p className="text-xs text-muted-foreground">Most impacted lines, recurring problems and totals — open the dedicated page.</p>
+                </div>
               </div>
+              <span className="text-xs font-medium text-primary">Open →</span>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" /> Most Recurring Problems
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {topProblems.map((p, i) => (
-                  <div key={p.desc} className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium truncate">{i + 1}. {p.desc}</span>
-                    <span className="text-sm font-bold shrink-0">{p.count}x</span>
-                  </div>
-                ))}
-                {!topProblems.length && <p className="text-sm text-muted-foreground">No data</p>}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        </Link>
       </div>
     </DashboardLayout>
   );

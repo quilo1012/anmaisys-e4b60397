@@ -22,9 +22,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMinutes } from "@/lib/formatDuration";
 import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
+import { Link } from "react-router-dom";
+import { SLA_TARGETS } from "@/lib/sla";
+import { resolveLine } from "@/lib/resolveLine";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
-const SLA_TARGETS: Record<string, number> = { low: 120, medium: 60, high: 30, critical: 10 };
 const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#10b981", "#6b7280"];
 
 const truncLabel = (s: string, max = 20) => s.length > max ? s.slice(0, max - 1) + "…" : s;
@@ -149,19 +151,9 @@ export default function AnalyticsPage() {
 
   const lineProblems = useMemo(() => {
     if (!allWOs) return [];
-    // Build a fast machine→line lookup from the live machines table
-    const machineToLine: Record<string, string> = {};
-    machines?.forEach((m: any) => {
-      const name = (m?.line ?? "").toString().trim();
-      if (m?.name && name) machineToLine[m.name] = name;
-    });
     const lc: Record<string, number> = {};
     allWOs.forEach((w) => {
-      const snapshot = ((w as any).line_at_time ?? "").toString().trim();
-      const live = machineToLine[w.machine];
-      const line = snapshot && !/^removed$/i.test(snapshot)
-        ? snapshot
-        : (live && live.trim() ? live : "No Line");
+      const line = resolveLine(w, machines, "No Line");
       lc[line] = (lc[line] || 0) + 1;
     });
     return Object.entries(lc)
@@ -461,19 +453,18 @@ export default function AnalyticsPage() {
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Avg MTBF</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-3xl font-bold">{formatMTBF(kpis.avgMTBF / 60)}</div><p className="text-xs text-muted-foreground">{hasNoActivity ? "No activity in selected period" : "Mean Time Between Failures"}</p></CardContent></Card>
           <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">SLA Compliance</CardTitle><Timer className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-3xl font-bold ${slaCompliance.rate < 80 ? "text-destructive" : "text-green-600"}`}>{slaCompliance.rate}%</div>{hasNoActivity && <p className="text-xs text-muted-foreground mt-1">No activity in selected period</p>}</CardContent></Card>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Downtime (Selected Range)</CardTitle>
-              <TrendingDown className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{fmtMin(totalDowntimeMinutes)}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {hasNoActivity ? "No activity in selected period" : "Wall-clock line stoppage (parallel stoppages counted once)"}
-              </p>
-            </CardContent>
-          </Card>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 print:hidden">
+          <Link to="/dashboard/downtime" className="block">
+            <Card className="hover:border-primary transition-colors h-full">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Downtime & Reliability</CardTitle>
+                <TrendingDown className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Open the dedicated downtime page for totals, records and the heatmap.</p>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
 
@@ -608,48 +599,6 @@ export default function AnalyticsPage() {
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={ordersByPriority}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="priority" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} /></BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Machines with Most Downtime</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">Stacked by shift (Europe/London). Hover to see lines affected.</p>
-            </CardHeader>
-            <CardContent>
-              {!downtimeByMachine.length ? (
-                <EmptyChart />
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={downtimeByMachine} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" allowDecimals={false} tickFormatter={(v: number) => fmtMin(v)} />
-                    <YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} />
-                    <Tooltip
-                      content={({ active, payload }: any) => {
-                        if (!active || !payload?.length) return null;
-                        const d = payload[0].payload;
-                        return (
-                          <div className="rounded-md border bg-background p-2 text-xs shadow-md">
-                            <div className="font-medium mb-1">{d.machine}</div>
-                            <div>Day shift: {fmtMin(d.day)}</div>
-                            <div>Night shift: {fmtMin(d.night)}</div>
-                            <div className="font-medium mt-1">Total: {fmtMin(d.total)}</div>
-                            <div className="mt-1 text-muted-foreground">Lines: {d.lines}</div>
-                          </div>
-                        );
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="day" stackId="s" fill="#f59e0b" name="Day shift (06–18)" radius={[0, 0, 0, 0]}>
-                      <LabelList dataKey="day" position="center" fill="#fff" fontSize={11} formatter={(v: number) => (v > 0 ? fmtMin(v) : "")} />
-                    </Bar>
-                    <Bar dataKey="night" stackId="s" fill="#6366f1" name="Night shift (18–06)" radius={[0, 4, 4, 0]}>
-                      <LabelList dataKey="night" position="center" fill="#fff" fontSize={11} formatter={(v: number) => (v > 0 ? fmtMin(v) : "")} />
-                      <LabelList dataKey="lines" position="right" fill="hsl(var(--foreground))" fontSize={10} formatter={(v: string) => (v && v !== "—" ? v : "")} />
-                    </Bar>
-                  </BarChart>
                 </ResponsiveContainer>
               )}
             </CardContent>
