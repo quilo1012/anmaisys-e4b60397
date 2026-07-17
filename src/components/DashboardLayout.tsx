@@ -145,7 +145,7 @@ function LiveClock() {
   );
 }
 
-function SidebarNav({ filteredItems }: { filteredItems: NavItem[] }) {
+function SidebarNav({ filteredItems, permissionOverrideCount }: { filteredItems: NavItem[]; permissionOverrideCount: number }) {
   const location = useLocation();
   const { state } = useSidebar();
   const iconCollapsed = state === "collapsed";
