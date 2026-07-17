@@ -91,7 +91,11 @@ export default function IntouchSettingsPage() {
     } catch (e: any) {
       const msg = e?.message || "Failed to load diagnostics";
       setDiagError(msg);
-      if (!opts.silent) toast.error(msg);
+      if (!opts.silent) {
+        toast.error(msg, {
+          action: { label: "Retry", onClick: () => loadDiag() },
+        });
+      }
     } finally {
       if (!opts.silent) setLoadingDiag(false);
     }
@@ -341,7 +345,9 @@ export default function IntouchSettingsPage() {
     setLoadingMachines(false);
     if (error) {
       setMachineErr(error.message || "Failed to load machines");
-      toast.error("Failed to load machines");
+      toast.error("Failed to load machines", {
+        action: { label: "Retry", onClick: () => loadMachines() },
+      });
       return;
     }
     // Normalized: { machines: [{ guid, name, line, raw }] }. Fallback to legacy shapes.
@@ -491,7 +497,9 @@ export default function IntouchSettingsPage() {
     setLoadingProducts(false);
     if (error) {
       setProductsErr(error.message || "Failed to load products");
-      toast.error("Failed to load products");
+      toast.error("Failed to load products", {
+        action: { label: "Retry", onClick: () => loadProducts() },
+      });
       return;
     }
     const list = Array.isArray(data?.products) ? data.products : [];

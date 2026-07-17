@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
+import { ToastAction } from "@/components/ui/toast";
 // Tabs replaced by simple button group + conditional render for reliability
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -431,6 +432,7 @@ export default function ManageUsers() {
         title: "Failed to load engineers",
         description: (res.error as any)?.message ?? "Try refreshing the page.",
         variant: "destructive",
+        action: <ToastAction altText="Retry" onClick={fetchEngineers}>Retry</ToastAction>,
       });
       return;
     }
