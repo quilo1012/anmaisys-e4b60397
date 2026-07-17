@@ -341,6 +341,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       item.roles.includes(effectiveRole as AppRole) &&
       (!item.action || can(effectiveRole as AppRole, item.action)),
   );
+  const permissionOverrideCount = ALL_ROLES.reduce(
+    (sum, role) => sum + ALL_ACTIONS.filter((action) => isPermissionOverridden(role, action)).length,
+    0,
+  );
   const showStoppedBadge = stoppedLinesCount > 0 && (effectiveRole === "engineer" || effectiveRole === "manager" || effectiveRole === "maintenance_manager" || effectiveRole === "admin");
   const stoppedTarget = effectiveRole === "engineer" ? "/dashboard/engineer" : "/dashboard/work-orders";
 
