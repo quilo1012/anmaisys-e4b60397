@@ -138,7 +138,7 @@ function FinancialDashboardContent() {
         repairHours: Math.round(repairHours * 10) / 10,
       };
     });
-  }, [allWOs, allPartsUsed, laborRateMap, machineLineMap, fallbackRate]);
+  }, [allWOs, allPartsUsed, laborRateMap, machines, fallbackRate]);
 
   // Filter WO costs by selected date range
   const filteredCosts = useMemo(
