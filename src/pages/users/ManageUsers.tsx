@@ -432,6 +432,7 @@ export default function ManageUsers() {
         title: "Failed to load engineers",
         description: (res.error as any)?.message ?? "Try refreshing the page.",
         variant: "destructive",
+        action: <ToastAction altText="Retry" onClick={fetchEngineers}>Retry</ToastAction>,
       });
       return;
     }
