@@ -742,21 +742,8 @@ export default function ManageUsers() {
           </Dialog>
         </div>
 
-        {currentRole === "admin" && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Shield className="h-4 w-4" /> Role permissions
-              </CardTitle>
-              <Button asChild size="sm" variant="outline">
-                <a href="/dashboard/permissions">Edit permissions</a>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <RolePermissionsMatrix />
-            </CardContent>
-          </Card>
-        )}
+        {currentRole === "admin" && <RolePermissionsSummary />}
+
 
         {currentRole === "admin" && <PermissionAuditLog />}
 
