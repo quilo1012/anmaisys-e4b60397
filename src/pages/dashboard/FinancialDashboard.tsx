@@ -14,8 +14,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { differenceInMinutes, startOfDay, endOfDay, subDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
+import { DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
 import { resolveLine as resolveLineShared } from "@/lib/resolveLine";
+import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
+import { KpiCard } from "@/components/reports/KpiCard";
 
 type PeriodPreset = "7d" | "30d" | "90d" | "custom";
 
