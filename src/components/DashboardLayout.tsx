@@ -15,7 +15,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, TimerOff, Calculator, Brain, Radar, MessageCircle } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, MessageCircle } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import {
   AlertDialog,
@@ -81,7 +81,7 @@ const navItems: NavItem[] = [
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager"], group: "Production" },
   { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Production" },
   { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production" },
-  { title: "Prod. Downtime", url: "/dashboard/production-downtime", icon: TimerOff, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Production" },
+  
   { title: "Quality Actions", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager"], group: "Production" },
 
   // Planning & Insights
@@ -267,7 +267,7 @@ const routeTitles: Record<string, string> = {
   "/dashboard/shift-history": "Production Control",
   "/dashboard/rag-weekly": "RAG Weekly",
   "/dashboard/production-performance": "Performance",
-  "/dashboard/production-downtime": "Prod. Downtime",
+  
   "/dashboard/quality": "Quality Actions",
   "/dashboard/sku-products": "SKU Products",
   "/dashboard/sku-efficiency": "SKU Efficiency",

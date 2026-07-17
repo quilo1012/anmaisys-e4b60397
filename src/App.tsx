@@ -49,7 +49,7 @@ const SKUProductsPage = lazyWithReload(() => import("./pages/dashboard/SKUProduc
 const ProductionPerformancePage = lazyWithReload(() => import("./pages/dashboard/ProductionPerformancePage"));
 const SKUEfficiencyPage = lazyWithReload(() => import("./pages/dashboard/SKUEfficiencyPage"));
 const ProductionForecastPage = lazyWithReload(() => import("./pages/dashboard/ProductionForecastPage"));
-const ProductionDowntimePage = lazyWithReload(() => import("./pages/dashboard/ProductionDowntimePage"));
+
 const QualityActionsPage = lazyWithReload(() => import("./pages/dashboard/QualityActionsPage"));
 const ShiftHistoryPage = lazyWithReload(() => import("./pages/dashboard/ShiftHistoryPage"));
 
@@ -407,14 +407,6 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager"]}>
                       <SKUEfficiencyPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard/production-downtime"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "engineer", "co_engineer", "operator", "maintenance_manager", "planner"]}>
-                      <ProductionDowntimePage />
                     </ProtectedRoute>
                   }
                 />
