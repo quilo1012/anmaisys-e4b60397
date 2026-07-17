@@ -494,12 +494,9 @@ const App = () => (
                 />
                 <Route
                   path="/dashboard/downtime-map"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
-                      <DowntimeHeatmapPage />
-                    </ProtectedRoute>
-                  }
+                  element={<Navigate to="/dashboard/downtime" replace />}
                 />
+
                 <Route
                   path="/dashboard/pm-intelligence"
                   element={
