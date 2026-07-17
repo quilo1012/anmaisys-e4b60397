@@ -68,8 +68,7 @@ const navItems: NavItem[] = [
 
   // Maintenance
   { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance" },
-  { title: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance" },
-  { title: "Downtime Heatmap", url: "/dashboard/downtime-map", icon: BarChart3, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance" },
+  { title: "Downtime & Reliability", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance" },
   { title: "PM Intelligence", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance" },
 
   // Assets
