@@ -604,48 +604,6 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Machines with Most Downtime</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">Stacked by shift (Europe/London). Hover to see lines affected.</p>
-            </CardHeader>
-            <CardContent>
-              {!downtimeByMachine.length ? (
-                <EmptyChart />
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={downtimeByMachine} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" allowDecimals={false} tickFormatter={(v: number) => fmtMin(v)} />
-                    <YAxis type="category" dataKey="machine" width={140} tick={{ fontSize: 11 }} tickFormatter={(v: string) => truncLabel(v)} />
-                    <Tooltip
-                      content={({ active, payload }: any) => {
-                        if (!active || !payload?.length) return null;
-                        const d = payload[0].payload;
-                        return (
-                          <div className="rounded-md border bg-background p-2 text-xs shadow-md">
-                            <div className="font-medium mb-1">{d.machine}</div>
-                            <div>Day shift: {fmtMin(d.day)}</div>
-                            <div>Night shift: {fmtMin(d.night)}</div>
-                            <div className="font-medium mt-1">Total: {fmtMin(d.total)}</div>
-                            <div className="mt-1 text-muted-foreground">Lines: {d.lines}</div>
-                          </div>
-                        );
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="day" stackId="s" fill="#f59e0b" name="Day shift (06–18)" radius={[0, 0, 0, 0]}>
-                      <LabelList dataKey="day" position="center" fill="#fff" fontSize={11} formatter={(v: number) => (v > 0 ? fmtMin(v) : "")} />
-                    </Bar>
-                    <Bar dataKey="night" stackId="s" fill="#6366f1" name="Night shift (18–06)" radius={[0, 4, 4, 0]}>
-                      <LabelList dataKey="night" position="center" fill="#fff" fontSize={11} formatter={(v: number) => (v > 0 ? fmtMin(v) : "")} />
-                      <LabelList dataKey="lines" position="right" fill="hsl(var(--foreground))" fontSize={10} formatter={(v: string) => (v && v !== "—" ? v : "")} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
             <CardHeader><CardTitle className="text-base">Most Used Machines</CardTitle></CardHeader>
             <CardContent>
               {!mostUsedMachines.length ? (
