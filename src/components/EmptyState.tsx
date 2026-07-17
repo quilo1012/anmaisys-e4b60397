@@ -16,13 +16,22 @@ function renderIcon(icon?: IconProp) {
   if (!icon) {
     return <Inbox className="h-12 w-12" aria-hidden="true" />;
   }
-  // If it looks like a component (function/class), render it with default size.
-  if (typeof icon === "function") {
-    const Icon = icon as LucideIcon;
-    return <Icon className="h-12 w-12" aria-hidden="true" />;
+  // Already a rendered React element (e.g. <MyIcon />)
+  if (React.isValidElement(icon)) {
+    return icon;
   }
-  return icon;
+  // Component type: either a plain function component or a forwardRef/memo
+  // object (lucide icons are forwardRef objects with {$$typeof, render}).
+  if (
+    typeof icon === "function" ||
+    (typeof icon === "object" && icon !== null)
+  ) {
+    const Icon = icon as React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+    return <Icon className="h-12 w-12" aria-hidden={true} />;
+  }
+  return null;
 }
+
 
 /**
  * Reusable empty-state block. Renders centered with generous spacing, a muted
