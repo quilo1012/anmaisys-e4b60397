@@ -61,7 +61,7 @@ const LineDisplayScreen = lazyWithReload(() => import("./pages/dashboard/LineDis
 const LineHubScreen = lazyWithReload(() => import("./pages/dashboard/LineHubScreen"));
 const IntouchMachineMapPage = lazyWithReload(() => import("./pages/dashboard/IntouchMachineMapPage"));
 const IntouchStopCodesPage = lazyWithReload(() => import("./pages/dashboard/IntouchStopCodesPage"));
-const DowntimeHeatmapPage = lazyWithReload(() => import("./pages/dashboard/DowntimeHeatmapPage"));
+// DowntimeHeatmapPage consolidated into DowntimePage as the "Heatmap" tab.
 const PMIntelligencePage = lazyWithReload(() => import("./pages/dashboard/PMIntelligencePage"));
 const SmartTargetPage = lazyWithReload(() => import("./pages/dashboard/SmartTargetPage"));
 const WeeklyProductionReportPage = lazyWithReload(() => import("./pages/dashboard/WeeklyProductionReportPage"));
