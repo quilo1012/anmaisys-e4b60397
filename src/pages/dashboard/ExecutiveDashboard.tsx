@@ -117,6 +117,12 @@ export default function ExecutiveDashboard() {
   return (
     <DashboardLayout>
       <div className={`space-y-6 ${isFullscreen ? "p-6 bg-background min-h-screen" : ""}`}>
+        <ReportPrintHeader
+          title="Executive Dashboard"
+          periodLabel={`${kpiRange.from ? format(kpiRange.from, "dd/MM/yyyy HH:mm") : "—"} — ${kpiRange.to ? format(kpiRange.to, "dd/MM/yyyy HH:mm") : "—"}`}
+          shift={shiftFilter === "ALL" ? "All shifts" : shiftFilter === "DAY" ? "Day" : "Night"}
+        />
+
         <div className="flex items-center justify-between print:hidden">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Executive Dashboard</h2>
