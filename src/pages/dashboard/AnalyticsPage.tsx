@@ -98,35 +98,10 @@ export default function AnalyticsPage() {
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
   const hasNoActivity = !woLoading && !!rawWOs && (allWOs?.length ?? 0) === 0;
 
-  // Single source of truth: derive avgResponse / avgMTTR from v_wo_metrics view.
-  // MTBF still computed locally from creation timestamps (no equivalent view column).
-  const kpis = useMemo(() => {
-    const metrics = (woMetricsRange ?? []).filter((m) => (m as any).status !== "force_closed");
-    const respVals = metrics.map((m) => m.response_time_sec).filter((v): v is number => typeof v === "number" && v >= 0);
-    const repairVals = metrics.map((m) => m.active_repair_sec).filter((v): v is number => typeof v === "number" && v >= 0);
-    const avgResponse = respVals.length ? Math.round(respVals.reduce((a, b) => a + b, 0) / respVals.length / 60) : 0;
-    const avgMTTR = repairVals.length ? Math.round(repairVals.reduce((a, b) => a + b, 0) / repairVals.length / 60) : 0;
+  // Single source of truth for Response / MTTR / MTBF — shared with Executive Dashboard.
+  const { avgResponseMin, avgMTTRMin, avgMTBFMin } = useMaintenanceKpis({ from: startDate, to: endDate });
+  const kpis = { avgResponse: avgResponseMin, avgMTTR: avgMTTRMin, avgMTBF: avgMTBFMin };
 
-    let mtbf = 0;
-    if (allWOs && allWOs.length > 1) {
-      const byMachine: Record<string, Date[]> = {};
-      allWOs.forEach((w) => {
-        if (!byMachine[w.machine]) byMachine[w.machine] = [];
-        byMachine[w.machine].push(new Date(w.created_at));
-      });
-      let totalGaps = 0, gapCount = 0;
-      Object.values(byMachine).forEach((dates) => {
-        if (dates.length < 2) return;
-        const sorted = dates.sort((a, b) => a.getTime() - b.getTime());
-        for (let i = 1; i < sorted.length; i++) {
-          totalGaps += differenceInMinutes(sorted[i], sorted[i - 1]);
-          gapCount++;
-        }
-      });
-      mtbf = gapCount ? Math.round(totalGaps / gapCount) : 0;
-    }
-    return { avgResponse, avgMTTR, avgMTBF: mtbf };
-  }, [allWOs, woMetricsRange]);
 
   // Compute days for the "WOs per Day" chart based on the selected range
   const rangeDays = useMemo(() => {
