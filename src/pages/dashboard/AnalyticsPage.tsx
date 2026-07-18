@@ -44,11 +44,14 @@ const fmtMin = (m: number | null | undefined) => {
 };
 
 const EmptyChart = () => (
-  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-    <BarChart3 className="h-8 w-8 mb-2 opacity-50" />
-    <p className="text-sm">No data available</p>
-  </div>
+  <EmptyState
+    icon={BarChart3}
+    title="No data available"
+    description="No records match the selected filters."
+    className="py-8"
+  />
 );
+
 
 export default function AnalyticsPage() {
   const { role } = useAuth();
