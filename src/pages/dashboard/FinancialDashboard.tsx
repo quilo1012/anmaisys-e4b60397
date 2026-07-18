@@ -185,6 +185,11 @@ function FinancialDashboardContent() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <ReportPrintHeader
+          title="Financial Dashboard"
+          periodLabel={`${format(startDate, "dd/MM/yyyy HH:mm")} — ${format(endDate, "dd/MM/yyyy HH:mm")}`}
+        />
+
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="h-6 w-6" /> Financial Dashboard</h2>
