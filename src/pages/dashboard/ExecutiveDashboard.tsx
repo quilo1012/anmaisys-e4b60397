@@ -15,6 +15,8 @@ import { DateRangePreset, DateRange, getPresetRange } from "@/components/DateRan
 import { SLA_TARGETS } from "@/lib/sla";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { EmptyState } from "@/components/EmptyState";
 
 export default function ExecutiveDashboard() {
   const { data: workOrders = [] } = useWorkOrders();
