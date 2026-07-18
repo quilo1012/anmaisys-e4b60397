@@ -242,7 +242,8 @@ function FinancialDashboardContent() {
                     <Bar dataKey="cost" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              ) : <p className="text-muted-foreground text-center py-8">No cost data for this period</p>}
+              ) : <EmptyState icon={DollarSign} title="No cost data for this period" className="py-6" />}
+
             </CardContent>
           </Card>
 
