@@ -15,7 +15,7 @@ import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
-import { Factory, Target, CheckCircle2, Loader2, Search, Plus, Lock } from "lucide-react";
+import { Factory, Target, CheckCircle2, Loader2, Search, Plus, Lock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -68,6 +68,8 @@ function MyProductionContent() {
   const { selectedLineName: line } = useDeviceLineCtx();
   const { profile, role } = useAuth() as any;
   const [targetUnlocked, setTargetUnlocked] = useState(false);
+  const [leaderAssigned, setLeaderAssigned] = useState<boolean | null>(null);
+
 
 
   const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
@@ -168,7 +170,7 @@ function MyProductionContent() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} onUnlockChange={setTargetUnlocked} />
+            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} onUnlockChange={setTargetUnlocked} onLeaderAssignedChange={setLeaderAssigned} />
           </div>
         </CardContent>
       </Card>
