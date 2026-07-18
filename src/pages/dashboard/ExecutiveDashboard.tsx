@@ -228,7 +228,10 @@ export default function ExecutiveDashboard() {
                     <span className="font-bold text-primary">{eng.score} pts</span>
                   </div>
                 ))}
-                {!topEngineers.length && <p className="text-sm text-muted-foreground">No data</p>}
+                {!topEngineers.length && (
+                  <EmptyState icon={Trophy} title="No engineer scores yet" className="py-6" />
+                )}
+
               </div>
             </CardContent>
           </Card>
