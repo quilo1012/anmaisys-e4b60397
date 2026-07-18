@@ -10,6 +10,7 @@ import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
 import { useAllWoMetrics } from "@/hooks/useWoMetrics";
+import { useMaintenanceKpis } from "@/hooks/useMaintenanceKpis";
 import { differenceInMinutes, format, subDays, startOfDay, endOfDay } from "date-fns";
 import { useDowntime } from "@/hooks/useDowntime";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
