@@ -18,6 +18,10 @@ import { DateRangePreset, DateRange, getPresetRange } from "@/components/DateRan
 import { resolveLine as resolveLineShared } from "@/lib/resolveLine";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { EmptyState } from "@/components/EmptyState";
+import { format } from "date-fns";
+import { Inbox } from "lucide-react";
 
 type PeriodPreset = "7d" | "30d" | "90d" | "custom";
 
