@@ -338,40 +338,24 @@ export default function AnalyticsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Print Header — visible only when printing */}
-        <div className="hidden print:block mb-6">
-          <div className="flex items-center justify-between border-b-2 border-black pb-3">
-            <div className="flex items-center gap-3">
-              <img src={appliedLogo} alt="Applied Nutrition" className="h-12 w-12 object-contain" />
-              <div>
-                <h1 className="text-xl font-bold">AN MAINTENANCE</h1>
-                <p className="text-sm text-muted-foreground">Applied Nutrition Ltd.</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <h2 className="text-lg font-bold">ANALYTICS REPORT</h2>
-              <p className="text-sm">
-                Period: {format(startDate, "dd/MM/yyyy HH:mm")} — {format(endDate, "dd/MM/yyyy HH:mm")}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Timezone: Europe/London ({new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", timeZoneName: "short" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value ?? ""})
-              </p>
-              <p className="text-xs text-muted-foreground">Printed: {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
-            </div>
+        {/* Print Header — visible only when printing/exported */}
+        <ReportPrintHeader
+          title="Analytics Report"
+          periodLabel={`${format(startDate, "dd/MM/yyyy HH:mm")} — ${format(endDate, "dd/MM/yyyy HH:mm")}`}
+        />
+        <div className="hidden print:grid grid-cols-2 gap-4 text-sm mb-4">
+          <div className="border rounded p-2">
+            <p className="text-xs uppercase text-muted-foreground">Total Downtime (Period)</p>
+            <p className="text-base font-bold">{fmtMin(totalDowntimeMinutes)}</p>
           </div>
-          <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
-            <div className="border rounded p-2">
-              <p className="text-xs uppercase text-muted-foreground">Total Downtime (Period)</p>
-              <p className="text-base font-bold">{fmtMin(totalDowntimeMinutes)}</p>
-            </div>
-            <div className="border rounded p-2">
-              <p className="text-xs uppercase text-muted-foreground">Most Affected Line</p>
-              <p className="text-base font-bold">
-                {mostAffectedLine ? `${mostAffectedLine.name} — ${fmtMin(mostAffectedLine.minutes)}` : "—"}
-              </p>
-            </div>
+          <div className="border rounded p-2">
+            <p className="text-xs uppercase text-muted-foreground">Most Affected Line</p>
+            <p className="text-base font-bold">
+              {mostAffectedLine ? `${mostAffectedLine.name} — ${fmtMin(mostAffectedLine.minutes)}` : "—"}
+            </p>
           </div>
         </div>
+
 
         <div className="flex items-center justify-between flex-wrap gap-2 print:hidden">
           <div>
