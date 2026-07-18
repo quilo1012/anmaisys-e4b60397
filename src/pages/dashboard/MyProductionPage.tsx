@@ -228,7 +228,17 @@ function MyProductionContent() {
                 <div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Target (RAG)</div>
                   <div className="text-2xl font-bold tabular-nums flex items-center gap-1">
-                    {targetUnlocked ? totalTarget.toLocaleString() : <><Lock className="h-4 w-4 text-muted-foreground" /><span className="text-muted-foreground">•••</span></>}
+                    {leaderAssigned === false ? (
+                      <div className="flex items-center gap-2 text-sm font-medium text-amber-500">
+                        <AlertCircle className="h-4 w-4" />
+                        <span>No leader assigned — ask the Planner to assign a leader for this shift.</span>
+                      </div>
+                    ) : targetUnlocked ? (
+                      totalTarget.toLocaleString()
+                    ) : (
+                      <><Lock className="h-4 w-4 text-muted-foreground" /><span className="text-muted-foreground">•••</span></>
+                    )}
+
                   </div>
                 </div>
                 <Badge className={cn("text-white text-base px-3 py-1", targetUnlocked && hasManualProduction ? ragColor(overallPct) : "bg-muted text-muted-foreground")}>
@@ -410,10 +420,11 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
   );
 }
 
-function TargetPinGate({ line, shiftLabel, totalTarget, onUnlockChange }: { line: string; shiftLabel: string; totalTarget: number; onUnlockChange?: (v: boolean) => void }) {
+function TargetPinGate({ line, shiftLabel, totalTarget, onUnlockChange, onLeaderAssignedChange }: { line: string; shiftLabel: string; totalTarget: number; onUnlockChange?: (v: boolean) => void; onLeaderAssignedChange?: (v: boolean) => void }) {
   const [pinOpen, setPinOpen] = useState(false);
   const [leader, setLeader] = useState<{ name: string; matched: boolean } | null>(null);
   const [open, setOpen] = useState(false);
+
 
   const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
   const shift: Shift = shiftCode === "day" ? "DAY" : "NIGHT";
@@ -438,7 +449,14 @@ function TargetPinGate({ line, shiftLabel, totalTarget, onUnlockChange }: { line
   });
   const assignedLeader = assignedQ.data;
 
+  useEffect(() => {
+    if (assignedQ.isSuccess) {
+      onLeaderAssignedChange?.(!!assignedLeader?.trim());
+    }
+  }, [assignedQ.isSuccess, assignedLeader, onLeaderAssignedChange]);
+
   const authorized = !!leader?.matched;
+
   useEffect(() => { onUnlockChange?.(authorized); }, [authorized, onUnlockChange]);
 
   const onClick = () => {
