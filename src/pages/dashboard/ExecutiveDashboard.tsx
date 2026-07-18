@@ -15,6 +15,8 @@ import { DateRangePreset, DateRange, getPresetRange } from "@/components/DateRan
 import { SLA_TARGETS } from "@/lib/sla";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { EmptyState } from "@/components/EmptyState";
 
 export default function ExecutiveDashboard() {
   const { data: workOrders = [] } = useWorkOrders();
@@ -115,6 +117,12 @@ export default function ExecutiveDashboard() {
   return (
     <DashboardLayout>
       <div className={`space-y-6 ${isFullscreen ? "p-6 bg-background min-h-screen" : ""}`}>
+        <ReportPrintHeader
+          title="Executive Dashboard"
+          periodLabel={`${kpiRange.from ? format(kpiRange.from, "dd/MM/yyyy HH:mm") : "—"} — ${kpiRange.to ? format(kpiRange.to, "dd/MM/yyyy HH:mm") : "—"}`}
+          shift={shiftFilter === "ALL" ? "All shifts" : shiftFilter === "DAY" ? "Day" : "Night"}
+        />
+
         <div className="flex items-center justify-between print:hidden">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Executive Dashboard</h2>
@@ -220,7 +228,10 @@ export default function ExecutiveDashboard() {
                     <span className="font-bold text-primary">{eng.score} pts</span>
                   </div>
                 ))}
-                {!topEngineers.length && <p className="text-sm text-muted-foreground">No data</p>}
+                {!topEngineers.length && (
+                  <EmptyState icon={Trophy} title="No engineer scores yet" className="py-6" />
+                )}
+
               </div>
             </CardContent>
           </Card>

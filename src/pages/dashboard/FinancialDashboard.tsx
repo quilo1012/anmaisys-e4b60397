@@ -18,6 +18,10 @@ import { DateRangePreset, DateRange, getPresetRange } from "@/components/DateRan
 import { resolveLine as resolveLineShared } from "@/lib/resolveLine";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { EmptyState } from "@/components/EmptyState";
+import { format } from "date-fns";
+import { Inbox } from "lucide-react";
 
 type PeriodPreset = "7d" | "30d" | "90d" | "custom";
 
@@ -181,6 +185,11 @@ function FinancialDashboardContent() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <ReportPrintHeader
+          title="Financial Dashboard"
+          periodLabel={`${format(startDate, "dd/MM/yyyy HH:mm")} — ${format(endDate, "dd/MM/yyyy HH:mm")}`}
+        />
+
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="h-6 w-6" /> Financial Dashboard</h2>
@@ -233,7 +242,8 @@ function FinancialDashboardContent() {
                     <Bar dataKey="cost" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              ) : <p className="text-muted-foreground text-center py-8">No cost data for this period</p>}
+              ) : <EmptyState icon={DollarSign} title="No cost data for this period" className="py-6" />}
+
             </CardContent>
           </Card>
 
@@ -250,7 +260,7 @@ function FinancialDashboardContent() {
                     <Bar dataKey="cost" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              ) : <p className="text-muted-foreground text-center py-8">No cost data for this period</p>}
+              ) : <EmptyState icon={DollarSign} title="No cost data for this period" className="py-6" />}
             </CardContent>
           </Card>
         </div>
@@ -259,7 +269,8 @@ function FinancialDashboardContent() {
           <CardHeader><CardTitle className="text-base">Work Order Cost Breakdown</CardTitle></CardHeader>
           <CardContent>
             {!filteredCosts.length ? (
-              <p className="text-muted-foreground text-center py-8">No completed work orders with cost data in this date range.</p>
+              <EmptyState icon={Inbox} title="No completed work orders" description="No completed work orders with cost data in this date range." className="py-6" />
+
             ) : (
               <Table>
                 <TableHeader>

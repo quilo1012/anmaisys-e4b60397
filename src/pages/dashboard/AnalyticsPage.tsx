@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import appliedLogo from "@/assets/appliedlogo.jpeg";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, BarChart3, Trophy, Award, TrendingUp, TrendingDown, Printer, FileText } from "lucide-react";
@@ -28,6 +28,8 @@ import { SLA_TARGETS } from "@/lib/sla";
 import { resolveLine } from "@/lib/resolveLine";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { EmptyState } from "@/components/EmptyState";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#10b981", "#6b7280"];
@@ -42,11 +44,14 @@ const fmtMin = (m: number | null | undefined) => {
 };
 
 const EmptyChart = () => (
-  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-    <BarChart3 className="h-8 w-8 mb-2 opacity-50" />
-    <p className="text-sm">No data available</p>
-  </div>
+  <EmptyState
+    icon={BarChart3}
+    title="No data available"
+    description="No records match the selected filters."
+    className="py-8"
+  />
 );
+
 
 export default function AnalyticsPage() {
   const { role } = useAuth();
@@ -338,40 +343,24 @@ export default function AnalyticsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Print Header — visible only when printing */}
-        <div className="hidden print:block mb-6">
-          <div className="flex items-center justify-between border-b-2 border-black pb-3">
-            <div className="flex items-center gap-3">
-              <img src={appliedLogo} alt="Applied Nutrition" className="h-12 w-12 object-contain" />
-              <div>
-                <h1 className="text-xl font-bold">AN MAINTENANCE</h1>
-                <p className="text-sm text-muted-foreground">Applied Nutrition Ltd.</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <h2 className="text-lg font-bold">ANALYTICS REPORT</h2>
-              <p className="text-sm">
-                Period: {format(startDate, "dd/MM/yyyy HH:mm")} — {format(endDate, "dd/MM/yyyy HH:mm")}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Timezone: Europe/London ({new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", timeZoneName: "short" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value ?? ""})
-              </p>
-              <p className="text-xs text-muted-foreground">Printed: {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
-            </div>
+        {/* Print Header — visible only when printing/exported */}
+        <ReportPrintHeader
+          title="Analytics Report"
+          periodLabel={`${format(startDate, "dd/MM/yyyy HH:mm")} — ${format(endDate, "dd/MM/yyyy HH:mm")}`}
+        />
+        <div className="hidden print:grid grid-cols-2 gap-4 text-sm mb-4">
+          <div className="border rounded p-2">
+            <p className="text-xs uppercase text-muted-foreground">Total Downtime (Period)</p>
+            <p className="text-base font-bold">{fmtMin(totalDowntimeMinutes)}</p>
           </div>
-          <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
-            <div className="border rounded p-2">
-              <p className="text-xs uppercase text-muted-foreground">Total Downtime (Period)</p>
-              <p className="text-base font-bold">{fmtMin(totalDowntimeMinutes)}</p>
-            </div>
-            <div className="border rounded p-2">
-              <p className="text-xs uppercase text-muted-foreground">Most Affected Line</p>
-              <p className="text-base font-bold">
-                {mostAffectedLine ? `${mostAffectedLine.name} — ${fmtMin(mostAffectedLine.minutes)}` : "—"}
-              </p>
-            </div>
+          <div className="border rounded p-2">
+            <p className="text-xs uppercase text-muted-foreground">Most Affected Line</p>
+            <p className="text-base font-bold">
+              {mostAffectedLine ? `${mostAffectedLine.name} — ${fmtMin(mostAffectedLine.minutes)}` : "—"}
+            </p>
           </div>
         </div>
+
 
         <div className="flex items-center justify-between flex-wrap gap-2 print:hidden">
           <div>
