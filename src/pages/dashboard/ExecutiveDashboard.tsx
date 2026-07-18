@@ -65,18 +65,9 @@ export default function ExecutiveDashboard() {
     // "Open" = anything not in a terminal state (closed/finished/completed/force_closed) — real-time, not period-filtered
     const openWOs = countOpenWOs(workOrders);
 
-    // Avg Response Time = AVG(response_time_sec) from v_wo_metrics (exclude force_closed which skew the average)
-    const shiftMetrics = woMetrics.filter((m: any) => !m.created_at || inShift(m.created_at));
-    const respMetrics = shiftMetrics.filter((m) => m.response_time_sec !== null && (m as any).status !== "force_closed");
-    const avgResponse = respMetrics.length
-      ? Math.round(respMetrics.reduce((s, m) => s + (m.response_time_sec || 0), 0) / respMetrics.length / 60)
-      : 0;
-
-    // Avg Active Repair (MTTR) = AVG(active_repair_sec) from v_wo_metrics (exclude force_closed)
-    const repairMetrics = shiftMetrics.filter((m) => m.active_repair_sec !== null && m.active_repair_sec > 0 && (m as any).status !== "force_closed");
-    const avgMTTR = repairMetrics.length
-      ? Math.round(repairMetrics.reduce((s, m) => s + (m.active_repair_sec || 0), 0) / repairMetrics.length / 60)
-      : 0;
+    // Response / MTTR come from the shared useMaintenanceKpis hook so they match Analytics exactly.
+    const avgResponse = avgResponseMin;
+    const avgMTTR = avgMTTRMin;
 
     // SLA Compliance — respect the selected period
     const closedWOs = filteredWOs.filter((w) => ["closed", "completed"].includes(w.status) && w.received_at);
@@ -89,7 +80,7 @@ export default function ExecutiveDashboard() {
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
 
     return { openWOs, avgResponse, avgMTTR, slaPercent, machinesAtRisk };
-  }, [workOrders, filteredWOs, machines, woMetrics, inShift]);
+  }, [workOrders, filteredWOs, machines, avgResponseMin, avgMTTRMin]);
 
   // WOs per day across the selected period (defaults to last 7 days when range is empty).
   const wosPerDay = useMemo(() => {
