@@ -226,21 +226,53 @@ export default function ExecutiveDashboard() {
           </Card>
         </div>
 
-        {/* Downtime & Reliability shortcut — details live on the dedicated page */}
-        <Link to="/dashboard/downtime" className="block">
-          <Card className="hover:border-primary transition-colors">
-            <CardContent className="pt-4 pb-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <TrendingDown className="h-5 w-5 text-destructive" />
-                <div>
-                  <p className="text-sm font-semibold">Downtime & Reliability</p>
-                  <p className="text-xs text-muted-foreground">Most impacted lines, recurring problems and totals — open the dedicated page.</p>
+        {/* Drill-in tiles — strategic navigation to detailed report pages */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Link to="/dashboard/analytics" className="block">
+            <Card className="hover:border-primary transition-colors h-full">
+              <CardContent className="pt-4 pb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <LineChart className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-sm font-semibold">Operational Analytics</p>
+                    <p className="text-xs text-muted-foreground">KPIs, charts and engineer ranking.</p>
+                  </div>
                 </div>
-              </div>
-              <span className="text-xs font-medium text-primary">Open →</span>
-            </CardContent>
-          </Card>
-        </Link>
+                <span className="text-xs font-medium text-primary">Open →</span>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/dashboard/financial" className="block">
+            <Card className="hover:border-primary transition-colors h-full">
+              <CardContent className="pt-4 pb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <DollarSign className="h-5 w-5 text-green-600" />
+                  <div>
+                    <p className="text-sm font-semibold">Financial</p>
+                    <p className="text-xs text-muted-foreground">Labour cost, parts and downtime impact.</p>
+                  </div>
+                </div>
+                <span className="text-xs font-medium text-primary">Open →</span>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/dashboard/downtime" className="block">
+            <Card className="hover:border-primary transition-colors h-full">
+              <CardContent className="pt-4 pb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <TrendingDown className="h-5 w-5 text-destructive" />
+                  <div>
+                    <p className="text-sm font-semibold">Downtime & Reliability</p>
+                    <p className="text-xs text-muted-foreground">Impacted lines, recurring problems, MTBF/MTTR.</p>
+                  </div>
+                </div>
+                <span className="text-xs font-medium text-primary">Open →</span>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
       </div>
     </DashboardLayout>
   );
