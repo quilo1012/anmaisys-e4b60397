@@ -181,7 +181,7 @@ export const roleDashMap: Record<Role, string> = {
   planner: "/dashboard/manager",
   engineer: "/dashboard/engineer",
   co_engineer: "/dashboard/engineer",
-  operator: "/dashboard/operator",
+  operator: "/dashboard/operator/my-production",
   viewer: "/dashboard/manager",
 };
 
