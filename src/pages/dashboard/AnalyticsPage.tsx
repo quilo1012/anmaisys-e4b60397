@@ -28,6 +28,8 @@ import { SLA_TARGETS } from "@/lib/sla";
 import { resolveLine } from "@/lib/resolveLine";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { EmptyState } from "@/components/EmptyState";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#10b981", "#6b7280"];
