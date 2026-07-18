@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines } from "@/hooks/useMachines";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
-import { useAllWoMetrics } from "@/hooks/useWoMetrics";
+import { useMaintenanceKpis } from "@/hooks/useMaintenanceKpis";
 import { differenceInMinutes, subDays, format, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Activity, Trophy, BarChart3, TrendingDown } from "lucide-react";
+import { Maximize, Minimize, AlertTriangle, Clock, Gauge, ShieldCheck, Activity, Trophy, BarChart3, TrendingDown, LineChart, DollarSign } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { countOpenWOs } from "@/lib/woStatus";
 import { DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
@@ -23,7 +23,7 @@ export default function ExecutiveDashboard() {
   const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("today");
   const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("today"));
   const [shiftFilter, setShiftFilter] = useState<"ALL" | "DAY" | "NIGHT">("ALL");
-  const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
+  const { avgResponseMin, avgMTTRMin } = useMaintenanceKpis({ from: kpiRange.from, to: kpiRange.to, shift: shiftFilter });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const toggleFullscreen = useCallback(() => {
@@ -65,18 +65,9 @@ export default function ExecutiveDashboard() {
     // "Open" = anything not in a terminal state (closed/finished/completed/force_closed) — real-time, not period-filtered
     const openWOs = countOpenWOs(workOrders);
 
-    // Avg Response Time = AVG(response_time_sec) from v_wo_metrics (exclude force_closed which skew the average)
-    const shiftMetrics = woMetrics.filter((m: any) => !m.created_at || inShift(m.created_at));
-    const respMetrics = shiftMetrics.filter((m) => m.response_time_sec !== null && (m as any).status !== "force_closed");
-    const avgResponse = respMetrics.length
-      ? Math.round(respMetrics.reduce((s, m) => s + (m.response_time_sec || 0), 0) / respMetrics.length / 60)
-      : 0;
-
-    // Avg Active Repair (MTTR) = AVG(active_repair_sec) from v_wo_metrics (exclude force_closed)
-    const repairMetrics = shiftMetrics.filter((m) => m.active_repair_sec !== null && m.active_repair_sec > 0 && (m as any).status !== "force_closed");
-    const avgMTTR = repairMetrics.length
-      ? Math.round(repairMetrics.reduce((s, m) => s + (m.active_repair_sec || 0), 0) / repairMetrics.length / 60)
-      : 0;
+    // Response / MTTR come from the shared useMaintenanceKpis hook so they match Analytics exactly.
+    const avgResponse = avgResponseMin;
+    const avgMTTR = avgMTTRMin;
 
     // SLA Compliance — respect the selected period
     const closedWOs = filteredWOs.filter((w) => ["closed", "completed"].includes(w.status) && w.received_at);
@@ -89,7 +80,7 @@ export default function ExecutiveDashboard() {
     const machinesAtRisk = machines.filter((m) => m.health_score < 40).length;
 
     return { openWOs, avgResponse, avgMTTR, slaPercent, machinesAtRisk };
-  }, [workOrders, filteredWOs, machines, woMetrics, inShift]);
+  }, [workOrders, filteredWOs, machines, avgResponseMin, avgMTTRMin]);
 
   // WOs per day across the selected period (defaults to last 7 days when range is empty).
   const wosPerDay = useMemo(() => {
@@ -235,21 +226,53 @@ export default function ExecutiveDashboard() {
           </Card>
         </div>
 
-        {/* Downtime & Reliability shortcut — details live on the dedicated page */}
-        <Link to="/dashboard/downtime" className="block">
-          <Card className="hover:border-primary transition-colors">
-            <CardContent className="pt-4 pb-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <TrendingDown className="h-5 w-5 text-destructive" />
-                <div>
-                  <p className="text-sm font-semibold">Downtime & Reliability</p>
-                  <p className="text-xs text-muted-foreground">Most impacted lines, recurring problems and totals — open the dedicated page.</p>
+        {/* Drill-in tiles — strategic navigation to detailed report pages */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Link to="/dashboard/analytics" className="block">
+            <Card className="hover:border-primary transition-colors h-full">
+              <CardContent className="pt-4 pb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <LineChart className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-sm font-semibold">Operational Analytics</p>
+                    <p className="text-xs text-muted-foreground">KPIs, charts and engineer ranking.</p>
+                  </div>
                 </div>
-              </div>
-              <span className="text-xs font-medium text-primary">Open →</span>
-            </CardContent>
-          </Card>
-        </Link>
+                <span className="text-xs font-medium text-primary">Open →</span>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/dashboard/financial" className="block">
+            <Card className="hover:border-primary transition-colors h-full">
+              <CardContent className="pt-4 pb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <DollarSign className="h-5 w-5 text-green-600" />
+                  <div>
+                    <p className="text-sm font-semibold">Financial</p>
+                    <p className="text-xs text-muted-foreground">Labour cost, parts and downtime impact.</p>
+                  </div>
+                </div>
+                <span className="text-xs font-medium text-primary">Open →</span>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/dashboard/downtime" className="block">
+            <Card className="hover:border-primary transition-colors h-full">
+              <CardContent className="pt-4 pb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <TrendingDown className="h-5 w-5 text-destructive" />
+                  <div>
+                    <p className="text-sm font-semibold">Downtime & Reliability</p>
+                    <p className="text-xs text-muted-foreground">Impacted lines, recurring problems, MTBF/MTTR.</p>
+                  </div>
+                </div>
+                <span className="text-xs font-medium text-primary">Open →</span>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
       </div>
     </DashboardLayout>
   );
