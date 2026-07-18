@@ -58,8 +58,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   // Overview
   { title: "Dashboard", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Overview" },
-  // Temporarily disabled for operators while adjustments are in progress
-  // { title: "My Production", url: "/dashboard/operator/my-production", icon: Factory, roles: ["operator"], group: "Overview" },
+  { title: "My Production", url: "/dashboard/operator/my-production", icon: Factory, roles: ["operator"], group: "Overview" },
   { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer", "co_engineer"], group: "Overview" },
   { title: "My Tasks", url: "/dashboard/engineer?focus=tasks", icon: Briefcase, roles: ["engineer", "co_engineer"], group: "Overview" },
   { title: "History", url: "/dashboard/engineer?focus=history", icon: History, roles: ["engineer", "co_engineer"], group: "Overview" },
