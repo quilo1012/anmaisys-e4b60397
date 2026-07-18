@@ -23,7 +23,7 @@ export default function ExecutiveDashboard() {
   const [kpiPreset, setKpiPreset] = useState<DateRangePreset>("today");
   const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("today"));
   const [shiftFilter, setShiftFilter] = useState<"ALL" | "DAY" | "NIGHT">("ALL");
-  const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
+  const { avgResponseMin, avgMTTRMin } = useMaintenanceKpis({ from: kpiRange.from, to: kpiRange.to, shift: shiftFilter });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const toggleFullscreen = useCallback(() => {
