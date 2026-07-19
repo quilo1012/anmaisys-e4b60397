@@ -68,6 +68,7 @@ const WeeklyProductionReportPage = lazyWithReload(() => import("./pages/dashboar
 const OperatorPreviewPage = lazyWithReload(() => import("./pages/dashboard/OperatorPreviewPage"));
 const EngineerPreviewPage = lazyWithReload(() => import("./pages/dashboard/EngineerPreviewPage"));
 const MyProductionPage = lazyWithReload(() => import("./pages/dashboard/MyProductionPage"));
+const OperatorPerformancePage = lazyWithReload(() => import("./pages/dashboard/OperatorPerformancePage"));
 const DirectMessagesPage = lazyWithReload(() => import("./pages/dashboard/DirectMessagesPage"));
 const PermissionsMatrixPage = lazyWithReload(() => import("./pages/dashboard/PermissionsMatrixPage"));
 
@@ -186,6 +187,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["operator"]}>
                       <MyProductionPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/operator/performance"
+                  element={
+                    <ProtectedRoute allowedRoles={["operator"]}>
+                      <OperatorPerformancePage />
                     </ProtectedRoute>
                   }
                 />
