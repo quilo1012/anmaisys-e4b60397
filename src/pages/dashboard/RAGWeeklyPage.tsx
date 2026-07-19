@@ -1490,6 +1490,21 @@ function DayNightTotalSummary({
   const Block = ({ label, lineFilter }: { label: string; lineFilter: string[] }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
     const scroll = (dx: number) => scrollRef.current?.scrollBy({ left: dx, behavior: "smooth" });
+    const [showLeft, setShowLeft] = useState(false);
+    const [showRight, setShowRight] = useState(false);
+    const updateScroll = () => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const canScroll = el.scrollWidth > el.clientWidth + 1;
+      setShowLeft(canScroll && el.scrollLeft > 0);
+      setShowRight(canScroll && el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    };
+    useEffect(() => {
+      updateScroll();
+      const onResize = () => updateScroll();
+      window.addEventListener("resize", onResize);
+      return () => window.removeEventListener("resize", onResize);
+    }, []);
 
     const buildCol = (dateStr: string, shift: Shift | "TOTAL"): Cell => {
       if (shift === "TOTAL") {
