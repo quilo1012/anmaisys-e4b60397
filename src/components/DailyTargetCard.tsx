@@ -44,6 +44,14 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
   useEffect(() => { if (!editing) setVal(String(actual)); }, [actual, editing]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
+  const [planVal, setPlanVal] = useState<string>(String(plan));
+  const [planEditing, setPlanEditing] = useState(false);
+  const [planSaving, setPlanSaving] = useState(false);
+  const [planSaved, setPlanSaved] = useState(false);
+  const planTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => { if (!planEditing) setPlanVal(String(plan)); }, [plan, planEditing]);
+  useEffect(() => () => { if (planTimer.current) clearTimeout(planTimer.current); }, []);
+
   const commit = async () => {
     setEditing(false);
     const n = Number(val);
@@ -66,6 +74,31 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
     setSaved(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setSaved(false), 2000);
+    qc.invalidateQueries({ queryKey: q.queryKey as unknown as unknown[] });
+  };
+
+  const commitPlan = async () => {
+    setPlanEditing(false);
+    const n = Number(planVal);
+    if (!Number.isFinite(n) || n < 0) { setPlanVal(String(plan)); return; }
+    if (n === plan) return;
+    setPlanSaving(true);
+    let error: any = null;
+    if (rowId) {
+      ({ error } = await (supabase as any)
+        .from("rag_weekly_entries")
+        .update({ plan_qty: n })
+        .eq("id", rowId));
+    } else {
+      ({ error } = await (supabase as any)
+        .from("rag_weekly_entries")
+        .insert({ line, entry_date: entryDate, shift, plan_qty: n, actual_qty: 0 }));
+    }
+    setPlanSaving(false);
+    if (error) { toast.error(error.message); setPlanVal(String(plan)); return; }
+    setPlanSaved(true);
+    if (planTimer.current) clearTimeout(planTimer.current);
+    planTimer.current = setTimeout(() => setPlanSaved(false), 2000);
     qc.invalidateQueries({ queryKey: q.queryKey as unknown as unknown[] });
   };
 
