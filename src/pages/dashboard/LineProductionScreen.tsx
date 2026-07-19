@@ -339,7 +339,7 @@ export default function LineProductionScreen() {
           if (row.entry_date === activeSessionDate && lineNamesMatch(row.line, canonicalLineName) && row.shift === shift) {
             qc.invalidateQueries({ queryKey: ragPlanQ.queryKey as unknown as unknown[] });
             qc.invalidateQueries({ queryKey: ["lps-items", sessionQ.data?.id] });
-            toast.info("Target updated from RAG Weekly");
+            toast.info("Target updated");
           }
         },
       )
