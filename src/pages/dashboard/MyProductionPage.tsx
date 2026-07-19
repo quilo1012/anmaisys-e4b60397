@@ -147,6 +147,9 @@ function MyProductionContent() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/operator/performance")}>
+              Ver Performance
+            </Button>
             <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} onUnlockChange={setTargetUnlocked} onLeaderAssignedChange={setLeaderAssigned} />
           </div>
         </CardContent>
@@ -191,55 +194,6 @@ function MyProductionContent() {
             sessionId={sessionId}
             existingSkuIds={items.map((i) => i.sku_id)}
           />
-
-
-          {/* Footer summary */}
-          <Card className="border-primary/30">
-            <CardContent className="p-4 md:p-6 flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-4 flex-wrap">
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Produced This Shift</div>
-                  <div className="text-2xl font-bold tabular-nums">{totalActual.toLocaleString()}</div>
-                </div>
-                <div className="text-muted-foreground">/</div>
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Target (RAG)</div>
-                  <div className="text-2xl font-bold tabular-nums flex items-center gap-1">
-                    {leaderAssigned === false ? (
-                      <div className="flex items-center gap-2 text-sm font-medium text-amber-500">
-                        <AlertCircle className="h-4 w-4" />
-                        <span>No leader assigned — ask the Planner to assign a leader for this shift.</span>
-                      </div>
-                    ) : targetUnlocked ? (
-                      totalTarget.toLocaleString()
-                    ) : (
-                      <><Lock className="h-4 w-4 text-muted-foreground" /><span className="text-muted-foreground">•••</span></>
-                    )}
-
-                  </div>
-                </div>
-                <Badge className={cn("text-white text-base px-3 py-1", targetUnlocked && hasManualProduction ? ragColor(overallPct) : "bg-muted text-muted-foreground")}>
-                  {targetUnlocked ? `${overallPct.toFixed(0)}%` : "—"}
-                </Badge>
-
-              </div>
-              <Button size="lg" className="h-11" onClick={submitShift}>
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Submit Shift
-              </Button>
-            </CardContent>
-            <div className="h-2 w-full bg-muted rounded-b-lg overflow-hidden">
-              <div
-                className={cn("h-full transition-all", ragColor(overallPct))}
-                style={{ width: `${Math.min(100, overallPct)}%` }}
-              />
-            </div>
-            {hasManualProduction && (
-              <div className={cn("px-6 pb-3 text-xs font-medium", ragText(overallPct))}>
-                {overallPct >= 90 ? "On track" : overallPct >= 70 ? "Slightly behind order qty" : "Below order qty"}
-              </div>
-            )}
-          </Card>
         </>
       )}
     </div>
