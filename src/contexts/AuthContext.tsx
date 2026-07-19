@@ -59,7 +59,7 @@ export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-function logAuthSession() {}
+function logAuthSession(_event?: string, _details?: Record<string, unknown>) {}
 
 
 function isExpired(session: Session | null) {
