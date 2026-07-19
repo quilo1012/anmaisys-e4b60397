@@ -1993,9 +1993,9 @@ function DowntimeBreakdownPopover({
     if (!st) return null;
     const s = String(st).toLowerCase();
     const tone =
-      ["finished","closed","completed","force_closed"].includes(s) ? "bg-emerald-500/15 text-emerald-500" :
-      ["in_progress","arrived","received"].includes(s) ? "bg-blue-500/15 text-blue-500" :
-      s === "open" ? "bg-red-500/15 text-red-500" :
+      ["finished","closed","completed","force_closed"].includes(s) ? "bg-success/15 text-success" :
+      ["in_progress","arrived","received"].includes(s) ? "bg-primary/15 text-primary" :
+      s === "open" ? "bg-destructive/15 text-destructive" :
       "bg-muted text-muted-foreground";
     return <span className={`ml-1 inline-block px-1 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${tone}`}>{s.replace("_"," ")}</span>;
   };
