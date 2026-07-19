@@ -25,21 +25,21 @@ import { WoTimeline } from "@/components/WoTimeline";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
-  open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200" },
-  received: { label: "Received", className: "bg-indigo-100 text-indigo-800 border-indigo-200" },
-  arrived: { label: "Arrived", className: "bg-purple-100 text-purple-800 border-purple-200" },
-  in_progress: { label: "In Progress", className: "bg-amber-100 text-amber-800 border-amber-200" },
-  finished: { label: "Finished", className: "bg-teal-100 text-teal-800 border-teal-200" },
-  closed: { label: "Closed", className: "bg-green-100 text-green-800 border-green-200" },
-  completed: { label: "Completed", className: "bg-green-100 text-green-800 border-green-200" },
-  force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200" },
+  open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30" },
+  received: { label: "Received", className: "bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/30" },
+  arrived: { label: "Arrived", className: "bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30" },
+  in_progress: { label: "In Progress", className: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30" },
+  finished: { label: "Finished", className: "bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:border-teal-500/30" },
+  closed: { label: "Closed", className: "bg-green-100 text-green-800 border-green-200 dark:bg-green-500/15 dark:text-green-300 dark:border-green-500/30" },
+  completed: { label: "Completed", className: "bg-green-100 text-green-800 border-green-200 dark:bg-green-500/15 dark:text-green-300 dark:border-green-500/30" },
+  force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-500/15 dark:text-gray-300 dark:border-gray-500/30" },
 };
 
 const priorityConfig: Record<string, { label: string; className: string }> = {
-  low: { label: "Low", className: "bg-slate-100 text-slate-700" },
-  medium: { label: "Medium", className: "bg-blue-100 text-blue-700" },
-  high: { label: "High", className: "bg-orange-100 text-orange-700" },
-  critical: { label: "Critical", className: "bg-red-100 text-red-700" },
+  low: { label: "Low", className: "bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300 dark:border-slate-500/30" },
+  medium: { label: "Medium", className: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30" },
+  high: { label: "High", className: "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300 dark:border-orange-500/30" },
+  critical: { label: "Critical", className: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/30" },
 };
 
 function TimelineItem({ icon: Icon, label, time, className }: { icon: React.ComponentType<{ className?: string }>; label: string; time: string | null; className?: string }) {
