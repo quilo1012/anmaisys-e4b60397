@@ -135,10 +135,10 @@ const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 function ragColor(actual: number, plan: number): string {
   if (!plan) return "";
   // Strict: green only when meeting/exceeding the plan (delta >= 0).
-  if (actual >= plan) return "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium";
+  if (actual >= plan) return "bg-success/20 text-success font-medium";
   const pct = (actual / plan) * 100;
-  if (pct >= 90) return "bg-amber-500/20 text-amber-700 dark:text-amber-300 font-medium";
-  return "bg-red-500/20 text-red-700 dark:text-red-300 font-medium";
+  if (pct >= 90) return "bg-warning/20 text-warning font-medium";
+  return "bg-destructive/20 text-destructive font-medium";
 }
 
 export default function RAGWeeklyPage() {
@@ -866,7 +866,7 @@ export default function RAGWeeklyPage() {
                 {isAdmin && (
                   <Button
                     onClick={() => downloadRagTemplate(weekStart, lines).catch((e) => toast.error(e.message))}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
                   >
                     <Download className="h-4 w-4 mr-1" />Download Template
                   </Button>
@@ -999,9 +999,9 @@ export default function RAGWeeklyPage() {
           </CardHeader>
         </Card>
         {inconsistencies.length > 0 && (
-          <Card className="border-amber-500/50 bg-amber-500/5">
+          <Card className="border-warning/50 bg-warning/5">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-base">
+              <CardTitle className="flex items-center gap-2 text-warning text-base">
                 <AlertOctagon className="h-4 w-4" />
                 Downtime consistency check — {inconsistencies.length} WO(s) span multiple shifts
               </CardTitle>
@@ -1013,12 +1013,12 @@ export default function RAGWeeklyPage() {
               </p>
               <div className="max-h-40 overflow-auto mt-2 space-y-1">
                 {inconsistencies.slice(0, 25).map((r) => (
-                  <div key={r.ref} className="flex flex-wrap gap-2 items-center border-l-2 border-amber-500/60 pl-2 py-0.5">
+                  <div key={r.ref} className="flex flex-wrap gap-2 items-center border-l-2 border-warning/60 pl-2 py-0.5">
                     <span className="font-mono font-semibold">WO #{r.ref}</span>
                     <span className="text-muted-foreground">{r.line}</span>
                     <span className="text-muted-foreground">· total {r.total} min across {r.cells.length} shifts:</span>
                     {r.cells.map((c) => (
-                      <span key={c.key} className="px-1.5 py-0.5 rounded bg-amber-500/15">
+                      <span key={c.key} className="px-1.5 py-0.5 rounded bg-warning/15">
                         {c.key.split("|")[0]} {c.key.split("|")[2]} ({c.minutes}m)
                       </span>
                     ))}
@@ -1159,7 +1159,7 @@ function InlineCell({
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
       />
       <input
-        className={`${inputCls} text-red-600 dark:text-red-400`}
+        className={`${inputCls} text-destructive`}
         type="number"
         value={dt}
         placeholder="DT"
@@ -1426,11 +1426,11 @@ function DayNightTotalSummary({
     const plan = Number(p) || 0;
     const actual = Number(a) || 0;
     if (plan <= 0) return "text-muted-foreground";
-    if (actual <= 0) return "bg-red-500/15 text-red-700 dark:text-red-300 font-semibold rounded px-1.5";
-    if (actual >= plan) return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold rounded px-1.5";
+    if (actual <= 0) return "bg-destructive/10 text-destructive font-semibold rounded px-1.5";
+    if (actual >= plan) return "bg-success/15 text-success font-semibold rounded px-1.5";
     const r = (actual / plan) * 100;
-    if (r >= 90) return "bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold rounded px-1.5";
-    return "bg-red-500/15 text-red-700 dark:text-red-300 font-semibold rounded px-1.5";
+    if (r >= 90) return "bg-warning/15 text-warning font-semibold rounded px-1.5";
+    return "bg-destructive/10 text-destructive font-semibold rounded px-1.5";
   };
 
   type Cell = {
@@ -1549,18 +1549,18 @@ function DayNightTotalSummary({
 
     const bucketClass = (b: string) =>
       b === "MAINT"
-        ? "text-red-600 dark:text-red-400"
+        ? "text-destructive"
         : b === "WO Request"
-        ? "text-orange-600 dark:text-orange-400"
+        ? "text-warning"
         : b === "Quality"
-        ? "text-amber-600 dark:text-amber-400"
+        ? "text-warning"
         : b === "Break"
-        ? "text-blue-600 dark:text-blue-400"
+        ? "text-primary"
         : b === "Cleaning"
-        ? "text-cyan-600 dark:text-cyan-400"
+        ? "text-primary"
         : b === "Changeover"
-        ? "text-purple-600 dark:text-purple-400"
-        : "text-slate-600 dark:text-slate-300";
+        ? "text-accent-foreground"
+        : "text-muted-foreground";
 
 
     const rows: { key: string; label: string; render: (c: Cell) => React.ReactNode; bold?: boolean; bucket?: string }[] = [
@@ -1637,14 +1637,14 @@ function DayNightTotalSummary({
                   const ds = format(d, "yyyy-MM-dd");
                   const excluded = isDateExcluded(label, ds);
                   return (
-                    <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap ${excluded ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-background"}`}>
+                    <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap ${excluded ? "bg-muted/60 text-muted-foreground" : "bg-background"}`}>
                       <div className="flex items-center justify-center gap-1">
                         <span>{DAY_LABELS[i]}</span>
                         <button
                           type="button"
                           onClick={() => toggleDate(label, ds)}
                           title={excluded ? "Include in week total" : "Exclude from week total"}
-                          className={`text-[9px] px-1.5 py-0.5 rounded border font-bold leading-none ${excluded ? "bg-slate-800 text-slate-300 border-slate-700 dark:bg-slate-950 dark:text-slate-500 dark:border-slate-800" : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"}`}
+                          className={`text-[9px] px-1.5 py-0.5 rounded border font-bold leading-none ${excluded ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success border-success/40"}`}
                         >
                           {excluded ? "OFF" : "ON"}
                         </button>
@@ -1670,25 +1670,25 @@ function DayNightTotalSummary({
                       type="button"
                       onClick={onClick}
                       title={off ? "Include shift" : "Exclude shift"}
-                      className={`ml-1 text-[8px] px-1 py-0 rounded border font-bold leading-none align-middle ${off ? "bg-slate-800 text-slate-300 border-slate-700 dark:bg-slate-950 dark:text-slate-500 dark:border-slate-800" : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"}`}
+                      className={`ml-1 text-[8px] px-1 py-0 rounded border font-bold leading-none align-middle ${off ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success border-success/40"}`}
                     >
                       {off ? "off" : "on"}
                     </button>
                   );
                   return (
                     <Fragment key={i}>
-                      <th className={`text-right p-1 border-l font-medium min-w-[60px] ${dayOff ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40 text-amber-600 dark:text-amber-400"}`}>
+                      <th className={`text-right p-1 border-l font-medium min-w-[60px] ${dayOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-warning"}`}>
                         Day<Btn off={dayOff} onClick={() => toggleShift(label, ds, "DAY")} />
                       </th>
-                      <th className={`text-right p-1 font-medium min-w-[60px] ${nightOff ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40 text-blue-600 dark:text-blue-400"}`}>
+                      <th className={`text-right p-1 font-medium min-w-[60px] ${nightOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-primary"}`}>
                         Night<Btn off={nightOff} onClick={() => toggleShift(label, ds, "NIGHT")} />
                       </th>
                       <th className="text-right p-1 font-semibold bg-muted/60 min-w-[60px]">Total</th>
                     </Fragment>
                   );
                 })}
-                <th className="text-right p-1 border-l text-amber-600 dark:text-amber-400 font-medium bg-primary/10 min-w-[64px]">Day</th>
-                <th className="text-right p-1 text-blue-600 dark:text-blue-400 font-medium bg-primary/10 min-w-[64px]">Night</th>
+                <th className="text-right p-1 border-l text-warning font-medium bg-primary/10 min-w-[64px]">Day</th>
+                <th className="text-right p-1 text-primary font-medium bg-primary/10 min-w-[64px]">Night</th>
                 <th className="text-right p-1 font-bold bg-primary/15 min-w-[64px]">Total</th>
               </tr>
 
@@ -1767,7 +1767,7 @@ function DayNightTotalSummary({
                   return (
                     <span className="inline-flex items-center gap-1" title={`Plan ${plan} ≠ sum of SKU targets ${itemSum} (Δ${diff})`}>
                       {cellEl}
-                      <span className="text-amber-500 text-[10px] leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
+                      <span className="text-warning text-[10px] leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
                     </span>
                   );
                 };
@@ -1778,9 +1778,9 @@ function DayNightTotalSummary({
                     <td className="p-1.5 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-[11px] tracking-wide text-muted-foreground">{row.label}</td>
                     {weekDates.map((d, i) => {
                       const ds = format(d, "yyyy-MM-dd");
-                      const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-slate-900 text-slate-500 dark:bg-black" : "";
-                      const nightDim = isShiftExcluded(label, ds, "NIGHT") ? "bg-slate-900 text-slate-500 dark:bg-black" : "";
-                      const totalDim = isDateExcluded(label, ds) ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40";
+                      const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-muted/60 text-muted-foreground" : "";
+                      const nightDim = isShiftExcluded(label, ds, "NIGHT") ? "bg-muted/60 text-muted-foreground" : "";
+                      const totalDim = isDateExcluded(label, ds) ? "bg-muted/60 text-muted-foreground" : "bg-muted/40";
                       return (
                         <Fragment key={i}>
                           <td className={`${cls} border-l ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapCell(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
@@ -1912,7 +1912,7 @@ function LineCommentBox({
   };
 
   return (
-    <div className="border rounded-md bg-background p-2">
+    <div className="border rounded-md bg-card p-2">
       <div className="flex items-center justify-between mb-1">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{dayLabel}</div>
         {saving && <div className="text-[10px] text-muted-foreground">…</div>}
@@ -1925,7 +1925,7 @@ function LineCommentBox({
         disabled={!canEdit}
         placeholder="Notes…"
         rows={2}
-        className="min-h-[44px] resize-y text-xs"
+        className="min-h-[44px] resize-y text-xs bg-background text-foreground"
       />
     </div>
   );
@@ -1993,9 +1993,9 @@ function DowntimeBreakdownPopover({
     if (!st) return null;
     const s = String(st).toLowerCase();
     const tone =
-      ["finished","closed","completed","force_closed"].includes(s) ? "bg-emerald-500/15 text-emerald-500" :
-      ["in_progress","arrived","received"].includes(s) ? "bg-blue-500/15 text-blue-500" :
-      s === "open" ? "bg-red-500/15 text-red-500" :
+      ["finished","closed","completed","force_closed"].includes(s) ? "bg-success/15 text-success" :
+      ["in_progress","arrived","received"].includes(s) ? "bg-primary/15 text-primary" :
+      s === "open" ? "bg-destructive/15 text-destructive" :
       "bg-muted text-muted-foreground";
     return <span className={`ml-1 inline-block px-1 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${tone}`}>{s.replace("_"," ")}</span>;
   };
@@ -2011,7 +2011,7 @@ function DowntimeBreakdownPopover({
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{line} · {shift} · {dateStr}</div>
           <div className="flex items-center justify-between gap-2">
             <div className="text-sm font-semibold">{stops.length} stop{stops.length === 1 ? "" : "s"} · {totalMin}m total</div>
-            {totalScrap > 0 && <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">Scrap: {totalScrap.toLocaleString()}</div>}
+            {totalScrap > 0 && <div className="text-xs text-warning font-medium">Scrap: {totalScrap.toLocaleString()}</div>}
           </div>
           <Link
             to={`/dashboard/engineer?line=${encodeURIComponent(line)}&date=${encodeURIComponent(dateStr)}`}
@@ -2057,7 +2057,7 @@ function DowntimeBreakdownPopover({
 
                   <td className="px-2 py-1.5 font-mono text-[11px]">{fmtTs(s.clampedStart)}</td>
                   <td className="px-2 py-1.5 font-mono text-[11px]">
-                    {s.ongoing ? <span className="text-red-600 font-semibold">ongoing</span> : fmtTs(s.clampedEnd)}
+                    {s.ongoing ? <span className="text-destructive font-semibold">ongoing</span> : fmtTs(s.clampedEnd)}
                   </td>
                   <td className="px-2 py-1.5 text-right font-semibold">{s.minutes}</td>
                 </tr>
