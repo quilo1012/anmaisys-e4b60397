@@ -2057,7 +2057,7 @@ function DowntimeBreakdownPopover({
 
                   <td className="px-2 py-1.5 font-mono text-[11px]">{fmtTs(s.clampedStart)}</td>
                   <td className="px-2 py-1.5 font-mono text-[11px]">
-                    {s.ongoing ? <span className="text-red-600 font-semibold">ongoing</span> : fmtTs(s.clampedEnd)}
+                    {s.ongoing ? <span className="text-destructive font-semibold">ongoing</span> : fmtTs(s.clampedEnd)}
                   </td>
                   <td className="px-2 py-1.5 text-right font-semibold">{s.minutes}</td>
                 </tr>
