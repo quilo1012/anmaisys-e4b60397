@@ -227,6 +227,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     setSections([]);
     setLeaderByLine({});
     setIncludedLines({});
+    setManualLineByLine({});
     setParsePreview([]);
   };
 
