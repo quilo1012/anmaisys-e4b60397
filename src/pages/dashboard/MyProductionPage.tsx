@@ -7,7 +7,6 @@ import { useDeviceLineCtx } from "@/contexts/DeviceLineContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ProductionInputCard } from "@/components/ProductionInputCard";
@@ -15,12 +14,10 @@ import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
-import { Factory, Target, CheckCircle2, Loader2, Search, Plus, Lock, AlertCircle } from "lucide-react";
+import { Factory, Target, Loader2, Search, Plus, Lock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { Navigate } from "react-router-dom";
-import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
+import { Navigate, useNavigate } from "react-router-dom";
 
 type Shift = "DAY" | "NIGHT";
 
