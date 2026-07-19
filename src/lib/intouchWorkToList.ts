@@ -149,7 +149,6 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
   let header: string[] | null = null;
   let idxCode = -1, idxQty = -1, idxDesc = -1, idxLine = -1;
 
-  const debug = typeof window !== "undefined" && (window as unknown as { __INTOUCH_DEBUG?: boolean }).__INTOUCH_DEBUG;
   for (const cols of rows) {
     // Normalize NBSP / zero-width chars that iTouching sometimes injects in
     // XLSX cells (esp. on even-numbered sections), which break startsWith /
@@ -161,8 +160,8 @@ export function parseIntouchWorkToList(text: string): WorkToListSection[] {
         .replace(/\s+/g, " ")
         .trim();
     }
-    if (debug) console.log("ROW:", JSON.stringify(cols));
     const lower = cols.map((c) => c.toLowerCase());
+
 
     // Section marker: accept Machine / Line / Production Line / Asset / Area / Resource
     // Either inline ("Machine: Filler Line 1") or as its own cell with the name in the

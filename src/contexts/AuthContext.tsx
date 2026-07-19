@@ -59,14 +59,8 @@ export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-function logAuthSession(event: string, details: Record<string, unknown> = {}) {
-  if (typeof console === "undefined") return;
-  console.log("[auth-session]", event, {
-    at: new Date().toISOString(),
-    path: typeof window !== "undefined" ? window.location.pathname : "unknown",
-    ...details,
-  });
-}
+function logAuthSession() {}
+
 
 function isExpired(session: Session | null) {
   return !!session?.expires_at && session.expires_at * 1000 <= Date.now();

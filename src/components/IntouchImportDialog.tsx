@@ -279,10 +279,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       const text = await readFileAsCsv(f);
       const previewRows = parseIntouchCsvRows(text).slice(0, 12).map((row) => row.slice(0, 8));
       setParsePreview(previewRows);
-      console.log("[iTouching] first rows", previewRows);
       const parsed = parseIntouchWorkToList(text);
-      console.log("[iTouching] sections detected:", parsed.map((s) => ({ line: s.line, skus: s.items.length, qty: s.items.reduce((a, i) => a + i.qty, 0) })));
       if (parsed.length === 0) {
+
         toast.error("No valid iTouching products found. Check the preview below and confirm the file has SKU/code and quantity columns.");
         return;
       }
@@ -315,12 +314,8 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
         const d = root.debug ?? root;
         const endpoints = (d?.endpoints ?? []) as Array<{ path: string; ok: boolean; bytes: number; sample?: unknown }>;
         const okHits = endpoints.filter((e) => e.ok && e.bytes > 2);
-        console.log("[pullFromIntouch] debug:", {
-          endpoints,
-          mapped_machines: d?.mapped_machines ?? 0,
-          machine_keys_seen: d?.machine_keys_seen ?? [],
-        });
         const seen = (d?.machine_keys_seen ?? []) as string[];
+
         const mapped = (d?.mapped_machine_ids ?? []) as string[];
         const seenPreview = seen.slice(0, 6).join(", ") || "none";
         const msg = okHits.length

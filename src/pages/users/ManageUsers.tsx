@@ -367,8 +367,8 @@ export default function ManageUsers() {
   };
 
   const fetchUsers = async () => {
-    console.info("[ManageUsers] fetching users", { currentUserId: currentUser?.id, currentRole });
     // Select explicit columns — labor_rate is admin-only and fetched via RPC below
+
     const { data: profiles } = await supabase
       .from("profiles")
       .select("id, name, email, shift, active, last_seen_at, ui_preferences, created_at, updated_at");
@@ -399,13 +399,11 @@ export default function ManageUsers() {
 
   const fetchEngineers = async () => {
     if (!currentUser?.id || !currentRole) {
-      console.info("[ManageUsers] skipping engineers fetch until auth is ready", { currentUserId: currentUser?.id, currentRole });
       return;
     }
 
-    console.info("[ManageUsers] fetching engineers", { currentUserId: currentUser.id, currentRole });
-
     // Retry transient edge runtime errors (cold starts return 503 intermittently)
+
     let res = await invokeFunction<Engineer[]>("list-engineers");
     let attempts = 1;
     while (

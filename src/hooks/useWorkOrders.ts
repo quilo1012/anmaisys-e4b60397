@@ -86,8 +86,8 @@ export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOSt
       }
 
       const { data, error } = await q;
-      console.log("[useWorkOrders] query result:", { count: data?.length, error, filter, userId: user?.id });
       if (error) {
+
         console.error("[useWorkOrders] query error:", error);
         throw error;
       }
