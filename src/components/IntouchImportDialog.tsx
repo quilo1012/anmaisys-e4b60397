@@ -220,8 +220,21 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   const activeSections = useMemo(() => resolved.filter((s) => includedLines[s.line] !== false), [resolved, includedLines]);
   const totalProducts = activeSections.reduce((a, s) => a + s.items.length, 0);
   const totalLines = activeSections.length;
-  const canImport = totalProducts > 0
-    && activeSections.every((s) => s.matched_line);
+  const unmatchedActive = activeSections.filter((s) => !s.matched_line);
+  const canImport = totalProducts > 0 && unmatchedActive.length === 0;
+  const blockReason = totalProducts === 0
+    ? "Nothing to import — load a file or Pull from iTouching."
+    : unmatchedActive.length > 0
+      ? `${unmatchedActive.length} included line${unmatchedActive.length === 1 ? "" : "s"} without a catalog match. Pick a line manually or skip.`
+      : "";
+
+  const skipUnmatched = () => {
+    setIncludedLines((p) => {
+      const next = { ...p };
+      for (const s of resolved) if (!s.matched_line) next[s.line] = false;
+      return next;
+    });
+  };
 
   const reset = () => {
     setSections([]);
