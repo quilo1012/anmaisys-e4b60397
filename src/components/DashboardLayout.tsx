@@ -105,7 +105,6 @@ const navItems: NavItem[] = [
   // System
   { title: "Permissions", url: "/dashboard/permissions", icon: ShieldCheck, roles: ["admin"], group: "System" },
   { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "System" },
-  { title: "iTouching Sync", url: "/dashboard/intouch-settings", icon: Radar, roles: ["admin"], group: "System" },
   { title: "Operator Preview", url: "/dashboard/operator-preview", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "System" },
   { title: "Engineer Preview", url: "/dashboard/engineer-preview", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "System" },
 ];
