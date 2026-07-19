@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,32 +31,6 @@ export default function ProductionPerformancePage() {
   const [shift, setShift] = useState<"all" | "DAY" | "NIGHT">("all");
   const [lineFilter, setLineFilter] = useState<string>("__all__");
   const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
-  const qc = useQueryClient();
-
-  // Pull latest actuals from iTouching every 60s while page is open
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const effectiveShift = shift === "all"
-          ? (new Date().getHours() >= 6 && new Date().getHours() < 18 ? "DAY" : "NIGHT")
-          : shift;
-        const { error } = await supabase.functions.invoke("intouch-sync-production", {
-          body: { session_date: date, shift: effectiveShift },
-        });
-        if (error) {
-          // 429 quota exhausted or transient iTouching failures: ignore silently, RAG data still renders
-          console.warn("intouch-sync-production skipped:", error?.message ?? error);
-        }
-        if (!cancelled) qc.invalidateQueries({ queryKey: ["oee"] });
-      } catch (e) {
-        console.warn("intouch-sync-production failed", e);
-      }
-    };
-    run();
-    const id = setInterval(run, 60_000);
-    return () => { cancelled = true; clearInterval(id); };
-  }, [date, shift, qc]);
 
   const range = useMemo(() => {
     const d = parseISO(date);
