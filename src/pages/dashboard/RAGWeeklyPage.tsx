@@ -866,7 +866,7 @@ export default function RAGWeeklyPage() {
                 {isAdmin && (
                   <Button
                     onClick={() => downloadRagTemplate(weekStart, lines).catch((e) => toast.error(e.message))}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
                   >
                     <Download className="h-4 w-4 mr-1" />Download Template
                   </Button>
