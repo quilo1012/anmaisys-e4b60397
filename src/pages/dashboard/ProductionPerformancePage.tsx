@@ -24,6 +24,7 @@ interface SessionAgg {
 }
 
 export default function ProductionPerformancePage() {
+  const navigate = useNavigate();
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [period, setPeriod] = useState<Period>("day");
