@@ -1912,7 +1912,7 @@ function LineCommentBox({
   };
 
   return (
-    <div className="border rounded-md bg-background p-2">
+    <div className="border rounded-md bg-card p-2">
       <div className="flex items-center justify-between mb-1">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{dayLabel}</div>
         {saving && <div className="text-[10px] text-muted-foreground">…</div>}
@@ -1925,7 +1925,7 @@ function LineCommentBox({
         disabled={!canEdit}
         placeholder="Notes…"
         rows={2}
-        className="min-h-[44px] resize-y text-xs"
+        className="min-h-[44px] resize-y text-xs bg-background text-foreground"
       />
     </div>
   );
