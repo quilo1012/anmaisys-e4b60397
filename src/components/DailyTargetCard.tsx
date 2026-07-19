@@ -121,8 +121,30 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
             {q.isLoading ? (
               <Skeleton className="h-8 w-20 mt-1" />
             ) : (
-              <div className="text-2xl font-bold tabular-nums">
-                {plan > 0 ? plan.toLocaleString() : "0"}
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  disabled={!canEdit || planSaving}
+                  value={planVal}
+                  onFocus={() => setPlanEditing(true)}
+                  onChange={(e) => setPlanVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); commitPlan(); }
+                    if (e.key === "Escape") { setPlanVal(String(plan)); setPlanEditing(false); (e.target as HTMLInputElement).blur(); }
+                  }}
+                  className="h-10 w-28 text-lg font-bold tabular-nums text-right px-2"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={commitPlan}
+                  disabled={!canEdit || planSaving || Number(planVal) === plan}
+                  className="h-10"
+                >
+                  {planSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : planSaved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                  <span className="ml-1">{planSaved ? "Saved" : "Save"}</span>
+                </Button>
               </div>
             )}
           </div>
