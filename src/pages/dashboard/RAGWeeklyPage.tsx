@@ -1426,11 +1426,11 @@ function DayNightTotalSummary({
     const plan = Number(p) || 0;
     const actual = Number(a) || 0;
     if (plan <= 0) return "text-muted-foreground";
-    if (actual <= 0) return "bg-red-500/15 text-red-700 dark:text-red-300 font-semibold rounded px-1.5";
-    if (actual >= plan) return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold rounded px-1.5";
+    if (actual <= 0) return "bg-destructive/10 text-destructive font-semibold rounded px-1.5";
+    if (actual >= plan) return "bg-success/15 text-success font-semibold rounded px-1.5";
     const r = (actual / plan) * 100;
-    if (r >= 90) return "bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold rounded px-1.5";
-    return "bg-red-500/15 text-red-700 dark:text-red-300 font-semibold rounded px-1.5";
+    if (r >= 90) return "bg-warning/15 text-warning font-semibold rounded px-1.5";
+    return "bg-destructive/10 text-destructive font-semibold rounded px-1.5";
   };
 
   type Cell = {
