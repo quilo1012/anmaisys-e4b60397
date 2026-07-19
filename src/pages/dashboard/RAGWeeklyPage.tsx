@@ -1637,14 +1637,14 @@ function DayNightTotalSummary({
                   const ds = format(d, "yyyy-MM-dd");
                   const excluded = isDateExcluded(label, ds);
                   return (
-                    <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap ${excluded ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-background"}`}>
+                    <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap ${excluded ? "bg-muted/60 text-muted-foreground" : "bg-background"}`}>
                       <div className="flex items-center justify-center gap-1">
                         <span>{DAY_LABELS[i]}</span>
                         <button
                           type="button"
                           onClick={() => toggleDate(label, ds)}
                           title={excluded ? "Include in week total" : "Exclude from week total"}
-                          className={`text-[9px] px-1.5 py-0.5 rounded border font-bold leading-none ${excluded ? "bg-slate-800 text-slate-300 border-slate-700 dark:bg-slate-950 dark:text-slate-500 dark:border-slate-800" : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"}`}
+                          className={`text-[9px] px-1.5 py-0.5 rounded border font-bold leading-none ${excluded ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success border-success/40"}`}
                         >
                           {excluded ? "OFF" : "ON"}
                         </button>
@@ -1670,25 +1670,25 @@ function DayNightTotalSummary({
                       type="button"
                       onClick={onClick}
                       title={off ? "Include shift" : "Exclude shift"}
-                      className={`ml-1 text-[8px] px-1 py-0 rounded border font-bold leading-none align-middle ${off ? "bg-slate-800 text-slate-300 border-slate-700 dark:bg-slate-950 dark:text-slate-500 dark:border-slate-800" : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"}`}
+                      className={`ml-1 text-[8px] px-1 py-0 rounded border font-bold leading-none align-middle ${off ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success border-success/40"}`}
                     >
                       {off ? "off" : "on"}
                     </button>
                   );
                   return (
                     <Fragment key={i}>
-                      <th className={`text-right p-1 border-l font-medium min-w-[60px] ${dayOff ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40 text-amber-600 dark:text-amber-400"}`}>
+                      <th className={`text-right p-1 border-l font-medium min-w-[60px] ${dayOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-warning"}`}>
                         Day<Btn off={dayOff} onClick={() => toggleShift(label, ds, "DAY")} />
                       </th>
-                      <th className={`text-right p-1 font-medium min-w-[60px] ${nightOff ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40 text-blue-600 dark:text-blue-400"}`}>
+                      <th className={`text-right p-1 font-medium min-w-[60px] ${nightOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-primary"}`}>
                         Night<Btn off={nightOff} onClick={() => toggleShift(label, ds, "NIGHT")} />
                       </th>
                       <th className="text-right p-1 font-semibold bg-muted/60 min-w-[60px]">Total</th>
                     </Fragment>
                   );
                 })}
-                <th className="text-right p-1 border-l text-amber-600 dark:text-amber-400 font-medium bg-primary/10 min-w-[64px]">Day</th>
-                <th className="text-right p-1 text-blue-600 dark:text-blue-400 font-medium bg-primary/10 min-w-[64px]">Night</th>
+                <th className="text-right p-1 border-l text-warning font-medium bg-primary/10 min-w-[64px]">Day</th>
+                <th className="text-right p-1 text-primary font-medium bg-primary/10 min-w-[64px]">Night</th>
                 <th className="text-right p-1 font-bold bg-primary/15 min-w-[64px]">Total</th>
               </tr>
 
