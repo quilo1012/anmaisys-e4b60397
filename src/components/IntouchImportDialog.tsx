@@ -158,6 +158,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   const [sections, setSections] = useState<WorkToListSection[]>([]);
   const [leaderByLine, setLeaderByLine] = useState<Record<string, { id?: string; name: string }>>({});
   const [includedLines, setIncludedLines] = useState<Record<string, boolean>>({});
+  const [manualLineByLine, setManualLineByLine] = useState<Record<string, string>>({});
   const [parsePreview, setParsePreview] = useState<string[][]>([]);
 
   const { data: lines = [] } = useLines();
@@ -204,7 +205,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   };
 
   const resolved = useMemo(() => sections.map((sec) => {
-    const matched = matchLine(sec.line);
+    const auto = matchLine(sec.line);
+    const override = manualLineByLine[sec.line];
+    const matched = override || auto;
     const items = sec.items.map((it) => {
       const sku = skuByCode.get(it.sku_code.toUpperCase());
       return { ...it, sku_id: sku?.id, sku_name: sku?.name };
@@ -212,7 +215,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     const unknown = items.filter((i) => !i.sku_id).length;
     return { ...sec, matched_line: matched, items, unknown };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [sections, lineByNorm, skuByCode, lines]);
+  }), [sections, lineByNorm, skuByCode, lines, manualLineByLine]);
 
   const activeSections = useMemo(() => resolved.filter((s) => includedLines[s.line] !== false), [resolved, includedLines]);
   const totalProducts = activeSections.reduce((a, s) => a + s.items.length, 0);
@@ -224,6 +227,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     setSections([]);
     setLeaderByLine({});
     setIncludedLines({});
+    setManualLineByLine({});
     setParsePreview([]);
   };
 
@@ -793,6 +797,28 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="space-y-3 pt-2">
+                        <div>
+                          <Label className="text-xs">Line (manual override)</Label>
+                          <Select
+                            value={manualLineByLine[sec.line] ?? (sec.matched_line ?? "__none")}
+                            onValueChange={(v) =>
+                              setManualLineByLine((p) => {
+                                const next = { ...p };
+                                if (v === "__none") delete next[sec.line];
+                                else next[sec.line] = v;
+                                return next;
+                              })
+                            }
+                          >
+                            <SelectTrigger><SelectValue placeholder="Select line…" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none">— auto ({sec.matched_line ?? "no match"}) —</SelectItem>
+                              {lines.map((l) => (
+                                <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                           <div>
                             <Label className="text-xs">Leader (existing)</Label>
