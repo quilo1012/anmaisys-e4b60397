@@ -1767,7 +1767,7 @@ function DayNightTotalSummary({
                   return (
                     <span className="inline-flex items-center gap-1" title={`Plan ${plan} ≠ sum of SKU targets ${itemSum} (Δ${diff})`}>
                       {cellEl}
-                      <span className="text-amber-500 text-[10px] leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
+                      <span className="text-warning text-[10px] leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
                     </span>
                   );
                 };
