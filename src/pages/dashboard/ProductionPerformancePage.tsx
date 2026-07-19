@@ -341,8 +341,22 @@ export default function ProductionPerformancePage() {
 
             const headerBg = l.eff >= 100 ? "bg-green-500/15" : l.eff >= 80 ? "bg-amber-500/15" : "bg-red-500/15";
             const headerText = l.eff >= 100 ? "text-green-600 dark:text-green-400" : l.eff >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
+            const handleClick = () => navigate("/dashboard/shift-history");
+            const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleClick();
+              }
+            };
             return (
-              <Card key={l.line} className={`overflow-hidden border-l-4 ${ragColor(l.eff)}`}>
+              <Card
+                key={l.line}
+                role="button"
+                tabIndex={0}
+                onClick={handleClick}
+                onKeyDown={handleKeyDown}
+                className={`overflow-hidden border-l-4 cursor-pointer hover:shadow-md hover:border-primary/50 transition-colors transition-shadow ${ragColor(l.eff)}`}
+              >
                 <div className={`${headerBg} ${headerText} px-4 py-2 flex items-center justify-between`}>
                   <div className="font-semibold">{l.line}</div>
                   <div className="text-xs">{l.leader ?? "—"}</div>
