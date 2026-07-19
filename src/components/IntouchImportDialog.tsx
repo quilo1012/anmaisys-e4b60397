@@ -916,17 +916,30 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
           )}
         </div>
 
-        <DialogFooter className="border-t pt-3">
-          <div className="flex-1 text-xs text-muted-foreground">
+        <DialogFooter className="border-t pt-3 flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="flex-1 text-xs">
             {resolved.length > 0 && (
-              <>
-                {totalProducts} products · {totalLines} lines
-                {resolved.some((s) => !s.matched_line) && " · Some lines do not match catalog"}
-              </>
+              <div className="space-y-1">
+                <div className="text-muted-foreground">
+                  {totalProducts} products · {totalLines} lines
+                  {resolved.some((s) => !s.matched_line) && " · Some lines do not match catalog"}
+                </div>
+                {blockReason && (
+                  <div className="flex items-center gap-2 text-destructive">
+                    <AlertTriangle className="h-3 w-3" />
+                    <span>{blockReason}</span>
+                    {unmatchedActive.length > 0 && (
+                      <Button size="sm" variant="outline" className="h-6 text-xs" onClick={skipUnmatched}>
+                        Skip unmatched
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={importing}>Cancel</Button>
-          <Button onClick={doImport} disabled={!canImport || importing}>
+          <Button onClick={doImport} disabled={!canImport || importing} title={blockReason || undefined}>
             {importing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
             Import {totalProducts} Products ({totalLines} Lines)
           </Button>
