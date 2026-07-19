@@ -450,9 +450,6 @@ export default function LineProductionScreen() {
     let cancelled = false;
     const runOnce = async (): Promise<boolean> => {
       try {
-        await supabase.functions.invoke("intouch-sync-production", {
-          body: { session_date: activeSessionDate, shift, line: canonicalLineName, force: true },
-        });
         if (cancelled) return false;
         setLastSyncAt(new Date());
         // Re-read the session row so we can decide whether to retry before
