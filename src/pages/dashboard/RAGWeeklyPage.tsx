@@ -1549,18 +1549,18 @@ function DayNightTotalSummary({
 
     const bucketClass = (b: string) =>
       b === "MAINT"
-        ? "text-red-600 dark:text-red-400"
+        ? "text-destructive"
         : b === "WO Request"
-        ? "text-orange-600 dark:text-orange-400"
+        ? "text-warning"
         : b === "Quality"
-        ? "text-amber-600 dark:text-amber-400"
+        ? "text-warning"
         : b === "Break"
-        ? "text-blue-600 dark:text-blue-400"
+        ? "text-primary"
         : b === "Cleaning"
-        ? "text-cyan-600 dark:text-cyan-400"
+        ? "text-primary"
         : b === "Changeover"
-        ? "text-purple-600 dark:text-purple-400"
-        : "text-slate-600 dark:text-slate-300";
+        ? "text-accent-foreground"
+        : "text-muted-foreground";
 
 
     const rows: { key: string; label: string; render: (c: Cell) => React.ReactNode; bold?: boolean; bucket?: string }[] = [
