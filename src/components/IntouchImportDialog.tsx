@@ -797,6 +797,28 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="space-y-3 pt-2">
+                        <div>
+                          <Label className="text-xs">Line (manual override)</Label>
+                          <Select
+                            value={manualLineByLine[sec.line] ?? (sec.matched_line ?? "__none")}
+                            onValueChange={(v) =>
+                              setManualLineByLine((p) => {
+                                const next = { ...p };
+                                if (v === "__none") delete next[sec.line];
+                                else next[sec.line] = v;
+                                return next;
+                              })
+                            }
+                          >
+                            <SelectTrigger><SelectValue placeholder="Select line…" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none">— auto ({sec.matched_line ?? "no match"}) —</SelectItem>
+                              {lines.map((l) => (
+                                <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                           <div>
                             <Label className="text-xs">Leader (existing)</Label>
