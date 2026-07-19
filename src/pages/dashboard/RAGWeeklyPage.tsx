@@ -697,12 +697,8 @@ export default function RAGWeeklyPage() {
         }
       }
 
-      console.log("[RAG Import] known lines:", knownLines);
-      console.log("[RAG Import] blocks found:", blocksFound, "metric rows:", metricRowsFound);
-      console.log("[RAG Import] first 20 rows sample:", debugSample);
-
-
       const payload: Omit<Entry, "id">[] = [];
+
       for (const [k, v] of agg) {
         if (!v.plan && !v.actual && !v.downtime) continue;
         const [entry_date, line, shift] = k.split("|");

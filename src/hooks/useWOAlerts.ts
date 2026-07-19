@@ -69,17 +69,16 @@ export function useWOAlerts() {
             line_id: string | null;
           };
 
-          console.log("[useWOAlerts INSERT]", wo.id, "ack:", wo.engineer_notified_acknowledged_at, "line:", wo.line_id);
-
           // Single-fire per WO + targeting + line filter (pure gate, unit-tested).
+
           if (!shouldFireWOAlert(wo, {
             userId: user.id,
             shouldAlertForLine,
             isAcknowledged: isWOAcknowledged,
           })) {
-            console.log("[useWOAlerts INSERT] suppressed by gate");
             return;
           }
+
 
 
           // Layer 1+3+4: critical alert (audio loop, modal, vibration, flash title, favicon)
@@ -129,8 +128,8 @@ export function useWOAlerts() {
 
           // Recurrence detection: status transitioned TO open (e.g. finished → open via reopen_wo_as_recurrence)
           if (updated.status === "open" && old?.status !== "open") {
-            console.log("[useWOAlerts UPDATE→open recurrence]", updated.id, "ep:", updated.current_episode);
             // Reset client-side ack so the new episode re-alerts
+
             clearAcknowledgedWOLocal(updated.id);
             // Targeting gates
             if (updated.engineer_id && updated.engineer_id !== user.id) return;
@@ -157,8 +156,8 @@ export function useWOAlerts() {
             return;
           }
 
-          console.log("[useWOAlerts UPDATE]", updated.id, updated.status, "eng:", updated.engineer_id);
           // Guard: only ack if this engineer owns the WO (prevents another
+
           // engineer's status change from closing this engineer's modal).
           if (
             ["received", "in_progress"].includes(updated.status) &&

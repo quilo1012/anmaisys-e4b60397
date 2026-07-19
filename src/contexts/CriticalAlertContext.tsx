@@ -369,8 +369,8 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const acknowledge = useCallback((woId?: string) => {
-    console.log("[acknowledge]", woId);
     // Persist client-side immediately so re-mounts/reconnects/refresh don't replay.
+
     if (woId) {
       acknowledgeWOLocal(woId);
       // Persist server-side as well (best effort).
