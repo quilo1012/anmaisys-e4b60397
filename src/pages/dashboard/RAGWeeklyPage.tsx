@@ -1159,7 +1159,7 @@ function InlineCell({
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
       />
       <input
-        className={`${inputCls} text-red-600 dark:text-red-400`}
+        className={`${inputCls} text-destructive`}
         type="number"
         value={dt}
         placeholder="DT"
