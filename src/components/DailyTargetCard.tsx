@@ -44,6 +44,14 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
   useEffect(() => { if (!editing) setVal(String(actual)); }, [actual, editing]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
+  const [planVal, setPlanVal] = useState<string>(String(plan));
+  const [planEditing, setPlanEditing] = useState(false);
+  const [planSaving, setPlanSaving] = useState(false);
+  const [planSaved, setPlanSaved] = useState(false);
+  const planTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => { if (!planEditing) setPlanVal(String(plan)); }, [plan, planEditing]);
+  useEffect(() => () => { if (planTimer.current) clearTimeout(planTimer.current); }, []);
+
   const commit = async () => {
     setEditing(false);
     const n = Number(val);
@@ -69,6 +77,31 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
     qc.invalidateQueries({ queryKey: q.queryKey as unknown as unknown[] });
   };
 
+  const commitPlan = async () => {
+    setPlanEditing(false);
+    const n = Number(planVal);
+    if (!Number.isFinite(n) || n < 0) { setPlanVal(String(plan)); return; }
+    if (n === plan) return;
+    setPlanSaving(true);
+    let error: any = null;
+    if (rowId) {
+      ({ error } = await (supabase as any)
+        .from("rag_weekly_entries")
+        .update({ plan_qty: n })
+        .eq("id", rowId));
+    } else {
+      ({ error } = await (supabase as any)
+        .from("rag_weekly_entries")
+        .insert({ line, entry_date: entryDate, shift, plan_qty: n, actual_qty: 0 }));
+    }
+    setPlanSaving(false);
+    if (error) { toast.error(error.message); setPlanVal(String(plan)); return; }
+    setPlanSaved(true);
+    if (planTimer.current) clearTimeout(planTimer.current);
+    planTimer.current = setTimeout(() => setPlanSaved(false), 2000);
+    qc.invalidateQueries({ queryKey: q.queryKey as unknown as unknown[] });
+  };
+
   return (
     <Card className="border-primary/30">
       <CardContent className="p-4 md:p-5 space-y-3">
@@ -88,8 +121,30 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
             {q.isLoading ? (
               <Skeleton className="h-8 w-20 mt-1" />
             ) : (
-              <div className="text-2xl font-bold tabular-nums">
-                {plan > 0 ? plan.toLocaleString() : "0"}
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  disabled={!canEdit || planSaving}
+                  value={planVal}
+                  onFocus={() => setPlanEditing(true)}
+                  onChange={(e) => setPlanVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); commitPlan(); }
+                    if (e.key === "Escape") { setPlanVal(String(plan)); setPlanEditing(false); (e.target as HTMLInputElement).blur(); }
+                  }}
+                  className="h-10 w-28 text-lg font-bold tabular-nums text-right px-2"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={commitPlan}
+                  disabled={!canEdit || planSaving || Number(planVal) === plan}
+                  className="h-10"
+                >
+                  {planSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : planSaved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                  <span className="ml-1">{planSaved ? "Saved" : "Save"}</span>
+                </Button>
               </div>
             )}
           </div>
