@@ -21,16 +21,6 @@ import { Navigate, useNavigate } from "react-router-dom";
 
 type Shift = "DAY" | "NIGHT";
 
-function ragColor(pct: number): string {
-  if (pct >= 90) return "bg-green-600";
-  if (pct >= 70) return "bg-amber-500";
-  return "bg-red-600";
-}
-function ragText(pct: number): string {
-  if (pct >= 90) return "text-green-600";
-  if (pct >= 70) return "text-amber-500";
-  return "text-red-600";
-}
 
 function manualActualQty(row: any): number {
   const notes = String(row.notes ?? "");
@@ -64,10 +54,9 @@ export default function MyProductionPage() {
 function MyProductionContent() {
   const { selectedLineName: line } = useDeviceLineCtx();
   const { profile, role } = useAuth() as any;
+  const navigate = useNavigate();
   const [targetUnlocked, setTargetUnlocked] = useState(false);
   const [leaderAssigned, setLeaderAssigned] = useState<boolean | null>(null);
-
-
 
   const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
   const shift: Shift = shiftCode === "day" ? "DAY" : "NIGHT";
@@ -137,17 +126,7 @@ function MyProductionContent() {
   });
 
   const items = itemsQ.data || [];
-  const totalActual = items.reduce((s, i) => s + (i.actual_qty || 0), 0);
-  const totalOrderQty = items.reduce((s, i) => s + (i.target_qty || 0), 0);
   const totalTarget = ragQ.target;
-  const overallPct = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
-  const hasManualProduction = totalActual > 0;
-
-  const submitShift = () => {
-    toast.success("Shift totals submitted", {
-      description: `${totalActual.toLocaleString()} of ${totalTarget.toLocaleString()} recorded for ${line} — ${shiftLabel}.`,
-    });
-  };
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-5xl mx-auto">
