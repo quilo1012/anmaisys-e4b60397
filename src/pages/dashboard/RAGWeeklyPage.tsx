@@ -1778,9 +1778,9 @@ function DayNightTotalSummary({
                     <td className="p-1.5 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-[11px] tracking-wide text-muted-foreground">{row.label}</td>
                     {weekDates.map((d, i) => {
                       const ds = format(d, "yyyy-MM-dd");
-                      const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-slate-900 text-slate-500 dark:bg-black" : "";
-                      const nightDim = isShiftExcluded(label, ds, "NIGHT") ? "bg-slate-900 text-slate-500 dark:bg-black" : "";
-                      const totalDim = isDateExcluded(label, ds) ? "bg-slate-900 text-slate-500 dark:bg-black" : "bg-muted/40";
+                      const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-muted/60 text-muted-foreground" : "";
+                      const nightDim = isShiftExcluded(label, ds, "NIGHT") ? "bg-muted/60 text-muted-foreground" : "";
+                      const totalDim = isDateExcluded(label, ds) ? "bg-muted/60 text-muted-foreground" : "bg-muted/40";
                       return (
                         <Fragment key={i}>
                           <td className={`${cls} border-l ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapCell(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
