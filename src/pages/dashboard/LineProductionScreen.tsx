@@ -698,8 +698,7 @@ export default function LineProductionScreen() {
             ) : (
               <Button
                 size="lg"
-                variant="outline"
-                className="h-12"
+                className="h-12 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md"
                 onClick={() => setPinOpen(true)}
               >
                 <Lock className="h-5 w-5 mr-2" />
