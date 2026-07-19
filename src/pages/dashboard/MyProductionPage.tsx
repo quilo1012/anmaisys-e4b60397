@@ -18,6 +18,7 @@ import { Factory, Target, Loader2, Search, Plus, Lock, AlertCircle } from "lucid
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
+import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
 
 type Shift = "DAY" | "NIGHT";
 
