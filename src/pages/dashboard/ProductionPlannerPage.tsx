@@ -137,20 +137,6 @@ export default function ProductionPlannerPage() {
   const syncLinesForDate = async () => {
     setSyncingLines(true);
     try {
-      const { data: syncData, error: syncError } = await invokeFunction<any>("intouch-sync-production", {
-        session_date: date,
-        shift: shift.toUpperCase() === "NIGHT" ? "NIGHT" : "DAY",
-        force: true,
-      });
-      if (syncError) throw syncError;
-      if (syncData?.skipped) {
-        toast.error(syncData.reason === "intouch_sync_disabled" || syncData.reason === "intouch_current_shift_sync_disabled"
-          ? "iTouching SKU sync is disabled in Settings. Enable it first."
-          : `iTouching sync skipped: ${syncData.reason ?? "unknown"}`);
-      } else {
-        const summary = syncData?.summary ? ` · ${syncData.summary}` : "";
-        toast.success(`iTouching Material Requirements synced${summary}`);
-      }
 
       await queryClient.invalidateQueries({ queryKey: ["production_sessions"] });
       await queryClient.invalidateQueries({ queryKey: ["production_session"] });
