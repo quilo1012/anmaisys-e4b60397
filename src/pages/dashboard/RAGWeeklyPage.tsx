@@ -999,9 +999,9 @@ export default function RAGWeeklyPage() {
           </CardHeader>
         </Card>
         {inconsistencies.length > 0 && (
-          <Card className="border-amber-500/50 bg-amber-500/5">
+          <Card className="border-warning/50 bg-warning/5">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-base">
+              <CardTitle className="flex items-center gap-2 text-warning text-base">
                 <AlertOctagon className="h-4 w-4" />
                 Downtime consistency check — {inconsistencies.length} WO(s) span multiple shifts
               </CardTitle>
@@ -1013,12 +1013,12 @@ export default function RAGWeeklyPage() {
               </p>
               <div className="max-h-40 overflow-auto mt-2 space-y-1">
                 {inconsistencies.slice(0, 25).map((r) => (
-                  <div key={r.ref} className="flex flex-wrap gap-2 items-center border-l-2 border-amber-500/60 pl-2 py-0.5">
+                  <div key={r.ref} className="flex flex-wrap gap-2 items-center border-l-2 border-warning/60 pl-2 py-0.5">
                     <span className="font-mono font-semibold">WO #{r.ref}</span>
                     <span className="text-muted-foreground">{r.line}</span>
                     <span className="text-muted-foreground">· total {r.total} min across {r.cells.length} shifts:</span>
                     {r.cells.map((c) => (
-                      <span key={c.key} className="px-1.5 py-0.5 rounded bg-amber-500/15">
+                      <span key={c.key} className="px-1.5 py-0.5 rounded bg-warning/15">
                         {c.key.split("|")[0]} {c.key.split("|")[2]} ({c.minutes}m)
                       </span>
                     ))}
