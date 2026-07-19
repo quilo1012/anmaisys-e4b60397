@@ -1612,191 +1612,209 @@ function DayNightTotalSummary({
           )}
         </div>
         {isCollapsed ? null : (
-        <div
-          ref={scrollRef}
-          className="overflow-x-auto overflow-y-hidden -mx-2 px-2 scroll-smooth border rounded-md shadow-sm"
-          onWheel={(e) => {
-            // Do not trap vertical wheel — forward it to the page so users can
-            // scroll normally with the cursor over the wide table.
-            if (e.deltaY !== 0 && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-              window.scrollBy({ top: e.deltaY });
-              e.preventDefault();
-            }
-          }}
-        >
+        <div className="relative">
+          <div
+            ref={scrollRef}
+            className="overflow-x-auto overflow-y-hidden -mx-2 px-2 scroll-smooth border rounded-md shadow-sm"
+            onScroll={updateScroll}
+            onWheel={(e) => {
+              // Do not trap vertical wheel — forward it to the page so users can
+              // scroll normally with the cursor over the wide table.
+              if (e.deltaY !== 0 && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                window.scrollBy({ top: e.deltaY });
+                e.preventDefault();
+              }
+            }}
+          >
 
-          <table className="text-xs border-collapse min-w-[1000px] w-full tabular-nums">
-            <thead className="sticky top-0 z-30 bg-background shadow-[0_2px_0_0_hsl(var(--border))]">
-              <tr className="border-b bg-background">
-                <th className="text-left p-1.5 sticky left-0 bg-background z-30 min-w-[100px]" />
-                {weekDates.map((d, i) => {
-                  const ds = format(d, "yyyy-MM-dd");
-                  const excluded = isDateExcluded(label, ds);
+            <table className="text-xs border-collapse min-w-[1000px] w-full tabular-nums">
+              <thead className="sticky top-0 z-30 bg-background shadow-[0_2px_0_0_hsl(var(--border))]">
+                <tr className="border-b bg-background">
+                  <th className="text-left p-1.5 sticky left-0 bg-background z-30 min-w-[100px]" />
+                  {weekDates.map((d, i) => {
+                    const ds = format(d, "yyyy-MM-dd");
+                    const excluded = isDateExcluded(label, ds);
+                    return (
+                      <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap ${excluded ? "bg-muted/60 text-muted-foreground" : "bg-background"}`}>
+                        <div className="flex items-center justify-center gap-1">
+                          <span>{DAY_LABELS[i]}</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleDate(label, ds)}
+                            title={excluded ? "Include in week total" : "Exclude from week total"}
+                            className={`text-[9px] px-1.5 py-0.5 rounded border font-bold leading-none ${excluded ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success border-success/40"}`}
+                          >
+                            {excluded ? "OFF" : "ON"}
+                          </button>
+                        </div>
+                        <div className="text-muted-foreground font-normal">{format(d, "dd-MMM-yy")}</div>
+                      </th>
+                    );
+                  })}
+
+                  <th colSpan={3} className="text-center p-1.5 border-l whitespace-nowrap bg-primary/10 font-semibold">
+                    <div>Week Total</div>
+                    <div className="text-muted-foreground font-normal">All Days</div>
+                  </th>
+                </tr>
+                <tr className="border-b bg-muted/40">
+                  <th className="sticky left-0 bg-muted/40 z-30" />
+                  {weekDates.map((d, i) => {
+                    const ds = format(d, "yyyy-MM-dd");
+                    const dayOff = isShiftExcluded(label, ds, "DAY");
+                    const nightOff = isShiftExcluded(label, ds, "NIGHT");
+                    const Btn = ({ off, onClick }: { off: boolean; onClick: () => void }) => (
+                      <button
+                        type="button"
+                        onClick={onClick}
+                        title={off ? "Include shift" : "Exclude shift"}
+                        className={`ml-1 text-[8px] px-1 py-0 rounded border font-bold leading-none align-middle ${off ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success border-success/40"}`}
+                      >
+                        {off ? "off" : "on"}
+                      </button>
+                    );
+                    return (
+                      <Fragment key={i}>
+                        <th className={`text-right p-1 border-l font-medium min-w-[60px] ${dayOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-warning"}`}>
+                          Day<Btn off={dayOff} onClick={() => toggleShift(label, ds, "DAY")} />
+                        </th>
+                        <th className={`text-right p-1 font-medium min-w-[60px] ${nightOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-primary"}`}>
+                          Night<Btn off={nightOff} onClick={() => toggleShift(label, ds, "NIGHT")} />
+                        </th>
+                        <th className="text-right p-1 font-semibold bg-muted/60 min-w-[60px]">Total</th>
+                      </Fragment>
+                    );
+                  })}
+                  <th className="text-right p-1 border-l text-warning font-medium bg-primary/10 min-w-[64px]">Day</th>
+                  <th className="text-right p-1 text-primary font-medium bg-primary/10 min-w-[64px]">Night</th>
+                  <th className="text-right p-1 font-bold bg-primary/15 min-w-[64px]">Total</th>
+                </tr>
+
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const wtDay = weekTotal("DAY");
+                  const wtNight = weekTotal("NIGHT");
+                  const wtTot = weekTotal("TOTAL");
+                  const cls = `p-1.5 text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
+                  const editable = canEditEntries && lineFilter.length === 1 && ["plan", "actual"].includes(row.key);
+                  const lineName = lineFilter[0];
+                  const renderEdit = (ds: string, shift: Shift) => {
+                    const existing = entryMap.get(`${ds}|${lineName}|${shift}`);
+                    const current =
+                      row.key === "plan" ? (existing?.plan_qty ?? 0)
+                      : row.key === "actual" ? (existing?.actual_qty ?? 0)
+                      : (existing?.downtime_min ?? 0);
+                    return (
+                      <SummaryInlineInput
+                        value={current}
+                        onCommit={async (v) => {
+                          const patch: Partial<Entry> =
+                            row.key === "plan" ? { plan_qty: v }
+                            : row.key === "actual" ? { actual_qty: v }
+                            : { downtime_min: v };
+                          if (existing?.id) {
+                            // Patch ONLY the edited field so we never clobber
+                            // sibling values (actual, downtime, notes, etc.).
+                            const { error } = await supabase
+                              .from("rag_weekly_entries")
+                              .update(patch)
+                              .eq("id", existing.id);
+                            if (error) { toast.error(error.message); return; }
+                            toast.success("Saved");
+                            qcExcl.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+                          } else if (onSave) {
+                            onSave({
+                              entry_date: ds,
+                              line: lineName,
+                              shift,
+                              plan_qty: row.key === "plan" ? v : 0,
+                              actual_qty: row.key === "actual" ? v : 0,
+                              upm_target: 0,
+                              upm_actual: 0,
+                              downtime_min: row.key === "dt" ? v : 0,
+                              notes: null,
+                            });
+                          }
+                        }}
+                        onOpen={() => onOpenFull?.(ds, lineName, shift)}
+                      />
+                    );
+                  };
+                  const isDt = row.key.startsWith("dt:");
+                  const dtBucket: string | null = isDt ? (row.bucket ?? row.key.slice(3)) : null;
+                  const isPlan = row.key === "plan";
+                  const wrapDt = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
+                    if (!isDt || lineFilter.length !== 1) return cellEl;
+                    const key = `${ds}|${lineFilter[0]}|${shift}`;
+                    const all = autoDtBreakdown?.get(key) ?? [];
+                    const details = dtBucket ? all.filter((s) => s.kind === dtBucket) : all;
+                    if (!details.length) return cellEl;
+                    const scrap = cellScrapMap?.get(key) ?? 0;
+                    return <DowntimeBreakdownPopover trigger={cellEl} stops={details} dateStr={ds} shift={shift} line={lineFilter[0]} totalScrap={scrap} />;
+                  };
+                  const wrapPlan = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
+                    if (!isPlan || lineFilter.length !== 1) return cellEl;
+                    const key = `${ds}|${lineFilter[0]}|${shift}`;
+                    const e = entryMap.get(key);
+                    const itemSum = cellItemTargetMap?.get(key) ?? 0;
+                    const plan = Number(e?.plan_qty ?? 0);
+                    if (!plan || !itemSum) return cellEl;
+                    const diff = Math.abs(plan - itemSum);
+                    if (diff === 0) return cellEl;
+                    return (
+                      <span className="inline-flex items-center gap-1" title={`Plan ${plan} ≠ sum of SKU targets ${itemSum} (Δ${diff})`}>
+                        {cellEl}
+                        <span className="text-warning text-[10px] leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
+                      </span>
+                    );
+                  };
+                  const wrapCell = (ds: string, shift: Shift, cellEl: React.ReactNode) =>
+                    isDt ? wrapDt(ds, shift, cellEl) : isPlan ? wrapPlan(ds, shift, cellEl) : cellEl;
                   return (
-                    <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap ${excluded ? "bg-muted/60 text-muted-foreground" : "bg-background"}`}>
-                      <div className="flex items-center justify-center gap-1">
-                        <span>{DAY_LABELS[i]}</span>
-                        <button
-                          type="button"
-                          onClick={() => toggleDate(label, ds)}
-                          title={excluded ? "Include in week total" : "Exclude from week total"}
-                          className={`text-[9px] px-1.5 py-0.5 rounded border font-bold leading-none ${excluded ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success border-success/40"}`}
-                        >
-                          {excluded ? "OFF" : "ON"}
-                        </button>
-                      </div>
-                      <div className="text-muted-foreground font-normal">{format(d, "dd-MMM-yy")}</div>
-                    </th>
+                    <tr key={row.key} className="border-b hover:bg-muted/20">
+                      <td className="p-1.5 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-[11px] tracking-wide text-muted-foreground">{row.label}</td>
+                      {weekDates.map((d, i) => {
+                        const ds = format(d, "yyyy-MM-dd");
+                        const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-muted/60 text-muted-foreground" : "";
+                        const nightDim = isShiftExcluded(label, ds, "NIGHT") ? "bg-muted/60 text-muted-foreground" : "";
+                        const totalDim = isDateExcluded(label, ds) ? "bg-muted/60 text-muted-foreground" : "bg-muted/40";
+                        return (
+                          <Fragment key={i}>
+                            <td className={`${cls} border-l ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapCell(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
+                            <td className={`${cls} ${nightDim}`}>{editable ? renderEdit(ds, "NIGHT") : wrapCell(ds, "NIGHT", row.render(buildCol(ds, "NIGHT")))}</td>
+                            <td className={`${cls} ${totalDim}`}>{row.render(buildCol(ds, "TOTAL"))}</td>
+                          </Fragment>
+                        );
+
+                      })}
+
+
+                      <td className={`${cls} border-l bg-primary/5`}>{row.render(wtDay)}</td>
+                      <td className={`${cls} bg-primary/5`}>{row.render(wtNight)}</td>
+                      <td className={`${cls} bg-primary/15 font-bold`}>{row.render(wtTot)}</td>
+                    </tr>
                   );
                 })}
+              </tbody>
 
-                <th colSpan={3} className="text-center p-1.5 border-l whitespace-nowrap bg-primary/10 font-semibold">
-                  <div>Week Total</div>
-                  <div className="text-muted-foreground font-normal">All Days</div>
-                </th>
-              </tr>
-              <tr className="border-b bg-muted/40">
-                <th className="sticky left-0 bg-muted/40 z-30" />
-                {weekDates.map((d, i) => {
-                  const ds = format(d, "yyyy-MM-dd");
-                  const dayOff = isShiftExcluded(label, ds, "DAY");
-                  const nightOff = isShiftExcluded(label, ds, "NIGHT");
-                  const Btn = ({ off, onClick }: { off: boolean; onClick: () => void }) => (
-                    <button
-                      type="button"
-                      onClick={onClick}
-                      title={off ? "Include shift" : "Exclude shift"}
-                      className={`ml-1 text-[8px] px-1 py-0 rounded border font-bold leading-none align-middle ${off ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success border-success/40"}`}
-                    >
-                      {off ? "off" : "on"}
-                    </button>
-                  );
-                  return (
-                    <Fragment key={i}>
-                      <th className={`text-right p-1 border-l font-medium min-w-[60px] ${dayOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-warning"}`}>
-                        Day<Btn off={dayOff} onClick={() => toggleShift(label, ds, "DAY")} />
-                      </th>
-                      <th className={`text-right p-1 font-medium min-w-[60px] ${nightOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-primary"}`}>
-                        Night<Btn off={nightOff} onClick={() => toggleShift(label, ds, "NIGHT")} />
-                      </th>
-                      <th className="text-right p-1 font-semibold bg-muted/60 min-w-[60px]">Total</th>
-                    </Fragment>
-                  );
-                })}
-                <th className="text-right p-1 border-l text-warning font-medium bg-primary/10 min-w-[64px]">Day</th>
-                <th className="text-right p-1 text-primary font-medium bg-primary/10 min-w-[64px]">Night</th>
-                <th className="text-right p-1 font-bold bg-primary/15 min-w-[64px]">Total</th>
-              </tr>
-
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const wtDay = weekTotal("DAY");
-                const wtNight = weekTotal("NIGHT");
-                const wtTot = weekTotal("TOTAL");
-                const cls = `p-1.5 text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
-                const editable = canEditEntries && lineFilter.length === 1 && ["plan", "actual"].includes(row.key);
-                const lineName = lineFilter[0];
-                const renderEdit = (ds: string, shift: Shift) => {
-                  const existing = entryMap.get(`${ds}|${lineName}|${shift}`);
-                  const current =
-                    row.key === "plan" ? (existing?.plan_qty ?? 0)
-                    : row.key === "actual" ? (existing?.actual_qty ?? 0)
-                    : (existing?.downtime_min ?? 0);
-                  return (
-                    <SummaryInlineInput
-                      value={current}
-                      onCommit={async (v) => {
-                        const patch: Partial<Entry> =
-                          row.key === "plan" ? { plan_qty: v }
-                          : row.key === "actual" ? { actual_qty: v }
-                          : { downtime_min: v };
-                        if (existing?.id) {
-                          // Patch ONLY the edited field so we never clobber
-                          // sibling values (actual, downtime, notes, etc.).
-                          const { error } = await supabase
-                            .from("rag_weekly_entries")
-                            .update(patch)
-                            .eq("id", existing.id);
-                          if (error) { toast.error(error.message); return; }
-                          toast.success("Saved");
-                          qcExcl.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
-                        } else if (onSave) {
-                          onSave({
-                            entry_date: ds,
-                            line: lineName,
-                            shift,
-                            plan_qty: row.key === "plan" ? v : 0,
-                            actual_qty: row.key === "actual" ? v : 0,
-                            upm_target: 0,
-                            upm_actual: 0,
-                            downtime_min: row.key === "dt" ? v : 0,
-                            notes: null,
-                          });
-                        }
-                      }}
-                      onOpen={() => onOpenFull?.(ds, lineName, shift)}
-                    />
-                  );
-                };
-                const isDt = row.key.startsWith("dt:");
-                const dtBucket: string | null = isDt ? (row.bucket ?? row.key.slice(3)) : null;
-                const isPlan = row.key === "plan";
-                const wrapDt = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
-                  if (!isDt || lineFilter.length !== 1) return cellEl;
-                  const key = `${ds}|${lineFilter[0]}|${shift}`;
-                  const all = autoDtBreakdown?.get(key) ?? [];
-                  const details = dtBucket ? all.filter((s) => s.kind === dtBucket) : all;
-                  if (!details.length) return cellEl;
-                  const scrap = cellScrapMap?.get(key) ?? 0;
-                  return <DowntimeBreakdownPopover trigger={cellEl} stops={details} dateStr={ds} shift={shift} line={lineFilter[0]} totalScrap={scrap} />;
-                };
-                const wrapPlan = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
-                  if (!isPlan || lineFilter.length !== 1) return cellEl;
-                  const key = `${ds}|${lineFilter[0]}|${shift}`;
-                  const e = entryMap.get(key);
-                  const itemSum = cellItemTargetMap?.get(key) ?? 0;
-                  const plan = Number(e?.plan_qty ?? 0);
-                  if (!plan || !itemSum) return cellEl;
-                  const diff = Math.abs(plan - itemSum);
-                  if (diff === 0) return cellEl;
-                  return (
-                    <span className="inline-flex items-center gap-1" title={`Plan ${plan} ≠ sum of SKU targets ${itemSum} (Δ${diff})`}>
-                      {cellEl}
-                      <span className="text-warning text-[10px] leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
-                    </span>
-                  );
-                };
-                const wrapCell = (ds: string, shift: Shift, cellEl: React.ReactNode) =>
-                  isDt ? wrapDt(ds, shift, cellEl) : isPlan ? wrapPlan(ds, shift, cellEl) : cellEl;
-                return (
-                  <tr key={row.key} className="border-b hover:bg-muted/20">
-                    <td className="p-1.5 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-[11px] tracking-wide text-muted-foreground">{row.label}</td>
-                    {weekDates.map((d, i) => {
-                      const ds = format(d, "yyyy-MM-dd");
-                      const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-muted/60 text-muted-foreground" : "";
-                      const nightDim = isShiftExcluded(label, ds, "NIGHT") ? "bg-muted/60 text-muted-foreground" : "";
-                      const totalDim = isDateExcluded(label, ds) ? "bg-muted/60 text-muted-foreground" : "bg-muted/40";
-                      return (
-                        <Fragment key={i}>
-                          <td className={`${cls} border-l ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapCell(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
-                          <td className={`${cls} ${nightDim}`}>{editable ? renderEdit(ds, "NIGHT") : wrapCell(ds, "NIGHT", row.render(buildCol(ds, "NIGHT")))}</td>
-                          <td className={`${cls} ${totalDim}`}>{row.render(buildCol(ds, "TOTAL"))}</td>
-                        </Fragment>
-                      );
-
-                    })}
-
-
-                    <td className={`${cls} border-l bg-primary/5`}>{row.render(wtDay)}</td>
-                    <td className={`${cls} bg-primary/5`}>{row.render(wtNight)}</td>
-                    <td className={`${cls} bg-primary/15 font-bold`}>{row.render(wtTot)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-
-          </table>
+            </table>
+          </div>
+          {/* Horizontal-scroll hint: desktop-only gradient overlays that fade out when the edge is reached. */}
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-background to-transparent transition-opacity duration-300 hidden md:block",
+              showLeft ? "opacity-100" : "opacity-0"
+            )}
+            aria-hidden="true"
+          />
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent transition-opacity duration-300 hidden md:block",
+              showRight ? "opacity-100" : "opacity-0"
+            )}
+            aria-hidden="true"
+          />
         </div>
         )}
         {!isCollapsed && label !== "All Lines" && (
