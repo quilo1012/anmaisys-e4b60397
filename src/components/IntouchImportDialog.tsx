@@ -205,7 +205,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
   };
 
   const resolved = useMemo(() => sections.map((sec) => {
-    const matched = matchLine(sec.line);
+    const auto = matchLine(sec.line);
+    const override = manualLineByLine[sec.line];
+    const matched = override || auto;
     const items = sec.items.map((it) => {
       const sku = skuByCode.get(it.sku_code.toUpperCase());
       return { ...it, sku_id: sku?.id, sku_name: sku?.name };
@@ -213,7 +215,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
     const unknown = items.filter((i) => !i.sku_id).length;
     return { ...sec, matched_line: matched, items, unknown };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [sections, lineByNorm, skuByCode, lines]);
+  }), [sections, lineByNorm, skuByCode, lines, manualLineByLine]);
 
   const activeSections = useMemo(() => resolved.filter((s) => includedLines[s.line] !== false), [resolved, includedLines]);
   const totalProducts = activeSections.reduce((a, s) => a + s.items.length, 0);
