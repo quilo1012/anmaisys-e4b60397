@@ -148,7 +148,7 @@ function MyProductionContent() {
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/operator/performance")}>
-              Ver Performance
+              View Performance
             </Button>
             <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} onUnlockChange={setTargetUnlocked} onLeaderAssignedChange={setLeaderAssigned} />
           </div>
