@@ -187,18 +187,18 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
           </p>
         ) : (
           <div className="print:hidden rounded-md border overflow-x-auto">
-            <Table>
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">#</TableHead>
-                  <TableHead>Stopped</TableHead>
-                  <TableHead>Stopped by</TableHead>
-                  <TableHead>Reason</TableHead>
-                  <TableHead>Resumed</TableHead>
-                  <TableHead>Resumed by</TableHead>
-                  <TableHead>Note</TableHead>
-                  <TableHead className="text-right">Duration</TableHead>
-                  <TableHead>Type</TableHead>
+                  <TableHead className="w-12 whitespace-nowrap">#</TableHead>
+                  <TableHead className="whitespace-nowrap">Stopped</TableHead>
+                  <TableHead className="whitespace-nowrap">Stopped by</TableHead>
+                  <TableHead className="whitespace-nowrap">Reason</TableHead>
+                  <TableHead className="whitespace-nowrap">Resumed</TableHead>
+                  <TableHead className="whitespace-nowrap">Resumed by</TableHead>
+                  <TableHead className="whitespace-nowrap">Note</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Duration</TableHead>
+                  <TableHead className="whitespace-nowrap">Type</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
