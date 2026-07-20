@@ -167,7 +167,7 @@ function OperatorPerformanceContent() {
           </div>
           <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/operator/my-production")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar para lancamento
+            Back to Production
           </Button>
         </CardContent>
       </Card>
