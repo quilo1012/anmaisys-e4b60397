@@ -117,7 +117,7 @@ export function TabletProductionView() {
 
   const submitShiftMutation = useMutation({
     mutationFn: async () => {
-      if (!sessionData?.id) throw new Error("Nenhuma sessão ativa para este turno.");
+      if (!sessionData?.id) throw new Error("No active session for this shift.");
       const { error } = await (supabase as any)
         .from("production_sessions")
         .update({ leader_name: operatorName, notes: operatorNotes })
@@ -134,7 +134,7 @@ export function TabletProductionView() {
   if (loadingSession || loadingOrders) {
     return (
       <div className="p-6 text-muted-foreground">
-        Carregando painel fixo do tablet...
+        Loading fixed tablet panel...
       </div>
     );
   }
@@ -150,10 +150,10 @@ export function TabletProductionView() {
             {detectedLine.toUpperCase()}
           </div>
           <div className="text-xs text-muted-foreground">
-            {user?.email} · TURNO {currentShift} · {currentDate}
+            {user?.email} · SHIFT {currentShift} · {currentDate}
           </div>
         </div>
-        <Badge>TABLET FIXO</Badge>
+        <Badge>FIXED TABLET</Badge>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -176,7 +176,7 @@ export function TabletProductionView() {
           >
             {efficiency}%
           </div>
-          <div className="text-xs text-muted-foreground">Eficiência</div>
+          <div className="text-xs text-muted-foreground">Efficiency</div>
         </div>
       </div>
 
@@ -187,14 +187,14 @@ export function TabletProductionView() {
         </div>
         {!requestOrders?.length ? (
           <div className="p-6 text-center text-sm text-muted-foreground">
-            Nenhuma ordem requisitada para esta linha.
+            No orders requested for this line.
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nº Ordem</TableHead>
-                <TableHead>Descrição</TableHead>
+                <TableHead>Order No.</TableHead>
+                <TableHead>Description</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -217,20 +217,20 @@ export function TabletProductionView() {
 
       <div className="rounded-lg border bg-card p-4 space-y-4">
         <div className="space-y-2">
-          <Label>Operador Responsável</Label>
+          <Label>Operator in charge</Label>
           <Input
             value={operatorName}
             onChange={(e) => setOperatorName(e.target.value)}
-            placeholder="Seu Nome"
+            placeholder="Your name"
             disabled={locked}
           />
         </div>
         <div className="space-y-2">
-          <Label>Diário / Ocorrências na Linha</Label>
+          <Label>Log / Line occurrences</Label>
           <Textarea
             value={operatorNotes}
             onChange={(e) => setOperatorNotes(e.target.value)}
-            placeholder="Digite aqui problemas com máquina, paragens ou atrasos..."
+            placeholder="Type machine problems, stoppages or delays here..."
             rows={3}
             disabled={locked}
           />
@@ -241,11 +241,11 @@ export function TabletProductionView() {
             disabled={submitShiftMutation.isPending}
             className="w-full font-bold"
           >
-            Gravar e Sincronizar Turno
+            Save & Sync Shift
           </Button>
         ) : (
           <div className="text-xs text-center text-muted-foreground bg-muted p-2 rounded-lg">
-            🔒 Turno Fechado e Bloqueado pela Administração.
+            🔒 Shift closed and locked by Administration.
           </div>
         )}
       </div>
