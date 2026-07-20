@@ -303,13 +303,13 @@ export default function Login() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_70%,hsl(222_55%_4%/0.7)_100%)]" />
 
       {/* ── Center card ─────────────────────────────────── */}
-      <main className="relative z-10 flex min-h-screen items-center justify-center px-3 py-6 sm:px-6 sm:py-8">
-        <div className="w-full max-w-[440px] sm:max-w-[480px]">
-          <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[320px] w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(214_100%_55%)] opacity-20 blur-[120px] sm:h-[460px] sm:w-[460px] sm:blur-[140px]" />
+      <main className="relative z-10 flex min-h-[100svh] items-center justify-center px-3 py-4 sm:px-6 sm:py-8">
+        <div className="relative w-full max-w-[440px] sm:max-w-[480px]">
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[260px] w-[260px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(214_100%_55%)] opacity-20 blur-[100px] sm:h-[460px] sm:w-[460px] sm:blur-[140px]" />
 
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-[hsl(222_47%_8%)]/80 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.75)] backdrop-blur-2xl">
             {/* Brand header strip */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-white/10 bg-white/[0.02] px-3 py-3 sm:px-6 sm:py-4">
+            <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.02] px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
               <img
                 src={
                   (mode === "tablet" && selectedAccount?.favicon_url) ||
