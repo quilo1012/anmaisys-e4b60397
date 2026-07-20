@@ -303,13 +303,13 @@ export default function Login() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_70%,hsl(222_55%_4%/0.7)_100%)]" />
 
       {/* ── Center card ─────────────────────────────────── */}
-      <main className="relative z-10 flex min-h-screen items-center justify-center px-3 py-6 sm:px-6 sm:py-8">
-        <div className="w-full max-w-[440px] sm:max-w-[480px]">
-          <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[320px] w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(214_100%_55%)] opacity-20 blur-[120px] sm:h-[460px] sm:w-[460px] sm:blur-[140px]" />
+      <main className="relative z-10 flex min-h-[100svh] items-center justify-center px-3 py-4 sm:px-6 sm:py-8">
+        <div className="relative w-full max-w-[440px] sm:max-w-[480px]">
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[260px] w-[260px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(214_100%_55%)] opacity-20 blur-[100px] sm:h-[460px] sm:w-[460px] sm:blur-[140px]" />
 
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-[hsl(222_47%_8%)]/80 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.75)] backdrop-blur-2xl">
             {/* Brand header strip */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-white/10 bg-white/[0.02] px-3 py-3 sm:px-6 sm:py-4">
+            <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.02] px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
               <img
                 src={
                   (mode === "tablet" && selectedAccount?.favicon_url) ||
@@ -320,13 +320,13 @@ export default function Login() {
                 aria-hidden="true"
                 className="h-9 w-9 shrink-0 rounded-lg object-contain ring-1 ring-white/10 sm:h-10 sm:w-10"
               />
-              <div className="flex min-w-0 flex-1 basis-0 flex-col leading-tight">
+              <div className="flex min-w-0 flex-1 flex-col leading-tight">
                 <span className="truncate text-[13px] font-semibold tracking-tight text-white">Applied Nutrition</span>
                 <span className="truncate text-[11px] text-white/50">Maintenance Platform</span>
               </div>
 
               <span
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wider ring-1 ${
+                className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wider ring-1 sm:gap-1.5 ${
                   mode === "tablet"
                     ? "bg-amber-400/10 text-amber-300 ring-amber-400/25"
                     : "bg-sky-400/10 text-sky-300 ring-sky-400/25"
