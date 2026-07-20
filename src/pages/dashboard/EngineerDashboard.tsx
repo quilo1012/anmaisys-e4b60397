@@ -1021,17 +1021,17 @@ function EngineerDashboardContent() {
                 return <p className="text-muted-foreground text-center py-6">No completed work orders yet.</p>;
               }
               return (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                <div className="w-full overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
+                  <table className="min-w-[720px] w-full text-sm">
                     <thead>
                       <tr className="border-b">
-                        <th className="text-left p-2 font-medium">WO#</th>
-                        <th className="text-left p-2 font-medium">Line</th>
-                        <th className="text-left p-2 font-medium">Problem</th>
-                        <th className="text-left p-2 font-medium">Status</th>
-                        <th className="text-left p-2 font-medium">Requester</th>
-                        <th className="text-left p-2 font-medium">Engineer</th>
-                        <th className="text-left p-2 font-medium">Created</th>
+                        <th className="text-left p-2 font-medium whitespace-nowrap">WO#</th>
+                        <th className="text-left p-2 font-medium whitespace-nowrap">Line</th>
+                        <th className="text-left p-2 font-medium whitespace-nowrap">Problem</th>
+                        <th className="text-left p-2 font-medium whitespace-nowrap">Status</th>
+                        <th className="text-left p-2 font-medium whitespace-nowrap">Requester</th>
+                        <th className="text-left p-2 font-medium whitespace-nowrap">Engineer</th>
+                        <th className="text-left p-2 font-medium whitespace-nowrap">Created</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1044,11 +1044,11 @@ function EngineerDashboardContent() {
                           <td className="p-2 font-mono whitespace-nowrap">
                             WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
                           </td>
-                          <td className="p-2">{wo.line_at_time || "—"}</td>
+                          <td className="p-2 whitespace-nowrap">{wo.line_at_time || "—"}</td>
                           <td className="p-2 max-w-[280px] truncate">{wo.description || wo.machine || "—"}</td>
-                          <td className="p-2"><StatusBadge status={wo.status} /></td>
-                          <td className="p-2">{wo.requester_name || "—"}</td>
-                          <td className="p-2">{wo.engineer_name || "—"}</td>
+                          <td className="p-2 whitespace-nowrap"><StatusBadge status={wo.status} /></td>
+                          <td className="p-2 whitespace-nowrap">{wo.requester_name || "—"}</td>
+                          <td className="p-2 whitespace-nowrap">{wo.engineer_name || "—"}</td>
                           <td className="p-2 text-muted-foreground whitespace-nowrap">
                             {format(new Date(wo.created_at), "dd/MM HH:mm")}
                           </td>
