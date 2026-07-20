@@ -54,7 +54,7 @@ export function EngineerDashboardView() {
   if (isLoading) {
     return (
       <div className="p-6 text-muted-foreground">
-        Carregando ordens da engenharia...
+        Loading engineering orders...
       </div>
     );
   }
@@ -99,7 +99,7 @@ function OrderTable({ list, icon }: { list: WO[]; icon: React.ReactNode }) {
   if (list.length === 0) {
     return (
       <div className="p-6 text-center text-muted-foreground border rounded-md">
-        Nenhuma ordem neste estado.
+        No orders in this state.
       </div>
     );
   }
@@ -109,10 +109,10 @@ function OrderTable({ list, icon }: { list: WO[]; icon: React.ReactNode }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Nº Ordem</TableHead>
-            <TableHead>Linha</TableHead>
-            <TableHead>Descrição da Ocorrência / Falha</TableHead>
-            <TableHead>Estado</TableHead>
+            <TableHead>Order No.</TableHead>
+            <TableHead>Line</TableHead>
+            <TableHead>Occurrence / Fault description</TableHead>
+            <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
