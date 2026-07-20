@@ -320,13 +320,13 @@ export default function Login() {
                 aria-hidden="true"
                 className="h-9 w-9 shrink-0 rounded-lg object-contain ring-1 ring-white/10 sm:h-10 sm:w-10"
               />
-              <div className="flex min-w-0 flex-1 basis-0 flex-col leading-tight">
+              <div className="flex min-w-0 flex-1 flex-col leading-tight">
                 <span className="truncate text-[13px] font-semibold tracking-tight text-white">Applied Nutrition</span>
                 <span className="truncate text-[11px] text-white/50">Maintenance Platform</span>
               </div>
 
               <span
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wider ring-1 ${
+                className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wider ring-1 sm:gap-1.5 ${
                   mode === "tablet"
                     ? "bg-amber-400/10 text-amber-300 ring-amber-400/25"
                     : "bg-sky-400/10 text-sky-300 ring-sky-400/25"
