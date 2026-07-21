@@ -12,6 +12,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Package, Plus, LogOut, Loader2 } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
+import { ComboboxInput } from "@/components/ComboboxInput";
+
+const WAREHOUSE_LOCATIONS = ["AC1", "AC2 - Warehouse", "K53", "Depot RD"];
 
 export default function WarehouseDashboard() {
   const { toast } = useToast();
@@ -111,8 +114,14 @@ export default function WarehouseDashboard() {
                     <Input id="requester" value={requester} onChange={(e) => setRequester(e.target.value)} placeholder="Your name" autoComplete="off" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="location">Warehouse location *</Label>
-                    <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Rack B-12 / Loading Bay 3" autoComplete="off" />
+                    <Label>Warehouse location *</Label>
+                    <ComboboxInput
+                      value={location}
+                      onChange={(v) => setLocation(v)}
+                      suggestions={WAREHOUSE_LOCATIONS}
+                      placeholder="Select or type a warehouse location"
+                      className="w-full"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="desc">Description *</Label>
