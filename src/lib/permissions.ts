@@ -44,6 +44,7 @@ export type Action =
   | "production.target.view"
   | "production.target.manage"
   | "production.performance.view"
+  | "production.sku_performance.view"
   // Planner / Scheduling
   | "planner.view"
   | "planner.manage"
