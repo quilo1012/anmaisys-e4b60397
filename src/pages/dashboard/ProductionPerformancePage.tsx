@@ -35,17 +35,29 @@ export default function ProductionPerformancePage() {
   const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
   const [savingLeaderFor, setSavingLeaderFor] = useState<string | null>(null);
 
-  const setLeaderForLine = async (lineName: string, leaderName: string | null) => {
+  const setLeaderForLine = async (lineName: string, leaderName: string | null, hasSession: boolean) => {
     setSavingLeaderFor(lineName);
     try {
-      let q = supabase.from("production_sessions")
-        .update({ leader_name: leaderName })
-        .eq("line", lineName)
-        .gte("session_date", range.from)
-        .lte("session_date", range.to);
-      if (shift !== "all") q = q.eq("shift", shift);
-      const { error } = await q;
-      if (error) throw error;
+      if (hasSession) {
+        let q = supabase.from("production_sessions")
+          .update({ leader_name: leaderName })
+          .eq("line", lineName)
+          .gte("session_date", range.from)
+          .lte("session_date", range.to);
+        if (shift !== "all") q = q.eq("shift", shift);
+        const { error } = await q;
+        if (error) throw error;
+      } else {
+        // No session exists yet for this line/range — create one so the leader assignment sticks.
+        const sessionShift = shift === "all" ? "DAY" : shift;
+        const { error } = await supabase.from("production_sessions").insert({
+          line: lineName,
+          session_date: range.from,
+          shift: sessionShift,
+          leader_name: leaderName,
+        });
+        if (error) throw error;
+      }
       toast.success(leaderName ? `Leader set to ${leaderName} for ${lineName}` : `Leader cleared for ${lineName}`);
       qc.invalidateQueries({ queryKey: ["oee"] });
     } catch (e: any) {
@@ -54,6 +66,7 @@ export default function ProductionPerformancePage() {
       setSavingLeaderFor(null);
     }
   };
+
 
   const range = useMemo(() => {
     const d = parseISO(date);
