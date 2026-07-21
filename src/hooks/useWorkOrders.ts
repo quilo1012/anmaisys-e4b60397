@@ -152,7 +152,7 @@ export function useCreateWorkOrder() {
         // and must NEVER contribute to line downtime.
         delete insertPayload.line_id;
         delete insertPayload.physical_line_id;
-        insertPayload.machine = "";
+        // machine (legacy) may hold an optional warehouse asset name — keep as passed
         insertPayload.line_stopped = false;
         insertPayload.line_stopped_at = null;
         insertPayload.line_stopped_by = null;

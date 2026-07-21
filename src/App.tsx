@@ -259,7 +259,7 @@ const App = () => (
                 <Route
                   path="/dashboard/machines"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="machines.view">
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner", "warehouse"]} requiredAction="machines.view">
                       <MachinesPage />
                     </ProtectedRoute>
                   }
@@ -339,7 +339,7 @@ const App = () => (
                 <Route
                   path="/dashboard/stock"
                   element={
-                    <ProtectedRoute allowedRoles={["engineer", "co_engineer", "admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="stock.view">
+                    <ProtectedRoute allowedRoles={["engineer", "co_engineer", "admin", "manager", "supervisor", "maintenance_manager", "planner", "warehouse"]} requiredAction="stock.view">
                       <StockPage />
                     </ProtectedRoute>
                   }

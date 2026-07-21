@@ -5,49 +5,54 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
+import { useMachines, useDistinctMachineValues } from "@/hooks/useMachines";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Package, Plus, Loader2, Search, ClipboardList, PlayCircle, CheckCircle2 } from "lucide-react";
+import { Package, Plus, Loader2, Search, ClipboardList, PlayCircle, CheckCircle2, CalendarDays, History } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
 import { ComboboxInput } from "@/components/ComboboxInput";
 import { DashboardLayout } from "@/components/DashboardLayout";
 
 const WAREHOUSE_LOCATIONS = ["AC1", "AC2 - Warehouse", "K53", "Depot RD"];
+const WAREHOUSE_LOCATIONS_LC = new Set(WAREHOUSE_LOCATIONS.map((l) => l.toLowerCase()));
 
-const STATUS_STYLES: Record<string, string> = {
-  open: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
-  in_progress: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
-  finished: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
-  closed: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  open: "Open",
-  in_progress: "In Progress",
-  finished: "Finished",
-  closed: "Closed",
-};
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function startOfWeek() {
+  const d = startOfToday();
+  d.setDate(d.getDate() - d.getDay()); // Sunday-based week
+  return d;
+}
+function isCompleted(status: string) {
+  return status === "finished" || status === "closed";
+}
 
 export default function WarehouseDashboard() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { profile } = useAuth();
   const { data: workOrders, isLoading } = useWorkOrders();
+  const { data: machines } = useMachines();
+  const { data: distinctVals } = useDistinctMachineValues();
   const createWO = useCreateWorkOrder();
 
   const [open, setOpen] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [requester, setRequester] = useState(profile?.name ?? "");
   const [location, setLocation] = useState("");
+  const [assetName, setAssetName] = useState<string>("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [locationFilter, setLocationFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
   const warehouseWOs = useMemo(
@@ -59,8 +64,19 @@ export default function WarehouseDashboard() {
     const total = warehouseWOs.length;
     const openCount = warehouseWOs.filter((w: any) => w.status === "open").length;
     const inProgress = warehouseWOs.filter((w: any) => w.status === "in_progress").length;
-    const done = warehouseWOs.filter((w: any) => w.status === "finished" || w.status === "closed").length;
-    return { total, openCount, inProgress, done };
+    const today = startOfToday().getTime();
+    const week = startOfWeek().getTime();
+    const doneToday = warehouseWOs.filter((w: any) => {
+      if (!isCompleted(w.status)) return false;
+      const ts = new Date(w.completed_at || w.closed_at || w.finished_at || w.created_at).getTime();
+      return ts >= today;
+    }).length;
+    const doneWeek = warehouseWOs.filter((w: any) => {
+      if (!isCompleted(w.status)) return false;
+      const ts = new Date(w.completed_at || w.closed_at || w.finished_at || w.created_at).getTime();
+      return ts >= week;
+    }).length;
+    return { total, openCount, inProgress, doneToday, doneWeek };
   }, [warehouseWOs]);
 
   const filtered = useMemo(() => {
@@ -68,37 +84,56 @@ export default function WarehouseDashboard() {
     return warehouseWOs.filter((w: any) => {
       if (statusFilter !== "all") {
         if (statusFilter === "done") {
-          if (w.status !== "finished" && w.status !== "closed") return false;
+          if (!isCompleted(w.status)) return false;
         } else if (w.status !== statusFilter) return false;
       }
-      if (locationFilter !== "all" && w.warehouse_location !== locationFilter) return false;
       if (q) {
-        const hay = `${w.wo_number ?? ""} ${w.warehouse_location ?? ""} ${w.description ?? ""} ${w.requester_name ?? ""}`.toLowerCase();
+        const hay = `${w.wo_number ?? ""} ${w.warehouse_location ?? ""} ${w.description ?? ""} ${w.requester_name ?? ""} ${w.machine ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [warehouseWOs, statusFilter, locationFilter, search]);
+  }, [warehouseWOs, statusFilter, search]);
+
+  const warehouseMachines = useMemo(() => {
+    return (machines ?? []).filter((m: any) => {
+      const loc = (m.current_location || "").trim().toLowerCase();
+      return WAREHOUSE_LOCATIONS_LC.has(loc);
+    });
+  }, [machines]);
+
+  // Combined location list for the modal combobox: defaults + distinct machine locations
+  const locationSuggestions = useMemo(() => {
+    const set = new Set<string>(WAREHOUSE_LOCATIONS);
+    (distinctVals?.locations ?? []).forEach((l) => l && set.add(l));
+    return Array.from(set).sort();
+  }, [distinctVals]);
+
+  // Optional asset select — filter machines by chosen location (case-insensitive)
+  const modalAssets = useMemo(() => {
+    const chosen = location.trim().toLowerCase();
+    if (!chosen) return [];
+    return (machines ?? []).filter((m: any) => (m.current_location || "").trim().toLowerCase() === chosen);
+  }, [machines, location]);
 
   const reset = () => {
     setRequester(profile?.name ?? "");
     setLocation("");
+    setAssetName("");
     setDescription("");
     setNotes("");
+    setSubmitAttempted(false);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requester.trim()) {
-      toast({ title: "Requester required", description: "Please enter who is requesting the work order.", variant: "destructive" });
-      return;
-    }
-    if (!location.trim()) {
-      toast({ title: "Warehouse location required", description: "Please provide the warehouse location.", variant: "destructive" });
-      return;
-    }
-    if (!description.trim()) {
-      toast({ title: "Problem description required", description: "Please describe what needs attention.", variant: "destructive" });
+    setSubmitAttempted(true);
+    if (!requester.trim() || !location.trim() || !description.trim()) {
+      toast({
+        title: "Missing required fields",
+        description: "Please fill Requested by, Warehouse location and Description.",
+        variant: "destructive",
+      });
       return;
     }
     try {
@@ -106,6 +141,7 @@ export default function WarehouseDashboard() {
         requester_name: requester.trim(),
         wo_type: "warehouse_service",
         warehouse_location: location.trim(),
+        machine: assetName.trim(),
         description: description.trim(),
         notes: notes.trim(),
       } as any);
@@ -118,11 +154,16 @@ export default function WarehouseDashboard() {
   };
 
   const kpiCards = [
-    { label: "Total Requests", value: kpis.total, icon: ClipboardList, tone: "text-foreground" },
-    { label: "Open", value: kpis.openCount, icon: Package, tone: "text-amber-600 dark:text-amber-400" },
+    { label: "Open Requests", value: kpis.openCount, icon: Package, tone: "text-amber-600 dark:text-amber-400" },
     { label: "In Progress", value: kpis.inProgress, icon: PlayCircle, tone: "text-blue-600 dark:text-blue-400" },
-    { label: "Completed", value: kpis.done, icon: CheckCircle2, tone: "text-emerald-600 dark:text-emerald-400" },
+    { label: "Completed Today", value: kpis.doneToday, icon: CheckCircle2, tone: "text-emerald-600 dark:text-emerald-400" },
+    { label: "Completed This Week", value: kpis.doneWeek, icon: CalendarDays, tone: "text-emerald-600 dark:text-emerald-400" },
+    { label: "Total Requests", value: kpis.total, icon: ClipboardList, tone: "text-foreground" },
   ];
+
+  const errRequester = submitAttempted && !requester.trim();
+  const errLocation = submitAttempted && !location.trim();
+  const errDescription = submitAttempted && !description.trim();
 
   return (
     <DashboardLayout>
@@ -131,7 +172,7 @@ export default function WarehouseDashboard() {
           <div>
             <h1 className="text-2xl font-semibold text-foreground">Warehouse Admin</h1>
             <p className="text-sm text-muted-foreground">
-              Create service requests and track their status. Warehouse orders never count as line downtime.
+              Track service requests and warehouse assets. Warehouse orders never count as production-line downtime.
             </p>
           </div>
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
@@ -144,24 +185,61 @@ export default function WarehouseDashboard() {
               <DialogHeader>
                 <DialogTitle>New Warehouse Service Request</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-4">
+              <form onSubmit={handleCreate} className="space-y-4" noValidate>
                 <div className="space-y-2">
                   <Label htmlFor="requester">Requested by *</Label>
-                  <Input id="requester" value={requester} onChange={(e) => setRequester(e.target.value)} placeholder="Your name" autoComplete="off" />
+                  <Input
+                    id="requester"
+                    value={requester}
+                    onChange={(e) => setRequester(e.target.value)}
+                    placeholder="Your name"
+                    autoComplete="off"
+                    aria-invalid={errRequester}
+                    className={errRequester ? "border-destructive" : ""}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Warehouse location *</Label>
                   <ComboboxInput
                     value={location}
-                    onChange={(v) => setLocation(v)}
-                    suggestions={WAREHOUSE_LOCATIONS}
+                    onChange={(v) => { setLocation(v); setAssetName(""); }}
+                    suggestions={locationSuggestions}
                     placeholder="Select or type a warehouse location"
-                    className="w-full"
+                    className={`w-full ${errLocation ? "border-destructive" : ""}`}
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label>Machine / Asset (optional)</Label>
+                  <Select
+                    value={assetName || "__none__"}
+                    onValueChange={(v) => setAssetName(v === "__none__" ? "" : v)}
+                    disabled={!location.trim()}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={!location.trim() ? "Pick a location first" : "Select an asset (optional)"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— None —</SelectItem>
+                      {modalAssets.length === 0 && location.trim() && (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">No assets registered at this location.</div>
+                      )}
+                      {modalAssets.map((m: any) => (
+                        <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="desc">Description *</Label>
-                  <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What needs attention?" rows={3} />
+                  <Textarea
+                    id="desc"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="What needs attention?"
+                    rows={3}
+                    aria-invalid={errDescription}
+                    className={errDescription ? "border-destructive" : ""}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="notes">Notes</Label>
@@ -179,7 +257,8 @@ export default function WarehouseDashboard() {
           </Dialog>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {/* KPIs */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           {kpiCards.map((k) => (
             <Card key={k.label}>
               <CardContent className="flex items-center justify-between p-4">
@@ -193,6 +272,7 @@ export default function WarehouseDashboard() {
           ))}
         </div>
 
+        {/* Service Requests table */}
         <Card>
           <CardHeader className="space-y-4">
             <CardTitle>Warehouse Service Requests</CardTitle>
@@ -202,13 +282,13 @@ export default function WarehouseDashboard() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search WO#, location, description or requester…"
+                  placeholder="Search WO#, location, asset, description or requester…"
                   className="pl-9"
                   autoComplete="off"
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full md:w-[180px]">
+                <SelectTrigger className="w-full md:w-[200px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -216,17 +296,6 @@ export default function WarehouseDashboard() {
                   <SelectItem value="open">Open</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="done">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={locationFilter} onValueChange={setLocationFilter}>
-                <SelectTrigger className="w-full md:w-[200px]">
-                  <SelectValue placeholder="Location" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All locations</SelectItem>
-                  {WAREHOUSE_LOCATIONS.map((l) => (
-                    <SelectItem key={l} value={l}>{l}</SelectItem>
-                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -243,7 +312,7 @@ export default function WarehouseDashboard() {
                 description={
                   warehouseWOs.length === 0
                     ? "Create your first warehouse service request using the button above."
-                    : "Try clearing the search or changing status/location filters."
+                    : "Try clearing the search or changing the status filter."
                 }
               />
             ) : (
@@ -253,6 +322,7 @@ export default function WarehouseDashboard() {
                     <TableRow>
                       <TableHead>WO #</TableHead>
                       <TableHead>Location</TableHead>
+                      <TableHead>Asset</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Requested by</TableHead>
                       <TableHead>Status</TableHead>
@@ -270,15 +340,67 @@ export default function WarehouseDashboard() {
                           WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
                         </TableCell>
                         <TableCell>{wo.warehouse_location || "—"}</TableCell>
+                        <TableCell>{wo.machine || "—"}</TableCell>
                         <TableCell className="max-w-[280px] truncate">{wo.description}</TableCell>
                         <TableCell>{wo.requester_name}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={STATUS_STYLES[wo.status] ?? ""}>
-                            {STATUS_LABEL[wo.status] ?? wo.status}
-                          </Badge>
+                          <StatusBadge status={wo.status} showIcon />
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {new Date(wo.created_at).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Warehouse machines / assets */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Warehouse Machines / Assets</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Assets currently registered at {WAREHOUSE_LOCATIONS.join(", ")}.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {warehouseMachines.length === 0 ? (
+              <EmptyState
+                icon={Package}
+                title="No warehouse assets"
+                description="No machines are currently registered at a warehouse location."
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {warehouseMachines.map((m: any) => (
+                      <TableRow key={m.id}>
+                        <TableCell className="font-medium">{m.name}</TableCell>
+                        <TableCell>{m.current_location || "—"}</TableCell>
+                        <TableCell>
+                          <StatusBadge status={m.status || "active"} showIcon />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => navigate(`/dashboard/machines/${encodeURIComponent(m.name)}/history`)}
+                          >
+                            <History className="h-3.5 w-3.5" /> History
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}

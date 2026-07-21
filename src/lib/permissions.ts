@@ -103,13 +103,13 @@ const MATRIX: Record<Action, Role[]> = {
   "downtime.view": ALL,
   "downtime.manage": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
 
-  "machines.view": ALL,
+  "machines.view": [...ALL, "warehouse"],
   "machines.manage": ["admin", "manager", "supervisor"],
 
   "problems.view": ALL,
   "problems.manage": ["admin", "manager", "supervisor"],
 
-  "stock.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
+  "stock.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "warehouse"],
   "stock.manage": ["admin", "manager", "supervisor"],
   "stock.pricing": ["admin"],
 
