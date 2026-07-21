@@ -3,7 +3,22 @@ import { Slot } from "@radix-ui/react-slot";
 import { VariantProps, cva } from "class-variance-authority";
 import { PanelLeft } from "lucide-react";
 
-import { useIsMobile } from "@/hooks/use-mobile";
+// Sidebar uses its own narrower breakpoint (640px) so tablets keep the
+// collapsible icon rail instead of collapsing into an offcanvas Sheet.
+const SIDEBAR_MOBILE_BREAKPOINT = 640;
+function useSidebarIsMobile() {
+  const [isMobile, setIsMobile] = React.useState<boolean>(() =>
+    typeof window !== "undefined" ? window.innerWidth < SIDEBAR_MOBILE_BREAKPOINT : false,
+  );
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${SIDEBAR_MOBILE_BREAKPOINT - 1}px)`);
+    const onChange = () => setIsMobile(window.innerWidth < SIDEBAR_MOBILE_BREAKPOINT);
+    mql.addEventListener("change", onChange);
+    onChange();
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return isMobile;
+}
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
