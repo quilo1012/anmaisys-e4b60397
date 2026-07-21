@@ -34,6 +34,29 @@ export default function ProductionPerformancePage() {
   const [lineFilter, setLineFilter] = useState<string>("__all__");
   const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
   const [savingLeaderFor, setSavingLeaderFor] = useState<string | null>(null);
+  const [addingLeaderFor, setAddingLeaderFor] = useState<string | null>(null);
+  const [newLeaderName, setNewLeaderName] = useState("");
+
+  const addNewLeader = async (lineName: string, hasSession: boolean) => {
+    const name = newLeaderName.trim();
+    if (!name) {
+      toast.error("Leader name required");
+      return;
+    }
+    setSavingLeaderFor(lineName);
+    try {
+      const { error } = await supabase.from("line_leaders").insert({ name, shift: "BOTH", active: true });
+      if (error && !/duplicate|unique/i.test(error.message)) throw error;
+      await qc.invalidateQueries({ queryKey: ["line_leaders_active"] });
+      setAddingLeaderFor(null);
+      setNewLeaderName("");
+      await setLeaderForLine(lineName, name, hasSession);
+      toast.success(`Leader "${name}" added`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to add leader");
+      setSavingLeaderFor(null);
+    }
+  };
 
   const setLeaderForLine = async (lineName: string, leaderName: string | null, hasSession: boolean) => {
     setSavingLeaderFor(lineName);
