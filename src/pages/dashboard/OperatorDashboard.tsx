@@ -468,14 +468,17 @@ function OperatorDashboardContent() {
 
             <div className="space-y-2">
               <Label htmlFor="desc">Problem Description</Label>
-              <Select value={description} onValueChange={setDescription}>
+              <Select value={description} onValueChange={(v) => { setDescription(v); if (v !== "__custom__") setCustomDescription(""); }}>
                 <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
                 <SelectContent>
                   {(() => {
                     if (!isSealerPrinterLine) {
-                      return (problemDescriptions || []).map((pd: any) => (
-                        <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
-                      ));
+                      return [
+                        ...(problemDescriptions || []).map((pd: any) => (
+                          <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
+                        )),
+                        <SelectItem key="__custom__" value="__custom__">Other — describe the problem…</SelectItem>,
+                      ];
                     }
                     // Curated, guaranteed list for Sealer / Printer Ink mode.
                     const guaranteed = [
@@ -498,10 +501,25 @@ function OperatorDashboardContent() {
                       ...extras.map((pd: any) => (
                         <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
                       )),
+                      <SelectItem key="__custom__" value="__custom__">Other — describe the problem…</SelectItem>,
                     ];
                   })()}
                 </SelectContent>
               </Select>
+              {description === "__custom__" && (
+                <div className="space-y-1 md:col-span-2">
+                  <Label htmlFor="custom-desc" className="text-xs">Describe the problem</Label>
+                  <Textarea
+                    id="custom-desc"
+                    placeholder="Describe the problem..."
+                    autoFocus
+                    value={customDescription}
+                    onChange={(e) => setCustomDescription(e.target.value)}
+                    rows={2}
+                    autoComplete="off"
+                  />
+                </div>
+              )}
             </div>
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="notes">Observations (optional)</Label>
