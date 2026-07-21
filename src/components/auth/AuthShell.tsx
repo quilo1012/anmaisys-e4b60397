@@ -41,16 +41,15 @@ export function AuthShell({
     >
       <div className={`w-full ${maxWidthClass} motion-safe:animate-scale-in`}>
         <div className="rounded-2xl bg-white px-8 py-10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.5)] ring-1 ring-slate-200 sm:px-10">
-          {/* Navy brand chip with white logo */}
+          {/* Official brand logo chip */}
           <div className="mb-6 flex justify-center">
-            <div className="rounded-xl bg-[#1E3A8A] px-6 py-4 shadow-sm">
+            <div className="rounded-xl bg-[#1E3A8A] p-2 shadow-sm">
               <img
-                src={appliedLogoWhite}
+                src={appliedLogo}
                 alt=""
                 aria-hidden="true"
-                className="h-10 w-auto object-contain"
+                className="h-12 w-auto max-w-[220px] object-contain"
               />
-
             </div>
           </div>
 
