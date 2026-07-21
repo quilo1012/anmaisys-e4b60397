@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { OperatorLineGuard } from "@/components/OperatorLineGuard";
@@ -15,8 +15,11 @@ import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
+import { PinDialog } from "@/components/PinDialog";
 
 type Shift = "DAY" | "NIGHT";
+
+const normalize = (s: string | null | undefined) => (s || "").trim().toLowerCase();
 
 function ragColor(pct: number): string {
   if (pct >= 90) return "bg-green-600";
