@@ -282,7 +282,12 @@ export default function WorkOrdersPage() {
       toast({ title: "Requester required", description: "Please select who is requesting the work order.", variant: "destructive" });
       return;
     }
-    if (!newMachine.trim()) {
+    if (newWoType === "warehouse_service") {
+      if (!newWarehouseLocation.trim()) {
+        toast({ title: "Warehouse location required", description: "Please provide the warehouse location.", variant: "destructive" });
+        return;
+      }
+    } else if (!newMachine.trim()) {
       toast({ title: "Machine required", description: "Please select a machine before creating the work order.", variant: "destructive" });
       return;
     }
@@ -291,9 +296,19 @@ export default function WorkOrdersPage() {
       return;
     }
     try {
-      await createWO.mutateAsync({ requester_name: newRequester.trim(), line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim() } as any);
+      if (newWoType === "warehouse_service") {
+        await createWO.mutateAsync({
+          requester_name: newRequester.trim(),
+          wo_type: "warehouse_service",
+          warehouse_location: newWarehouseLocation.trim(),
+          description: newDesc.trim(),
+          notes: newNotes.trim(),
+        } as any);
+      } else {
+        await createWO.mutateAsync({ requester_name: newRequester.trim(), wo_type: "production", line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim() } as any);
+      }
       toast({ title: "Work Order Created" });
-      setShowCreate(false); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
+      setShowCreate(false); setNewWoType("production"); setNewWarehouseLocation(""); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
 
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
