@@ -70,10 +70,13 @@ export default function DirectMessagesPage() {
     }
   };
 
-  const title =
-    role === "admin" || role === "supervisor" || role === "manager"
-      ? "Chat with Operators"
-      : "Chat with Supervisor";
+  const isStaff =
+    role === "admin" ||
+    role === "supervisor" ||
+    role === "manager" ||
+    role === "maintenance_manager" ||
+    role === "warehouse";
+  const title = isStaff ? "Chat with Operators" : "Chat with Team";
 
   return (
     <DashboardLayout>
