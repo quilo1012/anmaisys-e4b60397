@@ -276,6 +276,9 @@ export default function WorkOrdersPage() {
     } else if (!newMachine.trim()) {
       toast({ title: "Machine required", description: "Please select a machine before creating the work order.", variant: "destructive" });
       return;
+    } else if (!newLineStopped) {
+      toast({ title: "Line status required", description: "Please select whether the line is stopped or running.", variant: "destructive" });
+      return;
     }
     if (!newDesc.trim()) {
       toast({ title: "Problem description required", description: "Please describe the problem before creating the work order.", variant: "destructive" });
