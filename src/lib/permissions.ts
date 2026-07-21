@@ -226,7 +226,7 @@ export function can(role: Role | null | undefined, action: Action): boolean {
 
 /** All known actions (for admin UIs). */
 export const ALL_ACTIONS: Action[] = Object.keys(MATRIX) as Action[];
-export const ALL_ROLES: Role[] = ALL;
+export const ALL_ROLES: Role[] = [...ALL, "warehouse"];
 
 /** Returns true if the role can perform ANY of the listed actions. */
 export function canAny(role: Role | null | undefined, actions: Action[]): boolean {
