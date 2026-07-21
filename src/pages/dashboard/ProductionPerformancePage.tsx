@@ -410,7 +410,7 @@ export default function ProductionPerformancePage() {
                     <Select
                       value={l.leader ?? "__none__"}
                       disabled={savingLeaderFor === l.line}
-                      onValueChange={(v) => setLeaderForLine(l.line, v === "__none__" ? null : v)}
+                      onValueChange={(v) => setLeaderForLine(l.line, v === "__none__" ? null : v, l.hasSession)}
                     >
                       <SelectTrigger className="h-7 w-36 text-xs bg-background/60">
                         <SelectValue placeholder="— None —" />
