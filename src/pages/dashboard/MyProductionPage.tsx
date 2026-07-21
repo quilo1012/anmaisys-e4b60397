@@ -877,7 +877,8 @@ function LogOccurrenceCard({ line, shift, sessionDate }: { line: string; shift: 
 
   const onSave = async () => {
     const mins = Number(duration);
-    if (!category) { toast.error("Select a category"); return; }
+    const categoryValue = category.trim();
+    if (!categoryValue) { toast.error("Enter a category"); return; }
     if (!Number.isFinite(mins) || mins < 0) { toast.error("Enter a valid duration in minutes"); return; }
 
     setSaving(true);
@@ -888,8 +889,8 @@ function LogOccurrenceCard({ line, shift, sessionDate }: { line: string; shift: 
         line,
         shift,
         occurred_date: sessionDate,
-        category,
-        reason: reason.trim() || category,
+        category: categoryValue,
+        reason: reason.trim() || categoryValue,
         duration_minutes: Math.round(mins),
         notes: notes.trim() || null,
         source: "operator_occurrence",
