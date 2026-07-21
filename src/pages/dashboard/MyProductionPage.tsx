@@ -353,7 +353,7 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
   );
 }
 
-function TargetPinGate({ line, shiftLabel, totalTarget, onUnlockChange, onLeaderAssignedChange }: { line: string; shiftLabel: string; totalTarget: number; onUnlockChange?: (v: boolean) => void; onLeaderAssignedChange?: (v: boolean) => void }) {
+function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockChange, onLeaderAssignedChange }: { line: string; shiftLabel: string; totalTarget: number; produced?: number; onUnlockChange?: (v: boolean) => void; onLeaderAssignedChange?: (v: boolean) => void }) {
   const [pinOpen, setPinOpen] = useState(false);
   const [leader, setLeader] = useState<{ name: string; matched: boolean } | null>(null);
   const [open, setOpen] = useState(false);
