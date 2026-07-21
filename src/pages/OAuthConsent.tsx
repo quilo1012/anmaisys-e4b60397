@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldCheck } from "lucide-react";
+import { AuthShell } from "@/components/auth/AuthShell";
 
 // Typed local wrapper over the beta supabase.auth.oauth namespace so this file
 // compiles even before the SDK types are updated.
@@ -18,6 +19,12 @@ type OAuthNamespace = {
   denyAuthorization: (id: string) => Promise<{ data: OAuthDetails | null; error: { message: string } | null }>;
 };
 const oauth = (supabase.auth as unknown as { oauth: OAuthNamespace }).oauth;
+
+const consentBadge = (
+  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-400/10 px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-sky-300 ring-1 ring-sky-400/25 sm:gap-1.5">
+    <ShieldCheck className="h-3 w-3" /> Consent
+  </span>
+);
 
 export default function OAuthConsent() {
   const [params] = useSearchParams();
@@ -78,49 +85,53 @@ export default function OAuthConsent() {
 
   if (error) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-6 text-white bg-[hsl(222_47%_6%)]">
-        <div className="max-w-md space-y-3">
-          <h1 className="text-xl font-semibold">Authorization error</h1>
-          <p className="text-sm text-white/70">{error}</p>
-        </div>
-      </main>
+      <AuthShell badge={consentBadge} title="Authorization error" subtitle="We couldn't complete this request.">
+        <p className="text-sm text-white/70">{error}</p>
+      </AuthShell>
     );
   }
+
   if (!details) {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[hsl(222_47%_6%)] text-white">
-        <img src="/favicon.png" alt="" aria-hidden="true" className="h-12 w-12 rounded-xl object-contain shadow-lg ring-1 ring-white/10" />
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </main>
+      <AuthShell badge={consentBadge} title="Preparing authorization" subtitle="Verifying the client request…">
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="h-6 w-6 animate-spin text-white/70" />
+        </div>
+      </AuthShell>
     );
   }
 
   const clientName = details.client?.name ?? "an external app";
   return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-[hsl(222_47%_6%)] text-white">
-      <div className="w-full max-w-md rounded-xl border border-white/10 bg-white/5 p-6 space-y-5">
-        <h1 className="text-xl font-semibold">Connect {clientName} to AN Maintenance</h1>
-        <p className="text-sm text-white/70">
-          {clientName} is requesting access to your AN Maintenance account. It will act on your behalf using your
-          permissions.
-        </p>
-        <div className="flex gap-3">
-          <button
-            disabled={busy}
-            onClick={() => decide(true)}
-            className="flex-1 rounded-md bg-[hsl(214_90%_50%)] px-4 py-2 text-sm font-medium disabled:opacity-60"
-          >
-            Approve
-          </button>
-          <button
-            disabled={busy}
-            onClick={() => decide(false)}
-            className="flex-1 rounded-md border border-white/20 px-4 py-2 text-sm font-medium disabled:opacity-60"
-          >
-            Deny
-          </button>
-        </div>
+    <AuthShell
+      brandIconUrl={details.client?.logo_uri || "/favicon.png"}
+      badge={consentBadge}
+      title={`Connect ${clientName}`}
+      subtitle={`${clientName} is requesting access to your AN Maintenance account.`}
+    >
+      <p className="text-sm text-white/70">
+        It will act on your behalf using your permissions. Approve only if you trust this application.
+      </p>
+      <div className="mt-6 flex gap-3">
+        <button
+          disabled={busy}
+          onClick={() => decide(true)}
+          className="group relative flex-1 inline-flex h-12 items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-b from-[hsl(214_90%_56%)] to-[hsl(214_90%_44%)] text-sm font-semibold text-white shadow-[0_10px_30px_-10px_hsl(214_90%_50%/0.7)] ring-1 ring-white/10 transition-all hover:from-[hsl(214_90%_60%)] hover:to-[hsl(214_90%_48%)] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-60"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Approve"}
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => decide(false)}
+          className="flex-1 inline-flex h-12 items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] text-sm font-medium text-white/85 transition-colors hover:bg-white/[0.07] disabled:opacity-60"
+        >
+          Deny
+        </button>
       </div>
-    </main>
+      <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-white/45">
+        <ShieldCheck className="h-3.5 w-3.5 text-emerald-400/80" />
+        <span>Encrypted connection · Audited access</span>
+      </div>
+    </AuthShell>
   );
 }
