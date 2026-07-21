@@ -150,7 +150,7 @@ function MyProductionContent() {
             <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/operator/performance")}>
               View Performance
             </Button>
-            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} onUnlockChange={setTargetUnlocked} onLeaderAssignedChange={setLeaderAssigned} />
+            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)} onUnlockChange={setTargetUnlocked} onLeaderAssignedChange={setLeaderAssigned} />
           </div>
         </CardContent>
       </Card>
