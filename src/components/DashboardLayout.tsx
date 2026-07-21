@@ -140,6 +140,45 @@ function LiveClock() {
   );
 }
 
+const SIDEBAR_STORAGE_KEY = "an_sidebar_open";
+
+function readSavedSidebarPreference(): boolean | null {
+  if (typeof document === "undefined") return null;
+  try {
+    const ls = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (ls === "true") return true;
+    if (ls === "false") return false;
+  } catch { /* ignore */ }
+  const m = document.cookie.match(/(?:^|;\s*)sidebar:state=(true|false)/);
+  if (m) return m[1] === "true";
+  return null;
+}
+
+function SidebarFooterToggle() {
+  const { state, toggleSidebar, isMobile } = useSidebar();
+  if (isMobile) return null;
+  const collapsed = state === "collapsed";
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      title={collapsed ? "Expand menu" : "Collapse menu"}
+      aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+      className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 mb-1"
+      onClick={toggleSidebar}
+    >
+      {collapsed ? (
+        <PanelLeftOpen className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
+      ) : (
+        <PanelLeftClose className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
+      )}
+      <span className="group-data-[collapsible=icon]:hidden">
+        {collapsed ? "Expand menu" : "Collapse menu"}
+      </span>
+    </Button>
+  );
+}
+
 function SidebarNav({ filteredItems, permissionOverrideCount }: { filteredItems: NavItem[]; permissionOverrideCount: number }) {
   const location = useLocation();
   const { state } = useSidebar();
