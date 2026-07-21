@@ -35,17 +35,29 @@ export default function ProductionPerformancePage() {
   const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
   const [savingLeaderFor, setSavingLeaderFor] = useState<string | null>(null);
 
-  const setLeaderForLine = async (lineName: string, leaderName: string | null) => {
+  const setLeaderForLine = async (lineName: string, leaderName: string | null, hasSession: boolean) => {
     setSavingLeaderFor(lineName);
     try {
-      let q = supabase.from("production_sessions")
-        .update({ leader_name: leaderName })
-        .eq("line", lineName)
-        .gte("session_date", range.from)
-        .lte("session_date", range.to);
-      if (shift !== "all") q = q.eq("shift", shift);
-      const { error } = await q;
-      if (error) throw error;
+      if (hasSession) {
+        let q = supabase.from("production_sessions")
+          .update({ leader_name: leaderName })
+          .eq("line", lineName)
+          .gte("session_date", range.from)
+          .lte("session_date", range.to);
+        if (shift !== "all") q = q.eq("shift", shift);
+        const { error } = await q;
+        if (error) throw error;
+      } else {
+        // No session exists yet for this line/range — create one so the leader assignment sticks.
+        const sessionShift = shift === "all" ? "DAY" : shift;
+        const { error } = await supabase.from("production_sessions").insert({
+          line: lineName,
+          session_date: range.from,
+          shift: sessionShift,
+          leader_name: leaderName,
+        });
+        if (error) throw error;
+      }
       toast.success(leaderName ? `Leader set to ${leaderName} for ${lineName}` : `Leader cleared for ${lineName}`);
       qc.invalidateQueries({ queryKey: ["oee"] });
     } catch (e: any) {
@@ -54,6 +66,7 @@ export default function ProductionPerformancePage() {
       setSavingLeaderFor(null);
     }
   };
+
 
   const range = useMemo(() => {
     const d = parseISO(date);
@@ -93,7 +106,9 @@ export default function ProductionPerformancePage() {
   });
   const skuMap = useMemo(() => new Map(skus.map((s) => [s.id, s])), [skus]);
 
-  const { data: sessions = [] } = useQuery<SessionAgg[]>({
+  type RagRow = { entry_date: string; line: string; shift: string; plan_qty: number; actual_qty: number };
+
+  const { data: queryResult } = useQuery<{ sessions: SessionAgg[]; ragRows: RagRow[] }>({
     queryKey: ["oee", range.from, range.to, shift, lineFilter, leaderFilter],
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
@@ -116,29 +131,33 @@ export default function ProductionPerformancePage() {
       if (error) throw error;
       if (ragErr) throw ragErr;
 
+      const ragRows: RagRow[] = ((ragData ?? []) as { entry_date: string; line: string; shift: string; plan_qty: number | null; actual_qty: number | null }[])
+        .map((r) => ({ entry_date: r.entry_date, line: r.line, shift: r.shift, plan_qty: Number(r.plan_qty ?? 0), actual_qty: Number(r.actual_qty ?? 0) }));
+
       const ragPlanMap = new Map<string, number>();
       const ragActualMap = new Map<string, number>();
-      for (const r of (ragData ?? []) as { entry_date: string; line: string; shift: string; plan_qty: number | null; actual_qty: number | null }[]) {
+      for (const r of ragRows) {
         const k = `${r.entry_date}|${r.line}|${r.shift}`;
-        ragPlanMap.set(k, Number(r.plan_qty ?? 0));
-        ragActualMap.set(k, Number(r.actual_qty ?? 0));
+        ragPlanMap.set(k, r.plan_qty);
+        ragActualMap.set(k, r.actual_qty);
       }
 
-      return (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null }[] }) => {
+      const sessions: SessionAgg[] = (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null }[] }) => {
         const items = s.production_items ?? [];
         const key = `${s.session_date}|${s.line}|${s.shift}`;
         const target = ragPlanMap.get(key) ?? 0;
         const itemsActual = items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
-        // Prefer RAG Weekly actual when it's been recorded (source of truth for the line/shift);
-        // fall back to summed production_items when RAG has no actual yet.
         const ragActual = ragActualMap.get(key) ?? 0;
         const actual = ragActual > 0 ? ragActual : itemsActual;
         return { id: s.id, session_date: s.session_date, shift: s.shift, line: s.line, leader_name: s.leader_name, locked: s.locked, target, actual, eff: target > 0 ? (actual / target) * 100 : 0, items: items.map((i) => ({ sku_id: i.sku_id, actual: Number(i.actual_qty ?? 0) })) };
       });
+
+      return { sessions, ragRows };
     },
   });
 
-
+  const sessions = useMemo(() => queryResult?.sessions ?? [], [queryResult]);
+  const ragRows = useMemo(() => queryResult?.ragRows ?? [], [queryResult]);
 
   const topSkus = useMemo(() => {
     const m = new Map<string, number>();
@@ -161,15 +180,40 @@ export default function ProductionPerformancePage() {
       .sort((a, b) => b.actual - a.actual).slice(0, 10);
   }, [sessions]);
 
+  // Build byLine from the UNION of RAG Weekly plan rows and production_sessions,
+  // so lines with a plan but no session yet still appear (Actual = 0).
+  // When leaderFilter is active, RAG-only lines are excluded (RAG has no leader info).
   const byLine = useMemo(() => {
-    const map = new Map<string, { line: string; target: number; actual: number; leader: string | null }>();
+    type Agg = { line: string; target: number; ragActual: number; sessionActual: number; leader: string | null; hasSession: boolean; ragLines: Set<string> };
+    const map = new Map<string, Agg>();
+    const ragLineSet = new Set<string>();
+
+    if (leaderFilter === "__all__") {
+      for (const r of ragRows) {
+        ragLineSet.add(r.line);
+        const cur = map.get(r.line) ?? { line: r.line, target: 0, ragActual: 0, sessionActual: 0, leader: null, hasSession: false, ragLines: ragLineSet };
+        cur.target += r.plan_qty;
+        cur.ragActual += r.actual_qty;
+        map.set(r.line, cur);
+      }
+    }
+
     for (const s of sessions) {
-      const cur = map.get(s.line) ?? { line: s.line, target: 0, actual: 0, leader: s.leader_name };
-      cur.target += s.target; cur.actual += s.actual; cur.leader = s.leader_name ?? cur.leader;
+      const cur = map.get(s.line) ?? { line: s.line, target: 0, ragActual: 0, sessionActual: 0, leader: null, hasSession: false, ragLines: ragLineSet };
+      // Only add session target if this line wasn't already seeded from RAG (avoid double count).
+      if (!ragLineSet.has(s.line)) cur.target += s.target;
+      const itemsActual = s.items.reduce((a, i) => a + i.actual, 0);
+      cur.sessionActual += itemsActual;
+      cur.leader = s.leader_name ?? cur.leader;
+      cur.hasSession = true;
       map.set(s.line, cur);
     }
-    return Array.from(map.values()).map((x) => ({ ...x, eff: x.target > 0 ? (x.actual / x.target) * 100 : 0 })).sort((a, b) => b.eff - a.eff);
-  }, [sessions]);
+
+    return Array.from(map.values()).map((x) => {
+      const actual = x.ragActual > 0 ? x.ragActual : x.sessionActual;
+      return { line: x.line, target: x.target, actual, leader: x.leader, hasSession: x.hasSession, eff: x.target > 0 ? (actual / x.target) * 100 : 0 };
+    }).sort((a, b) => b.eff - a.eff);
+  }, [sessions, ragRows, leaderFilter]);
 
   const trend = useMemo(() => {
     const map = new Map<string, { date: string; target: number; actual: number }>();
@@ -366,7 +410,7 @@ export default function ProductionPerformancePage() {
                     <Select
                       value={l.leader ?? "__none__"}
                       disabled={savingLeaderFor === l.line}
-                      onValueChange={(v) => setLeaderForLine(l.line, v === "__none__" ? null : v)}
+                      onValueChange={(v) => setLeaderForLine(l.line, v === "__none__" ? null : v, l.hasSession)}
                     >
                       <SelectTrigger className="h-7 w-36 text-xs bg-background/60">
                         <SelectValue placeholder="— None —" />
