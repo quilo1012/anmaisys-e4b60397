@@ -45,11 +45,12 @@ export function AuthShell({
           <div className="mb-6 flex justify-center">
             <div className="rounded-xl bg-[#1E3A8A] px-6 py-4 shadow-sm">
               <img
-                src={brandIconUrl ?? appliedLogo}
+                src={appliedLogoWhite}
                 alt=""
                 aria-hidden="true"
-                className="h-10 w-auto object-contain brightness-0 invert"
+                className="h-10 w-auto object-contain"
               />
+
             </div>
           </div>
 
