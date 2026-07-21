@@ -67,7 +67,8 @@ export function useShiftDowntime(dateISO: string) {
       const [dtRes, manualRes] = await Promise.all([
         (supabase as any)
           .from("downtime_events")
-          .select("*, work_order:work_orders(machine, line_at_time, line:lines!work_orders_line_id_fkey(name))")
+          .select("*, work_order:work_orders!inner(machine, wo_type, line_at_time, line:lines!work_orders_line_id_fkey(name))")
+          .neq("work_order.wo_type", "warehouse_service")
           .lt("stopped_at", nightEnd.toISOString())
           .or(`resumed_at.gte.${dayStart.toISOString()},resumed_at.is.null`)
           .order("stopped_at", { ascending: true }),
@@ -111,7 +112,8 @@ export function useShiftDowntime(dateISO: string) {
       // 2) Fallback: legacy work_orders with line_stopped_at populated but no event row
       const { data: woData, error: woErr } = await (supabase as any)
         .from("work_orders")
-        .select("id, machine, line_at_time, line_stopped_at, line_stopped_by, line_resumed_at, line_resumed_by, created_at, line:lines!work_orders_line_id_fkey(name)")
+        .select("id, wo_type, machine, line_at_time, line_stopped_at, line_stopped_by, line_resumed_at, line_resumed_by, created_at, line:lines!work_orders_line_id_fkey(name)")
+        .neq("wo_type", "warehouse_service")
         .not("line_stopped_at", "is", null)
         .lt("line_stopped_at", nightEnd.toISOString())
         .or(`line_resumed_at.gte.${dayStart.toISOString()},line_resumed_at.is.null`);

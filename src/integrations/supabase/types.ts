@@ -2810,7 +2810,9 @@ export type Database = {
           status: Database["public"]["Enums"]["wo_status"]
           total_paused_minutes: number
           updated_at: string | null
+          warehouse_location: string | null
           wo_number: number
+          wo_type: string
         }
         Insert: {
           arrived_at?: string | null
@@ -2865,7 +2867,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["wo_status"]
           total_paused_minutes?: number
           updated_at?: string | null
+          warehouse_location?: string | null
           wo_number?: number
+          wo_type?: string
         }
         Update: {
           arrived_at?: string | null
@@ -2920,7 +2924,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["wo_status"]
           total_paused_minutes?: number
           updated_at?: string | null
+          warehouse_location?: string | null
           wo_number?: number
+          wo_type?: string
         }
         Relationships: [
           {

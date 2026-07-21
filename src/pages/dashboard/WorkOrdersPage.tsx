@@ -123,6 +123,8 @@ export default function WorkOrdersPage() {
 
 
   const [showCreate, setShowCreate] = useState(false);
+  const [newWoType, setNewWoType] = useState<"production" | "warehouse_service">("production");
+  const [newWarehouseLocation, setNewWarehouseLocation] = useState("");
   const [newRequester, setNewRequester] = useState("");
   const [newLineId, setNewLineId] = useState("");
   const [newMachine, setNewMachine] = useState("");
@@ -280,7 +282,12 @@ export default function WorkOrdersPage() {
       toast({ title: "Requester required", description: "Please select who is requesting the work order.", variant: "destructive" });
       return;
     }
-    if (!newMachine.trim()) {
+    if (newWoType === "warehouse_service") {
+      if (!newWarehouseLocation.trim()) {
+        toast({ title: "Warehouse location required", description: "Please provide the warehouse location.", variant: "destructive" });
+        return;
+      }
+    } else if (!newMachine.trim()) {
       toast({ title: "Machine required", description: "Please select a machine before creating the work order.", variant: "destructive" });
       return;
     }
@@ -289,9 +296,19 @@ export default function WorkOrdersPage() {
       return;
     }
     try {
-      await createWO.mutateAsync({ requester_name: newRequester.trim(), line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim() } as any);
+      if (newWoType === "warehouse_service") {
+        await createWO.mutateAsync({
+          requester_name: newRequester.trim(),
+          wo_type: "warehouse_service",
+          warehouse_location: newWarehouseLocation.trim(),
+          description: newDesc.trim(),
+          notes: newNotes.trim(),
+        } as any);
+      } else {
+        await createWO.mutateAsync({ requester_name: newRequester.trim(), wo_type: "production", line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim() } as any);
+      }
       toast({ title: "Work Order Created" });
-      setShowCreate(false); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
+      setShowCreate(false); setNewWoType("production"); setNewWarehouseLocation(""); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
 
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
@@ -546,13 +563,20 @@ export default function WorkOrdersPage() {
                               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
                             </span>
                             <div className="flex items-center gap-1">
+                              {(wo as any).wo_type === "warehouse_service" && (
+                                <Badge variant="outline" className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 text-[10px]" title="Warehouse service — not counted as line downtime">Warehouse</Badge>
+                              )}
                               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
                               {isStale && (
                                 <Badge variant="outline" className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-[10px]" title="In progress > 3 days">Stale</Badge>
                               )}
                             </div>
                           </div>
-                          <div className="text-sm font-medium">{wo.machine} <span className="text-muted-foreground font-normal">· {woLine}</span></div>
+                          <div className="text-sm font-medium">
+                            {(wo as any).wo_type === "warehouse_service"
+                              ? <>Warehouse <span className="text-muted-foreground font-normal">· {(wo as any).warehouse_location || "—"}</span></>
+                              : <>{wo.machine} <span className="text-muted-foreground font-normal">· {woLine}</span></>}
+                          </div>
                           <p className="text-sm text-muted-foreground line-clamp-2">{wo.description}</p>
                           <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground flex-wrap">
                             <span>{wo.requester_name} → {wo.engineer?.name || "—"}</span>
@@ -630,8 +654,8 @@ export default function WorkOrdersPage() {
                               </div>
                             </TableCell>
                           )}
-                          {isCol("line") && <TableCell className="text-sm font-medium">{woLine}</TableCell>}
-                          {isCol("machine") && <TableCell className="cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/machines/${encodeURIComponent(wo.machine)}/history`)}>{wo.machine}</TableCell>}
+                          {isCol("line") && <TableCell className="text-sm font-medium">{(wo as any).wo_type === "warehouse_service" ? <Badge variant="outline" className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 text-[10px]" title="Warehouse service — not counted as line downtime">Warehouse</Badge> : woLine}</TableCell>}
+                          {isCol("machine") && <TableCell className={(wo as any).wo_type === "warehouse_service" ? "text-sm text-muted-foreground" : "cursor-pointer hover:underline"} onClick={(wo as any).wo_type === "warehouse_service" ? undefined : () => navigate(`/dashboard/machines/${encodeURIComponent(wo.machine)}/history`)}>{(wo as any).wo_type === "warehouse_service" ? ((wo as any).warehouse_location || "—") : wo.machine}</TableCell>}
                           {isCol("problem") && <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>}
                           {isCol("status") && <TableCell>
                             <div className="flex items-center gap-1">
@@ -714,37 +738,58 @@ export default function WorkOrdersPage() {
                 </Select>
                 {!newRequester && <p className="text-xs text-destructive">Requester is required</p>}
               </div>
-              <div className="space-y-2"><Label>Line</Label>
-                <Select value={newLineId} onValueChange={(v) => { setNewLineId(v); setNewMachine(""); }}>
-                  <SelectTrigger><SelectValue placeholder="Select line..." /></SelectTrigger>
-                  <SelectContent>{lines?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2"><Label>Machine <span className="text-destructive">*</span></Label>
-                <Select value={newMachine} onValueChange={setNewMachine} disabled={!newLineId}>
-                  <SelectTrigger className={!newMachine ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder={newLineId ? "Select machine..." : "Select line first..."} /></SelectTrigger>
+              <div className="space-y-2"><Label>Type <span className="text-destructive">*</span></Label>
+                <Select value={newWoType} onValueChange={(v: any) => setNewWoType(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {(() => {
-                      const selectedLineName = lines?.find((l: any) => l.id === newLineId)?.name;
-                      const filtered = (machines || []).filter((m: any) => {
-                        if (!selectedLineName) return false;
-                        const base = (m.current_line || m.fixed_line || m.line || "").toString();
-                        if (!base) return false;
-                        const withSide = (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
-                        return withSide === selectedLineName || base === selectedLineName;
-                      });
-                      return filtered.length
-                        ? filtered.map((m: any) => {
-                            const isUuid = typeof m.code === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.code);
-                            const showCode = m.code && !isUuid;
-                            return <SelectItem key={m.id} value={m.name}>{m.name}{showCode ? ` (${m.code})` : ""}</SelectItem>;
-                          })
-                        : <SelectItem value="__none__" disabled>No machines for this line</SelectItem>;
-                    })()}
+                    <SelectItem value="production">Production (line / machine)</SelectItem>
+                    <SelectItem value="warehouse_service">Warehouse Service</SelectItem>
                   </SelectContent>
                 </Select>
-                {!newMachine && <p className="text-xs text-destructive">Machine is required</p>}
+                {newWoType === "warehouse_service" && (
+                  <p className="text-xs text-muted-foreground">Warehouse service requests are never counted as line downtime or OEE loss.</p>
+                )}
               </div>
+              {newWoType === "warehouse_service" ? (
+                <div className="space-y-2"><Label>Warehouse Location <span className="text-destructive">*</span></Label>
+                  <Input value={newWarehouseLocation} onChange={(e) => setNewWarehouseLocation(e.target.value)} placeholder="e.g. Warehouse A - Rack 12" className={!newWarehouseLocation ? "border-destructive focus-visible:ring-destructive" : ""} />
+                  {!newWarehouseLocation && <p className="text-xs text-destructive">Warehouse location is required</p>}
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2"><Label>Line</Label>
+                    <Select value={newLineId} onValueChange={(v) => { setNewLineId(v); setNewMachine(""); }}>
+                      <SelectTrigger><SelectValue placeholder="Select line..." /></SelectTrigger>
+                      <SelectContent>{lines?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2"><Label>Machine <span className="text-destructive">*</span></Label>
+                    <Select value={newMachine} onValueChange={setNewMachine} disabled={!newLineId}>
+                      <SelectTrigger className={!newMachine ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder={newLineId ? "Select machine..." : "Select line first..."} /></SelectTrigger>
+                      <SelectContent>
+                        {(() => {
+                          const selectedLineName = lines?.find((l: any) => l.id === newLineId)?.name;
+                          const filtered = (machines || []).filter((m: any) => {
+                            if (!selectedLineName) return false;
+                            const base = (m.current_line || m.fixed_line || m.line || "").toString();
+                            if (!base) return false;
+                            const withSide = (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
+                            return withSide === selectedLineName || base === selectedLineName;
+                          });
+                          return filtered.length
+                            ? filtered.map((m: any) => {
+                                const isUuid = typeof m.code === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.code);
+                                const showCode = m.code && !isUuid;
+                                return <SelectItem key={m.id} value={m.name}>{m.name}{showCode ? ` (${m.code})` : ""}</SelectItem>;
+                              })
+                            : <SelectItem value="__none__" disabled>No machines for this line</SelectItem>;
+                        })()}
+                      </SelectContent>
+                    </Select>
+                    {!newMachine && <p className="text-xs text-destructive">Machine is required</p>}
+                  </div>
+                </>
+              )}
               <div className="space-y-2"><Label>Problem Description <span className="text-destructive">*</span></Label>
                 <Select value={newDesc} onValueChange={setNewDesc}>
                   <SelectTrigger className={!newDesc ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select problem..." /></SelectTrigger>

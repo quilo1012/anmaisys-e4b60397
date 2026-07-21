@@ -31,6 +31,8 @@ export interface WorkOrder {
   paused_at: string | null;
   total_paused_minutes: number;
   recurrence_of_wo_id?: string | null;
+  wo_type?: "production" | "warehouse_service";
+  warehouse_location?: string | null;
   locked_engineer_id?: string | null;
   operator?: { name: string };
   engineer?: { name: string };
@@ -135,16 +137,28 @@ export function useCreateWorkOrder() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (wo: { requester_name: string; machine?: string; description: string; notes?: string; priority?: string; created_at?: string; line_stopped?: boolean; line_id?: string | null; mobile_asset_id?: string | null; physical_line_id?: string | null }) => {
+    mutationFn: async (wo: { requester_name: string; machine?: string; description: string; notes?: string; priority?: string; created_at?: string; line_stopped?: boolean; line_id?: string | null; mobile_asset_id?: string | null; physical_line_id?: string | null; wo_type?: "production" | "warehouse_service"; warehouse_location?: string | null }) => {
       const effectiveCreatedAt = wo.created_at || new Date().toISOString();
-      const insertPayload: any = { ...wo, operator_id: user!.id, priority: wo.priority || "medium", created_at: effectiveCreatedAt };
+      const isWarehouse = wo.wo_type === "warehouse_service";
+      const insertPayload: any = { ...wo, operator_id: user!.id, priority: wo.priority || "medium", created_at: effectiveCreatedAt, wo_type: wo.wo_type || "production" };
       // machine column is legacy/optional now — keep empty string if not provided
       if (insertPayload.machine == null) insertPayload.machine = "";
       // Strip empty FKs so DB sees NULL (not "")
       if (!insertPayload.line_id) delete insertPayload.line_id;
       if (!insertPayload.mobile_asset_id) delete insertPayload.mobile_asset_id;
       if (!insertPayload.physical_line_id) delete insertPayload.physical_line_id;
-      if (wo.line_stopped) {
+      if (isWarehouse) {
+        // Warehouse service requests must NEVER be tied to a production line
+        // and must NEVER contribute to line downtime.
+        delete insertPayload.line_id;
+        delete insertPayload.physical_line_id;
+        insertPayload.machine = "";
+        insertPayload.line_stopped = false;
+        insertPayload.line_stopped_at = null;
+        insertPayload.line_stopped_by = null;
+        insertPayload.line_resumed_at = null;
+        insertPayload.line_resumed_by = null;
+      } else if (wo.line_stopped) {
         insertPayload.line_stopped = true;
         insertPayload.line_stopped_at = effectiveCreatedAt;
         insertPayload.line_stopped_by = user!.id;
