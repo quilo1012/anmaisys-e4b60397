@@ -75,6 +75,7 @@ function OperatorDashboardContent() {
   const [secondaryAssetId, setSecondaryAssetId] = useState<string>(""); // printer
   const [physicalLineId, setPhysicalLineId] = useState<string>(""); // real production line where the sealer/printer is being used
   const [description, setDescription] = useState("");
+  const [customDescription, setCustomDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
   const [machineName, setMachineName] = useState<string>(""); // optional, regular lines only
@@ -177,7 +178,8 @@ function OperatorDashboardContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description.trim()) {
+    const finalDescription = description === "__custom__" ? customDescription.trim() : description.trim();
+    if (!finalDescription) {
       toast({ title: "Problem required", description: "Please describe the problem.", variant: "destructive" });
       return;
     }
@@ -222,14 +224,14 @@ function OperatorDashboardContent() {
         mobile_asset_id: mobileAssetId || secondaryAssetId || null,
         physical_line_id: isSealerPrinterLine ? physicalLineId : null,
         machine: machineLabel,
-        description: description.trim(),
+        description: finalDescription,
         notes: notes.trim(),
         priority: effectivePriority,
         created_at,
         line_stopped: lineStopped,
       });
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
-      setRequestedBy(""); setMachineName(""); setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId(""); setDescription(""); setNotes("");
+      setRequestedBy(""); setMachineName(""); setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId(""); setDescription(""); setCustomDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
@@ -466,14 +468,17 @@ function OperatorDashboardContent() {
 
             <div className="space-y-2">
               <Label htmlFor="desc">Problem Description</Label>
-              <Select value={description} onValueChange={setDescription}>
+              <Select value={description} onValueChange={(v) => { setDescription(v); if (v !== "__custom__") setCustomDescription(""); }}>
                 <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
                 <SelectContent>
                   {(() => {
                     if (!isSealerPrinterLine) {
-                      return (problemDescriptions || []).map((pd: any) => (
-                        <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
-                      ));
+                      return [
+                        ...(problemDescriptions || []).map((pd: any) => (
+                          <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
+                        )),
+                        <SelectItem key="__custom__" value="__custom__">Other — describe the problem…</SelectItem>,
+                      ];
                     }
                     // Curated, guaranteed list for Sealer / Printer Ink mode.
                     const guaranteed = [
@@ -496,10 +501,25 @@ function OperatorDashboardContent() {
                       ...extras.map((pd: any) => (
                         <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
                       )),
+                      <SelectItem key="__custom__" value="__custom__">Other — describe the problem…</SelectItem>,
                     ];
                   })()}
                 </SelectContent>
               </Select>
+              {description === "__custom__" && (
+                <div className="space-y-1 md:col-span-2">
+                  <Label htmlFor="custom-desc" className="text-xs">Describe the problem</Label>
+                  <Textarea
+                    id="custom-desc"
+                    placeholder="Describe the problem..."
+                    autoFocus
+                    value={customDescription}
+                    onChange={(e) => setCustomDescription(e.target.value)}
+                    rows={2}
+                    autoComplete="off"
+                  />
+                </div>
+              )}
             </div>
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="notes">Observations (optional)</Label>
