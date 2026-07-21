@@ -259,7 +259,7 @@ const App = () => (
                 <Route
                   path="/dashboard/machines"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="machines.view">
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner", "warehouse"]} requiredAction="machines.view">
                       <MachinesPage />
                     </ProtectedRoute>
                   }
