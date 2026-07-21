@@ -179,6 +179,9 @@ function MyProductionContent() {
         <>
           <LogProductionCard sessionId={sessionId} />
 
+          <ReportLineProblemCard line={line} lineId={lineId} />
+
+
           {items.length === 0 ? (
             <Card>
               <CardContent className="p-6 text-center text-sm text-muted-foreground">
