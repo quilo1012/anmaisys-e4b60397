@@ -8,6 +8,7 @@ import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { useDowntime } from "@/hooks/useDowntime";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
+import { isNoPlannedShift } from "@/lib/downtimeBuckets";
 import { differenceInMinutes, startOfDay, endOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeFunction } from "@/lib/invokeFunction";
