@@ -292,10 +292,15 @@ export default function WorkOrderDetail() {
               {wo.requester_name}
             </h2>
             <p className="text-base text-muted-foreground truncate" title={wo.machine || (wo as any).line_at_time || ""}>
-              {[((wo as any).line_at_time), wo.machine].filter(Boolean).join(" · ") || "—"}
+              {(wo as any).wo_type === "warehouse_service"
+                ? `Warehouse · ${(wo as any).warehouse_location || "—"}`
+                : ([((wo as any).line_at_time), wo.machine].filter(Boolean).join(" · ") || "—")}
             </p>
             <div className="flex items-center gap-2 flex-wrap mt-1">
               <p className="text-muted-foreground text-sm font-mono">{woLabel}</p>
+              {(wo as any).wo_type === "warehouse_service" && (
+                <Badge variant="outline" className="text-sm px-3 py-1 bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" title="Warehouse service — not counted as line downtime or OEE loss">Warehouse</Badge>
+              )}
               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} />
               {((wo as any).current_episode ?? 1) > 1 && (
                 <Badge variant="outline" className="text-sm px-3 py-1 border-amber-600 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30">
