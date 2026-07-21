@@ -685,19 +685,16 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
         {/* Blender */}
         <div className="space-y-1.5">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">Blender</div>
-          <div className="grid grid-cols-6 gap-2">
-            {[1, 2, 3, 4, 5, 6].map((n) => (
-              <Button
-                key={n}
-                type="button"
-                variant={blender === n ? "default" : "outline"}
-                className="h-14 text-lg font-bold"
-                onClick={() => setBlender(n)}
-              >
-                {n}
-              </Button>
-            ))}
-          </div>
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            value={blender ?? ""}
+            onChange={(e) => setBlender(e.target.value ? Number(e.target.value) : null)}
+            placeholder="e.g. 3"
+            className="h-11"
+            autoComplete="off"
+          />
         </div>
 
         {/* Quantity */}
