@@ -389,6 +389,14 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/dashboard/sku-performance"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="production.sku_performance.view">
+                      <SKUPerformancePage />
+                    </ProtectedRoute>
+                  }
+                />
 
                 <Route
                   path="/dashboard/quality"
