@@ -18,6 +18,9 @@ import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWork
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
+import { ComboboxInput } from "@/components/ComboboxInput";
+
+const WAREHOUSE_LOCATIONS = ["AC1", "AC2 - Warehouse", "K53", "Depot RD"];
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
