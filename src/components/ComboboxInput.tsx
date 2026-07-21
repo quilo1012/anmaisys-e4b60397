@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -43,7 +43,7 @@ export function ComboboxInput({ value, onChange, suggestions, placeholder, class
 
   return (
     <Popover open={open && filtered.length > 0} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+      <PopoverAnchor asChild>
         <Input
           ref={inputRef}
           value={inputValue}
@@ -54,7 +54,7 @@ export function ComboboxInput({ value, onChange, suggestions, placeholder, class
           className={cn(className)}
           autoComplete="off"
         />
-      </PopoverTrigger>
+      </PopoverAnchor>
       <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
         <Command>
           <CommandList>
