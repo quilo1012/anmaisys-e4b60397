@@ -1,0 +1,2 @@
+ALTER TABLE public.production_blender_entries DROP CONSTRAINT IF EXISTS production_blender_entries_blender_number_check;
+ALTER TABLE public.production_blender_entries ADD CONSTRAINT production_blender_entries_blender_number_check CHECK (blender_number >= 1 AND blender_number <= 99);

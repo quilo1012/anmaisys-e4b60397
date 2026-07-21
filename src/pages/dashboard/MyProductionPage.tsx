@@ -528,8 +528,9 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
 
   const onSave = async () => {
     const quantity = Number(qty);
+    const blenderNum = Number(blender);
     if (!selectedSku) { toast.error("Select the SKU"); return; }
-    if (!blender) { toast.error("Select a blender (1–6)"); return; }
+    if (!Number.isFinite(blenderNum) || !Number.isInteger(blenderNum) || blenderNum < 1) { toast.error("Enter a valid blender number"); return; }
     if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
 
     setSaving(true);
@@ -574,7 +575,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
         .from("production_blender_entries")
         .select("id, quantity")
         .eq("production_item_id", itemId)
-        .eq("blender_number", blender)
+        .eq("blender_number", blenderNum)
         .maybeSingle();
 
       const { data: userRes } = await (supabase as any).auth.getUser();
@@ -592,7 +593,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
           .insert({
             session_id: sessionId,
             production_item_id: itemId,
-            blender_number: blender,
+            blender_number: blenderNum,
             quantity,
             entered_by: uid,
           });
@@ -600,7 +601,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
       }
 
       // 3) actual_qty is auto-synced by DB trigger from blender entries.
-      toast.success(`Logged ${quantity} on Blender ${blender} for ${selectedSku.code}`);
+      toast.success(`Logged ${quantity} on Blender ${blenderNum} for ${selectedSku.code}`);
       reset();
       qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
       qc.invalidateQueries({ queryKey: ["blender-entries"] });
@@ -684,19 +685,16 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
         {/* Blender */}
         <div className="space-y-1.5">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">Blender</div>
-          <div className="grid grid-cols-6 gap-2">
-            {[1, 2, 3, 4, 5, 6].map((n) => (
-              <Button
-                key={n}
-                type="button"
-                variant={blender === n ? "default" : "outline"}
-                className="h-14 text-lg font-bold"
-                onClick={() => setBlender(n)}
-              >
-                {n}
-              </Button>
-            ))}
-          </div>
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            value={blender ?? ""}
+            onChange={(e) => setBlender(e.target.value ? Number(e.target.value) : null)}
+            placeholder="e.g. 3"
+            className="h-11"
+            autoComplete="off"
+          />
         </div>
 
         {/* Quantity */}
