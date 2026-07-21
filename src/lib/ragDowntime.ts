@@ -23,6 +23,7 @@ export const TERMINAL_WO_STATUSES = new Set([
 
 export interface WoRowForDowntime {
   status?: string | null;
+  wo_type?: string | null;
   line_at_time?: string | null;
   line_stopped_at?: string | null;
   line_resumed_at?: string | null;
@@ -35,6 +36,8 @@ export interface MappedStop extends RawStop {
 }
 
 export function mapWoToStop(r: WoRowForDowntime): MappedStop | null {
+  // Defense-in-depth: warehouse service WOs never count as line downtime.
+  if (r.wo_type === "warehouse_service") return null;
   if (!r.line_stopped_at) return null;
   const isTerminal = TERMINAL_WO_STATUSES.has(String(r.status ?? "").toLowerCase());
   const end =
