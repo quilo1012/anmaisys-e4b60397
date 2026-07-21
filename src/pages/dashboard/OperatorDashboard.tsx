@@ -75,6 +75,7 @@ function OperatorDashboardContent() {
   const [secondaryAssetId, setSecondaryAssetId] = useState<string>(""); // printer
   const [physicalLineId, setPhysicalLineId] = useState<string>(""); // real production line where the sealer/printer is being used
   const [description, setDescription] = useState("");
+  const [customDescription, setCustomDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
   const [machineName, setMachineName] = useState<string>(""); // optional, regular lines only
