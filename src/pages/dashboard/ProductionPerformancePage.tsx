@@ -26,12 +26,34 @@ interface SessionAgg {
 
 export default function ProductionPerformancePage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [period, setPeriod] = useState<Period>("day");
   const [shift, setShift] = useState<"all" | "DAY" | "NIGHT">("all");
   const [lineFilter, setLineFilter] = useState<string>("__all__");
   const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
+  const [savingLeaderFor, setSavingLeaderFor] = useState<string | null>(null);
+
+  const setLeaderForLine = async (lineName: string, leaderName: string | null) => {
+    setSavingLeaderFor(lineName);
+    try {
+      let q = supabase.from("production_sessions")
+        .update({ leader_name: leaderName })
+        .eq("line", lineName)
+        .gte("session_date", range.from)
+        .lte("session_date", range.to);
+      if (shift !== "all") q = q.eq("shift", shift);
+      const { error } = await q;
+      if (error) throw error;
+      toast.success(leaderName ? `Leader set to ${leaderName} for ${lineName}` : `Leader cleared for ${lineName}`);
+      qc.invalidateQueries({ queryKey: ["oee"] });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update leader");
+    } finally {
+      setSavingLeaderFor(null);
+    }
+  };
 
   const range = useMemo(() => {
     const d = parseISO(date);
