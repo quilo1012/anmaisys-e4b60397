@@ -575,7 +575,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
         .from("production_blender_entries")
         .select("id, quantity")
         .eq("production_item_id", itemId)
-        .eq("blender_number", blender)
+        .eq("blender_number", blenderNum)
         .maybeSingle();
 
       const { data: userRes } = await (supabase as any).auth.getUser();
