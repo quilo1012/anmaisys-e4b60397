@@ -110,6 +110,7 @@ export default function WorkOrdersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newWoType, setNewWoType] = useState<"production" | "warehouse_service">("production");
   const [newWarehouseLocation, setNewWarehouseLocation] = useState("");
+  const [newLineStopped, setNewLineStopped] = useState<"stopped" | "running">("running");
   const [newRequester, setNewRequester] = useState("");
   const [newLineId, setNewLineId] = useState("");
   const [newMachine, setNewMachine] = useState("");
