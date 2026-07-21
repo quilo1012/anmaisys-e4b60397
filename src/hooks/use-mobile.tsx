@@ -1,8 +1,8 @@
 import * as React from "react";
 
-// Treat tablets (≤1023px) as "mobile" so the sidebar switches to a Sheet
-// drawer on factory tablets, freeing horizontal space for content.
-const MOBILE_BREAKPOINT = 1024;
+// Only narrow phones use the offcanvas Sheet drawer. Tablets keep the
+// collapsible icon rail so operators can still tap through navigation.
+const MOBILE_BREAKPOINT = 640;
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
