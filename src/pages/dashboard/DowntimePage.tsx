@@ -508,16 +508,21 @@ export default function DowntimePage() {
     const rangeEndMs = Math.min(endOfDay(endDate).getTime(), Date.now());
     const nowMs = Date.now();
 
+    // Exclude "No Planned Shift" periods so downtime totals match RAG Weekly.
+    const eligible = sharedFiltered.filter(
+      (r) => !isNoPlannedShift(r.reason, r.category),
+    );
+
     const totalRange = reconcileMinutes(
-      sharedFiltered.map((r) => ({ start: r.started_at, end: r.ended_at })),
+      eligible.map((r) => ({ start: r.started_at, end: r.ended_at })),
       rangeStartMs,
       rangeEndMs,
       nowMs,
     );
 
-    const active = sharedFiltered.filter(r => !r.ended_at).length;
+    const active = eligible.filter(r => !r.ended_at).length;
 
-    const inRange = sharedFiltered.filter(r => {
+    const inRange = eligible.filter(r => {
       const t = new Date(r.started_at).getTime();
       return t >= rangeStartMs && t <= rangeEndMs && r.ended_at;
     });
@@ -525,7 +530,7 @@ export default function DowntimePage() {
       ? Math.round(inRange.reduce((s, r) => s + differenceInMinutes(new Date(r.ended_at!), new Date(r.started_at)), 0) / inRange.length)
       : 0;
 
-    const rangeRecords = sharedFiltered.filter(r => {
+    const rangeRecords = eligible.filter(r => {
       const t = new Date(r.started_at).getTime();
       return t >= rangeStartMs && t <= rangeEndMs;
     });
