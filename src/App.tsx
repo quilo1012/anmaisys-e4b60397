@@ -199,6 +199,17 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/dashboard/warehouse"
+                  element={
+                    <ProtectedRoute allowedRoles={["warehouse", "admin"]}>
+                      <WarehouseDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+
+
+
 
 
                 <Route
