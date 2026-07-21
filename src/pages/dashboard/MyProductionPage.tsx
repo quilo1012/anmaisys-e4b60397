@@ -24,7 +24,6 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActiveProblemsForLine } from "@/hooks/useLineProblemDescriptions";
-import { useDeviceLineCtx as _unused } from "@/contexts/DeviceLineContext";
 import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
 
 type Shift = "DAY" | "NIGHT";
