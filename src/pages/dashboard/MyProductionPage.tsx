@@ -528,8 +528,9 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
 
   const onSave = async () => {
     const quantity = Number(qty);
+    const blenderNum = Number(blender);
     if (!selectedSku) { toast.error("Select the SKU"); return; }
-    if (!blender) { toast.error("Select a blender (1–6)"); return; }
+    if (!Number.isFinite(blenderNum) || !Number.isInteger(blenderNum) || blenderNum < 1) { toast.error("Enter a valid blender number"); return; }
     if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
 
     setSaving(true);
