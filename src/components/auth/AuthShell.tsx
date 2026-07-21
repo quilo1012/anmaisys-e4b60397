@@ -1,7 +1,6 @@
 import { ReactNode } from "react";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 
-
 interface AuthShellProps {
   /** Optional override for the header brand image. */
   brandIconUrl?: string;
@@ -19,61 +18,73 @@ interface AuthShellProps {
 
 /**
  * Shared visual shell for every authentication surface (Login, OAuth Consent,
- * password reset). Simple, light, centered card with a navy brand header.
- * Login is always light-themed — it never follows the app's dark mode.
+ * password reset). Premium navy background with a centered white card and
+ * navy brand chip. Always light-themed — never follows the app's dark mode.
  */
 export function AuthShell({
-  brandIconUrl,
-  badge,
   title,
   subtitle,
   children,
-  maxWidthClass = "max-w-[460px]",
+  maxWidthClass = "max-w-[440px]",
 }: AuthShellProps) {
+  const year = new Date().getFullYear();
   return (
     <div
-      className="flex min-h-screen w-full items-center justify-center px-4 py-8 sm:px-6"
+      className="relative flex min-h-screen w-full items-center justify-center overflow-hidden px-4 py-10 sm:px-6"
       style={{
-        backgroundColor: "#1E3A8A",
-        backgroundImage:
-          "radial-gradient(ellipse at center, rgba(59,130,246,0.25) 0%, rgba(30,58,138,0) 60%), linear-gradient(180deg, #1E3A8A 0%, #172554 100%)",
+        backgroundColor: "#172554",
+        backgroundImage: [
+          // subtle radial highlight top-center
+          "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(59,130,246,0.22) 0%, rgba(23,37,84,0) 60%)",
+          // soft vignette
+          "radial-gradient(ellipse 120% 100% at 50% 100%, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 55%)",
+          // base vertical gradient
+          "linear-gradient(180deg, #1E3A8A 0%, #172554 100%)",
+        ].join(", "),
       }}
     >
-      <div className={`w-full ${maxWidthClass} motion-safe:animate-scale-in`}>
-        <div className="rounded-2xl bg-white px-8 py-10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.5)] ring-1 ring-slate-200 sm:px-10">
+      <div
+        className={`relative w-full ${maxWidthClass} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500`}
+      >
+        <div className="rounded-2xl bg-white px-8 py-9 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45),0_8px_20px_-8px_rgba(0,0,0,0.25)] ring-1 ring-slate-200/80 sm:px-10 sm:py-10">
           {/* Official brand logo chip */}
-          <div className="mb-6 flex justify-center">
-            <div className="rounded-xl bg-[#1E3A8A] p-2 shadow-sm">
-              <img
-                src={appliedLogo}
-                alt=""
-                aria-hidden="true"
-                className="h-12 w-auto max-w-[220px] object-contain"
-              />
+          <div className="mb-7 flex justify-center">
+            <div className="rounded-xl bg-[#1E3A8A] p-2.5 shadow-[0_6px_16px_-6px_rgba(30,58,138,0.5)]">
+              <div className="overflow-hidden rounded-lg">
+                <img
+                  src={appliedLogo}
+                  alt=""
+                  aria-hidden="true"
+                  className="block h-11 w-auto max-w-[220px] object-contain"
+                />
+              </div>
             </div>
           </div>
 
           {/* Title */}
-          <div className="mb-6 text-center">
-            <div className="flex items-center justify-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight text-[#1E3A8A]">
-                {title}
-              </h1>
-              {badge}
-            </div>
+          <div className="mb-7 text-center">
+            <h1 className="text-[26px] font-bold leading-tight tracking-tight text-[#1E3A8A]">
+              {title}
+            </h1>
             {subtitle && (
-              <p className="mt-1.5 text-sm text-slate-500">{subtitle}</p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                {subtitle}
+              </p>
             )}
           </div>
 
           {children}
         </div>
 
-        <p className="mt-4 text-center text-[11px] text-white/60">
-          Encrypted connection · Audited access
-        </p>
+        <div className="mt-5 space-y-1 text-center">
+          <p className="text-[11px] font-medium tracking-wide text-white/70">
+            Encrypted connection · Audited access
+          </p>
+          <p className="text-[11px] text-white/40">
+            © {year} Applied Nutrition
+          </p>
+        </div>
       </div>
     </div>
   );
 }
-
