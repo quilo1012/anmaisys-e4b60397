@@ -393,14 +393,22 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const showStoppedBadge = stoppedLinesCount > 0 && (effectiveRole === "engineer" || effectiveRole === "manager" || effectiveRole === "maintenance_manager" || effectiveRole === "admin");
   const stoppedTarget = effectiveRole === "engineer" ? "/dashboard/engineer" : "/dashboard/work-orders";
 
-  // Sidebar opens by default on desktop (≥1024). Tablet portrait & phones stay
-  // collapsed so content isn't clipped in narrow/landscape-short viewports.
-  const defaultSidebarOpen = typeof window !== "undefined" && window.innerWidth >= 1024;
+  // Sidebar honours the user's saved preference (cookie / localStorage) first,
+  // then falls back to desktop width (≥1024). Tablet & phones stay collapsed
+  // by default so content isn't clipped in narrow viewports.
+  const savedSidebarPref = readSavedSidebarPreference();
+  const defaultSidebarOpen =
+    savedSidebarPref !== null
+      ? savedSidebarPref
+      : typeof window !== "undefined" && window.innerWidth >= 1024;
+  const persistSidebarOpen = (open: boolean) => {
+    try { window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open)); } catch { /* ignore */ }
+  };
   const currentPageTitle = routeTitles[location.pathname] ?? "";
 
   return (
     <TooltipProvider delayDuration={0}>
-      <SidebarProvider defaultOpen={defaultSidebarOpen} style={{ "--sidebar-width": "13rem", "--sidebar-width-icon": "3rem" } as React.CSSProperties}>
+      <SidebarProvider defaultOpen={defaultSidebarOpen} onOpenChange={persistSidebarOpen} style={{ "--sidebar-width": "13rem", "--sidebar-width-icon": "3rem" } as React.CSSProperties}>
         <div className="flex h-screen w-full overflow-hidden">
           <Sidebar collapsible="icon" className="border-r border-sidebar-border print:hidden">
 
