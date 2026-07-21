@@ -481,18 +481,36 @@ function OperatorDashboardContent() {
                 <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
                 <SelectContent>
                   {(() => {
-                    const hasPrinter = !!secondaryAssetId;
-                    const hasSealer = !!mobileAssetId;
-                    const filtered = (problemDescriptions || []).filter((pd: any) => {
-                      if (!hasPrinter && !hasSealer) return true;
+                    if (!isSealerPrinterLine) {
+                      return (problemDescriptions || []).map((pd: any) => (
+                        <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
+                      ));
+                    }
+                    // Curated, guaranteed list for Sealer / Printer Ink mode.
+                    const guaranteed = [
+                      "Printer Fault",
+                      "Ink Issue",
+                      "Label Issue",
+                      "Print Quality",
+                      "Bag Sealer Fault",
+                      "Sealer Fault",
+                      "Sealer Temperature",
+                      "Conveyor Fault",
+                      "Date Code Error",
+                    ];
+                    const seen = new Set(guaranteed.map((n) => n.toLowerCase()));
+                    const extras = (problemDescriptions || []).filter((pd: any) => {
                       const n = String(pd.name || "").toLowerCase();
-                      if (hasPrinter && /printer|ink|label/.test(n)) return true;
-                      if (hasSealer && /sealer|bag/.test(n)) return true;
-                      return false;
+                      return /printer|ink|label|sealer|bag|conveyor/i.test(n) && !seen.has(n);
                     });
-                    return filtered.map((pd: any) => (
-                      <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
-                    ));
+                    return [
+                      ...guaranteed.map((name) => (
+                        <SelectItem key={`guaranteed-${name}`} value={name}>{name}</SelectItem>
+                      )),
+                      ...extras.map((pd: any) => (
+                        <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
+                      )),
+                    ];
                   })()}
                 </SelectContent>
               </Select>
