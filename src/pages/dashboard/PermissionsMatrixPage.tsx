@@ -43,6 +43,7 @@ const ROLE_LABELS: Record<Role, string> = {
   co_engineer: "Co-Eng.",
   operator: "Operator",
   viewer: "Viewer",
+  warehouse: "Warehouse",
 };
 
 
