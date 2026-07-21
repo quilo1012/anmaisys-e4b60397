@@ -43,7 +43,7 @@ export function ComboboxInput({ value, onChange, suggestions, placeholder, class
 
   return (
     <Popover open={open && filtered.length > 0} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+      <PopoverAnchor asChild>
         <Input
           ref={inputRef}
           value={inputValue}
@@ -54,7 +54,7 @@ export function ComboboxInput({ value, onChange, suggestions, placeholder, class
           className={cn(className)}
           autoComplete="off"
         />
-      </PopoverTrigger>
+      </PopoverAnchor>
       <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
         <Command>
           <CommandList>
