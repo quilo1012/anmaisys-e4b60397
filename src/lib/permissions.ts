@@ -265,7 +265,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "downtime", label: "Downtime", actions: ["downtime.view", "downtime.manage"] },
   { key: "machines", label: "Machines & Problems", actions: ["machines.view", "machines.manage", "problems.view", "problems.manage"] },
   { key: "stock", label: "Stock", actions: ["stock.view", "stock.manage", "stock.pricing"] },
-  { key: "production", label: "Production", actions: ["production.view", "production.manage", "production.target.view", "production.target.manage", "production.performance.view"] },
+  { key: "production", label: "Production", actions: ["production.view", "production.manage", "production.target.view", "production.target.manage", "production.performance.view", "production.sku_performance.view"] },
   { key: "planner", label: "Planner & SKU", actions: ["planner.view", "planner.manage", "sku.view", "sku.manage"] },
   { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
   { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
