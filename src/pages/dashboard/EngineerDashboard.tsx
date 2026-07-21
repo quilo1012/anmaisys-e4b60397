@@ -989,6 +989,23 @@ function EngineerDashboardContent() {
                                       />
 
                                     </div>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-11 min-w-11 px-3 touch-manipulation border-blue-500 text-foreground hover:bg-blue-500/10"
+                                      onClick={() => { setCollabDialogWO(wo.id); setCollabPin(""); }}
+                                      aria-label="Add co-engineer via PIN"
+                                    >
+                                      <Users className="h-4 w-4 mr-1.5 text-blue-600 dark:text-blue-400" aria-hidden="true" /> Add Co-Engineer (PIN)
+                                    </Button>
+                                    {Array.isArray((wo as any).collaborator_names) && (wo as any).collaborator_names.length > 0 && (
+                                      <div className="w-full text-xs text-muted-foreground flex flex-wrap gap-1 items-center">
+                                        <span className="font-semibold">With:</span>
+                                        {(wo as any).collaborator_names.map((n: string) => (
+                                          <Badge key={n} variant="secondary" className="text-[10px]">{n}</Badge>
+                                        ))}
+                                      </div>
+                                    )}
                                     <DesktopFinishButton wo={wo} />
                                   </>
                                 )}
