@@ -563,13 +563,20 @@ export default function WorkOrdersPage() {
                               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
                             </span>
                             <div className="flex items-center gap-1">
+                              {(wo as any).wo_type === "warehouse_service" && (
+                                <Badge variant="outline" className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 text-[10px]" title="Warehouse service — not counted as line downtime">Warehouse</Badge>
+                              )}
                               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
                               {isStale && (
                                 <Badge variant="outline" className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-[10px]" title="In progress > 3 days">Stale</Badge>
                               )}
                             </div>
                           </div>
-                          <div className="text-sm font-medium">{wo.machine} <span className="text-muted-foreground font-normal">· {woLine}</span></div>
+                          <div className="text-sm font-medium">
+                            {(wo as any).wo_type === "warehouse_service"
+                              ? <>Warehouse <span className="text-muted-foreground font-normal">· {(wo as any).warehouse_location || "—"}</span></>
+                              : <>{wo.machine} <span className="text-muted-foreground font-normal">· {woLine}</span></>}
+                          </div>
                           <p className="text-sm text-muted-foreground line-clamp-2">{wo.description}</p>
                           <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground flex-wrap">
                             <span>{wo.requester_name} → {wo.engineer?.name || "—"}</span>
