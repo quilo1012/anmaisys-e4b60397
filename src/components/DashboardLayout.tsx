@@ -401,11 +401,21 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     savedSidebarPref !== null
       ? savedSidebarPref
       : typeof window !== "undefined" && window.innerWidth >= 1024;
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(defaultSidebarOpen);
   const currentPageTitle = routeTitles[location.pathname] ?? "";
+
+  const handleSidebarOpenChange = (open: boolean) => {
+    setSidebarOpen(open);
+    try { window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open)); } catch { /* ignore */ }
+  };
 
   return (
     <TooltipProvider delayDuration={0}>
-      <SidebarProvider defaultOpen={defaultSidebarOpen} style={{ "--sidebar-width": "13rem", "--sidebar-width-icon": "3rem" } as React.CSSProperties}>
+      <SidebarProvider
+        open={sidebarOpen}
+        onOpenChange={handleSidebarOpenChange}
+        style={{ "--sidebar-width": "13rem", "--sidebar-width-icon": "3rem" } as React.CSSProperties}
+      >
         <div className="flex h-screen w-full overflow-hidden">
           <Sidebar collapsible="icon" className="border-r border-sidebar-border print:hidden">
 
