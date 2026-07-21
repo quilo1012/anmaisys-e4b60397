@@ -14,7 +14,7 @@ import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
-import { Factory, Target, Loader2, Search, Plus, Lock, AlertCircle } from "lucide-react";
+import { Factory, Target, Loader2, Search, Plus, Lock, AlertCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -604,7 +604,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
       toast.success(`Logged ${quantity} on Blender ${blenderNum} for ${selectedSku.code}`);
       reset();
       qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
-      qc.invalidateQueries({ queryKey: ["blender-entries"] });
+      qc.invalidateQueries({ queryKey: ["blender-entries", sessionId] });
     } catch (e: any) {
       toast.error(e?.message || "Failed to save entry");
     } finally {
@@ -720,8 +720,111 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
         >
           {saving ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Saving...</> : <><Plus className="h-5 w-5 mr-2" /> Save entry</>}
         </Button>
+
+        <LoggedThisShift sessionId={sessionId} />
       </CardContent>
     </Card>
+  );
+}
+
+function LoggedThisShift({ sessionId }: { sessionId: string }) {
+  const qc = useQueryClient();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const entriesQ = useQuery({
+    enabled: !!sessionId,
+    queryKey: ["blender-entries", sessionId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("production_blender_entries")
+        .select("id, blender_number, quantity, created_at, production_item_id, production_items!inner(blender_ref, sku:sku_products(code, name))")
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
+  const entries = entriesQ.data || [];
+  const total = entries.reduce((s, e) => s + Number(e.quantity || 0), 0);
+
+  const onDelete = async (id: string) => {
+    if (!window.confirm("Delete this entry?")) return;
+    setDeletingId(id);
+    try {
+      const { error } = await (supabase as any)
+        .from("production_blender_entries")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+      toast.success("Entry deleted");
+      qc.invalidateQueries({ queryKey: ["blender-entries", sessionId] });
+      qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete entry");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="pt-4 border-t space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold">Logged this shift</div>
+        <div className="text-xs text-muted-foreground">{entries.length} {entries.length === 1 ? "entry" : "entries"}</div>
+      </div>
+
+      {entriesQ.isLoading ? (
+        <div className="text-sm text-muted-foreground flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+        </div>
+      ) : entries.length === 0 ? (
+        <div className="text-sm text-muted-foreground py-2">No entries logged yet this shift.</div>
+      ) : (
+        <>
+          <ul className="divide-y rounded-md border">
+            {entries.map((e) => {
+              const sku = e.production_items?.sku;
+              const batch = e.production_items?.blender_ref;
+              return (
+                <li key={e.id} className="flex items-center gap-3 p-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-mono text-sm font-semibold truncate">{sku?.code ?? "—"}</span>
+                      <span className="text-xs text-muted-foreground truncate">{sku?.name ?? ""}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className="inline-flex items-center rounded bg-secondary text-secondary-foreground px-1.5 py-0.5 text-[10px] font-medium">
+                        Blender {e.blender_number}
+                      </span>
+                      {batch && (
+                        <span className="text-[10px] text-muted-foreground">Batch {batch}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-base font-semibold tabular-nums">{Number(e.quantity).toLocaleString()}</div>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => onDelete(e.id)}
+                    disabled={deletingId === e.id}
+                    aria-label="Delete entry"
+                  >
+                    {deletingId === e.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">Total produced this shift</span>
+            <span className="text-lg font-bold tabular-nums">{total.toLocaleString()}</span>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
