@@ -593,7 +593,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
           .insert({
             session_id: sessionId,
             production_item_id: itemId,
-            blender_number: blender,
+            blender_number: blenderNum,
             quantity,
             entered_by: uid,
           });
@@ -601,7 +601,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
       }
 
       // 3) actual_qty is auto-synced by DB trigger from blender entries.
-      toast.success(`Logged ${quantity} on Blender ${blender} for ${selectedSku.code}`);
+      toast.success(`Logged ${quantity} on Blender ${blenderNum} for ${selectedSku.code}`);
       reset();
       qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
       qc.invalidateQueries({ queryKey: ["blender-entries"] });
