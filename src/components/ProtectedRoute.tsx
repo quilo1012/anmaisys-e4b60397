@@ -123,13 +123,24 @@ export function ProtectedRoute({ children, allowedRoles, requiredAction }: Prote
     );
   }
 
-  // Role loaded but not authorized for this route — show access denied
-  // co_engineer inherits engineer's access everywhere
+  // Role loaded — evaluate access.
+  // Rules (unified with Permissions Matrix):
+  //   1. admin always passes (no self-lockout).
+  //   2. co_engineer inherits engineer.
+  //   3. When requiredAction is set, gate SOLELY by can(role, action) —
+  //      allowedRoles is ignored so we never create an AND-lockout.
+  //   4. Otherwise fall back to allowedRoles (used by routes that intentionally
+  //      have no matching action, e.g. warehouse and *-preview pages).
   const effectiveRole = role === "co_engineer" ? "engineer" : role;
-  if (
-    (allowedRoles && !allowedRoles.includes(effectiveRole)) ||
-    (requiredAction && !can(effectiveRole, requiredAction))
-  ) {
+  let denied = false;
+  if (effectiveRole !== "admin") {
+    if (requiredAction) {
+      denied = !can(effectiveRole, requiredAction);
+    } else if (allowedRoles) {
+      denied = !allowedRoles.includes(effectiveRole);
+    }
+  }
+  if (denied) {
     const homePath = roleDashMap[role] || "/login";
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
