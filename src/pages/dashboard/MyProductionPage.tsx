@@ -14,17 +14,11 @@ import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
-import { Factory, Target, Loader2, Search, Plus, Lock, AlertCircle, AlertTriangle, Send } from "lucide-react";
+import { Factory, Target, Loader2, Search, Plus, Lock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useActiveProblemsForLine } from "@/hooks/useLineProblemDescriptions";
-import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
 
 type Shift = "DAY" | "NIGHT";
 
@@ -59,7 +53,7 @@ export default function MyProductionPage() {
 }
 
 function MyProductionContent() {
-  const { selectedLineName: line, selectedLineId: lineId } = useDeviceLineCtx();
+  const { selectedLineName: line } = useDeviceLineCtx();
   const { profile, role } = useAuth() as any;
   const navigate = useNavigate();
   const [targetUnlocked, setTargetUnlocked] = useState(false);
@@ -178,9 +172,6 @@ function MyProductionContent() {
       ) : (
         <>
           <LogProductionCard sessionId={sessionId} />
-
-          <ReportLineProblemCard line={line} lineId={lineId} />
-
 
           {items.length === 0 ? (
             <Card>
@@ -735,137 +726,3 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
 }
 
 
-
-function ReportLineProblemCard({ line, lineId }: { line: string; lineId: string }) {
-  const { profile } = useAuth() as any;
-  const [problemId, setProblemId] = useState<string>("");
-  const [notes, setNotes] = useState("");
-  const [lineStopped, setLineStopped] = useState(false);
-  const [priority, setPriority] = useState<"low" | "medium" | "high" | "critical">("medium");
-
-  const problemsQ = useActiveProblemsForLine(lineId || null);
-  const createWO = useCreateWorkOrder();
-
-  const problems = problemsQ.data || [];
-  const selected = problems.find((p: any) => p.id === problemId);
-
-  const submit = () => {
-    if (!selected) {
-      toast.error("Select a problem first.");
-      return;
-    }
-    if (!lineId) {
-      toast.error("No line selected.");
-      return;
-    }
-    const description = selected.name + (notes.trim() ? ` — ${notes.trim()}` : "");
-    createWO.mutate(
-      {
-        requester_name: profile?.name || "Operator",
-        machine: "",
-        description,
-        priority: lineStopped ? "critical" : priority,
-        line_id: lineId,
-        line_stopped: lineStopped,
-        wo_type: "production",
-      },
-      {
-        onSuccess: () => {
-          toast.success("Problem reported. Maintenance has been notified.");
-          setProblemId("");
-          setNotes("");
-          setLineStopped(false);
-          setPriority("medium");
-        },
-        onError: (err: any) => toast.error(err?.message || "Failed to report problem"),
-      },
-    );
-  };
-
-  return (
-    <Card className="border-amber-500/50">
-      <CardContent className="p-4 md:p-6 space-y-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
-            <AlertTriangle className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="text-base font-bold">Report line problem</div>
-            <div className="text-xs text-muted-foreground">Send a maintenance request for {line || "this line"}.</div>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Problem</Label>
-          <Select value={problemId} onValueChange={setProblemId}>
-            <SelectTrigger className="h-11">
-              <SelectValue placeholder={problemsQ.isLoading ? "Loading..." : "Select the problem"} />
-            </SelectTrigger>
-            <SelectContent>
-              {problems.length === 0 ? (
-                <SelectItem value="none" disabled>No problems configured</SelectItem>
-              ) : (
-                problems.map((p: any) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                    {p.category ? <span className="text-muted-foreground"> · {p.category}</span> : null}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Details (optional)</Label>
-          <Textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="What is happening? What have you tried?"
-            rows={3}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label>Priority</Label>
-            <Select value={priority} onValueChange={(v) => setPriority(v as any)} disabled={lineStopped}>
-              <SelectTrigger className="h-11">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-end">
-            <label className="flex items-center gap-2 h-11 px-3 rounded-md border w-full cursor-pointer">
-              <Checkbox
-                checked={lineStopped}
-                onCheckedChange={(v) => setLineStopped(!!v)}
-              />
-              <span className="text-sm font-medium">Line is stopped (critical)</span>
-            </label>
-          </div>
-        </div>
-
-        <Button
-          className="h-12 w-full text-base font-bold"
-          onClick={submit}
-          disabled={createWO.isPending || !problemId}
-          variant={lineStopped ? "destructive" : "default"}
-        >
-          {createWO.isPending ? (
-            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-          ) : (
-            <Send className="h-5 w-5 mr-2" />
-          )}
-          Report problem
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
