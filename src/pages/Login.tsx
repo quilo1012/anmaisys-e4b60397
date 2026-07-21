@@ -3,18 +3,19 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock, Eye, EyeOff, ShieldCheck, Loader2, ArrowRight, Tablet, User as UserIcon, ShieldAlert, CheckCircle2 } from "lucide-react";
-import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePublicTabletAccounts } from "@/hooks/useOperatorAccounts";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { useLines } from "@/hooks/useMachines";
 import { useLoginBranding } from "@/hooks/useLoginBranding";
+import { AuthShell } from "@/components/auth/AuthShell";
 import {
   clearLoginLockout,
   getLoginLockout,
   recordLoginFailure,
 } from "@/lib/loginRateLimit";
+
 
 const dashMap: Record<string, string> = {
   admin: "/dashboard/manager",
