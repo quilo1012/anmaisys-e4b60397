@@ -35,6 +35,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "production.target.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
   "production.target.manage": ["admin", "manager", "supervisor", "planner"],
   "production.performance.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
+  "production.sku_performance.view": ["admin", "manager"],
   "planner.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "planner.manage": ["admin", "manager", "planner"],
   "sku.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
