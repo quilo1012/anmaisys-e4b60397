@@ -37,7 +37,7 @@ export function WoTimeline({ workOrderId }: Props) {
         .eq("work_order_id", workOrderId)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data as LogEvent[]) ?? [];
+      return ((data as unknown) as LogEvent[]) ?? [];
     },
     enabled: !!workOrderId,
   });
