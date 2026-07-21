@@ -83,6 +83,9 @@ export type Action =
   | "dashboard.manager"
   | "dashboard.engineer"
   | "dashboard.operator"
+  // Reliability / Suppliers (dedicated view actions)
+  | "reliability.view"
+  | "suppliers.view"
   // Permissions matrix
   | "permissions.manage";
 
@@ -122,10 +125,10 @@ const MATRIX: Record<Action, Role[]> = {
   "system.settings": ["admin"],
 
   "production.view": ALL,
-  "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
+  "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "engineer", "co_engineer"],
   "production.target.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
   "production.target.manage": ["admin", "manager", "supervisor", "planner"],
-  "production.performance.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
+  "production.performance.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
 
   "planner.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "planner.manage": ["admin", "manager", "planner"],
@@ -141,7 +144,7 @@ const MATRIX: Record<Action, Role[]> = {
   "quality.view": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
   "quality.manage": ["admin", "manager", "supervisor"],
 
-  "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "engineer", "co_engineer"],
+  "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
   "pm.manage": ["admin", "manager", "maintenance_manager"],
 
   "engineers.view": ["admin", "manager", "supervisor", "maintenance_manager"],
@@ -150,7 +153,7 @@ const MATRIX: Record<Action, Role[]> = {
   "leaders.manage": ["admin", "manager"],
 
   "chat.line": [],
-  "chat.dm": [],
+  "chat.dm": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
 
   "notifications.view": ALL,
   "notifications.manage": ["admin", "manager"],
@@ -158,13 +161,16 @@ const MATRIX: Record<Action, Role[]> = {
   "intouch.view": ["admin", "manager", "maintenance_manager", "planner"],
   "intouch.manage": ["admin", "maintenance_manager"],
 
-  "controlcenter.view": ["admin", "manager", "supervisor", "maintenance_manager"],
+  "controlcenter.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "assets.manage": ["admin", "manager", "maintenance_manager"],
 
   "dashboard.executive": ["admin", "manager"],
   "dashboard.manager": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "viewer"],
-  "dashboard.engineer": ["admin", "engineer", "co_engineer"],
-  "dashboard.operator": ["admin", "operator"],
+  "dashboard.engineer": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
+  "dashboard.operator": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator"],
+
+  "reliability.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
+  "suppliers.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
 
   "permissions.manage": ["admin"],
 };
