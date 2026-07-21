@@ -77,7 +77,6 @@ const navItems: NavItem[] = [
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "warehouse"], group: "Assets", action: "stock.view" },
 
   // Production
-  { title: "Planner", url: "/dashboard/planner", icon: Factory, roles: ["admin", "manager", "planner"], group: "Production", action: "planner.manage" },
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager"], group: "Production", action: "production.manage" },
   { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Production", action: "rag.view" },
   { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production", action: "production.performance.view" },
@@ -86,15 +85,9 @@ const navItems: NavItem[] = [
 
   // Planning & Insights
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager"], group: "Planning", action: "sku.manage" },
-  { title: "SKU Efficiency", url: "/dashboard/sku-efficiency", icon: Trophy, roles: ["admin", "manager"], group: "Planning", action: "sku.view" },
-  { title: "Forecast", url: "/dashboard/forecast", icon: Calculator, roles: ["admin", "manager"], group: "Planning", action: "production.performance.view" },
-  { title: "Smart Target", url: "/dashboard/smart-target", icon: Brain, roles: ["admin", "manager"], group: "Planning", action: "smarttarget.view" },
 
   // Reports
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "supervisor"], group: "Reports", action: "reports.analytics" },
-  { title: "Financial", url: "/dashboard/financial", icon: DollarSign, roles: ["admin"], group: "Reports", action: "reports.financial" },
-  { title: "Executive", url: "/dashboard/executive", icon: Briefcase, roles: ["admin"], group: "Reports", action: "reports.executive" },
-  { title: "Weekly Report", url: "/dashboard/weekly-report", icon: FileBarChart, roles: ["admin", "manager"], group: "Reports", action: "rag.view" },
 
   // Communication
   { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "warehouse"], group: "Communication", action: "chat.dm" },
