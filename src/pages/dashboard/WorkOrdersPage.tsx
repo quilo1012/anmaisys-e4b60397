@@ -264,7 +264,7 @@ export default function WorkOrdersPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRequester.trim()) {
-      toast({ title: "Requester required", description: "Please select who is requesting the work order.", variant: "destructive" });
+      toast({ title: "Requester required", description: "Please enter who is requesting the work order.", variant: "destructive" });
       return;
     }
     if (newWoType === "warehouse_service") {
@@ -714,13 +714,7 @@ export default function WorkOrdersPage() {
             <DialogHeader><DialogTitle>Create Work Order</DialogTitle><DialogDescription className="sr-only">Fill in work order details</DialogDescription></DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4" autoComplete="off">
               <div className="space-y-2"><Label>Requested By <span className="text-destructive">*</span></Label>
-                <Select value={newRequester} onValueChange={setNewRequester}>
-                  <SelectTrigger className={!newRequester ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select requester..." /></SelectTrigger>
-                  <SelectContent>
-                    {requesterOptions.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
-
-                  </SelectContent>
-                </Select>
+                <Input value={newRequester} onChange={(e) => setNewRequester(e.target.value)} placeholder="Your name / tablet" className={!newRequester ? "border-destructive focus-visible:ring-destructive" : ""} />
                 {!newRequester && <p className="text-xs text-destructive">Requester is required</p>}
               </div>
               <div className="space-y-2"><Label>Type <span className="text-destructive">*</span></Label>
@@ -798,15 +792,7 @@ export default function WorkOrdersPage() {
             <DialogHeader><DialogTitle>Edit Work Order</DialogTitle><DialogDescription className="sr-only">Modify work order details</DialogDescription></DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2"><Label>Requested By</Label>
-                <Select value={editRequester} onValueChange={setEditRequester}>
-                  <SelectTrigger><SelectValue placeholder="Select requester..." /></SelectTrigger>
-                  <SelectContent>
-                    {profileNames?.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
-                    {editRequester && !profileNames?.some((p) => p.name === editRequester) && (
-                      <SelectItem value={editRequester}>{editRequester}</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                <Input value={editRequester} onChange={(e) => setEditRequester(e.target.value)} placeholder="Your name / tablet" />
               </div>
               <div className="space-y-2"><Label>Machine</Label>
                 <Select value={editMachine} onValueChange={setEditMachine}>
