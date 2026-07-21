@@ -829,4 +829,246 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
   );
 }
 
+const OCCURRENCE_CATEGORIES = [
+  "Quality issue",
+  "Material shortage",
+  "Changeover",
+  "Cleaning",
+  "Waiting",
+  "Minor stop",
+  "Other",
+] as const;
+
+function LogOccurrenceCard({ line, shift, sessionDate }: { line: string; shift: Shift; sessionDate: string }) {
+  const qc = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
+  const [category, setCategory] = useState<string>("");
+  const [reason, setReason] = useState("");
+  const [duration, setDuration] = useState<string>("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const occurrencesQ = useQuery({
+    enabled: !!line,
+    queryKey: ["my-prod-occurrences", line, sessionDate, shift],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("production_downtimes")
+        .select("id, category, reason, duration_minutes, notes, created_at, source")
+        .eq("line", line)
+        .eq("occurred_date", sessionDate)
+        .eq("shift", shift)
+        .eq("source", "operator_occurrence")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    refetchInterval: 60_000,
+  });
+
+  const occurrences = occurrencesQ.data || [];
+
+  const reset = () => {
+    setCategory("");
+    setReason("");
+    setDuration("");
+    setNotes("");
+  };
+
+  const onSave = async () => {
+    const mins = Number(duration);
+    if (!category) { toast.error("Select a category"); return; }
+    if (!Number.isFinite(mins) || mins < 0) { toast.error("Enter a valid duration in minutes"); return; }
+
+    setSaving(true);
+    try {
+      const { data: userRes } = await (supabase as any).auth.getUser();
+      const uid = userRes?.user?.id ?? null;
+      const { error } = await (supabase as any).from("production_downtimes").insert({
+        line,
+        shift,
+        occurred_date: sessionDate,
+        category,
+        reason: reason.trim() || category,
+        duration_minutes: Math.round(mins),
+        notes: notes.trim() || null,
+        source: "operator_occurrence",
+        created_by: uid,
+      });
+      if (error) throw error;
+      toast.success("Occurrence logged");
+      reset();
+      setExpanded(false);
+      qc.invalidateQueries({ queryKey: ["my-prod-occurrences", line, sessionDate, shift] });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to log occurrence");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onDelete = async (id: string) => {
+    if (!window.confirm("Delete this occurrence?")) return;
+    try {
+      const { error } = await (supabase as any)
+        .from("production_downtimes")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+      toast.success("Occurrence deleted");
+      qc.invalidateQueries({ queryKey: ["my-prod-occurrences", line, sessionDate, shift] });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete");
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-4 md:p-6 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="text-base font-semibold flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              Log Occurrence
+            </div>
+            <div className="text-xs text-muted-foreground">Record a line event (does not create a work order).</div>
+          </div>
+          {!expanded && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setExpanded(true)}>
+              <Plus className="h-4 w-4 mr-1" /> New
+            </Button>
+          )}
+        </div>
+
+        {expanded && (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Category</div>
+              <div className="flex flex-wrap gap-2">
+                {OCCURRENCE_CATEGORIES.map((c) => (
+                  <Button
+                    key={c}
+                    type="button"
+                    size="sm"
+                    variant={category === c ? "default" : "outline"}
+                    onClick={() => setCategory(c)}
+                  >
+                    {c}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Short description <span className="text-muted-foreground/70 normal-case">(optional)</span></div>
+              <Input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. Label misalignment on Blender 2"
+                className="h-11"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Duration (minutes)</div>
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                placeholder="0"
+                className="h-11"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Notes <span className="text-muted-foreground/70 normal-case">(optional)</span></div>
+              <Input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Additional details..."
+                className="h-11"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 h-11"
+                onClick={() => { reset(); setExpanded(false); }}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="flex-1 h-11 font-semibold"
+                onClick={onSave}
+                disabled={saving}
+              >
+                {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : <><Plus className="h-4 w-4 mr-2" /> Save occurrence</>}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="pt-2 border-t space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold">Occurrences this shift</div>
+            <div className="text-xs text-muted-foreground">
+              {occurrences.length} {occurrences.length === 1 ? "entry" : "entries"}
+            </div>
+          </div>
+          {occurrencesQ.isLoading ? (
+            <div className="text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+            </div>
+          ) : occurrences.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-2">No occurrences logged yet this shift.</div>
+          ) : (
+            <ul className="divide-y rounded-md border">
+              {occurrences.map((o) => (
+                <li key={o.id} className="flex items-start gap-3 p-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="inline-flex items-center rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-medium">
+                        {o.category}
+                      </span>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {Number(o.duration_minutes || 0)} min
+                      </span>
+                    </div>
+                    {o.reason && o.reason !== o.category && (
+                      <div className="text-sm mt-0.5 truncate">{o.reason}</div>
+                    )}
+                    {o.notes && (
+                      <div className="text-xs text-muted-foreground mt-0.5 truncate">{o.notes}</div>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => onDelete(o.id)}
+                    aria-label="Delete occurrence"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
 
