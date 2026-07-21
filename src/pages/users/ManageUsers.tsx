@@ -40,7 +40,7 @@ interface Engineer {
   labor_rate?: number | null;
 }
 
-const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", supervisor: "Supervisor", maintenance_manager: "Maintenance Manager", planner: "Planner", engineer: "Engineer", co_engineer: "Co-Engineer", operator: "Operator", viewer: "Viewer" };
+const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", supervisor: "Supervisor", maintenance_manager: "Maintenance Manager", planner: "Planner", engineer: "Engineer", co_engineer: "Co-Engineer", operator: "Operator", viewer: "Viewer", warehouse: "Warehouse Admin" };
 const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = {
   admin: Shield,
   manager: Shield,
@@ -51,9 +51,10 @@ const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = 
   co_engineer: WrenchIcon,
   operator: HardHat,
   viewer: Shield,
+  warehouse: Package,
 };
 
-const adminRoleOptions: AppRole[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
+const adminRoleOptions: AppRole[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse"];
 const managerCreateRoleOptions: AppRole[] = ["engineer", "co_engineer"];
 const managerEditRoleOptions: AppRole[] = ["engineer", "co_engineer", "operator"];
 const protectedStaffRoles: AppRole[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner"];
