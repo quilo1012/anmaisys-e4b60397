@@ -438,6 +438,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   </div>
                 </div>
               </div>
+              <SidebarFooterToggle />
               {filteredItems.some((i) => i.title === "Permissions") && (
                 <Button
                   variant="ghost"
