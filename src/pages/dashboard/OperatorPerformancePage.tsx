@@ -65,6 +65,9 @@ function OperatorPerformanceContent() {
   const { selectedLineName: line } = useDeviceLineCtx();
   const { profile } = useAuth() as any;
   const [leaderAssigned, setLeaderAssigned] = useState<boolean | null>(null);
+  const [unlocked, setUnlocked] = useState(false);
+  const [unlockedBy, setUnlockedBy] = useState<string | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
   const navigate = useNavigate();
 
   const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
