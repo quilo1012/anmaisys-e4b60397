@@ -735,13 +735,13 @@ export default function WorkOrdersPage() {
         </Card>
 
         {/* Create WO Dialog */}
-        <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <Dialog open={showCreate} onOpenChange={(o) => { setShowCreate(o); if (!o) { setTouched({}); setSubmitAttempted(false); } }}>
           <DialogContent>
             <DialogHeader><DialogTitle>Create Work Order</DialogTitle><DialogDescription className="sr-only">Fill in work order details</DialogDescription></DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4" autoComplete="off">
               <div className="space-y-2"><Label>Requested By <span className="text-destructive">*</span></Label>
-                <Input value={newRequester} onChange={(e) => setNewRequester(e.target.value)} placeholder="Your name / tablet" className={!newRequester ? "border-destructive focus-visible:ring-destructive" : ""} />
-                {!newRequester && <p className="text-xs text-destructive">Requester is required</p>}
+                <Input value={newRequester} onChange={(e) => setNewRequester(e.target.value)} onBlur={() => markTouched("requester")} placeholder="Your name / tablet" className={showErr("requester", !newRequester) ? "border-destructive focus-visible:ring-destructive" : ""} />
+                {showErr("requester", !newRequester) && <p className="text-xs text-destructive">Requester is required</p>}
               </div>
               <div className="space-y-2"><Label>Type <span className="text-destructive">*</span></Label>
                 <Select value={newWoType} onValueChange={(v: any) => setNewWoType(v)}>
