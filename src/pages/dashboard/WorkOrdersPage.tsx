@@ -654,8 +654,8 @@ export default function WorkOrdersPage() {
                               </div>
                             </TableCell>
                           )}
-                          {isCol("line") && <TableCell className="text-sm font-medium">{woLine}</TableCell>}
-                          {isCol("machine") && <TableCell className="cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/machines/${encodeURIComponent(wo.machine)}/history`)}>{wo.machine}</TableCell>}
+                          {isCol("line") && <TableCell className="text-sm font-medium">{(wo as any).wo_type === "warehouse_service" ? <Badge variant="outline" className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 text-[10px]" title="Warehouse service — not counted as line downtime">Warehouse</Badge> : woLine}</TableCell>}
+                          {isCol("machine") && <TableCell className={(wo as any).wo_type === "warehouse_service" ? "text-sm text-muted-foreground" : "cursor-pointer hover:underline"} onClick={(wo as any).wo_type === "warehouse_service" ? undefined : () => navigate(`/dashboard/machines/${encodeURIComponent(wo.machine)}/history`)}>{(wo as any).wo_type === "warehouse_service" ? ((wo as any).warehouse_location || "—") : wo.machine}</TableCell>}
                           {isCol("problem") && <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>}
                           {isCol("status") && <TableCell>
                             <div className="flex items-center gap-1">
