@@ -289,14 +289,14 @@ export default function Login() {
       subtitle="Sign in to access the system"
     >
       {/* Staff / Tablet segmented control */}
-      <div className="mb-6 grid grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1">
+      <div className="mb-6 grid grid-cols-2 gap-1 rounded-full border border-slate-200 bg-slate-100/80 p-1">
         <button
           type="button"
           onClick={() => switchMode("staff")}
           aria-pressed={mode === "staff"}
-          className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
+          className={`flex items-center justify-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A8A]/30 ${
             mode === "staff"
-              ? "bg-white text-[#1E3A8A] shadow-sm"
+              ? "bg-white text-[#1E3A8A] shadow-sm ring-1 ring-slate-200"
               : "text-slate-500 hover:text-slate-700"
           }`}
         >
@@ -307,9 +307,9 @@ export default function Login() {
           type="button"
           onClick={() => switchMode("tablet")}
           aria-pressed={mode === "tablet"}
-          className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
+          className={`flex items-center justify-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A8A]/30 ${
             mode === "tablet"
-              ? "bg-white text-[#1E3A8A] shadow-sm"
+              ? "bg-white text-[#1E3A8A] shadow-sm ring-1 ring-slate-200"
               : "text-slate-500 hover:text-slate-700"
           }`}
         >
