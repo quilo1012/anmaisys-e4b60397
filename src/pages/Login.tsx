@@ -282,210 +282,170 @@ export default function Login() {
     branding?.[mode]?.url ||
     "/favicon.png";
 
-  const modeBadge = (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wider ring-1 sm:gap-1.5 ${
-        mode === "tablet"
-          ? "bg-amber-400/10 text-amber-300 ring-amber-400/25"
-          : "bg-sky-400/10 text-sky-300 ring-sky-400/25"
-      }`}
-    >
-      {mode === "tablet" ? <Tablet className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
-      {mode === "tablet" ? "Tablet" : "Staff"}
-    </span>
-  );
-
   return (
     <AuthShell
       brandIconUrl={brandIconUrl}
-      badge={modeBadge}
-      title="Sign in"
-      subtitle="Use your work account or select a shared tablet"
+      title="Welcome"
+      subtitle="Sign in to access the system"
     >
+      {/* Staff / Tablet segmented control */}
+      <div className="mb-6 grid grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1">
+        <button
+          type="button"
+          onClick={() => switchMode("staff")}
+          aria-pressed={mode === "staff"}
+          className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
+            mode === "staff"
+              ? "bg-white text-[#1E3A8A] shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <UserIcon className="h-3.5 w-3.5" />
+          Staff
+        </button>
+        <button
+          type="button"
+          onClick={() => switchMode("tablet")}
+          aria-pressed={mode === "tablet"}
+          className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
+            mode === "tablet"
+              ? "bg-white text-[#1E3A8A] shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Tablet className="h-3.5 w-3.5" />
+          Tablet
+        </button>
+      </div>
 
-
-
-
-            {/* Mode toggle — always visible so operators can always reach the Tablet form */}
-            <div className="mb-6 grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5">
-                <button
-                  type="button"
-                  onClick={() => switchMode("staff")}
-                  aria-pressed={mode === "staff"}
-                  className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-semibold uppercase tracking-wider transition-all ${
-                    mode === "staff"
-                      ? "bg-white/[0.09] text-white shadow-sm ring-1 ring-white/15"
-                      : "text-white/50 hover:text-white/80"
-                  }`}
-                >
-                  <UserIcon className="h-4 w-4" />
-                  Staff
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchMode("tablet")}
-                  aria-pressed={mode === "tablet"}
-                  className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-semibold uppercase tracking-wider transition-all ${
-                    mode === "tablet"
-                      ? "bg-white/[0.09] text-white shadow-sm ring-1 ring-white/15"
-                      : "text-white/50 hover:text-white/80"
-                  }`}
-                >
-                  <Tablet className="h-4 w-4" />
-                  Tablet
-                </button>
-              </div>
-
-            <form onSubmit={handleSubmit} className={`space-y-5 ${loading || authed ? "pointer-events-none opacity-70" : ""}`} autoComplete="on" aria-busy={loading}>
-
-
-
-              {mode === "tablet" ? (
-                /* ── Tablet selector ─────────────────────────── */
-                <div className="space-y-1.5">
-                  <label htmlFor="tablet" className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                    Tablet / Line
-                  </label>
-                  <div className="group relative">
-                    <Tablet className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40 transition-colors group-focus-within:text-amber-400" />
-                    <select
-                      id="tablet"
-                      value={tabletAccountId}
-                      onChange={(e) => setTabletAccountId(e.target.value)}
-                      required
-                      className="h-12 sm:h-14 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
-                    >
-                      <option value="" disabled className="bg-[hsl(222_47%_10%)] text-white">
-                        {accountsLoading ? "Loading tablets…" : hasOperatorAccounts ? "Select your tablet…" : "No tablets configured"}
-                      </option>
-                      {operatorAccounts?.map((acc) => {
-                        const lineNames = acc.line_ids
-                          .map((id) => lineNameMap.get(id))
-                          .filter(Boolean)
-                          .join(" · ");
-                        return (
-                          <option key={acc.id} value={acc.id} className="bg-[hsl(222_47%_10%)] text-white">
-                            {acc.label}
-                            {lineNames ? ` — ${lineNames}` : ""}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                  {selectedAccount && (
-                    <p className="pl-1 text-[11px] text-white/45">
-                      Tablet ID:{" "}
-                      <span className="font-mono text-white/60">{selectedAccount.label}</span>
-                    </p>
-                  )}
-                </div>
-              ) : (
-                /* ── Staff email ─────────────────────────────── */
-                <div className="space-y-1.5">
-                  <label htmlFor="email" className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                    Email
-                  </label>
-                  <div className="group relative">
-                    <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40 transition-colors group-focus-within:text-amber-400" />
-                    <input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@appliednutrition.com"
-                      required
-                      autoComplete="email"
-                      className="h-12 sm:h-14 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white transition-all placeholder:text-white/30 hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Password */}
-              <div className="space-y-1.5">
-                <label htmlFor="password" className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Password
-                </label>
-                <div className="group relative">
-                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40 transition-colors group-focus-within:text-amber-400" />
-                  <input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    minLength={6}
-                    required
-                    autoComplete="current-password"
-                    className="h-12 sm:h-14 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-11 pr-12 text-sm text-white transition-all placeholder:text-white/30 hover:border-white/20 focus:border-amber-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-4 focus:ring-amber-500/15"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((s) => !s)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-white/45 transition-colors hover:text-white/85"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => navigate("/reset-password")}
-                  className="text-[12px] text-white/50 transition-colors hover:text-white/85"
-                >
-                  Forgot password?
-                </button>
-              </div>
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={loading || authed || lockedMsLeft > 0}
-                aria-live="polite"
-                className={`group relative mt-2 inline-flex h-12 sm:h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-xl text-sm font-semibold text-white shadow-[0_10px_30px_-10px_hsl(214_90%_50%/0.7)] ring-1 ring-white/10 transition-all active:scale-[0.99] disabled:pointer-events-none ${
-                  authed
-                    ? "bg-gradient-to-b from-emerald-500 to-emerald-600"
-                    : "bg-gradient-to-b from-[hsl(214_90%_56%)] to-[hsl(214_90%_44%)] hover:from-[hsl(214_90%_60%)] hover:to-[hsl(214_90%_48%)] hover:shadow-[0_14px_36px_-10px_hsl(214_90%_55%/0.8)] disabled:opacity-60"
-                }`}
+      <form
+        onSubmit={handleSubmit}
+        className={`space-y-4 ${loading || authed ? "pointer-events-none opacity-70" : ""}`}
+        autoComplete="on"
+        aria-busy={loading}
+      >
+        {mode === "tablet" ? (
+          /* ── Tablet selector ─────────────────────────── */
+          <div className="space-y-1.5">
+            <label htmlFor="tablet" className="text-sm font-medium text-slate-700">
+              Tablet / Line
+            </label>
+            <div className="relative">
+              <Tablet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <select
+                id="tablet"
+                value={tabletAccountId}
+                onChange={(e) => setTabletAccountId(e.target.value)}
+                required
+                className="h-11 w-full appearance-none rounded-lg border border-slate-300 bg-slate-50 pl-10 pr-4 text-sm text-slate-900 transition-all hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
               >
-                <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-                {lockedMsLeft > 0 ? (
-                  <>
-                    <ShieldAlert className="h-4 w-4" /> Locked — wait {Math.ceil(lockedMsLeft / 1000)}s
-                  </>
-                ) : authed ? (
-                  <>
-                    <CheckCircle2 className="h-5 w-5" /> Signed in · Redirecting…
-                  </>
-                ) : loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Signing in…
-                  </>
-                ) : (
-                  <>
-                    Sign In <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                  </>
-                )}
-              </button>
+                <option value="" disabled>
+                  {accountsLoading ? "Loading tablets…" : hasOperatorAccounts ? "Select your tablet…" : "No tablets configured"}
+                </option>
+                {operatorAccounts?.map((acc) => {
+                  const lineNames = acc.line_ids
+                    .map((id) => lineNameMap.get(id))
+                    .filter(Boolean)
+                    .join(" · ");
+                  return (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.label}
+                      {lineNames ? ` — ${lineNames}` : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+        ) : (
+          /* ── Staff email ─────────────────────────────── */
+          <div className="space-y-1.5">
+            <label htmlFor="email" className="text-sm font-medium text-slate-700">
+              Email
+            </label>
+            <div className="relative">
+              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@appliednutrition.com"
+                required
+                autoComplete="email"
+                className="h-11 w-full rounded-lg border border-slate-300 bg-slate-50 pl-10 pr-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+              />
+            </div>
+          </div>
+        )}
 
+        {/* Password */}
+        <div className="space-y-1.5">
+          <label htmlFor="password" className="text-sm font-medium text-slate-700">
+            Password
+          </label>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              minLength={6}
+              required
+              autoComplete="current-password"
+              className="h-11 w-full rounded-lg border border-slate-300 bg-slate-50 pl-10 pr-11 text-sm text-slate-900 transition-all placeholder:text-slate-400 hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((s) => !s)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-slate-400 transition-colors hover:text-slate-700"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
 
-              {/* Remaining-attempts hint */}
-              {lockedMsLeft === 0 && remaining < 5 && (
-                <p className="pt-1 text-center text-[11px] text-amber-300/80">
-                  {remaining} attempt{remaining === 1 ? "" : "s"} remaining before lockout
-                </p>
-              )}
+        {/* Submit */}
+        <button
+          type="submit"
+          disabled={loading || authed || lockedMsLeft > 0}
+          aria-live="polite"
+          className={`mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.99] disabled:pointer-events-none ${
+            authed
+              ? "bg-emerald-600"
+              : "bg-[#1E3A8A] hover:bg-[#1E40AF] disabled:opacity-60"
+          }`}
+        >
+          {lockedMsLeft > 0 ? (
+            <>
+              <ShieldAlert className="h-4 w-4" /> Locked — wait {Math.ceil(lockedMsLeft / 1000)}s
+            </>
+          ) : authed ? (
+            <>
+              <CheckCircle2 className="h-5 w-5" /> Signed in · Redirecting…
+            </>
+          ) : loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Signing in…
+            </>
+          ) : (
+            <>
+              Sign In <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </button>
 
-              {/* Security badge */}
-              <div className="mt-1 flex items-center justify-center gap-2 pt-2 text-[11px] text-white/45">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400/80" />
-                <span>Encrypted connection · Audited access</span>
-              </div>
-            </form>
+        {/* Remaining-attempts hint */}
+        {lockedMsLeft === 0 && remaining < 5 && (
+          <p className="pt-1 text-center text-[11px] text-amber-600">
+            {remaining} attempt{remaining === 1 ? "" : "s"} remaining before lockout
+          </p>
+        )}
+      </form>
     </AuthShell>
   );
 }
