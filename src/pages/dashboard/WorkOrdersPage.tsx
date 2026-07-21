@@ -116,6 +116,10 @@ export default function WorkOrdersPage() {
   const [newMachine, setNewMachine] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newNotes, setNewNotes] = useState("");
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const showErr = (field: string, empty: boolean) => empty && (submitAttempted || touched[field]);
+  const markTouched = (field: string) => setTouched((t) => (t[field] ? t : { ...t, [field]: true }));
   
   
 
@@ -264,6 +268,7 @@ export default function WorkOrdersPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
     if (!newRequester.trim()) {
       toast({ title: "Requester required", description: "Please enter who is requesting the work order.", variant: "destructive" });
       return;
@@ -297,7 +302,7 @@ export default function WorkOrdersPage() {
         await createWO.mutateAsync({ requester_name: newRequester.trim(), wo_type: "production", line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), line_stopped: newLineStopped === "stopped" } as any);
       }
       toast({ title: "Work Order Created" });
-      setShowCreate(false); setNewWoType("production"); setNewWarehouseLocation(""); setNewLineStopped("running"); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
+      setShowCreate(false); setNewWoType("production"); setNewWarehouseLocation(""); setNewLineStopped("running"); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes(""); setTouched({}); setSubmitAttempted(false);
 
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
@@ -730,13 +735,13 @@ export default function WorkOrdersPage() {
         </Card>
 
         {/* Create WO Dialog */}
-        <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <Dialog open={showCreate} onOpenChange={(o) => { setShowCreate(o); if (!o) { setTouched({}); setSubmitAttempted(false); } }}>
           <DialogContent>
             <DialogHeader><DialogTitle>Create Work Order</DialogTitle><DialogDescription className="sr-only">Fill in work order details</DialogDescription></DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4" autoComplete="off">
               <div className="space-y-2"><Label>Requested By <span className="text-destructive">*</span></Label>
-                <Input value={newRequester} onChange={(e) => setNewRequester(e.target.value)} placeholder="Your name / tablet" className={!newRequester ? "border-destructive focus-visible:ring-destructive" : ""} />
-                {!newRequester && <p className="text-xs text-destructive">Requester is required</p>}
+                <Input value={newRequester} onChange={(e) => setNewRequester(e.target.value)} onBlur={() => markTouched("requester")} placeholder="Your name / tablet" className={showErr("requester", !newRequester) ? "border-destructive focus-visible:ring-destructive" : ""} />
+                {showErr("requester", !newRequester) && <p className="text-xs text-destructive">Requester is required</p>}
               </div>
               <div className="space-y-2"><Label>Type <span className="text-destructive">*</span></Label>
                 <Select value={newWoType} onValueChange={(v: any) => setNewWoType(v)}>
@@ -752,8 +757,8 @@ export default function WorkOrdersPage() {
               </div>
               {newWoType === "warehouse_service" ? (
                 <div className="space-y-2"><Label>Warehouse Location <span className="text-destructive">*</span></Label>
-                  <Input value={newWarehouseLocation} onChange={(e) => setNewWarehouseLocation(e.target.value)} placeholder="e.g. Warehouse A - Rack 12" className={!newWarehouseLocation ? "border-destructive focus-visible:ring-destructive" : ""} />
-                  {!newWarehouseLocation && <p className="text-xs text-destructive">Warehouse location is required</p>}
+                  <Input value={newWarehouseLocation} onChange={(e) => setNewWarehouseLocation(e.target.value)} onBlur={() => markTouched("warehouseLocation")} placeholder="e.g. Warehouse A - Rack 12" className={showErr("warehouseLocation", !newWarehouseLocation) ? "border-destructive focus-visible:ring-destructive" : ""} />
+                  {showErr("warehouseLocation", !newWarehouseLocation) && <p className="text-xs text-destructive">Warehouse location is required</p>}
                 </div>
               ) : (
                 <>
@@ -764,8 +769,8 @@ export default function WorkOrdersPage() {
                     </Select>
                   </div>
                   <div className="space-y-2"><Label>Machine <span className="text-destructive">*</span></Label>
-                    <Select value={newMachine} onValueChange={setNewMachine} disabled={!newLineId}>
-                      <SelectTrigger className={!newMachine ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder={newLineId ? "Select machine..." : "Select line first..."} /></SelectTrigger>
+                    <Select value={newMachine} onValueChange={(v) => { setNewMachine(v); markTouched("machine"); }} disabled={!newLineId}>
+                      <SelectTrigger className={showErr("machine", !newMachine) ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder={newLineId ? "Select machine..." : "Select line first..."} /></SelectTrigger>
                       <SelectContent>
                         {(() => {
                           const selectedLineName = lines?.find((l: any) => l.id === newLineId)?.name;
@@ -786,27 +791,27 @@ export default function WorkOrdersPage() {
                         })()}
                       </SelectContent>
                     </Select>
-                    {!newMachine && <p className="text-xs text-destructive">Machine is required</p>}
+                    {showErr("machine", !newMachine) && <p className="text-xs text-destructive">Machine is required</p>}
                   </div>
                   <div className="space-y-2">
                     <Label>Line Status <span className="text-destructive">*</span></Label>
-                    <Select value={newLineStopped} onValueChange={(v: any) => setNewLineStopped(v)}>
-                      <SelectTrigger className={!newLineStopped ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select line status..." /></SelectTrigger>
+                    <Select value={newLineStopped} onValueChange={(v: any) => { setNewLineStopped(v); markTouched("lineStopped"); }}>
+                      <SelectTrigger className={showErr("lineStopped", !newLineStopped) ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select line status..." /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="stopped">Stopped</SelectItem>
                         <SelectItem value="running">Running</SelectItem>
                       </SelectContent>
                     </Select>
-                    {!newLineStopped && <p className="text-xs text-destructive">Line status is required</p>}
+                    {showErr("lineStopped", !newLineStopped) && <p className="text-xs text-destructive">Line status is required</p>}
                   </div>
                 </>
               )}
               <div className="space-y-2"><Label>Problem Description <span className="text-destructive">*</span></Label>
-                <Select value={newDesc} onValueChange={setNewDesc}>
-                  <SelectTrigger className={!newDesc ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select problem..." /></SelectTrigger>
+                <Select value={newDesc} onValueChange={(v) => { setNewDesc(v); markTouched("desc"); }}>
+                  <SelectTrigger className={showErr("desc", !newDesc) ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select problem..." /></SelectTrigger>
                   <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
                 </Select>
-                {!newDesc && <p className="text-xs text-destructive">Problem description is required</p>}
+                {showErr("desc", !newDesc) && <p className="text-xs text-destructive">Problem description is required</p>}
               </div>
               <div className="space-y-2"><Label>Observations (optional)</Label>
                 <Textarea value={newNotes} onChange={(e) => setNewNotes(e.target.value)} placeholder="Additional notes..." rows={3} />
