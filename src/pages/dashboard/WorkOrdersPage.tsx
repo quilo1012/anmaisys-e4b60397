@@ -110,6 +110,7 @@ export default function WorkOrdersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newWoType, setNewWoType] = useState<"production" | "warehouse_service">("production");
   const [newWarehouseLocation, setNewWarehouseLocation] = useState("");
+  const [newLineStopped, setNewLineStopped] = useState<"stopped" | "running">("running");
   const [newRequester, setNewRequester] = useState("");
   const [newLineId, setNewLineId] = useState("");
   const [newMachine, setNewMachine] = useState("");
@@ -275,6 +276,9 @@ export default function WorkOrdersPage() {
     } else if (!newMachine.trim()) {
       toast({ title: "Machine required", description: "Please select a machine before creating the work order.", variant: "destructive" });
       return;
+    } else if (!newLineStopped) {
+      toast({ title: "Line status required", description: "Please select whether the line is stopped or running.", variant: "destructive" });
+      return;
     }
     if (!newDesc.trim()) {
       toast({ title: "Problem description required", description: "Please describe the problem before creating the work order.", variant: "destructive" });
@@ -290,10 +294,10 @@ export default function WorkOrdersPage() {
           notes: newNotes.trim(),
         } as any);
       } else {
-        await createWO.mutateAsync({ requester_name: newRequester.trim(), wo_type: "production", line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim() } as any);
+        await createWO.mutateAsync({ requester_name: newRequester.trim(), wo_type: "production", line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), line_stopped: newLineStopped === "stopped" } as any);
       }
       toast({ title: "Work Order Created" });
-      setShowCreate(false); setNewWoType("production"); setNewWarehouseLocation(""); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
+      setShowCreate(false); setNewWoType("production"); setNewWarehouseLocation(""); setNewLineStopped("running"); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes("");
 
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
@@ -783,6 +787,17 @@ export default function WorkOrdersPage() {
                       </SelectContent>
                     </Select>
                     {!newMachine && <p className="text-xs text-destructive">Machine is required</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Line Status <span className="text-destructive">*</span></Label>
+                    <Select value={newLineStopped} onValueChange={(v: any) => setNewLineStopped(v)}>
+                      <SelectTrigger className={!newLineStopped ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select line status..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="stopped">Stopped</SelectItem>
+                        <SelectItem value="running">Running</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {!newLineStopped && <p className="text-xs text-destructive">Line status is required</p>}
                   </div>
                 </>
               )}
