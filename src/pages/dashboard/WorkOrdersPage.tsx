@@ -18,7 +18,7 @@ import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWork
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
-import { useProfileNames } from "@/hooks/useProfileNames";
+
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, subDays, startOfDay, endOfDay, startOfMonth, differenceInMinutes } from "date-fns";
@@ -101,25 +101,10 @@ export default function WorkOrdersPage() {
   const { data: machines } = useMachines();
   const { data: lines } = useLines();
   const { data: problemDescriptions } = useActiveProblemDescriptions();
-  const { data: profileNames } = useProfileNames();
   const { data: engineerScores } = useEngineerScores();
 
   const woIds = useMemo(() => workOrders?.map((w) => w.id) ?? [], [workOrders]);
   const { data: partsCounts } = usePartsCountByWOs(woIds);
-
-  // Filter out entries whose "name" is actually a line or machine name, then sort alphabetically.
-  const requesterOptions = useMemo(() => {
-    const lineNames = new Set((lines || []).map((l: any) => (l.name || "").toString().toLowerCase()));
-    const machineNames = new Set((machines || []).map((m: any) => (m.name || "").toString().toLowerCase()));
-    return (profileNames || [])
-      .filter((p) => {
-        const n = (p.name || "").trim().toLowerCase();
-        if (!n) return false;
-        return !lineNames.has(n) && !machineNames.has(n);
-      })
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [profileNames, lines, machines]);
 
 
   const [showCreate, setShowCreate] = useState(false);
