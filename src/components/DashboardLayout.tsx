@@ -15,7 +15,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, MessageCircle } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, MessageCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import {
   AlertDialog,
@@ -140,6 +140,45 @@ function LiveClock() {
   );
 }
 
+const SIDEBAR_STORAGE_KEY = "an_sidebar_open";
+
+function readSavedSidebarPreference(): boolean | null {
+  if (typeof document === "undefined") return null;
+  try {
+    const ls = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (ls === "true") return true;
+    if (ls === "false") return false;
+  } catch { /* ignore */ }
+  const m = document.cookie.match(/(?:^|;\s*)sidebar:state=(true|false)/);
+  if (m) return m[1] === "true";
+  return null;
+}
+
+function SidebarFooterToggle() {
+  const { state, toggleSidebar, isMobile } = useSidebar();
+  if (isMobile) return null;
+  const collapsed = state === "collapsed";
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      title={collapsed ? "Expand menu" : "Collapse menu"}
+      aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+      className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 mb-1"
+      onClick={toggleSidebar}
+    >
+      {collapsed ? (
+        <PanelLeftOpen className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
+      ) : (
+        <PanelLeftClose className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
+      )}
+      <span className="group-data-[collapsible=icon]:hidden">
+        {collapsed ? "Expand menu" : "Collapse menu"}
+      </span>
+    </Button>
+  );
+}
+
 function SidebarNav({ filteredItems, permissionOverrideCount }: { filteredItems: NavItem[]; permissionOverrideCount: number }) {
   const location = useLocation();
   const { state } = useSidebar();
@@ -229,21 +268,27 @@ function SidebarNav({ filteredItems, permissionOverrideCount }: { filteredItems:
 const roleTitle: Record<string, string> = {
   admin: "Admin",
   manager: "Manager",
+  supervisor: "Supervisor",
   maintenance_manager: "Maintenance Manager",
+  planner: "Planner",
   engineer: "Engineer",
   co_engineer: "Co-Engineer",
   operator: "Operator",
   viewer: "Viewer",
+  warehouse: "Warehouse",
 };
 
 const roleBadgeClass: Record<string, string> = {
   admin: "bg-red-500/15 text-red-600 border-red-500/30",
   manager: "bg-purple-500/15 text-purple-600 border-purple-500/30",
+  supervisor: "bg-amber-500/15 text-amber-600 border-amber-500/30",
   maintenance_manager: "bg-purple-500/15 text-purple-600 border-purple-500/30",
+  planner: "bg-teal-500/15 text-teal-600 border-teal-500/30",
   engineer: "bg-blue-500/15 text-blue-600 border-blue-500/30",
   co_engineer: "bg-blue-500/15 text-blue-600 border-blue-500/30",
   operator: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
   viewer: "bg-muted text-muted-foreground border-border",
+  warehouse: "bg-slate-500/15 text-slate-600 border-slate-500/30",
 };
 
 const routeTitles: Record<string, string> = {
@@ -348,9 +393,14 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const showStoppedBadge = stoppedLinesCount > 0 && (effectiveRole === "engineer" || effectiveRole === "manager" || effectiveRole === "maintenance_manager" || effectiveRole === "admin");
   const stoppedTarget = effectiveRole === "engineer" ? "/dashboard/engineer" : "/dashboard/work-orders";
 
-  // Sidebar opens by default on desktop (≥1024). Tablet portrait & phones stay
-  // collapsed so content isn't clipped in narrow/landscape-short viewports.
-  const defaultSidebarOpen = typeof window !== "undefined" && window.innerWidth >= 1024;
+  // Sidebar honours the user's saved preference (cookie / localStorage) first,
+  // then falls back to desktop width (≥1024). Tablet & phones stay collapsed
+  // by default so content isn't clipped in narrow viewports.
+  const savedSidebarPref = readSavedSidebarPreference();
+  const defaultSidebarOpen =
+    savedSidebarPref !== null
+      ? savedSidebarPref
+      : typeof window !== "undefined" && window.innerWidth >= 1024;
   const currentPageTitle = routeTitles[location.pathname] ?? "";
 
   return (
@@ -388,6 +438,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   </div>
                 </div>
               </div>
+              <SidebarFooterToggle />
               {filteredItems.some((i) => i.title === "Permissions") && (
                 <Button
                   variant="ghost"
