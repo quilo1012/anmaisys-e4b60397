@@ -487,7 +487,7 @@ const App = () => (
                 <Route
                   path="/dashboard/intouch-settings"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]}>
+                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="intouch.manage">
                       <IntouchSettingsPage />
                     </ProtectedRoute>
                   }
@@ -495,7 +495,7 @@ const App = () => (
                 <Route
                   path="/dashboard/intouch-machines"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]}>
+                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="intouch.manage">
                       <IntouchMachineMapPage />
                     </ProtectedRoute>
                   }
@@ -503,7 +503,7 @@ const App = () => (
                 <Route
                   path="/dashboard/intouch-stop-codes"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]}>
+                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="intouch.manage">
                       <IntouchStopCodesPage />
                     </ProtectedRoute>
                   }
@@ -516,7 +516,7 @@ const App = () => (
                 <Route
                   path="/dashboard/pm-intelligence"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="pm.view">
                       <PMIntelligencePage />
                     </ProtectedRoute>
                   }
