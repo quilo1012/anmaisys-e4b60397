@@ -31,6 +31,8 @@ export interface WorkOrder {
   paused_at: string | null;
   total_paused_minutes: number;
   recurrence_of_wo_id?: string | null;
+  wo_type?: "production" | "warehouse_service";
+  warehouse_location?: string | null;
   locked_engineer_id?: string | null;
   operator?: { name: string };
   engineer?: { name: string };
