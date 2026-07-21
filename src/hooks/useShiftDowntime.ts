@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { DowntimeEvent } from "@/hooks/useDowntimeEvents";
+import { isNoPlannedShift } from "@/lib/downtimeBuckets";
 
 /**
  * Returns Day/Night shift downtime events for a given local (Europe/London) date.
@@ -82,7 +83,9 @@ export function useShiftDowntime(dateISO: string) {
       if (dtRes.error) throw dtRes.error;
       if (manualRes.error) throw manualRes.error;
 
-      const dtData = dtRes.data || [];
+      const dtData = (dtRes.data || []).filter(
+        (event: any) => !isNoPlannedShift(event.stopped_reason, null),
+      );
       const events = (dtData || []).map((event: any) => ({
         ...event,
         machine: event.work_order?.machine ?? null,
@@ -91,7 +94,9 @@ export function useShiftDowntime(dateISO: string) {
       })) as DowntimeEvent[];
       const woIdsWithEvents = new Set(events.map((e) => e.work_order_id));
 
-      const manualEvents = (manualRes.data || []).map((r: any) => ({
+      const manualEvents = (manualRes.data || [])
+        .filter((r: any) => !isNoPlannedShift(r.reason, r.category))
+        .map((r: any) => ({
         id: `manual-${r.id}`,
         work_order_id: r.work_order_id || `manual-${r.id}`,
         stopped_at: r.started_at,

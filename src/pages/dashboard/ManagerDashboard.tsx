@@ -8,6 +8,7 @@ import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { useDowntime } from "@/hooks/useDowntime";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
+import { isNoPlannedShift } from "@/lib/downtimeBuckets";
 import { differenceInMinutes, startOfDay, endOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeFunction } from "@/lib/invokeFunction";
@@ -161,7 +162,9 @@ function ManagerDashboardContent() {
   // downtime rows and Work Order line-stopped windows; parallel stoppages
   // counted once via reconcileMinutes.
   const totalDowntimeMin = useMemo(() => {
-    const recs = downtimeRecords || [];
+    const recs = (downtimeRecords || []).filter(
+      (r: any) => !isNoPlannedShift(r.reason, r.category),
+    );
     const rangeStartMs = startOfDay(kpiRange.from).getTime();
     const rangeEndMs = Math.min(endOfDay(kpiRange.to).getTime(), Date.now());
     const spans: { start: string; end: string | null }[] = recs.map((r) => ({
