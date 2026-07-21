@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import appliedLogoWhite from "@/assets/applied-nutrition-white.png";
+import appliedLogo from "@/assets/appliedlogo.jpeg";
 
 
 interface AuthShellProps {
