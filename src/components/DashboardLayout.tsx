@@ -80,6 +80,7 @@ const navItems: NavItem[] = [
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager"], group: "Production", action: "production.manage" },
   { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Production", action: "rag.view" },
   { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production", action: "production.performance.view" },
+  { title: "SKU Performance", url: "/dashboard/sku-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production", action: "production.sku_performance.view" },
 
   { title: "Quality Actions", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager"], group: "Production", action: "quality.view" },
 
