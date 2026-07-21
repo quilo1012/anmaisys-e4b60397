@@ -276,7 +276,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "cc", label: "Control Center", actions: ["controlcenter.view", "assets.manage"] },
   { key: "dash", label: "Dashboards", actions: ["dashboard.executive", "dashboard.manager", "dashboard.engineer", "dashboard.operator"] },
   { key: "users", label: "Users & Audit", actions: ["users.view", "users.manage", "audit.view"] },
-  { key: "reports", label: "Reports", actions: ["reports.analytics", "reports.financial", "reports.executive"] },
+  { key: "reports", label: "Reports", actions: ["reports.analytics", "reports.financial", "reports.executive", "reliability.view", "suppliers.view"] },
   { key: "system", label: "System", actions: ["system.clear", "system.settings", "permissions.manage"] },
 ];
 
@@ -341,6 +341,8 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "reports.analytics": "Open the Analytics reports.",
   "reports.financial": "See financial reports (labour cost, stock value).",
   "reports.executive": "Access executive-level reports.",
+  "reliability.view": "Access the Reliability dashboard (MTTR/MTBF, risk).",
+  "suppliers.view": "Open the Suppliers directory.",
   "system.clear": "Bulk-clear operational data (dangerous, admin only).",
   "system.settings": "Change system-wide settings.",
   "permissions.manage": "Edit this Permissions Matrix.",
