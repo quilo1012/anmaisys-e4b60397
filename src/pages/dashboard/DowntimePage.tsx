@@ -37,6 +37,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 import { useNavigate } from "react-router-dom";
 import { reconcileMinutes, unionMs, type Interval } from "@/lib/downtimeReconcile";
+import { isNoPlannedShift } from "@/lib/downtimeBuckets";
 import { filterWOsByRange, buildMachineHistory, buildMachineRisks } from "@/lib/downtimeReliability";
 import { mapWoToStop } from "@/lib/ragDowntime";
 import { formatMinutes } from "@/lib/formatDuration";
