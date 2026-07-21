@@ -172,6 +172,7 @@ function MyProductionContent() {
       ) : (
         <>
           <LogProductionCard sessionId={sessionId} />
+          <LogOccurrenceCard line={line} shift={shift} sessionDate={today} />
 
           {items.length === 0 ? (
             <Card>
