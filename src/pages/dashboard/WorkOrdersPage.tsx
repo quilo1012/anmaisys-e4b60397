@@ -497,6 +497,23 @@ export default function WorkOrdersPage() {
                   {machines?.map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <div className="flex flex-col gap-1">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Line Status</Label>
+                <Select
+                  value={lineStoppedFilter}
+                  onValueChange={(v) => setLineStoppedFilter(v as "all" | "stopped" | "running")}
+                  aria-label="Line Status"
+                >
+                  <SelectTrigger className="w-full md:w-[180px] h-9 bg-background">
+                    <SelectValue placeholder="All Lines Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Lines Status</SelectItem>
+                    <SelectItem value="stopped">Stopped ({stoppedCount})</SelectItem>
+                    <SelectItem value="running">Running ({runningCount})</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
           </CardHeader>
