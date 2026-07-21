@@ -604,7 +604,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
       toast.success(`Logged ${quantity} on Blender ${blenderNum} for ${selectedSku.code}`);
       reset();
       qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
-      qc.invalidateQueries({ queryKey: ["blender-entries"] });
+      qc.invalidateQueries({ queryKey: ["blender-entries", sessionId] });
     } catch (e: any) {
       toast.error(e?.message || "Failed to save entry");
     } finally {
