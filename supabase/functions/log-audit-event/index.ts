@@ -12,15 +12,15 @@ import { z } from "https://esm.sh/zod@3.23.8";
 const ALLOWED_ACTIONS = [
   "accept_and_start", "adjust_stock", "arrive", "close", "complete", "create",
   "delete", "finish", "force_close", "line_resumed", "line_stopped", "login",
-  "machine_back_to_work", "move", "pause", "pin_changed", "receive", "resume",
-  "start", "update", "user_created", "user_deleted", "user_role_changed",
-  "wo_recurrence_reopened", "work_orders_cleared",
+  "machine_back_to_work", "move", "pause", "permission.change", "pin_changed",
+  "receive", "resume", "start", "update", "user_created", "user_deleted",
+  "user_role_changed", "wo_recurrence_reopened", "work_orders_cleared",
 ] as const;
 
 // Allow-list of accepted entity types.
 const ALLOWED_ENTITY_TYPES = [
   "engineer", "machine", "problem", "product", "product_category",
-  "system", "user", "work_order",
+  "role_permission", "system", "user", "work_order",
 ] as const;
 
 const BodySchema = z.object({
