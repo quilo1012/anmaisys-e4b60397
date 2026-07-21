@@ -36,10 +36,7 @@ export function AuthShell({
       <div className={`w-full ${maxWidthClass}`}>
         <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
           {/* Brand header */}
-          <div
-            className="flex items-center justify-center px-6 py-10"
-            style={{ backgroundColor: "#1E3A8A" }}
-          >
+          <div className="flex items-center justify-center border-b border-border bg-white px-6 py-10">
             <img
               src={logoSrc}
               alt="Applied Nutrition"
