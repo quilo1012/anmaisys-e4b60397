@@ -304,6 +304,7 @@ const routeTitles: Record<string, string> = {
   "/dashboard/shift-history": "Production Control",
   "/dashboard/rag-weekly": "RAG Weekly",
   "/dashboard/production-performance": "Performance",
+  "/dashboard/sku-performance": "SKU Performance",
   
   "/dashboard/quality": "Quality Actions",
   "/dashboard/sku-products": "SKU Products",
