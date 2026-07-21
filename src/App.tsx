@@ -70,8 +70,6 @@ const PMIntelligencePage = lazyWithReload(() => import("./pages/dashboard/PMInte
 
 
 
-const OperatorPreviewPage = lazyWithReload(() => import("./pages/dashboard/OperatorPreviewPage"));
-const EngineerPreviewPage = lazyWithReload(() => import("./pages/dashboard/EngineerPreviewPage"));
 const MyProductionPage = lazyWithReload(() => import("./pages/dashboard/MyProductionPage"));
 const OperatorPerformancePage = lazyWithReload(() => import("./pages/dashboard/OperatorPerformancePage"));
 const DirectMessagesPage = lazyWithReload(() => import("./pages/dashboard/DirectMessagesPage"));
@@ -475,22 +473,6 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="pm.view">
                       <PMIntelligencePage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard/operator-preview"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
-                      <OperatorPreviewPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard/engineer-preview"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]}>
-                      <EngineerPreviewPage />
                     </ProtectedRoute>
                   }
                 />

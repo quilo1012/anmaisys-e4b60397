@@ -100,8 +100,6 @@ const navItems: NavItem[] = [
   // System
   { title: "Permissions", url: "/dashboard/permissions", icon: ShieldCheck, roles: ["admin"], group: "System", action: "permissions.manage" },
   { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "System", action: "system.settings" },
-  { title: "Operator Preview", url: "/dashboard/operator-preview", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "System" },
-  { title: "Engineer Preview", url: "/dashboard/engineer-preview", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "System" },
 ];
 
 
@@ -317,8 +315,6 @@ const routeTitles: Record<string, string> = {
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",
   "/dashboard/intouch-settings": "iTouching Sync",
-  "/dashboard/operator-preview": "Operator Preview",
-  "/dashboard/engineer-preview": "Engineer Preview",
 };
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
