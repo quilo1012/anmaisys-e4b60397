@@ -67,7 +67,8 @@ export function useShiftDowntime(dateISO: string) {
       const [dtRes, manualRes] = await Promise.all([
         (supabase as any)
           .from("downtime_events")
-          .select("*, work_order:work_orders(machine, line_at_time, line:lines!work_orders_line_id_fkey(name))")
+          .select("*, work_order:work_orders!inner(machine, wo_type, line_at_time, line:lines!work_orders_line_id_fkey(name))")
+          .neq("work_order.wo_type", "warehouse_service")
           .lt("stopped_at", nightEnd.toISOString())
           .or(`resumed_at.gte.${dayStart.toISOString()},resumed_at.is.null`)
           .order("stopped_at", { ascending: true }),
