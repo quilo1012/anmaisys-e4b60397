@@ -268,6 +268,7 @@ export default function WorkOrdersPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
     if (!newRequester.trim()) {
       toast({ title: "Requester required", description: "Please enter who is requesting the work order.", variant: "destructive" });
       return;
