@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { DowntimeEvent } from "@/hooks/useDowntimeEvents";
+import { isNoPlannedShift } from "@/lib/downtimeBuckets";
 
 /**
  * Returns Day/Night shift downtime events for a given local (Europe/London) date.
