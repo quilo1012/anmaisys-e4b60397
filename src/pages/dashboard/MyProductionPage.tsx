@@ -414,6 +414,24 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
           <div className="text-xs text-muted-foreground">Total Target (RAG Weekly)</div>
           <div className="mt-1 text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
           <div className="text-xs text-muted-foreground mt-1">{line} · {shiftLabel}</div>
+          <div className="mt-3 pt-3 border-t space-y-1">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs text-muted-foreground">Produced</span>
+              <span className="text-lg font-semibold tabular-nums">{Number(produced || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs text-muted-foreground">% of Target</span>
+              {totalTarget > 0 ? (
+                (() => {
+                  const pct = (Number(produced || 0) / totalTarget) * 100;
+                  const cls = pct >= 90 ? "text-emerald-600" : pct >= 70 ? "text-amber-600" : "text-red-600";
+                  return <span className={`text-lg font-semibold tabular-nums ${cls}`}>{pct.toFixed(1)}%</span>;
+                })()
+              ) : (
+                <span className="text-lg font-semibold tabular-nums text-muted-foreground">—</span>
+              )}
+            </div>
+          </div>
           {leader && <div className="text-[11px] text-muted-foreground mt-2">Unlocked by {leader.name}</div>}
           <Button
             variant="secondary"
