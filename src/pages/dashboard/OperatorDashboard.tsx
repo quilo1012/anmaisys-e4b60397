@@ -490,13 +490,10 @@ function OperatorDashboardContent() {
                     const guaranteed = [
                       "Printer Fault",
                       "Ink Issue",
-                      "Label Issue",
                       "Print Quality",
                       "Bag Sealer Fault",
-                      "Sealer Fault",
-                      "Sealer Temperature",
                       "Conveyor Fault",
-                      "Date Code Error",
+                      "Sensor Issue",
                     ];
                     const seen = new Set(guaranteed.map((n) => n.toLowerCase()));
                     const extras = (problemDescriptions || []).filter((pd: any) => {
