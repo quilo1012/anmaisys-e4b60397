@@ -14,7 +14,7 @@ import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
-import { Factory, Target, Loader2, Search, Plus, Lock, AlertCircle } from "lucide-react";
+import { Factory, Target, Loader2, Search, Plus, Lock, AlertCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
