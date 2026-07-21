@@ -114,9 +114,8 @@ export default function WarehouseDashboard() {
                     <Input id="requester" value={requester} onChange={(e) => setRequester(e.target.value)} placeholder="Your name" autoComplete="off" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="location">Warehouse location *</Label>
+                    <Label>Warehouse location *</Label>
                     <ComboboxInput
-                      id="location"
                       value={location}
                       onChange={(v) => setLocation(v)}
                       suggestions={WAREHOUSE_LOCATIONS}
