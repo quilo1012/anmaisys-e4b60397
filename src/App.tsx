@@ -48,6 +48,7 @@ const SuppliersPage = lazyWithReload(() => import("./pages/dashboard/SuppliersPa
 
 const SKUProductsPage = lazyWithReload(() => import("./pages/dashboard/SKUProductsPage"));
 const ProductionPerformancePage = lazyWithReload(() => import("./pages/dashboard/ProductionPerformancePage"));
+const SKUPerformancePage = lazyWithReload(() => import("./pages/dashboard/SKUPerformancePage"));
 
 
 
