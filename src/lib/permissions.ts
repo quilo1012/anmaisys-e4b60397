@@ -89,8 +89,8 @@ export type Action =
 const ALL: Role[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
 
 const MATRIX: Record<Action, Role[]> = {
-  "wo.view": ALL,
-  "wo.create": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
+  "wo.view": [...ALL, "warehouse"],
+  "wo.create": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "warehouse"],
   "wo.update": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
   "wo.delete": ["admin"],
   "wo.close": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
