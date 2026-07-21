@@ -1,9 +1,4 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { TeamsSetupCard } from "@/components/TeamsSetupCard";
-import { DailyRagReportCard } from "@/components/DailyRagReportCard";
-import { LoginBrandingCard } from "@/components/LoginBrandingCard";
-
-import { ExcelExportCard } from "@/components/ExcelExportCard";
 import { Settings as SettingsIcon } from "lucide-react";
 
 export default function SettingsPage() {
@@ -15,25 +10,8 @@ export default function SettingsPage() {
             <SettingsIcon className="h-6 w-6" />
             Settings
           </h2>
-          <p className="text-muted-foreground">Integrations and scheduled reports.</p>
+          <p className="text-muted-foreground">No settings available right now.</p>
         </div>
-
-        <section className="space-y-3">
-          <h3 className="text-lg font-semibold">Integrations</h3>
-          <TeamsSetupCard />
-        </section>
-
-        <section className="space-y-3">
-          <h3 className="text-lg font-semibold">Reports</h3>
-          
-          <DailyRagReportCard />
-          <ExcelExportCard />
-        </section>
-
-        <section className="space-y-3">
-          <h3 className="text-lg font-semibold">Branding</h3>
-          <LoginBrandingCard />
-        </section>
       </div>
     </DashboardLayout>
   );
