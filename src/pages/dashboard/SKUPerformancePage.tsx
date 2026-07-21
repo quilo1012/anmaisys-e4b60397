@@ -130,7 +130,7 @@ export default function SKUPerformancePage() {
     const { data, error } = await invokeFunction<AiResult>("analyze-sku-performance", { sku_id, line });
     setAiLoading(false);
     if (error) {
-      toast({ id: "sku-ai-error", title: "AI analysis failed", description: error.message ?? String(error), variant: "destructive" });
+      toast({ title: "AI analysis failed", description: error.message ?? String(error), variant: "destructive" });
       return;
     }
     setAiResult(data);
