@@ -36,11 +36,11 @@ export function AuthShell({
       <div className={`w-full ${maxWidthClass}`}>
         <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
           {/* Brand header */}
-          <div className="flex items-center justify-center border-b border-border bg-white px-6 py-10">
+          <div className="flex items-center justify-center border-b border-border bg-white px-8 py-6">
             <img
               src={logoSrc}
               alt="Applied Nutrition"
-              className="h-16 w-auto object-contain"
+              className="h-12 w-auto object-contain"
             />
           </div>
 
