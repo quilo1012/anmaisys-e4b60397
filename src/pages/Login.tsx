@@ -431,6 +431,16 @@ export default function Login() {
                 </div>
               </div>
 
+              <div className="flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => navigate("/reset-password")}
+                  className="text-[12px] text-white/50 transition-colors hover:text-white/85"
+                >
+                  Forgot password?
+                </button>
+              </div>
+
               {/* Submit */}
               <button
                 type="submit"
