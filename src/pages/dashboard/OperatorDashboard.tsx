@@ -178,7 +178,8 @@ function OperatorDashboardContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description.trim()) {
+    const finalDescription = description === "__custom__" ? customDescription.trim() : description.trim();
+    if (!finalDescription) {
       toast({ title: "Problem required", description: "Please describe the problem.", variant: "destructive" });
       return;
     }
@@ -223,14 +224,14 @@ function OperatorDashboardContent() {
         mobile_asset_id: mobileAssetId || secondaryAssetId || null,
         physical_line_id: isSealerPrinterLine ? physicalLineId : null,
         machine: machineLabel,
-        description: description.trim(),
+        description: finalDescription,
         notes: notes.trim(),
         priority: effectivePriority,
         created_at,
         line_stopped: lineStopped,
       });
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
-      setRequestedBy(""); setMachineName(""); setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId(""); setDescription(""); setNotes("");
+      setRequestedBy(""); setMachineName(""); setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId(""); setDescription(""); setCustomDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
       toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
