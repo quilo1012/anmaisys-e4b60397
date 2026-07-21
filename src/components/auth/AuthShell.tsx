@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import appliedLogo from "@/assets/appliedlogo.jpeg";
+import appliedLogo from "@/assets/applied-nutrition-logo.png.asset.json";
 
 interface AuthShellProps {
   /** Optional override for the header brand image. */
