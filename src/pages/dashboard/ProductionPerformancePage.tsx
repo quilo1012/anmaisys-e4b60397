@@ -356,9 +356,29 @@ export default function ProductionPerformancePage() {
                 onKeyDown={handleKeyDown}
                 className={`overflow-hidden border-l-4 cursor-pointer hover:shadow-md hover:border-primary/50 transition-colors transition-shadow ${ragColor(l.eff)}`}
               >
-                <div className={`${headerBg} ${headerText} px-4 py-2 flex items-center justify-between`}>
-                  <div className="font-semibold">{l.line}</div>
-                  <div className="text-xs">{l.leader ?? "—"}</div>
+                <div className={`${headerBg} ${headerText} px-4 py-2 flex items-center justify-between gap-2`}>
+                  <div className="font-semibold truncate">{l.line}</div>
+                  <div
+                    className="shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <Select
+                      value={l.leader ?? "__none__"}
+                      disabled={savingLeaderFor === l.line}
+                      onValueChange={(v) => setLeaderForLine(l.line, v === "__none__" ? null : v)}
+                    >
+                      <SelectTrigger className="h-7 w-36 text-xs bg-background/60">
+                        <SelectValue placeholder="— None —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— None —</SelectItem>
+                        {leaders.map((ld) => (
+                          <SelectItem key={ld.name} value={ld.name}>{ld.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <CardContent className="p-4 flex items-center gap-4">
                   <CircularProgress value={l.eff} size={88} strokeWidth={8} />
