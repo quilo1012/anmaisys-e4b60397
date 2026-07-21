@@ -760,7 +760,7 @@ export default function WorkOrdersPage() {
               </div>
               {newWoType === "warehouse_service" ? (
                 <div className="space-y-2"><Label>Warehouse Location <span className="text-destructive">*</span></Label>
-                  <Input value={newWarehouseLocation} onChange={(e) => setNewWarehouseLocation(e.target.value)} onBlur={() => markTouched("warehouseLocation")} placeholder="e.g. Warehouse A - Rack 12" className={showErr("warehouseLocation", !newWarehouseLocation) ? "border-destructive focus-visible:ring-destructive" : ""} />
+                  <ComboboxInput value={newWarehouseLocation} onChange={setNewWarehouseLocation} suggestions={WAREHOUSE_LOCATIONS} placeholder="Select or type a warehouse location" className={showErr("warehouseLocation", !newWarehouseLocation) ? "border-destructive focus-visible:ring-destructive" : ""} />
                   {showErr("warehouseLocation", !newWarehouseLocation) && <p className="text-xs text-destructive">Warehouse location is required</p>}
                 </div>
               ) : (
