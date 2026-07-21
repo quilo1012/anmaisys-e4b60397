@@ -309,6 +309,7 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "production.target.view": "See production targets per line/shift.",
   "production.target.manage": "Create and edit production targets.",
   "production.performance.view": "Access the Production Performance dashboard.",
+  "production.sku_performance.view": "Access the SKU Performance dashboard with AI insights.",
   "planner.view": "Open the Planner and see the plan.",
   "planner.manage": "Edit the plan and schedule SKUs.",
   "sku.view": "Browse SKU catalogue and line speeds.",
