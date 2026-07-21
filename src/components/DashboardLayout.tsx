@@ -288,7 +288,7 @@ const roleBadgeClass: Record<string, string> = {
   co_engineer: "bg-blue-500/15 text-blue-600 border-blue-500/30",
   operator: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
   viewer: "bg-muted text-muted-foreground border-border",
-  warehouse: "bg-slate-500/15 text-slate-600 border-slate-500/30",
+  warehouse: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
 };
 
 const routeTitles: Record<string, string> = {
