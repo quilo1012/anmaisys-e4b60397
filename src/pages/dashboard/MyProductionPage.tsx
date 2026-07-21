@@ -476,3 +476,255 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
   );
 }
 
+function LogProductionCard({ sessionId }: { sessionId: string }) {
+  const qc = useQueryClient();
+  const [skuQuery, setSkuQuery] = useState("");
+  const [skuDebounced, setSkuDebounced] = useState("");
+  const [selectedSku, setSelectedSku] = useState<{ id: string; code: string; name: string } | null>(null);
+  const [skuPopoverOpen, setSkuPopoverOpen] = useState(false);
+  const [batch, setBatch] = useState("");
+  const [blender, setBlender] = useState<number | null>(null);
+  const [qty, setQty] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSkuDebounced(skuQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [skuQuery]);
+
+  const searchQ = useQuery({
+    enabled: skuPopoverOpen && skuDebounced.length >= 1,
+    queryKey: ["log-prod-sku-search", skuDebounced],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const q = skuDebounced;
+      const { data, error } = await (supabase as any)
+        .from("sku_products")
+        .select("id, code, name")
+        .or(`code.ilike.%${q}%,name.ilike.%${q}%`)
+        .order("code", { ascending: true })
+        .limit(20);
+      if (error) throw error;
+      return (data || []) as { id: string; code: string; name: string }[];
+    },
+  });
+
+  const results = searchQ.data || [];
+
+  const pickSku = (s: { id: string; code: string; name: string }) => {
+    setSelectedSku(s);
+    setSkuQuery(`${s.code} — ${s.name}`);
+    setSkuPopoverOpen(false);
+  };
+
+  const reset = () => {
+    setSelectedSku(null);
+    setSkuQuery("");
+    setSkuDebounced("");
+    setBatch("");
+    setBlender(null);
+    setQty("");
+  };
+
+  const onSave = async () => {
+    const quantity = Number(qty);
+    if (!selectedSku) { toast.error("Select the SKU"); return; }
+    if (!blender) { toast.error("Select a blender (1–6)"); return; }
+    if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
+
+    setSaving(true);
+    try {
+      // 1) Find or create production_items row for this session + SKU
+      const { data: existingItem, error: findErr } = await (supabase as any)
+        .from("production_items")
+        .select("id, blender_ref")
+        .eq("session_id", sessionId)
+        .eq("sku_id", selectedSku.id)
+        .maybeSingle();
+      if (findErr) throw findErr;
+
+      let itemId: string | null = existingItem?.id ?? null;
+      if (!itemId) {
+        const { data: created, error: insErr } = await (supabase as any)
+          .from("production_items")
+          .insert({
+            session_id: sessionId,
+            sku_id: selectedSku.id,
+            target_qty: 0,
+            planned_qty: 0,
+            actual_qty: 0,
+            notes: "manual_sku",
+            blender_ref: batch || null,
+          })
+          .select("id")
+          .maybeSingle();
+        if (insErr) throw insErr;
+        itemId = created?.id ?? null;
+      } else if (batch) {
+        // Update batch reference if changed / newly provided
+        await (supabase as any)
+          .from("production_items")
+          .update({ blender_ref: batch })
+          .eq("id", itemId);
+      }
+      if (!itemId) throw new Error("Could not resolve production item");
+
+      // 2) Insert blender entry (upsert on unique (item, blender) to accumulate)
+      const { data: existingEntry } = await (supabase as any)
+        .from("production_blender_entries")
+        .select("id, quantity")
+        .eq("production_item_id", itemId)
+        .eq("blender_number", blender)
+        .maybeSingle();
+
+      const { data: userRes } = await (supabase as any).auth.getUser();
+      const uid = userRes?.user?.id ?? null;
+
+      if (existingEntry?.id) {
+        const { error: upErr } = await (supabase as any)
+          .from("production_blender_entries")
+          .update({ quantity: Number(existingEntry.quantity || 0) + quantity, entered_by: uid })
+          .eq("id", existingEntry.id);
+        if (upErr) throw upErr;
+      } else {
+        const { error: insEntryErr } = await (supabase as any)
+          .from("production_blender_entries")
+          .insert({
+            session_id: sessionId,
+            production_item_id: itemId,
+            blender_number: blender,
+            quantity,
+            entered_by: uid,
+          });
+        if (insEntryErr) throw insEntryErr;
+      }
+
+      // 3) actual_qty is auto-synced by DB trigger from blender entries.
+      toast.success(`Logged ${quantity} on Blender ${blender} for ${selectedSku.code}`);
+      reset();
+      qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
+      qc.invalidateQueries({ queryKey: ["blender-entries"] });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save entry");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-4 md:p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-base font-semibold">Log Production</div>
+            <div className="text-xs text-muted-foreground">Record a produced batch to the current shift.</div>
+          </div>
+        </div>
+
+        {/* SKU */}
+        <div className="space-y-1.5">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">SKU produced</div>
+          <Popover open={skuPopoverOpen && (results.length > 0 || searchQ.isFetching)} onOpenChange={setSkuPopoverOpen}>
+            <PopoverTrigger asChild>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={skuQuery}
+                  onChange={(e) => { setSkuQuery(e.target.value); setSelectedSku(null); setSkuPopoverOpen(true); }}
+                  onFocus={() => { if (skuQuery.trim()) setSkuPopoverOpen(true); }}
+                  placeholder="Search SKU by code or name..."
+                  className="h-11 pl-9"
+                  autoComplete="off"
+                />
+              </div>
+            </PopoverTrigger>
+            <PopoverContent
+              className="p-0 w-[--radix-popover-trigger-width] max-h-72 overflow-auto"
+              align="start"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              {searchQ.isFetching ? (
+                <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Searching...
+                </div>
+              ) : results.length === 0 ? (
+                <div className="p-3 text-sm text-muted-foreground">No SKUs found</div>
+              ) : (
+                <ul className="divide-y">
+                  {results.map((s) => (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        className="w-full text-left p-2 hover:bg-accent"
+                        onClick={() => pickSku(s)}
+                      >
+                        <div className="font-mono text-sm font-semibold truncate">{s.code}</div>
+                        <div className="text-xs text-muted-foreground truncate">{s.name}</div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Batch */}
+        <div className="space-y-1.5">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Batch <span className="text-muted-foreground/70 normal-case">(optional)</span></div>
+          <Input
+            value={batch}
+            onChange={(e) => setBatch(e.target.value)}
+            placeholder="e.g. B3"
+            className="h-11"
+            autoComplete="off"
+          />
+        </div>
+
+        {/* Blender */}
+        <div className="space-y-1.5">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Blender</div>
+          <div className="grid grid-cols-6 gap-2">
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <Button
+                key={n}
+                type="button"
+                variant={blender === n ? "default" : "outline"}
+                className="h-14 text-lg font-bold"
+                onClick={() => setBlender(n)}
+              >
+                {n}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Quantity */}
+        <div className="space-y-1.5">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Quantity produced</div>
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+            placeholder="0"
+            className="h-12 text-lg font-semibold"
+            autoComplete="off"
+          />
+        </div>
+
+        <Button
+          type="button"
+          className="h-14 w-full text-base font-semibold"
+          onClick={onSave}
+          disabled={saving}
+        >
+          {saving ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Saving...</> : <><Plus className="h-5 w-5 mr-2" /> Save entry</>}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+
