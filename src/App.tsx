@@ -27,7 +27,7 @@ function PermissionOverridesSync() {
 const OperatorDashboard = lazyWithReload(() => import("./pages/dashboard/OperatorDashboard"));
 const EngineerDashboard = lazyWithReload(() => import("./pages/dashboard/EngineerDashboard"));
 const ManagerDashboard = lazyWithReload(() => import("./pages/dashboard/ManagerDashboard"));
-const FinancialDashboard = lazyWithReload(() => import("./pages/dashboard/FinancialDashboard"));
+
 const MachineHistoryPage = lazyWithReload(() => import("./pages/dashboard/MachineHistoryPage"));
 const ControlCenterPage = lazyWithReload(() => import("./pages/dashboard/ControlCenterPage"));
 const AnalyticsPage = lazyWithReload(() => import("./pages/dashboard/AnalyticsPage"));
