@@ -788,6 +788,17 @@ export default function WorkOrdersPage() {
                     </Select>
                     {!newMachine && <p className="text-xs text-destructive">Machine is required</p>}
                   </div>
+                  <div className="space-y-2">
+                    <Label>Line Status <span className="text-destructive">*</span></Label>
+                    <Select value={newLineStopped} onValueChange={(v: any) => setNewLineStopped(v)}>
+                      <SelectTrigger className={!newLineStopped ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select line status..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="stopped">Stopped</SelectItem>
+                        <SelectItem value="running">Running</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {!newLineStopped && <p className="text-xs text-destructive">Line status is required</p>}
+                  </div>
                 </>
               )}
               <div className="space-y-2"><Label>Problem Description <span className="text-destructive">*</span></Label>
