@@ -29,20 +29,21 @@ export function AuthShell({
   children,
   maxWidthClass = "max-w-[460px]",
 }: AuthShellProps) {
-  const logoSrc = brandIconUrl ?? appliedLogo.url;
-
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-[#F3F4F6] px-4 py-8 sm:px-6">
       <div className={`w-full ${maxWidthClass} motion-safe:animate-scale-in`}>
         <div className="overflow-hidden rounded-2xl bg-white shadow-[0_10px_40px_-15px_rgba(15,23,42,0.15)] ring-1 ring-slate-200">
           {/* Navy brand header */}
           <div className="flex items-center justify-center bg-[#1E3A8A] px-8 py-10">
-            <img
-              src={logoSrc}
-              alt="Applied Nutrition"
-              className="h-10 w-auto object-contain brightness-0 invert"
-            />
+            <div className="rounded-xl bg-white px-5 py-3 shadow-sm">
+              <img
+                src={brandIconUrl ?? appliedLogo}
+                alt="Applied Nutrition"
+                className="h-10 w-auto object-contain"
+              />
+            </div>
           </div>
+
 
           {/* Body */}
           <div className="px-8 py-8 sm:py-10">
