@@ -59,7 +59,7 @@ export default function MyProductionPage() {
 }
 
 function MyProductionContent() {
-  const { selectedLineName: line } = useDeviceLineCtx();
+  const { selectedLineName: line, selectedLineId: lineId } = useDeviceLineCtx();
   const { profile, role } = useAuth() as any;
   const navigate = useNavigate();
   const [targetUnlocked, setTargetUnlocked] = useState(false);
