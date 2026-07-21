@@ -37,7 +37,7 @@ const ProblemsPage = lazyWithReload(() => import("./pages/dashboard/ProblemsPage
 const WorkOrderDetail = lazyWithReload(() => import("./pages/dashboard/WorkOrderDetail"));
 const StockPage = lazyWithReload(() => import("./pages/dashboard/StockPage"));
 const AuditLogsPage = lazyWithReload(() => import("./pages/dashboard/AuditLogsPage"));
-const ExecutiveDashboard = lazyWithReload(() => import("./pages/dashboard/ExecutiveDashboard"));
+
 const ReliabilityDashboard = lazyWithReload(() => import("./pages/dashboard/ReliabilityDashboard"));
 const ManageUsers = lazyWithReload(() => import("./pages/users/ManageUsers"));
 const DowntimePage = lazyWithReload(() => import("./pages/dashboard/DowntimePage"));
@@ -45,11 +45,12 @@ const DowntimePage = lazyWithReload(() => import("./pages/dashboard/DowntimePage
 const PreventiveMaintenancePage = lazyWithReload(() => import("./pages/dashboard/PreventiveMaintenancePage"));
 const SettingsPage = lazyWithReload(() => import("./pages/dashboard/SettingsPage"));
 const SuppliersPage = lazyWithReload(() => import("./pages/dashboard/SuppliersPage"));
-const ProductionPlannerPage = lazyWithReload(() => import("./pages/dashboard/ProductionPlannerPage"));
+
 const SKUProductsPage = lazyWithReload(() => import("./pages/dashboard/SKUProductsPage"));
 const ProductionPerformancePage = lazyWithReload(() => import("./pages/dashboard/ProductionPerformancePage"));
-const SKUEfficiencyPage = lazyWithReload(() => import("./pages/dashboard/SKUEfficiencyPage"));
-const ProductionForecastPage = lazyWithReload(() => import("./pages/dashboard/ProductionForecastPage"));
+
+
+
 const WarehouseDashboard = lazyWithReload(() => import("./pages/dashboard/WarehouseDashboard"));
 
 const QualityActionsPage = lazyWithReload(() => import("./pages/dashboard/QualityActionsPage"));
@@ -65,8 +66,9 @@ const IntouchMachineMapPage = lazyWithReload(() => import("./pages/dashboard/Int
 const IntouchStopCodesPage = lazyWithReload(() => import("./pages/dashboard/IntouchStopCodesPage"));
 // DowntimeHeatmapPage consolidated into DowntimePage as the "Heatmap" tab.
 const PMIntelligencePage = lazyWithReload(() => import("./pages/dashboard/PMIntelligencePage"));
-const SmartTargetPage = lazyWithReload(() => import("./pages/dashboard/SmartTargetPage"));
-const WeeklyProductionReportPage = lazyWithReload(() => import("./pages/dashboard/WeeklyProductionReportPage"));
+
+
+
 const OperatorPreviewPage = lazyWithReload(() => import("./pages/dashboard/OperatorPreviewPage"));
 const EngineerPreviewPage = lazyWithReload(() => import("./pages/dashboard/EngineerPreviewPage"));
 const MyProductionPage = lazyWithReload(() => import("./pages/dashboard/MyProductionPage"));
@@ -241,14 +243,6 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/dashboard/financial"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="reports.financial">
-                      <FinancialDashboard />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
                   path="/dashboard/work-orders"
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="wo.view">
@@ -293,14 +287,6 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin"]} requiredAction="audit.view">
                       <AuditLogsPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard/executive"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="reports.executive">
-                      <ExecutiveDashboard />
                     </ProtectedRoute>
                   }
                 />
@@ -387,14 +373,6 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/dashboard/planner"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "planner"]} requiredAction="planner.manage">
-                      <ProductionPlannerPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
                   path="/dashboard/sku-products"
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="sku.manage">
@@ -410,39 +388,7 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/dashboard/smart-target"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="smarttarget.view">
-                      <SmartTargetPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard/weekly-report"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="rag.view">
-                      <WeeklyProductionReportPage />
-                    </ProtectedRoute>
-                  }
-                />
 
-                <Route
-                  path="/dashboard/sku-efficiency"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="sku.view">
-                      <SKUEfficiencyPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard/forecast"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="production.performance.view">
-                      <ProductionForecastPage />
-                    </ProtectedRoute>
-                  }
-                />
                 <Route
                   path="/dashboard/quality"
                   element={
