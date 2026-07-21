@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, a
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 type Period = "day" | "week" | "month" | "quarter" | "year" | "custom";
 
@@ -25,12 +26,34 @@ interface SessionAgg {
 
 export default function ProductionPerformancePage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [period, setPeriod] = useState<Period>("day");
   const [shift, setShift] = useState<"all" | "DAY" | "NIGHT">("all");
   const [lineFilter, setLineFilter] = useState<string>("__all__");
   const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
+  const [savingLeaderFor, setSavingLeaderFor] = useState<string | null>(null);
+
+  const setLeaderForLine = async (lineName: string, leaderName: string | null) => {
+    setSavingLeaderFor(lineName);
+    try {
+      let q = supabase.from("production_sessions")
+        .update({ leader_name: leaderName })
+        .eq("line", lineName)
+        .gte("session_date", range.from)
+        .lte("session_date", range.to);
+      if (shift !== "all") q = q.eq("shift", shift);
+      const { error } = await q;
+      if (error) throw error;
+      toast.success(leaderName ? `Leader set to ${leaderName} for ${lineName}` : `Leader cleared for ${lineName}`);
+      qc.invalidateQueries({ queryKey: ["oee"] });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update leader");
+    } finally {
+      setSavingLeaderFor(null);
+    }
+  };
 
   const range = useMemo(() => {
     const d = parseISO(date);
@@ -333,9 +356,29 @@ export default function ProductionPerformancePage() {
                 onKeyDown={handleKeyDown}
                 className={`overflow-hidden border-l-4 cursor-pointer hover:shadow-md hover:border-primary/50 transition-colors transition-shadow ${ragColor(l.eff)}`}
               >
-                <div className={`${headerBg} ${headerText} px-4 py-2 flex items-center justify-between`}>
-                  <div className="font-semibold">{l.line}</div>
-                  <div className="text-xs">{l.leader ?? "—"}</div>
+                <div className={`${headerBg} ${headerText} px-4 py-2 flex items-center justify-between gap-2`}>
+                  <div className="font-semibold truncate">{l.line}</div>
+                  <div
+                    className="shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <Select
+                      value={l.leader ?? "__none__"}
+                      disabled={savingLeaderFor === l.line}
+                      onValueChange={(v) => setLeaderForLine(l.line, v === "__none__" ? null : v)}
+                    >
+                      <SelectTrigger className="h-7 w-36 text-xs bg-background/60">
+                        <SelectValue placeholder="— None —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— None —</SelectItem>
+                        {leaders.map((ld) => (
+                          <SelectItem key={ld.name} value={ld.name}>{ld.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <CardContent className="p-4 flex items-center gap-4">
                   <CircularProgress value={l.eff} size={88} strokeWidth={8} />

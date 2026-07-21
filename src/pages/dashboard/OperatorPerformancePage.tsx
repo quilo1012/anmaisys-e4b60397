@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { OperatorLineGuard } from "@/components/OperatorLineGuard";
@@ -15,8 +15,11 @@ import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
+import { PinDialog } from "@/components/PinDialog";
 
 type Shift = "DAY" | "NIGHT";
+
+const normalize = (s: string | null | undefined) => (s || "").trim().toLowerCase();
 
 function ragColor(pct: number): string {
   if (pct >= 90) return "bg-green-600";
@@ -62,6 +65,9 @@ function OperatorPerformanceContent() {
   const { selectedLineName: line } = useDeviceLineCtx();
   const { profile } = useAuth() as any;
   const [leaderAssigned, setLeaderAssigned] = useState<boolean | null>(null);
+  const [unlocked, setUnlocked] = useState(false);
+  const [unlockedBy, setUnlockedBy] = useState<string | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
   const navigate = useNavigate();
 
   const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
@@ -194,20 +200,37 @@ function OperatorPerformanceContent() {
                 <div className="text-muted-foreground">/</div>
                 <div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Target (RAG)</div>
-                  <div className="text-2xl font-bold tabular-nums flex items-center gap-1">
-                    {leaderAssigned === false ? (
-                      <div className="flex items-center gap-2 text-sm font-medium text-amber-500">
-                        <AlertCircle className="h-4 w-4" />
-                        <span>No leader assigned — ask the Planner to assign a leader for this shift.</span>
-                      </div>
-                    ) : (
-                      totalTarget.toLocaleString()
-                    )}
-                  </div>
+                  {unlocked ? (
+                    <div className="text-2xl font-bold tabular-nums flex items-center gap-2">
+                      {totalTarget.toLocaleString()}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-muted-foreground"
+                        onClick={() => { setUnlocked(false); setUnlockedBy(null); toast.success("Target locked"); }}
+                      >
+                        <Lock className="h-3 w-3 mr-1" />
+                        Lock
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button variant="outline" size="sm" className="mt-1" onClick={() => setPinOpen(true)}>
+                      <Lock className="h-4 w-4 mr-2" />
+                      Enter PIN to view target
+                    </Button>
+                  )}
+                  {leaderAssigned === false && (
+                    <div className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-500">
+                      <AlertCircle className="h-3 w-3" />
+                      <span>No leader assigned — ask the Planner to assign a leader.</span>
+                    </div>
+                  )}
                 </div>
-                <Badge className={cn("text-white text-base px-3 py-1", hasManualProduction ? ragColor(overallPct) : "bg-muted text-muted-foreground")}>
-                  {hasManualProduction ? `${overallPct.toFixed(0)}%` : "—"}
-                </Badge>
+                {unlocked && (
+                  <Badge className={cn("text-white text-base px-3 py-1", hasManualProduction ? ragColor(overallPct) : "bg-muted text-muted-foreground")}>
+                    {hasManualProduction ? `${overallPct.toFixed(0)}%` : "—"}
+                  </Badge>
+                )}
               </div>
               <Button size="lg" className="h-11" onClick={submitShift}>
                 <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -215,21 +238,52 @@ function OperatorPerformanceContent() {
               </Button>
             </div>
 
-            <div className="h-2 w-full bg-muted rounded-lg overflow-hidden">
-              <div
-                className={cn("h-full transition-all", ragColor(overallPct))}
-                style={{ width: `${Math.min(100, overallPct)}%` }}
-              />
-            </div>
+            {unlocked && (
+              <>
+                <div className="h-2 w-full bg-muted rounded-lg overflow-hidden">
+                  <div
+                    className={cn("h-full transition-all", ragColor(overallPct))}
+                    style={{ width: `${Math.min(100, overallPct)}%` }}
+                  />
+                </div>
 
-            {hasManualProduction && (
-              <div className={cn("text-xs font-medium", ragText(overallPct))}>
-                {overallPct >= 90 ? "On track" : overallPct >= 70 ? "Slightly behind order qty" : "Below order qty"}
-              </div>
+                {hasManualProduction && (
+                  <div className={cn("text-xs font-medium", ragText(overallPct))}>
+                    {overallPct >= 90 ? "On track" : overallPct >= 70 ? "Slightly behind order qty" : "Below order qty"}
+                  </div>
+                )}
+                {unlockedBy && (
+                  <div className="text-[11px] text-muted-foreground">Unlocked by {unlockedBy}</div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
       )}
+
+      <PinDialog
+        open={pinOpen}
+        onOpenChange={setPinOpen}
+        title="Leader PIN"
+        description={`Enter your PIN to unlock the target for ${line}.`}
+        onSuccess={async (eng) => {
+          if (eng.is_leader === false) {
+            toast.error("Only Line Leader PINs can unlock the target.");
+            return;
+          }
+          const assigned = (sessionQ.data?.leader_name as string | null | undefined) ?? null;
+          if (!assigned?.trim()) {
+            toast.error(`No leader is assigned to ${line} · ${shiftLabel} yet. Ask the planner to assign one.`);
+            return;
+          }
+          if (normalize(assigned) !== normalize(eng.name)) {
+            toast.error(`${eng.name} is not the leader for ${line} today (${assigned} is).`);
+            return;
+          }
+          setUnlocked(true);
+          setUnlockedBy(eng.name);
+        }}
+      />
     </div>
   );
 }
