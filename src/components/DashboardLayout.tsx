@@ -401,7 +401,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     savedSidebarPref !== null
       ? savedSidebarPref
       : typeof window !== "undefined" && window.innerWidth >= 1024;
-  const persistSidebarOpen = (open: boolean) => {
+  const persistSidebarOpen = undefined; // cookie is persisted by SidebarProvider itself
+  const currentPageTitle = routeTitles[location.pathname] ?? "";
+
+  return (
+    <TooltipProvider delayDuration={0}>
+      <SidebarProvider defaultOpen={defaultSidebarOpen} style={{ "--sidebar-width": "13rem", "--sidebar-width-icon": "3rem" } as React.CSSProperties}>
     try { window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open)); } catch { /* ignore */ }
   };
   const currentPageTitle = routeTitles[location.pathname] ?? "";
