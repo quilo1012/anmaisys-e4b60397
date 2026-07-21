@@ -12,6 +12,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Skeleton } from "@/components/ui/skeleton";
 import Login from "./pages/Login";
 import OAuthConsent from "./pages/OAuthConsent";
+import ResetPassword from "./pages/ResetPassword";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, WifiOff } from "lucide-react";
@@ -174,6 +175,7 @@ const App = () => (
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
                 <Route
                   path="/dashboard/operator"
