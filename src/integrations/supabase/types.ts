@@ -806,6 +806,7 @@ export type Database = {
           display_order: number
           has_sides: boolean
           id: string
+          is_warehouse: boolean
           name: string
           updated_at: string | null
         }
@@ -815,6 +816,7 @@ export type Database = {
           display_order?: number
           has_sides?: boolean
           id?: string
+          is_warehouse?: boolean
           name: string
           updated_at?: string | null
         }
@@ -824,6 +826,7 @@ export type Database = {
           display_order?: number
           has_sides?: boolean
           id?: string
+          is_warehouse?: boolean
           name?: string
           updated_at?: string | null
         }

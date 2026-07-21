@@ -34,6 +34,29 @@ export default function ProductionPerformancePage() {
   const [lineFilter, setLineFilter] = useState<string>("__all__");
   const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
   const [savingLeaderFor, setSavingLeaderFor] = useState<string | null>(null);
+  const [addingLeaderFor, setAddingLeaderFor] = useState<string | null>(null);
+  const [newLeaderName, setNewLeaderName] = useState("");
+
+  const addNewLeader = async (lineName: string, hasSession: boolean) => {
+    const name = newLeaderName.trim();
+    if (!name) {
+      toast.error("Leader name required");
+      return;
+    }
+    setSavingLeaderFor(lineName);
+    try {
+      const { error } = await supabase.from("line_leaders").insert({ name, shift: "BOTH", active: true });
+      if (error && !/duplicate|unique/i.test(error.message)) throw error;
+      await qc.invalidateQueries({ queryKey: ["line_leaders_active"] });
+      setAddingLeaderFor(null);
+      setNewLeaderName("");
+      await setLeaderForLine(lineName, name, hasSession);
+      toast.success(`Leader "${name}" added`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to add leader");
+      setSavingLeaderFor(null);
+    }
+  };
 
   const setLeaderForLine = async (lineName: string, leaderName: string | null, hasSession: boolean) => {
     setSavingLeaderFor(lineName);
@@ -410,7 +433,14 @@ export default function ProductionPerformancePage() {
                     <Select
                       value={l.leader ?? "__none__"}
                       disabled={savingLeaderFor === l.line}
-                      onValueChange={(v) => setLeaderForLine(l.line, v === "__none__" ? null : v, l.hasSession)}
+                      onValueChange={(v) => {
+                        if (v === "__new__") {
+                          setAddingLeaderFor(l.line);
+                          setNewLeaderName("");
+                        } else {
+                          setLeaderForLine(l.line, v === "__none__" ? null : v, l.hasSession);
+                        }
+                      }}
                     >
                       <SelectTrigger className="h-7 w-36 text-xs bg-background/60">
                         <SelectValue placeholder="— None —" />
@@ -420,8 +450,41 @@ export default function ProductionPerformancePage() {
                         {leaders.map((ld) => (
                           <SelectItem key={ld.name} value={ld.name}>{ld.name}</SelectItem>
                         ))}
+                        <SelectItem value="__new__">+ Add new leader…</SelectItem>
                       </SelectContent>
                     </Select>
+                    {addingLeaderFor === l.line && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <Input
+                          autoFocus
+                          value={newLeaderName}
+                          onChange={(e) => setNewLeaderName(e.target.value)}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === "Enter") addNewLeader(l.line, l.hasSession);
+                            if (e.key === "Escape") { setAddingLeaderFor(null); setNewLeaderName(""); }
+                          }}
+                          placeholder="Leader name"
+                          className="h-7 w-36 text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={savingLeaderFor === l.line || !newLeaderName.trim()}
+                          onClick={() => addNewLeader(l.line, l.hasSession)}
+                        >
+                          Add
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => { setAddingLeaderFor(null); setNewLeaderName(""); }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <CardContent className="p-4 flex items-center gap-4">
