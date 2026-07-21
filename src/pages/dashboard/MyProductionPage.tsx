@@ -945,17 +945,29 @@ function LogOccurrenceCard({ line, shift, sessionDate }: { line: string; shift: 
           <div className="space-y-3">
             <div className="space-y-1.5">
               <div className="text-xs uppercase tracking-wider text-muted-foreground">Category</div>
+              <Input
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="Type a category... (e.g. Quality issue)"
+                className="h-11"
+                autoComplete="off"
+                list="occurrence-category-suggestions"
+              />
+              <datalist id="occurrence-category-suggestions">
+                {OCCURRENCE_CATEGORIES.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
               <div className="flex flex-wrap gap-2">
                 {OCCURRENCE_CATEGORIES.map((c) => (
-                  <Button
+                  <button
                     key={c}
                     type="button"
-                    size="sm"
-                    variant={category === c ? "default" : "outline"}
                     onClick={() => setCategory(c)}
+                    className="text-xs px-2 py-1 rounded-full border border-border bg-background hover:bg-accent transition-colors"
                   >
                     {c}
-                  </Button>
+                  </button>
                 ))}
               </div>
             </div>
