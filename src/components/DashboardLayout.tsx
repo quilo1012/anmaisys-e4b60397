@@ -275,7 +275,7 @@ const roleTitle: Record<string, string> = {
   co_engineer: "Co-Engineer",
   operator: "Operator",
   viewer: "Viewer",
-  warehouse: "Warehouse",
+  warehouse: "Warehouse Admin",
 };
 
 const roleBadgeClass: Record<string, string> = {
