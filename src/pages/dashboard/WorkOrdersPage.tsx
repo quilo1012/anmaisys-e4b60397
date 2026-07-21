@@ -769,8 +769,8 @@ export default function WorkOrdersPage() {
                     </Select>
                   </div>
                   <div className="space-y-2"><Label>Machine <span className="text-destructive">*</span></Label>
-                    <Select value={newMachine} onValueChange={setNewMachine} disabled={!newLineId}>
-                      <SelectTrigger className={!newMachine ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder={newLineId ? "Select machine..." : "Select line first..."} /></SelectTrigger>
+                    <Select value={newMachine} onValueChange={(v) => { setNewMachine(v); markTouched("machine"); }} disabled={!newLineId}>
+                      <SelectTrigger className={showErr("machine", !newMachine) ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder={newLineId ? "Select machine..." : "Select line first..."} /></SelectTrigger>
                       <SelectContent>
                         {(() => {
                           const selectedLineName = lines?.find((l: any) => l.id === newLineId)?.name;
@@ -791,27 +791,27 @@ export default function WorkOrdersPage() {
                         })()}
                       </SelectContent>
                     </Select>
-                    {!newMachine && <p className="text-xs text-destructive">Machine is required</p>}
+                    {showErr("machine", !newMachine) && <p className="text-xs text-destructive">Machine is required</p>}
                   </div>
                   <div className="space-y-2">
                     <Label>Line Status <span className="text-destructive">*</span></Label>
-                    <Select value={newLineStopped} onValueChange={(v: any) => setNewLineStopped(v)}>
-                      <SelectTrigger className={!newLineStopped ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select line status..." /></SelectTrigger>
+                    <Select value={newLineStopped} onValueChange={(v: any) => { setNewLineStopped(v); markTouched("lineStopped"); }}>
+                      <SelectTrigger className={showErr("lineStopped", !newLineStopped) ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select line status..." /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="stopped">Stopped</SelectItem>
                         <SelectItem value="running">Running</SelectItem>
                       </SelectContent>
                     </Select>
-                    {!newLineStopped && <p className="text-xs text-destructive">Line status is required</p>}
+                    {showErr("lineStopped", !newLineStopped) && <p className="text-xs text-destructive">Line status is required</p>}
                   </div>
                 </>
               )}
               <div className="space-y-2"><Label>Problem Description <span className="text-destructive">*</span></Label>
-                <Select value={newDesc} onValueChange={setNewDesc}>
-                  <SelectTrigger className={!newDesc ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select problem..." /></SelectTrigger>
+                <Select value={newDesc} onValueChange={(v) => { setNewDesc(v); markTouched("desc"); }}>
+                  <SelectTrigger className={showErr("desc", !newDesc) ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select problem..." /></SelectTrigger>
                   <SelectContent>{problemDescriptions?.map((pd) => <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>)}</SelectContent>
                 </Select>
-                {!newDesc && <p className="text-xs text-destructive">Problem description is required</p>}
+                {showErr("desc", !newDesc) && <p className="text-xs text-destructive">Problem description is required</p>}
               </div>
               <div className="space-y-2"><Label>Observations (optional)</Label>
                 <Textarea value={newNotes} onChange={(e) => setNewNotes(e.target.value)} placeholder="Additional notes..." rows={3} />
