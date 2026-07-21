@@ -118,8 +118,8 @@ const MATRIX: Record<Action, Role[]> = {
   "audit.view": ["admin", "manager", "supervisor"],
 
   "reports.analytics": ["admin", "manager", "supervisor"],
-  "reports.financial": ["admin"],
-  "reports.executive": ["admin"],
+  "reports.financial": [],
+  "reports.executive": [],
 
   "system.clear": ["admin"],
   "system.settings": ["admin"],
@@ -131,15 +131,15 @@ const MATRIX: Record<Action, Role[]> = {
   "production.performance.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
 
   "planner.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "planner.manage": ["admin", "manager", "planner"],
-  "sku.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
+  "planner.manage": [],
+  "sku.view": [],
   "sku.manage": ["admin", "manager", "planner"],
 
   "rag.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "rag.manage": ["admin", "manager", "planner"],
   "rag.comment": ["admin", "manager", "supervisor", "planner"],
 
-  "smarttarget.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
+  "smarttarget.view": [],
 
   "quality.view": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
   "quality.manage": ["admin", "manager", "supervisor"],
