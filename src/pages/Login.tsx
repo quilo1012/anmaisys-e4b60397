@@ -476,15 +476,7 @@ export default function Login() {
                 <span>Encrypted connection · Audited access</span>
               </div>
             </form>
-            </div>
-          </div>
-
-
-          <p className="mt-6 text-center text-[11px] text-white/35">
-            © {year} Applied Nutrition Ltd. · Maintenance Platform v1.0
-          </p>
-        </div>
-      </main>
-    </div>
+    </AuthShell>
   );
 }
+
