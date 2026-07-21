@@ -49,6 +49,7 @@ const SKUProductsPage = lazyWithReload(() => import("./pages/dashboard/SKUProduc
 const ProductionPerformancePage = lazyWithReload(() => import("./pages/dashboard/ProductionPerformancePage"));
 const SKUEfficiencyPage = lazyWithReload(() => import("./pages/dashboard/SKUEfficiencyPage"));
 const ProductionForecastPage = lazyWithReload(() => import("./pages/dashboard/ProductionForecastPage"));
+const WarehouseDashboard = lazyWithReload(() => import("./pages/dashboard/WarehouseDashboard"));
 
 const QualityActionsPage = lazyWithReload(() => import("./pages/dashboard/QualityActionsPage"));
 const ShiftHistoryPage = lazyWithReload(() => import("./pages/dashboard/ShiftHistoryPage"));
