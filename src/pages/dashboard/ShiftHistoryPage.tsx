@@ -212,7 +212,7 @@ interface SessionRow {
   tickets: number | null;
   tickets_unit: "tubs" | "bags" | null;
   locked: boolean; notes: string | null;
-  production_items: { id: string; sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; tickets_unit: "tubs" | "bags" | null }[];
+  production_items: { id: string; sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; tickets_unit: "tubs" | "bags" | null; production_blender_entries?: { blender_number: number; quantity: number }[] }[];
 }
 
 
@@ -245,7 +245,7 @@ export default function ShiftHistoryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes, blender_ref, tickets_unit)")
+        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes, blender_ref, tickets_unit, production_blender_entries(blender_number, quantity))")
         .gte("session_date", from).lte("session_date", to)
         .order("session_date", { ascending: false });
       if (error) throw error;
@@ -468,8 +468,8 @@ export default function ShiftHistoryPage() {
                         <th className="text-left px-3 py-2 border-b">SKU</th>
                         <th className="text-left px-3 py-2 border-b">Description</th>
                         <th className="text-left px-3 py-2 border-b">Batch</th>
-                        <th className="text-left px-3 py-2 border-b">Tubs</th>
-                        <th className="text-left px-3 py-2 border-b">Bags</th>
+                        <th className="text-left px-3 py-2 border-b">Blender</th>
+                        <th className="text-right px-3 py-2 border-b">Qty</th>
                         <th className="text-right px-3 py-2 border-b">Weight (g)</th>
                         <th className="text-right px-3 py-2 border-b w-24">Actions</th>
                       </tr>
@@ -504,8 +504,7 @@ export default function ShiftHistoryPage() {
                             const isBagHint = /bag|sach|pouch/.test(blob);
                             const noteUnit = i.tickets_unit ?? (/\[unit:tubs\]/i.test(i.notes ?? "") ? "tubs" : /\[unit:bags\]/i.test(i.notes ?? "") ? "bags" : null);
                             const effUnit: "tubs" | "bags" = noteUnit ?? (isTubHint ? "tubs" : isBagHint ? "bags" : "bags");
-                            const tubsVal = effUnit === "tubs" ? a : 0;
-                            const bagsVal = effUnit === "bags" ? a : 0;
+                            const blenders = Array.from(new Set((i.production_blender_entries ?? []).map((b) => b.blender_number))).sort((x, y) => x - y);
                             const noLeader = !s.leader_id;
                             const rowBg = zebra % 2 === 0 ? "bg-background" : "bg-muted/20";
                             zebra++;
@@ -576,23 +575,15 @@ export default function ShiftHistoryPage() {
                                     <span className="text-xs font-mono">{i.blender_ref || "—"}</span>
                                   )}
                                 </td>
-                                <td className="px-3 py-2">
-                                  {i.id && i.sku_id ? (
-                                    <InlineUnitQtyInput
-                                      itemId={i.id}
-                                      unit="tubs"
-                                      value={tubsVal}
-                                      disabled={s.locked}
-                                      onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
-                                    />
-                                  ) : null}
+                                <td className="px-3 py-2 text-xs tabular-nums whitespace-nowrap">
+                                  {blenders.length ? blenders.join(", ") : "—"}
                                 </td>
                                 <td className="px-3 py-2">
                                   {i.id && i.sku_id ? (
                                     <InlineUnitQtyInput
                                       itemId={i.id}
-                                      unit="bags"
-                                      value={bagsVal}
+                                      unit={effUnit}
+                                      value={a}
                                       disabled={s.locked}
                                       onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
                                     />
