@@ -1,28 +1,37 @@
 import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { getCurrentShiftStart, getCurrentFactoryShift } from "@/lib/shifts";
 
-/** Play a short two-tone chime for incoming DMs. */
+/** MSN-Messenger-style short 3-note alert. */
 function playDMNotification() {
   try {
     const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
     if (!Ctx) return;
     const ctx = new Ctx();
+    const master = ctx.createGain();
+    master.gain.value = 0.15;
+    master.connect(ctx.destination);
     const now = ctx.currentTime;
-    [880, 1320].forEach((freq, i) => {
+    const notes = [660, 880, 1174];
+    notes.forEach((freq, i) => {
+      const start = now + i * 0.11;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
-      o.type = "sine";
+      o.type = "triangle";
       o.frequency.value = freq;
-      g.gain.setValueAtTime(0.0001, now + i * 0.18);
-      g.gain.exponentialRampToValueAtTime(0.18, now + i * 0.18 + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.18 + 0.22);
-      o.connect(g).connect(ctx.destination);
-      o.start(now + i * 0.18);
-      o.stop(now + i * 0.18 + 0.24);
+      g.gain.setValueAtTime(0.0001, start);
+      g.gain.exponentialRampToValueAtTime(1, start + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, start + 0.09);
+      o.connect(g).connect(master);
+      o.start(start);
+      o.stop(start + 0.1);
     });
     setTimeout(() => ctx.close().catch(() => {}), 800);
+    try { navigator.vibrate?.([80, 40, 80]); } catch {}
   } catch {}
 }
 
@@ -66,13 +75,16 @@ export function useDMPartners(role: string | null | undefined) {
 
 export function useDMThread(partnerId: string | null) {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const isOperator = role === "operator";
+  const shiftInfo = getCurrentFactoryShift();
+  const shiftToken = isOperator ? `${shiftInfo.sessionDate}-${shiftInfo.shiftCode}` : "all";
 
   const query = useQuery({
-    queryKey: ["dm_thread", user?.id, partnerId],
+    queryKey: ["dm_thread", user?.id, partnerId, shiftToken],
     queryFn: async () => {
       if (!user || !partnerId) return [];
-      const { data, error } = await supabase
+      let q = supabase
         .from("direct_messages" as any)
         .select("*")
         .or(
@@ -80,6 +92,10 @@ export function useDMThread(partnerId: string | null) {
             `and(sender_id.eq.${partnerId},recipient_id.eq.${user.id})`,
         )
         .order("created_at", { ascending: true });
+      if (isOperator) {
+        q = q.gte("created_at", getCurrentShiftStart().toISOString());
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as unknown as DirectMessage[];
     },
@@ -166,6 +182,7 @@ export function useMarkDMRead(partnerId: string | null) {
 export function useDMUnreadCount() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const query = useQuery({
     queryKey: ["dm_unread", user?.id],
@@ -189,10 +206,41 @@ export function useDMUnreadCount() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "direct_messages", filter: `recipient_id=eq.${user.id}` },
-        () => {
+        (payload) => {
           queryClient.invalidateQueries({ queryKey: ["dm_unread", user.id] });
           queryClient.invalidateQueries({ queryKey: ["dm_thread"] });
           playDMNotification();
+
+          const row = (payload.new || {}) as Partial<DirectMessage>;
+          const senderName = row.sender_name || "New message";
+          const rawMsg = row.message || "";
+          const preview = rawMsg.length > 120 ? rawMsg.slice(0, 117) + "…" : rawMsg;
+
+          const onMessagesPage =
+            typeof window !== "undefined" &&
+            window.location.pathname === "/dashboard/messages";
+
+          if (!onMessagesPage) {
+            toast(`New message · ${senderName}`, {
+              description: preview || undefined,
+              duration: 8000,
+              action: {
+                label: "Open",
+                onClick: () => navigate("/dashboard/messages"),
+              },
+            });
+          }
+
+          if (
+            typeof document !== "undefined" &&
+            document.visibilityState === "hidden" &&
+            typeof Notification !== "undefined" &&
+            Notification.permission === "granted"
+          ) {
+            try {
+              new Notification(`New message · ${senderName}`, { body: preview });
+            } catch {}
+          }
         },
       )
       .on(
@@ -204,7 +252,7 @@ export function useDMUnreadCount() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, queryClient]);
+  }, [user, queryClient, navigate]);
 
   return query;
 }
