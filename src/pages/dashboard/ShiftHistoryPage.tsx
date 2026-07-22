@@ -466,7 +466,7 @@ export default function ShiftHistoryPage() {
                         <th className="text-left px-3 py-2 border-b">Leader</th>
                         <th className="text-left px-3 py-2 border-b">SKU</th>
                         <th className="text-left px-3 py-2 border-b">Description</th>
-                        <th className="text-left px-3 py-2 border-b">Batch</th>
+                        <th className="text-left px-3 py-2 border-b">Batch code</th>
                         <th className="text-left px-3 py-2 border-b">Blender</th>
                         <th className="text-right px-3 py-2 border-b">Qty</th>
                         <th className="text-right px-3 py-2 border-b">Weight (g)</th>
