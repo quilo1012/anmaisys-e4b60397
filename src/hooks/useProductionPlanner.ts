@@ -73,11 +73,21 @@ export function useSkuProducts(activeOnly = true) {
   return useQuery({
     queryKey: ["sku_products", activeOnly],
     queryFn: async () => {
-      let q = supabase.from("sku_products").select("*").order("code").limit(5000);
-      if (activeOnly) q = q.eq("active", true);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as SkuProduct[];
+      // Paginate: PostgREST caps each response at ~1000 rows regardless of
+      // .limit(), so fetch pages until a short page is returned. Otherwise SKUs
+      // beyond row 1000 resolve as "Unknown" downstream.
+      const pageSize = 1000;
+      const all: SkuProduct[] = [];
+      for (let offset = 0; ; offset += pageSize) {
+        let q = supabase.from("sku_products").select("*").order("code").range(offset, offset + pageSize - 1);
+        if (activeOnly) q = q.eq("active", true);
+        const { data, error } = await q;
+        if (error) throw error;
+        const rows = (data ?? []) as SkuProduct[];
+        all.push(...rows);
+        if (rows.length < pageSize) break;
+      }
+      return all;
     },
   });
 }
