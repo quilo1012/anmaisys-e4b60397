@@ -40,11 +40,12 @@ interface Engineer {
   labor_rate?: number | null;
 }
 
-const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", supervisor: "Supervisor", maintenance_manager: "Maintenance Manager", planner: "Planner", engineer: "Engineer", co_engineer: "Co-Engineer", operator: "Operator", viewer: "Viewer", warehouse: "Warehouse Admin" };
+const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", supervisor: "Supervisor", quality_supervisor: "Supervisor QC", maintenance_manager: "Maintenance Manager", planner: "Planner", engineer: "Engineer", co_engineer: "Co-Engineer", operator: "Operator", viewer: "Viewer", warehouse: "Warehouse Admin" };
 const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = {
   admin: Shield,
   manager: Shield,
   supervisor: Shield,
+  quality_supervisor: Shield,
   maintenance_manager: WrenchIcon,
   planner: WrenchIcon,
   engineer: WrenchIcon,
@@ -54,10 +55,10 @@ const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = 
   warehouse: Package,
 };
 
-const adminRoleOptions: AppRole[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse"];
+const adminRoleOptions: AppRole[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse"];
 const managerCreateRoleOptions: AppRole[] = ["engineer", "co_engineer"];
 const managerEditRoleOptions: AppRole[] = ["engineer", "co_engineer", "operator"];
-const protectedStaffRoles: AppRole[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner"];
+const protectedStaffRoles: AppRole[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner"];
 
 function roleBadgeClass(role?: AppRole) {
   if (role === "admin") return "border-destructive/30 bg-destructive/10 text-destructive";
