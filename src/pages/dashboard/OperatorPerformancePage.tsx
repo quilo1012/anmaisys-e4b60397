@@ -278,13 +278,18 @@ function OperatorPerformanceContent() {
             toast.error("Only Line Leader PINs can unlock the target.");
             return;
           }
+          const normLine = normalize(line);
+          const leaderLines: string[] = [
+            ...((eng.leader_lines as string[] | undefined) || []),
+            ...(eng.leader_line ? [eng.leader_line] : []),
+          ];
+          const lineAuthorized = !!normLine && leaderLines.some((l) => normalize(l) === normLine);
+
           const assigned = (sessionQ.data?.leader_name as string | null | undefined) ?? null;
-          if (!assigned?.trim()) {
-            toast.error(`No leader is assigned to ${line} · ${shiftLabel} yet. Ask the planner to assign one.`);
-            return;
-          }
-          if (normalize(assigned) !== normalize(eng.name)) {
-            toast.error(`${eng.name} is not the leader for ${line} today (${assigned} is).`);
+          const nameAuthorized = !!assigned?.trim() && normalize(assigned) === normalize(eng.name);
+
+          if (!lineAuthorized && !nameAuthorized) {
+            toast.error(`${eng.name} is not a leader for ${line}.`);
             return;
           }
           setUnlocked(true);
