@@ -2034,7 +2034,7 @@ export type Database = {
       quality_actions: {
         Row: {
           action_no: string | null
-          action_type_id: string
+          action_type_id: string | null
           created_at: string
           department: string | null
           description: string | null
@@ -2053,7 +2053,7 @@ export type Database = {
         }
         Insert: {
           action_no?: string | null
-          action_type_id: string
+          action_type_id?: string | null
           created_at?: string
           department?: string | null
           description?: string | null
@@ -2072,7 +2072,7 @@ export type Database = {
         }
         Update: {
           action_no?: string | null
-          action_type_id?: string
+          action_type_id?: string | null
           created_at?: string
           department?: string | null
           description?: string | null

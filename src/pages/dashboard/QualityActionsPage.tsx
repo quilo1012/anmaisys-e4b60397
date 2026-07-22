@@ -64,9 +64,9 @@ export default function QualityActionsPage() {
     },
   });
   const { data: leaders = [] } = useQuery({
-    queryKey: ["leaders"],
+    queryKey: ["line_leaders_active"],
     queryFn: async () => {
-      const { data } = await supabase.rpc("list_active_profile_names");
+      const { data } = await supabase.from("line_leaders").select("id, name").eq("active", true).order("name");
       return (data ?? []) as { id: string; name: string }[];
     },
   });
@@ -102,13 +102,12 @@ export default function QualityActionsPage() {
 
   const create = useMutation({
     mutationFn: async () => {
-      if (!form.action_type_id) throw new Error("Pick a type");
       const type = typeMap.get(form.action_type_id);
       const leader = leaders.find((l) => l.id === form.leader_id);
       const { data: u } = await supabase.auth.getUser();
       const { error } = await supabase.from("quality_actions").insert({
         action_no: form.action_no || null,
-        action_type_id: form.action_type_id,
+        action_type_id: form.action_type_id || null,
         line: form.line || null,
         shift: form.shift || null,
         leader_id: form.leader_id || null,
@@ -189,9 +188,9 @@ export default function QualityActionsPage() {
                       </Select>
                     </div>
                   </div>
-                  <div><Label>Type</Label>
+                  <div><Label>Type (optional)</Label>
                     <Select value={form.action_type_id} onValueChange={(v) => setForm({ ...form, action_type_id: v })}>
-                      <SelectTrigger><SelectValue placeholder="Pick type" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Pick type (optional)" /></SelectTrigger>
                       <SelectContent>{types.filter((t) => t.active).map((t) => <SelectItem key={t.id} value={t.id}>{t.label} ({t.points}p)</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
