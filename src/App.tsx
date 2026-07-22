@@ -382,7 +382,7 @@ const App = () => (
                 <Route
                   path="/dashboard/production-performance"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="production.performance.view">
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="production.performance.view">
                       <ProductionPerformancePage />
                     </ProtectedRoute>
                   }
