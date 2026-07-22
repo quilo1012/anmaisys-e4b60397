@@ -42,6 +42,26 @@ export function getCurrentFactoryShift(date = new Date()): { sessionDate: string
   return { sessionDate: londonDateString(previous), shiftCode: "night" };
 }
 
+/** Start instant of the current factory shift (Day 06:00, Night 18:00 Europe/London). */
+export function getCurrentShiftStart(now: Date = new Date()): Date {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
+  let hour = get("hour");
+  if (hour === 24) hour = 0;
+  const minute = get("minute");
+  const second = get("second");
+  const hoursSinceStart =
+    hour >= 6 && hour < 18 ? hour - 6 : hour >= 18 ? hour - 18 : hour + 6;
+  const elapsedSec = hoursSinceStart * 3600 + minute * 60 + second;
+  return new Date(now.getTime() - elapsedSec * 1000);
+}
+
 export const SHIFT_LABEL: Record<ShiftCode, string> = {
   day: "Day Shift (06:00–18:00)",
   night: "Night Shift (18:00–06:00)",
