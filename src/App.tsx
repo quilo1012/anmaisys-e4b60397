@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CriticalAlertProvider } from "@/contexts/CriticalAlertContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -17,10 +17,19 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { roleDashMap } from "@/lib/permissions";
 import { usePermissionOverridesSync } from "@/hooks/usePermissionOverrides";
+import { GlobalDMNotifier } from "@/components/GlobalDMNotifier";
 
 function PermissionOverridesSync() {
   usePermissionOverridesSync();
   return null;
+}
+
+// Route-scoped boundary: resets when the path changes so a crash on one page
+// doesn't wedge the whole app (the old single boundary never reset — "Try again"
+// just re-mounted the same broken route and re-threw).
+function RouteErrorBoundary({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
 }
 
 const OperatorDashboard = lazyWithReload(() => import("./pages/dashboard/OperatorDashboard"));
@@ -163,12 +172,14 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
           <LanguageProvider>
           <CriticalAlertProvider>
-            <ErrorBoundary>
+            <RouteErrorBoundary>
             <PermissionOverridesSync />
+            <GlobalDMNotifier />
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -536,11 +547,12 @@ const App = () => (
                 <Route path="*" element={<SessionRedirect />} />
               </Routes>
             </Suspense>
-            </ErrorBoundary>
+            </RouteErrorBoundary>
           </CriticalAlertProvider>
           </LanguageProvider>
         </AuthProvider>
       </BrowserRouter>
+      </ErrorBoundary>
     </TooltipProvider>
   </QueryClientProvider>
 );

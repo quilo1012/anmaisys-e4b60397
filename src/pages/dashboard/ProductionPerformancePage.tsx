@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/hooks/useRole";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +16,70 @@ import { CircularProgress } from "@/components/ui/circular-progress";
 import { Badge } from "@/components/ui/badge";
 
 type Period = "day" | "week" | "month" | "quarter" | "year" | "custom";
+
+/** Click-to-edit target number. Read-only unless `editable`. */
+function EditableTarget({
+  value,
+  editable,
+  saving,
+  onSave,
+}: {
+  value: number;
+  editable: boolean;
+  saving: boolean;
+  onSave: (v: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    if (!editing) setDraft(String(value));
+  }, [value, editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const n = Math.max(0, Math.round(Number(draft)));
+    if (Number.isFinite(n) && n !== value) onSave(n);
+    else setDraft(String(value));
+  };
+
+  if (!editable) return <span className="font-medium">{value.toLocaleString()}</span>;
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        disabled={saving}
+        className="font-medium underline decoration-dotted underline-offset-2 hover:text-primary disabled:opacity-50"
+        title="Click to edit target"
+      >
+        {saving ? "…" : value.toLocaleString()}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      type="number"
+      min={0}
+      autoFocus
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+        } else if (e.key === "Escape") {
+          setEditing(false);
+          setDraft(String(value));
+        }
+      }}
+      className="h-6 w-24 rounded border bg-background px-1 text-right text-sm"
+    />
+  );
+}
 
 interface SessionAgg {
   id: string; session_date: string; shift: string; line: string;
@@ -29,6 +96,39 @@ export default function ProductionPerformancePage() {
   const [lineFilter, setLineFilter] = useState<string>("__all__");
   const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const { can } = useRole();
+
+  // A line card maps to exactly one RAG row (entry_date, line, shift) only when
+  // viewing a single day + a specific shift. Editing is gated by rag.manage.
+  const canManageRag = can("rag.manage");
+  const canEditTarget = canManageRag && period === "day" && shift !== "all";
+
+  const saveTarget = useMutation({
+    mutationFn: async ({ line, value }: { line: string; value: number }) => {
+      const { error } = await supabase
+        .from("rag_weekly_entries")
+        .upsert(
+          {
+            entry_date: date,
+            line,
+            shift: shift as "DAY" | "NIGHT",
+            plan_qty: value,
+            created_by: user?.id ?? null,
+          },
+          { onConflict: "entry_date,line,shift" },
+        );
+      if (error) throw error;
+    },
+    onSuccess: (_r, vars) => {
+      qc.invalidateQueries({ queryKey: ["oee"] });
+      qc.invalidateQueries({ queryKey: ["rag-week"] });
+      toast.success(`Target updated for ${vars.line}`);
+    },
+    onError: (e: unknown) => {
+      toast.error(`Failed to update target: ${(e as Error)?.message ?? "unknown error"}`);
+    },
+  });
 
   // Pull latest actuals from iTouching every 60s while page is open
   useEffect(() => {
@@ -323,6 +423,15 @@ export default function ProductionPerformancePage() {
           );
         })()}
 
+        {/* Editing hint for RAG managers */}
+        {canManageRag && (
+          <p className="text-xs text-muted-foreground -mb-2">
+            {canEditTarget
+              ? "Click a line's Target to edit it — changes save straight to RAG Weekly."
+              : "Select a single day and a specific shift (Day/Night) to edit line targets here."}
+          </p>
+        )}
+
         {/* Line status cards */}
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {sortedByLine.length === 0 && <Card><CardContent className="p-4 text-muted-foreground">No data</CardContent></Card>}
@@ -339,7 +448,14 @@ export default function ProductionPerformancePage() {
                 <CardContent className="p-4 flex items-center gap-4">
                   <CircularProgress value={l.eff} size={88} strokeWidth={8} />
                   <div className="flex-1 text-sm space-y-0.5">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Target</span><span className="font-medium">{l.target.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Target</span>
+                      <EditableTarget
+                        value={l.target}
+                        editable={canEditTarget}
+                        saving={saveTarget.isPending && saveTarget.variables?.line === l.line}
+                        onSave={(v) => saveTarget.mutate({ line: l.line, value: v })}
+                      />
+                    </div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Actual</span><span className="font-medium">{l.actual.toLocaleString()}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Gap</span><span className={`font-medium ${l.actual - l.target >= 0 ? "text-green-500" : "text-red-500"}`}>{(l.actual - l.target).toLocaleString()}</span></div>
                   </div>

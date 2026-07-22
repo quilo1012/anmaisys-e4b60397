@@ -229,7 +229,10 @@ export function useAcceptAndStartWorkOrder() {
       await queryClient.cancelQueries({ queryKey: ["work_orders"] });
       const previousData = queryClient.getQueriesData({ queryKey: ["work_orders"] });
       queryClient.setQueriesData({ queryKey: ["work_orders"] }, (old: WorkOrder[] | undefined) => {
-        if (!old) return old;
+        // Partial key matching also hits ["work_orders", id] (a single object,
+        // not an array). Only patch array caches; leave single-WO caches to the
+        // onSuccess invalidate.
+        if (!Array.isArray(old)) return old;
         return old.map((wo) => wo.id === woId ? { ...wo, status: "in_progress" as WOStatus } : wo);
       });
       return { previousData };

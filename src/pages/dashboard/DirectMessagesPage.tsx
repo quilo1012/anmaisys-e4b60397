@@ -1,20 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   useDMPartners,
   useDMThread,
   useSendDM,
   useMarkDMRead,
+  useTranslateMessage,
   type DMPartner,
 } from "@/hooks/useDirectMessages";
-import { MessageCircle, Send, Loader2, Search } from "lucide-react";
+import { MessageCircle, Send, Loader2, Search, Languages, Clock } from "lucide-react";
 import { format } from "date-fns";
+import { getShiftStartISO } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
+
+const STAFF_ROLES = ["admin", "supervisor", "manager", "maintenance_manager"];
+
+interface TranslationState {
+  text?: string;
+  shown: boolean;
+  loading: boolean;
+}
 
 function initials(name: string) {
   const parts = (name || "?").trim().split(/\s+/);
@@ -25,11 +38,18 @@ function initials(name: string) {
 
 export default function DirectMessagesPage() {
   const { user, role } = useAuth();
+  const { language } = useLanguage();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: partners = [], isLoading: partnersLoading } = useDMPartners(role);
   const [filter, setFilter] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [text, setText] = useState("");
+  const [translations, setTranslations] = useState<Record<string, TranslationState>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const isStaff = !!role && STAFF_ROLES.includes(role);
+  // Operators only see the current shift; staff keep the full saved history.
+  const sinceISO = useMemo(() => (isStaff ? null : getShiftStartISO()), [isStaff]);
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -40,15 +60,42 @@ export default function DirectMessagesPage() {
     );
   }, [partners, filter]);
 
-  // Auto-select first partner (esp. for operators who have 1 admin usually)
+  // Deep-link support: /dashboard/messages?dm=<partnerId> (from a notification).
+  useEffect(() => {
+    const dm = searchParams.get("dm");
+    if (dm && partners.some((p) => p.user_id === dm)) {
+      setActiveId(dm);
+      searchParams.delete("dm");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, partners, setSearchParams]);
+
+  // Auto-select first partner (esp. for operators who have 1 supervisor usually)
   useEffect(() => {
     if (!activeId && partners.length > 0) setActiveId(partners[0].user_id);
   }, [partners, activeId]);
 
   const active: DMPartner | undefined = partners.find((p) => p.user_id === activeId);
-  const { data: thread = [], isLoading: threadLoading } = useDMThread(activeId);
+  const { data: thread = [], isLoading: threadLoading } = useDMThread(activeId, sinceISO);
   const sendMsg = useSendDM();
   const markRead = useMarkDMRead(activeId);
+  const translate = useTranslateMessage();
+
+  const handleTranslate = async (id: string, message: string) => {
+    const cur = translations[id];
+    if (cur?.text) {
+      setTranslations((t) => ({ ...t, [id]: { ...cur, shown: !cur.shown } }));
+      return;
+    }
+    setTranslations((t) => ({ ...t, [id]: { shown: true, loading: true } }));
+    try {
+      const text = await translate.mutateAsync({ text: message, targetLang: language });
+      setTranslations((t) => ({ ...t, [id]: { text, shown: true, loading: false } }));
+    } catch {
+      setTranslations((t) => ({ ...t, [id]: { shown: false, loading: false } }));
+      toast.error(language === "pt" ? "Falha ao traduzir" : "Translation failed");
+    }
+  };
 
   useEffect(() => {
     if (activeId) markRead.mutate();
@@ -147,6 +194,18 @@ export default function DirectMessagesPage() {
               {active?.email && (
                 <p className="text-xs text-muted-foreground">{active.email}</p>
               )}
+              {active && (
+                <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {isStaff
+                    ? language === "pt"
+                      ? "Histórico completo salvo"
+                      : "Full history saved"
+                    : language === "pt"
+                      ? "Mostrando apenas o turno atual"
+                      : "Showing current shift only"}
+                </p>
+              )}
             </CardHeader>
             <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
               {!active ? (
@@ -168,6 +227,7 @@ export default function DirectMessagesPage() {
                       <div className="space-y-2">
                         {thread.map((m) => {
                           const isOwn = m.sender_id === user?.id;
+                          const tr = translations[m.id];
                           return (
                             <div
                               key={m.id}
@@ -190,11 +250,44 @@ export default function DirectMessagesPage() {
                                   </p>
                                 )}
                                 <p className="whitespace-pre-wrap">{m.message}</p>
+                                {tr?.shown && tr.text && (
+                                  <p
+                                    className={cn(
+                                      "mt-1 border-t pt-1 whitespace-pre-wrap italic",
+                                      isOwn
+                                        ? "border-primary-foreground/25 text-primary-foreground/85"
+                                        : "border-border text-muted-foreground",
+                                    )}
+                                  >
+                                    {tr.text}
+                                  </p>
+                                )}
                               </div>
-                              <span className="text-[10px] text-muted-foreground mt-0.5">
-                                {format(new Date(m.created_at), "dd/MM HH:mm")}
-                                {isOwn && m.read_at && " · Read"}
-                              </span>
+                              <div className="mt-0.5 flex items-center gap-2">
+                                <span className="text-[10px] text-muted-foreground">
+                                  {format(new Date(m.created_at), "dd/MM HH:mm")}
+                                  {isOwn && m.read_at && " · Read"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleTranslate(m.id, m.message)}
+                                  disabled={tr?.loading}
+                                  className="flex items-center gap-0.5 text-[10px] text-muted-foreground transition-colors hover:text-primary disabled:opacity-50"
+                                >
+                                  {tr?.loading ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Languages className="h-3 w-3" />
+                                  )}
+                                  {tr?.shown && tr.text
+                                    ? language === "pt"
+                                      ? "Ocultar"
+                                      : "Hide"
+                                    : language === "pt"
+                                      ? "Traduzir"
+                                      : "Translate"}
+                                </button>
+                              </div>
                             </div>
                           );
                         })}

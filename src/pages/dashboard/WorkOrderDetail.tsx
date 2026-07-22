@@ -183,7 +183,7 @@ export default function WorkOrderDetail() {
     );
   }
 
-  const cfg = statusConfig[wo.status];
+  const cfg = statusConfig[wo.status] ?? { label: wo.status ?? "—", className: "bg-muted text-muted-foreground" };
   const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
   const woLabel = `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`;
 

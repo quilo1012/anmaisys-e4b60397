@@ -12,6 +12,11 @@ export interface EngineerIdentity {
   is_leader?: boolean;
   leader_line?: string | null;
   leader_lines?: string[];
+  /** Set when the PIN matched the caller's own operator (tablet/line) account. */
+  is_operator?: boolean;
+  account_id?: string | null;
+  /** Line UUIDs the operator account is bound to. */
+  line_ids?: string[];
 }
 
 
@@ -66,19 +71,28 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
 
       const engineerId = arrMatch?.engineer_id ?? (obj?.success ? obj.engineer_id : null);
       const engineerName = arrMatch?.engineer_name ?? obj?.engineer_name;
+      // Operator (tablet/line) PIN success returns account_id, not engineer_id.
+      const isOperator = !!(obj?.is_operator);
+      const identityId = engineerId ?? (isOperator ? (obj?.account_id ?? null) : null);
 
-      if (engineerId) {
+      if (identityId) {
         setRemaining(null);
         const rawLines = obj?.leader_lines ?? arrMatch?.leader_lines;
         const linesArr: string[] = Array.isArray(rawLines)
           ? rawLines.filter((x: any) => typeof x === "string" && x.trim() !== "")
           : [];
+        const opLineIds: string[] = Array.isArray(obj?.line_ids)
+          ? obj.line_ids.filter((x: any) => typeof x === "string" && x.trim() !== "")
+          : [];
         const engineer: EngineerIdentity = {
-          id: engineerId as string,
-          name: engineerName as string,
+          id: identityId as string,
+          name: (engineerName ?? obj?.operator_label ?? "Operator") as string,
           is_leader: !!(obj?.is_leader ?? arrMatch?.is_leader),
           leader_line: (obj?.leader_line ?? arrMatch?.leader_line ?? linesArr[0] ?? null) as string | null,
           leader_lines: linesArr,
+          is_operator: isOperator,
+          account_id: (obj?.account_id ?? null) as string | null,
+          line_ids: opLineIds,
         };
 
         try {

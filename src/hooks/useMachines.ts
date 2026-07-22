@@ -58,7 +58,11 @@ export { DEFAULT_MACHINE_TYPES, DEFAULT_LOCATIONS, STATUS_OPTIONS, SIDE_OPTIONS 
 
 export function useLines() {
   return useQuery({
-    queryKey: ["lines"],
+    // Distinct key: this hook returns full Line rows (has_sides, display_order).
+    // Several other queries share the bare ["lines"] key with a reduced
+    // `select("id,name")`/`select("name")` shape; sharing this key let a reduced
+    // shape populate the cache first and strip has_sides/display_order to undefined.
+    queryKey: ["lines", "full"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("lines")

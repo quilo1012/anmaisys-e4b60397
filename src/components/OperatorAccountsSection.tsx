@@ -43,6 +43,7 @@ import {
   EyeOff,
   ShieldAlert,
   Wand2,
+  Lock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLines } from "@/hooks/useMachines";
@@ -52,6 +53,7 @@ import {
   useUpdateOperatorAccountLines,
   useUpdateOperatorAccountEmail,
   useResetOperatorPassword,
+  useSetOperatorPin,
   type OperatorLineAccount,
 } from "@/hooks/useOperatorAccounts";
 import { format } from "date-fns";
@@ -111,6 +113,36 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   const updateAcc = useUpdateOperatorAccountLines();
   const updateEmail = useUpdateOperatorAccountEmail();
   const resetPwd = useResetOperatorPassword();
+  const setPin = useSetOperatorPin();
+
+  // ── Set operator PIN (unlocks the operator's own Target) ─
+  const [pinTarget, setPinTarget] = useState<OperatorLineAccount | null>(null);
+  const [pinValue, setPinValue] = useState("");
+  const [pinError, setPinError] = useState<string | null>(null);
+
+  const closePin = () => {
+    setPinTarget(null);
+    setPinValue("");
+    setPinError(null);
+  };
+
+  const handleSetPin = async () => {
+    if (!pinTarget) return;
+    if (!/^\d{4}$/.test(pinValue)) {
+      setPinError("O PIN deve ter 4 dígitos.");
+      return;
+    }
+    setPinError(null);
+    try {
+      await setPin.mutateAsync({ id: pinTarget.id, pin: pinValue });
+      toast({ title: "PIN definido", description: `${pinTarget.label} — o operador já pode ver o Target.` });
+      closePin();
+    } catch (e: any) {
+      const msg = e?.message ?? "Falha ao definir PIN";
+      setPinError(msg);
+      toast({ title: "Falha ao definir PIN", description: msg, variant: "destructive" });
+    }
+  };
 
   // ── Create dialog ────────────────────────────────────────
   const [createOpen, setCreateOpen] = useState(false);
@@ -566,6 +598,14 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                       <Button
                         variant="ghost"
                         size="icon"
+                        title="Set operator PIN (Target unlock)"
+                        onClick={() => { setPinValue(""); setPinError(null); setPinTarget(acc); }}
+                      >
+                        <Lock className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         title="Edit lines"
                         onClick={() => openEdit(acc)}
                       >
@@ -939,6 +979,49 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Set Operator PIN Dialog ──────────────────────── */}
+      <Dialog open={pinTarget !== null} onOpenChange={(o) => !o && closePin()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-primary" /> Definir PIN do operador
+            </DialogTitle>
+            <DialogDescription>
+              PIN de 4 dígitos para{" "}
+              <span className="font-medium">{pinTarget?.label}</span>. O operador digita este PIN na
+              tela de produção para ver o Target da linha.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-1.5 py-2">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              Novo PIN (4 dígitos)
+            </Label>
+            <Input
+              inputMode="numeric"
+              maxLength={4}
+              placeholder="••••"
+              value={pinValue}
+              onChange={(e) => {
+                setPinValue(e.target.value.replace(/\D/g, "").slice(0, 4));
+                setPinError(null);
+              }}
+              className="tabular-nums tracking-[0.5em] text-center text-lg"
+              aria-invalid={!!pinError}
+            />
+            {pinError && <p className="text-xs text-destructive">{pinError}</p>}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closePin}>Cancel</Button>
+            <Button onClick={handleSetPin} disabled={setPin.isPending}>
+              {setPin.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Definir PIN
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Auto-create missing tablets Dialog ───────────── */}
       <Dialog

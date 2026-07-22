@@ -16,7 +16,7 @@ export default defineTool({
     "List recent maintenance work orders visible to the signed-in user. Optionally filter by status or priority.",
   inputSchema: {
     status: z
-      .enum(["OPEN", "IN_PROGRESS", "PAUSED", "FINISHED", "CANCELLED", "PENDING", "COMPLETED"])
+      .enum(["open", "received", "arrived", "in_progress", "finished", "closed", "completed", "force_closed"])
       .optional()
       .describe("Filter by work order status."),
     priority: z.enum(["low", "medium", "high", "critical"]).optional().describe("Filter by priority."),
@@ -34,7 +34,7 @@ export default defineTool({
       )
       .order("created_at", { ascending: false })
       .limit(limit);
-    if (status) query = query.eq("status", status as any);
+    if (status) query = query.eq("status", status);
     if (priority) query = query.eq("priority", priority);
     const { data, error } = await query;
     if (error) {

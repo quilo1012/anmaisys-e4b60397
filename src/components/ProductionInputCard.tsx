@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Save, Check, Loader2, Trash2, X, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -17,7 +19,13 @@ type Item = {
   target_qty: number;
   actual_qty: number;
   is_manual?: boolean;
+  /** Batch reference (stored in production_items.blender_ref). */
+  batch?: string | null;
+  /** Chosen blender 1–4 (from the single production_blender_entries row). */
+  blender_number?: number | null;
 };
+
+const BLENDER_OPTIONS = [1, 2, 3, 4] as const;
 
 interface Props {
   sessionId: string;
@@ -89,6 +97,22 @@ export function ProductionInputCard({
     });
   }, [items.map((i) => `${i.id}:${i.actual_qty}`).join("|")]);
 
+  // Local editable Batch + Blender per item.
+  const [batches, setBatches] = useState<Record<string, string>>({});
+  const [blenders, setBlenders] = useState<Record<string, string>>({});
+  useEffect(() => {
+    setBatches((prev) => {
+      const next: Record<string, string> = {};
+      for (const it of items) next[it.id] = prev[it.id] ?? (it.batch ?? "");
+      return next;
+    });
+    setBlenders((prev) => {
+      const next: Record<string, string> = {};
+      for (const it of items) next[it.id] = prev[it.id] ?? (it.blender_number ? String(it.blender_number) : "");
+      return next;
+    });
+  }, [items.map((i) => `${i.id}:${i.batch ?? ""}:${i.blender_number ?? ""}`).join("|")]);
+
   const [saveState, setSaveState] = useState<Record<string, "idle" | "saving" | "saved">>({});
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -107,16 +131,43 @@ export function ProductionInputCard({
       toast.error("Enter a valid quantity");
       return;
     }
+    const blender = Number(blenders[it.id]);
+    if (!Number.isInteger(blender) || blender < 1 || blender > 4) {
+      toast.error("Select a blender (1–4)");
+      return;
+    }
+    const batch = (batches[it.id] ?? "").trim();
     setSaveState((s) => ({ ...s, [it.id]: "saving" }));
-    const { error } = await (supabase as any)
+
+    // 1. Batch → production_items.blender_ref (do NOT write actual_qty here; the
+    //    sync_item_actual_from_blenders trigger owns actual_qty from the sum).
+    const { error: batchErr } = await (supabase as any)
       .from("production_items")
-      .update({ actual_qty: n })
+      .update({ blender_ref: batch || null })
       .eq("id", it.id);
-    if (error) {
-      toast.error(error.message);
+    if (batchErr) {
+      toast.error(batchErr.message);
       setSaveState((s) => ({ ...s, [it.id]: "idle" }));
       return;
     }
+
+    // 2. Exactly one blender entry per SKU: clear then insert the chosen one.
+    //    The AFTER trigger recomputes production_items.actual_qty = SUM(quantity).
+    const { data: auth } = await (supabase as any).auth.getUser();
+    await (supabase as any).from("production_blender_entries").delete().eq("production_item_id", it.id);
+    const { error: entryErr } = await (supabase as any).from("production_blender_entries").insert({
+      session_id: sessionId,
+      production_item_id: it.id,
+      blender_number: blender,
+      quantity: n,
+      entered_by: auth?.user?.id ?? null,
+    });
+    if (entryErr) {
+      toast.error(entryErr.message);
+      setSaveState((s) => ({ ...s, [it.id]: "idle" }));
+      return;
+    }
+
     setSaveState((s) => ({ ...s, [it.id]: "saved" }));
     invalidateAll();
     setTimeout(() => setSaveState((s) => ({ ...s, [it.id]: "idle" })), 2000);
@@ -230,8 +281,33 @@ export function ProductionInputCard({
               )}
 
               <div className="flex items-end gap-2 flex-wrap">
-                <div className="flex-1 min-w-[180px]">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Total Produced</div>
+                <div className="w-28">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider mb-1 block">Batch</Label>
+                  <Input
+                    className="h-10 w-full"
+                    placeholder="B#"
+                    value={batches[it.id] ?? ""}
+                    onChange={(e) => setBatches((prev) => ({ ...prev, [it.id]: e.target.value }))}
+                    disabled={!canEdit}
+                  />
+                </div>
+                <div className="w-28">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider mb-1 block">Blender</Label>
+                  <Select
+                    value={blenders[it.id] ?? ""}
+                    onValueChange={(v) => setBlenders((prev) => ({ ...prev, [it.id]: v }))}
+                    disabled={!canEdit}
+                  >
+                    <SelectTrigger className="h-10"><SelectValue placeholder="1–4" /></SelectTrigger>
+                    <SelectContent>
+                      {BLENDER_OPTIONS.map((b) => (
+                        <SelectItem key={b} value={String(b)}>Blender {b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1 min-w-[160px]">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider mb-1 block">Total Produced</Label>
                   <Input
                     type="number"
                     inputMode="numeric"

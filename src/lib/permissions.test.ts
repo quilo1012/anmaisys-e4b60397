@@ -51,8 +51,10 @@ const EXPECTED: Record<Action, Role[]> = {
   "engineers.manage": ["admin", "manager", "maintenance_manager"],
   "leaders.view": ["admin", "manager", "supervisor"],
   "leaders.manage": ["admin", "manager"],
-  "chat.line": ["admin", "operator"],
-  "chat.dm": ["admin", "manager", "supervisor", "operator"],
+  // Chat is intentionally disabled app-wide (see "Desabilitou opção de chat");
+  // both matrix rows are empty, so no role passes.
+  "chat.line": [],
+  "chat.dm": [],
   "notifications.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
   "notifications.manage": ["admin", "manager"],
   "intouch.view": ["admin", "manager", "maintenance_manager", "planner"],

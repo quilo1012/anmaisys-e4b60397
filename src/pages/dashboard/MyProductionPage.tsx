@@ -64,7 +64,7 @@ export default function MyProductionPage() {
 }
 
 function MyProductionContent() {
-  const { selectedLineName: line } = useDeviceLineCtx();
+  const { selectedLineName: line, selectedLineId } = useDeviceLineCtx();
   const { profile, role } = useAuth() as any;
   const [targetUnlocked, setTargetUnlocked] = useState(false);
 
@@ -110,19 +110,27 @@ function MyProductionContent() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("id, sku_id, target_qty, planned_qty, actual_qty, notes, created_at, updated_at, sku:sku_products(code, name)")
+        .select("id, sku_id, target_qty, planned_qty, actual_qty, notes, blender_ref, created_at, updated_at, sku:sku_products(code, name), blenders:production_blender_entries(blender_number, quantity)")
         .eq("session_id", sessionId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data || []).map((r: any) => ({
-        id: r.id,
-        sku_id: r.sku_id,
-        code: r.sku?.code || "—",
-        name: r.sku?.name || "—",
-        target_qty: Number(r.target_qty ?? r.planned_qty ?? 0),
-        actual_qty: manualActualQty(r),
-        is_manual: String(r.notes ?? "").startsWith("manual_sku"),
-      }));
+      return (data || []).map((r: any) => {
+        // One blender entry per SKU in the new flow; if several exist, take the
+        // largest-quantity one for pre-fill.
+        const entries: any[] = Array.isArray(r.blenders) ? r.blenders : [];
+        const topEntry = entries.slice().sort((a, b) => Number(b.quantity ?? 0) - Number(a.quantity ?? 0))[0];
+        return {
+          id: r.id,
+          sku_id: r.sku_id,
+          code: r.sku?.code || "—",
+          name: r.sku?.name || "—",
+          target_qty: Number(r.target_qty ?? r.planned_qty ?? 0),
+          actual_qty: manualActualQty(r),
+          is_manual: String(r.notes ?? "").startsWith("manual_sku"),
+          batch: r.blender_ref ?? "",
+          blender_number: topEntry ? Number(topEntry.blender_number) : null,
+        };
+      });
     },
     refetchInterval: 30_000,
   });
@@ -175,7 +183,7 @@ function MyProductionContent() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} onUnlockChange={setTargetUnlocked} />
+            <TargetPinGate line={line} lineId={selectedLineId} shiftLabel={shiftLabel} totalTarget={totalTarget} onUnlockChange={setTargetUnlocked} />
           </div>
         </CardContent>
       </Card>
@@ -415,7 +423,7 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
   );
 }
 
-function TargetPinGate({ line, shiftLabel, totalTarget, onUnlockChange }: { line: string; shiftLabel: string; totalTarget: number; onUnlockChange?: (v: boolean) => void }) {
+function TargetPinGate({ line, lineId, shiftLabel, totalTarget, onUnlockChange }: { line: string; lineId?: string; shiftLabel: string; totalTarget: number; onUnlockChange?: (v: boolean) => void }) {
   const [pinOpen, setPinOpen] = useState(false);
   const [leader, setLeader] = useState<{ name: string; matched: boolean } | null>(null);
   const [open, setOpen] = useState(false);
@@ -487,9 +495,20 @@ function TargetPinGate({ line, shiftLabel, totalTarget, onUnlockChange }: { line
       <PinDialog
         open={pinOpen}
         onOpenChange={setPinOpen}
-        title="Leader PIN"
-        description={`Enter your PIN to unlock the target for ${line}.`}
+        title="PIN de acesso"
+        description={`Digite seu PIN para ver o Target de ${line}.`}
         onSuccess={async (eng) => {
+          // Operator (tablet/line) PIN: unlock the target for their own line.
+          if (eng.is_operator) {
+            const ok = !lineId || (eng.line_ids ?? []).includes(lineId);
+            if (!ok) {
+              toast.error(`Este PIN não tem acesso a ${line}.`);
+              return;
+            }
+            setLeader({ name: eng.name, matched: true });
+            setOpen(true);
+            return;
+          }
           if (eng.is_leader === false) {
             toast.error("Only Line Leader PINs can unlock the target.");
             return;

@@ -6,6 +6,12 @@ import { AlertTriangle } from "lucide-react";
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  /**
+   * When this value changes, a caught error is cleared and children re-render.
+   * Pass the current route (e.g. location.pathname) so navigating away from a
+   * crashed page recovers the app instead of leaving the fallback stuck.
+   */
+  resetKey?: unknown;
 }
 
 interface State {
@@ -22,6 +28,12 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("ErrorBoundary caught:", error, info);
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: null });
+    }
   }
 
   handleReset = () => this.setState({ hasError: false, error: null });

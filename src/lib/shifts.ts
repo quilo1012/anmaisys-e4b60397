@@ -47,6 +47,31 @@ export const SHIFT_LABEL: Record<ShiftCode, string> = {
   night: "Night Shift (18:00–06:00)",
 };
 
+/**
+ * Convert a London wall-clock time to the matching UTC instant.
+ * London is only ever UTC+0 or UTC+1, so a single correction is enough.
+ */
+function londonWallClockToUTC(year: number, month: number, day: number, hour: number): Date {
+  const ts = Date.UTC(year, month - 1, day, hour, 0, 0);
+  const shownHour = londonParts(new Date(ts)).hour;
+  let diff = shownHour - hour;
+  if (diff > 12) diff -= 24;
+  if (diff < -12) diff += 24;
+  return new Date(ts - diff * 3600 * 1000);
+}
+
+/**
+ * ISO timestamp for the START of the current factory shift
+ * (06:00 London for day, 18:00 London for night — previous day when past midnight).
+ * Used to scope an operator's chat history to the current shift.
+ */
+export function getShiftStartISO(date = new Date()): string {
+  const { sessionDate, shiftCode } = getCurrentFactoryShift(date);
+  const [y, m, d] = sessionDate.split("-").map(Number);
+  const startHour = shiftCode === "day" ? 6 : 18;
+  return londonWallClockToUTC(y, m, d, startHour).toISOString();
+}
+
 
 export function warmUpAudio() { /* no-op */ }
 export function playAlertSound() { /* no-op */ }

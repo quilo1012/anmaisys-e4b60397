@@ -12,13 +12,16 @@
  */
 
 import { reconcileMinutes, type RawStop } from "@/lib/downtimeReconcile";
+import { WO_TERMINAL_STATUSES } from "@/lib/woStatus";
 
-export const TERMINAL_WO_STATUSES = new Set([
-  "finished",
+// Canonical terminal set (closed/finished/completed/force_closed) shared with
+// woStatus, plus cancelled spellings kept defensively. Previously this omitted
+// "completed", so a completed WO with no resume/finished/closed timestamp was
+// treated as ongoing and its downtime grew to `now`, bleeding into later shifts.
+export const TERMINAL_WO_STATUSES = new Set<string>([
+  ...WO_TERMINAL_STATUSES,
   "cancelled",
   "canceled",
-  "force_closed",
-  "closed",
 ]);
 
 export interface WoRowForDowntime {

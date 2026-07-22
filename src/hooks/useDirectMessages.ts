@@ -61,22 +61,28 @@ export function useDMPartners(role: string | null | undefined) {
   });
 }
 
-export function useDMThread(partnerId: string | null) {
+/**
+ * Load a 1:1 thread. Pass `sinceISO` to only fetch messages created at/after
+ * that instant — used to scope an operator's view to the current shift while
+ * supervisors keep the full saved history.
+ */
+export function useDMThread(partnerId: string | null, sinceISO?: string | null) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
   const query = useQuery({
-    queryKey: ["dm_thread", user?.id, partnerId],
+    queryKey: ["dm_thread", user?.id, partnerId, sinceISO ?? null],
     queryFn: async () => {
       if (!user || !partnerId) return [];
-      const { data, error } = await supabase
+      let q = supabase
         .from("direct_messages" as any)
         .select("*")
         .or(
           `and(sender_id.eq.${user.id},recipient_id.eq.${partnerId}),` +
             `and(sender_id.eq.${partnerId},recipient_id.eq.${user.id})`,
-        )
-        .order("created_at", { ascending: true });
+        );
+      if (sinceISO) q = q.gte("created_at", sinceISO);
+      const { data, error } = await q.order("created_at", { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as DirectMessage[];
     },
@@ -109,6 +115,21 @@ export function useDMThread(partnerId: string | null) {
   }, [user, partnerId, queryClient]);
 
   return query;
+}
+
+/** Translate a chat message to the given target language via edge function. */
+export function useTranslateMessage() {
+  return useMutation({
+    mutationFn: async ({ text, targetLang }: { text: string; targetLang: "en" | "pt" }) => {
+      const { data, error } = await supabase.functions.invoke("translate-message", {
+        body: { text, target_lang: targetLang },
+      });
+      if (error) throw error;
+      const translated = (data as { translated?: string } | null)?.translated;
+      if (!translated) throw new Error("empty translation");
+      return translated;
+    },
+  });
 }
 
 export function useSendDM() {

@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Progress } from "@/components/ui/progress";
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Lock, Unlock, Plus, Trash2, Save, Search, Check, Upload, Download, FileInput, Sparkles, RefreshCw, X } from "lucide-react";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { IntouchImportDialog } from "@/components/IntouchImportDialog";
@@ -635,7 +634,6 @@ export default function ProductionPlannerPage() {
               <div className="text-sm text-muted-foreground text-center py-6">No products yet. Click "Add Product".</div>
             )}
             {rows.map((r, i) => {
-              const eff = r.target_qty > 0 ? (r.actual_qty / r.target_qty) * 100 : 0;
               const currentPlanUph = r.target_qty > 0 ? r.target_qty / 8 : 0; // 8h shift baseline
               const lineIdForRow = lines.find((l: { id: string; name: string }) => l.name === line)?.id ?? null;
               return (
@@ -663,7 +661,7 @@ export default function ProductionPlannerPage() {
                       </div>
                     )}
                   </div>
-                  <div className="md:col-span-3">
+                  <div className="md:col-span-4">
                     <Label>Product Description</Label>
                     <Input value={r.sku_name} onChange={(e) => updateRow(i, { sku_name: e.target.value })} disabled={locked} />
                   </div>
@@ -675,7 +673,7 @@ export default function ProductionPlannerPage() {
                       onChange={(e) => updateRow(i, { blender_ref: e.target.value })}
                     />
                   </div>
-                  <div className="md:col-span-2">
+                  <div className="md:col-span-3">
                     <Label title="Approximate remaining units for this SKU, derived from the RAG Weekly plan minus actuals across all SKUs on this line/shift.">Avg remaining ~</Label>
                     <div className="flex items-center gap-1">
                       <Input
@@ -693,18 +691,6 @@ export default function ProductionPlannerPage() {
                         title="Approximate missing per SKU (avg). Total target comes from RAG Weekly, not iTouching."
                       />
                       <span className="text-xs text-muted-foreground">units</span>
-                    </div>
-                  </div>
-                  <div className="md:col-span-1">
-                    <Label>Actual</Label>
-                    <div className="flex items-center gap-1">
-                      <Input type="number" value={r.actual_qty} onChange={(e) => updateRow(i, { actual_qty: +e.target.value })} disabled={locked} />
-                    </div>
-                  </div>
-                  <div className="md:col-span-1 flex items-end">
-                    <div className="flex-1">
-                      <div className={cn("text-xs font-medium mb-1", effColor(eff))}>{eff.toFixed(0)}%</div>
-                      <Progress value={Math.min(100, eff)} className="h-2" />
                     </div>
                   </div>
                   <div className="md:col-span-1 flex items-end justify-end gap-1">

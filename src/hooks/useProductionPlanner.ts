@@ -162,18 +162,54 @@ export function useUpsertSession() {
   });
 }
 
+export interface PlannerItemInput {
+  sku_id: string;
+  target_qty: number;
+  planned_qty: number;
+  blender_ref?: string | null;
+  notes?: string | null;
+  /** Ignored by the planner save — actual_qty is owned by the operator flow. */
+  actual_qty?: number;
+}
+
 export function useSaveItems() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      session_id: string;
-      items: Array<Omit<ProductionItem, "id" | "session_id">>;
-    }) => {
-      await supabase.from("production_items").delete().eq("session_id", input.session_id);
-      if (input.items.length === 0) return;
-      const rows = input.items.map((i) => ({ ...i, session_id: input.session_id }));
-      const { error } = await supabase.from("production_items").insert(rows);
-      if (error) throw error;
+    mutationFn: async (input: { session_id: string; items: PlannerItemInput[] }) => {
+      // NON-DESTRUCTIVE: upsert plan fields on (session_id, sku_id) WITHOUT
+      // touching actual_qty, then delete only SKUs removed from the plan. This
+      // preserves operator-entered actual_qty and their production_blender_entries
+      // (which cascade off production_items.id). Never delete+re-insert here.
+      const keepSkuIds = input.items.map((i) => i.sku_id).filter(Boolean);
+
+      if (keepSkuIds.length > 0) {
+        const rows = input.items
+          .filter((i) => i.sku_id)
+          .map((i) => ({
+            session_id: input.session_id,
+            sku_id: i.sku_id,
+            target_qty: i.target_qty ?? 0,
+            planned_qty: i.planned_qty ?? 0,
+            blender_ref: i.blender_ref ?? null,
+            notes: i.notes ?? null,
+            // actual_qty intentionally omitted: default 0 on INSERT, untouched on UPDATE.
+          }));
+        const { error } = await supabase
+          .from("production_items")
+          .upsert(rows, { onConflict: "session_id,sku_id" });
+        if (error) throw error;
+      }
+
+      // Remove items dropped from the plan (rows with a sku_id not kept). Rows
+      // with a NULL sku_id are not matched by `not.in`, so they survive.
+      let delQ = supabase.from("production_items").delete().eq("session_id", input.session_id);
+      if (keepSkuIds.length > 0) {
+        delQ = delQ.not("sku_id", "in", `(${keepSkuIds.join(",")})`);
+      } else {
+        delQ = delQ.not("sku_id", "is", null);
+      }
+      const { error: delErr } = await delQ;
+      if (delErr) throw delErr;
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["production_items", vars.session_id] });

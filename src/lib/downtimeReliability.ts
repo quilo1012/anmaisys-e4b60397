@@ -1,4 +1,3 @@
-import { endOfDay } from "date-fns";
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
@@ -39,7 +38,15 @@ export function filterWOsByRange<T extends { created_at: string }>(
   endDate: Date,
 ): T[] {
   if (!wos) return [];
-  const end = endOfDay(endDate).getTime();
+  // End-of-day in UTC (not the runner's local zone): created_at is stored as
+  // UTC ISO, so a local endOfDay dropped same-UTC-day WOs in negative-offset
+  // timezones (e.g. a 23:30Z WO fell outside a local end-of-day boundary).
+  const end = Date.UTC(
+    endDate.getUTCFullYear(),
+    endDate.getUTCMonth(),
+    endDate.getUTCDate(),
+    23, 59, 59, 999,
+  );
   const start = startDate.getTime();
   return wos.filter((wo) => {
     const t = new Date(wo.created_at).getTime();

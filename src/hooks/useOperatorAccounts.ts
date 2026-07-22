@@ -107,6 +107,19 @@ export function useUpdateOperatorAccountFavicon() {
   });
 }
 
+export function useSetOperatorPin() {
+  return useMutation({
+    mutationFn: async (input: { id: string; pin: string }) => {
+      // Empty pin clears it (see set_operator_pin). PIN is hashed server-side.
+      const { error } = await (supabase as any).rpc("set_operator_pin", {
+        _id: input.id,
+        _pin: input.pin,
+      });
+      if (error) throw error;
+    },
+  });
+}
+
 export function useResetOperatorPassword() {
   return useMutation({
     mutationFn: async (input: { password: string; user_id?: string }) => {
