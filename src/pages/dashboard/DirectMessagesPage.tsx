@@ -220,11 +220,55 @@ export default function DirectMessagesPage() {
                                   </p>
                                 )}
                                 <p className="whitespace-pre-wrap">{m.message}</p>
+                                {(() => {
+                                  const t = translations[m.id];
+                                  if (t?.show && t.text) {
+                                    return (
+                                      <p className="whitespace-pre-wrap mt-1 pt-1 border-t border-current/20 italic opacity-90">
+                                        {t.text}
+                                      </p>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
-                              <span className="text-[10px] text-muted-foreground mt-0.5">
-                                {format(new Date(m.created_at), "dd/MM HH:mm")}
-                                {isOwn && m.read_at && " · Read"}
-                              </span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] text-muted-foreground">
+                                  {format(new Date(m.created_at), "dd/MM HH:mm")}
+                                  {isOwn && m.read_at && " · Read"}
+                                </span>
+                                {(() => {
+                                  const t = translations[m.id];
+                                  if (t?.loading) {
+                                    return (
+                                      <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                    );
+                                  }
+                                  if (t?.error) {
+                                    return (
+                                      <button
+                                        onClick={() => handleTranslate(m.id, m.message)}
+                                        className="text-[10px] text-destructive hover:underline"
+                                      >
+                                        Translation failed · Retry
+                                      </button>
+                                    );
+                                  }
+                                  const label = t?.text
+                                    ? t.show
+                                      ? "Show original"
+                                      : "Show translation"
+                                    : "Translate";
+                                  return (
+                                    <button
+                                      onClick={() => handleTranslate(m.id, m.message)}
+                                      className="text-[10px] text-muted-foreground hover:text-foreground hover:underline"
+                                    >
+                                      {label}
+                                    </button>
+                                  );
+                                })()}
+                              </div>
                             </div>
                           );
                         })}
