@@ -20,7 +20,10 @@ import {
   ExternalLink,
   FileDown,
   FileSpreadsheet,
+  Pencil,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Cell } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -71,6 +74,13 @@ function errorColor(pct: number): string {
   if (pct <= 2) return "text-green-600 dark:text-green-400";
   if (pct <= 5) return "text-amber-600 dark:text-amber-400";
   return "text-red-600 dark:text-red-400";
+}
+
+/** Chart fill for an error rate (green/amber/red). */
+function errorFill(pct: number): string {
+  if (pct <= 2) return "hsl(142 76% 36%)";
+  if (pct <= 5) return "hsl(38 92% 50%)";
+  return "hsl(0 84% 60%)";
 }
 
 function useLines() {
@@ -375,39 +385,6 @@ function QualityDayEditor({ canManage }: { canManage: boolean }) {
 // ============================================================
 // WEEK — read-only rollup of the daily rows
 // ============================================================
-function QualityWeekReport() {
-  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
-  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
-  const fromStr = format(weekStart, "yyyy-MM-dd");
-  const toStr = format(weekEnd, "yyyy-MM-dd");
-
-  const { data: lines = [] } = useLines();
-  const { data: daily = [] } = useDailyStats(fromStr, toStr);
-  const { data: actions = [] } = useActions(fromStr, toStr);
-
-  const rows = useMemo(() => aggregate(lines, daily, actions), [lines, daily, actions]);
-  const t = totalsOf(rows);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" size="icon" onClick={() => setWeekStart((w) => addDays(w, -7))}><ChevronLeft className="h-4 w-4" /></Button>
-        <div className="min-w-[190px] text-center text-sm">
-          <div className="font-semibold">{format(weekStart, "dd MMM")} – {format(weekEnd, "dd MMM yyyy")}</div>
-          <div className="text-xs text-muted-foreground">ISO week {getISOWeek(weekStart)} · from daily entries</div>
-        </div>
-        <Button variant="outline" size="icon" onClick={() => setWeekStart((w) => addDays(w, 7))}><ChevronRight className="h-4 w-4" /></Button>
-      </div>
-      <KpiCards t={t} showMost />
-      <TotalsTable rows={rows} t={t} />
-      <ActionsList actions={actions} period="week" />
-    </div>
-  );
-}
-
-// ============================================================
-// MONTH — read-only rollup + weekly breakdown + export
-// ============================================================
 function weeksOfMonth(monthDate: Date): Date[] {
   const mEnd = endOfMonth(monthDate);
   const weeks: Date[] = [];
@@ -416,8 +393,11 @@ function weeksOfMonth(monthDate: Date): Date[] {
   return weeks;
 }
 
-function QualityMonthReport() {
+export function QualityReportView() {
   const { profile, user } = useAuth();
+  const { can } = useRole();
+  const canManage = can("quality.manage");
+  const [entryOpen, setEntryOpen] = useState(false);
   const [monthDate, setMonthDate] = useState<Date>(() => startOfMonth(new Date()));
 
   const weeks = useMemo(() => weeksOfMonth(monthDate), [monthDate]);
@@ -432,6 +412,23 @@ function QualityMonthReport() {
 
   const monthly = useMemo(() => aggregate(lines, daily, actions), [lines, daily, actions]);
   const t = totalsOf(monthly);
+
+  // Chart data (real numbers only — lines that had activity)
+  const byLine = useMemo(
+    () => monthly.filter((r) => r.actions > 0 || r.batches > 0).map((r) => ({ line: r.line, actions: r.actions, errorPct: Number(r.errorPct.toFixed(1)) })),
+    [monthly],
+  );
+  const trend = useMemo(() => {
+    const m = new Map<string, { key: string; day: string; actions: number }>();
+    for (const a of actions) {
+      const d = new Date(a.recorded_at);
+      const key = format(d, "yyyy-MM-dd");
+      const cur = m.get(key) ?? { key, day: format(d, "dd/MM"), actions: 0 };
+      cur.actions += 1;
+      m.set(key, cur);
+    }
+    return Array.from(m.values()).sort((x, y) => x.key.localeCompare(y.key));
+  }, [actions]);
 
   // weekly breakdown built from the daily rows
   const weekBlocks = useMemo(() => weeks.map((w, i) => {
@@ -466,89 +463,81 @@ function QualityMonthReport() {
           <Button variant="outline" size="icon" onClick={() => setMonthDate((m) => addMonths(m, 1))}><ChevronRight className="h-4 w-4" /></Button>
         </div>
         <div className="flex gap-2">
+          {canManage && <Button variant="outline" size="sm" onClick={() => setEntryOpen(true)}><Pencil className="mr-1 h-4 w-4" /> Enter data</Button>}
           <Button variant="outline" size="sm" onClick={doPdf} disabled={exporting}>{exporting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileDown className="mr-1 h-4 w-4" />} PDF</Button>
           <Button variant="outline" size="sm" onClick={doXlsx}><FileSpreadsheet className="mr-1 h-4 w-4" /> Excel</Button>
         </div>
       </div>
 
       <KpiCards t={t} showMost />
-      <TotalsTable rows={monthly} t={t} />
+
+      {/* Analytics charts — real data */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Actions by line</CardTitle></CardHeader>
+          <CardContent>
+            {byLine.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No data</p> : (
+              <ResponsiveContainer width="100%" height={Math.max(180, byLine.length * 34)}>
+                <BarChart data={byLine} layout="vertical" margin={{ top: 0, right: 16, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} fontSize={11} tickLine={false} />
+                  <YAxis type="category" dataKey="line" width={72} fontSize={11} tickLine={false} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} cursor={{ fill: "hsl(var(--muted))" }} />
+                  <Bar dataKey="actions" name="Actions" fill="hsl(217 91% 60%)" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">% Error by line</CardTitle></CardHeader>
+          <CardContent>
+            {byLine.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No data</p> : (
+              <ResponsiveContainer width="100%" height={Math.max(180, byLine.length * 34)}>
+                <BarChart data={byLine} layout="vertical" margin={{ top: 0, right: 16, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis type="number" fontSize={11} tickLine={false} unit="%" />
+                  <YAxis type="category" dataKey="line" width={72} fontSize={11} tickLine={false} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [`${v}%`, "% Error"]} cursor={{ fill: "hsl(var(--muted))" }} />
+                  <Bar dataKey="errorPct" radius={[0, 4, 4, 0]}>
+                    {byLine.map((r) => <Cell key={r.line} fill={errorFill(r.errorPct)} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Weekly breakdown</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          {weekBlocks.map((wb) => (
-            <div key={wb.label}>
-              <div className="mb-1 text-xs font-semibold text-muted-foreground">{wb.label}</div>
-              <div className="overflow-x-auto rounded border">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b bg-muted/40 uppercase text-muted-foreground">
-                      <th className="px-2 py-1 text-left font-medium">Line</th>
-                      <th className="px-2 py-1 text-right font-medium">Batches</th>
-                      <th className="px-2 py-1 text-right font-medium">QAS</th>
-                      <th className="px-2 py-1 text-right font-medium">CCP</th>
-                      <th className="px-2 py-1 text-right font-medium">Toolbox</th>
-                      <th className="px-2 py-1 text-right font-medium">Actions</th>
-                      <th className="px-2 py-1 text-right font-medium">% Err</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {wb.rows.map((r) => (
-                      <tr key={r.line} className="border-b last:border-0">
-                        <td className="px-2 py-1 font-medium">{r.line}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{r.batches}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{r.qas}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{r.ccp}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{r.toolbox}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{r.actions}</td>
-                        <td className={cn("px-2 py-1 text-right tabular-nums", errorColor(r.errorPct))}>{r.errorPct.toFixed(1)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
+        <CardHeader className="pb-2"><CardTitle className="text-base">Actions over time</CardTitle></CardHeader>
+        <CardContent>
+          {trend.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No actions in this period</p> : (
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={trend} margin={{ top: 4, right: 12, left: -12, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="day" fontSize={11} tickLine={false} />
+                <YAxis allowDecimals={false} fontSize={11} tickLine={false} />
+                <Tooltip contentStyle={{ fontSize: 12 }} />
+                <Line type="monotone" dataKey="actions" name="Actions" stroke="hsl(217 91% 60%)" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </CardContent>
       </Card>
 
+      <TotalsTable rows={monthly} t={t} />
       <ActionsList actions={actions} period="month" />
+
+      {canManage && (
+        <Dialog open={entryOpen} onOpenChange={setEntryOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Enter quality data — batches &amp; checks</DialogTitle></DialogHeader>
+            <QualityDayEditor canManage={canManage} />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
 
-// ============================================================
-// Page shell + Day / Week / Month toggle
-// ============================================================
-export function QualityReportView() {
-  const { can } = useRole();
-  const canManage = can("quality.manage");
-  const [mode, setMode] = useState<ViewMode>("day");
-
-  const tab = (m: ViewMode, label: string) => (
-    <button
-      type="button"
-      onClick={() => setMode(m)}
-      className={cn("rounded px-3 py-1 text-sm font-medium transition-colors", mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
-    >
-      {label}
-    </button>
-  );
-
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
-        <div className="inline-flex rounded-md border p-0.5">
-          {tab("day", "Day")}
-          {tab("week", "Week")}
-          {tab("month", "Month")}
-        </div>
-      </div>
-
-      {mode === "day" && <QualityDayEditor canManage={canManage} />}
-      {mode === "week" && <QualityWeekReport />}
-      {mode === "month" && <QualityMonthReport />}
-    </div>
-  );
-}
