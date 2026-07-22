@@ -15,14 +15,12 @@ import {
 import {
   ChevronLeft,
   ChevronRight,
-  ShieldCheck,
   Loader2,
   Save,
   ExternalLink,
   FileDown,
   FileSpreadsheet,
 } from "lucide-react";
-import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -523,7 +521,7 @@ function QualityMonthReport() {
 // ============================================================
 // Page shell + Day / Week / Month toggle
 // ============================================================
-export default function QualityWeeklyReportPage() {
+export function QualityReportView() {
   const { can } = useRole();
   const canManage = can("quality.manage");
   const [mode, setMode] = useState<ViewMode>("day");
@@ -539,24 +537,18 @@ export default function QualityWeeklyReportPage() {
   );
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6 p-4 md:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold md:text-2xl">Quality Report</h1>
-          </div>
-          <div className="inline-flex rounded-md border p-0.5">
-            {tab("day", "Day")}
-            {tab("week", "Week")}
-            {tab("month", "Month")}
-          </div>
+    <div className="space-y-6">
+      <div className="flex justify-end">
+        <div className="inline-flex rounded-md border p-0.5">
+          {tab("day", "Day")}
+          {tab("week", "Week")}
+          {tab("month", "Month")}
         </div>
-
-        {mode === "day" && <QualityDayEditor canManage={canManage} />}
-        {mode === "week" && <QualityWeekReport />}
-        {mode === "month" && <QualityMonthReport />}
       </div>
-    </DashboardLayout>
+
+      {mode === "day" && <QualityDayEditor canManage={canManage} />}
+      {mode === "week" && <QualityWeekReport />}
+      {mode === "month" && <QualityMonthReport />}
+    </div>
   );
 }

@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,13 +10,16 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Download, Settings2, List, BarChart3 } from "lucide-react";
+import { Plus, Download, Settings2, List, BarChart3, Tags, Trash2, Upload } from "lucide-react";
+import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, subDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
 import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_STATUSES, statusMeta } from "@/lib/qualityConstants";
+import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
+import { useRole } from "@/hooks/useRole";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
 interface QualityAction {
@@ -31,12 +33,20 @@ const emptyForm = {
   department: "", status: "todo", labels: [] as string[], description: "",
 };
 
-export default function QualityActionsPage() {
+export function QualityActionsView() {
   const { role } = useAuth();
   const isAdmin = role === "admin";
+  const { can } = useRole();
+  const canManage = can("quality.manage");
   const qc = useQueryClient();
 
+  const { data: qOpts } = useQualityOptions();
+  const LABELS = qOpts?.labels ?? [...QUALITY_LABELS];
+  const DEPTS = qOpts?.departments ?? [...QUALITY_DEPARTMENTS];
+
   const [view, setView] = useState<"list" | "analytics">("list");
+  const [listsOpen, setListsOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [days, setDays] = useState("30");
   const [filterLine, setFilterLine] = useState("__all__");
   const [filterLeader, setFilterLeader] = useState("__all__");
@@ -157,10 +167,8 @@ export default function QualityActionsPage() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="p-4 md:p-6 space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-bold">Quality Actions</h1>
+    <div className="space-y-6">
+        <div className="flex items-center justify-end flex-wrap gap-3">
           <div className="flex flex-wrap gap-2">
             <div className="inline-flex rounded-md border p-0.5">
               <button type="button" onClick={() => setView("list")} className={cn("inline-flex items-center gap-1 rounded px-3 py-1 text-sm font-medium transition-colors", view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
@@ -170,7 +178,9 @@ export default function QualityActionsPage() {
                 <BarChart3 className="h-4 w-4" /> Analytics
               </button>
             </div>
+            {canManage && <Button variant="outline" onClick={() => setListsOpen(true)}><Tags className="h-4 w-4 mr-1" />Lists</Button>}
             {isAdmin && <Button variant="outline" onClick={() => setTypesOpen(true)}><Settings2 className="h-4 w-4 mr-1" />Types</Button>}
+            {canManage && <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" />Import</Button>}
             <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />Export</Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-1" />Log action</Button></DialogTrigger>
@@ -218,14 +228,14 @@ export default function QualityActionsPage() {
                     <div><Label>Department</Label>
                       <Select value={form.department} onValueChange={(v) => setForm({ ...form, department: v })}>
                         <SelectTrigger><SelectValue placeholder="Pick dept" /></SelectTrigger>
-                        <SelectContent>{QUALITY_DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+                        <SelectContent>{DEPTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                   </div>
                   <div>
                     <Label>Labels</Label>
                     <div className="mt-1 flex flex-wrap gap-1.5">
-                      {QUALITY_LABELS.map((l) => {
+                      {LABELS.map((l) => {
                         const on = form.labels.includes(l);
                         return (
                           <button key={l} type="button" onClick={() => toggleLabel(l)}
@@ -268,7 +278,7 @@ export default function QualityActionsPage() {
           </Select>
           <Select value={filterDept} onValueChange={setFilterDept}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All departments</SelectItem>{QUALITY_DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="__all__">All departments</SelectItem>{DEPTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={filterLeader} onValueChange={setFilterLeader}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
@@ -326,8 +336,104 @@ export default function QualityActionsPage() {
             </DialogContent>
           </Dialog>
         )}
+
+        {canManage && (
+          <Dialog open={listsOpen} onOpenChange={setListsOpen}>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>Manage labels &amp; departments</DialogTitle></DialogHeader>
+              <QualityListsManager />
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {canManage && (
+          <QualityImportDialog
+            open={importOpen}
+            onOpenChange={setImportOpen}
+            types={types}
+            onImported={() => qc.invalidateQueries({ queryKey: ["quality_actions"] })}
+          />
+        )}
       </div>
-    </DashboardLayout>
+  );
+}
+
+function QualityListsManager() {
+  const qc = useQueryClient();
+  const { data: options = [] } = useAllQualityOptions();
+  const [kind, setKind] = useState<"label" | "department">("label");
+  const [value, setValue] = useState("");
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["quality_options_all"] });
+    qc.invalidateQueries({ queryKey: ["quality_options"] });
+  };
+
+  const add = async () => {
+    const v = value.trim();
+    if (!v) return;
+    const maxSort = options.filter((o) => o.kind === kind).reduce((m, o) => Math.max(m, o.sort), 0);
+    const { error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
+      .from("quality_options" as any)
+      .insert({ kind, value: v, sort: maxSort + 1, active: true } as unknown as never);
+    if (error) { toast.error(error.message); return; }
+    setValue(""); refresh();
+  };
+  const toggle = async (o: QualityOption) => {
+    const { error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
+      .from("quality_options" as any)
+      .update({ active: !o.active } as unknown as never)
+      .eq("id", o.id);
+    if (error) { toast.error(error.message); return; }
+    refresh();
+  };
+  const remove = async (o: QualityOption) => {
+    const { error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
+      .from("quality_options" as any)
+      .delete()
+      .eq("id", o.id);
+    if (error) { toast.error(error.message); return; }
+    refresh();
+  };
+
+  const groups: { kind: "label" | "department"; title: string }[] = [
+    { kind: "label", title: "Labels" },
+    { kind: "department", title: "Departments" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <Select value={kind} onValueChange={(v) => setKind(v as "label" | "department")}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="label">Label</SelectItem><SelectItem value="department">Department</SelectItem></SelectContent>
+        </Select>
+        <Input placeholder="New value..." value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
+        <Button onClick={add}>Add</Button>
+      </div>
+      {groups.map((g) => (
+        <div key={g.kind}>
+          <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">{g.title}</p>
+          <div className="divide-y rounded border">
+            {options.filter((o) => o.kind === g.kind).length === 0 && (
+              <p className="px-3 py-2 text-sm text-muted-foreground">None yet.</p>
+            )}
+            {options.filter((o) => o.kind === g.kind).map((o) => (
+              <div key={o.id} className="flex items-center justify-between px-3 py-1.5">
+                <span className={cn("text-sm", !o.active && "text-muted-foreground line-through")}>{o.value}</span>
+                <div className="flex gap-1">
+                  <Button size="sm" variant="outline" onClick={() => toggle(o)}>{o.active ? "Hide" : "Show"}</Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => remove(o)}><Trash2 className="h-4 w-4" /></Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
