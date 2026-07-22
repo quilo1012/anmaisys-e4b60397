@@ -83,8 +83,7 @@ const navItems: NavItem[] = [
   { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager", "supervisor"], group: "Production", action: "production.performance.view" },
   { title: "SKU Performance", url: "/dashboard/sku-performance", icon: Gauge, roles: ["admin", "manager", "supervisor"], group: "Production", action: "production.sku_performance.view" },
 
-  { title: "Quality Actions", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor"], group: "Production", action: "quality.view" },
-  { title: "Quality Report", url: "/dashboard/quality-report", icon: FileBarChart, roles: ["admin", "manager", "supervisor", "quality_supervisor"], group: "Production", action: "quality.view" },
+  { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor"], group: "Production", action: "quality.view" },
 
   // Planning & Insights
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager"], group: "Planning", action: "sku.manage" },
@@ -311,8 +310,7 @@ const routeTitles: Record<string, string> = {
   "/dashboard/production-performance": "Performance",
   "/dashboard/sku-performance": "SKU Performance",
   
-  "/dashboard/quality": "Quality Actions",
-  "/dashboard/quality-report": "Quality Report",
+  "/dashboard/quality": "Quality",
   "/dashboard/sku-products": "SKU Products",
   "/dashboard/analytics": "Analytics",
   "/dashboard/reliability": "Reliability Dashboard",

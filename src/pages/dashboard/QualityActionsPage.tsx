@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +30,7 @@ const emptyForm = {
   department: "", status: "todo", labels: [] as string[], description: "",
 };
 
-export default function QualityActionsPage() {
+export function QualityActionsView() {
   const { role } = useAuth();
   const isAdmin = role === "admin";
   const qc = useQueryClient();
@@ -157,10 +156,8 @@ export default function QualityActionsPage() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="p-4 md:p-6 space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-bold">Quality Actions</h1>
+    <div className="space-y-6">
+        <div className="flex items-center justify-end flex-wrap gap-3">
           <div className="flex flex-wrap gap-2">
             <div className="inline-flex rounded-md border p-0.5">
               <button type="button" onClick={() => setView("list")} className={cn("inline-flex items-center gap-1 rounded px-3 py-1 text-sm font-medium transition-colors", view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
@@ -327,7 +324,6 @@ export default function QualityActionsPage() {
           </Dialog>
         )}
       </div>
-    </DashboardLayout>
   );
 }
 
