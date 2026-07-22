@@ -377,7 +377,9 @@ function QualityDayEditor({ canManage }: { canManage: boolean }) {
         </CardContent>
       </Card>
 
-      <ActionsList actions={actions} period="day" />
+      <p className="text-xs text-muted-foreground">
+        Enter batches &amp; checks here. Individual actions are created and managed in the <span className="font-medium">Actions</span> tab.
+      </p>
     </div>
   );
 }
