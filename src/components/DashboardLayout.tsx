@@ -63,7 +63,7 @@ const navItems: NavItem[] = [
   { title: "History", url: "/dashboard/engineer?focus=history", icon: History, roles: ["engineer", "co_engineer"], group: "Overview", action: "dashboard.engineer" },
   { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Overview", action: "dashboard.manager" },
   { title: "Dashboard", url: "/dashboard/warehouse", icon: LayoutDashboard, roles: ["warehouse"], group: "Overview" },
-  { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager", "maintenance_manager"], group: "Overview", action: "controlcenter.view" },
+  { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager", "maintenance_manager", "supervisor"], group: "Overview", action: "controlcenter.view" },
 
 
   // Maintenance
@@ -78,12 +78,12 @@ const navItems: NavItem[] = [
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "warehouse"], group: "Assets", action: "stock.view" },
 
   // Production
-  { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager"], group: "Production", action: "production.manage" },
+  { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "supervisor"], group: "Production", action: "production.manage" },
   { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Production", action: "rag.view" },
-  { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production", action: "production.performance.view" },
-  { title: "SKU Performance", url: "/dashboard/sku-performance", icon: Gauge, roles: ["admin", "manager"], group: "Production", action: "production.sku_performance.view" },
+  { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager", "supervisor"], group: "Production", action: "production.performance.view" },
+  { title: "SKU Performance", url: "/dashboard/sku-performance", icon: Gauge, roles: ["admin", "manager", "supervisor"], group: "Production", action: "production.sku_performance.view" },
 
-  { title: "Quality Actions", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager"], group: "Production", action: "quality.view" },
+  { title: "Quality Actions", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor"], group: "Production", action: "quality.view" },
 
   // Planning & Insights
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager"], group: "Planning", action: "sku.manage" },
