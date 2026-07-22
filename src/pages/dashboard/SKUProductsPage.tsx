@@ -158,9 +158,19 @@ export default function SKUProductsPage() {
   const { data: all = [], isLoading } = useQuery({
     queryKey: ["sku_products_all"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("sku_products").select("*").order("code");
-      if (error) throw error;
-      return (data ?? []) as Sku[];
+      // Paginate: PostgREST caps each response at ~1000 rows, so fetch pages
+      // until a short page is returned — otherwise SKUs beyond 1000 are hidden
+      // (search finds nothing / list looks empty for later codes).
+      const pageSize = 1000;
+      const rows: Sku[] = [];
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabase.from("sku_products").select("*").order("code").range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        const page = (data ?? []) as Sku[];
+        rows.push(...page);
+        if (page.length < pageSize) break;
+      }
+      return rows;
     },
   });
 
