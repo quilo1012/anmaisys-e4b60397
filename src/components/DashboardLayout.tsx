@@ -175,7 +175,7 @@ function SidebarFooterToggle() {
   );
 }
 
-function SidebarNav({ filteredItems, permissionOverrideCount }: { filteredItems: NavItem[]; permissionOverrideCount: number }) {
+function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread }: { filteredItems: NavItem[]; permissionOverrideCount: number; dmUnread: number }) {
   const location = useLocation();
   const { state } = useSidebar();
   const iconCollapsed = state === "collapsed";
