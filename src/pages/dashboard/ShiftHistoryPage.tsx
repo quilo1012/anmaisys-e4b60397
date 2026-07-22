@@ -469,7 +469,6 @@ export default function ShiftHistoryPage() {
                         <th className="text-left px-3 py-2 border-b">Batch</th>
                         <th className="text-left px-3 py-2 border-b">Tubs</th>
                         <th className="text-left px-3 py-2 border-b">Bags</th>
-                        <th className="text-right px-3 py-2 border-b">Units</th>
                         <th className="text-right px-3 py-2 border-b">Weight (g)</th>
                         <th className="text-right px-3 py-2 border-b w-24">Actions</th>
                       </tr>
@@ -486,7 +485,7 @@ export default function ShiftHistoryPage() {
                           if (s.line !== prevLine) {
                             out.push(
                               <tr key={`sep-${s.id}-${s.line}`} className="bg-primary/5">
-                                <td colSpan={12} className="px-3 py-1.5 text-[11px] uppercase font-semibold tracking-wider text-primary border-b border-primary/20">
+                                <td colSpan={11} className="px-3 py-1.5 text-[11px] uppercase font-semibold tracking-wider text-primary border-b border-primary/20">
                                   {s.line}
                                 </td>
                               </tr>
@@ -597,9 +596,6 @@ export default function ShiftHistoryPage() {
                                       onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
                                     />
                                   ) : null}
-                                </td>
-                                <td className="px-3 py-2 text-right tabular-nums text-xs font-semibold">
-                                  {a ? a.toLocaleString() : "—"}
                                 </td>
                                 <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
                                   {weight ? weight.toLocaleString() : "—"}
