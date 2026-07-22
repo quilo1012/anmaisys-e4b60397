@@ -32,3 +32,23 @@ export const QUALITY_STATUSES: QualityStatus[] = [
 export function statusMeta(value: string | null | undefined): QualityStatus {
   return QUALITY_STATUSES.find((s) => s.value === value) ?? QUALITY_STATUSES[0];
 }
+
+export interface QualitySeverity {
+  value: "low" | "medium" | "high" | "critical";
+  label: string;
+  /** Tailwind classes for a badge. */
+  badge: string;
+  /** Left-border accent class for Kanban cards. */
+  accent: string;
+}
+
+export const QUALITY_SEVERITIES: QualitySeverity[] = [
+  { value: "low", label: "Low", badge: "bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/40", accent: "border-l-slate-400" },
+  { value: "medium", label: "Medium", badge: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40", accent: "border-l-amber-400" },
+  { value: "high", label: "High", badge: "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/40", accent: "border-l-orange-500" },
+  { value: "critical", label: "Critical", badge: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/40", accent: "border-l-red-500" },
+];
+
+export function severityMeta(value: string | null | undefined): QualitySeverity | null {
+  return QUALITY_SEVERITIES.find((s) => s.value === value) ?? null;
+}

@@ -27,7 +27,7 @@ export function useWOPhotos(workOrderId: string) {
   });
 }
 
-async function compressImage(file: File, maxDim = 1920, quality = 0.7): Promise<File> {
+export async function compressImage(file: File, maxDim = 1920, quality = 0.7): Promise<File> {
   if (file.size <= 1024 * 1024) return file; // skip if already ≤1MB
   return new Promise((resolve, reject) => {
     const img = new Image();

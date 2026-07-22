@@ -2035,6 +2035,7 @@ export type Database = {
         Row: {
           action_no: string | null
           action_type_id: string | null
+          attachments: string[]
           created_at: string
           department: string | null
           description: string | null
@@ -2047,6 +2048,7 @@ export type Database = {
           recorded_at: string
           recorded_by: string | null
           session_id: string | null
+          severity: string | null
           shift: string | null
           status: string
           updated_at: string
@@ -2054,6 +2056,7 @@ export type Database = {
         Insert: {
           action_no?: string | null
           action_type_id?: string | null
+          attachments?: string[]
           created_at?: string
           department?: string | null
           description?: string | null
@@ -2066,6 +2069,7 @@ export type Database = {
           recorded_at?: string
           recorded_by?: string | null
           session_id?: string | null
+          severity?: string | null
           shift?: string | null
           status?: string
           updated_at?: string
@@ -2073,6 +2077,7 @@ export type Database = {
         Update: {
           action_no?: string | null
           action_type_id?: string | null
+          attachments?: string[]
           created_at?: string
           department?: string | null
           description?: string | null
@@ -2085,6 +2090,7 @@ export type Database = {
           recorded_at?: string
           recorded_by?: string | null
           session_id?: string | null
+          severity?: string | null
           shift?: string | null
           status?: string
           updated_at?: string
