@@ -40,7 +40,7 @@ import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useOfflineDetection } from "@/hooks/useOfflineQueue";
 import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useDMUnreadCount } from "@/hooks/useDirectMessages";
+import { useDMUnreadCount, unlockDMAudio } from "@/hooks/useDirectMessages";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -350,6 +350,19 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     return subscribePermissionOverrides(() => setPermissionVersion((v) => v + 1));
+  }, []);
+
+  useEffect(() => {
+    const unlock = () => unlockDMAudio();
+    const opts = { once: true } as AddEventListenerOptions;
+    window.addEventListener("pointerdown", unlock, opts);
+    window.addEventListener("touchstart", unlock, opts);
+    window.addEventListener("keydown", unlock, opts);
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("touchstart", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
   }, []);
 
   // Engineer/Admin: auto-prompt the "Enable Alerts" gesture on any dashboard
