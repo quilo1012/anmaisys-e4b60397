@@ -535,13 +535,16 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
 
     setSaving(true);
     try {
-      // 1) Find or create production_items row for this session + SKU
-      const { data: existingItem, error: findErr } = await (supabase as any)
+      // 1) Find or create the production_items row for this session + SKU + batch.
+      // Multiple batches of the same SKU in one shift are separate items,
+      // distinguished by blender_ref (the batch).
+      let findQ = (supabase as any)
         .from("production_items")
         .select("id, blender_ref")
         .eq("session_id", sessionId)
-        .eq("sku_id", selectedSku.id)
-        .maybeSingle();
+        .eq("sku_id", selectedSku.id);
+      findQ = batch ? findQ.eq("blender_ref", batch) : findQ.is("blender_ref", null);
+      const { data: existingItem, error: findErr } = await findQ.maybeSingle();
       if (findErr) throw findErr;
 
       let itemId: string | null = existingItem?.id ?? null;
@@ -561,12 +564,6 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
           .maybeSingle();
         if (insErr) throw insErr;
         itemId = created?.id ?? null;
-      } else if (batch) {
-        // Update batch reference if changed / newly provided
-        await (supabase as any)
-          .from("production_items")
-          .update({ blender_ref: batch })
-          .eq("id", itemId);
       }
       if (!itemId) throw new Error("Could not resolve production item");
 
