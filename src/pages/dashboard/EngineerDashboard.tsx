@@ -216,7 +216,7 @@ export default function EngineerDashboard() {
   if (!role) return null;
   // Allow admin/manager/maintenance_manager to view the engineer dashboard
   // (used by /dashboard/engineer-preview read-only preview).
-  if (!["engineer", "admin", "manager", "maintenance_manager"].includes(role)) {
+  if (!["engineer", "co_engineer", "admin", "manager", "supervisor", "maintenance_manager", "planner"].includes(role)) {
     return null;
   }
 
