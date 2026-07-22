@@ -243,6 +243,11 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread }: { filt
                                 {permissionOverrideCount} custom
                               </span>
                             )}
+                            {item.title === "Messages" && dmUnread > 0 && (
+                              <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-[10px] font-semibold text-white min-w-[18px] text-center">
+                                {dmUnread > 9 ? "9+" : dmUnread}
+                              </span>
+                            )}
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
