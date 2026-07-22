@@ -21,6 +21,7 @@ import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/h
 import { useRole } from "@/hooks/useRole";
 import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
 import { useQualityCapa, useSaveCapa, ISHIKAWA_CATEGORIES, CAPA_STATUSES, type QualityCapa } from "@/hooks/useQualityCapa";
+import { LeaderScorecard } from "@/components/LeaderScorecard";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
 interface QualityAction {
@@ -307,7 +308,7 @@ export function QualityActionsView() {
         </div>
 
         {view === "analytics" ? (
-          <QualityAnalytics actions={filtered} />
+          <QualityAnalytics actions={filtered} from={from} />
         ) : view === "kanban" ? (
           <IssueKanban actions={filtered} canManage={canManage} onOpen={setDetailId} onMove={(id, status) => setStatus.mutate({ id, status })} />
         ) : (
@@ -858,7 +859,8 @@ function QualityListsManager() {
 // ============================================================
 // Analytics
 // ============================================================
-function QualityAnalytics({ actions }: { actions: QualityAction[] }) {
+function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: string }) {
+  const [selectedLeader, setSelectedLeader] = useState<string | null>(null);
   const byDay = useMemo(() => {
     const m = new Map<string, { key: string; label: string; todo: number; in_progress: number; complete: number }>();
     for (const a of actions) {
@@ -949,16 +951,19 @@ function QualityAnalytics({ actions }: { actions: QualityAction[] }) {
                   <Bar dataKey="count" name="Actions" fill="hsl(0 72% 51%)" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-              <div className="mt-2">
+              <p className="mt-2 mb-1 text-[11px] text-muted-foreground">Click a leader to open the scorecard.</p>
+              <div>
                 {filteredLeaders.map((l, i) => (
-                  <div key={l.label} className="flex items-center justify-between border-b py-1 text-sm last:border-0">
+                  <button key={l.label} type="button" onClick={() => l.label !== "—" && setSelectedLeader(l.label)}
+                    className="flex w-full items-center justify-between border-b py-1 text-left text-sm transition-colors last:border-0 hover:bg-accent/50 disabled:cursor-default disabled:hover:bg-transparent"
+                    disabled={l.label === "—"}>
                     <span className="truncate"><span className="mr-2 text-xs text-muted-foreground">#{i + 1}</span>{l.label}</span>
                     <span className="flex items-center gap-2 whitespace-nowrap">
                       {l.critical > 0 && <Badge variant="outline" className={cn("text-[10px]", severityMeta("critical")?.badge)}>{l.critical} critical</Badge>}
                       {l.high > 0 && <Badge variant="outline" className={cn("text-[10px]", severityMeta("high")?.badge)}>{l.high} high</Badge>}
                       <span className="font-semibold tabular-nums">{l.count}</span>
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </>
@@ -970,6 +975,8 @@ function QualityAnalytics({ actions }: { actions: QualityAction[] }) {
         <ChartCard title="Actions by label" data={byLabel} color="hsl(217 91% 60%)" />
         <ChartCard title="Actions by department" data={byDept} color="hsl(262 83% 58%)" />
       </div>
+
+      <LeaderScorecard leaderName={selectedLeader} fromDate={from} onClose={() => setSelectedLeader(null)} />
     </div>
   );
 }
