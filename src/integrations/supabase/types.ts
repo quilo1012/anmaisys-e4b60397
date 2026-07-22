@@ -2033,10 +2033,13 @@ export type Database = {
       }
       quality_actions: {
         Row: {
+          action_no: string | null
           action_type_id: string
           created_at: string
+          department: string | null
           description: string | null
           id: string
+          labels: string[]
           leader_id: string | null
           leader_name: string | null
           line: string | null
@@ -2045,13 +2048,17 @@ export type Database = {
           recorded_by: string | null
           session_id: string | null
           shift: string | null
+          status: string
           updated_at: string
         }
         Insert: {
+          action_no?: string | null
           action_type_id: string
           created_at?: string
+          department?: string | null
           description?: string | null
           id?: string
+          labels?: string[]
           leader_id?: string | null
           leader_name?: string | null
           line?: string | null
@@ -2060,13 +2067,17 @@ export type Database = {
           recorded_by?: string | null
           session_id?: string | null
           shift?: string | null
+          status?: string
           updated_at?: string
         }
         Update: {
+          action_no?: string | null
           action_type_id?: string
           created_at?: string
+          department?: string | null
           description?: string | null
           id?: string
+          labels?: string[]
           leader_id?: string | null
           leader_name?: string | null
           line?: string | null
@@ -2075,6 +2086,7 @@ export type Database = {
           recorded_by?: string | null
           session_id?: string | null
           shift?: string | null
+          status?: string
           updated_at?: string
         }
         Relationships: [
