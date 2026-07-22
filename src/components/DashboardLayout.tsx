@@ -331,6 +331,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { isOnline } = useOfflineDetection();
   const { data: stoppedLinesCount = 0 } = useStoppedLinesCount();
   const { language, toggle: toggleLanguage } = useLanguage();
+  const { data: dmUnread = 0 } = useDMUnreadCount();
   const [changePwdOpen, setChangePwdOpen] = useState(false);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const [permissionVersion, setPermissionVersion] = useState(0);
