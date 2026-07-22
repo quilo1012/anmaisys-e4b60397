@@ -244,11 +244,6 @@ function OperatorPerformanceContent() {
                 No RAG Weekly target set for this line/shift today.
               </div>
             )}
-              <Button size="lg" className="h-11" onClick={submitShift}>
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Submit Shift
-              </Button>
-            </div>
 
             {unlocked && (
               <>
