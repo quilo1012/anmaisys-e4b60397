@@ -529,9 +529,15 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
   const onSave = async () => {
     const quantity = Number(qty);
     const blenderNum = Number(blender);
-    if (!selectedSku) { toast.error("Select the SKU"); return; }
+    // Free-text SKU: if nothing was picked from the catalog, log the typed code
+    // as-is (no new SKU is created). Admin reconciles the real SKU later.
+    const rawCode = skuQuery.trim().replace(/\s+—\s+.*$/, "").trim();
+    if (!selectedSku && !rawCode) { toast.error("Enter or select a SKU"); return; }
     if (!Number.isFinite(blenderNum) || !Number.isInteger(blenderNum) || blenderNum < 1) { toast.error("Enter a valid blender number"); return; }
     if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
+
+    const skuId: string | null = selectedSku?.id ?? null;
+    const skuText: string | null = selectedSku ? null : rawCode;
 
     setSaving(true);
     try {
@@ -541,8 +547,8 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
       let findQ = (supabase as any)
         .from("production_items")
         .select("id, blender_ref")
-        .eq("session_id", sessionId)
-        .eq("sku_id", selectedSku.id);
+        .eq("session_id", sessionId);
+      findQ = skuId ? findQ.eq("sku_id", skuId) : findQ.is("sku_id", null).eq("sku_code_text", skuText);
       findQ = batch ? findQ.eq("blender_ref", batch) : findQ.is("blender_ref", null);
       const { data: existingItem, error: findErr } = await findQ.maybeSingle();
       if (findErr) throw findErr;
@@ -553,7 +559,8 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
           .from("production_items")
           .insert({
             session_id: sessionId,
-            sku_id: selectedSku.id,
+            sku_id: skuId,
+            sku_code_text: skuText,
             target_qty: 0,
             planned_qty: 0,
             actual_qty: 0,
@@ -598,7 +605,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
       }
 
       // 3) actual_qty is auto-synced by DB trigger from blender entries.
-      toast.success(`Logged ${quantity} on Blender ${blenderNum} for ${selectedSku.code}`);
+      toast.success(`Logged ${quantity} on Blender ${blenderNum} for ${selectedSku?.code ?? skuText}`);
       reset();
       qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
       qc.invalidateQueries({ queryKey: ["blender-entries", sessionId] });
@@ -646,7 +653,18 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
                   <Loader2 className="h-4 w-4 animate-spin" /> Searching...
                 </div>
               ) : results.length === 0 ? (
-                <div className="p-3 text-sm text-muted-foreground">No SKUs found</div>
+                skuQuery.trim() ? (
+                  <button
+                    type="button"
+                    className="w-full text-left p-3 hover:bg-accent"
+                    onClick={() => { setSelectedSku(null); setSkuPopoverOpen(false); }}
+                  >
+                    <div className="text-sm font-medium">Use “<span className="font-mono">{skuQuery.trim()}</span>” as typed</div>
+                    <div className="text-xs text-muted-foreground">Not in the catalog — it won't create a new SKU. Admin reconciles it later.</div>
+                  </button>
+                ) : (
+                  <div className="p-3 text-sm text-muted-foreground">No SKUs found</div>
+                )
               ) : (
                 <ul className="divide-y">
                   {results.map((s) => (
