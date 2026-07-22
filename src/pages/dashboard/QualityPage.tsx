@@ -5,12 +5,14 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { cn } from "@/lib/utils";
 import { QualityActionsView } from "./QualityActionsPage";
 import { QualityReportView } from "./QualityWeeklyReportPage";
+import { QCChecksView } from "./QCChecksPage";
 
-type QualityTab = "actions" | "report";
+type QualityTab = "actions" | "checks" | "report";
 
 export default function QualityPage() {
   const [params, setParams] = useSearchParams();
-  const initial: QualityTab = params.get("tab") === "report" ? "report" : "actions";
+  const tabParam = params.get("tab");
+  const initial: QualityTab = tabParam === "report" ? "report" : tabParam === "checks" ? "checks" : "actions";
   const [tab, setTab] = useState<QualityTab>(initial);
 
   const select = (t: QualityTab) => {
@@ -43,11 +45,12 @@ export default function QualityPage() {
           </div>
           <div className="inline-flex rounded-md border p-0.5">
             {tabBtn("actions", "Actions")}
+            {tabBtn("checks", "QC Checks")}
             {tabBtn("report", "Report Analytics")}
           </div>
         </div>
 
-        {tab === "actions" ? <QualityActionsView /> : <QualityReportView />}
+        {tab === "actions" ? <QualityActionsView /> : tab === "checks" ? <QCChecksView /> : <QualityReportView />}
       </div>
     </DashboardLayout>
   );
