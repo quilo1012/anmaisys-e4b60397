@@ -17,6 +17,7 @@ import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { InlineActualInput } from "@/components/InlineActualInput";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { baseSkuCode } from "@/lib/skuDisplay";
 import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -351,7 +352,7 @@ export default function ShiftHistoryPage() {
           const sku = skuMap.get(i.sku_id);
           const t = Number(i.target_qty ?? i.planned_qty ?? 0);
           const a = Number(i.actual_qty ?? 0);
-          rows.push([s.session_date, s.shift, s.line, s.leader_name ?? "", String(s.staff_actual ?? ""), sku?.code ?? "", String(t), String(a), t > 0 ? ((a / t) * 100).toFixed(0) : "0", s.notes ?? ""]);
+          rows.push([s.session_date, s.shift, s.line, s.leader_name ?? "", String(s.staff_actual ?? ""), baseSkuCode(sku?.code), String(t), String(a), t > 0 ? ((a / t) * 100).toFixed(0) : "0", s.notes ?? ""]);
         }
       }
     }
@@ -548,7 +549,7 @@ export default function ShiftHistoryPage() {
                                     />
                                   ) : null}
                                 </td>
-                                <td className="px-3 py-2 font-mono text-xs font-bold whitespace-nowrap">{code || "—"}</td>
+                                <td className="px-3 py-2 font-mono text-xs font-bold whitespace-nowrap">{baseSkuCode(code) || "—"}</td>
                                 <td className="px-3 py-2 max-w-[240px]">
                                   <UITooltip>
                                     <TooltipTrigger asChild>
