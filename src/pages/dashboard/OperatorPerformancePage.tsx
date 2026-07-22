@@ -127,11 +127,12 @@ function OperatorPerformanceContent() {
   });
 
   // Official target comes from RAG Weekly plan_qty for line+date+shift
+  // Use hook's built-in normalized matcher (trim + lowercase + collapse spaces)
+  // so whitespace/case differences between device line and RAG row don't hide the plan.
   const ragQ = useLineShiftTarget({
     line,
     date: today,
     shift,
-    matchLine: (rowLine) => rowLine === line,
     refetchIntervalMs: 60_000,
   });
 
