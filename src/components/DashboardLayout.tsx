@@ -426,7 +426,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               />
             </div>
             <SidebarContent>
-              <SidebarNav filteredItems={filteredItems} permissionOverrideCount={permissionOverrideCount} />
+              <SidebarNav filteredItems={filteredItems} permissionOverrideCount={permissionOverrideCount} dmUnread={dmUnread} />
             </SidebarContent>
             <div className="mt-auto border-t border-sidebar-border p-4 group-data-[collapsible=icon]:p-2">
               <div className="mb-3 flex items-center gap-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mb-2">
