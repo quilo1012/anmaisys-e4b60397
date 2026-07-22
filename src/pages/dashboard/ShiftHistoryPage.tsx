@@ -212,7 +212,7 @@ interface SessionRow {
   tickets: number | null;
   tickets_unit: "tubs" | "bags" | null;
   locked: boolean; notes: string | null;
-  production_items: { id: string; sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; tickets_unit: "tubs" | "bags" | null; production_blender_entries?: { blender_number: number; quantity: number }[] }[];
+  production_items: { id: string; sku_id: string; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; tickets_unit: "tubs" | "bags" | null; production_blender_entries?: { blender_number: number; quantity: number }[] }[];
 }
 
 
@@ -245,7 +245,7 @@ export default function ShiftHistoryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, target_qty, planned_qty, actual_qty, notes, blender_ref, tickets_unit, production_blender_entries(blender_number, quantity))")
+        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty, notes, blender_ref, tickets_unit, production_blender_entries(blender_number, quantity))")
         .gte("session_date", from).lte("session_date", to)
         .order("session_date", { ascending: false });
       if (error) throw error;
@@ -547,7 +547,7 @@ export default function ShiftHistoryPage() {
                                     />
                                   ) : null}
                                 </td>
-                                <td className="px-3 py-2 font-mono text-xs font-bold whitespace-nowrap">{baseSkuCode(code) || "—"}</td>
+                                <td className="px-3 py-2 font-mono text-xs font-bold whitespace-nowrap">{baseSkuCode(code) || (i.sku_code_text ? <span className="italic font-normal text-amber-600 dark:text-amber-400" title="Not in catalog — admin should reconcile the SKU">{i.sku_code_text}</span> : "—")}</td>
                                 <td className="px-3 py-2 max-w-[240px]">
                                   <UITooltip>
                                     <TooltipTrigger asChild>
