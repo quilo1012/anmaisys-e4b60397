@@ -841,14 +841,26 @@ const OCCURRENCE_CATEGORIES = [
   "Other",
 ] as const;
 
-function LogOccurrenceCard({ line, shift, sessionDate }: { line: string; shift: Shift; sessionDate: string }) {
+function LogOccurrenceCard({ line, shift, shiftLabel, sessionDate }: { line: string; shift: Shift; shiftLabel: string; sessionDate: string }) {
   const qc = useQueryClient();
+  const { role } = useAuth() as any;
+  const { data: supervisors = [] } = useDMPartners(role);
+  const sendDM = useSendDM();
   const [expanded, setExpanded] = useState(false);
   const [category, setCategory] = useState<string>("");
   const [reason, setReason] = useState("");
   const [duration, setDuration] = useState<string>("");
   const [notes, setNotes] = useState("");
+  const [supervisorId, setSupervisorId] = useState<string>("");
   const [saving, setSaving] = useState(false);
+
+  // Preselect when exactly one supervisor is available.
+  useEffect(() => {
+    if (!supervisorId && supervisors.length === 1) {
+      setSupervisorId(supervisors[0].user_id);
+    }
+  }, [supervisors, supervisorId]);
+
 
   const occurrencesQ = useQuery({
     enabled: !!line,
