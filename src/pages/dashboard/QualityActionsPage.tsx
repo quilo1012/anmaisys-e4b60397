@@ -10,10 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Download, Settings2, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2, ClipboardCheck } from "lucide-react";
+import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2, ClipboardCheck } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
 import { format, subDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
@@ -37,8 +36,6 @@ const emptyForm = {
 };
 
 export function QualityActionsView() {
-  const { role } = useAuth();
-  const isAdmin = role === "admin";
   const { can } = useRole();
   const canManage = can("quality.manage");
   const qc = useQueryClient();
@@ -58,7 +55,6 @@ export function QualityActionsView() {
   const [filterSeverity, setFilterSeverity] = useState("__all__");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const [typesOpen, setTypesOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
 
   const from = useMemo(() => format(subDays(new Date(), Number(days)), "yyyy-MM-dd"), [days]);
@@ -106,7 +102,6 @@ export function QualityActionsView() {
 
   const detailAction = useMemo(() => actions.find((a) => a.id === detailId) ?? null, [actions, detailId]);
 
-  const typeMap = useMemo(() => new Map(types.map((t) => [t.id, t])), [types]);
 
   const kpis = useMemo(() => ({
     total: filtered.length,
@@ -120,12 +115,11 @@ export function QualityActionsView() {
 
   const create = useMutation({
     mutationFn: async () => {
-      const type = typeMap.get(form.action_type_id);
       const leader = leaders.find((l) => l.id === form.leader_id);
       const { data: u } = await supabase.auth.getUser();
       const { error } = await supabase.from("quality_actions").insert({
         action_no: form.action_no || null,
-        action_type_id: form.action_type_id || null,
+        action_type_id: null,
         line: form.line || null,
         shift: form.shift || null,
         leader_id: null,
@@ -135,7 +129,7 @@ export function QualityActionsView() {
         severity: form.severity || null,
         labels: form.labels,
         description: form.description || null,
-        points: type?.points ?? 1,
+        points: 1,
         recorded_by: u.user?.id ?? null,
         recorded_at: new Date().toISOString(),
       });
@@ -168,11 +162,10 @@ export function QualityActionsView() {
   });
 
   const exportCSV = () => {
-    const rows = [["Date", "Action #", "Status", "Severity", "Type", "Points", "Line", "Shift", "Leader", "Department", "Labels", "Notes"]];
+    const rows = [["Date", "Action #", "Status", "Severity", "Line", "Shift", "Leader", "Department", "Labels", "Notes"]];
     for (const a of filtered) {
-      const t = typeMap.get(a.action_type_id);
       rows.push([
-        a.recorded_at, a.action_no ?? "", statusMeta(a.status).label, severityMeta(a.severity)?.label ?? "", t?.label ?? "", String(a.points ?? 0),
+        a.recorded_at, a.action_no ?? "", statusMeta(a.status).label, severityMeta(a.severity)?.label ?? "",
         a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", (a.labels ?? []).join("; "),
         (a.description ?? "").replace(/"/g, '""'),
       ]);
@@ -200,7 +193,6 @@ export function QualityActionsView() {
               </button>
             </div>
             {canManage && <Button variant="outline" onClick={() => setListsOpen(true)}><Tags className="h-4 w-4 mr-1" />Lists</Button>}
-            {isAdmin && <Button variant="outline" onClick={() => setTypesOpen(true)}><Settings2 className="h-4 w-4 mr-1" />Types</Button>}
             {canManage && <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" />Import</Button>}
             <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />Export</Button>
             <Dialog open={open} onOpenChange={setOpen}>
@@ -226,12 +218,6 @@ export function QualityActionsView() {
                         <SelectItem value="__none__">— None —</SelectItem>
                         {QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                       </SelectContent>
-                    </Select>
-                  </div>
-                  <div><Label>Type (optional)</Label>
-                    <Select value={form.action_type_id} onValueChange={(v) => setForm({ ...form, action_type_id: v })}>
-                      <SelectTrigger><SelectValue placeholder="Pick type" /></SelectTrigger>
-                      <SelectContent>{types.filter((t) => t.active).map((t) => <SelectItem key={t.id} value={t.id}>{t.label} ({t.points}p)</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -321,9 +307,9 @@ export function QualityActionsView() {
         </div>
 
         {view === "analytics" ? (
-          <QualityAnalytics actions={filtered} typeMap={typeMap} />
+          <QualityAnalytics actions={filtered} />
         ) : view === "kanban" ? (
-          <IssueKanban actions={filtered} typeMap={typeMap} canManage={canManage} onOpen={setDetailId} onMove={(id, status) => setStatus.mutate({ id, status })} />
+          <IssueKanban actions={filtered} canManage={canManage} onOpen={setDetailId} onMove={(id, status) => setStatus.mutate({ id, status })} />
         ) : (
           <Card>
             <CardHeader><CardTitle>Log ({filtered.length})</CardTitle></CardHeader>
@@ -331,11 +317,11 @@ export function QualityActionsView() {
               <Table>
                 <TableHeader><TableRow>
                   <TableHead>When</TableHead><TableHead>#</TableHead><TableHead>Status</TableHead><TableHead>Severity</TableHead>
-                  <TableHead>Type</TableHead><TableHead>Line</TableHead><TableHead>Leader</TableHead>
+                  <TableHead>Line</TableHead><TableHead>Leader</TableHead>
                   <TableHead>Dept</TableHead><TableHead>Labels</TableHead><TableHead>Notes</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {filtered.length === 0 && <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
+                  {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
                   {filtered.map((a) => {
                     const sev = severityMeta(a.severity);
                     return (
@@ -349,7 +335,6 @@ export function QualityActionsView() {
                         </Select>
                       </TableCell>
                       <TableCell>{sev ? <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
-                      <TableCell>{typeMap.get(a.action_type_id)?.label ?? "—"}</TableCell>
                       <TableCell>{a.line ?? "—"}</TableCell>
                       <TableCell>{a.leader_name ?? "—"}</TableCell>
                       <TableCell>{a.department ?? "—"}</TableCell>
@@ -371,20 +356,10 @@ export function QualityActionsView() {
         <QualityIssueDetail
           action={detailAction}
           canManage={canManage}
-          typeMap={typeMap}
           onOpenChange={(o) => { if (!o) setDetailId(null); }}
           onStatus={(status) => detailAction && setStatus.mutate({ id: detailAction.id, status })}
           onSeverity={(severity) => detailAction && setSeverity.mutate({ id: detailAction.id, severity })}
         />
-
-        {isAdmin && (
-          <Dialog open={typesOpen} onOpenChange={setTypesOpen}>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Action types</DialogTitle></DialogHeader>
-              <TypesManager types={types} onChange={() => qc.invalidateQueries({ queryKey: ["quality_action_types"] })} />
-            </DialogContent>
-          </Dialog>
-        )}
 
         {canManage && (
           <Dialog open={listsOpen} onOpenChange={setListsOpen}>
@@ -410,8 +385,8 @@ export function QualityActionsView() {
 // ============================================================
 // Kanban board
 // ============================================================
-function IssueKanban({ actions, typeMap, canManage, onOpen, onMove }: {
-  actions: QualityAction[]; typeMap: Map<string, ActionType>; canManage: boolean;
+function IssueKanban({ actions, canManage, onOpen, onMove }: {
+  actions: QualityAction[]; canManage: boolean;
   onOpen: (id: string) => void; onMove: (id: string, status: string) => void;
 }) {
   return (
@@ -429,7 +404,7 @@ function IssueKanban({ actions, typeMap, canManage, onOpen, onMove }: {
             </div>
             <div className="min-h-[80px] space-y-2 p-2">
               {items.length === 0 && <p className="px-2 py-4 text-center text-xs text-muted-foreground">Empty</p>}
-              {items.map((a) => <IssueCard key={a.id} a={a} typeMap={typeMap} canManage={canManage} onOpen={onOpen} onMove={onMove} />)}
+              {items.map((a) => <IssueCard key={a.id} a={a} canManage={canManage} onOpen={onOpen} onMove={onMove} />)}
             </div>
           </div>
         );
@@ -438,8 +413,8 @@ function IssueKanban({ actions, typeMap, canManage, onOpen, onMove }: {
   );
 }
 
-function IssueCard({ a, typeMap, canManage, onOpen, onMove }: {
-  a: QualityAction; typeMap: Map<string, ActionType>; canManage: boolean;
+function IssueCard({ a, canManage, onOpen, onMove }: {
+  a: QualityAction; canManage: boolean;
   onOpen: (id: string) => void; onMove: (id: string, status: string) => void;
 }) {
   const sev = severityMeta(a.severity);
@@ -452,7 +427,6 @@ function IssueCard({ a, typeMap, canManage, onOpen, onMove }: {
         {sev && <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge>}
       </div>
       {a.description && <p className="mt-1 line-clamp-2 text-xs">{a.description}</p>}
-      {typeMap.get(a.action_type_id)?.label && <p className="mt-1 text-[11px] text-muted-foreground">{typeMap.get(a.action_type_id)?.label}</p>}
       {(a.labels?.length ?? 0) > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {(a.labels ?? []).slice(0, 4).map((l) => <Badge key={l} variant="secondary" className="text-[10px]">{l}</Badge>)}
@@ -513,8 +487,8 @@ function PhotoThumb({ path, canDelete, onDelete }: { path: string; canDelete: bo
   );
 }
 
-function QualityIssueDetail({ action, canManage, typeMap, onOpenChange, onStatus, onSeverity }: {
-  action: QualityAction | null; canManage: boolean; typeMap: Map<string, ActionType>;
+function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSeverity }: {
+  action: QualityAction | null; canManage: boolean;
   onOpenChange: (open: boolean) => void; onStatus: (status: string) => void; onSeverity: (severity: string | null) => void;
 }) {
   const { data: history = [] } = useQualityHistory(action?.id);
@@ -542,7 +516,6 @@ function QualityIssueDetail({ action, canManage, typeMap, onOpenChange, onStatus
             <DialogHeader>
               <DialogTitle className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-sm">{action.action_no ?? "Issue"}</span>
-                {typeMap.get(action.action_type_id)?.label && <Badge variant="outline">{typeMap.get(action.action_type_id)?.label}</Badge>}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
@@ -885,7 +858,7 @@ function QualityListsManager() {
 // ============================================================
 // Analytics
 // ============================================================
-function QualityAnalytics({ actions, typeMap }: { actions: QualityAction[]; typeMap: Map<string, ActionType> }) {
+function QualityAnalytics({ actions }: { actions: QualityAction[] }) {
   const byDay = useMemo(() => {
     const m = new Map<string, { key: string; label: string; todo: number; in_progress: number; complete: number }>();
     for (const a of actions) {
@@ -910,12 +883,6 @@ function QualityAnalytics({ actions, typeMap }: { actions: QualityAction[]; type
     for (const a of actions) { const d = a.department ?? "—"; m.set(d, (m.get(d) ?? 0) + 1); }
     return Array.from(m.entries()).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
   }, [actions]);
-
-  const byType = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const a of actions) { const t = typeMap.get(a.action_type_id)?.label ?? "—"; m.set(t, (m.get(t) ?? 0) + 1); }
-    return Array.from(m.entries()).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 10);
-  }, [actions, typeMap]);
 
   const [leaderSearch, setLeaderSearch] = useState("");
   const byLeader = useMemo(() => {
@@ -1003,7 +970,6 @@ function QualityAnalytics({ actions, typeMap }: { actions: QualityAction[]; type
         <ChartCard title="Actions by label" data={byLabel} color="hsl(217 91% 60%)" />
         <ChartCard title="Actions by department" data={byDept} color="hsl(262 83% 58%)" />
       </div>
-      <ChartCard title="Top action types" data={byType} color="hsl(142 71% 45%)" />
     </div>
   );
 }
@@ -1031,35 +997,3 @@ function ChartCard({ title, data, color }: { title: string; data: { label: strin
   );
 }
 
-function TypesManager({ types, onChange }: { types: ActionType[]; onChange: () => void }) {
-  const [code, setCode] = useState(""); const [label, setLabel] = useState(""); const [points, setPoints] = useState(1);
-  const add = async () => {
-    if (!code || !label) return;
-    const { error } = await supabase.from("quality_action_types").insert({ code, label, points, active: true });
-    if (error) { toast.error(error.message); return; }
-    setCode(""); setLabel(""); setPoints(1); onChange();
-  };
-  const toggle = async (t: ActionType) => {
-    const { error } = await supabase.from("quality_action_types").update({ active: !t.active }).eq("id", t.id);
-    if (error) { toast.error(error.message); return; }
-    onChange();
-  };
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-4 gap-2">
-        <Input placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} />
-        <Input placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} className="col-span-2" />
-        <Input type="number" placeholder="Points" value={points} onChange={(e) => setPoints(+e.target.value)} />
-      </div>
-      <Button onClick={add} className="w-full">Add</Button>
-      <div className="divide-y">
-        {types.map((t) => (
-          <div key={t.id} className="flex items-center justify-between py-2">
-            <div><span className="font-mono text-xs mr-2">{t.code}</span>{t.label} <Badge variant="outline">{t.points}p</Badge></div>
-            <Button size="sm" variant="outline" onClick={() => toggle(t)}>{t.active ? "Deactivate" : "Activate"}</Button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}

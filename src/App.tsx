@@ -417,7 +417,7 @@ const App = () => (
                   path="/dashboard/quality-report"
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "quality_supervisor"]} requiredAction="quality.view">
-                      <Navigate to="/dashboard/quality?tab=report" replace />
+                      <Navigate to="/dashboard/quality" replace />
                     </ProtectedRoute>
                   }
                 />
