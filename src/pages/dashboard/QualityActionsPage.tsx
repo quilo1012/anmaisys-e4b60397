@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,27 +10,29 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Download, Settings2, List, BarChart3, Tags, Trash2, Upload } from "lucide-react";
+import { Plus, Download, Settings2, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2 } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, subDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_STATUSES, statusMeta } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_STATUSES, QUALITY_SEVERITIES, statusMeta, severityMeta } from "@/lib/qualityConstants";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
 import { useRole } from "@/hooks/useRole";
+import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
 interface QualityAction {
   id: string; action_no: string | null; action_type_id: string; line: string | null; shift: string | null;
   leader_name: string | null; department: string | null; status: string; labels: string[] | null;
   description: string | null; recorded_at: string; points: number | null;
+  severity: string | null; attachments: string[] | null;
 }
 
 const emptyForm = {
   action_no: "", action_type_id: "", line: "", shift: "DAY", leader_id: "",
-  department: "", status: "todo", labels: [] as string[], description: "",
+  department: "", status: "todo", severity: "", labels: [] as string[], description: "",
 };
 
 export function QualityActionsView() {
@@ -44,7 +46,7 @@ export function QualityActionsView() {
   const LABELS = qOpts?.labels ?? [...QUALITY_LABELS];
   const DEPTS = qOpts?.departments ?? [...QUALITY_DEPARTMENTS];
 
-  const [view, setView] = useState<"list" | "analytics">("list");
+  const [view, setView] = useState<"list" | "kanban" | "analytics">("list");
   const [listsOpen, setListsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [days, setDays] = useState("30");
@@ -52,6 +54,8 @@ export function QualityActionsView() {
   const [filterLeader, setFilterLeader] = useState("__all__");
   const [filterStatus, setFilterStatus] = useState("__all__");
   const [filterDept, setFilterDept] = useState("__all__");
+  const [filterSeverity, setFilterSeverity] = useState("__all__");
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [typesOpen, setTypesOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
@@ -94,9 +98,12 @@ export function QualityActionsView() {
       (filterLine === "__all__" || a.line === filterLine) &&
       (filterLeader === "__all__" || a.leader_name === filterLeader) &&
       (filterStatus === "__all__" || a.status === filterStatus) &&
-      (filterDept === "__all__" || a.department === filterDept)),
-    [actions, filterLine, filterLeader, filterStatus, filterDept]
+      (filterDept === "__all__" || a.department === filterDept) &&
+      (filterSeverity === "__all__" || (a.severity ?? "") === filterSeverity)),
+    [actions, filterLine, filterLeader, filterStatus, filterDept, filterSeverity]
   );
+
+  const detailAction = useMemo(() => actions.find((a) => a.id === detailId) ?? null, [actions, detailId]);
 
   const typeMap = useMemo(() => new Map(types.map((t) => [t.id, t])), [types]);
 
@@ -124,6 +131,7 @@ export function QualityActionsView() {
         leader_name: leader?.name ?? null,
         department: form.department || null,
         status: form.status,
+        severity: form.severity || null,
         labels: form.labels,
         description: form.description || null,
         points: type?.points ?? 1,
@@ -149,12 +157,21 @@ export function QualityActionsView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const setSeverity = useMutation({
+    mutationFn: async ({ id, severity }: { id: string; severity: string | null }) => {
+      const { error } = await supabase.from("quality_actions").update({ severity }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["quality_actions"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const exportCSV = () => {
-    const rows = [["Date", "Action #", "Status", "Type", "Points", "Line", "Shift", "Leader", "Department", "Labels", "Notes"]];
+    const rows = [["Date", "Action #", "Status", "Severity", "Type", "Points", "Line", "Shift", "Leader", "Department", "Labels", "Notes"]];
     for (const a of filtered) {
       const t = typeMap.get(a.action_type_id);
       rows.push([
-        a.recorded_at, a.action_no ?? "", statusMeta(a.status).label, t?.label ?? "", String(a.points ?? 0),
+        a.recorded_at, a.action_no ?? "", statusMeta(a.status).label, severityMeta(a.severity)?.label ?? "", t?.label ?? "", String(a.points ?? 0),
         a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", (a.labels ?? []).join("; "),
         (a.description ?? "").replace(/"/g, '""'),
       ]);
@@ -173,6 +190,9 @@ export function QualityActionsView() {
             <div className="inline-flex rounded-md border p-0.5">
               <button type="button" onClick={() => setView("list")} className={cn("inline-flex items-center gap-1 rounded px-3 py-1 text-sm font-medium transition-colors", view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
                 <List className="h-4 w-4" /> List
+              </button>
+              <button type="button" onClick={() => setView("kanban")} className={cn("inline-flex items-center gap-1 rounded px-3 py-1 text-sm font-medium transition-colors", view === "kanban" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+                <Columns3 className="h-4 w-4" /> Kanban
               </button>
               <button type="button" onClick={() => setView("analytics")} className={cn("inline-flex items-center gap-1 rounded px-3 py-1 text-sm font-medium transition-colors", view === "analytics" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
                 <BarChart3 className="h-4 w-4" /> Analytics
@@ -197,6 +217,15 @@ export function QualityActionsView() {
                         <SelectContent>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  <div><Label>Severity</Label>
+                    <Select value={form.severity || "__none__"} onValueChange={(v) => setForm({ ...form, severity: v === "__none__" ? "" : v })}>
+                      <SelectTrigger><SelectValue placeholder="Pick severity" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— None —</SelectItem>
+                        {QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div><Label>Type (optional)</Label>
                     <Select value={form.action_type_id} onValueChange={(v) => setForm({ ...form, action_type_id: v })}>
@@ -272,6 +301,10 @@ export function QualityActionsView() {
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="__all__">All status</SelectItem>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
           </Select>
+          <Select value={filterSeverity} onValueChange={setFilterSeverity}>
+            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="__all__">All severity</SelectItem>{QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+          </Select>
           <Select value={filterLine} onValueChange={setFilterLine}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="__all__">All lines</SelectItem>{lines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
@@ -288,28 +321,33 @@ export function QualityActionsView() {
 
         {view === "analytics" ? (
           <QualityAnalytics actions={filtered} typeMap={typeMap} />
+        ) : view === "kanban" ? (
+          <IssueKanban actions={filtered} typeMap={typeMap} canManage={canManage} onOpen={setDetailId} onMove={(id, status) => setStatus.mutate({ id, status })} />
         ) : (
           <Card>
             <CardHeader><CardTitle>Log ({filtered.length})</CardTitle></CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader><TableRow>
-                  <TableHead>When</TableHead><TableHead>#</TableHead><TableHead>Status</TableHead>
+                  <TableHead>When</TableHead><TableHead>#</TableHead><TableHead>Status</TableHead><TableHead>Severity</TableHead>
                   <TableHead>Type</TableHead><TableHead>Line</TableHead><TableHead>Leader</TableHead>
                   <TableHead>Dept</TableHead><TableHead>Labels</TableHead><TableHead>Notes</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
-                  {filtered.map((a) => (
-                    <TableRow key={a.id}>
+                  {filtered.length === 0 && <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
+                  {filtered.map((a) => {
+                    const sev = severityMeta(a.severity);
+                    return (
+                    <TableRow key={a.id} className="cursor-pointer" onClick={() => setDetailId(a.id)}>
                       <TableCell className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</TableCell>
                       <TableCell className="font-mono text-xs">{a.action_no ?? "—"}</TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Select value={a.status} onValueChange={(v) => setStatus.mutate({ id: a.id, status: v })}>
                           <SelectTrigger className={cn("h-7 w-32 border text-xs", statusMeta(a.status).badge)}><SelectValue /></SelectTrigger>
                           <SelectContent>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
                         </Select>
                       </TableCell>
+                      <TableCell>{sev ? <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell>{typeMap.get(a.action_type_id)?.label ?? "—"}</TableCell>
                       <TableCell>{a.line ?? "—"}</TableCell>
                       <TableCell>{a.leader_name ?? "—"}</TableCell>
@@ -321,12 +359,22 @@ export function QualityActionsView() {
                       </TableCell>
                       <TableCell className="max-w-xs truncate">{a.description ?? "—"}</TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
         )}
+
+        <QualityIssueDetail
+          action={detailAction}
+          canManage={canManage}
+          typeMap={typeMap}
+          onOpenChange={(o) => { if (!o) setDetailId(null); }}
+          onStatus={(status) => detailAction && setStatus.mutate({ id: detailAction.id, status })}
+          onSeverity={(severity) => detailAction && setSeverity.mutate({ id: detailAction.id, severity })}
+        />
 
         {isAdmin && (
           <Dialog open={typesOpen} onOpenChange={setTypesOpen}>
@@ -355,6 +403,222 @@ export function QualityActionsView() {
           />
         )}
       </div>
+  );
+}
+
+// ============================================================
+// Kanban board
+// ============================================================
+function IssueKanban({ actions, typeMap, canManage, onOpen, onMove }: {
+  actions: QualityAction[]; typeMap: Map<string, ActionType>; canManage: boolean;
+  onOpen: (id: string) => void; onMove: (id: string, status: string) => void;
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      {QUALITY_STATUSES.map((col) => {
+        const items = actions.filter((a) => a.status === col.value);
+        return (
+          <div key={col.value} className="rounded-lg border bg-muted/20">
+            <div className="flex items-center justify-between border-b px-3 py-2">
+              <span className="inline-flex items-center gap-2 text-sm font-semibold">
+                <span className={cn("h-2.5 w-2.5 rounded-full")} style={{ backgroundColor: col.color }} />
+                {col.label}
+              </span>
+              <Badge variant="secondary">{items.length}</Badge>
+            </div>
+            <div className="min-h-[80px] space-y-2 p-2">
+              {items.length === 0 && <p className="px-2 py-4 text-center text-xs text-muted-foreground">Empty</p>}
+              {items.map((a) => <IssueCard key={a.id} a={a} typeMap={typeMap} canManage={canManage} onOpen={onOpen} onMove={onMove} />)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function IssueCard({ a, typeMap, canManage, onOpen, onMove }: {
+  a: QualityAction; typeMap: Map<string, ActionType>; canManage: boolean;
+  onOpen: (id: string) => void; onMove: (id: string, status: string) => void;
+}) {
+  const sev = severityMeta(a.severity);
+  const nPhotos = a.attachments?.length ?? 0;
+  return (
+    <div onClick={() => onOpen(a.id)}
+      className={cn("cursor-pointer rounded-md border border-l-4 bg-background p-2.5 shadow-sm transition-colors hover:bg-accent/50", sev?.accent ?? "border-l-transparent")}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-xs text-muted-foreground">{a.action_no ?? "—"}</span>
+        {sev && <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge>}
+      </div>
+      {a.description && <p className="mt-1 line-clamp-2 text-xs">{a.description}</p>}
+      {typeMap.get(a.action_type_id)?.label && <p className="mt-1 text-[11px] text-muted-foreground">{typeMap.get(a.action_type_id)?.label}</p>}
+      {(a.labels?.length ?? 0) > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {(a.labels ?? []).slice(0, 4).map((l) => <Badge key={l} variant="secondary" className="text-[10px]">{l}</Badge>)}
+        </div>
+      )}
+      <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+        <span className="truncate">{a.line ?? "—"}{a.leader_name ? ` · ${a.leader_name}` : ""}</span>
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+          {nPhotos > 0 && <span className="inline-flex items-center gap-0.5"><Camera className="h-3 w-3" />{nPhotos}</span>}
+          {format(new Date(a.recorded_at), "dd/MM")}
+        </span>
+      </div>
+      {canManage && (
+        <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+          <Select value={a.status} onValueChange={(v) => onMove(a.id, v)}>
+            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>Move to {s.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Issue detail — photos + audit history
+// ============================================================
+function DetailMeta({ label, value }: { label: string; value: string | null | undefined }) {
+  return <div><span className="text-muted-foreground">{label}: </span>{value || "—"}</div>;
+}
+
+function describeHistory(h: QualityHistoryRow): string {
+  if (h.field === "created") return "Issue created";
+  if (h.field === "status") return `Status: ${statusMeta(h.old_value).label} → ${statusMeta(h.new_value).label}`;
+  if (h.field === "severity") return `Severity: ${severityMeta(h.old_value)?.label ?? "None"} → ${severityMeta(h.new_value)?.label ?? "None"}`;
+  return `${h.field}: ${h.old_value ?? "—"} → ${h.new_value ?? "—"}`;
+}
+
+function PhotoThumb({ path, canDelete, onDelete }: { path: string; canDelete: boolean; onDelete: () => void }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let ok = true;
+    getQualityPhotoUrl(path).then((u) => { if (ok) setUrl(u); });
+    return () => { ok = false; };
+  }, [path]);
+  return (
+    <div className="group relative aspect-square overflow-hidden rounded border bg-muted">
+      {url
+        ? <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="Quality issue attachment" className="h-full w-full object-cover" /></a>
+        : <div className="flex h-full items-center justify-center"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>}
+      {canDelete && (
+        <button type="button" onClick={onDelete}
+          className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white opacity-0 transition-opacity group-hover:opacity-100">
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function QualityIssueDetail({ action, canManage, typeMap, onOpenChange, onStatus, onSeverity }: {
+  action: QualityAction | null; canManage: boolean; typeMap: Map<string, ActionType>;
+  onOpenChange: (open: boolean) => void; onStatus: (status: string) => void; onSeverity: (severity: string | null) => void;
+}) {
+  const { data: history = [] } = useQualityHistory(action?.id);
+  const upload = useUploadQualityPhoto();
+  const del = useDeleteQualityPhoto();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const attachments = action?.attachments ?? [];
+
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f && action) {
+      upload.mutate(
+        { actionId: action.id, file: f, current: attachments },
+        { onError: (err) => toast.error((err as Error).message) },
+      );
+    }
+    e.target.value = "";
+  };
+
+  return (
+    <Dialog open={!!action} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        {action && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-sm">{action.action_no ?? "Issue"}</span>
+                {typeMap.get(action.action_type_id)?.label && <Badge variant="outline">{typeMap.get(action.action_type_id)?.label}</Badge>}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Status</Label>
+                  <Select value={action.status} onValueChange={onStatus} disabled={!canManage}>
+                    <SelectTrigger className={cn("border", statusMeta(action.status).badge)}><SelectValue /></SelectTrigger>
+                    <SelectContent>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Severity</Label>
+                  <Select value={action.severity || "__none__"} onValueChange={(v) => onSeverity(v === "__none__" ? null : v)} disabled={!canManage}>
+                    <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— None —</SelectItem>
+                      {QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <DetailMeta label="Line" value={action.line} />
+                <DetailMeta label="Shift" value={action.shift} />
+                <DetailMeta label="Leader" value={action.leader_name} />
+                <DetailMeta label="Department" value={action.department} />
+                <DetailMeta label="Logged" value={format(new Date(action.recorded_at), "dd/MM/yyyy HH:mm")} />
+              </div>
+
+              {(action.labels?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-1">{(action.labels ?? []).map((l) => <Badge key={l} variant="secondary" className="text-[10px]">{l}</Badge>)}</div>
+              )}
+              {action.description && <p className="whitespace-pre-wrap rounded border bg-muted/30 p-2 text-sm">{action.description}</p>}
+
+              {/* Photos */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <Label className="flex items-center gap-1"><Camera className="h-4 w-4" /> Photos ({attachments.length})</Label>
+                  {canManage && (
+                    <>
+                      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPick} />
+                      <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={upload.isPending}>
+                        {upload.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Camera className="mr-1 h-4 w-4" />}Add photo
+                      </Button>
+                    </>
+                  )}
+                </div>
+                {attachments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No photos.</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {attachments.map((p) => (
+                      <PhotoThumb key={p} path={p} canDelete={canManage}
+                        onDelete={() => del.mutate({ actionId: action.id, path: p, current: attachments }, { onError: (e) => toast.error((e as Error).message) })} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* History */}
+              <div>
+                <Label className="flex items-center gap-1"><Clock className="h-4 w-4" /> History</Label>
+                <div className="mt-1.5 space-y-1.5">
+                  {history.length === 0 && <p className="text-xs text-muted-foreground">No history yet.</p>}
+                  {history.map((h) => (
+                    <div key={h.id} className="flex items-start gap-2 text-xs">
+                      <span className="whitespace-nowrap text-muted-foreground">{format(new Date(h.changed_at), "dd/MM HH:mm")}</span>
+                      <span>{describeHistory(h)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
