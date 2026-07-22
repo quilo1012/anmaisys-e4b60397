@@ -120,7 +120,7 @@ export function QualityActionsView() {
         action_type_id: form.action_type_id || null,
         line: form.line || null,
         shift: form.shift || null,
-        leader_id: form.leader_id || null,
+        leader_id: null,
         leader_name: leader?.name ?? null,
         department: form.department || null,
         status: form.status,
@@ -200,7 +200,7 @@ export function QualityActionsView() {
                   </div>
                   <div><Label>Type (optional)</Label>
                     <Select value={form.action_type_id} onValueChange={(v) => setForm({ ...form, action_type_id: v })}>
-                      <SelectTrigger><SelectValue placeholder="Pick type (optional)" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Pick type" /></SelectTrigger>
                       <SelectContent>{types.filter((t) => t.active).map((t) => <SelectItem key={t.id} value={t.id}>{t.label} ({t.points}p)</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
