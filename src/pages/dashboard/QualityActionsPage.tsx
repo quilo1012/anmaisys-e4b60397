@@ -917,6 +917,25 @@ function QualityAnalytics({ actions, typeMap }: { actions: QualityAction[]; type
     return Array.from(m.entries()).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 10);
   }, [actions, typeMap]);
 
+  const [leaderSearch, setLeaderSearch] = useState("");
+  const byLeader = useMemo(() => {
+    const m = new Map<string, { count: number; critical: number; high: number }>();
+    for (const a of actions) {
+      const l = a.leader_name?.trim() || "—";
+      const cur = m.get(l) ?? { count: 0, critical: 0, high: 0 };
+      cur.count += 1;
+      if (a.severity === "critical") cur.critical += 1;
+      else if (a.severity === "high") cur.high += 1;
+      m.set(l, cur);
+    }
+    return Array.from(m.entries()).map(([label, v]) => ({ label, ...v })).sort((a, b) => b.count - a.count);
+  }, [actions]);
+  const filteredLeaders = useMemo(() => {
+    const q = leaderSearch.trim().toLowerCase();
+    const list = q ? byLeader.filter((l) => l.label.toLowerCase().includes(q)) : byLeader;
+    return list.slice(0, 15);
+  }, [byLeader, leaderSearch]);
+
   const gridStroke = "hsl(var(--border))";
 
   if (actions.length === 0) {
@@ -940,6 +959,43 @@ function QualityAnalytics({ actions, typeMap }: { actions: QualityAction[]; type
               <Bar dataKey="complete" stackId="s" fill={statusMeta("complete").color} name="Complete" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Leaderboard — who has the most actions */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+          <CardTitle className="text-base">Actions by leader</CardTitle>
+          <Input value={leaderSearch} onChange={(e) => setLeaderSearch(e.target.value)} placeholder="Search leader…" className="h-8 w-48" />
+        </CardHeader>
+        <CardContent>
+          {filteredLeaders.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No leaders match “{leaderSearch}”.</p>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={Math.max(160, filteredLeaders.length * 34)}>
+                <BarChart data={filteredLeaders} layout="vertical" margin={{ top: 0, right: 24, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} fontSize={11} tickLine={false} />
+                  <YAxis type="category" dataKey="label" width={130} fontSize={11} tickLine={false} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} cursor={{ fill: "hsl(var(--muted))" }} />
+                  <Bar dataKey="count" name="Actions" fill="hsl(0 72% 51%)" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="mt-2">
+                {filteredLeaders.map((l, i) => (
+                  <div key={l.label} className="flex items-center justify-between border-b py-1 text-sm last:border-0">
+                    <span className="truncate"><span className="mr-2 text-xs text-muted-foreground">#{i + 1}</span>{l.label}</span>
+                    <span className="flex items-center gap-2 whitespace-nowrap">
+                      {l.critical > 0 && <Badge variant="outline" className={cn("text-[10px]", severityMeta("critical")?.badge)}>{l.critical} critical</Badge>}
+                      {l.high > 0 && <Badge variant="outline" className={cn("text-[10px]", severityMeta("high")?.badge)}>{l.high} high</Badge>}
+                      <span className="font-semibold tabular-nums">{l.count}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
