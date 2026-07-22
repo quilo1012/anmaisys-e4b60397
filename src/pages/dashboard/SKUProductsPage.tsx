@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Pencil, Upload, Search, Download } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser } from "lucide-react";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
 
@@ -154,6 +154,24 @@ export default function SKUProductsPage() {
   const [editing, setEditing] = useState<Partial<Sku> | null>(null);
   const [open, setOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+
+  const cleanupBatchSkus = async () => {
+    if (!confirm("Remove all batch SKUs (e.g. 'CRE1KG - B9') and keep only the base (CRE1KG)?\n\nTheir production is moved to the base SKU with the batch kept in the Batch field. This cannot be undone (a backup exists).")) return;
+    setCleaning(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rpc not in generated types
+      const { data, error } = await (supabase as any).rpc("cleanup_batch_skus");
+      if (error) throw error;
+      const r = Array.isArray(data) ? data[0] : data;
+      toast.success(`Done — ${r?.deleted ?? 0} batch SKUs removed, ${r?.repointed ?? 0} entries moved to base.`);
+      qc.invalidateQueries({ queryKey: ["sku_products_all"] });
+    } catch (e) {
+      toast.error(`Failed: ${(e as Error)?.message ?? "unknown error"}`);
+    } finally {
+      setCleaning(false);
+    }
+  };
 
   const { data: all = [], isLoading } = useQuery({
     queryKey: ["sku_products_all"],
@@ -277,6 +295,9 @@ export default function SKUProductsPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={cleanupBatchSkus} disabled={cleaning}>
+              <Eraser className="h-4 w-4 mr-1" />{cleaning ? "Cleaning..." : "Remove batch SKUs"}
+            </Button>
             <Button variant="outline" onClick={downloadTemplate}>
               <Download className="h-4 w-4 mr-1" />Template XLSX
             </Button>
