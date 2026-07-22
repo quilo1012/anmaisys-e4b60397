@@ -1046,6 +1046,28 @@ function LogOccurrenceCard({ line, shift, shiftLabel, sessionDate }: { line: str
               />
             </div>
 
+            <div className="space-y-1.5">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Supervisor (on duty)</div>
+              {supervisors.length === 0 ? (
+                <div className="text-xs text-muted-foreground italic">
+                  No supervisor available — ask admin to assign a Supervisor user.
+                </div>
+              ) : (
+                <Select value={supervisorId} onValueChange={setSupervisorId}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Select supervisor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {supervisors.map((s) => (
+                      <SelectItem key={s.user_id} value={s.user_id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
             <div className="flex gap-2">
               <Button
                 type="button"
@@ -1060,11 +1082,12 @@ function LogOccurrenceCard({ line, shift, shiftLabel, sessionDate }: { line: str
                 type="button"
                 className="flex-1 h-11 font-semibold"
                 onClick={onSave}
-                disabled={saving}
+                disabled={saving || supervisors.length === 0}
               >
-                {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : <><Plus className="h-4 w-4 mr-2" /> Save occurrence</>}
+                {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Sending...</> : <><Plus className="h-4 w-4 mr-2" /> Send to Supervisor</>}
               </Button>
             </div>
+
           </div>
         )}
 
