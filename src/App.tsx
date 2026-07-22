@@ -477,7 +477,15 @@ const App = () => (
                   }
                 />
                 {/* Messages temporarily disabled — re-enable by restoring the ProtectedRoute + chat.dm roles */}
-                <Route path="/dashboard/messages" element={<Navigate to="/" replace />} />
+                <Route
+                  path="/dashboard/messages"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "operator"]} requiredAction="chat.dm">
+                      <DirectMessagesPage />
+                    </ProtectedRoute>
+                  }
+                />
+
                 <Route path="/" element={<SessionRedirect />} />
                 <Route path="*" element={<SessionRedirect />} />
               </Routes>

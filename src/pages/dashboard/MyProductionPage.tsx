@@ -13,6 +13,8 @@ import { ProductionInputCard } from "@/components/ProductionInputCard";
 import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { useDMPartners, useSendDM } from "@/hooks/useDirectMessages";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
 import { Factory, Target, Loader2, Search, Plus, Lock, AlertCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -172,7 +174,7 @@ function MyProductionContent() {
       ) : (
         <>
           <LogProductionCard sessionId={sessionId} />
-          <LogOccurrenceCard line={line} shift={shift} sessionDate={today} />
+          <LogOccurrenceCard line={line} shift={shift} shiftLabel={shiftLabel} sessionDate={today} />
 
           {items.length === 0 ? (
             <Card>
@@ -839,14 +841,26 @@ const OCCURRENCE_CATEGORIES = [
   "Other",
 ] as const;
 
-function LogOccurrenceCard({ line, shift, sessionDate }: { line: string; shift: Shift; sessionDate: string }) {
+function LogOccurrenceCard({ line, shift, shiftLabel, sessionDate }: { line: string; shift: Shift; shiftLabel: string; sessionDate: string }) {
   const qc = useQueryClient();
+  const { role } = useAuth() as any;
+  const { data: supervisors = [] } = useDMPartners(role);
+  const sendDM = useSendDM();
   const [expanded, setExpanded] = useState(false);
   const [category, setCategory] = useState<string>("");
   const [reason, setReason] = useState("");
   const [duration, setDuration] = useState<string>("");
   const [notes, setNotes] = useState("");
+  const [supervisorId, setSupervisorId] = useState<string>("");
   const [saving, setSaving] = useState(false);
+
+  // Preselect when exactly one supervisor is available.
+  useEffect(() => {
+    if (!supervisorId && supervisors.length === 1) {
+      setSupervisorId(supervisors[0].user_id);
+    }
+  }, [supervisors, supervisorId]);
+
 
   const occurrencesQ = useQuery({
     enabled: !!line,
@@ -873,6 +887,7 @@ function LogOccurrenceCard({ line, shift, sessionDate }: { line: string; shift: 
     setReason("");
     setDuration("");
     setNotes("");
+    setSupervisorId(supervisors.length === 1 ? supervisors[0].user_id : "");
   };
 
   const onSave = async () => {
@@ -880,8 +895,13 @@ function LogOccurrenceCard({ line, shift, sessionDate }: { line: string; shift: 
     const categoryValue = category.trim();
     if (!categoryValue) { toast.error("Enter a category"); return; }
     if (!Number.isFinite(mins) || mins < 0) { toast.error("Enter a valid duration in minutes"); return; }
+    if (!supervisorId) { toast.error("Select the supervisor on duty"); return; }
+
+    const supervisor = supervisors.find((s) => s.user_id === supervisorId);
+    const supervisorName = supervisor?.name || "supervisor";
 
     setSaving(true);
+    let occurrenceSaved = false;
     try {
       const { data: userRes } = await (supabase as any).auth.getUser();
       const uid = userRes?.user?.id ?? null;
@@ -897,16 +917,34 @@ function LogOccurrenceCard({ line, shift, sessionDate }: { line: string; shift: 
         created_by: uid,
       });
       if (error) throw error;
-      toast.success("Occurrence logged");
+      occurrenceSaved = true;
+      qc.invalidateQueries({ queryKey: ["my-prod-occurrences", line, sessionDate, shift] });
+
+      const message =
+        `⚠️ Line Occurrence — ${line} · ${shiftLabel}\n` +
+        `Category: ${categoryValue}\n` +
+        `${reason.trim() ? reason.trim() + "\n" : ""}` +
+        `Duration: ${Math.round(mins)} min` +
+        `${notes.trim() ? "\nNotes: " + notes.trim() : ""}`;
+
+      try {
+        await sendDM.mutateAsync({ recipientId: supervisorId, message });
+        toast.success(`Sent to ${supervisorName}`);
+      } catch (dmErr: any) {
+        toast.warning(`Occurrence logged, but message to ${supervisorName} failed: ${dmErr?.message || "unknown error"}`);
+      }
+
       reset();
       setExpanded(false);
-      qc.invalidateQueries({ queryKey: ["my-prod-occurrences", line, sessionDate, shift] });
     } catch (e: any) {
-      toast.error(e?.message || "Failed to log occurrence");
+      if (!occurrenceSaved) {
+        toast.error(e?.message || "Failed to log occurrence");
+      }
     } finally {
       setSaving(false);
     }
   };
+
 
   const onDelete = async (id: string) => {
     if (!window.confirm("Delete this occurrence?")) return;
@@ -1008,6 +1046,28 @@ function LogOccurrenceCard({ line, shift, sessionDate }: { line: string; shift: 
               />
             </div>
 
+            <div className="space-y-1.5">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Supervisor (on duty)</div>
+              {supervisors.length === 0 ? (
+                <div className="text-xs text-muted-foreground italic">
+                  No supervisor available — ask admin to assign a Supervisor user.
+                </div>
+              ) : (
+                <Select value={supervisorId} onValueChange={setSupervisorId}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Select supervisor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {supervisors.map((s) => (
+                      <SelectItem key={s.user_id} value={s.user_id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
             <div className="flex gap-2">
               <Button
                 type="button"
@@ -1022,11 +1082,12 @@ function LogOccurrenceCard({ line, shift, sessionDate }: { line: string; shift: 
                 type="button"
                 className="flex-1 h-11 font-semibold"
                 onClick={onSave}
-                disabled={saving}
+                disabled={saving || supervisors.length === 0}
               >
-                {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : <><Plus className="h-4 w-4 mr-2" /> Save occurrence</>}
+                {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Sending...</> : <><Plus className="h-4 w-4 mr-2" /> Send to Supervisor</>}
               </Button>
             </div>
+
           </div>
         )}
 

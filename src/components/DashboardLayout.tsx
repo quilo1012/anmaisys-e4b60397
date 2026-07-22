@@ -40,6 +40,7 @@ import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useOfflineDetection } from "@/hooks/useOfflineQueue";
 import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useDMUnreadCount } from "@/hooks/useDirectMessages";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -174,7 +175,7 @@ function SidebarFooterToggle() {
   );
 }
 
-function SidebarNav({ filteredItems, permissionOverrideCount }: { filteredItems: NavItem[]; permissionOverrideCount: number }) {
+function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread }: { filteredItems: NavItem[]; permissionOverrideCount: number; dmUnread: number }) {
   const location = useLocation();
   const { state } = useSidebar();
   const iconCollapsed = state === "collapsed";
@@ -240,6 +241,11 @@ function SidebarNav({ filteredItems, permissionOverrideCount }: { filteredItems:
                             {item.title === "Permissions" && permissionOverrideCount > 0 && (
                               <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-0 text-[10px] font-medium text-primary">
                                 {permissionOverrideCount} custom
+                              </span>
+                            )}
+                            {item.title === "Messages" && dmUnread > 0 && (
+                              <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-[10px] font-semibold text-white min-w-[18px] text-center">
+                                {dmUnread > 9 ? "9+" : dmUnread}
                               </span>
                             )}
                           </NavLink>
@@ -325,6 +331,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { isOnline } = useOfflineDetection();
   const { data: stoppedLinesCount = 0 } = useStoppedLinesCount();
   const { language, toggle: toggleLanguage } = useLanguage();
+  const { data: dmUnread = 0 } = useDMUnreadCount();
   const [changePwdOpen, setChangePwdOpen] = useState(false);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const [permissionVersion, setPermissionVersion] = useState(0);
@@ -419,7 +426,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               />
             </div>
             <SidebarContent>
-              <SidebarNav filteredItems={filteredItems} permissionOverrideCount={permissionOverrideCount} />
+              <SidebarNav filteredItems={filteredItems} permissionOverrideCount={permissionOverrideCount} dmUnread={dmUnread} />
             </SidebarContent>
             <div className="mt-auto border-t border-sidebar-border p-4 group-data-[collapsible=icon]:p-2">
               <div className="mb-3 flex items-center gap-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mb-2">
