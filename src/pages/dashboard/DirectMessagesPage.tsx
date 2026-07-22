@@ -37,7 +37,26 @@ export default function DirectMessagesPage() {
   const [filter, setFilter] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [text, setText] = useState("");
+  const [translations, setTranslations] = useState<Record<string, TranslationState>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const handleTranslate = async (id: string, text: string) => {
+    const existing = translations[id];
+    if (existing?.text) {
+      setTranslations((s) => ({ ...s, [id]: { ...existing, show: !existing.show } }));
+      return;
+    }
+    setTranslations((s) => ({ ...s, [id]: { loading: true } }));
+    const { data, error } = await invokeFunction<{ translated: string }>(
+      "translate-message",
+      { text },
+    );
+    if (error || !data?.translated) {
+      setTranslations((s) => ({ ...s, [id]: { error: true } }));
+      return;
+    }
+    setTranslations((s) => ({ ...s, [id]: { text: data.translated, show: true } }));
+  };
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
