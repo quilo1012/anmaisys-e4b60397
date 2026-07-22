@@ -143,8 +143,8 @@ const MATRIX: Record<Action, Role[]> = {
 
   "smarttarget.view": [],
 
-  "quality.view": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
-  "quality.manage": ["admin", "manager", "supervisor"],
+  "quality.view": ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer"],
+  "quality.manage": ["admin", "manager", "supervisor", "quality_supervisor"],
 
   "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
   "pm.manage": ["admin", "manager", "maintenance_manager"],
@@ -157,7 +157,7 @@ const MATRIX: Record<Action, Role[]> = {
   "chat.line": [],
   "chat.dm": ["admin", "manager", "supervisor", "operator"],
 
-  "notifications.view": ALL,
+  "notifications.view": [...ALL, "quality_supervisor"],
   "notifications.manage": ["admin", "manager"],
 
   "intouch.view": ["admin", "manager", "maintenance_manager", "planner"],
@@ -192,6 +192,7 @@ export const roleDashMap: Record<Role, string> = {
   operator: "/dashboard/operator/my-production",
   viewer: "/dashboard/manager",
   warehouse: "/dashboard/warehouse",
+  quality_supervisor: "/dashboard/quality-report",
 };
 
 /** Returns the dashboard path for a role, falling back to /login when unknown. */
@@ -234,7 +235,7 @@ export function can(role: Role | null | undefined, action: Action): boolean {
 
 /** All known actions (for admin UIs). */
 export const ALL_ACTIONS: Action[] = Object.keys(MATRIX) as Action[];
-export const ALL_ROLES: Role[] = [...ALL, "warehouse"];
+export const ALL_ROLES: Role[] = [...ALL, "warehouse", "quality_supervisor"];
 
 /** Returns true if the role can perform ANY of the listed actions. */
 export function canAny(role: Role | null | undefined, actions: Action[]): boolean {
