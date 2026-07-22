@@ -85,7 +85,8 @@ export default function ManagerDashboard() {
   }
   // ProtectedRoute already enforces role access; if role is missing transiently, just wait
   if (!role) return null;
-  if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
+  const ALLOWED = ["admin", "manager", "maintenance_manager", "supervisor", "planner", "viewer"];
+  if (!ALLOWED.includes(role)) {
     return null;
   }
 
@@ -222,9 +223,11 @@ function ManagerDashboardContent() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-end">
-          <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
-            <Lock className="h-4 w-4 mr-2" /> Change PIN
-          </Button>
+          {role === "admin" && (
+            <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
+              <Lock className="h-4 w-4 mr-2" /> Change PIN
+            </Button>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
