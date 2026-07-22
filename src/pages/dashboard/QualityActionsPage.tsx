@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Download, Settings2, List, BarChart3, Tags, Trash2 } from "lucide-react";
+import { Plus, Download, Settings2, List, BarChart3, Tags, Trash2, Upload } from "lucide-react";
+import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, subDays } from "date-fns";
@@ -45,6 +46,7 @@ export function QualityActionsView() {
 
   const [view, setView] = useState<"list" | "analytics">("list");
   const [listsOpen, setListsOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [days, setDays] = useState("30");
   const [filterLine, setFilterLine] = useState("__all__");
   const [filterLeader, setFilterLeader] = useState("__all__");
@@ -178,6 +180,7 @@ export function QualityActionsView() {
             </div>
             {canManage && <Button variant="outline" onClick={() => setListsOpen(true)}><Tags className="h-4 w-4 mr-1" />Lists</Button>}
             {isAdmin && <Button variant="outline" onClick={() => setTypesOpen(true)}><Settings2 className="h-4 w-4 mr-1" />Types</Button>}
+            {canManage && <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" />Import</Button>}
             <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />Export</Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-1" />Log action</Button></DialogTrigger>
@@ -341,6 +344,15 @@ export function QualityActionsView() {
               <QualityListsManager />
             </DialogContent>
           </Dialog>
+        )}
+
+        {canManage && (
+          <QualityImportDialog
+            open={importOpen}
+            onOpenChange={setImportOpen}
+            types={types}
+            onImported={() => qc.invalidateQueries({ queryKey: ["quality_actions"] })}
+          />
         )}
       </div>
   );
