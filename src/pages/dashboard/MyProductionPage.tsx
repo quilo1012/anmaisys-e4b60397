@@ -887,6 +887,7 @@ function LogOccurrenceCard({ line, shift, shiftLabel, sessionDate }: { line: str
     setReason("");
     setDuration("");
     setNotes("");
+    setSupervisorId(supervisors.length === 1 ? supervisors[0].user_id : "");
   };
 
   const onSave = async () => {
@@ -894,8 +895,13 @@ function LogOccurrenceCard({ line, shift, shiftLabel, sessionDate }: { line: str
     const categoryValue = category.trim();
     if (!categoryValue) { toast.error("Enter a category"); return; }
     if (!Number.isFinite(mins) || mins < 0) { toast.error("Enter a valid duration in minutes"); return; }
+    if (!supervisorId) { toast.error("Select the supervisor on duty"); return; }
+
+    const supervisor = supervisors.find((s) => s.user_id === supervisorId);
+    const supervisorName = supervisor?.name || "supervisor";
 
     setSaving(true);
+    let occurrenceSaved = false;
     try {
       const { data: userRes } = await (supabase as any).auth.getUser();
       const uid = userRes?.user?.id ?? null;
@@ -911,16 +917,34 @@ function LogOccurrenceCard({ line, shift, shiftLabel, sessionDate }: { line: str
         created_by: uid,
       });
       if (error) throw error;
-      toast.success("Occurrence logged");
+      occurrenceSaved = true;
+      qc.invalidateQueries({ queryKey: ["my-prod-occurrences", line, sessionDate, shift] });
+
+      const message =
+        `⚠️ Line Occurrence — ${line} · ${shiftLabel}\n` +
+        `Category: ${categoryValue}\n` +
+        `${reason.trim() ? reason.trim() + "\n" : ""}` +
+        `Duration: ${Math.round(mins)} min` +
+        `${notes.trim() ? "\nNotes: " + notes.trim() : ""}`;
+
+      try {
+        await sendDM.mutateAsync({ recipientId: supervisorId, message });
+        toast.success(`Sent to ${supervisorName}`);
+      } catch (dmErr: any) {
+        toast.warning(`Occurrence logged, but message to ${supervisorName} failed: ${dmErr?.message || "unknown error"}`);
+      }
+
       reset();
       setExpanded(false);
-      qc.invalidateQueries({ queryKey: ["my-prod-occurrences", line, sessionDate, shift] });
     } catch (e: any) {
-      toast.error(e?.message || "Failed to log occurrence");
+      if (!occurrenceSaved) {
+        toast.error(e?.message || "Failed to log occurrence");
+      }
     } finally {
       setSaving(false);
     }
   };
+
 
   const onDelete = async (id: string) => {
     if (!window.confirm("Delete this occurrence?")) return;
