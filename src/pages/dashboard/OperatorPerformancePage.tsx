@@ -127,11 +127,12 @@ function OperatorPerformanceContent() {
   });
 
   // Official target comes from RAG Weekly plan_qty for line+date+shift
+  // Use hook's built-in normalized matcher (trim + lowercase + collapse spaces)
+  // so whitespace/case differences between device line and RAG row don't hide the plan.
   const ragQ = useLineShiftTarget({
     line,
     date: today,
     shift,
-    matchLine: (rowLine) => rowLine === line,
     refetchIntervalMs: 60_000,
   });
 
@@ -238,6 +239,12 @@ function OperatorPerformanceContent() {
               </Button>
             </div>
 
+            {unlocked && totalTarget === 0 && (
+              <div className="text-xs text-muted-foreground italic">
+                No RAG Weekly target set for this line/shift today.
+              </div>
+            )}
+
             {unlocked && (
               <>
                 <div className="h-2 w-full bg-muted rounded-lg overflow-hidden">
@@ -271,13 +278,18 @@ function OperatorPerformanceContent() {
             toast.error("Only Line Leader PINs can unlock the target.");
             return;
           }
+          const normLine = normalize(line);
+          const leaderLines: string[] = [
+            ...((eng.leader_lines as string[] | undefined) || []),
+            ...(eng.leader_line ? [eng.leader_line] : []),
+          ];
+          const lineAuthorized = !!normLine && leaderLines.some((l) => normalize(l) === normLine);
+
           const assigned = (sessionQ.data?.leader_name as string | null | undefined) ?? null;
-          if (!assigned?.trim()) {
-            toast.error(`No leader is assigned to ${line} · ${shiftLabel} yet. Ask the planner to assign one.`);
-            return;
-          }
-          if (normalize(assigned) !== normalize(eng.name)) {
-            toast.error(`${eng.name} is not the leader for ${line} today (${assigned} is).`);
+          const nameAuthorized = !!assigned?.trim() && normalize(assigned) === normalize(eng.name);
+
+          if (!lineAuthorized && !nameAuthorized) {
+            toast.error(`${eng.name} is not a leader for ${line}.`);
             return;
           }
           setUnlocked(true);
