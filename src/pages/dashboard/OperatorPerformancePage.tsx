@@ -239,6 +239,17 @@ function OperatorPerformanceContent() {
               </Button>
             </div>
 
+            {unlocked && totalTarget === 0 && (
+              <div className="text-xs text-muted-foreground italic">
+                No RAG Weekly target set for this line/shift today.
+              </div>
+            )}
+              <Button size="lg" className="h-11" onClick={submitShift}>
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Submit Shift
+              </Button>
+            </div>
+
             {unlocked && (
               <>
                 <div className="h-2 w-full bg-muted rounded-lg overflow-hidden">
