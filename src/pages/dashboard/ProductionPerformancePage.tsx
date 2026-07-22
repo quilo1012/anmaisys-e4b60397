@@ -123,8 +123,16 @@ export default function ProductionPerformancePage() {
   const { data: skus = [] } = useQuery({
     queryKey: ["sku_products_min"],
     queryFn: async () => {
-      const { data } = await supabase.from("sku_products").select("id, code, name");
-      return (data ?? []) as { id: string; code: string; name: string }[];
+      // Paginate past the ~1000-row PostgREST cap so SKUs beyond 1000 resolve.
+      const pageSize = 1000;
+      const rows: { id: string; code: string; name: string }[] = [];
+      for (let offset = 0; ; offset += pageSize) {
+        const { data } = await supabase.from("sku_products").select("id, code, name").order("code").range(offset, offset + pageSize - 1);
+        const page = (data ?? []) as { id: string; code: string; name: string }[];
+        rows.push(...page);
+        if (page.length < pageSize) break;
+      }
+      return rows;
     },
   });
   const skuMap = useMemo(() => new Map(skus.map((s) => [s.id, s])), [skus]);
