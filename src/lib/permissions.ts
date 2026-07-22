@@ -155,7 +155,7 @@ const MATRIX: Record<Action, Role[]> = {
   "leaders.manage": ["admin", "manager"],
 
   "chat.line": [],
-  "chat.dm": [],
+  "chat.dm": ["admin", "manager", "supervisor", "operator"],
 
   "notifications.view": ALL,
   "notifications.manage": ["admin", "manager"],
