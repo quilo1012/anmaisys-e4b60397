@@ -55,6 +55,7 @@ const SKUPerformancePage = lazyWithReload(() => import("./pages/dashboard/SKUPer
 const WarehouseDashboard = lazyWithReload(() => import("./pages/dashboard/WarehouseDashboard"));
 
 const QualityActionsPage = lazyWithReload(() => import("./pages/dashboard/QualityActionsPage"));
+const QualityWeeklyReportPage = lazyWithReload(() => import("./pages/dashboard/QualityWeeklyReportPage"));
 const ShiftHistoryPage = lazyWithReload(() => import("./pages/dashboard/ShiftHistoryPage"));
 
 
@@ -399,8 +400,16 @@ const App = () => (
                 <Route
                   path="/dashboard/quality"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="quality.view">
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "quality_supervisor"]} requiredAction="quality.view">
                       <QualityActionsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/quality-report"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "quality_supervisor"]} requiredAction="quality.view">
+                      <QualityWeeklyReportPage />
                     </ProtectedRoute>
                   }
                 />

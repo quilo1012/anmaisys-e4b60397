@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { can, canAny, canAll, type Role, type Action } from "./permissions";
 
-const ROLES: Role[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
+const ROLES: Role[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
 
 // Expected MATRIX — kept in sync manually with permissions.ts. If someone
 // edits permissions.ts without updating this table, the diff fails loudly.
@@ -44,8 +44,8 @@ const EXPECTED: Record<Action, Role[]> = {
   "rag.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "rag.comment": ["admin", "manager", "supervisor", "planner"],
   "smarttarget.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "quality.view": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
-  "quality.manage": ["admin", "manager", "supervisor"],
+  "quality.view": ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer"],
+  "quality.manage": ["admin", "manager", "supervisor", "quality_supervisor"],
   "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
   "pm.manage": ["admin", "manager", "maintenance_manager"],
   "engineers.view": ["admin", "manager", "supervisor", "maintenance_manager"],
@@ -54,7 +54,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "leaders.manage": ["admin", "manager"],
   "chat.line": [],
   "chat.dm": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
-  "notifications.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
+  "notifications.view": ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
   "notifications.manage": ["admin", "manager"],
   "intouch.view": ["admin", "manager", "maintenance_manager", "planner"],
   "intouch.manage": ["admin", "maintenance_manager"],
