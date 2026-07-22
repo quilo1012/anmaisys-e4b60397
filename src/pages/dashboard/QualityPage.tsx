@@ -43,7 +43,7 @@ export default function QualityPage() {
           </div>
           <div className="inline-flex rounded-md border p-0.5">
             {tabBtn("actions", "Actions")}
-            {tabBtn("report", "Report")}
+            {tabBtn("report", "Report Analytics")}
           </div>
         </div>
 
