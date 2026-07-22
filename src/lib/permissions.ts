@@ -184,7 +184,7 @@ const MATRIX: Record<Action, Role[]> = {
 export const roleDashMap: Record<Role, string> = {
   admin: "/dashboard/manager",
   manager: "/dashboard/manager",
-  supervisor: "/dashboard/manager",
+  supervisor: "/dashboard/production-performance",
   maintenance_manager: "/dashboard/manager",
   planner: "/dashboard/manager",
   engineer: "/dashboard/engineer",
