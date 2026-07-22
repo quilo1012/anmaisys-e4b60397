@@ -6,19 +6,44 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCurrentShiftStart, getCurrentFactoryShift } from "@/lib/shifts";
 
+let sharedAudioCtx: AudioContext | null = null;
+function getAudioCtx(): AudioContext | null {
+  try {
+    const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
+    if (!Ctx) return null;
+    if (!sharedAudioCtx) sharedAudioCtx = new Ctx();
+    return sharedAudioCtx;
+  } catch { return null; }
+}
+
+/** Call on a user gesture to unlock audio (autoplay policy). Safe/no-op otherwise. */
+export function unlockDMAudio() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  if (ctx.state === "suspended") ctx.resume().catch(() => {});
+  try {
+    // iOS/Safari unlock: play one silent sample.
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch {}
+}
+
 /** MSN-Messenger-style short 3-note alert. */
 function playDMNotification() {
   try {
-    const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
-    if (!Ctx) return;
-    const ctx = new Ctx();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
     const master = ctx.createGain();
     master.gain.value = 0.15;
     master.connect(ctx.destination);
-    const now = ctx.currentTime;
+    const start0 = ctx.currentTime + 0.02;
     const notes = [660, 880, 1174];
     notes.forEach((freq, i) => {
-      const start = now + i * 0.11;
+      const start = start0 + i * 0.11;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = "triangle";
@@ -30,7 +55,6 @@ function playDMNotification() {
       o.start(start);
       o.stop(start + 0.1);
     });
-    setTimeout(() => ctx.close().catch(() => {}), 800);
     try { navigator.vibrate?.([80, 40, 80]); } catch {}
   } catch {}
 }
