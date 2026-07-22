@@ -672,7 +672,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
 
         {/* Batch */}
         <div className="space-y-1.5">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Batch <span className="text-muted-foreground/70 normal-case">(optional)</span></div>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Batch code <span className="text-muted-foreground/70 normal-case">(optional)</span></div>
           <Input
             value={batch}
             onChange={(e) => setBatch(e.target.value)}
