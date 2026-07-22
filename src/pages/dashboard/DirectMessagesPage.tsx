@@ -15,6 +15,14 @@ import {
 import { MessageCircle, Send, Loader2, Search } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { invokeFunction } from "@/lib/invokeFunction";
+
+type TranslationState = {
+  text?: string;
+  loading?: boolean;
+  error?: boolean;
+  show?: boolean;
+};
 
 function initials(name: string) {
   const parts = (name || "?").trim().split(/\s+/);
