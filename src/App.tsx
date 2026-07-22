@@ -390,7 +390,7 @@ const App = () => (
                 <Route
                   path="/dashboard/sku-performance"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="production.sku_performance.view">
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="production.sku_performance.view">
                       <SKUPerformancePage />
                     </ProtectedRoute>
                   }
@@ -399,7 +399,7 @@ const App = () => (
                 <Route
                   path="/dashboard/quality"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="quality.view">
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="quality.view">
                       <QualityActionsPage />
                     </ProtectedRoute>
                   }
@@ -407,7 +407,7 @@ const App = () => (
                 <Route
                   path="/dashboard/shift-history"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="production.manage">
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="production.manage">
                       <ShiftHistoryPage />
                     </ProtectedRoute>
                   }
