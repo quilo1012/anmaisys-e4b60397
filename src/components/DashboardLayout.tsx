@@ -40,6 +40,7 @@ import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useOfflineDetection } from "@/hooks/useOfflineQueue";
 import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useDMUnreadCount } from "@/hooks/useDirectMessages";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
