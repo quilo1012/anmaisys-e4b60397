@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { showDMToast, dmNativeTitle } from "@/components/DMNotificationToast";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCurrentShiftStart, getCurrentFactoryShift } from "@/lib/shifts";
 
@@ -245,13 +245,10 @@ export function useDMUnreadCount() {
             window.location.pathname === "/dashboard/messages";
 
           if (!onMessagesPage) {
-            toast(`New message · ${senderName}`, {
-              description: preview || undefined,
-              duration: 8000,
-              action: {
-                label: "Open",
-                onClick: () => navigate("/dashboard/messages"),
-              },
+            showDMToast({
+              senderName,
+              message: preview,
+              onOpen: () => navigate("/dashboard/messages"),
             });
           }
 
@@ -262,7 +259,11 @@ export function useDMUnreadCount() {
             Notification.permission === "granted"
           ) {
             try {
-              new Notification(`New message · ${senderName}`, { body: preview });
+              new Notification(dmNativeTitle(senderName), {
+                body: preview,
+                icon: "/appliedlogo.jpeg",
+                tag: `dm-${row.sender_id ?? ""}`,
+              });
             } catch {}
           }
         },
