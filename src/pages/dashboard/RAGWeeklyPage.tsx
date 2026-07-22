@@ -143,13 +143,13 @@ function ragColor(actual: number, plan: number): string {
 
 export default function RAGWeeklyPage() {
   const qc = useQueryClient();
-  const { is: isRole } = useRole();
+  const { is: isRole, can } = useRole();
   const { user, profile } = useAuth();
   const isAdmin = isRole("admin");
   const isManager = isRole("manager");
-  const isMaintenanceManager = isRole("maintenance_manager");
   const canComment = isAdmin || isManager;
-  const canEditRagEntries = isAdmin || isManager || isMaintenanceManager;
+  // Single source of truth: the permission matrix (includes supervisor).
+  const canEditRagEntries = can("rag.manage");
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
