@@ -15,16 +15,21 @@ export default function MobileHome() {
   const { profile, role } = useAuth();
   const navigate = useNavigate();
 
-  // Live banner pulled from appliednutrition.uk (via edge function). Updates when the site's banner changes.
+  // Live banner from appliednutrition.uk. A DB cron (refresh_site_banner) re-scrapes the
+  // site's og:image every 30 min, so the app's banner updates when the site's does.
   const { data: banner } = useQuery<SiteBanner>({
     queryKey: ["site-banner"],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("fetch-site-banner");
-      if (error) throw error;
-      return data as SiteBanner;
+      const { data } = await (supabase as any)
+        .from("site_banner").select("image, title, description").eq("id", true).maybeSingle();
+      return {
+        image: data?.image ?? null,
+        title: data?.title ?? "Applied Nutrition",
+        description: data?.description ?? "",
+        url: "https://appliednutrition.uk/",
+      } as SiteBanner;
     },
     staleTime: 10 * 60_000,
-    retry: 1,
   });
   const effectiveRole = (role === "co_engineer" ? "engineer" : role) as AppRole | null;
 
