@@ -16,6 +16,7 @@ import { ToastAction } from "@/components/ui/toast";
 // Tabs replaced by simple button group + conditional render for reliability
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { SignupSettingsCard } from "@/components/SignupSettingsCard";
 import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Tablet, Users as UsersIcon, Check, Package } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
@@ -690,6 +691,7 @@ export default function ManageUsers() {
         </div>
 
         <div className={activeTab === "staff" ? "space-y-4" : "hidden"}>
+        {currentRole === "admin" && <SignupSettingsCard />}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Staff Members</h2>
