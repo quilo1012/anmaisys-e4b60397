@@ -14,6 +14,8 @@ interface AuthShellProps {
   children: ReactNode;
   /** Optional maximum width override for the card. */
   maxWidthClass?: string;
+  /** Optional live site banner shown behind the navy overlay. */
+  backgroundImageUrl?: string;
 }
 
 /**
@@ -26,25 +28,37 @@ export function AuthShell({
   subtitle,
   children,
   maxWidthClass = "max-w-[440px]",
+  backgroundImageUrl,
 }: AuthShellProps) {
   const year = new Date().getFullYear();
+  // With a live site banner, the navy layers become a translucent overlay so the
+  // image reads through; without one, they stay fully opaque (the original look).
+  const overlay = backgroundImageUrl
+    ? [
+        "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(59,130,246,0.28) 0%, rgba(23,37,84,0) 60%)",
+        "linear-gradient(180deg, rgba(30,58,138,0.82) 0%, rgba(23,37,84,0.90) 100%)",
+      ].join(", ")
+    : [
+        "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(59,130,246,0.22) 0%, rgba(23,37,84,0) 60%)",
+        "radial-gradient(ellipse 120% 100% at 50% 100%, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 55%)",
+        "linear-gradient(180deg, #1E3A8A 0%, #172554 100%)",
+      ].join(", ");
   return (
     <div
       className="relative flex min-h-screen w-full items-center justify-center overflow-hidden px-4 py-10 sm:px-6"
-      style={{
-        backgroundColor: "#172554",
-        backgroundImage: [
-          // subtle radial highlight top-center
-          "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(59,130,246,0.22) 0%, rgba(23,37,84,0) 60%)",
-          // soft vignette
-          "radial-gradient(ellipse 120% 100% at 50% 100%, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 55%)",
-          // base vertical gradient
-          "linear-gradient(180deg, #1E3A8A 0%, #172554 100%)",
-        ].join(", "),
-      }}
+      style={{ backgroundColor: "#172554" }}
     >
+      {backgroundImageUrl && (
+        <img
+          src={backgroundImageUrl}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+      <div className="absolute inset-0" style={{ backgroundImage: overlay }} aria-hidden="true" />
       <div
-        className={`relative w-full ${maxWidthClass} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500`}
+        className={`relative z-10 w-full ${maxWidthClass} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500`}
       >
         <div className="rounded-2xl bg-white px-8 py-9 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45),0_8px_20px_-8px_rgba(0,0,0,0.25)] ring-1 ring-slate-200/80 sm:px-10 sm:py-10">
           {/* Official brand logo chip */}

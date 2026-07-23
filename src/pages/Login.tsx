@@ -9,6 +9,7 @@ import { usePublicTabletAccounts } from "@/hooks/useOperatorAccounts";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { useLines } from "@/hooks/useMachines";
 import { useLoginBranding } from "@/hooks/useLoginBranding";
+import { useSiteBanner } from "@/hooks/useSiteBanner";
 import { AuthShell } from "@/components/auth/AuthShell";
 import {
   clearLoginLockout,
@@ -58,6 +59,7 @@ export default function Login() {
   const { data: operatorAccounts, isLoading: accountsLoading } = usePublicTabletAccounts();
   const { data: lines } = useLines();
   const { data: branding } = useLoginBranding();
+  const { data: siteBanner } = useSiteBanner();
 
   // ── Mode state (Staff vs Tablet) ────────────────────────────
   const [mode, setMode] = useState<Mode>(() => {
@@ -278,6 +280,7 @@ export default function Login() {
   return (
     <AuthShell
       brandIconUrl={brandIconUrl}
+      backgroundImageUrl={siteBanner?.image ?? undefined}
       title="Welcome"
       subtitle="Sign in to access the system"
     >

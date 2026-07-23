@@ -1,38 +1,19 @@
 import { DashboardLayout, navItems } from "@/components/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { canForDevice } from "@/lib/permissions";
 import { useDeviceType } from "@/hooks/use-device-type";
-import { supabase } from "@/integrations/supabase/client";
+import { useSiteBanner } from "@/hooks/useSiteBanner";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
-
-interface SiteBanner { image: string | null; title: string; description: string; url: string }
 
 export default function MobileHome() {
   const { profile, role } = useAuth();
   const navigate = useNavigate();
   const device = useDeviceType();
-
-  // Live banner from appliednutrition.uk. A DB cron (refresh_site_banner) re-scrapes the
-  // site's og:image every 30 min, so the app's banner updates when the site's does.
-  const { data: banner } = useQuery<SiteBanner>({
-    queryKey: ["site-banner"],
-    queryFn: async () => {
-      const { data } = await (supabase as any)
-        .from("site_banner").select("image, title, description").eq("id", true).maybeSingle();
-      return {
-        image: data?.image ?? null,
-        title: data?.title ?? "Applied Nutrition",
-        description: data?.description ?? "",
-        url: "https://appliednutrition.uk/",
-      } as SiteBanner;
-    },
-    staleTime: 10 * 60_000,
-  });
+  const { data: banner } = useSiteBanner();
   const effectiveRole = (role === "co_engineer" ? "engineer" : role) as AppRole | null;
 
   // Quick links respect what this role is allowed to see on THIS device.
