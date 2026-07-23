@@ -23,11 +23,13 @@ import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlann
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 
-/** Inline Leader dropdown that saves on selection. */
+/** Inline Leader dropdown that saves on selection. Falls back to the stored
+ *  leader_name when the leader_id is missing or points to an inactive leader,
+ *  so Production Control always shows the leader (matching Performance). */
 function InlineLeaderCell({
-  sessionId, leaderId, leaders, disabled, onSaved,
+  sessionId, leaderId, leaderName, leaders, disabled, onSaved,
 }: {
-  sessionId: string; leaderId: string | null;
+  sessionId: string; leaderId: string | null; leaderName: string | null;
   leaders: { id: string; name: string }[]; disabled?: boolean; onSaved: () => void;
 }) {
   const [saved, setSaved] = useState(false);
@@ -43,11 +45,18 @@ function InlineLeaderCell({
     setSaved(true); setTimeout(() => setSaved(false), 2000);
     onSaved();
   };
+  // Ensure the current leader is always selectable so the value renders,
+  // even if the leader is no longer in the active list.
+  const options = (leaderId && !leaders.some((l) => l.id === leaderId))
+    ? [{ id: leaderId, name: leaderName ?? "(inactive)" }, ...leaders]
+    : leaders;
   return (
     <div className="flex items-center gap-1">
       <Select value={leaderId ?? ""} onValueChange={save} disabled={disabled || saving}>
-        <SelectTrigger className={cn("h-8 w-[140px] text-xs", !leaderId && "text-muted-foreground")}><SelectValue placeholder="-- Select --" /></SelectTrigger>
-        <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+        <SelectTrigger className={cn("h-8 w-[140px] text-xs", !leaderId && !leaderName && "text-muted-foreground")}>
+          <SelectValue placeholder={leaderName || "-- Select --"} />
+        </SelectTrigger>
+        <SelectContent>{options.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
       </Select>
       {saved && <Check className="h-4 w-4 text-emerald-500" />}
     </div>
@@ -541,6 +550,7 @@ export default function ShiftHistoryPage() {
                                     <InlineLeaderCell
                                       sessionId={s.id}
                                       leaderId={s.leader_id}
+                                      leaderName={s.leader_name}
                                       leaders={leaders}
                                       disabled={s.locked}
                                       onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
