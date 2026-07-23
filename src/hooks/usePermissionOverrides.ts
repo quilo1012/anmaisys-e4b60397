@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { setPermissionOverrides } from "@/lib/permissions";
+import { setPermissionOverrides, setMobileHidden } from "@/lib/permissions";
 
 /**
  * Loads role/action overrides from the DB and keeps them in sync via realtime.
@@ -22,13 +22,27 @@ export function usePermissionOverridesSync() {
       setPermissionOverrides(map);
     };
 
+    const loadMobile = async () => {
+      const { data, error } = await (supabase as any)
+        .from("role_mobile_hidden")
+        .select("role, action");
+      if (!mounted || error || !data) return;
+      setMobileHidden((data as Array<{ role: string; action: string }>).map((r) => `${r.role}:${r.action}`));
+    };
+
     load();
+    loadMobile();
     const ch = supabase
       .channel("role_permission_overrides_sync")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "role_permission_overrides" },
         () => load()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "role_mobile_hidden" },
+        () => loadMobile()
       )
       .subscribe();
 
