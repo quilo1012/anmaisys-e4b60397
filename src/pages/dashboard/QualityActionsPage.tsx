@@ -21,7 +21,6 @@ import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_STATUSES, QUALITY_SEVERITI
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
 import { useRole } from "@/hooks/useRole";
 import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
-import { useQualityCapa, useSaveCapa, ISHIKAWA_CATEGORIES, CAPA_STATUSES, type QualityCapa } from "@/hooks/useQualityCapa";
 import { LeaderScorecard } from "@/components/LeaderScorecard";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
@@ -32,10 +31,12 @@ interface QualityAction {
   severity: string | null; attachments: string[] | null;
 }
 
-const emptyForm = {
-  action_no: "", action_type_id: "", line: "", shift: "DAY", leader_id: "",
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const makeEmptyForm = () => ({
+  action_no: "", action_type_id: "", line: "", shift: "DAY", leader_id: "", leader_name: "",
+  date: todayISO(), sku: "", batch: "",
   department: "", status: "todo", severity: "", labels: [] as string[], description: "",
-};
+});
 
 export function QualityActionsView() {
   const { can } = useRole();
@@ -57,7 +58,7 @@ export function QualityActionsView() {
   const [filterSeverity, setFilterSeverity] = useState("__all__");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ ...emptyForm });
+  const [form, setForm] = useState(makeEmptyForm());
 
   const from = useMemo(() => format(subDays(new Date(), Number(days)), "yyyy-MM-dd"), [days]);
 
@@ -125,7 +126,9 @@ export function QualityActionsView() {
         line: form.line || null,
         shift: form.shift || null,
         leader_id: null,
-        leader_name: leader?.name ?? null,
+        leader_name: leader?.name ?? (form.leader_name || null),
+        sku: form.sku || null,
+        batch: form.batch || null,
         department: form.department || null,
         status: form.status,
         severity: form.severity || null,
@@ -133,17 +136,55 @@ export function QualityActionsView() {
         description: form.description || null,
         points: 1,
         recorded_by: u.user?.id ?? null,
-        recorded_at: new Date().toISOString(),
-      });
+        recorded_at: new Date(`${form.date || todayISO()}T12:00:00`).toISOString(),
+      } as never);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["quality_actions"] });
-      setOpen(false); setForm({ ...emptyForm });
+      setOpen(false); setForm(makeEmptyForm());
       toast.success("Logged");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // Auto-pull leader / SKU / batch from the production data once line + date + shift are set.
+  // The supervisor only corrects what's wrong afterwards.
+  useEffect(() => {
+    if (!open || !form.line || !form.date || !form.shift) return;
+    let cancelled = false;
+    (async () => {
+      const { data: sess } = await supabase
+        .from("production_sessions")
+        .select("id, leader_name")
+        .eq("line", form.line)
+        .eq("session_date", form.date)
+        .eq("shift", form.shift)
+        .maybeSingle();
+      if (cancelled || !sess) return;
+      let sku = "";
+      let batch = "";
+      const { data: items } = await (supabase as any)
+        .from("production_items")
+        .select("blender_ref, sku_code_text, sku:sku_id(code)")
+        .eq("session_id", (sess as any).id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      const it = (items ?? [])[0];
+      if (it) { sku = it.sku?.code ?? it.sku_code_text ?? ""; batch = it.blender_ref ?? ""; }
+      if (cancelled) return;
+      const leaderName = (sess as any).leader_name ?? "";
+      const matched = leaders.find((l) => l.name === leaderName);
+      setForm((f) => ({
+        ...f,
+        leader_name: leaderName || f.leader_name,
+        leader_id: matched?.id ?? f.leader_id,
+        sku: sku || f.sku,
+        batch: batch || f.batch,
+      }));
+    })();
+    return () => { cancelled = true; };
+  }, [open, form.line, form.date, form.shift, leaders]);
 
   const setStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -206,7 +247,7 @@ export function QualityActionsView() {
             {canManage && <Button variant="outline" onClick={() => setListsOpen(true)}><Tags className="h-4 w-4 mr-1" />Lists</Button>}
             {canManage && <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" />Import</Button>}
             <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />Export</Button>
-            <Dialog open={open} onOpenChange={setOpen}>
+            <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setForm(makeEmptyForm()); }}>
               <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-1" />Log action</Button></DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Log quality action</DialogTitle></DialogHeader>
@@ -231,12 +272,15 @@ export function QualityActionsView() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div><Label>Line</Label>
                       <Select value={form.line} onValueChange={(v) => setForm({ ...form, line: v })}>
                         <SelectTrigger><SelectValue placeholder="Pick line" /></SelectTrigger>
                         <SelectContent>{lines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
                       </Select>
+                    </div>
+                    <div><Label>Date</Label>
+                      <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
                     </div>
                     <div><Label>Shift</Label>
                       <Select value={form.shift} onValueChange={(v) => setForm({ ...form, shift: v })}>
@@ -245,11 +289,17 @@ export function QualityActionsView() {
                       </Select>
                     </div>
                   </div>
+                  <p className="-mt-1 text-[11px] text-muted-foreground">Pick line, date &amp; shift — leader, SKU and batch fill in automatically. Correct anything that's wrong.</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Leader</Label>
                       <Select value={form.leader_id} onValueChange={(v) => setForm({ ...form, leader_id: v })}>
-                        <SelectTrigger><SelectValue placeholder="Pick leader" /></SelectTrigger>
-                        <SelectContent>{leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                        <SelectTrigger><SelectValue placeholder={form.leader_name || "Pick leader"} /></SelectTrigger>
+                        <SelectContent>
+                          {form.leader_name && !leaders.some((l) => l.name === form.leader_name) && (
+                            <SelectItem value="__auto__">{form.leader_name} (from production)</SelectItem>
+                          )}
+                          {leaders.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                        </SelectContent>
                       </Select>
                     </div>
                     <div><Label>Department</Label>
@@ -257,6 +307,14 @@ export function QualityActionsView() {
                         <SelectTrigger><SelectValue placeholder="Pick dept" /></SelectTrigger>
                         <SelectContent>{DEPTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
                       </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>SKU</Label>
+                      <Input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="auto from production" />
+                    </div>
+                    <div><Label>Batch code</Label>
+                      <Input value={form.batch} onChange={(e) => setForm({ ...form, batch: e.target.value })} placeholder="auto from production" />
                     </div>
                   </div>
                   <div>
@@ -588,9 +646,6 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
                 )}
               </div>
 
-              {/* CAPA */}
-              <CapaSection action={action} canManage={canManage} />
-
               {/* History */}
               <div>
                 <Label className="flex items-center gap-1"><Clock className="h-4 w-4" /> History</Label>
@@ -636,182 +691,6 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
   );
 }
 
-// ============================================================
-// CAPA — corrective & preventive action, one per issue
-// ============================================================
-interface CapaForm {
-  capa_no: string; problem: string; five_whys: string[]; root_cause: string;
-  ishikawa: Record<string, string>; action_plan: string; responsible: string;
-  due_date: string; status: string; effectiveness: string; effectiveness_ok: boolean | null;
-}
-function blankCapa(): CapaForm {
-  return { capa_no: "", problem: "", five_whys: ["", "", "", "", ""], root_cause: "", ishikawa: {}, action_plan: "", responsible: "", due_date: "", status: "open", effectiveness: "", effectiveness_ok: null };
-}
-function capaToForm(c: QualityCapa): CapaForm {
-  const whys = Array.isArray(c.five_whys) ? [...c.five_whys] : [];
-  while (whys.length < 5) whys.push("");
-  return {
-    capa_no: c.capa_no ?? "", problem: c.problem ?? "", five_whys: whys.slice(0, 5), root_cause: c.root_cause ?? "",
-    ishikawa: c.ishikawa ?? {}, action_plan: c.action_plan ?? "", responsible: c.responsible ?? "",
-    due_date: c.due_date ?? "", status: c.status ?? "open", effectiveness: c.effectiveness ?? "", effectiveness_ok: c.effectiveness_ok,
-  };
-}
-function capaStatusMeta(v: string) {
-  return CAPA_STATUSES.find((s) => s.value === v) ?? CAPA_STATUSES[0];
-}
-
-function CapaSection({ action, canManage }: { action: QualityAction; canManage: boolean }) {
-  const { data: capa, isLoading } = useQualityCapa(action.id);
-  const save = useSaveCapa();
-  const [started, setStarted] = useState(false);
-  const [form, setForm] = useState<CapaForm>(() => blankCapa());
-
-  useEffect(() => {
-    if (capa) setForm(capaToForm(capa));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capa?.id]);
-
-  const set = <K extends keyof CapaForm>(k: K, v: CapaForm[K]) => setForm((f) => ({ ...f, [k]: v }));
-  const setWhy = (i: number, v: string) => setForm((f) => ({ ...f, five_whys: f.five_whys.map((w, j) => (j === i ? v : w)) }));
-  const setFish = (cat: string, v: string) => setForm((f) => ({ ...f, ishikawa: { ...f.ishikawa, [cat]: v } }));
-
-  const startCapa = () => { setForm({ ...blankCapa(), problem: action.description ?? "" }); setStarted(true); };
-
-  const onSave = () => {
-    save.mutate({
-      id: capa?.id,
-      action_id: action.id,
-      capa_no: form.capa_no || null,
-      problem: form.problem || null,
-      five_whys: form.five_whys.map((w) => w.trim()).filter((_, i) => i < 5),
-      root_cause: form.root_cause || null,
-      ishikawa: form.ishikawa,
-      action_plan: form.action_plan || null,
-      responsible: form.responsible || null,
-      due_date: form.due_date || null,
-      status: form.status,
-      effectiveness: form.effectiveness || null,
-      effectiveness_ok: form.effectiveness_ok,
-    }, {
-      onSuccess: () => { setStarted(false); toast.success("CAPA saved"); },
-      onError: (e) => toast.error((e as Error).message),
-    });
-  };
-
-  const header = (
-    <div className="flex items-center justify-between">
-      <Label className="flex items-center gap-1"><ClipboardCheck className="h-4 w-4" /> CAPA</Label>
-      {capa && <Badge variant="outline" className={cn("text-[10px]", capaStatusMeta(capa.status).badge)}>{capaStatusMeta(capa.status).label}</Badge>}
-    </div>
-  );
-
-  if (isLoading) return <div>{header}<p className="mt-1 text-xs text-muted-foreground">Loading…</p></div>;
-
-  // Read-only for non-managers
-  if (!canManage) {
-    if (!capa) return <div>{header}<p className="mt-1 text-xs text-muted-foreground">No CAPA raised.</p></div>;
-    return (
-      <div className="space-y-2">
-        {header}
-        <div className="space-y-1.5 rounded border bg-muted/20 p-3 text-sm">
-          {capa.capa_no && <DetailMeta label="CAPA #" value={capa.capa_no} />}
-          {capa.problem && <div><span className="text-muted-foreground">Problem: </span>{capa.problem}</div>}
-          {capa.five_whys?.some((w) => w) && (
-            <div><span className="text-muted-foreground">5 Whys:</span>
-              <ol className="ml-4 list-decimal">{capa.five_whys.filter((w) => w).map((w, i) => <li key={i}>{w}</li>)}</ol>
-            </div>
-          )}
-          {capa.root_cause && <div><span className="text-muted-foreground">Root cause: </span>{capa.root_cause}</div>}
-          {Object.entries(capa.ishikawa ?? {}).filter(([, v]) => v).map(([k, v]) => <div key={k}><span className="text-muted-foreground">{k}: </span>{v}</div>)}
-          {capa.action_plan && <div><span className="text-muted-foreground">Action plan: </span>{capa.action_plan}</div>}
-          <div className="flex flex-wrap gap-4">
-            {capa.responsible && <DetailMeta label="Responsible" value={capa.responsible} />}
-            {capa.due_date && <DetailMeta label="Due" value={capa.due_date} />}
-          </div>
-          {capa.effectiveness && <div><span className="text-muted-foreground">Effectiveness: </span>{capa.effectiveness}{capa.effectiveness_ok == null ? "" : capa.effectiveness_ok ? " ✓" : " ✗"}</div>}
-        </div>
-      </div>
-    );
-  }
-
-  // Manager: offer to start, else show the editable form
-  if (!capa && !started) {
-    return <div>{header}<Button size="sm" variant="outline" className="mt-1" onClick={startCapa}><ClipboardCheck className="mr-1 h-4 w-4" /> Start CAPA</Button></div>;
-  }
-
-  const effVal = form.effectiveness_ok == null ? "__pending__" : form.effectiveness_ok ? "yes" : "no";
-
-  return (
-    <div className="space-y-3 rounded-lg border p-3">
-      {header}
-      <div className="grid grid-cols-2 gap-3">
-        <div><Label className="text-xs">CAPA #</Label><Input value={form.capa_no} onChange={(e) => set("capa_no", e.target.value)} placeholder="e.g. CAPA-001" /></div>
-        <div><Label className="text-xs">Status</Label>
-          <Select value={form.status} onValueChange={(v) => set("status", v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{CAPA_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div><Label className="text-xs">Problem statement</Label><Textarea value={form.problem} onChange={(e) => set("problem", e.target.value)} rows={2} /></div>
-
-      <div>
-        <Label className="text-xs">5 Whys</Label>
-        <div className="space-y-1.5">
-          {form.five_whys.map((w, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="w-14 shrink-0 text-xs text-muted-foreground">Why {i + 1}</span>
-              <Input value={w} onChange={(e) => setWhy(i, e.target.value)} className="h-8" />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div><Label className="text-xs">Root cause</Label><Textarea value={form.root_cause} onChange={(e) => set("root_cause", e.target.value)} rows={2} /></div>
-
-      <div>
-        <Label className="text-xs">Ishikawa (6M)</Label>
-        <div className="grid grid-cols-2 gap-2">
-          {ISHIKAWA_CATEGORIES.map((cat) => (
-            <div key={cat}>
-              <span className="text-[11px] text-muted-foreground">{cat}</span>
-              <Textarea value={form.ishikawa[cat] ?? ""} onChange={(e) => setFish(cat, e.target.value)} rows={2} className="text-xs" />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div><Label className="text-xs">Action plan</Label><Textarea value={form.action_plan} onChange={(e) => set("action_plan", e.target.value)} rows={2} /></div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div><Label className="text-xs">Responsible</Label><Input value={form.responsible} onChange={(e) => set("responsible", e.target.value)} /></div>
-        <div><Label className="text-xs">Due date</Label><Input type="date" value={form.due_date} onChange={(e) => set("due_date", e.target.value)} /></div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2 sm:col-span-1"><Label className="text-xs">Effectiveness check</Label><Textarea value={form.effectiveness} onChange={(e) => set("effectiveness", e.target.value)} rows={2} /></div>
-        <div><Label className="text-xs">Effective?</Label>
-          <Select value={effVal} onValueChange={(v) => set("effectiveness_ok", v === "__pending__" ? null : v === "yes")}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__pending__">— Pending —</SelectItem>
-              <SelectItem value="yes">Yes — effective</SelectItem>
-              <SelectItem value="no">No — reopen</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-2">
-        {!capa && <Button size="sm" variant="ghost" onClick={() => setStarted(false)}>Cancel</Button>}
-        <Button size="sm" onClick={onSave} disabled={save.isPending}>
-          {save.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}Save CAPA
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 function QualityListsManager() {
   const qc = useQueryClient();
