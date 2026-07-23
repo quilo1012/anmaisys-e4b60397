@@ -10,11 +10,14 @@ export function SiteBannerImages({
   urls,
   intervalMs = 6000,
   fit = "cover",
+  imgClassName,
 }: {
   urls: string[];
   intervalMs?: number;
   /** "cover" fills & crops (bands); "contain" shows the whole image (no crop). */
   fit?: "cover" | "contain";
+  /** Extra classes on each image (e.g. blur/scale for a backdrop-fill layer). */
+  imgClassName?: string;
 }) {
   const [index, setIndex] = useState(0);
 
@@ -42,6 +45,7 @@ export function SiteBannerImages({
             "absolute inset-0 h-full w-full transition-opacity duration-1000",
             fit === "contain" ? "object-contain" : "object-cover",
             i === index ? "opacity-100" : "opacity-0",
+            imgClassName,
           )}
         />
       ))}
