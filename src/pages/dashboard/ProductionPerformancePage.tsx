@@ -380,7 +380,7 @@ export default function ProductionPerformancePage() {
                 <CircularProgress value={overall} size={120} strokeWidth={10} sublabel="Overall" />
                 <div className="flex-1 min-w-[200px]">
                   <div className="text-xs uppercase text-muted-foreground">Overall Performance</div>
-                  <div className="text-2xl font-bold">{totalActual.toLocaleString()} / {totalTarget.toLocaleString()}</div>
+                  <div className="text-2xl font-bold">{totalActual.toLocaleString("en-US")} / {totalTarget.toLocaleString("en-US")}</div>
                   <div className="text-sm text-muted-foreground">
                     {scored.length} {scored.length === 1 ? "line" : "lines"} scored · {sessions.length} sessions
                     {excludedCount > 0 && (
@@ -498,9 +498,9 @@ export default function ProductionPerformancePage() {
                 <CardContent className="p-4 flex items-center gap-4">
                   <CircularProgress value={l.eff} size={88} strokeWidth={8} />
                   <div className="flex-1 text-sm space-y-0.5">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Target</span><span className="font-medium">{l.target.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Actual</span><span className="font-medium">{l.actual.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Gap</span><span className={`font-medium ${l.actual - l.target >= 0 ? "text-green-500" : "text-red-500"}`}>{(l.actual - l.target).toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Target</span><span className="font-medium">{l.target.toLocaleString("en-US")}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Actual</span><span className="font-medium">{l.actual.toLocaleString("en-US")}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Gap</span><span className={`font-medium ${l.actual - l.target >= 0 ? "text-green-500" : "text-red-500"}`}>{(l.actual - l.target).toLocaleString("en-US")}</span></div>
                   </div>
                 </CardContent>
               </Card>
