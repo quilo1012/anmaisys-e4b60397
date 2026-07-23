@@ -275,7 +275,9 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
                 const total = lineTotals.get(line)?.minutes ?? 0;
                 return (
                   <tr key={line}>
-                    <td className="p-2 font-medium sticky left-0 bg-card">{line}</td>
+                    <td className="p-2 font-medium sticky left-0 bg-card">
+                      {line === "—" ? <span className="italic text-muted-foreground">(line removed)</span> : line}
+                    </td>
                     {DAYS.map((_, di) =>
                       visibleShifts.map((s) => {
                         const c = lm.get(`${di}-${s}`) ?? { minutes: 0, count: 0 };
