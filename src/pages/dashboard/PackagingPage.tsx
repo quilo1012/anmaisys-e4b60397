@@ -603,7 +603,7 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
         for (let i = 0; i < mats.length; i += 200) {
           const { data, error } = await tbl("materials").upsert(mats.slice(i, i + 200) as never, { onConflict: "barcode" }).select("id, barcode");
           if (error) throw error;
-          for (const m of (data ?? []) as { id: string; barcode: string }[]) barcodeToId.set(m.barcode, m.id);
+          for (const m of (data ?? []) as unknown as { id: string; barcode: string }[]) barcodeToId.set(m.barcode, m.id);
         }
         // 2) upsert BOM identity rows (dedupe by sku)
         const seenSku = new Set<string>();
@@ -633,7 +633,7 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
         for (const t of ["tub", "lid", "scoop", "box"]) {
           const { data, error } = await tbl("materials").select("material_type, description").eq("material_type", t);
           if (error) throw error;
-          for (const m of (data ?? []) as { material_type: string; description: string | null }[])
+          for (const m of (data ?? []) as unknown as { material_type: string; description: string | null }[])
             if (m.description) existing.add(`${m.material_type}|${m.description.toLowerCase()}`);
         }
         const fresh = distinct
