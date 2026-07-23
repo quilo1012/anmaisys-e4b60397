@@ -183,8 +183,10 @@ export default function WorkOrderDetail() {
     );
   }
 
-  const cfg = statusConfig[wo.status];
+  const cfg = statusConfig[wo.status] || statusConfig.open;
   const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
+  // Warehouse service WOs never touch the production line → no downtime control / impact.
+  const isWarehouseWO = (wo as any).wo_type === "warehouse_service";
   const woLabel = `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`;
 
   // ── Metrics from v_wo_metrics view (single source of truth) ──────────
@@ -316,17 +318,19 @@ export default function WorkOrderDetail() {
           </div>
         </div>
 
-        {/* Production Line Status — multi-cycle stop/resume control */}
-        <div className="print:hidden">
-          <LineDowntimeControl
-            workOrderId={wo.id}
-            workOrderStatus={wo.status}
-            operatorId={(wo as any).operator_id}
-            engineerId={(wo as any).engineer_id}
-            lineId={(wo as any).line_id}
-            requesterName={wo.requester_name}
-          />
-        </div>
+        {/* Production Line Status — multi-cycle stop/resume control (not for warehouse WOs) */}
+        {!isWarehouseWO && (
+          <div className="print:hidden">
+            <LineDowntimeControl
+              workOrderId={wo.id}
+              workOrderStatus={wo.status}
+              operatorId={(wo as any).operator_id}
+              engineerId={(wo as any).engineer_id}
+              lineId={(wo as any).line_id}
+              requesterName={wo.requester_name}
+            />
+          </div>
+        )}
 
         {/* Lifecycle Timeline — labeled durations from v_wo_metrics (single source of truth) */}
         <div className="print:hidden">
@@ -387,8 +391,8 @@ export default function WorkOrderDetail() {
           </CardContent>
         </Card>
 
-        {/* PRODUCTION IMPACT */}
-        {(() => {
+        {/* PRODUCTION IMPACT (not for warehouse WOs — they never stop the line) */}
+        {!isWarehouseWO && (() => {
           // Operator-declared downtime: starts when WO is created with line_stopped=true,
           // ends only when the operator signs/closes the WO (line_resumed_at).
           const operatorStopStart = (wo as any).line_stopped_at || null;
