@@ -32,7 +32,7 @@ export function SignupSettingsCard() {
     let ok = true;
     cfg().select("invite_code, enabled").eq("id", true).maybeSingle().then(({ data }) => {
       if (!ok || !data) { setLoading(false); return; }
-      const row = data as { invite_code: string | null; enabled: boolean };
+      const row = data as unknown as { invite_code: string | null; enabled: boolean };
       setCode(row.invite_code ?? "");
       setEnabled(!!row.enabled);
       setLoading(false);
