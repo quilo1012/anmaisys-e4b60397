@@ -197,7 +197,7 @@ export default function SKUPerformancePage() {
           <CardContent className="p-6 flex items-center gap-6 flex-wrap">
             <div className="flex-1 min-w-[200px]">
               <div className="text-xs uppercase text-muted-foreground">Overall (filtered)</div>
-              <div className="text-2xl font-bold">{totals.actual.toLocaleString()} / {totals.planned.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{totals.actual.toLocaleString("en-US")} / {totals.planned.toLocaleString("en-US")}</div>
               <div className="text-sm text-muted-foreground">
                 {rows.length} SKU-line combinations · {totals.eff.toFixed(1)}% efficiency
               </div>
@@ -246,8 +246,8 @@ export default function SKUPerformancePage() {
                         </td>
                         <td className="p-2">{r.line}</td>
                         <td className="p-2 text-right">{r.sessions}</td>
-                        <td className="p-2 text-right">{r.actual.toLocaleString()}</td>
-                        <td className="p-2 text-right">{r.planned.toLocaleString()}</td>
+                        <td className="p-2 text-right">{r.actual.toLocaleString("en-US")}</td>
+                        <td className="p-2 text-right">{r.planned.toLocaleString("en-US")}</td>
                         <td className="p-2 text-right">
                           <Badge className={`${ragBadge(r.eff)} border`}>{r.eff.toFixed(1)}%</Badge>
                         </td>

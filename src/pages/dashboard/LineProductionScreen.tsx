@@ -798,7 +798,7 @@ export default function LineProductionScreen() {
           <CardContent className="p-10 text-center space-y-3">
             <div className="text-xl font-semibold">No session yet for {line} – {shift}</div>
             <div className="text-muted-foreground">
-              RAG plan = {(ragPlanQ.data ?? 0).toLocaleString()}. Start the shift to begin tracking actuals.
+              RAG plan = {(ragPlanQ.data ?? 0).toLocaleString("en-US")}. Start the shift to begin tracking actuals.
             </div>
             <Button
               className="h-12"
@@ -855,16 +855,16 @@ export default function LineProductionScreen() {
                 <CardContent className="p-4 md:p-6 flex items-center gap-6 flex-wrap">
                   <CircularProgress value={eff} size={120} strokeWidth={10} />
                   <div className="flex-1 min-w-[200px] space-y-1 text-base md:text-lg">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Target</span><span className="font-semibold tabular-nums">{totals.target.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Actual Produced</span><span className="font-semibold tabular-nums text-primary">{totals.actual.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Target</span><span className="font-semibold tabular-nums">{totals.target.toLocaleString("en-US")}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Actual Produced</span><span className="font-semibold tabular-nums text-primary">{totals.actual.toLocaleString("en-US")}</span></div>
                     {!isOperator && (
                       <div className="flex justify-between text-xs pt-1 border-t border-border/50 mt-1">
                         <span className="text-muted-foreground">Live Count (iTouching)</span>
-                        <span className="font-medium tabular-nums text-muted-foreground">{intouchLive.toLocaleString()}</span>
+                        <span className="font-medium tabular-nums text-muted-foreground">{intouchLive.toLocaleString("en-US")}</span>
                       </div>
                     )}
-                    <div className="flex justify-between"><span className="text-muted-foreground">Gap</span><span className={cn("font-semibold tabular-nums", gap >= 0 ? "text-green-500" : "text-red-500")}>{gap.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Remaining</span><span className="font-semibold tabular-nums">{totals.remaining.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Gap</span><span className={cn("font-semibold tabular-nums", gap >= 0 ? "text-green-500" : "text-red-500")}>{gap.toLocaleString("en-US")}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Remaining</span><span className="font-semibold tabular-nums">{totals.remaining.toLocaleString("en-US")}</span></div>
                   </div>
                 </CardContent>
               </Card>
@@ -1004,7 +1004,7 @@ export default function LineProductionScreen() {
             <DialogTitle className="text-xl">
               {editing?.code}{" "}
               <span className="text-sm font-normal text-muted-foreground">
-                · Target {editing?.target_qty.toLocaleString()}
+                · Target {editing?.target_qty.toLocaleString("en-US")}
               </span>
             </DialogTitle>
           </DialogHeader>
@@ -1183,11 +1183,11 @@ const SkuCard = memo(function SkuCard({
         </div>
         <div className="flex items-baseline justify-between">
           <span className="text-3xl font-bold tabular-nums">
-            {item.actual_qty.toLocaleString()}
+            {item.actual_qty.toLocaleString("en-US")}
           </span>
           {!hideTarget && (
             <span className="text-sm text-muted-foreground tabular-nums">
-              / {effTarget.toLocaleString()}
+              / {effTarget.toLocaleString("en-US")}
             </span>
           )}
         </div>

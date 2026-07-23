@@ -159,12 +159,12 @@ export function TabletProductionView() {
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border bg-card p-4 text-center">
           <Target className="h-5 w-5 mx-auto text-primary" />
-          <div className="text-2xl font-bold">{totalTarget.toLocaleString()}</div>
+          <div className="text-2xl font-bold">{totalTarget.toLocaleString("en-US")}</div>
           <div className="text-xs text-muted-foreground">Target RAG</div>
         </div>
         <div className="rounded-lg border bg-card p-4 text-center">
           <BarChart3 className="h-5 w-5 mx-auto text-primary" />
-          <div className="text-2xl font-bold">{totalActual.toLocaleString()}</div>
+          <div className="text-2xl font-bold">{totalActual.toLocaleString("en-US")}</div>
           <div className="text-xs text-muted-foreground">Current Shift</div>
         </div>
         <div className="rounded-lg border bg-card p-4 text-center">
