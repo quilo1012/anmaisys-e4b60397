@@ -3155,16 +3155,19 @@ export type Database = {
         Row: {
           action: string
           created_at: string
+          device: string
           role: string
         }
         Insert: {
           action: string
           created_at?: string
+          device?: string
           role: string
         }
         Update: {
           action?: string
           created_at?: string
+          device?: string
           role?: string
         }
         Relationships: []
@@ -3296,6 +3299,33 @@ export type Database = {
           enabled?: boolean
           id?: boolean
           invite_code?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      site_banner: {
+        Row: {
+          description: string | null
+          id: boolean
+          image: string | null
+          images: Json
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          description?: string | null
+          id?: boolean
+          image?: string | null
+          images?: Json
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          description?: string | null
+          id?: boolean
+          image?: string | null
+          images?: Json
+          title?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -4186,6 +4216,7 @@ export type Database = {
       }
     }
     Functions: {
+      _norm_img: { Args: { u: string }; Returns: string }
       accept_wo_with_pin: {
         Args: { _pin: string; _wo_id: string }
         Returns: Json
@@ -4386,6 +4417,7 @@ export type Database = {
         Args: { _label?: string; _line_ids: string[]; _token: string }
         Returns: undefined
       }
+      refresh_site_banner: { Args: never; Returns: undefined }
       reject_wo: { Args: { _reason: string; _wo_id: string }; Returns: Json }
       reopen_wo_as_recurrence: {
         Args: { _reason: string; _wo_id: string }
