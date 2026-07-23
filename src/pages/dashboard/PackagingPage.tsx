@@ -32,12 +32,6 @@ interface Order {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tables not in generated types yet
 const tbl = (t: string) => supabase.from(t as any);
 
-function cell(row: Record<string, unknown>, aliases: string[]): string {
-  for (const key of Object.keys(row)) {
-    if (aliases.includes(key.trim().toLowerCase())) return String(row[key] ?? "").trim();
-  }
-  return "";
-}
 function normType(s: string): string {
   const v = s.toLowerCase();
   return (MATERIAL_TYPES as readonly string[]).find((t) => t === v) ?? "other";
@@ -447,57 +441,115 @@ function BomView({ canManage }: { canManage: boolean }) {
 // Generic Excel/CSV import
 // ============================================================
 type ImportKind = "materials" | "orders" | "labels" | "bags";
+
+interface FieldDef { key: string; label: string; required?: boolean; aliases: string[] }
+const SKU_FIELDS: FieldDef[] = [
+  { key: "sku", label: "HB SKU", required: true, aliases: ["hb sku", "hb_sku", "hbsku", "sku"] },
+  { key: "barcode", label: "Barcode", required: true, aliases: ["barcode", "ean", "gtin", "bar code", "código de barras", "codigo de barras"] },
+  { key: "description", label: "Product / description", aliases: ["product", "description", "name", "nome", "desc", "descricao", "descrição"] },
+];
+const FIELD_CONFIGS: Record<ImportKind, FieldDef[]> = {
+  labels: SKU_FIELDS,
+  bags: SKU_FIELDS,
+  materials: [
+    { key: "material_type", label: "Type", aliases: ["type", "material type", "material_type", "tipo"] },
+    { key: "barcode", label: "Barcode", aliases: ["barcode", "ean", "gtin", "codigo de barras", "código de barras", "code"] },
+    { key: "ap_code", label: "AP code", aliases: ["ap code", "ap_code", "ap", "codigo ap", "código ap"] },
+    { key: "description", label: "Description", aliases: ["description", "descricao", "descrição", "name", "nome", "desc"] },
+    { key: "country", label: "Country", aliases: ["country", "pais", "país"] },
+    { key: "flavour", label: "Flavour", aliases: ["flavour", "flavor", "sabor"] },
+    { key: "size", label: "Size", aliases: ["size", "tamanho", "weight", "peso"] },
+    { key: "pack_type", label: "Pack type", aliases: ["pack type", "pack_type", "packaging", "packaging type", "embalagem"] },
+  ],
+  orders: [
+    { key: "po_number", label: "PO number", required: true, aliases: ["production order", "po", "po number", "po_number", "order", "ordem", "wo", "#"] },
+    { key: "sku", label: "SKU", aliases: ["sku", "code", "codigo", "código"] },
+    { key: "country", label: "Country", aliases: ["country", "pais", "país"] },
+    { key: "packaging_type", label: "Packaging type", aliases: ["packaging type", "packaging", "pack type", "tipo embalagem", "embalagem"] },
+    { key: "qty", label: "Qty", aliases: ["qty", "quantity", "quantidade", "qtd"] },
+    { key: "line", label: "Line", aliases: ["line", "linha"] },
+    { key: "planned_date", label: "Date", aliases: ["date", "planned", "planned date", "data"] },
+  ],
+};
+function guessMapping(headers: string[], fields: FieldDef[]): Record<string, string> {
+  const lc = headers.map((h) => ({ h, lc: h.trim().toLowerCase() }));
+  const m: Record<string, string> = {};
+  for (const f of fields) m[f.key] = lc.find((x) => f.aliases.includes(x.lc))?.h ?? "";
+  return m;
+}
+function pick(row: Record<string, unknown>, mapping: Record<string, string>, key: string): string {
+  const col = mapping[key];
+  return col ? String(row[col] ?? "").trim() : "";
+}
+function toIsoDate(s: string): string | null {
+  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+  if (m) { let y = Number(m[3]); if (y < 100) y += 2000; return `${y}-${String(Number(m[2])).padStart(2, "0")}-${String(Number(m[1])).padStart(2, "0")}`; }
+  return s.match(/^\d{4}-\d{2}-\d{2}/) ? s.slice(0, 10) : null;
+}
+function transformRow(row: Record<string, unknown>, mapping: Record<string, string>, kind: ImportKind): Record<string, unknown> | null {
+  if (kind === "labels" || kind === "bags") {
+    const r = { sku: pick(row, mapping, "sku"), barcode: pick(row, mapping, "barcode") || null, description: pick(row, mapping, "description") || null };
+    return r.sku && r.barcode ? r : null;
+  }
+  if (kind === "materials") {
+    const r = {
+      material_type: normType(pick(row, mapping, "material_type")),
+      barcode: pick(row, mapping, "barcode") || null,
+      ap_code: pick(row, mapping, "ap_code") || null,
+      description: pick(row, mapping, "description") || null,
+      country: pick(row, mapping, "country") || null,
+      flavour: pick(row, mapping, "flavour") || null,
+      size: pick(row, mapping, "size") || null,
+      pack_type: normPack(pick(row, mapping, "pack_type")),
+      active: true,
+    };
+    return r.barcode || r.ap_code ? r : null;
+  }
+  const q = Number(pick(row, mapping, "qty"));
+  const r = {
+    po_number: pick(row, mapping, "po_number"),
+    sku: pick(row, mapping, "sku") || null,
+    country: pick(row, mapping, "country") || null,
+    packaging_type: normPack(pick(row, mapping, "packaging_type")),
+    qty: isNaN(q) || q === 0 ? null : q,
+    line: pick(row, mapping, "line") || null,
+    planned_date: toIsoDate(pick(row, mapping, "planned_date")),
+    status: "planned",
+  };
+  return r.po_number ? r : null;
+}
+
 function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; open: boolean; onOpenChange: (v: boolean) => void; onDone: () => void }) {
   const { user } = useAuth();
-  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const fields = FIELD_CONFIGS[kind];
+  const [rawRows, setRawRows] = useState<Record<string, unknown>[]>([]);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
   const [fileName, setFileName] = useState("");
-  const [totalRead, setTotalRead] = useState(0);
   const [importing, setImporting] = useState(false);
 
-  const reset = () => { setRows([]); setFileName(""); setTotalRead(0); };
+  const reset = () => { setRawRows([]); setHeaders([]); setMapping({}); setFileName(""); };
 
   const handleFile = async (file: File) => {
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: "array", cellDates: false });
-      // read EVERY sheet, not just the first
       const json = wb.SheetNames.flatMap((n) => XLSX.utils.sheet_to_json(wb.Sheets[n], { defval: "", raw: false }) as Record<string, unknown>[]);
-      const parsed = kind === "materials" ? json.map(parseMaterial).filter((r) => r.barcode || r.ap_code)
-        : kind === "orders" ? json.map(parseOrder).filter((r) => r.po_number)
-        : json.map(parseSkuList).filter((r) => r.sku && r.barcode);
-      if (parsed.length === 0) { toast.error("No valid rows found. Check the column headers."); return; }
-      setRows(parsed as Record<string, unknown>[]);
-      setTotalRead(json.length);
+      if (json.length === 0) { toast.error("The file has no rows."); return; }
+      const hdrs = Array.from(new Set(json.flatMap((r) => Object.keys(r))));
+      setRawRows(json);
+      setHeaders(hdrs);
+      setMapping(guessMapping(hdrs, fields));   // auto-guess; user can adjust
       setFileName(file.name);
     } catch (e) { toast.error(`Could not read file: ${(e as Error)?.message ?? "unknown"}`); }
   };
 
-  const parseMaterial = (r: Record<string, unknown>) => ({
-    material_type: normType(cell(r, ["type", "material type", "material_type", "tipo"])),
-    barcode: cell(r, ["barcode", "ean", "gtin", "codigo de barras", "código de barras", "code"]) || null,
-    ap_code: cell(r, ["ap code", "ap_code", "ap", "codigo ap", "código ap"]) || null,
-    description: cell(r, ["description", "descricao", "descrição", "name", "nome", "desc"]) || null,
-    country: cell(r, ["country", "pais", "país"]) || null,
-    flavour: cell(r, ["flavour", "flavor", "sabor"]) || null,
-    size: cell(r, ["size", "tamanho", "weight", "peso"]) || null,
-    pack_type: normPack(cell(r, ["pack type", "pack_type", "packaging", "packaging type", "embalagem"])),
-    active: true,
-  });
-  const parseSkuList = (r: Record<string, unknown>) => ({
-    sku: cell(r, ["hb sku", "hb_sku", "hbsku", "sku"]),
-    barcode: cell(r, ["barcode", "ean", "gtin", "bar code", "código de barras", "codigo de barras"]) || null,
-    description: cell(r, ["product", "description", "name", "nome", "desc", "descricao", "descrição"]) || null,
-  });
-  const parseOrder = (r: Record<string, unknown>) => ({
-    po_number: cell(r, ["production order", "po", "po number", "po_number", "order", "ordem", "wo", "#"]),
-    sku: cell(r, ["sku", "code", "codigo", "código"]) || null,
-    country: cell(r, ["country", "pais", "país"]) || null,
-    packaging_type: normPack(cell(r, ["packaging type", "packaging", "pack type", "tipo embalagem", "embalagem"])),
-    qty: (() => { const n = Number(cell(r, ["qty", "quantity", "quantidade", "qtd"])); return isNaN(n) || n === 0 ? null : n; })(),
-    line: cell(r, ["line", "linha"]) || null,
-    planned_date: (() => { const s = cell(r, ["date", "planned", "planned date", "data"]); const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/); if (m) { let y = Number(m[3]); if (y < 100) y += 2000; return `${y}-${String(Number(m[2])).padStart(2, "0")}-${String(Number(m[1])).padStart(2, "0")}`; } return s.match(/^\d{4}-\d{2}-\d{2}/) ? s.slice(0, 10) : null; })(),
-    status: "planned",
-  });
+  const rows = useMemo(
+    () => rawRows.map((r) => transformRow(r, mapping, kind)).filter((r): r is Record<string, unknown> => r !== null),
+    [rawRows, mapping, kind],
+  );
+  const requiredMapped = fields.filter((f) => f.required).every((f) => mapping[f.key]);
+  const totalRead = rawRows.length;
 
   const importAll = async () => {
     setImporting(true);
@@ -580,8 +632,33 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
               <Upload className="h-4 w-4" /> Choose file
               <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
             </label>
-            {fileName && <span className="text-sm text-muted-foreground">{fileName} — {rows.length} valid{totalRead > rows.length ? ` · ${totalRead - rows.length} skipped (blank SKU/barcode)` : ""}</span>}
+            {fileName && <span className="text-sm text-muted-foreground">{fileName} — {totalRead} rows</span>}
           </div>
+
+          {/* Column mapping — link each file column to a system field */}
+          {headers.length > 0 && (
+            <div className="rounded-lg border p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Map your columns</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {fields.map((f) => (
+                  <div key={f.key} className="flex items-center gap-2">
+                    <span className="w-32 shrink-0 text-sm">{f.label}{f.required && <span className="text-destructive"> *</span>}</span>
+                    <Select value={mapping[f.key] || "__none__"} onValueChange={(v) => setMapping((m) => ({ ...m, [f.key]: v === "__none__" ? "" : v }))}>
+                      <SelectTrigger className={cn("h-8 flex-1", f.required && !mapping[f.key] && "border-destructive")}><SelectValue placeholder="— column —" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— none —</SelectItem>
+                        {headers.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Auto-matched by name — adjust any that are wrong. <span className="font-medium text-foreground">{rows.length}</span> of {totalRead} rows are valid
+                {totalRead > rows.length ? ` · ${totalRead - rows.length} skipped (missing required field)` : ""}.
+              </p>
+            </div>
+          )}
 
           {rows.length > 0 && (
             <div className="overflow-x-auto rounded border">
@@ -599,13 +676,13 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            {kind === "materials" ? "Duplicates (same barcode or AP code) are skipped. Columns matched by name — download the template for the expected headers."
-              : kind === "orders" ? "Existing PO numbers are updated. Columns matched by name — download the template for the expected headers."
-              : `Each row = one SKU. Creates the ${kind === "labels" ? "label" : "bag"} material and its ${kind === "labels" ? "TUB" : "BAG"} BOM identity row. HB SKU is the key. Re-import updates. Raw materials aren't relevant here.`}
+            {kind === "materials" ? "Duplicates (same barcode or AP code) are skipped."
+              : kind === "orders" ? "Existing PO numbers are updated."
+              : `Each row = one SKU. Creates the ${kind === "labels" ? "label" : "bag"} material and its ${kind === "labels" ? "TUB" : "BAG"} BOM identity row. Re-import updates. Raw materials aren't relevant here.`}
           </p>
         </div>
         <DialogFooter>
-          <Button onClick={importAll} disabled={rows.length === 0 || importing}>{importing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}Import {rows.length || ""}</Button>
+          <Button onClick={importAll} disabled={rows.length === 0 || !requiredMapped || importing}>{importing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}Import {rows.length || ""}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
