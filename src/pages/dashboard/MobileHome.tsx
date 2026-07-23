@@ -3,7 +3,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
-import { canMobile } from "@/lib/permissions";
+import { canForDevice } from "@/lib/permissions";
+import { useDeviceType } from "@/hooks/use-device-type";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -14,6 +15,7 @@ interface SiteBanner { image: string | null; title: string; description: string;
 export default function MobileHome() {
   const { profile, role } = useAuth();
   const navigate = useNavigate();
+  const device = useDeviceType();
 
   // Live banner from appliednutrition.uk. A DB cron (refresh_site_banner) re-scrapes the
   // site's og:image every 30 min, so the app's banner updates when the site's does.
@@ -33,42 +35,52 @@ export default function MobileHome() {
   });
   const effectiveRole = (role === "co_engineer" ? "engineer" : role) as AppRole | null;
 
+  // Quick links respect what this role is allowed to see on THIS device.
   const items = navItems.filter(
-    (i) => effectiveRole && i.roles.includes(effectiveRole) && (!i.action || canMobile(effectiveRole, i.action)),
+    (i) => effectiveRole && i.roles.includes(effectiveRole) && (!i.action || canForDevice(effectiveRole, i.action, device)),
   );
 
   const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-md space-y-6 py-6">
-        {banner?.image && (
-          <a
-            href={banner.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block overflow-hidden rounded-xl border shadow-sm"
-          >
-            <img src={banner.image} alt={banner.title || "Applied Nutrition"} className="w-full object-cover" loading="lazy" />
-            {(banner.title || banner.description) && (
-              <div className="space-y-0.5 p-3">
-                {banner.title && <p className="text-sm font-semibold leading-tight">{banner.title}</p>}
-                {banner.description && <p className="line-clamp-2 text-xs text-muted-foreground">{banner.description}</p>}
-              </div>
+      <div className="mx-auto max-w-4xl space-y-6 py-6">
+        {/* Welcome hero — the live site banner sits BEHIND the greeting on every login. */}
+        <div className="relative overflow-hidden rounded-2xl border shadow-sm">
+          {banner?.image ? (
+            <>
+              <img
+                src={banner.image}
+                alt={banner.title || "Applied Nutrition"}
+                className="absolute inset-0 h-full w-full object-cover"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-primary to-primary/70" />
+          )}
+          <div className="relative z-10 flex flex-col items-center justify-center gap-1.5 px-6 py-16 text-center text-white sm:py-20">
+            <p className="text-base text-white/85">
+              Hello, <span className="font-semibold text-white">{profile?.name || "there"}</span>
+            </p>
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Welcome to AN Production System</h1>
+            <p className="text-sm text-white/75">Today is {today}</p>
+            {banner?.image && (
+              <a
+                href={banner.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 text-xs font-medium text-white/80 underline underline-offset-2 hover:text-white"
+              >
+                appliednutrition.uk
+              </a>
             )}
-          </a>
-        )}
-
-        <div className="space-y-1 text-center">
-          <p className="text-base text-muted-foreground">
-            Hello, <span className="font-semibold text-foreground">{profile?.name || "there"}</span>
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Welcome to AN System</h1>
-          <p className="text-sm text-muted-foreground">Today is {today}</p>
+          </div>
         </div>
 
         {items.length > 0 && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {items.map((it) => {
               const Icon = it.icon;
               return (
