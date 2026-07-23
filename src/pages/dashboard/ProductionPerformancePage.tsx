@@ -243,7 +243,11 @@ export default function ProductionPerformancePage() {
     return Array.from(map.values()).map((x) => {
       const actual = x.ragActual > 0 ? x.ragActual : x.sessionActual;
       return { line: x.line, target: x.target, actual, leader: x.leader, hasSession: x.hasSession, eff: x.target > 0 ? (actual / x.target) * 100 : 0 };
-    }).sort((a, b) => b.eff - a.eff);
+    })
+      // Hide empty placeholder lines: no RAG target AND no production (e.g. a session
+      // created just by assigning a leader, or an operator opening My Production).
+      .filter((x) => x.target > 0 || x.actual > 0)
+      .sort((a, b) => b.eff - a.eff);
   }, [sessions, ragRows, leaderFilter]);
 
   const trend = useMemo(() => {
