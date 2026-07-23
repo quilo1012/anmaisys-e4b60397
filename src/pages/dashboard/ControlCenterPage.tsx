@@ -13,8 +13,9 @@ import { useEngineerScores } from "@/hooks/useEngineerScores";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import {
   Monitor, Loader2, Maximize, Minimize, Trophy, Clock, AlertTriangle, Heart,
-  GripVertical, List, PowerOff, Wrench, Activity, Radio, Circle,
+  GripVertical, List, PowerOff, Wrench, Activity, Radio, Circle, User, Gauge,
 } from "lucide-react";
+import { getCurrentFactoryShift } from "@/lib/shifts";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { differenceInMinutes, format, formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -118,6 +119,12 @@ export default function ControlCenterPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "machines" }, () => {
         queryClient.invalidateQueries({ queryKey: ["machines"] });
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "quality_actions" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["cc-line-stats"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "production_items" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["cc-line-stats"] });
+      })
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -160,6 +167,62 @@ export default function ControlCenterPage() {
       return (data ?? []) as Array<{ name: string; active: boolean }>;
     },
     staleTime: 5 * 60_000,
+  });
+
+  // Per-line snapshot for the current factory shift: leader, attainment %, open quality actions.
+  const factoryShift = getCurrentFactoryShift();
+  const shiftUpper = factoryShift.shiftCode.toUpperCase();
+  const { data: lineStats } = useQuery({
+    queryKey: ["cc-line-stats", factoryShift.sessionDate, shiftUpper],
+    queryFn: async () => {
+      const norm = (s: string) => (s || "").trim().toLowerCase();
+      type Stat = { leader: string | null; plan: number; actual: number; actions: number };
+      const map = new Map<string, Stat>();
+      const ensure = (k: string): Stat => {
+        let e = map.get(k);
+        if (!e) { e = { leader: null, plan: 0, actual: 0, actions: 0 }; map.set(k, e); }
+        return e;
+      };
+      // Sessions for the current shift → leader + which sessions belong to each line.
+      const { data: sessions } = await supabase
+        .from("production_sessions")
+        .select("id, line, leader_name")
+        .eq("session_date", factoryShift.sessionDate)
+        .eq("shift", shiftUpper);
+      const sessLine = new Map<string, string>();
+      for (const s of (sessions ?? []) as any[]) {
+        const k = norm(s.line);
+        const e = ensure(k);
+        if (s.leader_name && !e.leader) e.leader = s.leader_name;
+        sessLine.set(s.id, k);
+      }
+      // Production items for those sessions → planned/actual for attainment.
+      const ids = Array.from(sessLine.keys());
+      if (ids.length) {
+        const { data: items } = await supabase
+          .from("production_items")
+          .select("session_id, planned_qty, actual_qty, target_qty")
+          .in("session_id", ids);
+        for (const it of (items ?? []) as any[]) {
+          const k = sessLine.get(it.session_id);
+          if (!k) continue;
+          const e = ensure(k);
+          e.plan += Number(it.target_qty ?? it.planned_qty ?? 0) || 0;
+          e.actual += Number(it.actual_qty ?? 0) || 0;
+        }
+      }
+      // Open quality actions (todo + in_progress) per line.
+      const { data: qa } = await supabase
+        .from("quality_actions")
+        .select("line, status")
+        .in("status", ["todo", "in_progress"]);
+      for (const r of (qa ?? []) as any[]) {
+        if (!r.line) continue;
+        ensure(norm(r.line)).actions += 1;
+      }
+      return map;
+    },
+    staleTime: 60_000,
   });
 
   // Distinct line names that have an iTouching mapping.
@@ -478,6 +541,36 @@ export default function ControlCenterPage() {
                             )}
                           </div>
                         </div>
+                        {/* Per-line snapshot: shift leader · attainment · open quality actions */}
+                        {(() => {
+                          const ls = lineStats?.get(zone.trim().toLowerCase());
+                          if (!ls || (!ls.leader && ls.plan === 0 && ls.actions === 0)) return null;
+                          const attain = ls.plan > 0 ? Math.round((ls.actual / ls.plan) * 100) : null;
+                          return (
+                            <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5", tvMode ? "text-[10px]" : "text-xs")}>
+                              {ls.leader && (
+                                <span className="inline-flex items-center gap-1 text-muted-foreground" title="Shift leader">
+                                  <User className="h-3 w-3" /> {ls.leader}
+                                </span>
+                              )}
+                              {attain !== null && (
+                                <span className={cn("inline-flex items-center gap-1 font-semibold", attain >= 95 ? "text-emerald-600" : attain >= 80 ? "text-amber-600" : "text-destructive")} title="Attainment (actual vs plan)">
+                                  <Gauge className="h-3 w-3" /> {attain}%
+                                </span>
+                              )}
+                              {ls.actions > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate("/dashboard/quality")}
+                                  className="inline-flex items-center gap-1 font-medium text-orange-600 hover:underline"
+                                  title="Open quality actions on this line"
+                                >
+                                  <AlertTriangle className="h-3 w-3" /> {ls.actions} action{ls.actions > 1 ? "s" : ""}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </CardHeader>
                       <CardContent className={tvMode ? "p-2 pt-0 space-y-2" : "space-y-3"}>
                         {/* Machine chips */}
