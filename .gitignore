@@ -27,3 +27,7 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# accidental nested clone + stray files
+anmaisys-e4b60397/
+*.save
