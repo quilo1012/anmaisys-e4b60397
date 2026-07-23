@@ -6,7 +6,16 @@ import { cn } from "@/lib/utils";
  * cross-fades between them (matching the site's hero carousel). Meant to sit as
  * an absolute background behind an overlay + content, so it takes no layout space.
  */
-export function SiteBannerImages({ urls, intervalMs = 6000 }: { urls: string[]; intervalMs?: number }) {
+export function SiteBannerImages({
+  urls,
+  intervalMs = 6000,
+  fit = "cover",
+}: {
+  urls: string[];
+  intervalMs?: number;
+  /** "cover" fills & crops (bands); "contain" shows the whole image (no crop). */
+  fit?: "cover" | "contain";
+}) {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -30,7 +39,8 @@ export function SiteBannerImages({ urls, intervalMs = 6000 }: { urls: string[]; 
           aria-hidden="true"
           loading={i === 0 ? "eager" : "lazy"}
           className={cn(
-            "absolute inset-0 h-full w-full object-cover transition-opacity duration-1000",
+            "absolute inset-0 h-full w-full transition-opacity duration-1000",
+            fit === "contain" ? "object-contain" : "object-cover",
             i === index ? "opacity-100" : "opacity-0",
           )}
         />

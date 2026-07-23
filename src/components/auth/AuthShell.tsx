@@ -33,12 +33,12 @@ export function AuthShell({
 }: AuthShellProps) {
   const year = new Date().getFullYear();
   const hasBanner = (backgroundImages?.length ?? 0) > 0;
-  // With a live site banner, the navy layers become a translucent overlay so the
-  // image reads through; without one, they stay fully opaque (the original look).
+  // With a live site banner the image is the focus: show it whole (contain) with a
+  // light vignette that only darkens the letterbox edges into the navy, keeping the
+  // banner vivid. Without one, the original opaque navy gradient stays.
   const overlay = hasBanner
     ? [
-        "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(59,130,246,0.28) 0%, rgba(23,37,84,0) 60%)",
-        "linear-gradient(180deg, rgba(30,58,138,0.82) 0%, rgba(23,37,84,0.90) 100%)",
+        "radial-gradient(ellipse 75% 75% at 50% 50%, rgba(23,37,84,0.10) 0%, rgba(23,37,84,0.62) 100%)",
       ].join(", ")
     : [
         "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(59,130,246,0.22) 0%, rgba(23,37,84,0) 60%)",
@@ -50,12 +50,12 @@ export function AuthShell({
       className="relative flex min-h-screen w-full items-center justify-center overflow-hidden px-4 py-10 sm:px-6"
       style={{ backgroundColor: "#172554" }}
     >
-      {hasBanner && <SiteBannerImages urls={backgroundImages!} />}
+      {hasBanner && <SiteBannerImages urls={backgroundImages!} fit="contain" />}
       <div className="absolute inset-0" style={{ backgroundImage: overlay }} aria-hidden="true" />
       <div
         className={`relative z-10 w-full ${maxWidthClass} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500`}
       >
-        <div className="rounded-2xl bg-white px-8 py-9 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45),0_8px_20px_-8px_rgba(0,0,0,0.25)] ring-1 ring-slate-200/80 sm:px-10 sm:py-10">
+        <div className="rounded-2xl bg-white px-8 py-9 shadow-[0_35px_60px_-12px_rgba(0,0,0,0.65),0_10px_24px_-8px_rgba(0,0,0,0.4)] ring-1 ring-white/40 sm:px-10 sm:py-10">
           {/* Official brand logo chip */}
           <div className="mb-7 flex justify-center">
             <div className="rounded-xl bg-[#1E3A8A] p-2.5 shadow-[0_6px_16px_-6px_rgba(30,58,138,0.5)]">
