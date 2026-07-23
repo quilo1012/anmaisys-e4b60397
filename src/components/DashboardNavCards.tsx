@@ -17,6 +17,7 @@ interface NavCard {
   icon: LucideIcon;
   badge?: string | number;
   accent?: string;
+  comingSoon?: boolean;
 }
 
 interface Props {
@@ -38,17 +39,24 @@ export function DashboardNavCards({ cards }: Props) {
         return (
           <Card
             key={c.url}
-            onClick={() => navigate(c.url)}
-            className="group cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg hover:border-primary/40"
+            onClick={() => { if (!c.comingSoon) navigate(c.url); }}
+            aria-disabled={c.comingSoon}
+            className={
+              c.comingSoon
+                ? "group transition-all opacity-60 cursor-not-allowed"
+                : "group cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg hover:border-primary/40"
+            }
           >
             <CardContent className="p-4 space-y-3">
               <div className="flex items-start justify-between">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${c.accent ?? "bg-primary/10 text-primary"} transition-colors group-hover:bg-primary group-hover:text-primary-foreground`}>
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${c.accent ?? "bg-primary/10 text-primary"} transition-colors ${c.comingSoon ? "" : "group-hover:bg-primary group-hover:text-primary-foreground"}`}>
                   <Icon className="h-5 w-5" />
                 </div>
-                {c.badge !== undefined && c.badge !== 0 && (
+                {c.comingSoon ? (
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wide">Coming soon</Badge>
+                ) : c.badge !== undefined && c.badge !== 0 ? (
                   <Badge variant="secondary" className="text-xs">{c.badge}</Badge>
-                )}
+                ) : null}
               </div>
               <div>
                 <div className="font-semibold text-sm">{c.title}</div>
@@ -113,8 +121,8 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
 
   if (role === "admin") {
     visible = visible.concat([
-      { title: "Executive", description: "Executive KPI dashboard", url: "/dashboard/executive", icon: Briefcase, accent: REPORTS },
-      { title: "Financial", description: "Cost and financial overview", url: "/dashboard/financial", icon: DollarSign, accent: REPORTS },
+      { title: "Executive", description: "Executive KPI dashboard", url: "/dashboard/executive", icon: Briefcase, accent: REPORTS, comingSoon: true },
+      { title: "Financial", description: "Cost and financial overview", url: "/dashboard/financial", icon: DollarSign, accent: REPORTS, comingSoon: true },
       
       { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN },
       { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield, accent: ADMIN },

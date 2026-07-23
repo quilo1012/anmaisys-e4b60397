@@ -171,7 +171,7 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
       <div className="flex flex-wrap gap-2">
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="__all__">All types</SelectItem>{COMPONENT_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+          <SelectContent><SelectItem value="__all__">All Types</SelectItem>{COMPONENT_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
         </Select>
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by product name or barcode…" className="w-72" />
       </div>

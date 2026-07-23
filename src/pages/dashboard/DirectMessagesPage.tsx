@@ -192,7 +192,7 @@ export default function DirectMessagesPage() {
                       </div>
                     ) : thread.length === 0 ? (
                       <p className="text-xs text-muted-foreground text-center py-8">
-                        No messages yet. Say hi 👋
+                        No messages yet.
                       </p>
                     ) : (
                       <div className="space-y-2">

@@ -159,7 +159,7 @@ export default function StockPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader
-          title="Stock Management"
+          title="Stock"
           description="View and manage inventory"
           icon={<Package className="h-5 w-5" />}
         />
