@@ -56,9 +56,9 @@ export function AuthShell({
       <div
         className={`relative z-10 w-full ${maxWidthClass} overflow-hidden rounded-3xl bg-white/45 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.6)] ring-1 ring-white/50 backdrop-blur-2xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500`}
       >
-        {/* Navy header band with the brand logo (kept mostly opaque so the logo reads) */}
-        <div className="flex justify-center bg-gradient-to-b from-[#1E3A8A]/95 to-[#1E3A8A]/80 px-8 py-7">
-          <img src={appliedLogo} alt="Applied Nutrition" className="h-14 w-auto object-contain" />
+        {/* Header band = the brand image itself, filling the full width */}
+        <div className="w-full overflow-hidden">
+          <img src={appliedLogo} alt="Applied Nutrition" className="block w-full object-cover" />
         </div>
 
         {/* Body — title, subtitle, form */}

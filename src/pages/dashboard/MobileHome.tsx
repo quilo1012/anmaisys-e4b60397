@@ -6,6 +6,7 @@ import { canForDevice } from "@/lib/permissions";
 import { useDeviceType } from "@/hooks/use-device-type";
 import { useSiteBanner, bannerUrlsForDevice } from "@/hooks/useSiteBanner";
 import { SiteBannerImages } from "@/components/SiteBannerImages";
+import { AnimatedWelcomeHeader } from "@/components/AnimatedWelcomeHeader";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -28,16 +29,8 @@ export default function MobileHome() {
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-5xl space-y-8 py-8">
-        {/* Welcome header — its own section, never overlapping the banner. */}
-        <header className="space-y-1">
-          <p className="text-sm text-muted-foreground">
-            Hello, <span className="font-semibold text-foreground">{profile?.name || "there"}</span>
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Welcome to AN Production System</h1>
-          <p className="text-sm text-muted-foreground">
-            Production Management Platform<span className="mx-1.5 text-muted-foreground/50">·</span>{today}
-          </p>
-        </header>
+        {/* Animated futuristic welcome header. */}
+        <AnimatedWelcomeHeader name={profile?.name || "there"} dateLabel={today} />
 
         {/* Banner — a clean branding element (site carousel), no text on top. */}
         {heroUrls.length > 0 && (
