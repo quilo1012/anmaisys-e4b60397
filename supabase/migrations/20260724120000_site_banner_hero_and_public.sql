@@ -32,7 +32,7 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public','extensions'
 AS $function$
 DECLARE
   html text; slides jsonb := '[]'::jsonb;
-  hd text; hm text; dd text; dm text; ttl text; dsc text;
+  hd text; hm text; dd text; dm text; td text; tm text; ttl text; dsc text;
 BEGIN
   SELECT (extensions.http_get('https://appliednutrition.uk/')).content INTO html;
   IF html IS NULL THEN RETURN; END IF;
@@ -43,6 +43,9 @@ BEGIN
   -- Slide 2: monthly deals (Desktop / Mobile), matched generically across months
   dd := public._norm_img(substring(html from '(//[^" ,]*Monthly_Deals[^" ,]*Desktop[^" ,]*\.jpg[^" ,]*)'));
   dm := public._norm_img(substring(html from '(//[^" ,]*Monthly_Deals[^" ,]*Mobile[^" ,]*\.jpg[^" ,]*)'));
+  -- Slide 3: trust block (Trust_Block_v<n>_<size>x desktop / _mobile_<size>x)
+  td := public._norm_img(substring(html from '(//[^" ,]*Trust_Block_v[0-9]+_[0-9]+x\.jpg[^" ,]*)'));
+  tm := public._norm_img(substring(html from '(//[^" ,]*Trust_Block_v[0-9]+_mobile_[0-9]+x\.jpg[^" ,]*)'));
 
   IF hd IS NOT NULL THEN
     slides := slides || jsonb_build_object('desktop', hd, 'mobile', COALESCE(hm, hd));
@@ -50,7 +53,10 @@ BEGIN
   IF dd IS NOT NULL THEN
     slides := slides || jsonb_build_object('desktop', dd, 'mobile', COALESCE(dm, dd));
   END IF;
-  -- Fallback to og:image if neither banner family was found.
+  IF td IS NOT NULL THEN
+    slides := slides || jsonb_build_object('desktop', td, 'mobile', COALESCE(tm, td));
+  END IF;
+  -- Fallback to og:image if none of the banner families were found.
   IF jsonb_array_length(slides) = 0 THEN
     hd := public._norm_img(substring(html from 'property="og:image"[^>]*content="([^"]*)"'));
     IF hd IS NOT NULL THEN slides := slides || jsonb_build_object('desktop', hd, 'mobile', hd); END IF;
