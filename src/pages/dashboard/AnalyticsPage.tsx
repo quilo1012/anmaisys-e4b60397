@@ -456,7 +456,7 @@ export default function AnalyticsPage() {
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
-                    <Pie data={ordersByStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine>
+                    <Pie data={ordersByStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} labelLine={false} label={({ name, percent }) => (percent >= 0.05 ? `${String(name).replace(/_/g, " ")} ${(percent * 100).toFixed(0)}%` : "")}>
                       {ordersByStatus.map((entry, i) => {
                         const STATUS_COLORS: Record<string, string> = {
                           open: "#ef4444",
@@ -472,7 +472,8 @@ export default function AnalyticsPage() {
                         return <Cell key={i} fill={STATUS_COLORS[entry.name] || COLORS[i % COLORS.length]} />;
                       })}
                     </Pie>
-                    <Tooltip /><Legend />
+                    <Tooltip formatter={(v: number, n: string) => [v, String(n).replace(/_/g, " ")]} />
+                    <Legend formatter={(value: string) => <span style={{ color: "hsl(var(--foreground))" }}>{value.replace(/_/g, " ")}</span>} />
                   </PieChart>
                 </ResponsiveContainer>
               )}
@@ -522,10 +523,11 @@ export default function AnalyticsPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
-                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} labelLine={false} label={({ name, percent }) => (percent >= 0.05 ? `${String(name).replace(/_/g, " ")} ${(percent * 100).toFixed(0)}%` : "")}>
                         {data.map((_, i) => <Cell key={i} fill={STATUS_COLORS[i % STATUS_COLORS.length]} />)}
                       </Pie>
-                      <Tooltip /><Legend />
+                      <Tooltip formatter={(v: number, n: string) => [v, String(n).replace(/_/g, " ")]} />
+                      <Legend formatter={(value: string) => <span style={{ color: "hsl(var(--foreground))" }}>{value.replace(/_/g, " ")}</span>} />
                     </PieChart>
                   </ResponsiveContainer>
                 );
