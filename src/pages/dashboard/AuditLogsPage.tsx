@@ -8,6 +8,51 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Loader2, Search, Shield, Trash2, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+// ── Audit "Details" formatting: readable key:value chips instead of raw JSON ──
+function fmtVal(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+function ChipRow({ label, tone, obj }: { label?: string; tone?: "before" | "after"; obj: unknown }) {
+  const entries: [string, unknown][] = obj && typeof obj === "object" && !Array.isArray(obj)
+    ? Object.entries(obj as Record<string, unknown>)
+    : [["value", obj]];
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {label && (
+        <span className={cn("text-[10px] font-semibold uppercase",
+          tone === "before" ? "text-destructive" : tone === "after" ? "text-green-600 dark:text-green-400" : "text-muted-foreground")}>
+          {label}
+        </span>
+      )}
+      {entries.map(([k, v]) => (
+        <span key={k} className="inline-flex max-w-[220px] items-center gap-1 rounded border bg-muted/40 px-1.5 py-0.5 text-[11px]">
+          <span className="text-muted-foreground">{k}:</span>
+          <span className="truncate font-medium" title={fmtVal(v)}>{fmtVal(v)}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+function AuditDetails({ details }: { details: unknown }) {
+  if (!details || typeof details !== "object" || Object.keys(details as object).length === 0) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  const { before, after, ...rest } = details as Record<string, unknown>;
+  if (before || after) {
+    return (
+      <div className="space-y-1">
+        {before ? <ChipRow label="Before" tone="before" obj={before} /> : null}
+        {after ? <ChipRow label="After" tone="after" obj={after} /> : null}
+        {Object.keys(rest).length > 0 ? <ChipRow obj={rest} /> : null}
+      </div>
+    );
+  }
+  return <ChipRow obj={details} />;
+}
 import { useAuditLogs } from "@/hooks/useAuditLogs";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
@@ -120,15 +165,8 @@ export default function AuditLogsPage() {
                           {machine && <Badge variant="outline">{machine}</Badge>}
                         </div>
                         {(hasBA || Object.keys(log.details || {}).length) ? (
-                          <div className="rounded bg-muted/50 p-2 text-xs space-y-1">
-                            {hasBA ? (
-                              <>
-                                {log.details.before && <div><span className="text-destructive font-medium">Before:</span> {typeof log.details.before === "object" ? JSON.stringify(log.details.before) : String(log.details.before)}</div>}
-                                {log.details.after && <div><span className="text-green-600 dark:text-green-400 font-medium">After:</span> {typeof log.details.after === "object" ? JSON.stringify(log.details.after) : String(log.details.after)}</div>}
-                              </>
-                            ) : (
-                              <div className="text-muted-foreground break-all">{JSON.stringify(log.details)}</div>
-                            )}
+                          <div className="rounded bg-muted/50 p-2 text-xs">
+                            <AuditDetails details={log.details} />
                           </div>
                         ) : null}
                       </div>
@@ -162,13 +200,8 @@ export default function AuditLogsPage() {
                       <TableCell><Badge variant="secondary">{log.entity_type}</Badge></TableCell>
                       <TableCell className="text-sm">{machine}</TableCell>
                       <TableCell className="font-mono text-xs">{log.entity_id ? log.entity_id.slice(0, 8) + "..." : "—"}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-[300px]">
-                        {log.details?.before || log.details?.after ? (
-                          <div className="space-y-0.5 rounded bg-muted/50 p-2">
-                            {log.details.before && <div><span className="text-destructive font-medium">Before:</span> {typeof log.details.before === "object" ? JSON.stringify(log.details.before) : String(log.details.before)}</div>}
-                            {log.details.after && <div><span className="text-green-600 dark:text-green-400 font-medium">After:</span> {typeof log.details.after === "object" ? JSON.stringify(log.details.after) : String(log.details.after)}</div>}
-                          </div>
-                        ) : Object.keys(log.details || {}).length ? JSON.stringify(log.details) : "—"}
+                      <TableCell className="text-xs text-muted-foreground max-w-[340px]">
+                        <AuditDetails details={log.details} />
                       </TableCell>
                     </TableRow>
                     );

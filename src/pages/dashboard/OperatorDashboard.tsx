@@ -54,8 +54,24 @@ export default function OperatorDashboard() {
   }
   // ProtectedRoute already enforces role access; if role is missing transiently, just wait
   if (!role) return null;
+  // Non-operators (e.g. an admin opening this route directly) get a clear
+  // message instead of a blank/black screen.
   if (role !== "operator") {
-    return null;
+    return (
+      <DashboardLayout>
+        <div className="flex min-h-[60vh] items-center justify-center p-6">
+          <div className="max-w-md space-y-3 text-center">
+            <Factory className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h1 className="text-xl font-semibold text-foreground">Operator panel</h1>
+            <p className="text-sm text-muted-foreground">
+              This screen is used by operators on the line to log production and raise maintenance
+              requests. Your account isn't an operator, so there's nothing to show here — use your
+              own dashboard from the menu.
+            </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
   }
 
   return (
