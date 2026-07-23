@@ -455,6 +455,10 @@ export default function ProductionPerformancePage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none__">— None —</SelectItem>
+                        {/* Keep the assigned leader selectable even if deactivated/renamed. */}
+                        {l.leader && !leaders.some((ld) => ld.name === l.leader) && (
+                          <SelectItem value={l.leader}>{l.leader} (inactive)</SelectItem>
+                        )}
                         {leaders.map((ld) => (
                           <SelectItem key={ld.name} value={ld.name}>{ld.name}</SelectItem>
                         ))}

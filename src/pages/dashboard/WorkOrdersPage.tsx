@@ -208,9 +208,9 @@ export default function WorkOrdersPage() {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter((w) =>
         `WO-${new Date(w.created_at).getFullYear()}-${String(w.wo_number).padStart(6, "0")}`.toLowerCase().includes(term) ||
-        w.requester_name.toLowerCase().includes(term) ||
-        w.machine.toLowerCase().includes(term) ||
-        w.description.toLowerCase().includes(term) ||
+        (w.requester_name || "").toLowerCase().includes(term) ||
+        (w.machine || "").toLowerCase().includes(term) ||
+        (w.description || "").toLowerCase().includes(term) ||
         (w.operator?.name || "").toLowerCase().includes(term) ||
         (w.engineer?.name || "").toLowerCase().includes(term)
       );
