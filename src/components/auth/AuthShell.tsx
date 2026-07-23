@@ -1,6 +1,5 @@
 import { ReactNode } from "react";
-import appliedLogo from "@/assets/appliedlogo.jpeg";
-import { SiteBannerImages } from "@/components/SiteBannerImages";
+import anLogoWhite from "@/assets/applied-nutrition-white.png";
 
 interface AuthShellProps {
   /** Optional override for the header brand image. */
@@ -15,84 +14,47 @@ interface AuthShellProps {
   children: ReactNode;
   /** Optional maximum width override for the card. */
   maxWidthClass?: string;
-  /** Optional live site banner slides (device-resolved URLs) shown behind the navy overlay. */
+  /** Accepted for back-compat; the login no longer renders a banner. */
   backgroundImages?: string[];
 }
 
 /**
  * Shared visual shell for every authentication surface (Login, OAuth Consent,
- * password reset). Premium navy background with a centered white card and
- * navy brand chip. Always light-themed — never follows the app's dark mode.
+ * password reset). A clean centered white card with a navy header band carrying
+ * the brand logo, over a light-grey page. Always light-themed — never follows the
+ * app's dark mode.
  */
 export function AuthShell({
   title,
   subtitle,
   children,
-  maxWidthClass = "max-w-[440px]",
-  backgroundImages,
+  maxWidthClass = "max-w-md",
 }: AuthShellProps) {
   const year = new Date().getFullYear();
-  const hasBanner = (backgroundImages?.length ?? 0) > 0;
-  // With a banner the image is the star: NO dark veil at all. Without one, keep the
-  // original opaque navy gradient.
-  const overlay = [
-    "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(59,130,246,0.22) 0%, rgba(23,37,84,0) 60%)",
-    "radial-gradient(ellipse 120% 100% at 50% 100%, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 55%)",
-    "linear-gradient(180deg, #1E3A8A 0%, #172554 100%)",
-  ].join(", ");
   return (
-    <div
-      className="relative flex min-h-screen w-full items-center justify-center overflow-hidden px-4 py-10 sm:px-6"
-      style={{ backgroundColor: "#172554" }}
-    >
-      {hasBanner && (
-        <>
-          {/* Blurred, zoomed copy fills the letterbox so there are no flat navy bars… */}
-          <SiteBannerImages urls={backgroundImages!} fit="cover" imgClassName="scale-110 blur-2xl" />
-          {/* …with the whole banner shown sharp and un-cropped on top. */}
-          <SiteBannerImages urls={backgroundImages!} fit="contain" />
-        </>
-      )}
-      {!hasBanner && <div className="absolute inset-0" style={{ backgroundImage: overlay }} aria-hidden="true" />}
+    <div className="flex min-h-screen w-full items-center justify-center bg-slate-100 p-4">
       <div
-        className={`relative z-10 w-full ${maxWidthClass} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500`}
+        className={`w-full ${maxWidthClass} overflow-hidden rounded-2xl bg-white shadow-[0_20px_50px_-12px_rgba(15,23,42,0.25)] ring-1 ring-slate-200 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500`}
       >
-        <div className={`rounded-2xl px-8 py-9 sm:px-10 sm:py-10 ${hasBanner ? "bg-white/55 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] ring-1 ring-white/50 backdrop-blur-xl" : "bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45),0_8px_20px_-8px_rgba(0,0,0,0.25)] ring-1 ring-slate-200/80"}`}>
-          {/* Official brand logo chip */}
-          <div className="mb-7 flex justify-center">
-            <div className="w-56 rounded-xl bg-[#1E3A8A] p-2.5 shadow-[0_6px_16px_-6px_rgba(30,58,138,0.5)]">
-              <div className="overflow-hidden rounded-lg">
-                <img
-                  src={appliedLogo}
-                  alt=""
-                  aria-hidden="true"
-                  className="block h-auto w-full object-contain"
-                />
-              </div>
-            </div>
-          </div>
+        {/* Navy header band with the complete brand logo */}
+        <div className="flex justify-center bg-[#1E3A8A] px-8 py-9">
+          <img src={anLogoWhite} alt="Applied Nutrition" className="h-16 w-auto object-contain" />
+        </div>
 
-          {/* Title */}
-          <div className="mb-7 text-center">
-            <h1 className="text-[26px] font-bold leading-tight tracking-tight text-[#1E3A8A]">
-              {title}
-            </h1>
-            {subtitle && (
-              <p className="mt-2 text-sm leading-relaxed text-slate-500">
-                {subtitle}
-              </p>
-            )}
+        {/* Body — title, subtitle, form */}
+        <div className="space-y-6 px-8 py-8 sm:px-10">
+          <div className="space-y-2 text-center">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
+            {subtitle && <p className="text-sm leading-relaxed text-slate-500">{subtitle}</p>}
           </div>
 
           {children}
         </div>
 
-        <div className="mt-5 space-y-1 text-center">
-          <p className="text-[11px] font-medium tracking-wide text-white/70">
-            Encrypted connection · Audited access
-          </p>
-          <p className="text-[11px] text-white/40">
-            © {year} Applied Nutrition
+        {/* Slim footer */}
+        <div className="border-t border-slate-100 px-8 py-4 text-center">
+          <p className="text-[11px] font-medium tracking-wide text-slate-400">
+            Encrypted connection · Audited access · © {year} Applied Nutrition
           </p>
         </div>
       </div>
