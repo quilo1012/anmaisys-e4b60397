@@ -17,12 +17,9 @@ import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { SignupSettingsCard } from "@/components/SignupSettingsCard";
-import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Tablet, Users as UsersIcon, Check, Package } from "lucide-react";
+import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Users as UsersIcon, Check, Package } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
-import { OperatorAccountsSection } from "@/components/OperatorAccountsSection";
-import { TabletBindingsCard } from "@/components/TabletBindingsCard";
-import { PermissionAuditLog } from "@/components/PermissionAuditLog";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 import type { Database } from "@/integrations/supabase/types";
 import { can, isPermissionOverridden, ALL_ACTIONS, ALL_ROLES } from "@/lib/permissions";
@@ -201,7 +198,7 @@ function InlineLaborRateCell({ engineer, onSaved }: { engineer: Engineer; onSave
 
 export default function ManageUsers() {
   const [users, setUsers] = useState<Profile[]>([]);
-  const [activeTab, setActiveTab] = useState<"staff" | "tablets" | "engineers" | "leaders">("staff");
+  const [activeTab, setActiveTab] = useState<"staff" | "engineers" | "leaders">("staff");
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -666,14 +663,6 @@ export default function ManageUsers() {
           </Button>
           <Button
             type="button"
-            variant={activeTab === "tablets" ? "default" : "ghost"}
-            onClick={() => setActiveTab("tablets")}
-            className="gap-2"
-          >
-            <Tablet className="h-4 w-4" /> Tablet Stations
-          </Button>
-          <Button
-            type="button"
             variant={activeTab === "engineers" ? "default" : "ghost"}
             onClick={() => setActiveTab("engineers")}
             className="gap-2"
@@ -745,10 +734,6 @@ export default function ManageUsers() {
         </div>
 
         {currentRole === "admin" && <RolePermissionsSummary />}
-
-
-        {currentRole === "admin" && <PermissionAuditLog />}
-
 
         <Card>
           <CardHeader><CardTitle>Staff Members</CardTitle></CardHeader>
@@ -834,11 +819,6 @@ export default function ManageUsers() {
           </CardContent>
         </Card>
           </div>
-
-        <div className={activeTab === "tablets" ? "space-y-4" : "hidden"}>
-          <TabletBindingsCard />
-          <OperatorAccountsSection isAdmin={currentRole === "admin"} />
-        </div>
 
         <div className={activeTab === "engineers" ? "space-y-4" : "hidden"}>
         <div className="flex items-center justify-between">
