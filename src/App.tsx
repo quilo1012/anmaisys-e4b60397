@@ -31,6 +31,7 @@ const ManagerDashboard = lazyWithReload(() => import("./pages/dashboard/ManagerD
 
 const MachineHistoryPage = lazyWithReload(() => import("./pages/dashboard/MachineHistoryPage"));
 const ControlCenterPage = lazyWithReload(() => import("./pages/dashboard/ControlCenterPage"));
+const MobileHome = lazyWithReload(() => import("./pages/dashboard/MobileHome"));
 const AnalyticsPage = lazyWithReload(() => import("./pages/dashboard/AnalyticsPage"));
 const WorkOrdersPage = lazyWithReload(() => import("./pages/dashboard/WorkOrdersPage"));
 const MachinesPage = lazyWithReload(() => import("./pages/dashboard/MachinesPage"));
@@ -273,6 +274,15 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="controlcenter.view">
                       <ControlCenterPage />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* Mobile welcome home — available to any signed-in user (mobile shell landing). */}
+                <Route
+                  path="/dashboard/home"
+                  element={
+                    <ProtectedRoute>
+                      <MobileHome />
                     </ProtectedRoute>
                   }
                 />

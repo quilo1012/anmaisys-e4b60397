@@ -9,6 +9,7 @@ import { usePublicTabletAccounts } from "@/hooks/useOperatorAccounts";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { useLines } from "@/hooks/useMachines";
 import { roleDashMap, type Role } from "@/lib/permissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useLoginBranding } from "@/hooks/useLoginBranding";
 import { AuthShell } from "@/components/auth/AuthShell";
 import {
@@ -53,6 +54,10 @@ type Mode = "staff" | "tablet";
 
 export default function Login() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  // On a phone, staff land on the mobile welcome home; desktop keeps the role dashboard.
+  const landAfterLogin = (role: string | null | undefined) =>
+    isMobile && role !== "operator" ? "/dashboard/home" : landingFor(role);
   const [searchParams] = useSearchParams();
   // Consent flow (and other deep-links) preserve where to send the user
   // after sign-in. Only same-origin relative paths are honored.
@@ -120,7 +125,7 @@ export default function Login() {
         window.location.href = safeNext;
         return;
       }
-      navigate(landingFor(role), { replace: true });
+      navigate(landAfterLogin(role), { replace: true });
     }
   }, [authLoading, navigate, role, session, safeNext]);
 
@@ -257,7 +262,7 @@ export default function Login() {
           window.location.href = safeNext;
           return;
         }
-        navigate(landingFor(roleResult as string), { replace: true });
+        navigate(landAfterLogin(roleResult as string), { replace: true });
       }
     } catch (error: any) {
       // Count this failure and surface remaining attempts / lockout.

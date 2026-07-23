@@ -34,6 +34,8 @@ import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { can, canOnDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, type Action } from "@/lib/permissions";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileTabBar } from "@/components/MobileTabBar";
+import { cn } from "@/lib/utils";
 import { PushOnboarding } from "@/components/PushOnboarding";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
@@ -46,7 +48,7 @@ import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
-interface NavItem {
+export interface NavItem {
   title: string;
   url: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -55,7 +57,7 @@ interface NavItem {
   action?: Action;
 }
 
-const navItems: NavItem[] = [
+export const navItems: NavItem[] = [
   // Overview
   { title: "Dashboard", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Overview", action: "dashboard.operator" },
   { title: "My Production", url: "/dashboard/operator/my-production", icon: Factory, roles: ["operator"], group: "Overview", action: "production.target.view" },
@@ -496,6 +498,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
             <header className="min-h-14 border-b bg-card flex flex-wrap items-center px-2 sm:px-4 py-1.5 gap-2 sm:gap-3 print:hidden">
               <SidebarTrigger aria-label="Toggle menu" className="shrink-0" />
+              {isMobile && (
+                <div className="flex items-center gap-1.5">
+                  <img src={appliedLogo} alt="AN" className="h-7 w-7 rounded-md object-cover" />
+                  <span className="text-sm font-bold text-foreground">AN System</span>
+                </div>
+              )}
               {currentPageTitle && (
                 <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-1.5 text-sm min-w-0">
                   <span className="text-muted-foreground">Home</span>
@@ -548,10 +556,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 ⚠️ You are offline — changes will sync when connection is restored
               </div>
             )}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0">
+            <div className={cn("flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0", isMobile && "pb-24")}>
               <div className="min-w-0 w-full">{children}</div>
             </div>
 
+            {isMobile && <MobileTabBar tabs={filteredItems.slice(0, 3)} />}
           </main>
         </div>
         <ChangePasswordDialog open={changePwdOpen} onOpenChange={setChangePwdOpen} />
