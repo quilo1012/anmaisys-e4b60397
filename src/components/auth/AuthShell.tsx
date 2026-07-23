@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
+import { SiteBannerImages } from "@/components/SiteBannerImages";
 
 interface AuthShellProps {
   /** Optional override for the header brand image. */
@@ -14,8 +15,8 @@ interface AuthShellProps {
   children: ReactNode;
   /** Optional maximum width override for the card. */
   maxWidthClass?: string;
-  /** Optional live site banner shown behind the navy overlay. */
-  backgroundImageUrl?: string;
+  /** Optional live site banner slides (device-resolved URLs) shown behind the navy overlay. */
+  backgroundImages?: string[];
 }
 
 /**
@@ -28,12 +29,13 @@ export function AuthShell({
   subtitle,
   children,
   maxWidthClass = "max-w-[440px]",
-  backgroundImageUrl,
+  backgroundImages,
 }: AuthShellProps) {
   const year = new Date().getFullYear();
+  const hasBanner = (backgroundImages?.length ?? 0) > 0;
   // With a live site banner, the navy layers become a translucent overlay so the
   // image reads through; without one, they stay fully opaque (the original look).
-  const overlay = backgroundImageUrl
+  const overlay = hasBanner
     ? [
         "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(59,130,246,0.28) 0%, rgba(23,37,84,0) 60%)",
         "linear-gradient(180deg, rgba(30,58,138,0.82) 0%, rgba(23,37,84,0.90) 100%)",
@@ -48,14 +50,7 @@ export function AuthShell({
       className="relative flex min-h-screen w-full items-center justify-center overflow-hidden px-4 py-10 sm:px-6"
       style={{ backgroundColor: "#172554" }}
     >
-      {backgroundImageUrl && (
-        <img
-          src={backgroundImageUrl}
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      )}
+      {hasBanner && <SiteBannerImages urls={backgroundImages!} />}
       <div className="absolute inset-0" style={{ backgroundImage: overlay }} aria-hidden="true" />
       <div
         className={`relative z-10 w-full ${maxWidthClass} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500`}

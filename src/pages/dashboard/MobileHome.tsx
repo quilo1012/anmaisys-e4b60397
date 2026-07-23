@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { canForDevice } from "@/lib/permissions";
 import { useDeviceType } from "@/hooks/use-device-type";
-import { useSiteBanner } from "@/hooks/useSiteBanner";
+import { useSiteBanner, bannerUrlsForDevice } from "@/hooks/useSiteBanner";
+import { SiteBannerImages } from "@/components/SiteBannerImages";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -14,6 +15,7 @@ export default function MobileHome() {
   const navigate = useNavigate();
   const device = useDeviceType();
   const { data: banner } = useSiteBanner();
+  const heroUrls = bannerUrlsForDevice(banner, device);
   const effectiveRole = (role === "co_engineer" ? "engineer" : role) as AppRole | null;
 
   // Quick links respect what this role is allowed to see on THIS device.
@@ -26,30 +28,26 @@ export default function MobileHome() {
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-4xl space-y-6 py-6">
-        {/* Welcome hero — the live site banner sits BEHIND the greeting on every login. */}
-        <div className="relative overflow-hidden rounded-2xl border shadow-sm">
-          {banner?.image ? (
+        {/* Welcome hero — the live site banner carousel sits BEHIND the greeting.
+            Rotates the site's two hero slides and uses the device-specific artwork. */}
+        <div className="relative min-h-[220px] overflow-hidden rounded-2xl border shadow-sm sm:min-h-[300px]">
+          {heroUrls.length > 0 ? (
             <>
-              <img
-                src={banner.image}
-                alt={banner.title || "Applied Nutrition"}
-                className="absolute inset-0 h-full w-full object-cover"
-                loading="lazy"
-              />
+              <SiteBannerImages urls={heroUrls} />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
             </>
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-primary to-primary/70" />
           )}
-          <div className="relative z-10 flex flex-col items-center justify-center gap-1.5 px-6 py-16 text-center text-white sm:py-20">
+          <div className="relative z-10 flex min-h-[220px] flex-col items-center justify-center gap-1.5 px-6 py-12 text-center text-white sm:min-h-[300px] sm:py-16">
             <p className="text-base text-white/85">
               Hello, <span className="font-semibold text-white">{profile?.name || "there"}</span>
             </p>
             <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Welcome to AN Production System</h1>
             <p className="text-sm text-white/75">Today is {today}</p>
-            {banner?.image && (
+            {heroUrls.length > 0 && (
               <a
-                href={banner.url}
+                href={banner?.url ?? "https://appliednutrition.uk/"}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-2 text-xs font-medium text-white/80 underline underline-offset-2 hover:text-white"
