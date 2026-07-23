@@ -221,7 +221,7 @@ export default function LineDisplayScreen() {
         <div>
           <h1 className="text-4xl font-bold mb-4">No Production Line Assigned</h1>
           <p className="text-xl text-slate-400">
-            Ask an admin to set <span className="font-mono">production_line</span> on your profile.
+            Ask an admin to assign a production line to your account.
           </p>
         </div>
       </div>
