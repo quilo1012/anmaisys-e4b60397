@@ -569,11 +569,6 @@ export default function IntouchSettingsPage() {
                 ))}
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" asChild>
-                  <a href="/dashboard/intouch-machines">
-                    <Plug className="h-4 w-4 mr-1" />Open Machine Map
-                  </a>
-                </Button>
                 <Button size="sm" variant="ghost" onClick={loadUnmappedLines} disabled={loadingUnmapped}>
                   {loadingUnmapped ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
                   Refresh
