@@ -35,7 +35,7 @@ export function AuthShell({
   const hasBanner = (backgroundImages?.length ?? 0) > 0;
   return (
     <div
-      className="relative flex min-h-screen w-full items-center justify-center overflow-hidden p-4 md:justify-end md:pr-[7vw] lg:pr-[9vw]"
+      className="relative flex min-h-screen w-full items-start justify-center overflow-hidden p-4 pt-[6vh] sm:pt-[9vh]"
       style={{ backgroundColor: "#172554" }}
     >
       {hasBanner ? (
