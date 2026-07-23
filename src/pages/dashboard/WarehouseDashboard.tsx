@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ComboboxInput } from "@/components/ComboboxInput";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WAREHOUSE_LOCATIONS } from "@/lib/warehouseLocations";
+import { cn } from "@/lib/utils";
 
 const WAREHOUSE_LOCATIONS_LC = new Set(WAREHOUSE_LOCATIONS.map((l) => l.toLowerCase()));
 
@@ -48,9 +49,8 @@ export default function WarehouseDashboard() {
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [requester, setRequester] = useState(profile?.name ?? "");
   const [location, setLocation] = useState("");
-  const [assetName, setAssetName] = useState<string>("");
+  const [priority, setPriority] = useState("medium");
   const [description, setDescription] = useState("");
-  const [notes, setNotes] = useState("");
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -109,19 +109,12 @@ export default function WarehouseDashboard() {
     return Array.from(set).sort();
   }, [distinctVals]);
 
-  // Optional asset select — filter machines by chosen location (case-insensitive)
-  const modalAssets = useMemo(() => {
-    const chosen = location.trim().toLowerCase();
-    if (!chosen) return [];
-    return (machines ?? []).filter((m: any) => (m.current_location || "").trim().toLowerCase() === chosen);
-  }, [machines, location]);
 
   const reset = () => {
     setRequester(profile?.name ?? "");
     setLocation("");
-    setAssetName("");
+    setPriority("medium");
     setDescription("");
-    setNotes("");
     setSubmitAttempted(false);
   };
 
@@ -141,9 +134,8 @@ export default function WarehouseDashboard() {
         requester_name: requester.trim(),
         wo_type: "warehouse_service",
         warehouse_location: location.trim(),
-        machine: assetName.trim(),
+        priority,
         description: description.trim(),
-        notes: notes.trim(),
       } as any);
       toast({ title: "Warehouse Service Request Created" });
       setOpen(false);
@@ -199,35 +191,34 @@ export default function WarehouseDashboard() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Warehouse location *</Label>
+                  <Label>Warehouse *</Label>
                   <ComboboxInput
                     value={location}
-                    onChange={(v) => { setLocation(v); setAssetName(""); }}
+                    onChange={setLocation}
                     suggestions={locationSuggestions}
-                    placeholder="Select or type a warehouse location"
+                    placeholder="Select or type a warehouse"
                     className={`w-full ${errLocation ? "border-destructive" : ""}`}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Machine / Asset (optional)</Label>
-                  <Select
-                    value={assetName || "__none__"}
-                    onValueChange={(v) => setAssetName(v === "__none__" ? "" : v)}
-                    disabled={!location.trim()}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={!location.trim() ? "Pick a location first" : "Select an asset (optional)"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— None —</SelectItem>
-                      {modalAssets.length === 0 && location.trim() && (
-                        <div className="px-2 py-1.5 text-xs text-muted-foreground">No assets registered at this location.</div>
-                      )}
-                      {modalAssets.map((m: any) => (
-                        <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Priority</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["low", "medium", "high"] as const).map((p) => (
+                      <Button
+                        key={p}
+                        type="button"
+                        variant={priority === p ? "default" : "outline"}
+                        className={cn(
+                          "h-10 capitalize",
+                          priority === p && p === "high" && "bg-red-600 hover:bg-red-600/90",
+                          priority === p && p === "medium" && "bg-amber-500 hover:bg-amber-500/90",
+                        )}
+                        onClick={() => setPriority(p)}
+                      >
+                        {p}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="desc">Description *</Label>
@@ -240,10 +231,6 @@ export default function WarehouseDashboard() {
                     aria-invalid={errDescription}
                     className={errDescription ? "border-destructive" : ""}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
