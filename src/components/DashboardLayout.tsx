@@ -457,18 +457,17 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         <div className="flex h-screen w-full overflow-hidden">
           <Sidebar collapsible="icon" className="border-r border-sidebar-border print:hidden">
 
-            <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-1">
+            <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
               <img
                 src={appliedLogo}
                 alt="Applied Nutrition"
                 className="block w-full h-auto rounded-md object-cover group-data-[collapsible=icon]:hidden"
               />
-              <img
-                src={appliedLogo}
-                alt="AN"
-                className="hidden group-data-[collapsible=icon]:block h-8 w-8 mx-auto rounded-md object-cover"
-              />
+              <div className="hidden group-data-[collapsible=icon]:flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-accent/40 ring-1 ring-sidebar-border/60 overflow-hidden">
+                <img src={appliedLogo} alt="AN" className="h-full w-full object-cover" />
+              </div>
             </div>
+
             <SidebarContent>
               <SidebarNav filteredItems={filteredItems} permissionOverrideCount={permissionOverrideCount} dmUnread={dmUnread} />
             </SidebarContent>
