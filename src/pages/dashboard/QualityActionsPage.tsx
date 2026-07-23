@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2, ClipboardCheck } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
@@ -68,6 +69,7 @@ export function QualityActionsView() {
   const [filterStatus, setFilterStatus] = useState("__all__");
   const [filterDept, setFilterDept] = useState("__all__");
   const [filterSeverity, setFilterSeverity] = useState("__all__");
+  const [filterShift, setFilterShift] = useState("__all__");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(makeEmptyForm());
@@ -111,8 +113,9 @@ export function QualityActionsView() {
       (filterLeader === "__all__" || a.leader_name === filterLeader) &&
       (filterStatus === "__all__" || a.status === filterStatus) &&
       (filterDept === "__all__" || a.department === filterDept) &&
-      (filterSeverity === "__all__" || (a.severity ?? "") === filterSeverity)),
-    [actions, filterLine, filterLeader, filterStatus, filterDept, filterSeverity]
+      (filterSeverity === "__all__" || (a.severity ?? "") === filterSeverity) &&
+      (filterShift === "__all__" || a.shift === filterShift)),
+    [actions, filterLine, filterLeader, filterStatus, filterDept, filterSeverity, filterShift]
   );
 
   const detailAction = useMemo(() => actions.find((a) => a.id === detailId) ?? null, [actions, detailId]);
@@ -248,20 +251,33 @@ export function QualityActionsView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const exportRows = () => {
+    const header = ["Date", "Action #", "Status", "Severity", "Line", "Shift", "Leader", "Department", "SKU", "Batch", "Labels", "Notes"];
+    const body = filtered.map((a) => [
+      a.recorded_at, a.action_no ?? "", statusMeta(a.status).label, severityMeta(a.severity)?.label ?? "",
+      a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", a.sku ?? "", a.batch ?? "",
+      (a.labels ?? []).join("; "), a.description ?? "",
+    ]);
+    return { header, body };
+  };
+
   const exportCSV = () => {
-    const rows = [["Date", "Action #", "Status", "Severity", "Line", "Shift", "Leader", "Department", "Labels", "Notes"]];
-    for (const a of filtered) {
-      rows.push([
-        a.recorded_at, a.action_no ?? "", statusMeta(a.status).label, severityMeta(a.severity)?.label ?? "",
-        a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", (a.labels ?? []).join("; "),
-        (a.description ?? "").replace(/"/g, '""'),
-      ]);
-    }
-    const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+    const { header, body } = exportRows();
+    const csv = [header, ...body].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `quality-${Date.now()}.csv`; a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const exportXLSX = async () => {
+    const { header, body } = exportRows();
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
+    ws["!cols"] = header.map((h) => ({ wch: h === "Notes" ? 40 : 16 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Quality");
+    XLSX.writeFile(wb, `quality-${Date.now()}.xlsx`);
   };
 
   return (
@@ -281,7 +297,15 @@ export function QualityActionsView() {
             </div>
             {canManage && <Button variant="outline" onClick={() => setListsOpen(true)}><Tags className="h-4 w-4 mr-1" />Lists</Button>}
             {canManage && <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" />Import</Button>}
-            <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />Export</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline"><Download className="h-4 w-4 mr-1" />Export</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={exportXLSX}>Excel (.xlsx)</DropdownMenuItem>
+                <DropdownMenuItem onClick={exportCSV}>CSV (.csv)</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setForm(makeEmptyForm()); }}>
               <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-1" />Log action</Button></DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -407,6 +431,10 @@ export function QualityActionsView() {
           <Select value={filterLeader} onValueChange={setFilterLeader}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="__all__">All leaders</SelectItem>{leaders.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={filterShift} onValueChange={setFilterShift}>
+            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="__all__">All Shifts</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
           </Select>
         </div>
 
