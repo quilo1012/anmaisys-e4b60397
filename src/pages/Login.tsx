@@ -287,7 +287,7 @@ export default function Login() {
       subtitle="Sign in to access the system"
     >
       {/* Staff / Tablet segmented control */}
-      <div className="mb-6 grid grid-cols-2 gap-1 rounded-full border border-slate-200 bg-slate-100/80 p-1">
+      <div className="mb-6 grid grid-cols-2 gap-1 rounded-full border border-white/60 bg-white/50 backdrop-blur-sm p-1">
         <button
           type="button"
           onClick={() => switchMode("staff")}
@@ -335,7 +335,7 @@ export default function Login() {
                 value={tabletAccountId}
                 onChange={(e) => setTabletAccountId(e.target.value)}
                 required
-                className="h-11 w-full appearance-none rounded-lg border border-slate-300 bg-slate-50 pl-10 pr-4 text-sm text-slate-900 transition-all hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+                className="h-11 w-full appearance-none rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-4 text-sm text-slate-900 transition-all hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
               >
                 <option value="" disabled>
                   {accountsLoading ? "Loading tablets…" : hasOperatorAccounts ? "Select your tablet…" : "No tablets configured"}
@@ -371,7 +371,7 @@ export default function Login() {
                 placeholder="you@appliednutrition.com"
                 required
                 autoComplete="email"
-                className="h-11 w-full rounded-lg border border-slate-300 bg-slate-50 pl-10 pr-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+                className="h-11 w-full rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
               />
             </div>
           </div>
@@ -393,7 +393,7 @@ export default function Login() {
               minLength={6}
               required
               autoComplete="current-password"
-              className="h-11 w-full rounded-lg border border-slate-300 bg-slate-50 pl-10 pr-11 text-sm text-slate-900 transition-all placeholder:text-slate-400 hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+              className="h-11 w-full rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-11 text-sm text-slate-900 transition-all placeholder:text-slate-400 hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
             />
             <button
               type="button"
