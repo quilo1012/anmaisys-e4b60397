@@ -603,7 +603,7 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
         for (let i = 0; i < mats.length; i += 200) {
           const { data, error } = await tbl("materials").upsert(mats.slice(i, i + 200) as never, { onConflict: "barcode" }).select("id, barcode");
           if (error) throw error;
-          for (const m of (data ?? []) as { id: string; barcode: string }[]) barcodeToId.set(m.barcode, m.id);
+          for (const m of (data ?? []) as unknown as { id: string; barcode: string }[]) barcodeToId.set(m.barcode, m.id);
         }
         // 2) upsert BOM identity rows (dedupe by sku)
         const seenSku = new Set<string>();
