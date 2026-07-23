@@ -507,10 +507,12 @@ export default function ManageUsers() {
 
     setEditLoading(true);
     try {
+      // NOTE: role is assigned directly against user_roles (admin RLS) instead of
+      // through the edge function — that keeps role changes working regardless of
+      // the function's deployed role enum (fixes "Invalid enum value: quality_supervisor").
       const body: Record<string, unknown> = {
         userId: editUser.id,
         name: editName.trim(),
-        role: editRole,
         active: editActive,
       };
       if (editEmail.trim() !== editUser.email) {
@@ -523,6 +525,9 @@ export default function ManageUsers() {
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       if (editUser.role !== editRole) {
+        await supabase.from("user_roles").delete().eq("user_id", editUser.id);
+        const { error: roleErr } = await supabase.from("user_roles").insert({ user_id: editUser.id, role: editRole } as any);
+        if (roleErr) throw roleErr;
         logAuditEvent("user_role_changed", "user", editUser.id, { name: editName.trim(), email: editEmail.trim(), old_role: editUser.role, new_role: editRole });
       }
       toast({ title: "User updated" });
