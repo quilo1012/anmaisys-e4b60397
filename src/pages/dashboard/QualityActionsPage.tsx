@@ -163,6 +163,15 @@ export function QualityActionsView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deleteAction = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("quality_actions").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["quality_actions"] }); toast.success("Action deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const exportCSV = () => {
     const rows = [["Date", "Action #", "Status", "Severity", "Line", "Shift", "Leader", "Department", "Labels", "Notes"]];
     for (const a of filtered) {
@@ -361,6 +370,7 @@ export function QualityActionsView() {
           onOpenChange={(o) => { if (!o) setDetailId(null); }}
           onStatus={(status) => detailAction && setStatus.mutate({ id: detailAction.id, status })}
           onSeverity={(severity) => detailAction && setSeverity.mutate({ id: detailAction.id, severity })}
+          onDelete={() => { if (detailAction) { deleteAction.mutate(detailAction.id); setDetailId(null); } }}
         />
 
         {canManage && (
@@ -489,9 +499,10 @@ function PhotoThumb({ path, canDelete, onDelete }: { path: string; canDelete: bo
   );
 }
 
-function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSeverity }: {
+function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSeverity, onDelete }: {
   action: QualityAction | null; canManage: boolean;
   onOpenChange: (open: boolean) => void; onStatus: (status: string) => void; onSeverity: (severity: string | null) => void;
+  onDelete: () => void;
 }) {
   const { data: history = [] } = useQualityHistory(action?.id);
   const upload = useUploadQualityPhoto();
@@ -593,6 +604,30 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
                   ))}
                 </div>
               </div>
+
+              {canManage && (
+                <div className="flex justify-end border-t pt-3">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4 mr-1" /> Delete action
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this action?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {action.action_no ? `Action ${action.action_no}` : "This action"} will be permanently removed. This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={onDelete}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
             </div>
           </>
         )}
