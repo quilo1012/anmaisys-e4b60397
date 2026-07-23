@@ -77,19 +77,17 @@ export interface DirectMessage {
   created_at: string;
 }
 
-/** Admin → list operator conversation partners. Operator → list admin partners. */
+/**
+ * Conversation partners, scoped by role in the backend (list_dm_partners):
+ *   operator   → supervisors only
+ *   supervisor → operators + management (the bridge)
+ *   management → management + supervisors (never operators)
+ */
 export function useDMPartners(role: string | null | undefined) {
   return useQuery({
     queryKey: ["dm_partners", role],
     queryFn: async () => {
-      const isStaff =
-        role === "admin" ||
-        role === "supervisor" ||
-        role === "manager" ||
-        role === "maintenance_manager" ||
-        role === "warehouse";
-      const rpc = isStaff ? "list_dm_operators" : "list_dm_admins";
-      const { data, error } = await supabase.rpc(rpc as any);
+      const { data, error } = await supabase.rpc("list_dm_partners" as any);
       if (error) throw error;
       return (data ?? []) as DMPartner[];
     },
