@@ -633,7 +633,7 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
         for (const t of ["tub", "lid", "scoop", "box"]) {
           const { data, error } = await tbl("materials").select("material_type, description").eq("material_type", t);
           if (error) throw error;
-          for (const m of (data ?? []) as { material_type: string; description: string | null }[])
+          for (const m of (data ?? []) as unknown as { material_type: string; description: string | null }[])
             if (m.description) existing.add(`${m.material_type}|${m.description.toLowerCase()}`);
         }
         const fresh = distinct
