@@ -1,0 +1,473 @@
+import { useMemo, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import XLSX from "xlsx-js-style";
+import { supabase } from "@/integrations/supabase/client";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Boxes, Upload, Plus, FileDown, Loader2, PackageSearch } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
+
+const MANAGE_ROLES = ["admin", "manager", "supervisor", "quality_supervisor", "planner", "warehouse"];
+const MATERIAL_TYPES = ["label", "bag", "tub", "lid", "scoop", "box", "other"] as const;
+const PACK_TYPES = ["BAG", "TUB"] as const;
+
+interface Material {
+  id: string; material_type: string; barcode: string | null; ap_code: string | null; description: string | null;
+  country: string | null; flavour: string | null; size: string | null; pack_type: string | null; active: boolean;
+}
+interface Order {
+  id: string; po_number: string; sku: string | null; description: string | null; country: string | null;
+  packaging_type: string | null; qty: number | null; line: string | null; planned_date: string | null; status: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- tables not in generated types yet
+const tbl = (t: string) => supabase.from(t as any);
+
+function cell(row: Record<string, unknown>, aliases: string[]): string {
+  for (const key of Object.keys(row)) {
+    if (aliases.includes(key.trim().toLowerCase())) return String(row[key] ?? "").trim();
+  }
+  return "";
+}
+function normType(s: string): string {
+  const v = s.toLowerCase();
+  return (MATERIAL_TYPES as readonly string[]).find((t) => t === v) ?? "other";
+}
+function normPack(s: string): string | null {
+  const v = s.toUpperCase();
+  if (v.includes("BAG") || v.includes("SACHET") || v.includes("POUCH")) return "BAG";
+  if (v.includes("TUB") || v.includes("POTE") || v.includes("JAR")) return "TUB";
+  return null;
+}
+
+// ============================================================
+export default function PackagingPage() {
+  const { role } = useAuth();
+  const canManage = MANAGE_ROLES.includes(role ?? "");
+  const [tab, setTab] = useState<"materials" | "orders">("materials");
+
+  const tabBtn = (t: "materials" | "orders", label: string) => (
+    <button type="button" onClick={() => setTab(t)}
+      className={cn("rounded px-4 py-1.5 text-sm font-medium transition-colors", tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{label}</button>
+  );
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6 p-4 md:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Boxes className="h-6 w-6 text-primary" />
+            <h1 className="text-2xl font-bold">Packaging</h1>
+          </div>
+          <div className="inline-flex rounded-md border p-0.5">
+            {tabBtn("materials", "Materials")}
+            {tabBtn("orders", "Production orders")}
+          </div>
+        </div>
+
+        {tab === "materials" ? <MaterialsView canManage={canManage} /> : <OrdersView canManage={canManage} />}
+      </div>
+    </DashboardLayout>
+  );
+}
+
+// ============================================================
+// Materials
+// ============================================================
+function MaterialsView({ canManage }: { canManage: boolean }) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const [filterType, setFilterType] = useState("__all__");
+  const [search, setSearch] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [form, setForm] = useState<Partial<Material>>({});
+
+  const { data: materials = [] } = useQuery({
+    queryKey: ["pvs_materials"],
+    queryFn: async () => {
+      const all: Material[] = [];
+      let from = 0;
+      for (;;) {
+        const { data, error } = await tbl("materials").select("*").order("created_at", { ascending: false }).range(from, from + 999);
+        if (error) throw error;
+        const page = (data ?? []) as unknown as Material[];
+        all.push(...page);
+        if (page.length < 1000) break;
+        from += 1000;
+      }
+      return all;
+    },
+  });
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return materials.filter((m) =>
+      (filterType === "__all__" || m.material_type === filterType) &&
+      (!q || [m.barcode, m.ap_code, m.description, m.country, m.flavour, m.size].some((f) => (f ?? "").toLowerCase().includes(q))));
+  }, [materials, filterType, search]);
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const m of materials) c[m.material_type] = (c[m.material_type] ?? 0) + 1;
+    return c;
+  }, [materials]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!form.material_type) throw new Error("Material type is required");
+      if (!form.barcode && !form.ap_code) throw new Error("A barcode or AP code is required");
+      const payload = {
+        material_type: form.material_type, barcode: form.barcode || null, ap_code: form.ap_code || null,
+        description: form.description || null, country: form.country || null, flavour: form.flavour || null,
+        size: form.size || null, pack_type: form.pack_type || null, active: form.active ?? true,
+      };
+      if (form.id) { const { error } = await tbl("materials").update(payload as never).eq("id", form.id); if (error) throw error; }
+      else { const { error } = await tbl("materials").insert({ ...payload, created_by: user?.id ?? null } as never); if (error) throw error; }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pvs_materials"] }); setEditOpen(false); toast.success("Material saved"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          {MATERIAL_TYPES.filter((t) => counts[t]).map((t) => (
+            <Badge key={t} variant="secondary" className="text-[11px] capitalize">{t}: {counts[t]}</Badge>
+          ))}
+          {materials.length === 0 && <span className="text-sm text-muted-foreground">No materials yet — import your labels, bags and AP codes.</span>}
+        </div>
+        {canManage && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="mr-1 h-4 w-4" />Import</Button>
+            <Button onClick={() => { setForm({ material_type: "label", active: true }); setEditOpen(true); }}><Plus className="mr-1 h-4 w-4" />Add material</Button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="__all__">All types</SelectItem>{MATERIAL_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+        </Select>
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search barcode / AP / description…" className="w-72" />
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle>Materials ({filtered.length})</CardTitle></CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Type</TableHead><TableHead>Barcode</TableHead><TableHead>AP code</TableHead>
+              <TableHead>Description</TableHead><TableHead>Country</TableHead><TableHead>Flavour</TableHead><TableHead>Size</TableHead><TableHead>Pack</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No materials</TableCell></TableRow>}
+              {filtered.slice(0, 500).map((m) => (
+                <TableRow key={m.id} className={cn(canManage && "cursor-pointer")} onClick={() => { if (canManage) { setForm(m); setEditOpen(true); } }}>
+                  <TableCell><Badge variant="outline" className="text-[10px] capitalize">{m.material_type}</Badge></TableCell>
+                  <TableCell className="font-mono text-xs">{m.barcode ?? "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">{m.ap_code ?? "—"}</TableCell>
+                  <TableCell className="max-w-[16rem] truncate">{m.description ?? "—"}</TableCell>
+                  <TableCell>{m.country ?? "—"}</TableCell>
+                  <TableCell>{m.flavour ?? "—"}</TableCell>
+                  <TableCell>{m.size ?? "—"}</TableCell>
+                  <TableCell>{m.pack_type ?? "—"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {filtered.length > 500 && <p className="mt-2 text-xs text-muted-foreground">Showing first 500 of {filtered.length}. Use search/filter to narrow.</p>}
+        </CardContent>
+      </Card>
+
+      {/* Edit / add material */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{form.id ? "Edit material" : "New material"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Type</Label>
+                <Select value={form.material_type ?? "label"} onValueChange={(v) => setForm({ ...form, material_type: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{MATERIAL_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Pack type</Label>
+                <Select value={form.pack_type ?? "__none__"} onValueChange={(v) => setForm({ ...form, pack_type: v === "__none__" ? null : v })}>
+                  <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                  <SelectContent><SelectItem value="__none__">—</SelectItem>{PACK_TYPES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Barcode</Label><Input value={form.barcode ?? ""} onChange={(e) => setForm({ ...form, barcode: e.target.value })} /></div>
+              <div><Label>AP code</Label><Input value={form.ap_code ?? ""} onChange={(e) => setForm({ ...form, ap_code: e.target.value })} /></div>
+            </div>
+            <div><Label>Description</Label><Input value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Country</Label><Input value={form.country ?? ""} onChange={(e) => setForm({ ...form, country: e.target.value })} /></div>
+              <div><Label>Flavour</Label><Input value={form.flavour ?? ""} onChange={(e) => setForm({ ...form, flavour: e.target.value })} /></div>
+              <div><Label>Size</Label><Input value={form.size ?? ""} onChange={(e) => setForm({ ...form, size: e.target.value })} /></div>
+            </div>
+          </div>
+          <DialogFooter><Button onClick={() => save.mutate()} disabled={save.isPending}>{save.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ImportDialog kind="materials" open={importOpen} onOpenChange={setImportOpen} onDone={() => qc.invalidateQueries({ queryKey: ["pvs_materials"] })} />
+    </div>
+  );
+}
+
+// ============================================================
+// Production orders
+// ============================================================
+function OrdersView({ canManage }: { canManage: boolean }) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const [importOpen, setImportOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [form, setForm] = useState<Partial<Order>>({});
+
+  const { data: orders = [] } = useQuery({
+    queryKey: ["pvs_orders"],
+    queryFn: async () => {
+      const { data, error } = await tbl("production_orders").select("*").order("created_at", { ascending: false }).limit(1000);
+      if (error) throw error;
+      return (data ?? []) as unknown as Order[];
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!form.po_number?.trim()) throw new Error("Production order number is required");
+      const payload = {
+        po_number: form.po_number.trim(), sku: form.sku || null, country: form.country || null,
+        packaging_type: form.packaging_type || null, qty: form.qty ?? null, line: form.line || null,
+        planned_date: form.planned_date || null, status: form.status || "planned",
+      };
+      if (form.id) { const { error } = await tbl("production_orders").update(payload as never).eq("id", form.id); if (error) throw error; }
+      else { const { error } = await tbl("production_orders").insert({ ...payload, created_by: user?.id ?? null } as never); if (error) throw error; }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pvs_orders"] }); setEditOpen(false); toast.success("Order saved"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">{orders.length} order{orders.length === 1 ? "" : "s"}. Each order carries the <b>packaging route</b> that drives verification.</p>
+        {canManage && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="mr-1 h-4 w-4" />Import</Button>
+            <Button onClick={() => { setForm({ status: "planned", packaging_type: "TUB" }); setEditOpen(true); }}><Plus className="mr-1 h-4 w-4" />New order</Button>
+          </div>
+        )}
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle>Production orders ({orders.length})</CardTitle></CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>PO #</TableHead><TableHead>SKU</TableHead><TableHead>Country</TableHead>
+              <TableHead>Packaging</TableHead><TableHead>Qty</TableHead><TableHead>Line</TableHead><TableHead>Planned</TableHead><TableHead>Status</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {orders.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No orders</TableCell></TableRow>}
+              {orders.map((o) => (
+                <TableRow key={o.id} className={cn(canManage && "cursor-pointer")} onClick={() => { if (canManage) { setForm(o); setEditOpen(true); } }}>
+                  <TableCell className="font-mono text-xs">{o.po_number}</TableCell>
+                  <TableCell className="font-mono text-xs">{o.sku ?? "—"}</TableCell>
+                  <TableCell>{o.country ?? "—"}</TableCell>
+                  <TableCell>{o.packaging_type ? <Badge variant="outline" className="text-[10px]">{o.packaging_type}</Badge> : "—"}</TableCell>
+                  <TableCell>{o.qty ?? "—"}</TableCell>
+                  <TableCell>{o.line ?? "—"}</TableCell>
+                  <TableCell>{o.planned_date ?? "—"}</TableCell>
+                  <TableCell className="text-xs capitalize text-muted-foreground">{o.status}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{form.id ? "Edit order" : "New production order"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>PO #</Label><Input value={form.po_number ?? ""} onChange={(e) => setForm({ ...form, po_number: e.target.value })} /></div>
+              <div><Label>SKU</Label><Input value={form.sku ?? ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} /></div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Country</Label><Input value={form.country ?? ""} onChange={(e) => setForm({ ...form, country: e.target.value })} /></div>
+              <div><Label>Packaging</Label>
+                <Select value={form.packaging_type ?? "TUB"} onValueChange={(v) => setForm({ ...form, packaging_type: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{PACK_TYPES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Qty</Label><Input type="number" value={form.qty ?? ""} onChange={(e) => setForm({ ...form, qty: e.target.value === "" ? null : Number(e.target.value) })} /></div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Line</Label><Input value={form.line ?? ""} onChange={(e) => setForm({ ...form, line: e.target.value })} /></div>
+              <div><Label>Planned</Label><Input type="date" value={form.planned_date ?? ""} onChange={(e) => setForm({ ...form, planned_date: e.target.value })} /></div>
+              <div><Label>Status</Label>
+                <Select value={form.status ?? "planned"} onValueChange={(v) => setForm({ ...form, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{["planned", "running", "verified", "done"].map((s) => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter><Button onClick={() => save.mutate()} disabled={save.isPending}>{save.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ImportDialog kind="orders" open={importOpen} onOpenChange={setImportOpen} onDone={() => qc.invalidateQueries({ queryKey: ["pvs_orders"] })} />
+    </div>
+  );
+}
+
+// ============================================================
+// Generic Excel/CSV import
+// ============================================================
+function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: "materials" | "orders"; open: boolean; onOpenChange: (v: boolean) => void; onDone: () => void }) {
+  const { user } = useAuth();
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [importing, setImporting] = useState(false);
+
+  const reset = () => { setRows([]); setFileName(""); };
+
+  const handleFile = async (file: File) => {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: false });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }) as Record<string, unknown>[];
+      const parsed = kind === "materials" ? json.map(parseMaterial).filter((r) => r.barcode || r.ap_code)
+        : json.map(parseOrder).filter((r) => r.po_number);
+      if (parsed.length === 0) { toast.error("No valid rows found. Check the column headers."); return; }
+      setRows(parsed as Record<string, unknown>[]);
+      setFileName(file.name);
+    } catch (e) { toast.error(`Could not read file: ${(e as Error)?.message ?? "unknown"}`); }
+  };
+
+  const parseMaterial = (r: Record<string, unknown>) => ({
+    material_type: normType(cell(r, ["type", "material type", "material_type", "tipo"])),
+    barcode: cell(r, ["barcode", "ean", "gtin", "codigo de barras", "código de barras", "code"]) || null,
+    ap_code: cell(r, ["ap code", "ap_code", "ap", "codigo ap", "código ap"]) || null,
+    description: cell(r, ["description", "descricao", "descrição", "name", "nome", "desc"]) || null,
+    country: cell(r, ["country", "pais", "país"]) || null,
+    flavour: cell(r, ["flavour", "flavor", "sabor"]) || null,
+    size: cell(r, ["size", "tamanho", "weight", "peso"]) || null,
+    pack_type: normPack(cell(r, ["pack type", "pack_type", "packaging", "packaging type", "embalagem"])),
+    active: true,
+  });
+  const parseOrder = (r: Record<string, unknown>) => ({
+    po_number: cell(r, ["production order", "po", "po number", "po_number", "order", "ordem", "wo", "#"]),
+    sku: cell(r, ["sku", "code", "codigo", "código"]) || null,
+    country: cell(r, ["country", "pais", "país"]) || null,
+    packaging_type: normPack(cell(r, ["packaging type", "packaging", "pack type", "tipo embalagem", "embalagem"])),
+    qty: (() => { const n = Number(cell(r, ["qty", "quantity", "quantidade", "qtd"])); return isNaN(n) || n === 0 ? null : n; })(),
+    line: cell(r, ["line", "linha"]) || null,
+    planned_date: (() => { const s = cell(r, ["date", "planned", "planned date", "data"]); const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/); if (m) { let y = Number(m[3]); if (y < 100) y += 2000; return `${y}-${String(Number(m[2])).padStart(2, "0")}-${String(Number(m[1])).padStart(2, "0")}`; } return s.match(/^\d{4}-\d{2}-\d{2}/) ? s.slice(0, 10) : null; })(),
+    status: "planned",
+  });
+
+  const importAll = async () => {
+    setImporting(true);
+    try {
+      if (kind === "materials") {
+        const withBarcode = rows.filter((r) => r.barcode).map((r) => ({ ...r, created_by: user?.id ?? null }));
+        const apOnly = rows.filter((r) => !r.barcode && r.ap_code).map((r) => ({ ...r, created_by: user?.id ?? null }));
+        for (let i = 0; i < withBarcode.length; i += 200) {
+          const { error } = await tbl("materials").upsert(withBarcode.slice(i, i + 200) as never, { onConflict: "barcode", ignoreDuplicates: true });
+          if (error) throw error;
+        }
+        for (let i = 0; i < apOnly.length; i += 200) {
+          const { error } = await tbl("materials").upsert(apOnly.slice(i, i + 200) as never, { onConflict: "ap_code", ignoreDuplicates: true });
+          if (error) throw error;
+        }
+      } else {
+        const payload = rows.map((r) => ({ ...r, created_by: user?.id ?? null }));
+        for (let i = 0; i < payload.length; i += 200) {
+          const { error } = await tbl("production_orders").upsert(payload.slice(i, i + 200) as never, { onConflict: "po_number" });
+          if (error) throw error;
+        }
+      }
+      toast.success(`Imported ${rows.length} row${rows.length === 1 ? "" : "s"}`);
+      onDone(); onOpenChange(false); reset();
+    } catch (e) { toast.error(`Import failed: ${(e as Error)?.message ?? "unknown"}`); }
+    finally { setImporting(false); }
+  };
+
+  const downloadTemplate = () => {
+    const headers = kind === "materials"
+      ? ["Type", "Barcode", "AP Code", "Description", "Country", "Flavour", "Size", "Pack Type"]
+      : ["Production Order", "SKU", "Country", "Packaging Type", "Qty", "Line", "Date"];
+    const sample = kind === "materials"
+      ? ["tub", "", "AP009211", "Tub 900g black", "UK", "", "900g", "TUB"]
+      : ["PO-48213", "MM900-UK-CC", "UK", "TUB", "500", "Line 4", "23/07/2026"];
+    const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
+    ws["!cols"] = headers.map(() => ({ wch: 16 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, kind === "materials" ? "Materials" : "Orders");
+    XLSX.writeFile(wb, `${kind}-template.xlsx`);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><PackageSearch className="h-5 w-5" />Import {kind === "materials" ? "materials" : "production orders"} from Excel/CSV</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={downloadTemplate}><FileDown className="mr-1 h-4 w-4" />Template</Button>
+            <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent">
+              <Upload className="h-4 w-4" /> Choose file
+              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+            </label>
+            {fileName && <span className="text-sm text-muted-foreground">{fileName} — {rows.length} rows</span>}
+          </div>
+
+          {rows.length > 0 && (
+            <div className="overflow-x-auto rounded border">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40 text-muted-foreground">
+                  <tr>{Object.keys(rows[0]).filter((k) => k !== "created_by").map((k) => <th key={k} className="px-2 py-1 text-left font-medium">{k}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {rows.slice(0, 8).map((r, i) => (
+                    <tr key={i} className="border-t">{Object.keys(rows[0]).filter((k) => k !== "created_by").map((k) => <td key={k} className="px-2 py-1">{String(r[k] ?? "")}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+              {rows.length > 8 && <p className="px-2 py-1 text-[11px] text-muted-foreground">+ {rows.length - 8} more…</p>}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {kind === "materials"
+              ? "Duplicates (same barcode or AP code) are skipped. Columns are matched by name — download the template for the expected headers."
+              : "Existing PO numbers are updated. Columns are matched by name — download the template for the expected headers."}
+          </p>
+        </div>
+        <DialogFooter>
+          <Button onClick={importAll} disabled={rows.length === 0 || importing}>{importing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}Import {rows.length || ""}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -56,6 +56,7 @@ const WarehouseDashboard = lazyWithReload(() => import("./pages/dashboard/Wareho
 
 const QualityPage = lazyWithReload(() => import("./pages/dashboard/QualityPage"));
 const TraceabilityPage = lazyWithReload(() => import("./pages/dashboard/TraceabilityPage"));
+const PackagingPage = lazyWithReload(() => import("./pages/dashboard/PackagingPage"));
 const ShiftHistoryPage = lazyWithReload(() => import("./pages/dashboard/ShiftHistoryPage"));
 
 
@@ -410,6 +411,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="production.view">
                       <TraceabilityPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/packaging"
+                  element={
+                    <ProtectedRoute requiredAction="production.view">
+                      <PackagingPage />
                     </ProtectedRoute>
                   }
                 />

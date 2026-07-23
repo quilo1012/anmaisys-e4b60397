@@ -85,6 +85,7 @@ const navItems: NavItem[] = [
 
   { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor"], group: "Production", action: "quality.view" },
   { title: "Traceability", url: "/dashboard/traceability", icon: GitBranch, roles: ["admin", "manager", "supervisor", "quality_supervisor", "planner", "warehouse"], group: "Production", action: "production.view" },
+  { title: "Packaging", url: "/dashboard/packaging", icon: Boxes, roles: ["admin", "manager", "supervisor", "quality_supervisor", "planner", "warehouse"], group: "Production", action: "production.view" },
 
   // Planning & Insights
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager"], group: "Planning", action: "sku.manage" },
@@ -313,6 +314,7 @@ const routeTitles: Record<string, string> = {
   
   "/dashboard/quality": "Quality",
   "/dashboard/traceability": "Traceability",
+  "/dashboard/packaging": "Packaging",
   "/dashboard/sku-products": "SKU Products",
   "/dashboard/analytics": "Analytics",
   "/dashboard/reliability": "Reliability Dashboard",
