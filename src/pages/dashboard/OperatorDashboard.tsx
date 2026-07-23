@@ -178,6 +178,10 @@ function OperatorDashboardContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requestedBy.trim()) {
+      toast({ title: "Name required", description: "Please enter your name before sending the request.", variant: "destructive" });
+      return;
+    }
     const finalDescription = description === "__custom__" ? customDescription.trim() : description.trim();
     if (!finalDescription) {
       toast({ title: "Problem required", description: "Please describe the problem.", variant: "destructive" });
@@ -294,7 +298,7 @@ function OperatorDashboardContent() {
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2" autoComplete="off">
             <div className="space-y-2">
-              <Label htmlFor="requested-by">Requested By</Label>
+              <Label htmlFor="requested-by">Requested By <span className="text-destructive">*</span></Label>
               <Input
                 id="requested-by"
                 name="requested-by"
@@ -306,7 +310,10 @@ function OperatorDashboardContent() {
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck={false}
+                aria-invalid={!requestedBy.trim()}
+                className={cn(!requestedBy.trim() && "border-destructive/60")}
               />
+              {!requestedBy.trim() && <p className="text-xs text-destructive">Enter your name to send the request.</p>}
             </div>
 
             {/* WO target — Line vs Sealer/Printer Ink (available on every operator login) */}
