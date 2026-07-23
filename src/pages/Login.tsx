@@ -446,6 +446,14 @@ export default function Login() {
           </p>
         )}
       </form>
+      {mode === "staff" && (
+        <p className="mt-4 text-center text-sm text-slate-500">
+          Don't have an account?{" "}
+          <button type="button" onClick={() => navigate("/signup")} className="font-semibold text-[#1E3A8A] hover:underline">
+            Create account
+          </button>
+        </p>
+      )}
     </AuthShell>
   );
 }

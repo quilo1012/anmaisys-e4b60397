@@ -86,15 +86,22 @@ export function ProtectedRoute({ children, allowedRoles, requiredAction }: Prote
     return <Navigate to="/login" replace />;
   }
 
-  // Account deactivated — block immediately, even before role resolves
+  // Account inactive — block immediately, even before role resolves.
+  // A self-registered account that was never approved (no role yet) shows a
+  // friendlier "pending approval" message instead of "deactivated".
   if (profile && profile.active === false) {
+    const pendingApproval = !role;
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <div className="text-center space-y-4 max-w-md">
-          <ShieldAlert className="mx-auto h-12 w-12 text-destructive" />
-          <h1 className="text-xl font-semibold text-foreground">Account deactivated</h1>
+          <ShieldAlert className={`mx-auto h-12 w-12 ${pendingApproval ? "text-amber-500" : "text-destructive"}`} />
+          <h1 className="text-xl font-semibold text-foreground">
+            {pendingApproval ? "Waiting for approval" : "Account deactivated"}
+          </h1>
           <p className="text-muted-foreground text-sm">
-            Your account has been disabled. Please contact your supervisor to regain access.
+            {pendingApproval
+              ? "Your account was created and is waiting for an administrator to approve it and assign your role. You'll get access once approved."
+              : "Your account has been disabled. Please contact your supervisor to regain access."}
           </p>
           <Button
             variant="outline"
