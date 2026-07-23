@@ -17,8 +17,10 @@ CREATE TABLE IF NOT EXISTS public.materials (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS ux_materials_barcode ON public.materials(barcode) WHERE barcode IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS ux_materials_apcode ON public.materials(ap_code) WHERE ap_code IS NOT NULL;
+-- Full unique indexes (not partial) so PostgREST upsert ON CONFLICT can target them;
+-- nullable columns still allow many NULLs (AP-only rows have NULL barcode and vice-versa).
+CREATE UNIQUE INDEX IF NOT EXISTS ux_materials_barcode ON public.materials(barcode);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_materials_apcode ON public.materials(ap_code);
 ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.materials FROM anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.materials TO authenticated;
