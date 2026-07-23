@@ -910,7 +910,7 @@ export default function DowntimePage() {
                     <Printer className="h-4 w-4 mr-1.5" /> Print
                   </Button>
                 </div>
-                <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={openCreate}>
+                <Button onClick={openCreate}>
                   <Plus className="h-4 w-4 mr-2" /> Register Downtime
                 </Button>
               </div>
