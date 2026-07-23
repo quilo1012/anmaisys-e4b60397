@@ -54,10 +54,10 @@ export function AuthShell({
 
       {/* Login card — translucent glass so the banner reads through it and dominates. */}
       <div
-        className={`relative z-10 w-full ${maxWidthClass} overflow-hidden rounded-2xl bg-white/55 shadow-[0_25px_60px_-12px_rgba(0,0,0,0.55)] ring-1 ring-white/40 backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500`}
+        className={`relative z-10 w-full ${maxWidthClass} overflow-hidden rounded-3xl bg-white/45 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.6)] ring-1 ring-white/50 backdrop-blur-2xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500`}
       >
         {/* Navy header band with the brand logo (kept mostly opaque so the logo reads) */}
-        <div className="flex justify-center bg-[#1E3A8A]/90 px-8 py-7">
+        <div className="flex justify-center bg-gradient-to-b from-[#1E3A8A]/95 to-[#1E3A8A]/80 px-8 py-7">
           <img src={appliedLogo} alt="Applied Nutrition" className="h-14 w-auto object-contain" />
         </div>
 
