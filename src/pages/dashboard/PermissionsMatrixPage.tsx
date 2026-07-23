@@ -41,6 +41,7 @@ const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
   manager: "Manager",
   supervisor: "Supervisor",
+  quality_supervisor: "QC Sup.",
   maintenance_manager: "Maint.",
   planner: "Planner",
   engineer: "Engineer",
