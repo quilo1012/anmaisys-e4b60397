@@ -31,6 +31,17 @@ interface QualityAction {
   severity: string | null; attachments: string[] | null;
 }
 
+// Resolve a SKU code from a production_items row without relying on a PostgREST
+// embed (which can 400 on relationship/permission edge cases).
+async function resolveSkuCode(it: { sku_code_text?: string | null; sku_id?: string | null }): Promise<string> {
+  if (it?.sku_code_text) return it.sku_code_text;
+  if (it?.sku_id) {
+    const { data } = await (supabase as any).from("sku_products").select("code").eq("id", it.sku_id).maybeSingle();
+    return data?.code ?? "";
+  }
+  return "";
+}
+
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const makeEmptyForm = () => ({
   action_no: "", action_type_id: "", line: "", shift: "DAY", leader_id: "", leader_name: "",
@@ -154,34 +165,36 @@ export function QualityActionsView() {
     if (!open || !form.line || !form.date || !form.shift) return;
     let cancelled = false;
     (async () => {
-      const { data: sess } = await supabase
-        .from("production_sessions")
-        .select("id, leader_name")
-        .eq("line", form.line)
-        .eq("session_date", form.date)
-        .eq("shift", form.shift)
-        .maybeSingle();
-      if (cancelled || !sess) return;
-      let sku = "";
-      let batch = "";
-      const { data: items } = await (supabase as any)
-        .from("production_items")
-        .select("blender_ref, sku_code_text, sku:sku_id(code)")
-        .eq("session_id", (sess as any).id)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const it = (items ?? [])[0];
-      if (it) { sku = it.sku?.code ?? it.sku_code_text ?? ""; batch = it.blender_ref ?? ""; }
-      if (cancelled) return;
-      const leaderName = (sess as any).leader_name ?? "";
-      const matched = leaders.find((l) => l.name === leaderName);
-      setForm((f) => ({
-        ...f,
-        leader_name: leaderName || f.leader_name,
-        leader_id: matched?.id ?? f.leader_id,
-        sku: sku || f.sku,
-        batch: batch || f.batch,
-      }));
+      try {
+        const { data: sess } = await supabase
+          .from("production_sessions")
+          .select("id, leader_name")
+          .eq("line", form.line)
+          .eq("session_date", form.date)
+          .eq("shift", form.shift)
+          .maybeSingle();
+        if (cancelled || !sess) return;
+        let sku = "";
+        let batch = "";
+        const { data: items } = await (supabase as any)
+          .from("production_items")
+          .select("blender_ref, sku_code_text, sku_id")
+          .eq("session_id", (sess as any).id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const it = (items ?? [])[0];
+        if (it) { batch = it.blender_ref ?? ""; sku = await resolveSkuCode(it); }
+        if (cancelled) return;
+        const leaderName = (sess as any).leader_name ?? "";
+        const matched = leaders.find((l) => l.name === leaderName);
+        setForm((f) => ({
+          ...f,
+          leader_name: leaderName || f.leader_name,
+          leader_id: matched?.id ?? f.leader_id,
+          sku: sku || f.sku,
+          batch: batch || f.batch,
+        }));
+      } catch { /* auto-fill is best-effort */ }
     })();
     return () => { cancelled = true; };
   }, [open, form.line, form.date, form.shift, leaders]);
@@ -192,15 +205,17 @@ export function QualityActionsView() {
   useEffect(() => {
     if (!open || !form.batch.trim()) return;
     const t = setTimeout(async () => {
-      const { data } = await (supabase as any)
-        .from("production_items")
-        .select("sku_code_text, sku:sku_id(code)")
-        .eq("blender_ref", form.batch.trim())
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const it = (data ?? [])[0];
-      const sku = it?.sku?.code ?? it?.sku_code_text ?? "";
-      if (sku) setForm((f) => ({ ...f, sku }));
+      try {
+        const { data } = await (supabase as any)
+          .from("production_items")
+          .select("sku_code_text, sku_id")
+          .eq("blender_ref", form.batch.trim())
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const it = (data ?? [])[0];
+        const sku = it ? await resolveSkuCode(it) : "";
+        if (sku) setForm((f) => ({ ...f, sku }));
+      } catch { /* best-effort */ }
     }, 400);
     return () => clearTimeout(t);
   }, [open, form.batch]);
