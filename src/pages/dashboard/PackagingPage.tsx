@@ -88,6 +88,7 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
   const [filterType, setFilterType] = useState("__all__");
   const [search, setSearch] = useState("");
   const [importOpen, setImportOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [form, setForm] = useState<Partial<Material>>({});
 
@@ -160,6 +161,7 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
         </div>
         {canManage && (
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setGuideOpen(true)}><Upload className="mr-1 h-4 w-4" />Import product guide</Button>
             <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="mr-1 h-4 w-4" />Import</Button>
             <Button onClick={() => { setForm({ material_type: "tub", active: true }); setEditOpen(true); }}><Plus className="mr-1 h-4 w-4" />Add material</Button>
           </div>
@@ -240,6 +242,7 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
       </Dialog>
 
       <ImportDialog kind="materials" open={importOpen} onOpenChange={setImportOpen} onDone={() => qc.invalidateQueries({ queryKey: ["pvs_materials"] })} />
+      <ImportDialog kind="guide" open={guideOpen} onOpenChange={setGuideOpen} onDone={() => qc.invalidateQueries({ queryKey: ["pvs_materials"] })} />
     </div>
   );
 }
@@ -457,7 +460,7 @@ function BomView({ canManage }: { canManage: boolean }) {
 // ============================================================
 // Generic Excel/CSV import
 // ============================================================
-type ImportKind = "materials" | "orders" | "labels" | "bags";
+type ImportKind = "materials" | "orders" | "labels" | "bags" | "guide";
 
 interface FieldDef { key: string; label: string; required?: boolean; aliases: string[] }
 const SKU_FIELDS: FieldDef[] = [
@@ -468,6 +471,12 @@ const SKU_FIELDS: FieldDef[] = [
 const FIELD_CONFIGS: Record<ImportKind, FieldDef[]> = {
   labels: SKU_FIELDS,
   bags: SKU_FIELDS,
+  guide: [
+    { key: "tub", label: "Tub / container", aliases: ["container", "tub", "pote", "recipiente"] },
+    { key: "lid", label: "Lid", aliases: ["lid", "tampa"] },
+    { key: "scoop", label: "Scoop", aliases: ["scoop", "colher", "medidor"] },
+    { key: "box", label: "Box", aliases: ["type_of_box", "type of box", "box", "caixa"] },
+  ],
   materials: [
     { key: "material_type", label: "Type", aliases: ["type", "material type", "material_type", "tipo"] },
     { key: "barcode", label: "Barcode", aliases: ["barcode", "ean", "gtin", "codigo de barras", "código de barras", "code"] },
@@ -509,6 +518,15 @@ function transformRow(row: Record<string, unknown>, mapping: Record<string, stri
     const barcode = pick(row, mapping, "barcode");
     const sku = product || pick(row, mapping, "hb_sku"); // key = product name; fall back to HB SKU
     return sku && barcode ? { sku, barcode: barcode || null, description: product || null } : null;
+  }
+  if (kind === "guide") {
+    const clean = (s: string) => { const v = s.trim(); return v && v.toLowerCase() !== "n/a" ? v : ""; };
+    const tubRaw = clean(pick(row, mapping, "tub"));
+    const tub = tubRaw && !/^bag\b/i.test(tubRaw) ? tubRaw : ""; // bags come from the bag list, not a shared component
+    const lid = clean(pick(row, mapping, "lid"));
+    const scoop = clean(pick(row, mapping, "scoop"));
+    const box = clean(pick(row, mapping, "box"));
+    return (tub || lid || scoop || box) ? { tub: tub || null, lid: lid || null, scoop: scoop || null, box: box || null } : null;
   }
   if (kind === "materials") {
     const r = {
@@ -599,6 +617,36 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
         onDone(); onOpenChange(false); reset();
         return;
       }
+      if (kind === "guide") {
+        // Extract the distinct physical components (tub/lid/scoop/box) from the guide → Materials catalog.
+        const comps = new Map<string, { material_type: string; description: string }>();
+        const add = (type: string, desc: unknown) => {
+          const d = String(desc ?? "").trim();
+          if (!d) return;
+          const k = `${type}|${d.toLowerCase()}`;
+          if (!comps.has(k)) comps.set(k, { material_type: type, description: d });
+        };
+        for (const r of rows) { add("tub", r.tub); add("lid", r.lid); add("scoop", r.scoop); add("box", r.box); }
+        const distinct = [...comps.values()];
+        // Skip components already catalogued (dedupe by type + description).
+        const existing = new Set<string>();
+        for (const t of ["tub", "lid", "scoop", "box"]) {
+          const { data, error } = await tbl("materials").select("material_type, description").eq("material_type", t);
+          if (error) throw error;
+          for (const m of (data ?? []) as { material_type: string; description: string | null }[])
+            if (m.description) existing.add(`${m.material_type}|${m.description.toLowerCase()}`);
+        }
+        const fresh = distinct
+          .filter((c) => !existing.has(`${c.material_type}|${c.description.toLowerCase()}`))
+          .map((c) => ({ ...c, active: true, created_by: user?.id ?? null }));
+        for (let i = 0; i < fresh.length; i += 200) {
+          const { error } = await tbl("materials").insert(fresh.slice(i, i + 200) as never);
+          if (error) throw error;
+        }
+        toast.success(`Imported ${fresh.length} new component${fresh.length === 1 ? "" : "s"} (${distinct.length} distinct, ${distinct.length - fresh.length} already existed)`);
+        onDone(); onOpenChange(false); reset();
+        return;
+      }
       if (kind === "materials") {
         const withBarcode = rows.filter((r) => r.barcode).map((r) => ({ ...r, created_by: user?.id ?? null }));
         const apOnly = rows.filter((r) => !r.barcode && r.ap_code).map((r) => ({ ...r, created_by: user?.id ?? null }));
@@ -629,6 +677,7 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
       orders: { headers: ["Production Order", "SKU", "Country", "Packaging Type", "Qty", "Line", "Date"], sample: ["PO-48213", "MM900-UK-CC", "UK", "TUB", "500", "Line 4", "23/07/2026"], sheet: "Orders" },
       labels: { headers: ["Product", "Barcode", "HB SKU"], sample: ["Whey Cookies 900g UK", "56056555203347", "MM900-UK-CC"], sheet: "Labels" },
       bags: { headers: ["Product", "Barcode", "HB SKU"], sample: ["Whey Cookies 900g UK", "56056555209901", "MM900-UK-CC"], sheet: "Bags" },
+      guide: { headers: ["Product", "Weight", "Container", "Lid", "Scoop", "Type_of_box"], sample: ["ABE", "250g", "750ml AN - Black", "100mm - Black AN", "20ml blue", "Box ABE 6"], sheet: "Guide" },
     };
     const { headers, sample, sheet } = cfg[kind];
     const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
@@ -638,7 +687,7 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
     XLSX.writeFile(wb, `${kind}-template.xlsx`);
   };
 
-  const kindLabel = kind === "materials" ? "materials" : kind === "orders" ? "production orders" : kind === "labels" ? "label list (→ TUB)" : "bag list (→ BAG)";
+  const kindLabel = kind === "materials" ? "materials" : kind === "orders" ? "production orders" : kind === "labels" ? "label list (→ TUB)" : kind === "bags" ? "bag list (→ BAG)" : "product guide (→ components)";
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
@@ -697,6 +746,7 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
           <p className="text-xs text-muted-foreground">
             {kind === "materials" ? "Duplicates (same barcode or AP code) are skipped."
               : kind === "orders" ? "Existing PO numbers are updated."
+              : kind === "guide" ? "Extracts the distinct tubs, lids, scoops and boxes into the Materials catalog. Components already catalogued are skipped. Bags & labels aren't taken from here."
               : `Each row = one SKU. Creates the ${kind === "labels" ? "label" : "bag"} material and its ${kind === "labels" ? "TUB" : "BAG"} BOM identity row. Re-import updates. Raw materials aren't relevant here.`}
           </p>
         </div>
