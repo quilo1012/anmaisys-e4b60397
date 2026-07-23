@@ -17,8 +17,8 @@ import { Package, Plus, Loader2, Search, ClipboardList, PlayCircle, CheckCircle2
 import { EmptyState } from "@/components/EmptyState";
 import { ComboboxInput } from "@/components/ComboboxInput";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { WAREHOUSE_LOCATIONS } from "@/lib/warehouseLocations";
 
-const WAREHOUSE_LOCATIONS = ["AC1", "AC2 - Warehouse", "K53", "Depot RD"];
 const WAREHOUSE_LOCATIONS_LC = new Set(WAREHOUSE_LOCATIONS.map((l) => l.toLowerCase()));
 
 function startOfToday() {

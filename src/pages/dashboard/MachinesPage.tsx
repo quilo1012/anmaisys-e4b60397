@@ -45,6 +45,8 @@ import {
 import { SideBadge } from "@/components/MachineSelector";
 import { ComboboxInput } from "@/components/ComboboxInput";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { WAREHOUSE_LOCATIONS } from "@/lib/warehouseLocations";
 import { supabase } from "@/integrations/supabase/client";
 
 import { useToast } from "@/hooks/use-toast";
@@ -158,6 +160,8 @@ function LineCombobox({
 }
 
 export default function MachinesPage() {
+  const { role } = useAuth();
+  const isWarehouse = role === "warehouse";
   const { data: machines, isLoading } = useMachines();
   const { data: lines } = useLines();
   const { data: distinct } = useDistinctMachineValues();
@@ -402,52 +406,74 @@ export default function MachinesPage() {
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
           Location & Hierarchy
         </p>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label>Line</Label>
-            <LineCombobox
-              value={lineId}
-              onChange={setLineId}
-              lines={lines || []}
-            />
+        {isWarehouse ? (
+          /* Warehouse admin: assets live in a warehouse, not on a production line */
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Warehouse</Label>
+              <ComboboxInput
+                value={currentLocation}
+                onChange={setCurrentLocation}
+                suggestions={WAREHOUSE_LOCATIONS}
+                placeholder="Select or type a warehouse"
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Sector</Label>
+              <Input value={sector} onChange={(e) => setSector(e.target.value)} placeholder="e.g. Packaging" />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Side {lineHasSides ? <span className="text-destructive">*</span> : ""}</Label>
-            {lineHasSides ? (
-              <div className="grid grid-cols-3 gap-1">
-                {(["A", "B", "common"] as MachineSide[]).map((s) => (
-                  <Button
-                    key={s}
-                    type="button"
-                    size="sm"
-                    variant={side === s ? "default" : "outline"}
-                    className={cn("h-10", side === s && "ring-2 ring-primary")}
-                    onClick={() => setSide(s)}
-                  >
-                    {s === "common" ? "Shared" : s}
-                  </Button>
-                ))}
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Line</Label>
+                <LineCombobox
+                  value={lineId}
+                  onChange={setLineId}
+                  lines={lines || []}
+                />
               </div>
-            ) : (
-              <Input disabled value="Shared (line has no A/B)" className="text-muted-foreground" />
-            )}
-            {errors.side && <p className="text-xs text-destructive">{errors.side}</p>}
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4 mt-4">
-          <div className="space-y-1.5">
-            <Label>Current Location</Label>
-            <Input
-              value={currentLocation}
-              onChange={(e) => setCurrentLocation(e.target.value)}
-              placeholder="e.g. Building A, Floor 2"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Sector</Label>
-            <Input value={sector} onChange={(e) => setSector(e.target.value)} placeholder="e.g. Packaging" />
-          </div>
-        </div>
+              <div className="space-y-1.5">
+                <Label>Side {lineHasSides ? <span className="text-destructive">*</span> : ""}</Label>
+                {lineHasSides ? (
+                  <div className="grid grid-cols-3 gap-1">
+                    {(["A", "B", "common"] as MachineSide[]).map((s) => (
+                      <Button
+                        key={s}
+                        type="button"
+                        size="sm"
+                        variant={side === s ? "default" : "outline"}
+                        className={cn("h-10", side === s && "ring-2 ring-primary")}
+                        onClick={() => setSide(s)}
+                      >
+                        {s === "common" ? "Shared" : s}
+                      </Button>
+                    ))}
+                  </div>
+                ) : (
+                  <Input disabled value="Shared (line has no A/B)" className="text-muted-foreground" />
+                )}
+                {errors.side && <p className="text-xs text-destructive">{errors.side}</p>}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="space-y-1.5">
+                <Label>Current Location</Label>
+                <Input
+                  value={currentLocation}
+                  onChange={(e) => setCurrentLocation(e.target.value)}
+                  placeholder="e.g. Building A, Floor 2"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Sector</Label>
+                <Input value={sector} onChange={(e) => setSector(e.target.value)} placeholder="e.g. Packaging" />
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
