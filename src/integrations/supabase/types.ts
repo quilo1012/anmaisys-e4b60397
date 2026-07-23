@@ -14,6 +14,264 @@ export type Database = {
   }
   public: {
     Tables: {
+      _bkp_blender_before_clear: {
+        Row: {
+          blender_number: number | null
+          created_at: string | null
+          entered_by: string | null
+          id: string | null
+          production_item_id: string | null
+          quantity: number | null
+          session_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          blender_number?: number | null
+          created_at?: string | null
+          entered_by?: string | null
+          id?: string | null
+          production_item_id?: string | null
+          quantity?: number | null
+          session_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          blender_number?: number | null
+          created_at?: string | null
+          entered_by?: string | null
+          id?: string | null
+          production_item_id?: string | null
+          quantity?: number | null
+          session_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      _bkp_prod_items_before_clear: {
+        Row: {
+          actual_qty: number | null
+          blender_ref: string | null
+          created_at: string | null
+          display_order: number | null
+          id: string | null
+          intouch_qty: number | null
+          notes: string | null
+          planned_qty: number | null
+          scrap_qty: number | null
+          session_id: string | null
+          sku_code_text: string | null
+          sku_id: string | null
+          target_manual_at: string | null
+          target_manual_by: string | null
+          target_qty: number | null
+          tickets_unit: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          actual_qty?: number | null
+          blender_ref?: string | null
+          created_at?: string | null
+          display_order?: number | null
+          id?: string | null
+          intouch_qty?: number | null
+          notes?: string | null
+          planned_qty?: number | null
+          scrap_qty?: number | null
+          session_id?: string | null
+          sku_code_text?: string | null
+          sku_id?: string | null
+          target_manual_at?: string | null
+          target_manual_by?: string | null
+          target_qty?: number | null
+          tickets_unit?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          actual_qty?: number | null
+          blender_ref?: string | null
+          created_at?: string | null
+          display_order?: number | null
+          id?: string | null
+          intouch_qty?: number | null
+          notes?: string | null
+          planned_qty?: number | null
+          scrap_qty?: number | null
+          session_id?: string | null
+          sku_code_text?: string | null
+          sku_id?: string | null
+          target_manual_at?: string | null
+          target_manual_by?: string | null
+          target_qty?: number | null
+          tickets_unit?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      _bkp_production_items_20260722: {
+        Row: {
+          actual_qty: number | null
+          blender_ref: string | null
+          created_at: string | null
+          display_order: number | null
+          id: string | null
+          intouch_qty: number | null
+          notes: string | null
+          planned_qty: number | null
+          scrap_qty: number | null
+          session_id: string | null
+          sku_id: string | null
+          target_manual_at: string | null
+          target_manual_by: string | null
+          target_qty: number | null
+          tickets_unit: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          actual_qty?: number | null
+          blender_ref?: string | null
+          created_at?: string | null
+          display_order?: number | null
+          id?: string | null
+          intouch_qty?: number | null
+          notes?: string | null
+          planned_qty?: number | null
+          scrap_qty?: number | null
+          session_id?: string | null
+          sku_id?: string | null
+          target_manual_at?: string | null
+          target_manual_by?: string | null
+          target_qty?: number | null
+          tickets_unit?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          actual_qty?: number | null
+          blender_ref?: string | null
+          created_at?: string | null
+          display_order?: number | null
+          id?: string | null
+          intouch_qty?: number | null
+          notes?: string | null
+          planned_qty?: number | null
+          scrap_qty?: number | null
+          session_id?: string | null
+          sku_id?: string | null
+          target_manual_at?: string | null
+          target_manual_by?: string | null
+          target_qty?: number | null
+          tickets_unit?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      _bkp_production_targets_20260722: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          line: string | null
+          shift: string | null
+          sku_id: string | null
+          target_qty: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          line?: string | null
+          shift?: string | null
+          sku_id?: string | null
+          target_qty?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          line?: string | null
+          shift?: string | null
+          sku_id?: string | null
+          target_qty?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      _bkp_sku_production_history_20260722: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          line_id: string | null
+          quantity: number | null
+          run_minutes: number | null
+          session_date: string | null
+          shift: string | null
+          sku_id: string | null
+          units_per_hour: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          line_id?: string | null
+          quantity?: number | null
+          run_minutes?: number | null
+          session_date?: string | null
+          shift?: string | null
+          sku_id?: string | null
+          units_per_hour?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          line_id?: string | null
+          quantity?: number | null
+          run_minutes?: number | null
+          session_date?: string | null
+          shift?: string | null
+          sku_id?: string | null
+          units_per_hour?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      _bkp_sku_products_20260722: {
+        Row: {
+          active: boolean | null
+          category: string | null
+          code: string | null
+          created_at: string | null
+          id: string | null
+          name: string | null
+          notes: string | null
+          target_per_hour: number | null
+          updated_at: string | null
+          weight: number | null
+        }
+        Insert: {
+          active?: boolean | null
+          category?: string | null
+          code?: string | null
+          created_at?: string | null
+          id?: string | null
+          name?: string | null
+          notes?: string | null
+          target_per_hour?: number | null
+          updated_at?: string | null
+          weight?: number | null
+        }
+        Update: {
+          active?: boolean | null
+          category?: string | null
+          code?: string | null
+          created_at?: string | null
+          id?: string | null
+          name?: string | null
+          notes?: string | null
+          target_per_hour?: number | null
+          updated_at?: string | null
+          weight?: number | null
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -49,6 +307,161 @@ export type Database = {
           user_name?: string
         }
         Relationships: []
+      }
+      audits: {
+        Row: {
+          area: string | null
+          attachments: string[]
+          audit_no: string | null
+          audit_type: string
+          auditee_name: string | null
+          auditee_signature: string | null
+          auditee_signed_at: string | null
+          auditor_name: string | null
+          auditor_signature: string | null
+          auditor_signed_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          items: Json
+          performed_date: string | null
+          planned_date: string | null
+          result: string | null
+          score: number | null
+          status: string
+          summary: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          area?: string | null
+          attachments?: string[]
+          audit_no?: string | null
+          audit_type?: string
+          auditee_name?: string | null
+          auditee_signature?: string | null
+          auditee_signed_at?: string | null
+          auditor_name?: string | null
+          auditor_signature?: string | null
+          auditor_signed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          items?: Json
+          performed_date?: string | null
+          planned_date?: string | null
+          result?: string | null
+          score?: number | null
+          status?: string
+          summary?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          area?: string | null
+          attachments?: string[]
+          audit_no?: string | null
+          audit_type?: string
+          auditee_name?: string | null
+          auditee_signature?: string | null
+          auditee_signed_at?: string | null
+          auditor_name?: string | null
+          auditor_signature?: string | null
+          auditor_signed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          items?: Json
+          performed_date?: string | null
+          planned_date?: string | null
+          result?: string | null
+          score?: number | null
+          status?: string
+          summary?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      batch_dispatch: {
+        Row: {
+          batch_code: string
+          created_at: string
+          created_by: string | null
+          customer_name: string
+          dispatch_date: string | null
+          id: string
+          notes: string | null
+          quantity: number | null
+          reference: string | null
+          unit: string | null
+        }
+        Insert: {
+          batch_code: string
+          created_at?: string
+          created_by?: string | null
+          customer_name: string
+          dispatch_date?: string | null
+          id?: string
+          notes?: string | null
+          quantity?: number | null
+          reference?: string | null
+          unit?: string | null
+        }
+        Update: {
+          batch_code?: string
+          created_at?: string
+          created_by?: string | null
+          customer_name?: string
+          dispatch_date?: string | null
+          id?: string
+          notes?: string | null
+          quantity?: number | null
+          reference?: string | null
+          unit?: string | null
+        }
+        Relationships: []
+      }
+      batch_material_usage: {
+        Row: {
+          batch_code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          quantity_used: number | null
+          raw_material_lot_id: string
+          unit: string | null
+        }
+        Insert: {
+          batch_code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          quantity_used?: number | null
+          raw_material_lot_id: string
+          unit?: string | null
+        }
+        Update: {
+          batch_code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          quantity_used?: number | null
+          raw_material_lot_id?: string
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batch_material_usage_raw_material_lot_id_fkey"
+            columns: ["raw_material_lot_id"]
+            isOneToOne: false
+            referencedRelation: "raw_material_lots"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       checklist_responses: {
         Row: {
@@ -1041,6 +1454,54 @@ export type Database = {
           },
         ]
       }
+      materials: {
+        Row: {
+          active: boolean
+          ap_code: string | null
+          barcode: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          flavour: string | null
+          id: string
+          material_type: string
+          pack_type: string | null
+          size: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          ap_code?: string | null
+          barcode?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          flavour?: string | null
+          id?: string
+          material_type?: string
+          pack_type?: string | null
+          size?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          ap_code?: string | null
+          barcode?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          flavour?: string | null
+          id?: string
+          material_type?: string
+          pack_type?: string | null
+          size?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mobile_assets: {
         Row: {
           active: boolean
@@ -1150,6 +1611,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      packaging_bom: {
+        Row: {
+          component: string
+          created_at: string
+          created_by: string | null
+          id: string
+          material_id: string | null
+          packaging_type: string
+          required_qty: number
+          sequence: number | null
+          sku: string
+          updated_at: string
+        }
+        Insert: {
+          component: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          material_id?: string | null
+          packaging_type: string
+          required_qty?: number
+          sequence?: number | null
+          sku: string
+          updated_at?: string
+        }
+        Update: {
+          component?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          material_id?: string | null
+          packaging_type?: string
+          required_qty?: number
+          sequence?: number | null
+          sku?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packaging_bom_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       parts_used: {
         Row: {
@@ -1608,13 +2116,16 @@ export type Database = {
           blender_ref: string | null
           created_at: string
           display_order: number
+          finished_at: string | null
           id: string
           intouch_qty: number | null
           notes: string | null
           planned_qty: number
           scrap_qty: number
           session_id: string
+          sku_code_text: string | null
           sku_id: string | null
+          started_at: string | null
           target_manual_at: string | null
           target_manual_by: string | null
           target_qty: number | null
@@ -1626,13 +2137,16 @@ export type Database = {
           blender_ref?: string | null
           created_at?: string
           display_order?: number
+          finished_at?: string | null
           id?: string
           intouch_qty?: number | null
           notes?: string | null
           planned_qty?: number
           scrap_qty?: number
           session_id: string
+          sku_code_text?: string | null
           sku_id?: string | null
+          started_at?: string | null
           target_manual_at?: string | null
           target_manual_by?: string | null
           target_qty?: number | null
@@ -1644,13 +2158,16 @@ export type Database = {
           blender_ref?: string | null
           created_at?: string
           display_order?: number
+          finished_at?: string | null
           id?: string
           intouch_qty?: number | null
           notes?: string | null
           planned_qty?: number
           scrap_qty?: number
           session_id?: string
+          sku_code_text?: string | null
           sku_id?: string | null
+          started_at?: string | null
           target_manual_at?: string | null
           target_manual_by?: string | null
           target_qty?: number | null
@@ -1673,6 +2190,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      production_orders: {
+        Row: {
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          line: string | null
+          packaging_type: string | null
+          pallet_qr: string | null
+          planned_date: string | null
+          po_number: string
+          qty: number | null
+          sku: string | null
+          status: string
+          trello_ref: string | null
+          updated_at: string
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          line?: string | null
+          packaging_type?: string | null
+          pallet_qr?: string | null
+          planned_date?: string | null
+          po_number: string
+          qty?: number | null
+          sku?: string | null
+          status?: string
+          trello_ref?: string | null
+          updated_at?: string
+        }
+        Update: {
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          line?: string | null
+          packaging_type?: string | null
+          pallet_qr?: string | null
+          planned_date?: string | null
+          po_number?: string
+          qty?: number | null
+          sku?: string | null
+          status?: string
+          trello_ref?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       production_sessions: {
         Row: {
@@ -2001,6 +2572,133 @@ export type Database = {
         }
         Relationships: []
       }
+      pvs_sessions: {
+        Row: {
+          completed_at: string | null
+          id: string
+          line: string | null
+          operator: string | null
+          order_id: string | null
+          po_number: string | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          line?: string | null
+          operator?: string | null
+          order_id?: string | null
+          po_number?: string | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          line?: string | null
+          operator?: string | null
+          order_id?: string | null
+          po_number?: string | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pvs_sessions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "production_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qc_inspections: {
+        Row: {
+          batch_code: string | null
+          checks: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          inspected_on: string
+          inspector_name: string | null
+          line: string | null
+          notes: string | null
+          release: string
+          shift: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          batch_code?: string | null
+          checks?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inspected_on?: string
+          inspector_name?: string | null
+          line?: string | null
+          notes?: string | null
+          release?: string
+          shift?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          batch_code?: string | null
+          checks?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inspected_on?: string
+          inspector_name?: string | null
+          line?: string | null
+          notes?: string | null
+          release?: string
+          shift?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quality_action_history: {
+        Row: {
+          action_id: string
+          changed_at: string
+          changed_by: string | null
+          field: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+        }
+        Insert: {
+          action_id: string
+          changed_at?: string
+          changed_by?: string | null
+          field: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Update: {
+          action_id?: string
+          changed_at?: string
+          changed_by?: string | null
+          field?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_action_history_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "quality_actions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quality_action_types: {
         Row: {
           active: boolean
@@ -2036,6 +2734,7 @@ export type Database = {
           action_no: string | null
           action_type_id: string | null
           attachments: string[]
+          batch: string | null
           created_at: string
           department: string | null
           description: string | null
@@ -2050,6 +2749,7 @@ export type Database = {
           session_id: string | null
           severity: string | null
           shift: string | null
+          sku: string | null
           status: string
           updated_at: string
         }
@@ -2057,6 +2757,7 @@ export type Database = {
           action_no?: string | null
           action_type_id?: string | null
           attachments?: string[]
+          batch?: string | null
           created_at?: string
           department?: string | null
           description?: string | null
@@ -2071,6 +2772,7 @@ export type Database = {
           session_id?: string | null
           severity?: string | null
           shift?: string | null
+          sku?: string | null
           status?: string
           updated_at?: string
         }
@@ -2078,6 +2780,7 @@ export type Database = {
           action_no?: string | null
           action_type_id?: string | null
           attachments?: string[]
+          batch?: string | null
           created_at?: string
           department?: string | null
           description?: string | null
@@ -2092,6 +2795,7 @@ export type Database = {
           session_id?: string | null
           severity?: string | null
           shift?: string | null
+          sku?: string | null
           status?: string
           updated_at?: string
         }
@@ -2111,6 +2815,182 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      quality_capa: {
+        Row: {
+          action_id: string
+          action_plan: string | null
+          capa_no: string | null
+          created_at: string
+          created_by: string | null
+          due_date: string | null
+          effectiveness: string | null
+          effectiveness_ok: boolean | null
+          five_whys: Json
+          id: string
+          ishikawa: Json
+          problem: string | null
+          responsible: string | null
+          root_cause: string | null
+          status: string
+          updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          action_id: string
+          action_plan?: string | null
+          capa_no?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          effectiveness?: string | null
+          effectiveness_ok?: boolean | null
+          five_whys?: Json
+          id?: string
+          ishikawa?: Json
+          problem?: string | null
+          responsible?: string | null
+          root_cause?: string | null
+          status?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          action_id?: string
+          action_plan?: string | null
+          capa_no?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          effectiveness?: string | null
+          effectiveness_ok?: boolean | null
+          five_whys?: Json
+          id?: string
+          ishikawa?: Json
+          problem?: string | null
+          responsible?: string | null
+          root_cause?: string | null
+          status?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_capa_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: true
+            referencedRelation: "quality_actions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quality_daily_stats: {
+        Row: {
+          batches: number
+          ccp_checks: number
+          created_by: string | null
+          id: string
+          line: string
+          notes: string | null
+          qas_checks: number
+          stat_date: string
+          toolbox_checks: number
+          updated_at: string
+        }
+        Insert: {
+          batches?: number
+          ccp_checks?: number
+          created_by?: string | null
+          id?: string
+          line: string
+          notes?: string | null
+          qas_checks?: number
+          stat_date: string
+          toolbox_checks?: number
+          updated_at?: string
+        }
+        Update: {
+          batches?: number
+          ccp_checks?: number
+          created_by?: string | null
+          id?: string
+          line?: string
+          notes?: string | null
+          qas_checks?: number
+          stat_date?: string
+          toolbox_checks?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quality_options: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          kind: string
+          sort: number
+          value: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          kind: string
+          sort?: number
+          value: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          kind?: string
+          sort?: number
+          value?: string
+        }
+        Relationships: []
+      }
+      quality_weekly_stats: {
+        Row: {
+          batches: number
+          ccp_checks: number
+          created_by: string | null
+          id: string
+          line: string
+          notes: string | null
+          qas_checks: number
+          toolbox_checks: number
+          updated_at: string
+          week_start: string
+        }
+        Insert: {
+          batches?: number
+          ccp_checks?: number
+          created_by?: string | null
+          id?: string
+          line: string
+          notes?: string | null
+          qas_checks?: number
+          toolbox_checks?: number
+          updated_at?: string
+          week_start: string
+        }
+        Update: {
+          batches?: number
+          ccp_checks?: number
+          created_by?: string | null
+          id?: string
+          line?: string
+          notes?: string | null
+          qas_checks?: number
+          toolbox_checks?: number
+          updated_at?: string
+          week_start?: string
+        }
+        Relationships: []
       }
       rag_week_exclusions: {
         Row: {
@@ -2223,6 +3103,72 @@ export type Database = {
         }
         Relationships: []
       }
+      raw_material_lots: {
+        Row: {
+          coa_ref: string | null
+          created_at: string
+          created_by: string | null
+          expiry_date: string | null
+          id: string
+          material_name: string
+          notes: string | null
+          quantity: number | null
+          received_on: string | null
+          supplier_lot: string | null
+          supplier_name: string | null
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          coa_ref?: string | null
+          created_at?: string
+          created_by?: string | null
+          expiry_date?: string | null
+          id?: string
+          material_name: string
+          notes?: string | null
+          quantity?: number | null
+          received_on?: string | null
+          supplier_lot?: string | null
+          supplier_name?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          coa_ref?: string | null
+          created_at?: string
+          created_by?: string | null
+          expiry_date?: string | null
+          id?: string
+          material_name?: string
+          notes?: string | null
+          quantity?: number | null
+          received_on?: string | null
+          supplier_lot?: string | null
+          supplier_name?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      role_mobile_hidden: {
+        Row: {
+          action: string
+          created_at: string
+          role: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          role: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          role?: string
+        }
+        Relationships: []
+      }
       role_permission_overrides: {
         Row: {
           action: string
@@ -2253,6 +3199,53 @@ export type Database = {
         }
         Relationships: []
       }
+      scan_events: {
+        Row: {
+          component: string | null
+          expected_material_id: string | null
+          id: string
+          operator: string | null
+          order_id: string | null
+          result: string
+          scanned_at: string
+          scanned_barcode: string | null
+          scanned_material_id: string | null
+          session_id: string | null
+        }
+        Insert: {
+          component?: string | null
+          expected_material_id?: string | null
+          id?: string
+          operator?: string | null
+          order_id?: string | null
+          result: string
+          scanned_at?: string
+          scanned_barcode?: string | null
+          scanned_material_id?: string | null
+          session_id?: string | null
+        }
+        Update: {
+          component?: string | null
+          expected_material_id?: string | null
+          id?: string
+          operator?: string | null
+          order_id?: string | null
+          result?: string
+          scanned_at?: string
+          scanned_barcode?: string | null
+          scanned_material_id?: string | null
+          session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scan_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "pvs_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shift_report_settings: {
         Row: {
           day_enabled: boolean
@@ -2282,6 +3275,27 @@ export type Database = {
           last_sent_day_at?: string | null
           last_sent_night_at?: string | null
           night_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      signup_config: {
+        Row: {
+          enabled: boolean
+          id: boolean
+          invite_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          enabled?: boolean
+          id?: boolean
+          invite_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          id?: boolean
+          invite_code?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -3196,6 +4210,21 @@ export type Database = {
         Args: { _new_email: string; _user_id: string }
         Returns: undefined
       }
+      check_invite_code: { Args: { code: string }; Returns: boolean }
+      cleanup_batch_skus: {
+        Args: never
+        Returns: {
+          deleted: number
+          repointed: number
+        }[]
+      }
+      clear_all_production: {
+        Args: never
+        Returns: {
+          blenders_deleted: number
+          items_deleted: number
+        }[]
+      }
       compute_smart_target: {
         Args: { _entry_date: string; _line: string; _shift: string }
         Returns: Json
@@ -3247,6 +4276,7 @@ export type Database = {
         Returns: boolean
       }
       import_sku_products: { Args: { _rows: Json }; Returns: Json }
+      is_operator_chat_admin: { Args: { uid: string }; Returns: boolean }
       list_active_profile_names: {
         Args: never
         Returns: {
@@ -3264,6 +4294,15 @@ export type Database = {
         }[]
       }
       list_dm_operators: {
+        Args: never
+        Returns: {
+          email: string
+          line_labels: string
+          name: string
+          user_id: string
+        }[]
+      }
+      list_dm_partners: {
         Args: never
         Returns: {
           email: string
@@ -3356,6 +4395,8 @@ export type Database = {
         Args: { _reason: string; _wo_id: string }
         Returns: Json
       }
+      restore_item_skus_from_backup: { Args: never; Returns: number }
+      restore_remaining_null_skus: { Args: never; Returns: number }
       set_admin_pin: { Args: { _new_pin: string }; Returns: undefined }
       set_engineer_pin: {
         Args: { _new_pin: string; _user_id: string }
