@@ -451,21 +451,23 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
   const { user } = useAuth();
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [fileName, setFileName] = useState("");
+  const [totalRead, setTotalRead] = useState(0);
   const [importing, setImporting] = useState(false);
 
-  const reset = () => { setRows([]); setFileName(""); };
+  const reset = () => { setRows([]); setFileName(""); setTotalRead(0); };
 
   const handleFile = async (file: File) => {
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: "array", cellDates: false });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }) as Record<string, unknown>[];
+      // read EVERY sheet, not just the first
+      const json = wb.SheetNames.flatMap((n) => XLSX.utils.sheet_to_json(wb.Sheets[n], { defval: "", raw: false }) as Record<string, unknown>[]);
       const parsed = kind === "materials" ? json.map(parseMaterial).filter((r) => r.barcode || r.ap_code)
         : kind === "orders" ? json.map(parseOrder).filter((r) => r.po_number)
         : json.map(parseSkuList).filter((r) => r.sku && r.barcode);
       if (parsed.length === 0) { toast.error("No valid rows found. Check the column headers."); return; }
       setRows(parsed as Record<string, unknown>[]);
+      setTotalRead(json.length);
       setFileName(file.name);
     } catch (e) { toast.error(`Could not read file: ${(e as Error)?.message ?? "unknown"}`); }
   };
@@ -578,7 +580,7 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
               <Upload className="h-4 w-4" /> Choose file
               <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
             </label>
-            {fileName && <span className="text-sm text-muted-foreground">{fileName} — {rows.length} rows</span>}
+            {fileName && <span className="text-sm text-muted-foreground">{fileName} — {rows.length} valid{totalRead > rows.length ? ` · ${totalRead - rows.length} skipped (blank SKU/barcode)` : ""}</span>}
           </div>
 
           {rows.length > 0 && (
