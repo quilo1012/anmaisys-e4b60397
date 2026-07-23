@@ -506,7 +506,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
   const [skuDebounced, setSkuDebounced] = useState("");
   const [selectedSku, setSelectedSku] = useState<{ id: string; code: string; name: string } | null>(null);
   const [skuPopoverOpen, setSkuPopoverOpen] = useState(false);
-  const [batch, setBatch] = useState("");
+  const [assembly, setAssembly] = useState(""); // stored in blender_ref (replaces the old batch code)
   const [blender, setBlender] = useState<number | null>(null);
   const [qty, setQty] = useState<string>("");
   const [startTime, setStartTime] = useState("");   // "HH:mm"
@@ -547,7 +547,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
     setSelectedSku(null);
     setSkuQuery("");
     setSkuDebounced("");
-    setBatch("");
+    setAssembly("");
     setBlender(null);
     setQty("");
     setStartTime("");
@@ -561,8 +561,11 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
     // as-is (no new SKU is created). Admin reconciles the real SKU later.
     const rawCode = skuQuery.trim().replace(/\s+—\s+.*$/, "").trim();
     if (!selectedSku && !rawCode) { toast.error("Enter or select a SKU"); return; }
+    if (!assembly.trim()) { toast.error("Enter the assembly number"); return; }
     if (!Number.isFinite(blenderNum) || !Number.isInteger(blenderNum) || blenderNum < 1) { toast.error("Enter a valid blender number"); return; }
     if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
+    if (!startTime) { toast.error("Enter the start time"); return; }
+    if (!finishTime) { toast.error("Enter the finish time"); return; }
 
     const skuId: string | null = selectedSku?.id ?? null;
     const skuText: string | null = selectedSku ? null : rawCode;
@@ -577,7 +580,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
         .select("id, blender_ref")
         .eq("session_id", sessionId);
       findQ = skuId ? findQ.eq("sku_id", skuId) : findQ.is("sku_id", null).eq("sku_code_text", skuText);
-      findQ = batch ? findQ.eq("blender_ref", batch) : findQ.is("blender_ref", null);
+      findQ = findQ.eq("blender_ref", assembly.trim());
       const { data: existingItem, error: findErr } = await findQ.maybeSingle();
       if (findErr) throw findErr;
 
@@ -593,7 +596,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
             planned_qty: 0,
             actual_qty: 0,
             notes: "manual_sku",
-            blender_ref: batch || null,
+            blender_ref: assembly.trim(),
             started_at: hmToIso(startTime),
             finished_at: hmToIso(finishTime),
           })
@@ -658,7 +661,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
         <div className="flex items-center justify-between">
           <div>
             <div className="text-base font-semibold">Log Production</div>
-            <div className="text-xs text-muted-foreground">Record a produced batch to the current shift.</div>
+            <div className="text-xs text-muted-foreground">Record produced quantity to the current shift.</div>
           </div>
         </div>
 
@@ -721,13 +724,13 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
           </Popover>
         </div>
 
-        {/* Batch */}
+        {/* Assembly number (required) */}
         <div className="space-y-1.5">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Batch code <span className="text-muted-foreground/70 normal-case">(optional)</span></div>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Assembly number</div>
           <Input
-            value={batch}
-            onChange={(e) => setBatch(e.target.value)}
-            placeholder="e.g. B3"
+            value={assembly}
+            onChange={(e) => setAssembly(e.target.value)}
+            placeholder="e.g. ASM-12345"
             className="h-11"
             autoComplete="off"
           />
@@ -766,7 +769,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
         {/* Production time (optional) — Start/Finish stamp + editable */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">Production time <span className="text-muted-foreground/70 normal-case">(optional)</span></div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Production time</div>
             {hmDurationMin(startTime, finishTime) != null && (
               <div className="text-xs font-medium text-muted-foreground">
                 Duration: {Math.floor(hmDurationMin(startTime, finishTime)! / 60)}h {hmDurationMin(startTime, finishTime)! % 60}m
@@ -775,13 +778,13 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="flex items-center gap-1.5">
-              <Button type="button" variant="outline" className="h-11 shrink-0" onClick={() => setStartTime(nowHM())}>
+              <Button type="button" className="h-11 shrink-0 bg-green-600 hover:bg-green-700 text-white" onClick={() => setStartTime(nowHM())}>
                 <Play className="h-4 w-4 mr-1" /> Start
               </Button>
               <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="h-11" aria-label="Start time" />
             </div>
             <div className="flex items-center gap-1.5">
-              <Button type="button" variant="outline" className="h-11 shrink-0" onClick={() => setFinishTime(nowHM())}>
+              <Button type="button" className="h-11 shrink-0 bg-red-600 hover:bg-red-700 text-white" onClick={() => setFinishTime(nowHM())}>
                 <Square className="h-4 w-4 mr-1" /> Finish
               </Button>
               <Input type="time" value={finishTime} onChange={(e) => setFinishTime(e.target.value)} className="h-11" aria-label="Finish time" />
@@ -862,7 +865,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
           <ul className="divide-y rounded-md border">
             {entries.map((e) => {
               const sku = e.production_items?.sku;
-              const batch = e.production_items?.blender_ref;
+              const assembly = e.production_items?.blender_ref;
               return (
                 <li key={e.id} className="flex items-center gap-3 p-2">
                   <div className="flex-1 min-w-0">
@@ -874,8 +877,8 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                       <span className="inline-flex items-center rounded bg-secondary text-secondary-foreground px-1.5 py-0.5 text-[10px] font-medium">
                         Blender {e.blender_number}
                       </span>
-                      {batch && (
-                        <span className="text-[10px] text-muted-foreground">Batch {batch}</span>
+                      {assembly && (
+                        <span className="text-[10px] text-muted-foreground">Assembly {assembly}</span>
                       )}
                     </div>
                   </div>
