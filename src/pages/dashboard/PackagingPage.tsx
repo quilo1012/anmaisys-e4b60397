@@ -444,9 +444,9 @@ type ImportKind = "materials" | "orders" | "labels" | "bags";
 
 interface FieldDef { key: string; label: string; required?: boolean; aliases: string[] }
 const SKU_FIELDS: FieldDef[] = [
-  { key: "sku", label: "HB SKU", required: true, aliases: ["hb sku", "hb_sku", "hbsku", "sku"] },
+  { key: "product", label: "Product name", required: true, aliases: ["product", "product name", "name", "nome", "desc", "description", "descricao", "descrição"] },
   { key: "barcode", label: "Barcode", required: true, aliases: ["barcode", "ean", "gtin", "bar code", "código de barras", "codigo de barras"] },
-  { key: "description", label: "Product / description", aliases: ["product", "description", "name", "nome", "desc", "descricao", "descrição"] },
+  { key: "hb_sku", label: "HB SKU (optional)", aliases: ["hb sku", "hb_sku", "hbsku", "sku"] },
 ];
 const FIELD_CONFIGS: Record<ImportKind, FieldDef[]> = {
   labels: SKU_FIELDS,
@@ -488,8 +488,10 @@ function toIsoDate(s: string): string | null {
 }
 function transformRow(row: Record<string, unknown>, mapping: Record<string, string>, kind: ImportKind): Record<string, unknown> | null {
   if (kind === "labels" || kind === "bags") {
-    const r = { sku: pick(row, mapping, "sku"), barcode: pick(row, mapping, "barcode") || null, description: pick(row, mapping, "description") || null };
-    return r.sku && r.barcode ? r : null;
+    const product = pick(row, mapping, "product");
+    const barcode = pick(row, mapping, "barcode");
+    const sku = product || pick(row, mapping, "hb_sku"); // key = product name; fall back to HB SKU
+    return sku && barcode ? { sku, barcode: barcode || null, description: product || null } : null;
   }
   if (kind === "materials") {
     const r = {
