@@ -65,10 +65,10 @@ export function ReportsFilterBar({
       {showLine && (
         <Select value={lineId!} onValueChange={onLineChange!}>
           <SelectTrigger className="h-9 w-[180px]">
-            <SelectValue placeholder="All lines" />
+            <SelectValue placeholder="All Lines" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">All lines</SelectItem>
+            <SelectItem value="ALL">All Lines</SelectItem>
             {(lines ?? []).map((l: any) => (
               <SelectItem key={l.id} value={l.id}>
                 {l.name}

@@ -203,7 +203,7 @@ export default function ProblemsPage() {
                         <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{p.description || <span className="italic">Missing</span>}</TableCell>
                         <TableCell>
                           {assignedLines.length === 0 ? (
-                            <span className="text-xs text-muted-foreground italic">All lines</span>
+                            <span className="text-xs text-muted-foreground italic">All Lines</span>
                           ) : (
                             <div className="flex flex-wrap gap-1 max-w-[220px]">
                               {assignedLines.slice(0, 3).map((n) => (

@@ -846,7 +846,7 @@ function EngineerDashboardContent() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Completed today</CardTitle>
+                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Completed Today</CardTitle>
                   <div className="h-9 w-9 rounded-lg bg-green-500/15 flex items-center justify-center">
                     <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                   </div>

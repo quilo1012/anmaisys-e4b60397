@@ -57,7 +57,7 @@ function KpiCard({
     <Card className={highlight ? "border-destructive" : ""}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div className="flex items-center gap-1.5">
-          <CardTitle className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+          <CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle>
           <KpiInfoTooltip text={tooltip} />
         </div>
         <div className={`flex h-8 w-8 items-center justify-center rounded-md ${KPI_TONE[tone]}`}>
@@ -257,11 +257,11 @@ function ManagerDashboardContent() {
             tooltip="In Progress: orders already accepted by an engineer and being worked on (received, traveling, or under repair)."
           />
           <KpiCard
-            label="Finished Today"
+            label="Completed Today"
             value={completedToday}
             icon={ClipboardList}
             tone="green"
-            tooltip="Finished Today: number of orders completed (finished/closed/completed) today. Daily productivity indicator."
+            tooltip="Completed Today: number of orders completed (finished/closed/completed) today. Daily productivity indicator."
           />
           <KpiCard
             label="Low Stock"

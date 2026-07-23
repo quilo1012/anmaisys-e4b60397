@@ -288,7 +288,7 @@ export function QualityActionsView() {
           </Select>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All status</SelectItem>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="__all__">All Statuses</SelectItem>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={filterSeverity} onValueChange={setFilterSeverity}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
@@ -296,7 +296,7 @@ export function QualityActionsView() {
           </Select>
           <Select value={filterLine} onValueChange={setFilterLine}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All lines</SelectItem>{lines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="__all__">All Lines</SelectItem>{lines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={filterDept} onValueChange={setFilterDept}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>

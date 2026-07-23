@@ -120,7 +120,7 @@ export default function ExecutiveDashboard() {
         <ReportPrintHeader
           title="Executive Dashboard"
           periodLabel={`${kpiRange.from ? format(kpiRange.from, "dd/MM/yyyy HH:mm") : "—"} — ${kpiRange.to ? format(kpiRange.to, "dd/MM/yyyy HH:mm") : "—"}`}
-          shift={shiftFilter === "ALL" ? "All shifts" : shiftFilter === "DAY" ? "Day" : "Night"}
+          shift={shiftFilter === "ALL" ? "All Shifts" : shiftFilter === "DAY" ? "Day" : "Night"}
         />
 
         <div className="flex items-center justify-between print:hidden">
