@@ -119,6 +119,16 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
     return c;
   }, [materials]);
 
+  // Only show optional columns that actually carry data (labels have just barcode + description).
+  const cols = useMemo(() => ({
+    ap_code: filtered.some((m) => m.ap_code),
+    country: filtered.some((m) => m.country),
+    flavour: filtered.some((m) => m.flavour),
+    size: filtered.some((m) => m.size),
+    pack_type: filtered.some((m) => m.pack_type),
+  }), [filtered]);
+  const colCount = 3 + Object.values(cols).filter(Boolean).length;
+
   const save = useMutation({
     mutationFn: async () => {
       if (!form.material_type) throw new Error("Material type is required");
@@ -165,21 +175,26 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
         <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader><TableRow>
-              <TableHead>Type</TableHead><TableHead>Barcode</TableHead><TableHead>AP code</TableHead>
-              <TableHead>Description</TableHead><TableHead>Country</TableHead><TableHead>Flavour</TableHead><TableHead>Size</TableHead><TableHead>Pack</TableHead>
+              <TableHead>Type</TableHead><TableHead>Barcode</TableHead>
+              {cols.ap_code && <TableHead>AP code</TableHead>}
+              <TableHead>Description</TableHead>
+              {cols.country && <TableHead>Country</TableHead>}
+              {cols.flavour && <TableHead>Flavour</TableHead>}
+              {cols.size && <TableHead>Size</TableHead>}
+              {cols.pack_type && <TableHead>Pack</TableHead>}
             </TableRow></TableHeader>
             <TableBody>
-              {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No materials</TableCell></TableRow>}
+              {filtered.length === 0 && <TableRow><TableCell colSpan={colCount} className="text-center text-muted-foreground">No materials</TableCell></TableRow>}
               {filtered.slice(0, 500).map((m) => (
                 <TableRow key={m.id} className={cn(canManage && "cursor-pointer")} onClick={() => { if (canManage) { setForm(m); setEditOpen(true); } }}>
                   <TableCell><Badge variant="outline" className="text-[10px] capitalize">{m.material_type}</Badge></TableCell>
                   <TableCell className="font-mono text-xs">{m.barcode ?? "—"}</TableCell>
-                  <TableCell className="font-mono text-xs">{m.ap_code ?? "—"}</TableCell>
+                  {cols.ap_code && <TableCell className="font-mono text-xs">{m.ap_code ?? "—"}</TableCell>}
                   <TableCell className="max-w-[16rem] truncate">{m.description ?? "—"}</TableCell>
-                  <TableCell>{m.country ?? "—"}</TableCell>
-                  <TableCell>{m.flavour ?? "—"}</TableCell>
-                  <TableCell>{m.size ?? "—"}</TableCell>
-                  <TableCell>{m.pack_type ?? "—"}</TableCell>
+                  {cols.country && <TableCell>{m.country ?? "—"}</TableCell>}
+                  {cols.flavour && <TableCell>{m.flavour ?? "—"}</TableCell>}
+                  {cols.size && <TableCell>{m.size ?? "—"}</TableCell>}
+                  {cols.pack_type && <TableCell>{m.pack_type ?? "—"}</TableCell>}
                 </TableRow>
               ))}
             </TableBody>
@@ -563,7 +578,7 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; 
         // 1) upsert materials (dedupe by barcode), collect barcode -> id
         const seenBc = new Set<string>();
         const mats = valid.filter((r) => !seenBc.has(r.barcode) && seenBc.add(r.barcode))
-          .map((r) => ({ material_type: type, barcode: r.barcode, description: r.description, pack_type: pack, active: true, created_by: user?.id ?? null }));
+          .map((r) => ({ material_type: type, barcode: r.barcode, description: r.description, active: true, created_by: user?.id ?? null }));
         const barcodeToId = new Map<string, string>();
         for (let i = 0; i < mats.length; i += 200) {
           const { data, error } = await tbl("materials").upsert(mats.slice(i, i + 200) as never, { onConflict: "barcode" }).select("id, barcode");
