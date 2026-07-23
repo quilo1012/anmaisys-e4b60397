@@ -32,7 +32,8 @@ import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
-import { can, subscribePermissionOverrides, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, type Action } from "@/lib/permissions";
+import { can, canOnDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, type Action } from "@/lib/permissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { PushOnboarding } from "@/components/PushOnboarding";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
@@ -353,7 +354,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   useHeartbeat();
 
   useEffect(() => {
-    return subscribePermissionOverrides(() => setPermissionVersion((v) => v + 1));
+    const a = subscribePermissionOverrides(() => setPermissionVersion((v) => v + 1));
+    const b = subscribeMobileHidden(() => setPermissionVersion((v) => v + 1));
+    return () => { a(); b(); };
   }, []);
 
   useEffect(() => {
@@ -391,11 +394,13 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     document.title = `AN Maintenance | ${pageName}`;
   }, [location.pathname]);
 
+  const isMobile = useIsMobile();
   const filteredItems = navItems.filter(
     (item) =>
       effectiveRole &&
       item.roles.includes(effectiveRole as AppRole) &&
-      (!item.action || can(effectiveRole as AppRole, item.action)),
+      // On mobile, also respect per-role mobile visibility (role_mobile_hidden).
+      (!item.action || canOnDevice(effectiveRole as AppRole, item.action, isMobile)),
   );
   const permissionOverrideCount = ALL_ROLES.reduce(
     (sum, role) => sum + ALL_ACTIONS.filter((action) => isPermissionOverridden(role, action)).length,

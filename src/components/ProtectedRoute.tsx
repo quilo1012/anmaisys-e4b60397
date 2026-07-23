@@ -4,7 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { Database } from "@/integrations/supabase/types";
 import { Loader2, RefreshCw, ShieldAlert, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { can, roleDashMap, subscribePermissionOverrides, type Action } from "@/lib/permissions";
+import { can, roleDashMap, subscribePermissionOverrides, subscribeMobileHidden, isMobileHidden, type Action } from "@/lib/permissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -17,9 +18,12 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, allowedRoles, requiredAction }: ProtectedRouteProps) {
   const { session, role, profile, loading, authError, silentReLoginInFlight, retryAuth, signOut } = useAuth();
   const [, setPermissionVersion] = useState(0);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
-    return subscribePermissionOverrides(() => setPermissionVersion((v) => v + 1));
+    const a = subscribePermissionOverrides(() => setPermissionVersion((v) => v + 1));
+    const b = subscribeMobileHidden(() => setPermissionVersion((v) => v + 1));
+    return () => { a(); b(); };
   }, []);
 
   if (authError && session && !role) {
@@ -155,6 +159,24 @@ export function ProtectedRoute({ children, allowedRoles, requiredAction }: Prote
           <ShieldAlert className="mx-auto h-12 w-12 text-destructive" />
           <h1 className="text-xl font-semibold text-foreground">Access Denied</h1>
           <p className="text-muted-foreground text-sm">You don't have permission to view this page.</p>
+          <Button asChild variant="outline">
+            <Link to={homePath}>Go to your dashboard</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Mobile visibility: an admin may hide specific screens on mobile (role_mobile_hidden),
+  // even for roles that otherwise have access (including admin). Block direct navigation.
+  if (isMobile && requiredAction && role && isMobileHidden(effectiveRole, requiredAction)) {
+    const homePath = roleDashMap[role] || "/login";
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="text-center space-y-4">
+          <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground" />
+          <h1 className="text-xl font-semibold text-foreground">Not available on mobile</h1>
+          <p className="text-muted-foreground text-sm">This screen is only available on a computer. Please use a desktop.</p>
           <Button asChild variant="outline">
             <Link to={homePath}>Go to your dashboard</Link>
           </Button>

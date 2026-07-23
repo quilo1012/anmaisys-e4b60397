@@ -234,6 +234,34 @@ export function can(role: Role | null | undefined, action: Action): boolean {
   return MATRIX[action]?.includes(role) ?? false;
 }
 
+/**
+ * Mobile visibility. Keys `${role}:${action}` present in this set are HIDDEN on
+ * mobile for that role (loaded from `public.role_mobile_hidden`). Default = shown.
+ */
+let MOBILE_HIDDEN: Set<string> = new Set();
+const mobileListeners = new Set<() => void>();
+
+export function setMobileHidden(keys: string[]) {
+  MOBILE_HIDDEN = new Set(keys ?? []);
+  mobileListeners.forEach((l) => l());
+}
+export function subscribeMobileHidden(fn: () => void) {
+  mobileListeners.add(fn);
+  return () => { mobileListeners.delete(fn); };
+}
+export function isMobileHidden(role: Role, action: Action): boolean {
+  return MOBILE_HIDDEN.has(`${role}:${action}`);
+}
+/** Can the role perform/see the action on a mobile device (access AND mobile-visible). */
+export function canMobile(role: Role | null | undefined, action: Action): boolean {
+  if (!role) return false;
+  return can(role, action) && !MOBILE_HIDDEN.has(`${role}:${action}`);
+}
+/** Access on the current device: full `can` on desktop, `canMobile` on mobile. */
+export function canOnDevice(role: Role | null | undefined, action: Action, isMobile: boolean): boolean {
+  return isMobile ? canMobile(role, action) : can(role, action);
+}
+
 /** All known actions (for admin UIs). */
 export const ALL_ACTIONS: Action[] = Object.keys(MATRIX) as Action[];
 export const ALL_ROLES: Role[] = [...ALL, "warehouse", "quality_supervisor"];
