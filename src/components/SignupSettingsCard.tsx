@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, UserPlus, RefreshCw, Copy } from "lucide-react";
+import { Loader2, UserPlus, RefreshCw, Copy, Send } from "lucide-react";
 import { toast } from "sonner";
 
 /** Random, easy-to-read invite code (no ambiguous chars). */
@@ -78,6 +78,30 @@ export function SignupSettingsCard() {
               </div>
               <p className="text-xs text-muted-foreground">Share this code with people you want to let register. Click <b>Generate</b> for a random one, then <b>Save</b>. Change it anytime to revoke access.</p>
             </div>
+
+            {code.trim() && (() => {
+              const origin = typeof window !== "undefined" ? window.location.origin : "";
+              const link = `${origin}/signup?code=${encodeURIComponent(code.trim())}`;
+              const message = `Create your ${document.title || "system"} account here: ${link}\nInvite code: ${code.trim()}`;
+              return (
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Invite link</Label>
+                  <div className="flex gap-2">
+                    <Input readOnly value={link} className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+                    <Button type="button" variant="outline" size="icon" title="Copy link"
+                      onClick={() => { navigator.clipboard?.writeText(link); toast.success("Invite link copied"); }}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Button type="button" variant="outline" size="sm"
+                    onClick={() => { navigator.clipboard?.writeText(message); toast.success("Invite message copied — paste it to the person"); }}>
+                    <Send className="mr-1 h-4 w-4" /> Copy link + code to send
+                  </Button>
+                  <p className="text-xs text-muted-foreground">The link opens sign-up with the code already filled in. Save the code first so the link works.</p>
+                </div>
+              );
+            })()}
+
             <div className="flex justify-end">
               <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}Save</Button>
             </div>

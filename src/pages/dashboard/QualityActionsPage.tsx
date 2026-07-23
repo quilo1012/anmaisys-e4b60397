@@ -186,6 +186,25 @@ export function QualityActionsView() {
     return () => { cancelled = true; };
   }, [open, form.line, form.date, form.shift, leaders]);
 
+  // As soon as a batch code is typed, pull the SKU from production (by batch/blender_ref).
+  // If the operator hasn't logged that batch yet, the action still saves with the batch and
+  // the SKU is back-filled automatically once the production is entered (DB trigger).
+  useEffect(() => {
+    if (!open || !form.batch.trim()) return;
+    const t = setTimeout(async () => {
+      const { data } = await (supabase as any)
+        .from("production_items")
+        .select("sku_code_text, sku:sku_id(code)")
+        .eq("blender_ref", form.batch.trim())
+        .order("created_at", { ascending: false })
+        .limit(1);
+      const it = (data ?? [])[0];
+      const sku = it?.sku?.code ?? it?.sku_code_text ?? "";
+      if (sku) setForm((f) => ({ ...f, sku }));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [open, form.batch]);
+
   const setStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { error } = await supabase.from("quality_actions").update({ status }).eq("id", id);
