@@ -195,15 +195,23 @@ export default function MachinesPage() {
     return `MCH-${String(max + 1).padStart(3, "0")}`;
   }, [machines]);
 
-  const filteredMachines = useMemo(() => {
+  // Warehouse admin only sees warehouse assets (current_location is a warehouse),
+  // never production-line machines. Same definition used in the warehouse dashboard.
+  const scopedMachines = useMemo(() => {
     if (!machines) return [];
+    if (!isWarehouse) return machines;
+    const set = new Set(WAREHOUSE_LOCATIONS.map((l) => l.toLowerCase()));
+    return machines.filter((m) => set.has((m.current_location || "").trim().toLowerCase()));
+  }, [machines, isWarehouse]);
+
+  const filteredMachines = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return machines;
-    return machines.filter((m) =>
+    if (!q) return scopedMachines;
+    return scopedMachines.filter((m) =>
       [m.name, m.machine_type, m.line, m.current_location, m.code, m.sector]
         .some((f) => (f || "").toLowerCase().includes(q))
     );
-  }, [machines, search]);
+  }, [scopedMachines, search]);
 
   // Pagination — 10 per page
   const PAGE_SIZE = 10;

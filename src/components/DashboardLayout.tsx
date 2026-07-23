@@ -75,7 +75,7 @@ const navItems: NavItem[] = [
   // Assets
   { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "warehouse"], group: "Assets", action: "machines.view" },
   { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Assets", action: "problems.view" },
-  { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "warehouse"], group: "Assets", action: "stock.view" },
+  { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"], group: "Assets", action: "stock.view" },
 
   // Production
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "supervisor"], group: "Production", action: "production.manage" },
