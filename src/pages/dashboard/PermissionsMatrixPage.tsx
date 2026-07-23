@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Check, X, ShieldCheck, Info, Save, RotateCcw, Loader2, Search, Filter, Eye, ArrowLeft, Smartphone, Monitor } from "lucide-react";
+import { Check, X, ShieldCheck, Info, Save, RotateCcw, Loader2, Search, Filter, Eye, ArrowLeft, Smartphone, Monitor, Tablet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,8 +26,9 @@ import {
   defaultCan,
   isPermissionOverridden,
   setPermissionOverrides,
-  isMobileHidden,
-  setMobileHidden,
+  isDeviceHidden,
+  setDeviceHidden,
+  type DeviceType,
   ALL_ACTIONS,
   ALL_ROLES,
   ACTION_GROUPS,
@@ -60,9 +61,9 @@ export default function PermissionsMatrixPage() {
 
   const [draft, setDraft] = useState<Record<string, boolean>>({});
   const [dirty, setDirty] = useState<Set<string>>(new Set());
-  const [mode, setMode] = useState<"access" | "mobile">("access");
-  const [mobileDraft, setMobileDraft] = useState<Record<string, boolean>>({}); // true = visible on mobile
-  const [mobileDirty, setMobileDirty] = useState<Set<string>>(new Set());
+  const [mode, setMode] = useState<"access" | "tablet" | "mobile">("access");
+  const [deviceDraft, setDeviceDraft] = useState<Record<string, boolean>>({}); // key `device:role:action` → visible
+  const [deviceDirty, setDeviceDirty] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -72,57 +73,60 @@ export default function PermissionsMatrixPage() {
   const [onlyChanged, setOnlyChanged] = useState(false);
   const [visibleRoles, setVisibleRoles] = useState<Set<Role>>(new Set(ALL_ROLES));
 
+  const DEVICES: DeviceType[] = ["tablet", "mobile"];
+  const dkey = (device: string, r: Role, a: Action) => `${device}:${r}:${a}`;
+
   useEffect(() => {
     const init: Record<string, boolean> = {};
-    const initMob: Record<string, boolean> = {};
+    const initDev: Record<string, boolean> = {};
     for (const r of ALL_ROLES) for (const a of ALL_ACTIONS) {
       init[keyOf(r, a)] = can(r, a);
-      initMob[keyOf(r, a)] = !isMobileHidden(r, a); // true = visible on mobile
+      for (const d of DEVICES) initDev[dkey(d, r, a)] = !isDeviceHidden(r, a, d); // true = visible on that device
     }
     setDraft(init);
-    setMobileDraft(initMob);
+    setDeviceDraft(initDev);
     setDirty(new Set());
-    setMobileDirty(new Set());
+    setDeviceDirty(new Set());
     setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const toggleMobile = (r: Role, a: Action) => {
-    if (!isAdmin) return;
-    const k = keyOf(r, a);
-    setMobileDraft((prev) => ({ ...prev, [k]: !(prev[k] ?? !isMobileHidden(r, a)) }));
-    setMobileDirty((prev) => {
+  const toggleDevice = (r: Role, a: Action) => {
+    if (!isAdmin || mode === "access") return;
+    const k = dkey(mode, r, a);
+    setDeviceDraft((prev) => ({ ...prev, [k]: !(prev[k] ?? !isDeviceHidden(r, a, mode)) }));
+    setDeviceDirty((prev) => {
       const next = new Set(prev);
       next.has(k) ? next.delete(k) : next.add(k);
       return next;
     });
   };
 
-  const saveMobile = async () => {
-    if (!isAdmin || mobileDirty.size === 0) return;
+  const saveDevice = async () => {
+    if (!isAdmin || deviceDirty.size === 0) return;
     setSaving(true);
     try {
-      const toHide: { role: string; action: string }[] = [];
-      const toShow: { role: string; action: string }[] = [];
-      for (const k of mobileDirty) {
-        const [r, a] = k.split(":");
-        (mobileDraft[k] ? toShow : toHide).push({ role: r, action: a });
+      const toHide: { role: string; action: string; device: string }[] = [];
+      const toShow: { role: string; action: string; device: string }[] = [];
+      for (const k of deviceDirty) {
+        const [device, r, a] = k.split(":");
+        (deviceDraft[k] ? toShow : toHide).push({ role: r, action: a, device });
       }
       if (toHide.length) {
-        const { error } = await (supabase as any).from("role_mobile_hidden").upsert(toHide, { onConflict: "role,action" });
+        const { error } = await (supabase as any).from("role_mobile_hidden").upsert(toHide, { onConflict: "role,action,device" });
         if (error) throw error;
       }
       for (const row of toShow) {
-        const { error } = await (supabase as any).from("role_mobile_hidden").delete().eq("role", row.role).eq("action", row.action);
+        const { error } = await (supabase as any).from("role_mobile_hidden").delete().eq("role", row.role).eq("action", row.action).eq("device", row.device);
         if (error) throw error;
       }
       const hidden: string[] = [];
-      for (const r of ALL_ROLES) for (const a of ALL_ACTIONS) {
-        const k = keyOf(r, a);
-        if (!(mobileDraft[k] ?? !isMobileHidden(r, a))) hidden.push(k);
+      for (const r of ALL_ROLES) for (const a of ALL_ACTIONS) for (const d of DEVICES) {
+        if (!(deviceDraft[dkey(d, r, a)] ?? !isDeviceHidden(r, a, d))) hidden.push(`${r}:${a}:${d}`);
       }
-      setMobileHidden(hidden);
-      setMobileDirty(new Set());
-      toast({ title: "Mobile visibility saved" });
+      setDeviceHidden(hidden);
+      setDeviceDirty(new Set());
+      toast({ title: "Device visibility saved" });
     } catch (e: any) {
       toast({ title: "Save failed", description: e?.message ?? "Could not save.", variant: "destructive" });
     } finally {
@@ -277,16 +281,19 @@ export default function PermissionsMatrixPage() {
               <h1 className="text-xl font-bold leading-tight">Permissions Matrix</h1>
               <p className="text-xs text-muted-foreground">
                 {!isAdmin ? "Read-only view."
-                  : mode === "mobile" ? "Toggle which screens each role sees on mobile. 📱 = shown, 🖥 = desktop only. Only cells with access can be toggled."
-                  : "Click any cell to toggle access. Changes apply live after save."}
+                  : mode === "access" ? "Click any cell to toggle access. Changes apply live after save."
+                  : `Toggle which screens each role sees on ${mode}. ${mode === "mobile" ? "📱" : "🖥"} = shown, ✕ = hidden on ${mode}. Only cells with access can be toggled. Desktop always shows everything the role can access.`}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Mode switch: Access vs Mobile visibility */}
+            {/* Mode switch: Access · Tablet · Mobile visibility */}
             <div className="inline-flex rounded-md border p-0.5">
               <Button type="button" size="sm" variant={mode === "access" ? "default" : "ghost"} className="h-7 px-2.5" onClick={() => setMode("access")}>
                 <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Access
+              </Button>
+              <Button type="button" size="sm" variant={mode === "tablet" ? "default" : "ghost"} className="h-7 px-2.5" onClick={() => setMode("tablet")}>
+                <Tablet className="mr-1 h-3.5 w-3.5" /> Tablet
               </Button>
               <Button type="button" size="sm" variant={mode === "mobile" ? "default" : "ghost"} className="h-7 px-2.5" onClick={() => setMode("mobile")}>
                 <Smartphone className="mr-1 h-3.5 w-3.5" /> Mobile
@@ -310,11 +317,11 @@ export default function PermissionsMatrixPage() {
               </>
             ) : (
               <>
-                {mobileDirty.size > 0 && <Badge variant="secondary" className="text-xs">{mobileDirty.size} unsaved</Badge>}
+                {deviceDirty.size > 0 && <Badge variant="secondary" className="text-xs">{deviceDirty.size} unsaved</Badge>}
                 {isAdmin && (
-                  <Button size="sm" onClick={saveMobile} disabled={saving || mobileDirty.size === 0}>
+                  <Button size="sm" onClick={saveDevice} disabled={saving || deviceDirty.size === 0}>
                     {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-                    Save mobile
+                    Save {mode}
                   </Button>
                 )}
               </>
@@ -453,17 +460,19 @@ export default function PermissionsMatrixPage() {
                             {rolesToShow.map((r) => {
                               const k = keyOf(r, a);
                               const allowed = draft[k] ?? can(r, a);
-                              if (mode === "mobile") {
-                                const visible = mobileDraft[k] ?? !isMobileHidden(r, a);
-                                const mobDirty = mobileDirty.has(k);
+                              if (mode !== "access") {
+                                const dk = dkey(mode, r, a);
+                                const visible = deviceDraft[dk] ?? !isDeviceHidden(r, a, mode);
+                                const devDirty = deviceDirty.has(dk);
+                                const OnIcon = mode === "mobile" ? Smartphone : Tablet;
                                 return (
                                   <td key={r} className="p-1 text-center align-middle">
                                     <button
                                       type="button"
                                       disabled={!isAdmin || !allowed}
-                                      onClick={() => toggleMobile(r, a)}
-                                      title={!allowed ? "No access" : visible ? "Visible on mobile" : "Hidden on mobile (desktop only)"}
-                                      aria-label={visible ? "visible on mobile" : "hidden on mobile"}
+                                      onClick={() => toggleDevice(r, a)}
+                                      title={!allowed ? "No access" : visible ? `Visible on ${mode}` : `Hidden on ${mode}`}
+                                      aria-label={visible ? `visible on ${mode}` : `hidden on ${mode}`}
                                       className={[
                                         "inline-flex h-7 w-7 items-center justify-center rounded-md border transition",
                                         !allowed
@@ -471,10 +480,10 @@ export default function PermissionsMatrixPage() {
                                           : visible
                                           ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400 cursor-pointer"
                                           : "border-amber-500/40 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-amber-400 cursor-pointer",
-                                        mobDirty ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : "",
+                                        devDirty ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : "",
                                       ].join(" ")}
                                     >
-                                      {!allowed ? <X className="h-3.5 w-3.5" /> : visible ? <Smartphone className="h-3.5 w-3.5" /> : <Monitor className="h-3.5 w-3.5" />}
+                                      {!allowed ? <X className="h-3.5 w-3.5" /> : visible ? <OnIcon className="h-3.5 w-3.5" /> : <Monitor className="h-3.5 w-3.5" />}
                                     </button>
                                   </td>
                                 );
