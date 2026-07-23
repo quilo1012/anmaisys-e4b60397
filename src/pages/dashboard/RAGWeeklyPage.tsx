@@ -1714,46 +1714,68 @@ function DayNightTotalSummary({
                   const cls = `p-1.5 text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
                   const editable = canEditEntries && lineFilter.length === 1 && ["plan", "actual"].includes(row.key);
                   const lineName = lineFilter[0];
+                  const commitValue = async (ds: string, shift: Shift, v: number) => {
+                    const existing = entryMap.get(`${ds}|${lineName}|${shift}`);
+                    const patch: Partial<Entry> =
+                      row.key === "plan" ? { plan_qty: v }
+                      : row.key === "actual" ? { actual_qty: v }
+                      : { downtime_min: v };
+                    if (existing?.id) {
+                      // Patch ONLY the edited field so we never clobber
+                      // sibling values (actual, downtime, notes, etc.).
+                      const { error } = await supabase
+                        .from("rag_weekly_entries")
+                        .update(patch)
+                        .eq("id", existing.id);
+                      if (error) { toast.error(error.message); return; }
+                      toast.success("Saved");
+                      qcExcl.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+                    } else if (onSave) {
+                      onSave({
+                        entry_date: ds,
+                        line: lineName,
+                        shift,
+                        plan_qty: row.key === "plan" ? v : 0,
+                        actual_qty: row.key === "actual" ? v : 0,
+                        upm_target: 0,
+                        upm_actual: 0,
+                        downtime_min: row.key === "dt" ? v : 0,
+                        notes: null,
+                      });
+                    }
+                  };
                   const renderEdit = (ds: string, shift: Shift) => {
                     const existing = entryMap.get(`${ds}|${lineName}|${shift}`);
                     const current =
                       row.key === "plan" ? (existing?.plan_qty ?? 0)
                       : row.key === "actual" ? (existing?.actual_qty ?? 0)
                       : (existing?.downtime_min ?? 0);
-                    return (
+                    const input = (
                       <SummaryInlineInput
                         value={current}
-                        onCommit={async (v) => {
-                          const patch: Partial<Entry> =
-                            row.key === "plan" ? { plan_qty: v }
-                            : row.key === "actual" ? { actual_qty: v }
-                            : { downtime_min: v };
-                          if (existing?.id) {
-                            // Patch ONLY the edited field so we never clobber
-                            // sibling values (actual, downtime, notes, etc.).
-                            const { error } = await supabase
-                              .from("rag_weekly_entries")
-                              .update(patch)
-                              .eq("id", existing.id);
-                            if (error) { toast.error(error.message); return; }
-                            toast.success("Saved");
-                            qcExcl.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
-                          } else if (onSave) {
-                            onSave({
-                              entry_date: ds,
-                              line: lineName,
-                              shift,
-                              plan_qty: row.key === "plan" ? v : 0,
-                              actual_qty: row.key === "actual" ? v : 0,
-                              upm_target: 0,
-                              upm_actual: 0,
-                              downtime_min: row.key === "dt" ? v : 0,
-                              notes: null,
-                            });
-                          }
-                        }}
+                        onCommit={(v) => commitValue(ds, shift, v)}
                         onOpen={() => onOpenFull?.(ds, lineName, shift)}
                       />
+                    );
+                    if (row.key !== "plan") return input;
+                    // Plan (target) row: quick "+1%" stretch button. Each click compounds
+                    // ×1.01 (rounded), guaranteeing at least +1 so small targets still move.
+                    const bump = () => {
+                      if (current <= 0) return;
+                      commitValue(ds, shift, Math.max(current + 1, Math.round(current * 1.01)));
+                    };
+                    return (
+                      <div className="flex items-center justify-end gap-0.5">
+                        <span className="min-w-0 flex-1">{input}</span>
+                        <button
+                          type="button"
+                          onClick={bump}
+                          title="Increase target by 1%"
+                          className="shrink-0 rounded px-1 text-[9px] font-semibold leading-none text-primary hover:bg-primary/10"
+                        >
+                          +1%
+                        </button>
+                      </div>
                     );
                   };
                   const isDt = row.key.startsWith("dt:");

@@ -8,8 +8,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePublicTabletAccounts } from "@/hooks/useOperatorAccounts";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { useLines } from "@/hooks/useMachines";
-import { roleDashMap, type Role } from "@/lib/permissions";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useLoginBranding } from "@/hooks/useLoginBranding";
 import { AuthShell } from "@/components/auth/AuthShell";
 import {
@@ -18,12 +16,6 @@ import {
   recordLoginFailure,
 } from "@/lib/loginRateLimit";
 
-
-// Landing route per role — use the shared source of truth so login never sends a
-// role to a page it can't access (previously a stale local map dropped roles like
-// quality_supervisor onto /dashboard/manager → Access Denied).
-const landingFor = (role: string | null | undefined) =>
-  (role && roleDashMap[role as Role]) || "/login";
 
 const MODE_KEY = "an_login_mode";
 const TABLET_KEY = "an_tablet_account_id";
@@ -54,10 +46,8 @@ type Mode = "staff" | "tablet";
 
 export default function Login() {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
-  // On a phone, staff land on the mobile welcome home; desktop keeps the role dashboard.
-  const landAfterLogin = (role: string | null | undefined) =>
-    isMobile && role !== "operator" ? "/dashboard/home" : landingFor(role);
+  // Every login lands on the welcome home (site banner + quick links), on any device.
+  const landAfterLogin = (_role: string | null | undefined) => "/dashboard/home";
   const [searchParams] = useSearchParams();
   // Consent flow (and other deep-links) preserve where to send the user
   // after sign-in. Only same-origin relative paths are honored.
