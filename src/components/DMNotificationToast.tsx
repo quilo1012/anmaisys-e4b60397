@@ -11,13 +11,13 @@ function strings() {
 }
 
 /**
- * Show a branded, professional in-app notification for an incoming direct
- * message: company logo, sender name, message preview and an "open" action.
+ * Show a discreet, MSN-style in-app notification for an incoming direct
+ * message: company logo + who sent it + an "open" action. The message
+ * content is intentionally NOT shown — the user opens the chat to read it.
  * Rendered through sonner's custom toast so it inherits positioning/stacking.
  */
 export function showDMToast(opts: {
   senderName: string;
-  message: string;
   onOpen: () => void;
 }) {
   const t = strings();
@@ -53,11 +53,6 @@ export function showDMToast(opts: {
           <p className="truncate text-sm font-semibold text-foreground">
             {opts.senderName}
           </p>
-          {opts.message && (
-            <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-              {opts.message}
-            </p>
-          )}
 
           <button
             type="button"
@@ -84,4 +79,11 @@ export function dmNativeTitle(senderName: string) {
   return lang === "pt"
     ? `Nova mensagem · ${senderName}`
     : `New message · ${senderName}`;
+}
+
+/** Localized body for the native OS notification — no message content (MSN-style). */
+export function dmNativeBody() {
+  const lang =
+    typeof localStorage !== "undefined" ? localStorage.getItem("app.language") : "en";
+  return lang === "pt" ? "Toque para abrir a conversa" : "Tap to open the chat";
 }
