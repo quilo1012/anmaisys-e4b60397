@@ -560,7 +560,7 @@ function OperatorDashboardContent() {
                     <Label>Date</Label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-[200px] justify-start text-left font-normal", !retroDate && "text-muted-foreground")}>
+                        <Button type="button" variant="outline" className={cn("w-[200px] justify-start text-left font-normal", !retroDate && "text-muted-foreground")}>
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {retroDate ? format(retroDate, "dd/MM/yyyy") : "Pick a date"}
                         </Button>

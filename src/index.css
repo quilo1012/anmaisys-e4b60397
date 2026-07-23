@@ -124,7 +124,10 @@ select:-webkit-autofill {
 /* ─── Print Styles ─── */
 
 @page {
-  margin: 0 !important;
+  /* A real, non-!important margin so page-specific overrides (e.g. Downtime's
+     landscape 12mm) win, and content never bleeds to the paper edge / clips
+     the footer in the printer's non-printable area. */
+  margin: 10mm;
   size: A4 portrait;
 }
 
@@ -356,9 +359,17 @@ select:-webkit-autofill {
     break-inside: avoid !important;
   }
 
-  /* Cards and tables avoid page breaks */
-  [class*="card"],
+  /* Large tables/cards must FLOW across pages instead of being clipped to one.
+     Keep individual rows and images intact, and repeat the table header on each
+     printed page. Cards that must stay whole use `print:break-inside-avoid`. */
   table {
+    break-inside: auto !important;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr,
+  img {
     break-inside: avoid !important;
   }
 }

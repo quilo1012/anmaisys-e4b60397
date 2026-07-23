@@ -66,6 +66,7 @@ export default function WorkOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [currentPage, setCurrentPage] = useState(1);
+  const [printMode, setPrintMode] = useState(false); // when printing, render ALL filtered rows (not just the current page)
   const [shiftFilter, setShiftFilter] = useState<"ALL" | "DAY" | "NIGHT">("ALL");
   const [lineFilter, setLineFilter] = useState<string>("all");
 
@@ -248,6 +249,8 @@ export default function WorkOrdersPage() {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredWOs.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredWOs, currentPage]);
+  // Rows the printable table renders: all filtered rows while printing, else the current page.
+  const rowsToShow = printMode ? filteredWOs : paginatedWOs;
 
   useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, lineFilter, searchTerm, drRange]);
 
@@ -430,13 +433,17 @@ export default function WorkOrdersPage() {
                   const allWOs = filteredWOs;
                   const engPerf = engineerScores?.map((s) => ({ name: s.engineer_name || "Unknown", score: s.score, completed: 0 })) || [];
                   const openWOs = allWOs.filter((w) => isWoOpen(w.status)).length;
+                  // Real KPIs (were hard-coded to 0): response = opened→received, MTTR = start→finish.
+                  const respArr = allWOs.filter((w) => w.received_at).map((w) => differenceInMinutes(new Date(w.received_at as string), new Date(w.created_at)));
+                  const mttrArr = allWOs.filter((w) => w.started_at && w.finished_at).map((w) => differenceInMinutes(new Date(w.finished_at as string), new Date(w.started_at as string)));
+                  const avg = (a: number[]) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0);
                   try {
                     const { generatePdfReport } = await import("@/lib/generatePdfReport");
                     generatePdfReport({
                       workOrders: allWOs,
                       machineLineMap,
                       engineerRanking: engPerf,
-                      kpis: { avgResponse: 0, avgMTTR: 0, totalWOs: allWOs.length, openWOs, slaRate: 0 },
+                      kpis: { avgResponse: avg(respArr), avgMTTR: avg(mttrArr), totalWOs: allWOs.length, openWOs, slaRate: 0 },
                       dateRange: drPreset === "custom" ? `${drRange.from ? format(drRange.from, "yyyy-MM-dd") : "…"} to ${drRange.to ? format(drRange.to, "yyyy-MM-dd") : "…"}` : drPreset !== "all" ? drPreset : "All records",
                       callerRole: role,
                     });
@@ -451,7 +458,12 @@ export default function WorkOrdersPage() {
                     toast({ title: "Cannot print", description: "You don't have permission to print reports.", variant: "destructive" });
                     return;
                   }
-                  window.print();
+                  // Render the full filtered list, then print, then restore pagination.
+                  setPrintMode(true);
+                  setTimeout(() => {
+                    window.print();
+                    setPrintMode(false);
+                  }, 120);
                 }}>
                   <Printer className="h-3.5 w-3.5 mr-1" /> Print
                 </Button>
@@ -561,7 +573,7 @@ export default function WorkOrdersPage() {
               <div className="print-content">
                 {/* Mobile card list (< md) */}
                 <div className="md:hidden space-y-3">
-                  {paginatedWOs.map((wo) => {
+                  {rowsToShow.map((wo) => {
                     const cfg = getWoStatusConfig(wo.status);
                     const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
                     const canForceClose = ["open", "received", "arrived", "in_progress"].includes(wo.status);
@@ -651,7 +663,7 @@ export default function WorkOrdersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedWOs.map((wo) => {
+                    {rowsToShow.map((wo) => {
                       const cfg = getWoStatusConfig(wo.status);
                       const canForceClose = ["open", "received", "arrived", "in_progress"].includes(wo.status);
                       const canClose = wo.status === "finished";

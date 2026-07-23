@@ -52,7 +52,7 @@ export function printSessionReport(s: PrintSessionData) {
 <style>
   @page { size: A4; margin: 14mm; }
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, system-ui, Segoe UI, Roboto, sans-serif; color: #111; margin: 0; padding: 20px; }
+  body { font-family: -apple-system, system-ui, Segoe UI, Roboto, sans-serif; color: #111; margin: 0; padding: 20px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   h1 { margin: 0 0 4px 0; font-size: 20px; }
   .sub { color: #555; font-size: 12px; margin-bottom: 16px; }
   .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0 16px; }

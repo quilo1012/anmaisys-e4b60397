@@ -1160,9 +1160,13 @@ function EngineerDashboardContent() {
             <Button
               onClick={async () => {
                 if (!pauseDialogWO || !pauseReason.trim()) return;
-                await pauseWO.mutateAsync({ woId: pauseDialogWO, pauseReason: pauseReason.trim() });
-                setPauseDialogWO(null);
-                setPauseReason("");
+                try {
+                  await pauseWO.mutateAsync({ woId: pauseDialogWO, pauseReason: pauseReason.trim() });
+                  setPauseDialogWO(null);
+                  setPauseReason("");
+                } catch (e: any) {
+                  toast({ title: "Cannot pause", description: e?.message || "Failed to pause work order", variant: "destructive" });
+                }
               }}
               disabled={pauseWO.isPending || !pauseReason.trim()}
             >

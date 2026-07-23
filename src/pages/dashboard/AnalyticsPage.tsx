@@ -342,7 +342,7 @@ export default function AnalyticsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 print-content">
         {/* Print Header — visible only when printing/exported */}
         <ReportPrintHeader
           title="Analytics Report"
