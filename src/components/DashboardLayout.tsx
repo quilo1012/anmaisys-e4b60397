@@ -32,8 +32,9 @@ import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
-import { can, canOnDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, type Action } from "@/lib/permissions";
+import { can, canForDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, type Action } from "@/lib/permissions";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useDeviceType } from "@/hooks/use-device-type";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { cn } from "@/lib/utils";
 import { PushOnboarding } from "@/components/PushOnboarding";
@@ -394,12 +395,13 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   }, [location.pathname]);
 
   const isMobile = useIsMobile();
+  const device = useDeviceType();
   const filteredItems = navItems.filter(
     (item) =>
       effectiveRole &&
       item.roles.includes(effectiveRole as AppRole) &&
-      // On mobile, also respect per-role mobile visibility (role_mobile_hidden).
-      (!item.action || canOnDevice(effectiveRole as AppRole, item.action, isMobile)),
+      // Respect per-role, per-device visibility (Desktop / Tablet / Mobile).
+      (!item.action || canForDevice(effectiveRole as AppRole, item.action, device)),
   );
   const permissionOverrideCount = ALL_ROLES.reduce(
     (sum, role) => sum + ALL_ACTIONS.filter((action) => isPermissionOverridden(role, action)).length,

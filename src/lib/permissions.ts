@@ -235,31 +235,38 @@ export function can(role: Role | null | undefined, action: Action): boolean {
 }
 
 /**
- * Mobile visibility. Keys `${role}:${action}` present in this set are HIDDEN on
- * mobile for that role (loaded from `public.role_mobile_hidden`). Default = shown.
+ * Per-device visibility. Keys `${role}:${action}:${device}` present in this set are
+ * HIDDEN on that device for that role (loaded from `public.role_mobile_hidden`, which
+ * carries a `device` column: 'tablet' | 'mobile'). Desktop is never hidden. Default = shown.
  */
-let MOBILE_HIDDEN: Set<string> = new Set();
-const mobileListeners = new Set<() => void>();
+export type DeviceType = "desktop" | "tablet" | "mobile";
+let DEVICE_HIDDEN: Set<string> = new Set();
+const deviceListeners = new Set<() => void>();
 
-export function setMobileHidden(keys: string[]) {
-  MOBILE_HIDDEN = new Set(keys ?? []);
-  mobileListeners.forEach((l) => l());
+export function setDeviceHidden(keys: string[]) {
+  DEVICE_HIDDEN = new Set(keys ?? []);
+  deviceListeners.forEach((l) => l());
 }
-export function subscribeMobileHidden(fn: () => void) {
-  mobileListeners.add(fn);
-  return () => { mobileListeners.delete(fn); };
+export function subscribeDeviceHidden(fn: () => void) {
+  deviceListeners.add(fn);
+  return () => { deviceListeners.delete(fn); };
 }
-export function isMobileHidden(role: Role, action: Action): boolean {
-  return MOBILE_HIDDEN.has(`${role}:${action}`);
+export function isDeviceHidden(role: Role, action: Action, device: DeviceType): boolean {
+  if (device === "desktop") return false;
+  return DEVICE_HIDDEN.has(`${role}:${action}:${device}`);
 }
-/** Can the role perform/see the action on a mobile device (access AND mobile-visible). */
-export function canMobile(role: Role | null | undefined, action: Action): boolean {
+/** Access on a given device: full `can` on desktop; tablet/mobile also require visibility. */
+export function canForDevice(role: Role | null | undefined, action: Action, device: DeviceType): boolean {
   if (!role) return false;
-  return can(role, action) && !MOBILE_HIDDEN.has(`${role}:${action}`);
+  return can(role, action) && !isDeviceHidden(role, action, device);
 }
-/** Access on the current device: full `can` on desktop, `canMobile` on mobile. */
+
+// Backward-compatible mobile (phone) helpers.
+export const subscribeMobileHidden = subscribeDeviceHidden;
+export function isMobileHidden(role: Role, action: Action): boolean { return isDeviceHidden(role, action, "mobile"); }
+export function canMobile(role: Role | null | undefined, action: Action): boolean { return canForDevice(role, action, "mobile"); }
 export function canOnDevice(role: Role | null | undefined, action: Action, isMobile: boolean): boolean {
-  return isMobile ? canMobile(role, action) : can(role, action);
+  return canForDevice(role, action, isMobile ? "mobile" : "desktop");
 }
 
 /** All known actions (for admin UIs). */
