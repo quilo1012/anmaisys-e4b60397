@@ -51,7 +51,12 @@ interface ReportData {
 export function generatePdfReport(data: ReportData) {
   // Defense-in-depth client guard. Real authorization happens server-side
   // via authorizePdfGeneration(), but this prevents misuse if a caller forgets.
-  if (data.callerRole && data.callerRole !== "admin" && data.callerRole !== "manager") {
+  if (
+    data.callerRole &&
+    data.callerRole !== "admin" &&
+    data.callerRole !== "manager" &&
+    data.callerRole !== "maintenance_manager"
+  ) {
     throw new Error("You don't have permission to generate this report.");
   }
   const doc = new jsPDF();
@@ -83,19 +88,18 @@ export function generatePdfReport(data: ReportData) {
   const kpis = [
     [`Total WOs: ${data.kpis.totalWOs}`, `Open WOs: ${data.kpis.openWOs}`],
     [`Avg Response: ${fmtMin(data.kpis.avgResponse)}`, `Avg MTTR: ${fmtMin(data.kpis.avgMTTR)}`],
-    [`SLA Compliance: ${data.kpis.slaRate}%`, ""],
   ];
   kpis.forEach((row, i) => {
     doc.text(row[0], 14, kpiY + i * 6);
     if (row[1]) doc.text(row[1], 100, kpiY + i * 6);
   });
 
-  // WO Table
-  const tableData = data.workOrders.slice(0, 100).map((wo) => [
+  // WO Table — all rows (autoTable paginates across pages automatically).
+  const tableData = data.workOrders.map((wo) => [
     `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`,
     data.machineLineMap[wo.machine] || "—",
     wo.machine,
-    wo.description.substring(0, 30),
+    (wo.description || "").length > 40 ? (wo.description || "").slice(0, 39) + "…" : (wo.description || ""),
     wo.status.toUpperCase(),
     format(new Date(wo.created_at), "dd/MM HH:mm"),
   ]);

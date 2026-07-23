@@ -38,7 +38,7 @@ export function ReportPrintHeader({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold uppercase tracking-wide">{title}</h1>
-          <p className="text-xs text-muted-foreground">{brand}</p>
+          <p className="text-xs text-muted-foreground print:text-gray-700">{brand}</p>
         </div>
         <div className="text-right text-xs">
           <p>
@@ -49,7 +49,7 @@ export function ReportPrintHeader({
               <span className="font-medium">Shift:</span> {shift}
             </p>
           )}
-          <p className="text-muted-foreground">Generated: {generatedOn}</p>
+          <p className="text-muted-foreground print:text-gray-700">Generated: {generatedOn}</p>
         </div>
       </div>
     </div>

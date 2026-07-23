@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { data: wos, error } = await supabase
       .from("work_orders")
-      .select("wo_number, created_at, machine, line_at_time, priority, status, requester_name, engineer_name, received_at, started_at, finished_at, closed_at")
+      .select("id, wo_number, created_at, machine, line_at_time, priority, status, requester_name, engineer_name, received_at, started_at, finished_at, closed_at")
       .gte("created_at", since)
       .order("created_at", { ascending: false });
     if (error) throw error;

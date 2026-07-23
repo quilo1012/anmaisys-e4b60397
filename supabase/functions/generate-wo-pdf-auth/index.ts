@@ -53,13 +53,14 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Role check: admin OR manager
-    const [{ data: isAdmin }, { data: isManager }] = await Promise.all([
+    // Role check: admin OR manager OR maintenance_manager
+    const [{ data: isAdmin }, { data: isManager }, { data: isMaintMgr }] = await Promise.all([
       supabaseAdmin.rpc("has_role", { _user_id: userId, _role: "admin" }),
       supabaseAdmin.rpc("has_role", { _user_id: userId, _role: "manager" }),
+      supabaseAdmin.rpc("has_role", { _user_id: userId, _role: "maintenance_manager" }),
     ]);
 
-    if (!isAdmin && !isManager) {
+    if (!isAdmin && !isManager && !isMaintMgr) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
