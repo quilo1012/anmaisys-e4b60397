@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 
 const MANAGE_ROLES = ["admin", "manager", "supervisor", "quality_supervisor", "planner", "warehouse"];
 const MATERIAL_TYPES = ["label", "bag", "tub", "lid", "scoop", "box", "other"] as const;
+// The Materials tab manages physical components only. Labels & bags live in the Packaging BOM.
+const COMPONENT_TYPES = ["tub", "lid", "scoop", "box", "other"] as const;
 const PACK_TYPES = ["BAG", "TUB"] as const;
 
 interface Material {
@@ -106,18 +108,21 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
     },
   });
 
+  // Materials tab = physical components only (tub/lid/scoop/box). Labels & bags live in the Packaging BOM.
+  const components = useMemo(() => materials.filter((m) => m.material_type !== "label" && m.material_type !== "bag"), [materials]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return materials.filter((m) =>
+    return components.filter((m) =>
       (filterType === "__all__" || m.material_type === filterType) &&
       (!q || [m.barcode, m.ap_code, m.description, m.country, m.flavour, m.size].some((f) => (f ?? "").toLowerCase().includes(q))));
-  }, [materials, filterType, search]);
+  }, [components, filterType, search]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const m of materials) c[m.material_type] = (c[m.material_type] ?? 0) + 1;
+    for (const m of components) c[m.material_type] = (c[m.material_type] ?? 0) + 1;
     return c;
-  }, [materials]);
+  }, [components]);
 
   // Only show optional columns that actually carry data (labels have just barcode + description).
   const cols = useMemo(() => ({
@@ -148,15 +153,15 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1.5">
-          {MATERIAL_TYPES.filter((t) => counts[t]).map((t) => (
+          {COMPONENT_TYPES.filter((t) => counts[t]).map((t) => (
             <Badge key={t} variant="secondary" className="text-[11px] capitalize">{t}: {counts[t]}</Badge>
           ))}
-          {materials.length === 0 && <span className="text-sm text-muted-foreground">No materials yet — import your labels, bags and AP codes.</span>}
+          {components.length === 0 && <span className="text-sm text-muted-foreground">No components yet — add tubs, lids, scoops and boxes here. Labels &amp; bags live in the Packaging BOM tab.</span>}
         </div>
         {canManage && (
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="mr-1 h-4 w-4" />Import</Button>
-            <Button onClick={() => { setForm({ material_type: "label", active: true }); setEditOpen(true); }}><Plus className="mr-1 h-4 w-4" />Add material</Button>
+            <Button onClick={() => { setForm({ material_type: "tub", active: true }); setEditOpen(true); }}><Plus className="mr-1 h-4 w-4" />Add material</Button>
           </div>
         )}
       </div>
@@ -164,7 +169,7 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
       <div className="flex flex-wrap gap-2">
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="__all__">All types</SelectItem>{MATERIAL_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+          <SelectContent><SelectItem value="__all__">All types</SelectItem>{COMPONENT_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
         </Select>
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by product name or barcode…" className="w-72" />
       </div>
@@ -207,9 +212,9 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Type</Label>
-                <Select value={form.material_type ?? "label"} onValueChange={(v) => setForm({ ...form, material_type: v })}>
+                <Select value={form.material_type ?? "tub"} onValueChange={(v) => setForm({ ...form, material_type: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{MATERIAL_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+                  <SelectContent>{COMPONENT_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div><Label>Pack type</Label>
