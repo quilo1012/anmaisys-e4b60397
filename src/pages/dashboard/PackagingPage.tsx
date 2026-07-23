@@ -125,7 +125,6 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
     country: filtered.some((m) => m.country),
     flavour: filtered.some((m) => m.flavour),
     size: filtered.some((m) => m.size),
-    pack_type: filtered.some((m) => m.pack_type),
   }), [filtered]);
   const colCount = 3 + Object.values(cols).filter(Boolean).length;
 
@@ -167,7 +166,7 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="__all__">All types</SelectItem>{MATERIAL_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
         </Select>
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search barcode / AP / description…" className="w-72" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by product name or barcode…" className="w-72" />
       </div>
 
       <Card>
@@ -181,7 +180,6 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
               {cols.country && <TableHead>Country</TableHead>}
               {cols.flavour && <TableHead>Flavour</TableHead>}
               {cols.size && <TableHead>Size</TableHead>}
-              {cols.pack_type && <TableHead>Pack</TableHead>}
             </TableRow></TableHeader>
             <TableBody>
               {filtered.length === 0 && <TableRow><TableCell colSpan={colCount} className="text-center text-muted-foreground">No materials</TableCell></TableRow>}
@@ -194,7 +192,6 @@ function MaterialsView({ canManage }: { canManage: boolean }) {
                   {cols.country && <TableCell>{m.country ?? "—"}</TableCell>}
                   {cols.flavour && <TableCell>{m.flavour ?? "—"}</TableCell>}
                   {cols.size && <TableCell>{m.size ?? "—"}</TableCell>}
-                  {cols.pack_type && <TableCell>{m.pack_type ?? "—"}</TableCell>}
                 </TableRow>
               ))}
             </TableBody>
