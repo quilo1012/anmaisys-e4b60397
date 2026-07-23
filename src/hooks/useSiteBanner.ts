@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { DeviceType } from "@/hooks/use-device-type";
+import type { DeviceType } from "@/lib/permissions";
 
 export interface BannerSlide {
   desktop: string;
