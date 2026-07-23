@@ -232,27 +232,48 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread }: { filt
                     const active = isItemActive(item.url);
                     return (
                       <SidebarMenuItem key={item.title + item.url}>
-                        <SidebarMenuButton asChild tooltip={item.title} className="h-9 rounded-md">
+                        <SidebarMenuButton
+                          asChild
+                          tooltip={item.title}
+                          className={cn(
+                            "h-9 rounded-md transition-colors",
+                            "group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10",
+                            "group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:!p-0",
+                            "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg",
+                          )}
+                        >
                           <NavLink
                             to={item.url}
                             end
-                            className={`transition-colors ${active ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"}`}
+                            className={cn(
+                              "transition-colors",
+                              active
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium ring-1 ring-sidebar-border/60 shadow-sm"
+                                : "text-sidebar-foreground/75 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
+                            )}
                           >
-                            <item.icon className="h-4 w-4 shrink-0" />
-                            <span className="text-sm">{item.title}</span>
+                            <item.icon className="h-4 w-4 shrink-0 group-data-[collapsible=icon]:h-[18px] group-data-[collapsible=icon]:w-[18px]" />
+                            <span className="text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
                             {item.title === "Permissions" && permissionOverrideCount > 0 && (
-                              <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-0 text-[10px] font-medium text-primary">
+                              <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-0 text-[10px] font-medium text-primary group-data-[collapsible=icon]:hidden">
                                 {permissionOverrideCount} custom
                               </span>
                             )}
                             {item.title === "Messages" && dmUnread > 0 && (
-                              <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-[10px] font-semibold text-white min-w-[18px] text-center">
-                                {dmUnread > 9 ? "9+" : dmUnread}
-                              </span>
+                              <>
+                                <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-[10px] font-semibold text-white min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
+                                  {dmUnread > 9 ? "9+" : dmUnread}
+                                </span>
+                                <span
+                                  className="hidden group-data-[collapsible=icon]:block absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-sidebar"
+                                  aria-hidden="true"
+                                />
+                              </>
                             )}
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
+
                     );
                   })}
                 </SidebarMenu>
@@ -436,18 +457,17 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         <div className="flex h-screen w-full overflow-hidden">
           <Sidebar collapsible="icon" className="border-r border-sidebar-border print:hidden">
 
-            <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-1">
+            <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
               <img
                 src={appliedLogo}
                 alt="Applied Nutrition"
                 className="block w-full h-auto rounded-md object-cover group-data-[collapsible=icon]:hidden"
               />
-              <img
-                src={appliedLogo}
-                alt="AN"
-                className="hidden group-data-[collapsible=icon]:block h-8 w-8 mx-auto rounded-md object-cover"
-              />
+              <div className="hidden group-data-[collapsible=icon]:flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-accent/40 ring-1 ring-sidebar-border/60 overflow-hidden">
+                <img src={appliedLogo} alt="AN" className="h-full w-full object-cover" />
+              </div>
             </div>
+
             <SidebarContent>
               <SidebarNav filteredItems={filteredItems} permissionOverrideCount={permissionOverrideCount} dmUnread={dmUnread} />
             </SidebarContent>
