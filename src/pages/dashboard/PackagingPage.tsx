@@ -53,9 +53,9 @@ function normPack(s: string): string | null {
 export default function PackagingPage() {
   const { role } = useAuth();
   const canManage = MANAGE_ROLES.includes(role ?? "");
-  const [tab, setTab] = useState<"materials" | "orders">("materials");
+  const [tab, setTab] = useState<"materials" | "orders" | "bom">("materials");
 
-  const tabBtn = (t: "materials" | "orders", label: string) => (
+  const tabBtn = (t: "materials" | "orders" | "bom", label: string) => (
     <button type="button" onClick={() => setTab(t)}
       className={cn("rounded px-4 py-1.5 text-sm font-medium transition-colors", tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{label}</button>
   );
@@ -70,11 +70,14 @@ export default function PackagingPage() {
           </div>
           <div className="inline-flex rounded-md border p-0.5">
             {tabBtn("materials", "Materials")}
+            {tabBtn("bom", "Packaging BOM")}
             {tabBtn("orders", "Production orders")}
           </div>
         </div>
 
-        {tab === "materials" ? <MaterialsView canManage={canManage} /> : <OrdersView canManage={canManage} />}
+        {tab === "materials" ? <MaterialsView canManage={canManage} />
+          : tab === "bom" ? <BomView canManage={canManage} />
+          : <OrdersView canManage={canManage} />}
       </div>
     </DashboardLayout>
   );
@@ -342,9 +345,109 @@ function OrdersView({ canManage }: { canManage: boolean }) {
 }
 
 // ============================================================
+// Packaging BOM
+// ============================================================
+const COMPONENT_ORDER = ["label", "bag", "tub", "lid", "scoop", "box", "other"];
+interface BomRow {
+  id: string; sku: string; packaging_type: string; component: string; required_qty: number;
+  materials: { barcode: string | null; ap_code: string | null; material_type: string; description: string | null } | null;
+}
+
+function BomView({ canManage }: { canManage: boolean }) {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [labelsOpen, setLabelsOpen] = useState(false);
+  const [bagsOpen, setBagsOpen] = useState(false);
+
+  const { data: bom = [] } = useQuery({
+    queryKey: ["pvs_bom"],
+    queryFn: async () => {
+      const all: BomRow[] = [];
+      let from = 0;
+      for (;;) {
+        const { data, error } = await tbl("packaging_bom")
+          .select("id, sku, packaging_type, component, required_qty, materials(barcode, ap_code, material_type, description)")
+          .order("sku", { ascending: true }).range(from, from + 999);
+        if (error) throw error;
+        const page = (data ?? []) as unknown as BomRow[];
+        all.push(...page);
+        if (page.length < 1000) break;
+        from += 1000;
+      }
+      return all;
+    },
+  });
+
+  const groups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const m = new Map<string, { sku: string; pack: string; rows: BomRow[] }>();
+    for (const r of bom) {
+      if (q && !r.sku.toLowerCase().includes(q)) continue;
+      const k = `${r.sku}||${r.packaging_type}`;
+      if (!m.has(k)) m.set(k, { sku: r.sku, pack: r.packaging_type, rows: [] });
+      m.get(k)!.rows.push(r);
+    }
+    const arr = Array.from(m.values());
+    for (const g of arr) g.rows.sort((a, b) => COMPONENT_ORDER.indexOf(a.component) - COMPONENT_ORDER.indexOf(b.component));
+    return arr.sort((a, b) => a.sku.localeCompare(b.sku) || a.pack.localeCompare(b.pack));
+  }, [bom, search]);
+
+  const skuCount = useMemo(() => new Set(bom.map((r) => r.sku)).size, [bom]);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {skuCount} SKU{skuCount === 1 ? "" : "s"} · {groups.length} routes.
+          Import the <b>label list</b> (→ TUB) and <b>bag list</b> (→ BAG) to seed identities. Internal components (tub/lid/scoop/box) come from the product guide next.
+        </p>
+        {canManage && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setLabelsOpen(true)}><Upload className="mr-1 h-4 w-4" />Import label list</Button>
+            <Button variant="outline" onClick={() => setBagsOpen(true)}><Upload className="mr-1 h-4 w-4" />Import bag list</Button>
+          </div>
+        )}
+      </div>
+
+      <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search SKU…" className="w-72" />
+
+      {groups.length === 0 ? (
+        <Card><CardContent className="p-8 text-center text-muted-foreground">No BOM yet. Import your label and bag lists to start.</CardContent></Card>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {groups.slice(0, 300).map((g) => (
+            <Card key={`${g.sku}|${g.pack}`}>
+              <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                <CardTitle className="text-sm font-mono">{g.sku}</CardTitle>
+                <Badge variant="outline" className="text-[10px]">{g.pack}</Badge>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <ul className="divide-y text-sm">
+                  {g.rows.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between gap-2 py-1.5">
+                      <span className="capitalize">{r.component}</span>
+                      <span className="font-mono text-xs text-muted-foreground">{r.materials?.barcode ?? r.materials?.ap_code ?? "— não ligado —"}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+      {groups.length > 300 && <p className="text-xs text-muted-foreground">Showing first 300 routes. Use search to narrow.</p>}
+
+      <ImportDialog kind="labels" open={labelsOpen} onOpenChange={setLabelsOpen} onDone={() => { qc.invalidateQueries({ queryKey: ["pvs_bom"] }); qc.invalidateQueries({ queryKey: ["pvs_materials"] }); }} />
+      <ImportDialog kind="bags" open={bagsOpen} onOpenChange={setBagsOpen} onDone={() => { qc.invalidateQueries({ queryKey: ["pvs_bom"] }); qc.invalidateQueries({ queryKey: ["pvs_materials"] }); }} />
+    </div>
+  );
+}
+
+// ============================================================
 // Generic Excel/CSV import
 // ============================================================
-function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: "materials" | "orders"; open: boolean; onOpenChange: (v: boolean) => void; onDone: () => void }) {
+type ImportKind = "materials" | "orders" | "labels" | "bags";
+function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: ImportKind; open: boolean; onOpenChange: (v: boolean) => void; onDone: () => void }) {
   const { user } = useAuth();
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [fileName, setFileName] = useState("");
@@ -359,7 +462,8 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: "materials" 
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }) as Record<string, unknown>[];
       const parsed = kind === "materials" ? json.map(parseMaterial).filter((r) => r.barcode || r.ap_code)
-        : json.map(parseOrder).filter((r) => r.po_number);
+        : kind === "orders" ? json.map(parseOrder).filter((r) => r.po_number)
+        : json.map(parseSkuList).filter((r) => r.sku && r.barcode);
       if (parsed.length === 0) { toast.error("No valid rows found. Check the column headers."); return; }
       setRows(parsed as Record<string, unknown>[]);
       setFileName(file.name);
@@ -377,6 +481,11 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: "materials" 
     pack_type: normPack(cell(r, ["pack type", "pack_type", "packaging", "packaging type", "embalagem"])),
     active: true,
   });
+  const parseSkuList = (r: Record<string, unknown>) => ({
+    sku: cell(r, ["hb sku", "hb_sku", "hbsku", "sku"]),
+    barcode: cell(r, ["barcode", "ean", "gtin", "bar code", "código de barras", "codigo de barras"]) || null,
+    description: cell(r, ["product", "description", "name", "nome", "desc", "descricao", "descrição"]) || null,
+  });
   const parseOrder = (r: Record<string, unknown>) => ({
     po_number: cell(r, ["production order", "po", "po number", "po_number", "order", "ordem", "wo", "#"]),
     sku: cell(r, ["sku", "code", "codigo", "código"]) || null,
@@ -391,6 +500,32 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: "materials" 
   const importAll = async () => {
     setImporting(true);
     try {
+      if (kind === "labels" || kind === "bags") {
+        const type = kind === "labels" ? "label" : "bag";
+        const pack = kind === "labels" ? "TUB" : "BAG";
+        const valid = rows.filter((r) => r.sku && r.barcode) as { sku: string; barcode: string; description: string | null }[];
+        // 1) upsert materials (dedupe by barcode), collect barcode -> id
+        const seenBc = new Set<string>();
+        const mats = valid.filter((r) => !seenBc.has(r.barcode) && seenBc.add(r.barcode))
+          .map((r) => ({ material_type: type, barcode: r.barcode, description: r.description, pack_type: pack, active: true, created_by: user?.id ?? null }));
+        const barcodeToId = new Map<string, string>();
+        for (let i = 0; i < mats.length; i += 200) {
+          const { data, error } = await tbl("materials").upsert(mats.slice(i, i + 200) as never, { onConflict: "barcode" }).select("id, barcode");
+          if (error) throw error;
+          for (const m of (data ?? []) as { id: string; barcode: string }[]) barcodeToId.set(m.barcode, m.id);
+        }
+        // 2) upsert BOM identity rows (dedupe by sku)
+        const seenSku = new Set<string>();
+        const bom = valid.filter((r) => !seenSku.has(r.sku) && seenSku.add(r.sku))
+          .map((r) => ({ sku: r.sku, packaging_type: pack, component: type, material_id: barcodeToId.get(r.barcode) ?? null, required_qty: 1, sequence: 1, created_by: user?.id ?? null }));
+        for (let i = 0; i < bom.length; i += 200) {
+          const { error } = await tbl("packaging_bom").upsert(bom.slice(i, i + 200) as never, { onConflict: "sku,packaging_type,component" });
+          if (error) throw error;
+        }
+        toast.success(`Imported ${bom.length} SKU${bom.length === 1 ? "" : "s"} (${type} → ${pack})`);
+        onDone(); onOpenChange(false); reset();
+        return;
+      }
       if (kind === "materials") {
         const withBarcode = rows.filter((r) => r.barcode).map((r) => ({ ...r, created_by: user?.id ?? null }));
         const apOnly = rows.filter((r) => !r.barcode && r.ap_code).map((r) => ({ ...r, created_by: user?.id ?? null }));
@@ -416,23 +551,26 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: "materials" 
   };
 
   const downloadTemplate = () => {
-    const headers = kind === "materials"
-      ? ["Type", "Barcode", "AP Code", "Description", "Country", "Flavour", "Size", "Pack Type"]
-      : ["Production Order", "SKU", "Country", "Packaging Type", "Qty", "Line", "Date"];
-    const sample = kind === "materials"
-      ? ["tub", "", "AP009211", "Tub 900g black", "UK", "", "900g", "TUB"]
-      : ["PO-48213", "MM900-UK-CC", "UK", "TUB", "500", "Line 4", "23/07/2026"];
+    const cfg: Record<ImportKind, { headers: string[]; sample: string[]; sheet: string }> = {
+      materials: { headers: ["Type", "Barcode", "AP Code", "Description", "Country", "Flavour", "Size", "Pack Type"], sample: ["tub", "", "AP009211", "Tub 900g black", "UK", "", "900g", "TUB"], sheet: "Materials" },
+      orders: { headers: ["Production Order", "SKU", "Country", "Packaging Type", "Qty", "Line", "Date"], sample: ["PO-48213", "MM900-UK-CC", "UK", "TUB", "500", "Line 4", "23/07/2026"], sheet: "Orders" },
+      labels: { headers: ["Product", "Barcode", "HB SKU"], sample: ["Whey Cookies 900g UK", "56056555203347", "MM900-UK-CC"], sheet: "Labels" },
+      bags: { headers: ["Product", "Barcode", "HB SKU"], sample: ["Whey Cookies 900g UK", "56056555209901", "MM900-UK-CC"], sheet: "Bags" },
+    };
+    const { headers, sample, sheet } = cfg[kind];
     const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
-    ws["!cols"] = headers.map(() => ({ wch: 16 }));
+    ws["!cols"] = headers.map(() => ({ wch: 18 }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, kind === "materials" ? "Materials" : "Orders");
+    XLSX.utils.book_append_sheet(wb, ws, sheet);
     XLSX.writeFile(wb, `${kind}-template.xlsx`);
   };
+
+  const kindLabel = kind === "materials" ? "materials" : kind === "orders" ? "production orders" : kind === "labels" ? "label list (→ TUB)" : "bag list (→ BAG)";
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <DialogHeader><DialogTitle className="flex items-center gap-2"><PackageSearch className="h-5 w-5" />Import {kind === "materials" ? "materials" : "production orders"} from Excel/CSV</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><PackageSearch className="h-5 w-5" />Import {kindLabel} from Excel/CSV</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={downloadTemplate}><FileDown className="mr-1 h-4 w-4" />Template</Button>
@@ -459,9 +597,9 @@ function ImportDialog({ kind, open, onOpenChange, onDone }: { kind: "materials" 
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            {kind === "materials"
-              ? "Duplicates (same barcode or AP code) are skipped. Columns are matched by name — download the template for the expected headers."
-              : "Existing PO numbers are updated. Columns are matched by name — download the template for the expected headers."}
+            {kind === "materials" ? "Duplicates (same barcode or AP code) are skipped. Columns matched by name — download the template for the expected headers."
+              : kind === "orders" ? "Existing PO numbers are updated. Columns matched by name — download the template for the expected headers."
+              : `Each row = one SKU. Creates the ${kind === "labels" ? "label" : "bag"} material and its ${kind === "labels" ? "TUB" : "BAG"} BOM identity row. HB SKU is the key. Re-import updates. Raw materials aren't relevant here.`}
           </p>
         </div>
         <DialogFooter>
