@@ -11,6 +11,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
+import { generateQualityReportPDF, generateQualityReportExcel } from "@/lib/qualityReport";
+import { useAuth } from "@/contexts/AuthContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2, ClipboardCheck } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
@@ -61,9 +64,11 @@ export function QualityActionsView() {
   const DEPTS = qOpts?.departments ?? [...QUALITY_DEPARTMENTS];
 
   const [view, setView] = useState<"list" | "kanban" | "analytics">("list");
+  const { profile } = useAuth();
   const [listsOpen, setListsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [days, setDays] = useState("30");
+  const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
+  const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
   const [filterLine, setFilterLine] = useState("__all__");
   const [filterLeader, setFilterLeader] = useState("__all__");
   const [filterStatus, setFilterStatus] = useState("__all__");
@@ -74,7 +79,9 @@ export function QualityActionsView() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(makeEmptyForm());
 
-  const from = useMemo(() => format(subDays(new Date(), Number(days)), "yyyy-MM-dd"), [days]);
+  const from = useMemo(() => format(drRange.from ?? subDays(new Date(), 30), "yyyy-MM-dd"), [drRange]);
+  const to = useMemo(() => format(drRange.to ?? new Date(), "yyyy-MM-dd"), [drRange]);
+  const periodLabel = useMemo(() => `Period: ${format(drRange.from ?? subDays(new Date(), 30), "dd/MM/yyyy")} — ${format(drRange.to ?? new Date(), "dd/MM/yyyy")}`, [drRange]);
 
   const { data: types = [] } = useQuery({
     queryKey: ["quality_action_types"],
@@ -99,9 +106,9 @@ export function QualityActionsView() {
     },
   });
   const { data: actions = [] } = useQuery({
-    queryKey: ["quality_actions", from],
+    queryKey: ["quality_actions", from, to],
     queryFn: async () => {
-      const { data, error } = await supabase.from("quality_actions").select("*").gte("recorded_at", from).order("recorded_at", { ascending: false });
+      const { data, error } = await supabase.from("quality_actions").select("*").gte("recorded_at", from).lte("recorded_at", `${to}T23:59:59`).order("recorded_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as QualityAction[];
     },
@@ -270,15 +277,17 @@ export function QualityActionsView() {
     URL.revokeObjectURL(url);
   };
 
-  const exportXLSX = async () => {
-    const { header, body } = exportRows();
-    const XLSX = await import("xlsx");
-    const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
-    ws["!cols"] = header.map((h) => ({ wch: h === "Notes" ? 40 : 16 }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Quality");
-    XLSX.writeFile(wb, `quality-${Date.now()}.xlsx`);
-  };
+  const reportInput = () => ({
+    actions: filtered.map((a) => ({
+      recorded_at: a.recorded_at, action_no: a.action_no, status: a.status, severity: a.severity,
+      line: a.line, shift: a.shift, leader_name: a.leader_name, department: a.department,
+      sku: a.sku, batch: a.batch, labels: a.labels, description: a.description,
+    })),
+    periodLabel,
+    generatedBy: profile?.name || "—",
+  });
+  const printPDF = () => { generateQualityReportPDF(reportInput()).catch(() => toast.error("Could not generate PDF")); };
+  const fullExcel = () => { try { generateQualityReportExcel(reportInput()); } catch { toast.error("Could not generate Excel"); } };
 
   return (
     <div className="space-y-6">
@@ -302,8 +311,9 @@ export function QualityActionsView() {
                 <Button variant="outline"><Download className="h-4 w-4 mr-1" />Export</Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={exportXLSX}>Excel (.xlsx)</DropdownMenuItem>
-                <DropdownMenuItem onClick={exportCSV}>CSV (.csv)</DropdownMenuItem>
+                <DropdownMenuItem onClick={printPDF}>Print report (PDF)</DropdownMenuItem>
+                <DropdownMenuItem onClick={fullExcel}>Excel report (.xlsx)</DropdownMenuItem>
+                <DropdownMenuItem onClick={exportCSV}>Raw data (.csv)</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setForm(makeEmptyForm()); }}>
@@ -408,10 +418,7 @@ export function QualityActionsView() {
 
         {/* Filters */}
         <div className="flex flex-wrap gap-2">
-          <Select value={days} onValueChange={setDays}>
-            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="7">7 days</SelectItem><SelectItem value="30">30 days</SelectItem><SelectItem value="90">90 days</SelectItem></SelectContent>
-          </Select>
+          <DateRangeFilter value={drRange} preset={drPreset} onChange={(r, p) => { setDrRange(r); setDrPreset(p); }} storageKey="quality-period" />
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="__all__">All Statuses</SelectItem>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
