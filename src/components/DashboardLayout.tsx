@@ -99,8 +99,7 @@ const navItems: NavItem[] = [
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Administration", action: "users.manage" },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Administration", action: "audit.view" },
 
-  // System
-  { title: "Permissions", url: "/dashboard/permissions", icon: ShieldCheck, roles: ["admin"], group: "System", action: "permissions.manage" },
+  // System — Permissions is reached from inside Settings (avoids the duplicate entry).
   { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "System", action: "system.settings" },
 ];
 
