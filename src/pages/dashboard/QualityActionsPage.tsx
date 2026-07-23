@@ -14,6 +14,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
 import { generateQualityReportPDF, generateQualityReportExcel } from "@/lib/qualityReport";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2, ClipboardCheck } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
@@ -65,6 +66,7 @@ export function QualityActionsView() {
 
   const [view, setView] = useState<"list" | "kanban" | "analytics">("list");
   const { profile } = useAuth();
+  const isMobile = useIsMobile();
   const [listsOpen, setListsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
@@ -449,6 +451,32 @@ export function QualityActionsView() {
           <QualityAnalytics actions={filtered} from={from} />
         ) : view === "kanban" ? (
           <IssueKanban actions={filtered} canManage={canManage} onOpen={setDetailId} onMove={(id, status) => setStatus.mutate({ id, status })} />
+        ) : isMobile ? (
+          <Card>
+            <CardHeader><CardTitle>Log ({filtered.length})</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {filtered.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No actions</p>}
+              {filtered.map((a) => {
+                const sev = severityMeta(a.severity);
+                const st = statusMeta(a.status);
+                return (
+                  <button key={a.id} type="button" onClick={() => setDetailId(a.id)}
+                    className="w-full rounded-lg border p-3 text-left transition-colors hover:bg-accent/40 active:scale-[0.99]">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-sm font-semibold">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
+                      <Badge variant="outline" className={cn("text-[10px]", st.badge)}>{st.label}</Badge>
+                    </div>
+                    {a.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{a.description}</p>}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                      <span className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</span>
+                      {a.line && <span className="truncate">· {a.line}{a.leader_name ? ` · ${a.leader_name}` : ""}</span>}
+                      {sev && <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge>}
+                    </div>
+                  </button>
+                );
+              })}
+            </CardContent>
+          </Card>
         ) : (
           <Card>
             <CardHeader><CardTitle>Log ({filtered.length})</CardTitle></CardHeader>
