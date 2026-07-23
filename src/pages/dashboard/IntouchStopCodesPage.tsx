@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -95,6 +96,7 @@ export default function IntouchStopCodesPage() {
   });
 
   return (
+    <DashboardLayout>
     <div className="container mx-auto p-4 md:p-6 space-y-4">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
@@ -237,5 +239,6 @@ export default function IntouchStopCodesPage() {
         </CardContent>
       </Card>
     </div>
+    </DashboardLayout>
   );
 }

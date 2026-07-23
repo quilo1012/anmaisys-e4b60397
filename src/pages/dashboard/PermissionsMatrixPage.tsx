@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { Check, X, ShieldCheck, Info, Save, RotateCcw, Loader2, Search, Filter, Eye } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -205,6 +206,7 @@ export default function PermissionsMatrixPage() {
   }, [search, tab, onlyChanged, dirty, rolesToShow]);
 
   return (
+    <DashboardLayout>
     <div className="space-y-4 p-4 md:p-6">
       {/* Sticky header */}
       <div className="sticky top-0 z-20 -mx-4 md:-mx-6 border-b bg-background/95 px-4 py-3 backdrop-blur md:px-6">
@@ -478,5 +480,6 @@ export default function PermissionsMatrixPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </DashboardLayout>
   );
 }
