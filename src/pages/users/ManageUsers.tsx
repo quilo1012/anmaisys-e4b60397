@@ -478,7 +478,8 @@ export default function ManageUsers() {
     setEditUser(u);
     setEditName(u.name);
     setEditRole(u.role || "operator");
-    setEditActive(u.active);
+    // A pending user (no role yet) opens ready to approve: default the login to Active.
+    setEditActive(u.role ? u.active : true);
     setEditEmail(u.email);
     setEditPassword("");
     setEditPasswordError(null);
@@ -772,6 +773,11 @@ export default function ManageUsers() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
+                          {!user.role && !managerBlockedTarget && (
+                            <Button size="sm" className="h-8 gap-1 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => openEditUser(user)}>
+                              <Check className="h-4 w-4" /> Approve
+                            </Button>
+                          )}
                           {!managerBlockedTarget && (
                             <Button size="icon" variant="ghost" onClick={() => openEditUser(user)}>
                               <Pencil className="h-4 w-4" />
