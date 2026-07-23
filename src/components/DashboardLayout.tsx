@@ -15,7 +15,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, MessageCircle, PanelLeftClose, PanelLeftOpen, GitBranch } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, MessageCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import {
   AlertDialog,
@@ -84,7 +84,6 @@ const navItems: NavItem[] = [
   { title: "SKU Performance", url: "/dashboard/sku-performance", icon: Gauge, roles: ["admin", "manager", "supervisor"], group: "Production", action: "production.sku_performance.view" },
 
   { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor"], group: "Production", action: "quality.view" },
-  { title: "Traceability", url: "/dashboard/traceability", icon: GitBranch, roles: ["admin", "manager", "supervisor", "quality_supervisor", "planner", "warehouse"], group: "Production", action: "production.view" },
   { title: "Packaging", url: "/dashboard/packaging", icon: Boxes, roles: ["admin", "manager", "supervisor", "quality_supervisor", "planner", "warehouse"], group: "Production", action: "production.view" },
 
   // Planning & Insights
@@ -313,7 +312,6 @@ const routeTitles: Record<string, string> = {
   "/dashboard/sku-performance": "SKU Performance",
   
   "/dashboard/quality": "Quality",
-  "/dashboard/traceability": "Traceability",
   "/dashboard/packaging": "Packaging",
   "/dashboard/sku-products": "SKU Products",
   "/dashboard/analytics": "Analytics",
