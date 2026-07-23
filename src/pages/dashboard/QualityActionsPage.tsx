@@ -29,6 +29,7 @@ interface QualityAction {
   leader_name: string | null; department: string | null; status: string; labels: string[] | null;
   description: string | null; recorded_at: string; points: number | null;
   severity: string | null; attachments: string[] | null;
+  sku: string | null; batch: string | null;
 }
 
 // Resolve a SKU code from a production_items row without relying on a PostgREST
@@ -375,10 +376,10 @@ export function QualityActionsView() {
 
         {/* KPIs */}
         <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total actions</div><div className="text-2xl font-bold">{kpis.total}</div></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">To do</div><div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{kpis.todo}</div></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">In progress</div><div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{kpis.in_progress}</div></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Complete</div><div className="text-2xl font-bold text-green-600 dark:text-green-400">{kpis.complete}</div></CardContent></Card>
+          <Card className="border-l-4 border-l-primary/40"><CardContent className="p-4"><div className="flex items-center gap-1.5 text-xs text-muted-foreground"><ClipboardCheck className="h-3.5 w-3.5" /> Total actions</div><div className="mt-1 text-2xl font-bold">{kpis.total}</div></CardContent></Card>
+          <Card className="border-l-4 border-l-amber-500"><CardContent className="p-4"><div className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-amber-500" /> To do</div><div className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{kpis.todo}</div></CardContent></Card>
+          <Card className="border-l-4 border-l-blue-500"><CardContent className="p-4"><div className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-blue-500" /> In progress</div><div className="mt-1 text-2xl font-bold text-blue-600 dark:text-blue-400">{kpis.in_progress}</div></CardContent></Card>
+          <Card className="border-l-4 border-l-green-500"><CardContent className="p-4"><div className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-green-500" /> Complete</div><div className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400">{kpis.complete}</div></CardContent></Card>
         </div>
 
         {/* Filters */}
@@ -540,10 +541,16 @@ function IssueCard({ a, canManage, onOpen, onMove }: {
       onClick={() => onOpen(a.id)}
       className={cn("rounded-md border border-l-4 bg-background p-2.5 shadow-sm transition-colors hover:bg-accent/50", canManage ? "cursor-grab active:cursor-grabbing" : "cursor-pointer", sev?.accent ?? "border-l-transparent")}>
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-xs text-muted-foreground">{a.action_no ?? "—"}</span>
+        <span className="font-mono text-xs font-semibold text-foreground">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
         {sev && <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge>}
       </div>
       {a.description && <p className="mt-1 line-clamp-2 text-xs">{a.description}</p>}
+      {(a.sku || a.batch) && (
+        <div className="mt-1.5 flex flex-wrap gap-1 text-[10px]">
+          {a.sku && <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">SKU {a.sku}</span>}
+          {a.batch && <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">Batch {a.batch}</span>}
+        </div>
+      )}
       {(a.labels?.length ?? 0) > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {(a.labels ?? []).slice(0, 4).map((l) => <Badge key={l} variant="secondary" className="text-[10px]">{l}</Badge>)}
