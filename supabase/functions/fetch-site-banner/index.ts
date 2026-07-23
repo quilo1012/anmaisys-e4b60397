@@ -26,9 +26,11 @@ Deno.serve(async (req) => {
     });
     const html = await res.text();
 
-    const image = meta(html, "og:image") || meta(html, "twitter:image");
-    const title = meta(html, "og:title") || "Applied Nutrition";
-    const description = meta(html, "og:description") || "";
+    const rawImage = meta(html, "og:image") || meta(html, "twitter:image");
+    // Force https so the image isn't blocked as mixed content in the (https) app.
+    const image = rawImage ? rawImage.replace(/^http:\/\//i, "https://") : null;
+    const title = (meta(html, "og:title") || "Applied Nutrition").replace(/&amp;/g, "&");
+    const description = (meta(html, "og:description") || "").replace(/&amp;/g, "&");
 
     return new Response(
       JSON.stringify({ image, title, description, url: SITE }),
