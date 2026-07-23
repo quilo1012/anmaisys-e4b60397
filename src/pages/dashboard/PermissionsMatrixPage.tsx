@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Check, X, ShieldCheck, Info, Save, RotateCcw, Loader2, Search, Filter, Eye } from "lucide-react";
+import { Check, X, ShieldCheck, Info, Save, RotateCcw, Loader2, Search, Filter, Eye, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ const keyOf = (r: Role, a: Action) => `${r}:${a}`;
 
 export default function PermissionsMatrixPage() {
   const { role } = useRole();
+  const navigate = useNavigate();
   const isAdmin = role === "admin";
 
   const [draft, setDraft] = useState<Record<string, boolean>>({});
@@ -212,6 +214,9 @@ export default function PermissionsMatrixPage() {
       <div className="sticky top-0 z-20 -mx-4 md:-mx-6 border-b bg-background/95 px-4 py-3 backdrop-blur md:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/settings")} className="gap-1">
+              <ArrowLeft className="h-4 w-4" /> Back
+            </Button>
             <ShieldCheck className="h-6 w-6 text-primary" />
             <div>
               <h1 className="text-xl font-bold leading-tight">Permissions Matrix</h1>
