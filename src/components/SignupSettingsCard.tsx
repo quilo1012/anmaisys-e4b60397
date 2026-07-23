@@ -5,8 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, UserPlus } from "lucide-react";
+import { Loader2, UserPlus, RefreshCw, Copy } from "lucide-react";
 import { toast } from "sonner";
+
+/** Random, easy-to-read invite code (no ambiguous chars). */
+function generateCode(): string {
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let out = "AN-";
+  const rnd = new Uint32Array(6);
+  crypto.getRandomValues(rnd);
+  for (let i = 0; i < 6; i++) out += alphabet[rnd[i] % alphabet.length];
+  return out;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
 const cfg = () => supabase.from("signup_config" as any);
@@ -56,8 +66,17 @@ export function SignupSettingsCard() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="invite-code" className="text-sm">Invite code</Label>
-              <Input id="invite-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. AN-2026" autoComplete="off" />
-              <p className="text-xs text-muted-foreground">Share this code with people you want to let register. Change it anytime to revoke access.</p>
+              <div className="flex gap-2">
+                <Input id="invite-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. AN-2026" autoComplete="off" className="font-mono" />
+                <Button type="button" variant="outline" onClick={() => setCode(generateCode())} title="Generate a random code">
+                  <RefreshCw className="mr-1 h-4 w-4" /> Generate
+                </Button>
+                <Button type="button" variant="outline" size="icon" disabled={!code.trim()} title="Copy code"
+                  onClick={() => { navigator.clipboard?.writeText(code.trim()); toast.success("Code copied"); }}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Share this code with people you want to let register. Click <b>Generate</b> for a random one, then <b>Save</b>. Change it anytime to revoke access.</p>
             </div>
             <div className="flex justify-end">
               <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}Save</Button>

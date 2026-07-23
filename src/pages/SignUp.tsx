@@ -78,18 +78,18 @@ export default function SignUp() {
         <div className="space-y-1.5">
           <label htmlFor="su-name" className="text-sm font-medium text-slate-700">Full name</label>
           <input id="su-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20" />
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20" />
         </div>
         <div className="space-y-1.5">
           <label htmlFor="su-email" className="text-sm font-medium text-slate-700">Email</label>
           <input id="su-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20" />
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20" />
         </div>
         <div className="space-y-1.5">
           <label htmlFor="su-pass" className="text-sm font-medium text-slate-700">Password</label>
           <div className="relative">
             <input id="su-pass" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 pr-10 text-sm outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20" />
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-10 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20" />
             <button type="button" onClick={() => setShowPassword((s) => !s)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" aria-label={showPassword ? "Hide password" : "Show password"}>
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -99,7 +99,7 @@ export default function SignUp() {
           <label htmlFor="su-code" className="text-sm font-medium text-slate-700">Invite code</label>
           <input id="su-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off"
             placeholder="Ask your administrator"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20" />
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20" />
         </div>
 
         {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
