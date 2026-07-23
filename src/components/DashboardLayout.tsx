@@ -303,6 +303,11 @@ const routeTitles: Record<string, string> = {
   "/dashboard/downtime-map": "Downtime Heatmap",
   "/dashboard/pm-intelligence": "PM Intelligence",
   "/dashboard/control-center": "Control Center",
+  "/dashboard/work-orders": "Work Orders",
+  "/dashboard/downtime": "Downtime & Reliability",
+  "/dashboard/pm-intelligence": "PM Intelligence",
+  "/dashboard/preventive": "Preventive Maintenance",
+  "/dashboard/warehouse": "Warehouse",
   "/dashboard/machines": "Machines",
   "/dashboard/problems": "Problems",
   "/dashboard/stock": "Stock",
@@ -458,18 +463,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 </div>
               </div>
               <SidebarFooterToggle />
-              {filteredItems.some((i) => i.title === "Permissions") && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  title="Permissions"
-                  className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 mb-1"
-                  onClick={() => navigate("/dashboard/permissions")}
-                >
-                  <ShieldCheck className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
-                  <span className="group-data-[collapsible=icon]:hidden">Permissions</span>
-                </Button>
-              )}
               {role !== "operator" && role !== "viewer" && (
                 <Button
                   variant="ghost"
