@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePublicTabletAccounts } from "@/hooks/useOperatorAccounts";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { useLines } from "@/hooks/useMachines";
+import { roleDashMap, type Role } from "@/lib/permissions";
 import { useLoginBranding } from "@/hooks/useLoginBranding";
 import { AuthShell } from "@/components/auth/AuthShell";
 import {
@@ -17,14 +18,11 @@ import {
 } from "@/lib/loginRateLimit";
 
 
-const dashMap: Record<string, string> = {
-  admin: "/dashboard/manager",
-  manager: "/dashboard/manager",
-  maintenance_manager: "/dashboard/manager",
-  viewer: "/dashboard/manager",
-  engineer: "/dashboard/engineer",
-  operator: "/dashboard/operator",
-};
+// Landing route per role — use the shared source of truth so login never sends a
+// role to a page it can't access (previously a stale local map dropped roles like
+// quality_supervisor onto /dashboard/manager → Access Denied).
+const landingFor = (role: string | null | undefined) =>
+  (role && roleDashMap[role as Role]) || "/login";
 
 const MODE_KEY = "an_login_mode";
 const TABLET_KEY = "an_tablet_account_id";
@@ -122,7 +120,7 @@ export default function Login() {
         window.location.href = safeNext;
         return;
       }
-      navigate(dashMap[role] || "/dashboard/manager", { replace: true });
+      navigate(landingFor(role), { replace: true });
     }
   }, [authLoading, navigate, role, session, safeNext]);
 
@@ -259,7 +257,7 @@ export default function Login() {
           window.location.href = safeNext;
           return;
         }
-        navigate(dashMap[roleResult as string] || "/dashboard/manager", { replace: true });
+        navigate(landingFor(roleResult as string), { replace: true });
       }
     } catch (error: any) {
       // Count this failure and surface remaining attempts / lockout.

@@ -193,7 +193,7 @@ export const roleDashMap: Record<Role, string> = {
   operator: "/dashboard/operator/my-production",
   viewer: "/dashboard/manager",
   warehouse: "/dashboard/warehouse",
-  quality_supervisor: "/dashboard/quality-report",
+  quality_supervisor: "/dashboard/quality",
 };
 
 /** Returns the dashboard path for a role, falling back to /login when unknown. */
