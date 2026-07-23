@@ -27,36 +27,30 @@ export default function MobileHome() {
 
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-4xl space-y-6 py-6">
-        {/* Welcome hero — the live site banner carousel sits BEHIND the greeting.
-            Rotates the site's two hero slides and uses the device-specific artwork. */}
-        <div className="relative min-h-[220px] overflow-hidden rounded-2xl border shadow-sm sm:min-h-[300px]">
-          {heroUrls.length > 0 ? (
-            <>
-              <SiteBannerImages urls={heroUrls} />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
-            </>
-          ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-primary to-primary/70" />
-          )}
-          <div className="relative z-10 flex min-h-[220px] flex-col items-center justify-center gap-1.5 px-6 py-12 text-center text-white sm:min-h-[300px] sm:py-16">
-            <p className="text-base text-white/85">
-              Hello, <span className="font-semibold text-white">{profile?.name || "there"}</span>
-            </p>
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Welcome to AN Production System</h1>
-            <p className="text-sm text-white/75">Today is {today}</p>
-            {heroUrls.length > 0 && (
-              <a
-                href={banner?.url ?? "https://appliednutrition.uk/"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 text-xs font-medium text-white/80 underline underline-offset-2 hover:text-white"
-              >
-                appliednutrition.uk
-              </a>
-            )}
-          </div>
-        </div>
+      <div className="mx-auto max-w-5xl space-y-8 py-8">
+        {/* Welcome header — its own section, never overlapping the banner. */}
+        <header className="space-y-1">
+          <p className="text-sm text-muted-foreground">
+            Hello, <span className="font-semibold text-foreground">{profile?.name || "there"}</span>
+          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Welcome to AN Production System</h1>
+          <p className="text-sm text-muted-foreground">
+            Production Management Platform<span className="mx-1.5 text-muted-foreground/50">·</span>{today}
+          </p>
+        </header>
+
+        {/* Banner — a clean branding element (site carousel), no text on top. */}
+        {heroUrls.length > 0 && (
+          <a
+            href={banner?.url ?? "https://appliednutrition.uk/"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative block aspect-[16/6] overflow-hidden rounded-2xl border shadow-sm transition-shadow hover:shadow-md sm:aspect-[16/5]"
+            aria-label="Applied Nutrition"
+          >
+            <SiteBannerImages urls={heroUrls} />
+          </a>
+        )}
 
         {items.length > 0 && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
