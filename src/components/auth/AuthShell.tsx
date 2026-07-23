@@ -52,12 +52,12 @@ export function AuthShell({
         />
       )}
 
-      {/* Login card — its own clean white surface, unchanged by the banner behind it. */}
+      {/* Login card — translucent glass so the banner reads through it and dominates. */}
       <div
-        className={`relative z-10 w-full ${maxWidthClass} overflow-hidden rounded-2xl bg-white shadow-[0_25px_60px_-12px_rgba(0,0,0,0.55)] ring-1 ring-black/5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500`}
+        className={`relative z-10 w-full ${maxWidthClass} overflow-hidden rounded-2xl bg-white/55 shadow-[0_25px_60px_-12px_rgba(0,0,0,0.55)] ring-1 ring-white/40 backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500`}
       >
-        {/* Navy header band with the brand logo */}
-        <div className="flex justify-center bg-[#1E3A8A] px-8 py-8">
+        {/* Navy header band with the brand logo (kept mostly opaque so the logo reads) */}
+        <div className="flex justify-center bg-[#1E3A8A]/90 px-8 py-7">
           <img src={appliedLogo} alt="Applied Nutrition" className="h-14 w-auto object-contain" />
         </div>
 
@@ -65,15 +65,15 @@ export function AuthShell({
         <div className="space-y-6 px-8 py-8 sm:px-10">
           <div className="space-y-2 text-center">
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
-            {subtitle && <p className="text-sm leading-relaxed text-slate-500">{subtitle}</p>}
+            {subtitle && <p className="text-sm leading-relaxed text-slate-600">{subtitle}</p>}
           </div>
 
           {children}
         </div>
 
         {/* Slim footer */}
-        <div className="border-t border-slate-100 px-8 py-4 text-center">
-          <p className="text-[11px] font-medium tracking-wide text-slate-400">
+        <div className="border-t border-white/40 px-8 py-4 text-center">
+          <p className="text-[11px] font-medium tracking-wide text-slate-600">
             Encrypted connection · Audited access · © {year} Applied Nutrition
           </p>
         </div>
