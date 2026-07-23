@@ -10,6 +10,7 @@ import {
   useDMThread,
   useSendDM,
   useMarkDMRead,
+  useDMUnreadBySender,
   type DMPartner,
 } from "@/hooks/useDirectMessages";
 import { MessageCircle, Send, Loader2, Search } from "lucide-react";
@@ -34,6 +35,7 @@ function initials(name: string) {
 export default function DirectMessagesPage() {
   const { user, role } = useAuth();
   const { data: partners = [], isLoading: partnersLoading } = useDMPartners(role);
+  const { data: unreadBySender = {} } = useDMUnreadBySender();
   const [filter, setFilter] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -60,12 +62,16 @@ export default function DirectMessagesPage() {
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return partners;
-    return partners.filter(
-      (p) =>
-        p.name?.toLowerCase().includes(q) || p.email?.toLowerCase().includes(q),
+    const list = !q
+      ? partners
+      : partners.filter(
+          (p) => p.name?.toLowerCase().includes(q) || p.email?.toLowerCase().includes(q),
+        );
+    // Conversations with unread messages float to the top so you see who wrote.
+    return [...list].sort(
+      (a, b) => ((unreadBySender[b.user_id] ?? 0) > 0 ? 1 : 0) - ((unreadBySender[a.user_id] ?? 0) > 0 ? 1 : 0),
     );
-  }, [partners, filter]);
+  }, [partners, filter, unreadBySender]);
 
   // Auto-select first partner (esp. for operators who have 1 admin usually)
   useEffect(() => {
@@ -140,7 +146,9 @@ export default function DirectMessagesPage() {
                       No users found.
                     </p>
                   ) : (
-                    filtered.map((p) => (
+                    filtered.map((p) => {
+                      const unread = unreadBySender[p.user_id] ?? 0;
+                      return (
                       <button
                         key={p.user_id}
                         onClick={() => setActiveId(p.user_id)}
@@ -149,19 +157,30 @@ export default function DirectMessagesPage() {
                           activeId === p.user_id && "bg-accent",
                         )}
                       >
-                        <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold shrink-0">
-                          {initials(p.name)}
+                        <div className="relative h-9 w-9 shrink-0">
+                          <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold">
+                            {initials(p.name)}
+                          </div>
+                          {unread > 0 && (
+                            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-background" />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{p.name}</p>
+                          <p className={cn("text-sm truncate", unread > 0 ? "font-bold text-foreground" : "font-medium")}>{p.name}</p>
                           {p.line_labels && (
                             <p className="text-[11px] text-muted-foreground truncate">
                               {p.line_labels}
                             </p>
                           )}
                         </div>
+                        {unread > 0 && (
+                          <span className="ml-1 shrink-0 rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">
+                            {unread}
+                          </span>
+                        )}
                       </button>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </ScrollArea>

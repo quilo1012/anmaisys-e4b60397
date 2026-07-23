@@ -97,14 +97,15 @@ export function QualityActionsView() {
     queryKey: ["lines"],
     queryFn: async () => {
       const { data } = await supabase.from("lines").select("name").order("name");
-      return (data ?? []) as { name: string }[];
+      // Drop blank names — a Radix <SelectItem value=""> would crash the Line select.
+      return (data ?? []).filter((x) => x.name && x.name.trim()) as { name: string }[];
     },
   });
   const { data: leaders = [] } = useQuery({
     queryKey: ["line_leaders_active"],
     queryFn: async () => {
       const { data } = await supabase.from("line_leaders").select("id, name").eq("active", true).order("name");
-      return (data ?? []) as { id: string; name: string }[];
+      return (data ?? []).filter((x) => x.id && x.name && x.name.trim()) as { id: string; name: string }[];
     },
   });
   const { data: actions = [] } = useQuery({
@@ -343,17 +344,17 @@ export function QualityActionsView() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div><Label>Line</Label>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="min-w-0"><Label>Line</Label>
                       <Select value={form.line} onValueChange={(v) => setForm({ ...form, line: v })}>
                         <SelectTrigger><SelectValue placeholder="Pick line" /></SelectTrigger>
                         <SelectContent>{lines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
-                    <div><Label>Date</Label>
-                      <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                    <div className="min-w-0"><Label>Date</Label>
+                      <Input type="date" className="w-full min-w-0" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
                     </div>
-                    <div><Label>Shift</Label>
+                    <div className="min-w-0"><Label>Shift</Label>
                       <Select value={form.shift} onValueChange={(v) => setForm({ ...form, shift: v })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>

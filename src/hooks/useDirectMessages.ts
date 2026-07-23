@@ -196,6 +196,30 @@ export function useMarkDMRead(partnerId: string | null) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dm_unread", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["dm_unread_by_sender", user?.id] });
+    },
+  });
+}
+
+/** Unread message counts grouped by sender (partner user_id) for the current user. */
+export function useDMUnreadBySender() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["dm_unread_by_sender", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      if (!user) return {} as Record<string, number>;
+      const { data, error } = await supabase
+        .from("direct_messages" as any)
+        .select("sender_id")
+        .eq("recipient_id", user.id)
+        .is("read_at", null);
+      if (error) throw error;
+      const map: Record<string, number> = {};
+      (data ?? []).forEach((r: any) => {
+        if (r?.sender_id) map[r.sender_id] = (map[r.sender_id] ?? 0) + 1;
+      });
+      return map;
     },
   });
 }
@@ -230,6 +254,7 @@ export function useDMUnreadCount() {
         { event: "INSERT", schema: "public", table: "direct_messages", filter: `recipient_id=eq.${user.id}` },
         (payload) => {
           queryClient.invalidateQueries({ queryKey: ["dm_unread", user.id] });
+          queryClient.invalidateQueries({ queryKey: ["dm_unread_by_sender", user.id] });
           queryClient.invalidateQueries({ queryKey: ["dm_thread"] });
           playDMNotification();
 
@@ -268,7 +293,10 @@ export function useDMUnreadCount() {
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "direct_messages", filter: `recipient_id=eq.${user.id}` },
-        () => queryClient.invalidateQueries({ queryKey: ["dm_unread", user.id] }),
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["dm_unread", user.id] });
+          queryClient.invalidateQueries({ queryKey: ["dm_unread_by_sender", user.id] });
+        },
       )
       .subscribe();
     return () => {
