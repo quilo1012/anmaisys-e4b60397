@@ -182,11 +182,12 @@ const MATRIX: Record<Action, Role[]> = {
  * SessionRedirect (App.tsx) and ProtectedRoute access-denied fallback.
  */
 export const roleDashMap: Record<Role, string> = {
-  admin: "/dashboard/manager",
-  manager: "/dashboard/manager",
+  // Management lands on the live Control Center after login.
+  admin: "/dashboard/control-center",
+  manager: "/dashboard/control-center",
+  maintenance_manager: "/dashboard/control-center",
+  planner: "/dashboard/control-center",
   supervisor: "/dashboard/production-performance",
-  maintenance_manager: "/dashboard/manager",
-  planner: "/dashboard/manager",
   engineer: "/dashboard/engineer",
   co_engineer: "/dashboard/engineer",
   operator: "/dashboard/operator/my-production",
