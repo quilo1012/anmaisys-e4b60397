@@ -28,6 +28,7 @@ import { SLA_TARGETS } from "@/lib/sla";
 import { resolveLine } from "@/lib/resolveLine";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
+import { QUALITY_STATUSES } from "@/lib/qualityConstants";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { EmptyState } from "@/components/EmptyState";
 
@@ -68,6 +69,49 @@ export default function AnalyticsPage() {
   const { data: linesData } = useLines();
   const { data: engineerScores, isLoading: scoresLoading } = useEngineerScores();
   const { data: woMetricsRange, isLoading: metricsLoading } = useAllWoMetrics({ from: startDate, to: endDate });
+
+  // Quality actions in the selected date range → Quality Analytics section.
+  const { data: qaRows = [] } = useQuery({
+    queryKey: ["analytics-quality", startDate.toISOString(), endDate.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quality_actions")
+        .select("recorded_at, status, severity, line, department")
+        .gte("recorded_at", startDate.toISOString())
+        .lte("recorded_at", endDate.toISOString());
+      if (error) throw error;
+      return (data ?? []) as Array<{ recorded_at: string; status: string | null; severity: string | null; line: string | null; department: string | null }>;
+    },
+  });
+
+  const qa = useMemo(() => {
+    const byStatus: Record<string, number> = {};
+    const bySeverity: Record<string, number> = {};
+    const byLine: Record<string, number> = {};
+    const byDept: Record<string, number> = {};
+    const byDay: Record<string, number> = {};
+    for (const r of qaRows) {
+      byStatus[r.status || "unknown"] = (byStatus[r.status || "unknown"] || 0) + 1;
+      if (r.severity) bySeverity[r.severity] = (bySeverity[r.severity] || 0) + 1;
+      byLine[r.line || "—"] = (byLine[r.line || "—"] || 0) + 1;
+      byDept[r.department || "—"] = (byDept[r.department || "—"] || 0) + 1;
+      const day = (r.recorded_at || "").slice(0, 10);
+      if (day) byDay[day] = (byDay[day] || 0) + 1;
+    }
+    const total = qaRows.length;
+    const sevOrder = ["low", "medium", "high", "critical"];
+    return {
+      total,
+      open: (byStatus["todo"] || 0) + (byStatus["in_progress"] || 0),
+      completed: byStatus["complete"] || 0,
+      critical: (bySeverity["high"] || 0) + (bySeverity["critical"] || 0),
+      statusData: QUALITY_STATUSES.map((s) => ({ name: s.label, value: byStatus[s.value] || 0, color: s.color })),
+      severityData: sevOrder.filter((s) => bySeverity[s]).map((s) => ({ name: s.charAt(0).toUpperCase() + s.slice(1), value: bySeverity[s] })),
+      lineData: Object.entries(byLine).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, value]) => ({ name, value })),
+      deptData: Object.entries(byDept).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, value]) => ({ name, value })),
+      trendData: Object.entries(byDay).sort((a, b) => a[0].localeCompare(b[0])).map(([day, value]) => ({ name: format(new Date(day), "dd/MM"), value })),
+    };
+  }, [qaRows]);
 
   // Filter WOs by date range
   const allWOs = useMemo(() => {
@@ -661,6 +705,82 @@ export default function AnalyticsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* ── Quality Analytics ── */}
+        <div className="space-y-4 print:break-inside-avoid">
+          <h3 className="text-lg font-bold flex items-center gap-2"><Activity className="h-5 w-5 text-primary" /> Quality Analytics</h3>
+          {qa.total === 0 ? (
+            <Card><CardContent className="py-8"><p className="text-center text-sm text-muted-foreground">No quality actions in this period.</p></CardContent></Card>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <KpiCard accent="blue" icon={<ClipboardList className="h-4 w-4" />} label="Total Actions" value={qa.total} />
+                <KpiCard accent="amber" icon={<Timer className="h-4 w-4" />} label="Open" value={qa.open} />
+                <KpiCard accent="green" icon={<Award className="h-4 w-4" />} label="Completed" value={qa.completed} />
+                <KpiCard accent="red" icon={<TrendingDown className="h-4 w-4" />} label="High / Critical" value={qa.critical} />
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Actions by Status</CardTitle></CardHeader>
+                  <CardContent className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={qa.statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                          {qa.statusData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                        </Pie>
+                        <Tooltip /><Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Actions by Severity</CardTitle></CardHeader>
+                  <CardContent className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={qa.severityData}>
+                        <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" fontSize={12} /><YAxis allowDecimals={false} fontSize={12} /><Tooltip />
+                        <Bar dataKey="value" fill="hsl(24 90% 55%)" radius={[4, 4, 0, 0]}><LabelList dataKey="value" position="top" /></Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Actions by Line</CardTitle></CardHeader>
+                  <CardContent className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={qa.lineData} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} fontSize={12} /><YAxis type="category" dataKey="name" width={90} fontSize={11} /><Tooltip />
+                        <Bar dataKey="value" fill="hsl(217 91% 60%)" radius={[0, 4, 4, 0]}><LabelList dataKey="value" position="right" /></Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Actions by Department</CardTitle></CardHeader>
+                  <CardContent className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={qa.deptData} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} fontSize={12} /><YAxis type="category" dataKey="name" width={90} fontSize={11} /><Tooltip />
+                        <Bar dataKey="value" fill="hsl(262 83% 58%)" radius={[0, 4, 4, 0]}><LabelList dataKey="value" position="right" /></Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+              <Card>
+                <CardHeader><CardTitle className="text-base">Actions Trend</CardTitle></CardHeader>
+                <CardContent className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={qa.trendData}>
+                      <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" fontSize={11} /><YAxis allowDecimals={false} fontSize={12} /><Tooltip />
+                      <Bar dataKey="value" fill="hsl(142 71% 45%)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );
