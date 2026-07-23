@@ -36,14 +36,10 @@ export function AuthShell({
   return (
     <div
       className="relative flex min-h-screen w-full items-center justify-center overflow-hidden p-4"
-      style={{ backgroundColor: "#172554" }}
+      style={{ backgroundColor: hasBanner ? undefined : "#172554" }}
     >
       {hasBanner ? (
-        <>
-          {/* Blurred, zoomed copy fills the letterbox; sharp banner on top. No dark veil. */}
-          <SiteBannerImages urls={backgroundImages!} fit="cover" imgClassName="scale-110 blur-2xl" />
-          <SiteBannerImages urls={backgroundImages!} fit="contain" />
-        </>
+        <SiteBannerImages urls={backgroundImages!} fit="cover" />
       ) : (
         <div
           className="absolute inset-0"
