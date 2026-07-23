@@ -14,7 +14,7 @@ import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
-import { Factory, Target, Loader2, Search, Plus, Lock, Trash2 } from "lucide-react";
+import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -30,6 +30,30 @@ function manualActualQty(row: any): number {
   const wasEditedAfterSync = createdAt > 0 && updatedAt > createdAt + 1000;
   if (notes.startsWith("itouching:") && !wasEditedAfterSync) return 0;
   return Number(row.actual_qty ?? 0);
+}
+
+/** Current local time as "HH:mm". */
+function nowHM(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+/** Build an ISO timestamp for today at the given "HH:mm" (local), or null. */
+function hmToIso(hm: string): string | null {
+  if (!hm) return null;
+  const [h, m] = hm.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d.toISOString();
+}
+/** Minutes between two "HH:mm" (handles crossing midnight), or null. */
+function hmDurationMin(start: string, finish: string): number | null {
+  if (!start || !finish) return null;
+  const [sh, sm] = start.split(":").map(Number);
+  const [fh, fm] = finish.split(":").map(Number);
+  let mins = (fh * 60 + fm) - (sh * 60 + sm);
+  if (mins < 0) mins += 24 * 60;
+  return mins;
 }
 
 export default function MyProductionPage() {
@@ -485,6 +509,8 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
   const [batch, setBatch] = useState("");
   const [blender, setBlender] = useState<number | null>(null);
   const [qty, setQty] = useState<string>("");
+  const [startTime, setStartTime] = useState("");   // "HH:mm"
+  const [finishTime, setFinishTime] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -524,6 +550,8 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
     setBatch("");
     setBlender(null);
     setQty("");
+    setStartTime("");
+    setFinishTime("");
   };
 
   const onSave = async () => {
@@ -566,11 +594,19 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
             actual_qty: 0,
             notes: "manual_sku",
             blender_ref: batch || null,
+            started_at: hmToIso(startTime),
+            finished_at: hmToIso(finishTime),
           })
           .select("id")
           .maybeSingle();
         if (insErr) throw insErr;
         itemId = created?.id ?? null;
+      } else if (startTime || finishTime) {
+        // Existing batch item — record/refresh the production times
+        const timePatch: any = {};
+        if (startTime) timePatch.started_at = hmToIso(startTime);
+        if (finishTime) timePatch.finished_at = hmToIso(finishTime);
+        await (supabase as any).from("production_items").update(timePatch).eq("id", itemId);
       }
       if (!itemId) throw new Error("Could not resolve production item");
 
@@ -725,6 +761,32 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
             className="h-12 text-lg font-semibold"
             autoComplete="off"
           />
+        </div>
+
+        {/* Production time (optional) — Start/Finish stamp + editable */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Production time <span className="text-muted-foreground/70 normal-case">(optional)</span></div>
+            {hmDurationMin(startTime, finishTime) != null && (
+              <div className="text-xs font-medium text-muted-foreground">
+                Duration: {Math.floor(hmDurationMin(startTime, finishTime)! / 60)}h {hmDurationMin(startTime, finishTime)! % 60}m
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-1.5">
+              <Button type="button" variant="outline" className="h-11 shrink-0" onClick={() => setStartTime(nowHM())}>
+                <Play className="h-4 w-4 mr-1" /> Start
+              </Button>
+              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="h-11" aria-label="Start time" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Button type="button" variant="outline" className="h-11 shrink-0" onClick={() => setFinishTime(nowHM())}>
+                <Square className="h-4 w-4 mr-1" /> Finish
+              </Button>
+              <Input type="time" value={finishTime} onChange={(e) => setFinishTime(e.target.value)} className="h-11" aria-label="Finish time" />
+            </div>
+          </div>
         </div>
 
         <Button
