@@ -34,7 +34,7 @@ import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { OperatorNavCards } from "@/components/DashboardNavCards";
 
 import { countOpenWOs } from "@/lib/woStatus";
-import { getShift, SHIFT_LABEL, type ShiftCode } from "@/lib/shifts";
+import { getShift, SHIFT_LABEL, getCurrentShiftStart, getCurrentFactoryShift, type ShiftCode } from "@/lib/shifts";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, Legend } from "recharts";
 
@@ -104,6 +104,8 @@ function OperatorDashboardContent() {
   // Tablet is paired (guard guarantees lineId) — always scope to this line.
   const { data: workOrders, isLoading } = useWorkOrders({ lineId });
   const { data: allWOs } = useWorkOrders({ lineId });
+  // Operators only see the CURRENT factory shift's orders — previous shifts drop off automatically.
+  const shiftWOs = (workOrders ?? []).filter((wo) => new Date(wo.created_at) >= getCurrentShiftStart());
   const woIds = workOrders?.map((wo) => wo.id) || [];
   const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { data: machines } = useMachines();
@@ -660,17 +662,13 @@ function OperatorDashboardContent() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs value={shiftFilter} onValueChange={(v) => setShiftFilter(v as any)} className="mb-3">
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="day">{SHIFT_LABEL.day}</TabsTrigger>
-              <TabsTrigger value="night">{SHIFT_LABEL.night}</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Showing <b>this shift only</b> ({SHIFT_LABEL[getCurrentFactoryShift().shiftCode]}). Orders from previous shifts drop off automatically.
+          </p>
           {isLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-          ) : !workOrders?.length ? (
-            <p className="text-muted-foreground text-center py-8">No work orders yet. Create one above!</p>
+          ) : !shiftWOs.length ? (
+            <p className="text-muted-foreground text-center py-8">No work orders this shift yet. Create one above!</p>
           ) : (
             <div className="overflow-x-auto -mx-3 sm:mx-0">
             <Table>
@@ -690,8 +688,7 @@ function OperatorDashboardContent() {
                   </TableRow>
                </TableHeader>
                <TableBody>
-                 {workOrders
-                   .filter((wo) => shiftFilter === "all" || getShift(wo.created_at) === shiftFilter)
+                 {shiftWOs
                    .map((wo) => {
                    const cfg = statusConfig[wo.status] || statusConfig.open;
                    const shift = getShift(wo.created_at);
