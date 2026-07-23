@@ -478,12 +478,22 @@ function IssueKanban({ actions, canManage, onOpen, onMove }: {
   actions: QualityAction[]; canManage: boolean;
   onOpen: (id: string) => void; onMove: (id: string, status: string) => void;
 }) {
+  const [dragOver, setDragOver] = useState<string | null>(null);
   return (
     <div className="grid gap-4 md:grid-cols-3">
       {QUALITY_STATUSES.map((col) => {
         const items = actions.filter((a) => a.status === col.value);
         return (
-          <div key={col.value} className="rounded-lg border bg-muted/20">
+          <div key={col.value}
+            onDragOver={(e) => { if (canManage) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOver(col.value); } }}
+            onDragLeave={() => setDragOver((c) => (c === col.value ? null : c))}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(null);
+              const id = e.dataTransfer.getData("text/plain");
+              if (id && canManage) onMove(id, col.value);
+            }}
+            className={cn("rounded-lg border bg-muted/20 transition-colors", dragOver === col.value && "ring-2 ring-primary bg-primary/5")}>
             <div className="flex items-center justify-between border-b px-3 py-2">
               <span className="inline-flex items-center gap-2 text-sm font-semibold">
                 <span className={cn("h-2.5 w-2.5 rounded-full")} style={{ backgroundColor: col.color }} />
@@ -509,8 +519,11 @@ function IssueCard({ a, canManage, onOpen, onMove }: {
   const sev = severityMeta(a.severity);
   const nPhotos = a.attachments?.length ?? 0;
   return (
-    <div onClick={() => onOpen(a.id)}
-      className={cn("cursor-pointer rounded-md border border-l-4 bg-background p-2.5 shadow-sm transition-colors hover:bg-accent/50", sev?.accent ?? "border-l-transparent")}>
+    <div
+      draggable={canManage}
+      onDragStart={(e) => { e.dataTransfer.setData("text/plain", a.id); e.dataTransfer.effectAllowed = "move"; }}
+      onClick={() => onOpen(a.id)}
+      className={cn("rounded-md border border-l-4 bg-background p-2.5 shadow-sm transition-colors hover:bg-accent/50", canManage ? "cursor-grab active:cursor-grabbing" : "cursor-pointer", sev?.accent ?? "border-l-transparent")}>
       <div className="flex items-center justify-between gap-2">
         <span className="font-mono text-xs text-muted-foreground">{a.action_no ?? "—"}</span>
         {sev && <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge>}
