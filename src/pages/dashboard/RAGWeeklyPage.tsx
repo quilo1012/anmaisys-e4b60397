@@ -426,6 +426,35 @@ export default function RAGWeeklyPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Bump EVERY target (plan_qty) for the visible week by 1% in one click — compounds
+  // ×1.01, rounded, at least +1, so you don't have to click each cell's +1%.
+  const bumpAllMutation = useMutation({
+    mutationFn: async () => {
+      const targets = entries.filter((e) => Number(e.plan_qty) > 0);
+      if (targets.length === 0) throw new Error("No targets to increase this week");
+      const rows = targets.map((e) => {
+        const cur = Number(e.plan_qty) || 0;
+        return {
+          entry_date: e.entry_date, line: e.line, shift: e.shift,
+          plan_qty: Math.max(cur + 1, Math.round(cur * 1.01)),
+          actual_qty: e.actual_qty,
+          upm_target: e.upm_target, upm_actual: e.upm_actual,
+          downtime_min: e.downtime_min, notes: e.notes ?? null,
+        };
+      });
+      const { error } = await supabase
+        .from("rag_weekly_entries")
+        .upsert(rows, { onConflict: "entry_date,line,shift" });
+      if (error) throw error;
+      return rows.length;
+    },
+    onSuccess: (n) => {
+      qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+      toast.success(`+1% applied to ${n} target${n === 1 ? "" : "s"}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const exportXlsx = async () => {
     const XLSX = await import("xlsx");
     const headers = ["Date", "Line", "Shift", "Plan", "Actual", "Variance %", "UPM Target", "UPM Actual", "Downtime (min)", "Notes"];
@@ -859,6 +888,17 @@ export default function RAGWeeklyPage() {
                   <RefreshCw className={`h-4 w-4 mr-1 ${syncMutation.isPending ? "animate-spin" : ""}`} />
                   {syncMutation.isPending ? "Syncing..." : "Sync from system"}
                 </Button>
+                {canEditRagEntries && (
+                  <Button
+                    variant="outline"
+                    onClick={() => bumpAllMutation.mutate()}
+                    disabled={bumpAllMutation.isPending || entries.length === 0}
+                    title="Increase every target this week by 1% at once"
+                  >
+                    <ChevronUp className={`h-4 w-4 mr-1 ${bumpAllMutation.isPending ? "animate-pulse" : ""}`} />
+                    {bumpAllMutation.isPending ? "Applying…" : "+1% all targets"}
+                  </Button>
+                )}
                 {isAdmin && (
                   <Button
                     onClick={() => downloadRagTemplate(weekStart, lines).catch((e) => toast.error(e.message))}
