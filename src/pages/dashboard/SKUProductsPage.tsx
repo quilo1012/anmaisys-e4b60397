@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
 
@@ -228,7 +228,7 @@ export default function SKUProductsPage() {
   });
 
   const handleImport = async (file: File) => {
-    if (!confirm("This will DELETE all existing SKUs and replace them with the new file. Continue?")) return;
+    if (!confirm("Import will ADD new SKUs and UPDATE matching ones from the file. Existing SKUs are kept — nothing is deleted. Continue?")) return;
     setImporting(true);
     try {
       const isXlsx = /\.xlsx$/i.test(file.name);
@@ -239,10 +239,11 @@ export default function SKUProductsPage() {
         .map((r) => ({ ...r, target_per_hour: r.target_per_hour ?? 0 }));
       if (!valid.length) { toast.error("No rows with SKU and Name found"); return; }
 
-      // Wipe previous SKUs first
-      const { error: delErr } = await supabase.from("sku_products").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      if (delErr) throw delErr;
+      // Snapshot the current catalog first so this import can be undone
+      // ("Restore previous import"). Non-fatal if it can't snapshot.
+      try { await (supabase.rpc as any)("snapshot_sku_products"); } catch { /* ignore */ }
 
+      // Merge by code (upsert) — never deletes existing SKUs.
       const BATCH = 500;
       let ok = 0;
       const importSkuProducts = supabase.rpc.bind(supabase) as unknown as (
@@ -256,10 +257,24 @@ export default function SKUProductsPage() {
         ok += data?.count ?? slice.length;
       }
       qc.invalidateQueries({ queryKey: ["sku_products_all"] });
-      toast.success(`Replaced SKUs — imported ${ok} from ${valid.length} valid rows`);
+      toast.success(`Imported ${ok} from ${valid.length} rows — existing SKUs kept. Use "Restore previous import" to undo.`);
     } catch (e) {
       const message = (e as Error).message || "Import failed";
       toast.error(message.includes("Forbidden") ? "Only Admin or Manager can import SKUs" : message);
+    } finally { setImporting(false); }
+  };
+
+  const restorePrevious = async () => {
+    if (!confirm("Restore the SKU catalog to the state BEFORE the last import? This replaces the current SKUs with the previous snapshot.")) return;
+    setImporting(true);
+    try {
+      const { data, error } = await (supabase.rpc as any)("restore_sku_products_from_backup");
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["sku_products_all"] });
+      toast.success(`Restored ${(data as any)?.count ?? ""} SKUs from before the last import`);
+    } catch (e) {
+      const message = (e as Error).message || "Restore failed";
+      toast.error(message.includes("No previous import") ? "No previous import to restore yet" : message);
     } finally { setImporting(false); }
   };
 
@@ -312,6 +327,9 @@ export default function SKUProductsPage() {
               />
               <Button variant="outline" disabled={importing} asChild><span><Upload className="h-4 w-4 mr-1" />{importing ? "Importing..." : "Import XLSX"}</span></Button>
             </label>
+            <Button variant="outline" onClick={restorePrevious} disabled={importing} title="Undo the last import — restore the SKUs to how they were before it">
+              <Undo2 className="h-4 w-4 mr-1" />Restore previous import
+            </Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button onClick={() => setEditing({ active: true })}><Plus className="h-4 w-4 mr-1" />New SKU</Button>
