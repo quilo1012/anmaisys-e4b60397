@@ -560,22 +560,34 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   });
   const jobs = jobsQ.data ?? [];
 
-  // What was already logged this shift — powers the one-tap shortcuts below.
+  // What this line has been running lately. Looking past the current session
+  // matters: at the start of a shift nothing is logged yet, which is exactly when
+  // the operator would otherwise have to type the product out.
   const prefillQ = useQuery({
-    enabled: !!sessionId,
-    queryKey: ["log-prefill", sessionId],
+    enabled: !!jobLine,
+    queryKey: ["log-prefill", jobLine, sessionId],
     queryFn: async () => {
+      const { data: sessions } = await (supabase as any)
+        .from("production_sessions")
+        .select("id")
+        .eq("line", jobLine)
+        .order("session_date", { ascending: false })
+        .limit(6);
+      const ids: string[] = (sessions ?? []).map((s: any) => s.id);
+      if (sessionId && !ids.includes(sessionId)) ids.unshift(sessionId);
+      if (ids.length === 0) return [];
       const { data } = await (supabase as any)
         .from("production_blender_entries")
-        .select("blender_label, blender_number, created_at, production_items!inner(blender_ref, batch_code, sku:sku_products(id, code, name))")
-        .eq("session_id", sessionId)
-        .order("created_at", { ascending: false });
+        .select("session_id, blender_label, blender_number, created_at, production_items!inner(blender_ref, batch_code, sku:sku_products(id, code, name))")
+        .in("session_id", ids)
+        .order("created_at", { ascending: false })
+        .limit(200);
       return (data ?? []) as any[];
     },
   });
 
-  type Recent = { id: string; code: string; name: string; batch: string; assembly: string };
-  /** Most recent entry first, deduped per SKU — each carries its last batch/assembly. */
+  type Recent = { id: string; code: string; name: string; batch: string; assembly: string; thisShift: boolean };
+  /** Most recent entry first, deduped per SKU — this shift's products lead. */
   const recentSkus: Recent[] = useMemo(() => {
     const out: Recent[] = [];
     const seen = new Set<string>();
@@ -587,12 +599,13 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
         id: sku.id, code: sku.code, name: sku.name,
         batch: e.production_items?.batch_code ?? "",
         assembly: e.production_items?.blender_ref ?? "",
+        thisShift: e.session_id === sessionId,
       });
     }
-    return out;
-  }, [prefillQ.data]);
+    return out.sort((a, b) => Number(b.thisShift) - Number(a.thisShift));
+  }, [prefillQ.data, sessionId]);
 
-  /** Blender labels already used this shift, most recent first. */
+  /** Blender labels recently used on this line, most recent first. */
   const recentBlenders: string[] = useMemo(() => {
     const out: string[] = [];
     for (const e of prefillQ.data ?? []) {
@@ -646,8 +659,12 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   const applyRecent = (r: Recent) => {
     setSelectedSku({ id: r.id, code: r.code, name: r.name });
     setSkuQuery(`${r.name} — ${r.code}`);
-    if (r.batch) setBatch(r.batch);
-    if (r.assembly) setAssembly(r.assembly);
+    // Batch and assembly belong to the run, not the product — only carry them
+    // over within the same shift, otherwise the operator would log a stale batch.
+    if (r.thisShift) {
+      if (r.batch) setBatch(r.batch);
+      if (r.assembly) setAssembly(r.assembly);
+    }
     // Stamp the start of this run once the operator commits to a product.
     setStartTime((t) => t || nowHM());
   };
@@ -820,7 +837,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
       reset();
       qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
       qc.invalidateQueries({ queryKey: ["blender-entries", sessionId] });
-      qc.invalidateQueries({ queryKey: ["log-prefill", sessionId] });
+      qc.invalidateQueries({ queryKey: ["log-prefill"] });
     } catch (e: any) {
       toast.error(e?.message || "Failed to save entry");
     } finally {
@@ -876,8 +893,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
         <div className="space-y-1.5">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">SKU produced</div>
 
-          {/* The products already running this shift come first: the operator picks
-              the same one or "another product" instead of retyping it. */}
+          {/* The products this line has been running, this shift's first: the
+              operator picks one instead of retyping it. */}
           {recentSkus.length > 0 && (
             <Select value={skuChoice} onValueChange={onSkuChoice}>
               <SelectTrigger className="h-11">
@@ -886,7 +903,10 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
               <SelectContent>
                 {recentSkus.map((r) => (
                   <SelectItem key={r.id} value={r.id}>
-                    <span className="block max-w-[260px] truncate">{r.name}</span>
+                    <span className="block max-w-[260px] truncate">
+                      {r.name}
+                      {!r.thisShift && <span className="text-muted-foreground"> · earlier</span>}
+                    </span>
                   </SelectItem>
                 ))}
                 <SelectItem value={OTHER_SKU}>Another product — search…</SelectItem>
