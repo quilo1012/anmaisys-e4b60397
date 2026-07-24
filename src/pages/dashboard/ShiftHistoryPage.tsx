@@ -22,6 +22,7 @@ import { format, subDays } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
+import XLSX from "xlsx-js-style";
 
 /** Inline Leader dropdown that saves on selection. Falls back to the stored
  *  leader_name when the leader_id is missing or points to an inactive leader,
@@ -351,11 +352,11 @@ export default function ShiftHistoryPage() {
   });
 
 
-  const exportCSV = () => {
+  const exportExcel = () => {
     // Mirrors the Production Control spreadsheet layout so the export pastes straight
     // in. The 5th column is intentionally unnamed there (it holds the description).
     const hm = (iso: string | null | undefined) => (iso ? format(new Date(iso), "HH:mm") : "");
-    const rows: string[][] = [[
+    const rows: (string | number)[][] = [[
       "Date", "Assembly Number", "Work Centre", "Product Code", "",
       "Weight (in Kg)", "QTY", "Start Time", "Finish Time", "Shift",
     ]];
@@ -375,19 +376,35 @@ export default function ShiftHistoryPage() {
           s.line,
           code,
           name,
-          grams ? String(grams / 1000) : "",
-          String(Number(i.actual_qty ?? 0)),
+          // Numbers stay numbers — the CSV version quoted everything, so Excel
+          // read weight and quantity as text and wouldn't sum them.
+          grams ? grams / 1000 : "",
+          Number(i.actual_qty ?? 0),
           hm(i.started_at),
           hm(i.finished_at),
           s.shift,
         ]);
       }
     }
-    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `production-control-${format(new Date(), "yyyy-MM-dd")}.csv`; a.click();
-    URL.revokeObjectURL(url);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 42 },
+      { wch: 13 }, { wch: 9 }, { wch: 10 }, { wch: 11 }, { wch: 8 },
+    ];
+    ws["!freeze"] = { xSplit: "0", ySplit: "1" };
+    for (let c = 0; c < rows[0].length; c++) {
+      const addr = XLSX.utils.encode_cell({ r: 0, c });
+      if (ws[addr]) {
+        ws[addr].s = {
+          fill: { patternType: "solid", fgColor: { rgb: "1E3A5F" } },
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+        };
+      }
+    }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Production Control");
+    XLSX.writeFile(wb, `production-control-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
   };
 
   return (
@@ -417,7 +434,7 @@ export default function ShiftHistoryPage() {
                 <Upload className="h-4 w-4 mr-1" />Import Production
               </Button>
             )}
-            <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
+            <Button variant="outline" onClick={exportExcel}><Download className="h-4 w-4 mr-1" />Export Excel</Button>
           </div>
         </div>
 
