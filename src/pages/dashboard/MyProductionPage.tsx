@@ -599,17 +599,21 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
       .select("id, code, name")
       .ilike("code", j.code)
       .maybeSingle();
+    if (j.batch) setBatch(j.batch);
+    if (j.qty > 0) setQty(String(j.qty));
+
     if (match) {
       setSelectedSku(match);
       setSkuQuery(`${match.name} — ${match.code}`);
-    } else {
-      // Not in the catalog — log it as typed; an admin reconciles the SKU later.
-      setSelectedSku(null);
-      setSkuQuery(j.code);
+      toast.success(`Filled from iTouching job ${j.code}`);
+      return;
     }
-    if (j.batch) setBatch(j.batch);
-    if (j.qty > 0) setQty(String(j.qty));
-    toast.success(`Filled from iTouching job ${j.code}`);
+    // Code isn't in the catalog. Search by the job's description so the operator
+    // can pick the right product, or just type it in and log it as-is.
+    setSelectedSku(null);
+    setSkuQuery(j.description?.trim() || j.code);
+    setSkuPopoverOpen(true);
+    toast.warning(`${j.code} isn't in the SKU catalog — pick the product below or type it in.`);
   };
 
   const pickSku = (s: { id: string; code: string; name: string }) => {
@@ -846,6 +850,11 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
               )}
             </PopoverContent>
           </Popover>
+          {!selectedSku && skuQuery.trim() && (
+            <div className="text-[11px] text-amber-600 dark:text-amber-400">
+              Not linked to the catalog — will be logged exactly as typed. Search above to pick the product instead.
+            </div>
+          )}
         </div>
 
         {/* Assembly number (optional) */}
