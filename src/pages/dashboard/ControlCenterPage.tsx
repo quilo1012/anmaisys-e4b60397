@@ -26,7 +26,15 @@ import { getWoStatusConfig } from "@/lib/woStatusConfig";
 import { formatWONumber } from "@/lib/woFormat";
 import { cn } from "@/lib/utils";
 
-const ZONE_ORDER = ["Line 1", "Line 2", "Line 3", "Line A", "Line B", "Line C", "Storage", "Maintenance Area"];
+// Non-numbered zones, in display order. Numbered production lines ("Line 1"…"Line 6")
+// are ordered numerically before these by getZones().
+const ZONE_ORDER = ["Capsules & Tablets", "Capsules Machine 1", "Capsules Machine 2", "Gel Machine", "Storage", "Maintenance Area"];
+
+/** Numeric index of a "Line N" zone, or null for anything else. */
+function lineNumber(zone: string): number | null {
+  const m = /^line\s+(\d+)$/i.exec(zone.trim());
+  return m ? Number(m[1]) : null;
+}
 
 function getZoneFor(m: any): string {
   return (
@@ -42,6 +50,12 @@ function getZones(machines: any[]) {
   const zones = new Set<string>();
   machines.forEach((m) => zones.add(getZoneFor(m)));
   return Array.from(zones).sort((a, b) => {
+    // Numbered production lines first, in numeric order (Line 1 → Line 6 → …).
+    const an = lineNumber(a), bn = lineNumber(b);
+    if (an !== null && bn !== null) return an - bn;
+    if (an !== null) return -1;
+    if (bn !== null) return 1;
+    // Then the known non-numbered zones, then anything else alphabetically.
     const ai = ZONE_ORDER.indexOf(a);
     const bi = ZONE_ORDER.indexOf(b);
     if (ai !== -1 && bi !== -1) return ai - bi;
