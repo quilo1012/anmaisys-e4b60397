@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProductionInputCard } from "@/components/ProductionInputCard";
 import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
@@ -22,6 +23,9 @@ import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
 import { invokeFunction } from "@/lib/invokeFunction";
 
 type Shift = "DAY" | "NIGHT";
+
+/** Sentinel for "not one of the products already running — let me search the catalog". */
+const OTHER_SKU = "__other__";
 
 
 function manualActualQty(row: any): number {
@@ -601,6 +605,10 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   const [skuQuery, setSkuQuery] = useState("");
   const [skuDebounced, setSkuDebounced] = useState("");
   const [selectedSku, setSelectedSku] = useState<{ id: string; code: string; name: string } | null>(null);
+  // Which product this entry is for: a SKU already running this shift, or OTHER_SKU
+  // to search the catalog. Operators mostly switch between the two or three
+  // products on their line, so picking one is faster than typing it again.
+  const [skuChoice, setSkuChoice] = useState<string>("");
   const [skuPopoverOpen, setSkuPopoverOpen] = useState(false);
   const [assembly, setAssembly] = useState(""); // stored in blender_ref
   const [batch, setBatch] = useState("");        // stored in batch_code — used by Quality to pull the SKU
@@ -635,21 +643,26 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   const results = searchQ.data || [];
 
   /** Reuse a SKU already logged this shift: fills SKU + its last batch/assembly. */
-  const applyRecent = (r: Recent, opts?: { withAssembly?: boolean }) => {
+  const applyRecent = (r: Recent) => {
     setSelectedSku({ id: r.id, code: r.code, name: r.name });
     setSkuQuery(`${r.name} — ${r.code}`);
     if (r.batch) setBatch(r.batch);
-    if (opts?.withAssembly && r.assembly) setAssembly(r.assembly);
+    if (r.assembly) setAssembly(r.assembly);
     // Stamp the start of this run once the operator commits to a product.
     setStartTime((t) => t || nowHM());
   };
 
-  /** Repeat the previous entry wholesale — only blender + quantity are left to set. */
-  const repeatLast = () => {
-    const r = recentSkus[0];
-    if (!r) return;
-    applyRecent(r, { withAssembly: true });
-    toast.success(`Repeated ${r.code}`);
+  /** Picked from the "which product" dropdown. */
+  const onSkuChoice = (v: string) => {
+    setSkuChoice(v);
+    if (v === OTHER_SKU) {
+      setSelectedSku(null);
+      setSkuQuery("");
+      setSkuDebounced("");
+      return;
+    }
+    const r = recentSkus.find((x) => x.id === v);
+    if (r) applyRecent(r);
   };
 
   /** Fill the form from an iTouching job — the operator only confirms/adjusts. */
@@ -664,6 +677,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
 
     if (match) {
       setSelectedSku(match);
+      setSkuChoice(recentSkus.some((r) => r.id === match.id) ? match.id : OTHER_SKU);
       setSkuQuery(`${match.name} — ${match.code}`);
       toast.success(`Filled from iTouching job ${j.code}`);
       return;
@@ -671,6 +685,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     // Code isn't in the catalog. Search by the job's description so the operator
     // can pick the right product, or just type it in and log it as-is.
     setSelectedSku(null);
+    setSkuChoice(OTHER_SKU);
     setSkuQuery(j.description?.trim() || j.code);
     setSkuPopoverOpen(true);
     toast.warning(`${j.code} isn't in the SKU catalog — pick the product below or type it in.`);
@@ -684,6 +699,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
 
   const reset = () => {
     setSelectedSku(null);
+    setSkuChoice("");
     setSkuQuery("");
     setSkuDebounced("");
     setAssembly("");
@@ -856,89 +872,86 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
           </div>
         )}
 
-        {/* One-tap shortcuts from what was already logged this shift. */}
-        {recentSkus.length > 0 && (
-          <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Logged this shift</div>
-              <Button type="button" size="sm" variant="outline" className="h-8" onClick={repeatLast}>
-                Repeat last
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {recentSkus.slice(0, 6).map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => applyRecent(r)}
-                  className="max-w-full rounded-full border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent active:scale-[0.98]"
-                  title={`${r.name} — ${r.code}`}
-                >
-                  <span className="block max-w-[220px] truncate">{r.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* SKU */}
         <div className="space-y-1.5">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">SKU produced</div>
-          <Popover open={skuPopoverOpen && (results.length > 0 || searchQ.isFetching)} onOpenChange={setSkuPopoverOpen}>
-            <PopoverTrigger asChild>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input
-                  value={skuQuery}
-                  onChange={(e) => { setSkuQuery(e.target.value); setSelectedSku(null); setSkuPopoverOpen(true); }}
-                  onFocus={() => { if (skuQuery.trim()) setSkuPopoverOpen(true); }}
-                  placeholder="Search by product name..."
-                  className="h-11 pl-9"
-                  autoComplete="off"
-                />
-              </div>
-            </PopoverTrigger>
-            <PopoverContent
-              className="p-0 w-[--radix-popover-trigger-width] max-h-72 overflow-auto"
-              align="start"
-              onOpenAutoFocus={(e) => e.preventDefault()}
-            >
-              {searchQ.isFetching ? (
-                <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Searching...
+
+          {/* The products already running this shift come first: the operator picks
+              the same one or "another product" instead of retyping it. */}
+          {recentSkus.length > 0 && (
+            <Select value={skuChoice} onValueChange={onSkuChoice}>
+              <SelectTrigger className="h-11">
+                <SelectValue placeholder="Which product?" />
+              </SelectTrigger>
+              <SelectContent>
+                {recentSkus.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    <span className="block max-w-[260px] truncate">{r.name}</span>
+                  </SelectItem>
+                ))}
+                <SelectItem value={OTHER_SKU}>Another product — search…</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
+          {(recentSkus.length === 0 || skuChoice === OTHER_SKU) && (
+            <Popover open={skuPopoverOpen && (results.length > 0 || searchQ.isFetching)} onOpenChange={setSkuPopoverOpen}>
+              <PopoverTrigger asChild>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    value={skuQuery}
+                    onChange={(e) => { setSkuQuery(e.target.value); setSelectedSku(null); setSkuPopoverOpen(true); }}
+                    onFocus={() => { if (skuQuery.trim()) setSkuPopoverOpen(true); }}
+                    placeholder="Search by product name..."
+                    className="h-11 pl-9"
+                    autoComplete="off"
+                  />
                 </div>
-              ) : results.length === 0 ? (
-                skuQuery.trim() ? (
-                  <button
-                    type="button"
-                    className="w-full text-left p-3 hover:bg-accent"
-                    onClick={() => { setSelectedSku(null); setSkuPopoverOpen(false); }}
-                  >
-                    <div className="text-sm font-medium">Use “<span className="font-mono">{skuQuery.trim()}</span>” as typed</div>
-                    <div className="text-xs text-muted-foreground">Not in the catalog — it won't create a new SKU. Admin reconciles it later.</div>
-                  </button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="p-0 w-[--radix-popover-trigger-width] max-h-72 overflow-auto"
+                align="start"
+                onOpenAutoFocus={(e) => e.preventDefault()}
+              >
+                {searchQ.isFetching ? (
+                  <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Searching...
+                  </div>
+                ) : results.length === 0 ? (
+                  skuQuery.trim() ? (
+                    <button
+                      type="button"
+                      className="w-full text-left p-3 hover:bg-accent"
+                      onClick={() => { setSelectedSku(null); setSkuPopoverOpen(false); }}
+                    >
+                      <div className="text-sm font-medium">Use “<span className="font-mono">{skuQuery.trim()}</span>” as typed</div>
+                      <div className="text-xs text-muted-foreground">Not in the catalog — it won't create a new SKU. Admin reconciles it later.</div>
+                    </button>
+                  ) : (
+                    <div className="p-3 text-sm text-muted-foreground">No SKUs found</div>
+                  )
                 ) : (
-                  <div className="p-3 text-sm text-muted-foreground">No SKUs found</div>
-                )
-              ) : (
-                <ul className="divide-y">
-                  {results.map((s) => (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        className="w-full text-left p-2 hover:bg-accent"
-                        onClick={() => pickSku(s)}
-                      >
-                        <div className="text-sm font-semibold truncate">{s.name}</div>
-                        <div className="font-mono text-xs text-muted-foreground truncate">{s.code}</div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </PopoverContent>
-          </Popover>
-          {!selectedSku && skuQuery.trim() && (
+                  <ul className="divide-y">
+                    {results.map((s) => (
+                      <li key={s.id}>
+                        <button
+                          type="button"
+                          className="w-full text-left p-2 hover:bg-accent"
+                          onClick={() => pickSku(s)}
+                        >
+                          <div className="text-sm font-semibold truncate">{s.name}</div>
+                          <div className="font-mono text-xs text-muted-foreground truncate">{s.code}</div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </PopoverContent>
+            </Popover>
+          )}
+
+          {(recentSkus.length === 0 || skuChoice === OTHER_SKU) && !selectedSku && skuQuery.trim() && (
             <div className="text-[11px] text-amber-600 dark:text-amber-400">
               Not linked to the catalog — will be logged exactly as typed. Search above to pick the product instead.
             </div>
