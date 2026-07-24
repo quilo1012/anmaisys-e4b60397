@@ -210,7 +210,7 @@ function MyProductionContent() {
         </Card>
       ) : (
         <>
-          <LogProductionCard sessionId={sessionId} />
+          <LogProductionCard sessionId={sessionId} target={totalTarget} produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)} />
 
           {items.length === 0 ? (
             <Card>
@@ -531,7 +531,7 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
 /** A scheduled/running job as returned by intouch-list-scheduled-jobs. */
 type IntouchJob = { code: string; description: string; qty: number; status: string; seq: number; batch: string; actual: number };
 
-function LogProductionCard({ sessionId }: { sessionId: string }) {
+function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId: string; target?: number; produced?: number }) {
   const qc = useQueryClient();
   const { selectedLineName: jobLine } = useDeviceLineCtx();
   const { sessionDate: jobDate, shiftCode: jobShiftCode } = getCurrentFactoryShift();
@@ -555,6 +555,48 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
     },
   });
   const jobs = jobsQ.data ?? [];
+
+  // What was already logged this shift — powers the one-tap shortcuts below.
+  const prefillQ = useQuery({
+    enabled: !!sessionId,
+    queryKey: ["log-prefill", sessionId],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("production_blender_entries")
+        .select("blender_label, blender_number, created_at, production_items!inner(blender_ref, batch_code, sku:sku_products(id, code, name))")
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: false });
+      return (data ?? []) as any[];
+    },
+  });
+
+  type Recent = { id: string; code: string; name: string; batch: string; assembly: string };
+  /** Most recent entry first, deduped per SKU — each carries its last batch/assembly. */
+  const recentSkus: Recent[] = useMemo(() => {
+    const out: Recent[] = [];
+    const seen = new Set<string>();
+    for (const e of prefillQ.data ?? []) {
+      const sku = e.production_items?.sku;
+      if (!sku?.id || seen.has(sku.id)) continue;
+      seen.add(sku.id);
+      out.push({
+        id: sku.id, code: sku.code, name: sku.name,
+        batch: e.production_items?.batch_code ?? "",
+        assembly: e.production_items?.blender_ref ?? "",
+      });
+    }
+    return out;
+  }, [prefillQ.data]);
+
+  /** Blender labels already used this shift, most recent first. */
+  const recentBlenders: string[] = useMemo(() => {
+    const out: string[] = [];
+    for (const e of prefillQ.data ?? []) {
+      const l = String(e.blender_label ?? e.blender_number ?? "").trim();
+      if (l && !out.includes(l)) out.push(l);
+    }
+    return out;
+  }, [prefillQ.data]);
 
   const [skuQuery, setSkuQuery] = useState("");
   const [skuDebounced, setSkuDebounced] = useState("");
@@ -591,6 +633,24 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
   });
 
   const results = searchQ.data || [];
+
+  /** Reuse a SKU already logged this shift: fills SKU + its last batch/assembly. */
+  const applyRecent = (r: Recent, opts?: { withAssembly?: boolean }) => {
+    setSelectedSku({ id: r.id, code: r.code, name: r.name });
+    setSkuQuery(`${r.name} — ${r.code}`);
+    if (r.batch) setBatch(r.batch);
+    if (opts?.withAssembly && r.assembly) setAssembly(r.assembly);
+    // Stamp the start of this run once the operator commits to a product.
+    setStartTime((t) => t || nowHM());
+  };
+
+  /** Repeat the previous entry wholesale — only blender + quantity are left to set. */
+  const repeatLast = () => {
+    const r = recentSkus[0];
+    if (!r) return;
+    applyRecent(r, { withAssembly: true });
+    toast.success(`Repeated ${r.code}`);
+  };
 
   /** Fill the form from an iTouching job — the operator only confirms/adjusts. */
   const applyJob = async (j: IntouchJob) => {
@@ -712,9 +772,11 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
 
       // Each blender keeps its OWN start/finish, so several blenders on the same
       // SKU don't overwrite each other's times.
+      // Saving marks the end of the run, so stamp Finish when it was left blank.
+      const finishHM = finishTime || nowHM();
       const entryTimes: Record<string, string | null> = {};
       if (startTime) entryTimes.started_at = hmToIso(startTime);
-      if (finishTime) entryTimes.finished_at = hmToIso(finishTime);
+      entryTimes.finished_at = hmToIso(finishHM);
 
       if (existingEntry?.id) {
         const { error: upErr } = await (supabase as any)
@@ -742,6 +804,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
       reset();
       qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
       qc.invalidateQueries({ queryKey: ["blender-entries", sessionId] });
+      qc.invalidateQueries({ queryKey: ["log-prefill", sessionId] });
     } catch (e: any) {
       toast.error(e?.message || "Failed to save entry");
     } finally {
@@ -790,6 +853,31 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
               ))}
             </div>
             <div className="text-[11px] text-muted-foreground">Tap a job to fill the form, then confirm the quantity.</div>
+          </div>
+        )}
+
+        {/* One-tap shortcuts from what was already logged this shift. */}
+        {recentSkus.length > 0 && (
+          <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Logged this shift</div>
+              <Button type="button" size="sm" variant="outline" className="h-8" onClick={repeatLast}>
+                Repeat last
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {recentSkus.slice(0, 6).map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => applyRecent(r)}
+                  className="max-w-full rounded-full border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent active:scale-[0.98]"
+                  title={`${r.name} — ${r.code}`}
+                >
+                  <span className="block max-w-[220px] truncate">{r.name}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -893,11 +981,33 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
             className="h-11"
             autoComplete="off"
           />
+          {recentBlenders.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {recentBlenders.slice(0, 6).map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  onClick={() => setBlender(b)}
+                  className="rounded-full border bg-background px-3 py-1 text-xs font-medium transition-colors hover:bg-accent active:scale-[0.98]"
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Quantity */}
         <div className="space-y-1.5">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Quantity produced</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Quantity produced</div>
+            {target > 0 && (
+              <div className="text-[11px] text-muted-foreground">
+                Remaining: <b className="text-foreground tabular-nums">{Math.max(0, target - produced).toLocaleString()}</b>
+                <span className="text-muted-foreground/60"> of {target.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
           <Input
             type="number"
             inputMode="numeric"
