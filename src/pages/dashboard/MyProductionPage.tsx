@@ -37,6 +37,15 @@ function manualActualQty(row: any): number {
   return Number(row.actual_qty ?? 0);
 }
 
+/** Catalog names carry customs codes ("… [HS CODE:2106909285]") that push the part
+ *  the operator actually reads — the flavour or market — out of view. Strip them. */
+function productLabel(name: string | null | undefined): string {
+  return String(name ?? "")
+    .replace(/\[[^\]]*\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Current local time as "HH:mm". */
 function nowHM(): string {
   const d = new Date();
@@ -366,7 +375,7 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
                   return (
                     <li key={sku.id} className="flex items-center justify-between gap-2 p-2">
                       <div className="min-w-0">
-                        <div className="text-sm font-semibold truncate">{sku.name}</div>
+                        <div className="text-sm font-semibold truncate">{productLabel(sku.name)}</div>
                         <div className="font-mono text-xs text-muted-foreground truncate">{sku.code}</div>
                       </div>
                       <Button
@@ -629,7 +638,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
         if (prev) prev.qty += qty;
         else byCode.set(key, { code, qty });
       }
-      const top = [...byCode.values()].sort((a, b) => b.qty - a.qty).slice(0, 12);
+      const top = [...byCode.values()].sort((a, b) => b.qty - a.qty).slice(0, 8);
       if (top.length === 0) return [];
       const { data: prods } = await (supabase as any)
         .from("sku_products")
@@ -715,7 +724,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   /** Reuse a SKU already logged this shift: fills SKU + its last batch/assembly. */
   const applyRecent = (r: Recent) => {
     setSelectedSku({ id: r.id, code: r.code, name: r.name });
-    setSkuQuery(`${r.name} — ${r.code}`);
+    setSkuQuery(`${productLabel(r.name)} — ${r.code}`);
     // Batch and assembly belong to the run, not the product — only carry them
     // over within the same shift, otherwise the operator would log a stale batch.
     if (r.thisShift) {
@@ -752,7 +761,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     if (match) {
       setSelectedSku(match);
       setSkuChoice(pickable.some((r) => r.id === match.id) ? match.id : OTHER_SKU);
-      setSkuQuery(`${match.name} — ${match.code}`);
+      setSkuQuery(`${productLabel(match.name)} — ${match.code}`);
       toast.success(`Filled from iTouching job ${j.code}`);
       return;
     }
@@ -767,7 +776,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
 
   const pickSku = (s: { id: string; code: string; name: string }) => {
     setSelectedSku(s);
-    setSkuQuery(`${s.name} — ${s.code}`);
+    setSkuQuery(`${productLabel(s.name)} — ${s.code}`);
     setSkuPopoverOpen(false);
   };
 
@@ -957,13 +966,14 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
               <SelectTrigger className="h-11">
                 <SelectValue placeholder="Which product?" />
               </SelectTrigger>
-              <SelectContent>
+              {/* Capped so the list can't swallow the form behind it. */}
+              <SelectContent className="max-h-[45vh]">
                 {pickable.some((r) => r.thisShift) && (
                   <SelectGroup>
                     <SelectLabel>This shift</SelectLabel>
                     {pickable.filter((r) => r.thisShift).map((r) => (
                       <SelectItem key={r.id} value={r.id}>
-                        <span className="block max-w-[260px] truncate">{r.name}</span>
+                        <span className="block truncate">{productLabel(r.name)}</span>
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -973,7 +983,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                     <SelectLabel>Usual on {jobLine}</SelectLabel>
                     {pickable.filter((r) => !r.thisShift).map((r) => (
                       <SelectItem key={r.id} value={r.id}>
-                        <span className="block max-w-[260px] truncate">{r.name}</span>
+                        <span className="block truncate">{productLabel(r.name)}</span>
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -1029,7 +1039,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                           className="w-full text-left p-2 hover:bg-accent"
                           onClick={() => pickSku(s)}
                         >
-                          <div className="text-sm font-semibold truncate">{s.name}</div>
+                          <div className="text-sm font-semibold truncate">{productLabel(s.name)}</div>
                           <div className="font-mono text-xs text-muted-foreground truncate">{s.code}</div>
                         </button>
                       </li>
@@ -1239,7 +1249,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-mono text-sm font-semibold truncate">{sku?.code ?? "—"}</span>
-                      <span className="text-xs text-muted-foreground truncate">{sku?.name ?? ""}</span>
+                      <span className="text-xs text-muted-foreground truncate">{productLabel(sku?.name)}</span>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="inline-flex items-center rounded bg-secondary text-secondary-foreground px-1.5 py-0.5 text-[10px] font-medium">
