@@ -77,7 +77,9 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
           id: engineerId as string,
           name: engineerName as string,
           is_leader: !!(obj?.is_leader ?? arrMatch?.is_leader),
-          leader_line: (obj?.leader_line ?? arrMatch?.leader_line ?? linesArr[0] ?? null) as string | null,
+          // Never invent a "home line" from the first allowed line — leaders rotate,
+          // and doing so wrongly reported every leader as belonging to Line 1.
+          leader_line: (obj?.leader_line ?? arrMatch?.leader_line ?? null) as string | null,
           leader_lines: linesArr,
         };
 
