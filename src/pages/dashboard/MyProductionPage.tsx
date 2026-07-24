@@ -563,7 +563,6 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
     // as-is (no new SKU is created). Admin reconciles the real SKU later.
     const rawCode = skuQuery.trim().replace(/\s+—\s+.*$/, "").trim();
     if (!selectedSku && !rawCode) { toast.error("Enter or select a SKU"); return; }
-    if (!assembly.trim()) { toast.error("Enter the assembly number"); return; }
     if (!batch.trim()) { toast.error("Enter the batch code"); return; }
     if (!Number.isFinite(blenderNum) || !Number.isInteger(blenderNum) || blenderNum < 1) { toast.error("Enter a valid blender number"); return; }
     if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
@@ -577,13 +576,13 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
     try {
       // 1) Find or create the production_items row for this session + SKU + batch.
       // Multiple batches of the same SKU in one shift are separate items,
-      // distinguished by blender_ref (the batch).
+      // distinguished by the batch code (the assembly number is optional).
       let findQ = (supabase as any)
         .from("production_items")
-        .select("id, blender_ref")
+        .select("id")
         .eq("session_id", sessionId);
       findQ = skuId ? findQ.eq("sku_id", skuId) : findQ.is("sku_id", null).eq("sku_code_text", skuText);
-      findQ = findQ.eq("blender_ref", assembly.trim());
+      findQ = findQ.eq("batch_code", batch.trim());
       const { data: existingItem, error: findErr } = await findQ.maybeSingle();
       if (findErr) throw findErr;
 
@@ -599,8 +598,8 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
             planned_qty: 0,
             actual_qty: 0,
             notes: "manual_sku",
-            blender_ref: assembly.trim(),
-            batch_code: batch.trim() || null,
+            blender_ref: assembly.trim() || null,
+            batch_code: batch.trim(),
             started_at: hmToIso(startTime),
             finished_at: hmToIso(finishTime),
           })
@@ -614,6 +613,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
         if (startTime) timePatch.started_at = hmToIso(startTime);
         if (finishTime) timePatch.finished_at = hmToIso(finishTime);
         if (batch.trim()) timePatch.batch_code = batch.trim();
+        if (assembly.trim()) timePatch.blender_ref = assembly.trim();
         if (Object.keys(timePatch).length) {
           await (supabase as any).from("production_items").update(timePatch).eq("id", itemId);
         }
@@ -731,9 +731,9 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
           </Popover>
         </div>
 
-        {/* Assembly number (required) */}
+        {/* Assembly number (optional) */}
         <div className="space-y-1.5">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Assembly number</div>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Assembly number <span className="normal-case text-muted-foreground/60">(optional)</span></div>
           <Input
             value={assembly}
             onChange={(e) => setAssembly(e.target.value)}
