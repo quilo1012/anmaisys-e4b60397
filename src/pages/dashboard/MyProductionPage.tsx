@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ProductionInputCard } from "@/components/ProductionInputCard";
 import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
@@ -222,186 +221,13 @@ function MyProductionContent() {
           </CardContent>
         </Card>
       ) : (
-        <>
-          <LogProductionCard sessionId={sessionId} target={totalTarget} produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)} />
-
-          {items.length === 0 ? (
-            <Card>
-              <CardContent className="p-6 text-center text-sm text-muted-foreground">
-                No SKUs scheduled for this shift yet. Use "+ Add SKU" below to add one manually.
-              </CardContent>
-            </Card>
-          ) : (
-            <ProductionInputCard
-              sessionId={sessionId}
-              sessionDate={today}
-              line={line}
-              shift={shift}
-              ragPlanQty={totalTarget}
-              items={items}
-              canEdit={true}
-            />
-          )}
-
-          {/* Manual SKU search — add an SKU to this shift on the fly */}
-          <SkuSearchAdd
-            sessionId={sessionId}
-            existingSkuIds={items.map((i) => i.sku_id)}
-          />
-        </>
+        /* Log Production covers the whole flow now — search or type a SKU, log
+           each blender, and see "Logged this shift". The old per-item card and
+           the separate "Add SKU" panel duplicated it and showed confusing
+           fields (Completion 0%, Standard fill time —), so they're gone. */
+        <LogProductionCard sessionId={sessionId} target={totalTarget} produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)} />
       )}
     </div>
-  );
-}
-
-function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existingSkuIds: string[] }) {
-  const qc = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
-  const [query, setQuery] = useState("");
-  const [debounced, setDebounced] = useState("");
-  const [open, setOpen] = useState(false);
-  const [addingId, setAddingId] = useState<string | null>(null);
-
-  // 300ms debounce
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(query.trim()), 300);
-    return () => clearTimeout(t);
-  }, [query]);
-
-
-  const searchQ = useQuery({
-    enabled: expanded && debounced.length >= 1,
-    queryKey: ["sku-search", debounced],
-    staleTime: 30_000,
-    queryFn: async () => {
-      const q = debounced;
-      const { data, error } = await (supabase as any)
-        .from("sku_products")
-        .select("id, code, name")
-        .or(`code.ilike.%${q}%,name.ilike.%${q}%`)
-        .order("code", { ascending: true })
-        .limit(20);
-      if (error) throw error;
-      return (data || []) as { id: string; code: string; name: string }[];
-    },
-  });
-
-
-  const existing = useMemo(() => new Set(existingSkuIds), [existingSkuIds]);
-
-  const addSku = async (sku: { id: string; code: string; name: string }) => {
-    if (existing.has(sku.id)) {
-      toast.info(`${sku.code} is already in this shift`);
-      return;
-    }
-    setAddingId(sku.id);
-    const { error } = await (supabase as any).from("production_items").insert({
-      session_id: sessionId,
-      sku_id: sku.id,
-      target_qty: 0,
-      planned_qty: 0,
-      actual_qty: 0,
-      notes: "manual_sku",
-    });
-    setAddingId(null);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success(`Added ${sku.code} to this shift`);
-    setQuery("");
-    setDebounced("");
-    setOpen(false);
-    setExpanded(false);
-    qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
-  };
-
-  const results = searchQ.data || [];
-
-  return (
-    <Card>
-      <CardContent className="p-4 md:p-6 space-y-2">
-        {!expanded ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 w-full"
-            onClick={() => setExpanded(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" /> Add SKU
-          </Button>
-        ) : (
-          <>
-        <div className="flex items-center justify-between">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Add SKU manually</div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => { setExpanded(false); setQuery(""); setDebounced(""); setOpen(false); }}
-          >
-            Cancel
-          </Button>
-        </div>
-        <Popover open={open && (results.length > 0 || searchQ.isFetching)} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                value={query}
-                onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-                onFocus={() => { if (query.trim()) setOpen(true); }}
-                placeholder="Search by product name..."
-                className="h-11 pl-9"
-                autoComplete="off"
-              />
-            </div>
-          </PopoverTrigger>
-          <PopoverContent
-            className="p-0 w-[--radix-popover-trigger-width] max-h-72 overflow-auto"
-            align="start"
-            onOpenAutoFocus={(e) => e.preventDefault()}
-          >
-            {searchQ.isFetching ? (
-              <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" /> Searching...
-              </div>
-            ) : results.length === 0 ? (
-              <div className="p-3 text-sm text-muted-foreground">No SKUs found</div>
-            ) : (
-              <ul className="divide-y">
-                {results.map((sku) => {
-                  const already = existing.has(sku.id);
-                  return (
-                    <li key={sku.id} className="flex items-center justify-between gap-2 p-2">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold truncate">{productLabel(sku.name)}</div>
-                        <div className="font-mono text-xs text-muted-foreground truncate">{sku.code}</div>
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={already ? "outline" : "default"}
-                        disabled={addingId === sku.id}
-                        onClick={() => addSku(sku)}
-                      >
-                        {addingId === sku.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <><Plus className="h-4 w-4 mr-1" />{already ? "Add again" : "Add"}</>
-                        )}
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </PopoverContent>
-        </Popover>
-          </>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
