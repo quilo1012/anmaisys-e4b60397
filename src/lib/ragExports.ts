@@ -121,6 +121,10 @@ async function loadLogoDataUrl(): Promise<string | null> {
 // ============================================================
 // PDF
 // ============================================================
+
+/** Room kept clear at the foot of every page for the confidentiality line. */
+const BOTTOM_MARGIN = 14;
+
 export async function exportRagPdf(input: RagExportInput) {
   const { weekStart, lines, entries, autoDtBucketMap, generatedBy, comments } = input;
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -248,20 +252,24 @@ export async function exportRagPdf(input: RagExportInput) {
     styles: { fontSize: 7, cellPadding: 1.5, lineColor: [200, 200, 200] },
     headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: "bold", halign: "center" },
     columnStyles: { 0: { fontStyle: "bold", halign: "left", cellWidth: 30 } },
-    margin: { left: margin, right: margin },
+    // autoTable's bottom margin defaults to 40 — in mm that reserved a fifth of
+    // the page and broke tables far earlier than needed.
+    margin: { left: margin, right: margin, bottom: BOTTOM_MARGIN },
+    // A line's row must never straddle a page: it left labels cut in half
+    // ("Capsules Machine 1 ·") with the numbers stranded overleaf.
+    rowPageBreak: "avoid",
   });
 
   // Trend chart (simple line chart drawn manually)
   const afterTableY = (doc as any).lastAutoTable.finalY + 6;
   const chartH = 55;
   const chartW = pageW - margin * 2;
-  const chartTop = afterTableY;
-  const chartBottom = chartTop + chartH;
-
-  if (chartTop + chartH + 40 > pageH) {
-    doc.addPage();
-  }
-  const cTop = chartTop + chartH + 40 > pageH ? 20 : chartTop;
+  // Title, x-axis labels and legend all live outside chartH — reserve them too,
+  // otherwise the legend lands on top of the next block.
+  const chartBlockH = chartH + 24;
+  const chartFits = afterTableY + chartBlockH <= pageH - BOTTOM_MARGIN;
+  if (!chartFits) doc.addPage();
+  const cTop = chartFits ? afterTableY : 24;
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
@@ -318,16 +326,19 @@ export async function exportRagPdf(input: RagExportInput) {
   doc.setLineWidth(0.2);
 
   // Legend
-  const legY = cTop + chartH + 8;
+  let legY = cTop + chartH + 8;
   let legX = margin;
   doc.setFontSize(6.5); doc.setTextColor(40);
   lines.forEach((line, li) => {
     const c = palette[li % palette.length];
+    const w = doc.getTextWidth(line) + 10;
+    // Wrapping used to reset X but keep Y, stacking the overflow on top of the
+    // first row. Drop to a new legend line instead.
+    if (legX > margin && legX + w > pageW - margin) { legX = margin; legY += 5; }
     doc.setFillColor(c[0], c[1], c[2]);
     doc.rect(legX, legY - 2, 3, 2, "F");
     doc.text(line, legX + 4, legY);
-    legX += doc.getTextWidth(line) + 10;
-    if (legX > pageW - margin - 30) { legX = margin; }
+    legX += w;
   });
 
   // Downtime summary
@@ -339,15 +350,21 @@ export async function exportRagPdf(input: RagExportInput) {
     return [line, ...cells.map((v) => (v ? `${v} min` : "—"))];
   });
 
-  if (dtStartY + 40 > pageH) doc.addPage();
+  // The old guard reserved a flat 40mm regardless of how many lines there were,
+  // so a ten-line summary started too low and split five rows onto a page of
+  // its own. Measure what the table actually needs.
+  const dtNeeded = 8 + dtBody.length * 6;
+  const dtFits = dtStartY + dtNeeded <= pageH - BOTTOM_MARGIN;
+  if (!dtFits) doc.addPage();
   autoTable(doc, {
-    startY: dtStartY + 40 > pageH ? 20 : dtStartY,
+    startY: dtFits ? dtStartY : 24,
     head: dtHead,
     body: dtBody,
     theme: "grid",
     styles: { fontSize: 7, cellPadding: 1.5 },
     headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: "bold" },
-    margin: { left: margin, right: margin },
+    margin: { left: margin, right: margin, bottom: BOTTOM_MARGIN },
+    rowPageBreak: "avoid",
   });
 
   // Footer on every page

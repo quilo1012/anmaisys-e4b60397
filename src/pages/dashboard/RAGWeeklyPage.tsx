@@ -462,45 +462,6 @@ export default function RAGWeeklyPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const exportXlsx = async () => {
-    const XLSX = await import("xlsx");
-    const headers = ["Date", "Line", "Shift", "Plan", "Actual", "Variance %", "UPM Target", "UPM Actual", "Downtime (min)", "Notes"];
-    const rows = entries.map((e) => [
-      e.entry_date, e.line, e.shift, e.plan_qty, e.actual_qty,
-      e.plan_qty ? Number((((e.actual_qty - e.plan_qty) / e.plan_qty) * 100).toFixed(1)) : "",
-      e.upm_target, e.upm_actual, e.downtime_min, e.notes ?? "",
-    ]);
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `Week ${getISOWeek(weekStart)}`);
-    XLSX.writeFile(wb, `rag-week-${weekStartStr}.xlsx`);
-  };
-
-  const exportLayoutTemplate = async () => {
-    const XLSX = await import("xlsx");
-    const dates = Array.from({ length: 7 }, (_, i) => format(addDays(weekStart, i), "dd/MM/yyyy"));
-    const aoa: (string | number)[][] = [];
-    aoa.push([`RAG Weekly Template · Week ${getISOWeek(weekStart)} · ${format(weekStart, "dd MMM yyyy")}`]);
-    aoa.push([]);
-    const dayNightHeader = ["", ...dates.flatMap((d) => [d, ""])];
-    const subHeader = ["", ...dates.flatMap(() => ["Day", "Night"])];
-    for (const line of lines) {
-      aoa.push([line]);
-      aoa.push(dayNightHeader);
-      aoa.push(subHeader);
-      aoa.push(["Plan", ...dates.flatMap(() => ["", ""])]);
-      aoa.push(["Actual", ...dates.flatMap(() => ["", ""])]);
-      aoa.push(["Downtime", ...dates.flatMap(() => ["", ""])]);
-      aoa.push([]);
-    }
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = [{ wch: 18 }, ...Array(14).fill({ wch: 10 })];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "RAG Template");
-    XLSX.writeFile(wb, `rag-template-${weekStartStr}.xlsx`);
-  };
-
-
   // RAG block-layout importer (lines as blocks; Plan/Actual/Downtime rows × Mon-Sun × Day/Night/Total)
   const importLayoutMutation = useMutation({
     mutationFn: async (file: File) => {
