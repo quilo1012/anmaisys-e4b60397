@@ -45,6 +45,18 @@ function productLabel(name: string | null | undefined): string {
     .trim();
 }
 
+/** The export market a SKU is for, read from its name/code (Peru, KSA, UAE,
+ *  Morocco, Australia). Same product, different label — this tells them apart. */
+function marketOf(name?: string | null, code?: string | null): string {
+  const hay = `${name ?? ""} ${code ?? ""}`.toUpperCase();
+  if (/\bPERU\b|^PERU|PERUCRE/.test(hay)) return "Peru";
+  if (/\bKSA\b|^KSA|KSACRE/.test(hay)) return "KSA";
+  if (/\bUAE\b/.test(hay)) return "UAE";
+  if (/MOROCCO|^MOR/.test(hay)) return "Morocco";
+  if (/AUSTRALIA/.test(hay)) return "Australia";
+  return "";
+}
+
 /** Current local time as "HH:mm". */
 function nowHM(): string {
   const d = new Date();
@@ -456,18 +468,32 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     staleTime: 30_000,
     queryFn: async () => {
       const q = skuDebounced;
+      // Fetch wide, then collapse batch duplicates below — the same product
+      // exists as CRE1KG, CRE1KG - B1 … B42, which would otherwise bury the
+      // market variants (Peru, Morocco, KSA) the operator is looking for.
       const { data, error } = await (supabase as any)
         .from("sku_products")
         .select("id, code, name")
         .or(`code.ilike.%${q}%,name.ilike.%${q}%`)
         .order("code", { ascending: true })
-        .limit(20);
+        .limit(200);
       if (error) throw error;
       return (data || []) as { id: string; code: string; name: string }[];
     },
   });
 
-  const results = searchQ.data || [];
+  // One row per market variant. Each variant (… - PERU, … MOROCCO, … - KSA) has
+  // its own name; the batch copies (CRE1KG - B12, PERUCRE500 - B8) share a name,
+  // so grouping by name keeps the shortest code — the clean base SKU.
+  const results: { id: string; code: string; name: string }[] = useMemo(() => {
+    const byName = new Map<string, { id: string; code: string; name: string }>();
+    for (const s of searchQ.data ?? []) {
+      const key = productLabel(s.name).toLowerCase();
+      const prev = byName.get(key);
+      if (!prev || s.code.length < prev.code.length) byName.set(key, s);
+    }
+    return [...byName.values()].sort((a, b) => productLabel(a.name).localeCompare(productLabel(b.name)));
+  }, [searchQ.data]);
 
   /** Fill the form from an iTouching job — the operator only confirms/adjusts. */
   const applyJob = async (j: IntouchJob) => {
@@ -735,7 +761,14 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                           className="w-full text-left p-2 hover:bg-accent"
                           onClick={() => pickSku(s)}
                         >
-                          <div className="text-sm font-semibold truncate">{productLabel(s.name)}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold truncate">{productLabel(s.name)}</span>
+                            {marketOf(s.name, s.code) && (
+                              <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                {marketOf(s.name, s.code)}
+                              </span>
+                            )}
+                          </div>
                           <div className="font-mono text-xs text-muted-foreground truncate">{s.code}</div>
                         </button>
                       </li>
