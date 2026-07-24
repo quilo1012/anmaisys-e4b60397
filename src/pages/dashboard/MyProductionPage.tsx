@@ -15,7 +15,7 @@ import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
-import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square } from "lucide-react";
+import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -790,13 +790,19 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     setSkuDebounced("");
     setAssembly("");
     setBatch("");
+    resetRunFields();
+  };
+
+  /** Clear only what changes from one blender to the next. The product, batch and
+   *  assembly stay, because the same SKU normally runs on several blenders. */
+  const resetRunFields = () => {
     setBlender("");
     setQty("");
     setStartTime("");
     setFinishTime("");
   };
 
-  const onSave = async () => {
+  const onSave = async (opts?: { keepProduct?: boolean }) => {
     const quantity = Number(qty);
     // Blenders can be combined ("7/8"). Keep the typed label as the identity and
     // take the first number for the numeric column used in reporting.
@@ -903,7 +909,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
 
       // 3) actual_qty is auto-synced by DB trigger from blender entries.
       toast.success(`Logged ${quantity} on Blender ${blenderLabel} for ${selectedSku?.code ?? skuText}`);
-      reset();
+      if (opts?.keepProduct) resetRunFields();
+      else reset();
       qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
       qc.invalidateQueries({ queryKey: ["blender-entries", sessionId] });
       qc.invalidateQueries({ queryKey: ["log-prefill"] });
@@ -1186,14 +1193,30 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
           </div>
         </div>
 
-        <Button
-          type="button"
-          className="h-14 w-full text-base font-semibold"
-          onClick={onSave}
-          disabled={saving}
-        >
-          {saving ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Saving...</> : <><Plus className="h-5 w-5 mr-2" /> Save entry</>}
-        </Button>
+        <div className="space-y-2">
+          <Button
+            type="button"
+            className="h-14 w-full text-base font-semibold"
+            onClick={() => onSave()}
+            disabled={saving}
+          >
+            {saving ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Saving...</> : <><Plus className="h-5 w-5 mr-2" /> Save entry</>}
+          </Button>
+          {/* The same SKU normally runs on several blenders, so saving and clearing
+              the whole form made the operator re-enter the product every time. */}
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 w-full text-base font-semibold"
+            onClick={() => onSave({ keepProduct: true })}
+            disabled={saving}
+          >
+            <Repeat className="h-5 w-5 mr-2" /> Save &amp; next blender
+          </Button>
+          <div className="text-center text-[11px] text-muted-foreground">
+            Keeps the product, batch and assembly — you only enter the blender and quantity.
+          </div>
+        </div>
 
         <LoggedThisShift sessionId={sessionId} />
       </CardContent>
