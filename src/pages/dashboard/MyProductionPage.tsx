@@ -354,13 +354,13 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
                         type="button"
                         size="sm"
                         variant={already ? "outline" : "default"}
-                        disabled={already || addingId === sku.id}
+                        disabled={addingId === sku.id}
                         onClick={() => addSku(sku)}
                       >
                         {addingId === sku.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <><Plus className="h-4 w-4 mr-1" />{already ? "Added" : "Add"}</>
+                          <><Plus className="h-4 w-4 mr-1" />{already ? "Add again" : "Add"}</>
                         )}
                       </Button>
                     </li>
@@ -521,7 +521,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
   const [skuPopoverOpen, setSkuPopoverOpen] = useState(false);
   const [assembly, setAssembly] = useState(""); // stored in blender_ref
   const [batch, setBatch] = useState("");        // stored in batch_code — used by Quality to pull the SKU
-  const [blender, setBlender] = useState<number | null>(null);
+  const [blender, setBlender] = useState<string>("");
   const [qty, setQty] = useState<string>("");
   const [startTime, setStartTime] = useState("");   // "HH:mm"
   const [finishTime, setFinishTime] = useState("");
@@ -563,7 +563,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
     setSkuDebounced("");
     setAssembly("");
     setBatch("");
-    setBlender(null);
+    setBlender("");
     setQty("");
     setStartTime("");
     setFinishTime("");
@@ -571,16 +571,17 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
 
   const onSave = async () => {
     const quantity = Number(qty);
-    const blenderNum = Number(blender);
+    // Blenders can be combined ("7/8"). Keep the typed label as the identity and
+    // take the first number for the numeric column used in reporting.
+    const blenderLabel = blender.trim();
+    const blenderNum = Number((blenderLabel.match(/\d+/) ?? [""])[0]);
     // Free-text SKU: if nothing was picked from the catalog, log the typed code
     // as-is (no new SKU is created). Admin reconciles the real SKU later.
     const rawCode = skuQuery.trim().replace(/\s+—\s+.*$/, "").trim();
     if (!selectedSku && !rawCode) { toast.error("Enter or select a SKU"); return; }
     if (!batch.trim()) { toast.error("Enter the batch code"); return; }
-    if (!Number.isFinite(blenderNum) || !Number.isInteger(blenderNum) || blenderNum < 1) { toast.error("Enter a valid blender number"); return; }
+    if (!blenderLabel || !Number.isFinite(blenderNum) || blenderNum < 1) { toast.error("Enter the blender (e.g. 3 or 7/8)"); return; }
     if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
-    if (!startTime) { toast.error("Enter the start time"); return; }
-    if (!finishTime) { toast.error("Enter the finish time"); return; }
 
     const skuId: string | null = selectedSku?.id ?? null;
     const skuText: string | null = selectedSku ? null : rawCode;
@@ -638,7 +639,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
         .from("production_blender_entries")
         .select("id, quantity")
         .eq("production_item_id", itemId)
-        .eq("blender_number", blenderNum)
+        .eq("blender_label", blenderLabel)
         .maybeSingle();
 
       const { data: userRes } = await (supabase as any).auth.getUser();
@@ -657,6 +658,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
             session_id: sessionId,
             production_item_id: itemId,
             blender_number: blenderNum,
+            blender_label: blenderLabel,
             quantity,
             entered_by: uid,
           });
@@ -664,7 +666,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
       }
 
       // 3) actual_qty is auto-synced by DB trigger from blender entries.
-      toast.success(`Logged ${quantity} on Blender ${blenderNum} for ${selectedSku?.code ?? skuText}`);
+      toast.success(`Logged ${quantity} on Blender ${blenderLabel} for ${selectedSku?.code ?? skuText}`);
       reset();
       qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
       qc.invalidateQueries({ queryKey: ["blender-entries", sessionId] });
@@ -772,12 +774,11 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
         <div className="space-y-1.5">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">Blender</div>
           <Input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            value={blender ?? ""}
-            onChange={(e) => setBlender(e.target.value ? Number(e.target.value) : null)}
-            placeholder="e.g. 3"
+            type="text"
+            inputMode="text"
+            value={blender}
+            onChange={(e) => setBlender(e.target.value)}
+            placeholder="e.g. 3 or 7/8"
             className="h-11"
             autoComplete="off"
           />
@@ -801,7 +802,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
         {/* Production time (optional) — Start/Finish stamp + editable */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">Production time</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Production time <span className="normal-case text-muted-foreground/60">(optional)</span></div>
             {hmDurationMin(startTime, finishTime) != null && (
               <div className="text-xs font-medium text-muted-foreground">
                 Duration: {Math.floor(hmDurationMin(startTime, finishTime)! / 60)}h {hmDurationMin(startTime, finishTime)! % 60}m
@@ -849,7 +850,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_blender_entries")
-        .select("id, blender_number, quantity, created_at, production_item_id, production_items!inner(blender_ref, sku:sku_products(code, name))")
+        .select("id, blender_number, blender_label, quantity, created_at, production_item_id, production_items!inner(blender_ref, sku:sku_products(code, name))")
         .eq("session_id", sessionId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -907,7 +908,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="inline-flex items-center rounded bg-secondary text-secondary-foreground px-1.5 py-0.5 text-[10px] font-medium">
-                        Blender {e.blender_number}
+                        Blender {e.blender_label ?? e.blender_number}
                       </span>
                       {assembly && (
                         <span className="text-[10px] text-muted-foreground">Assembly {assembly}</span>
