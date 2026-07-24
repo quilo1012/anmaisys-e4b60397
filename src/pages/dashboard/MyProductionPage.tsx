@@ -323,7 +323,7 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
                 onFocus={() => { if (query.trim()) setOpen(true); }}
-                placeholder="Search SKU by code or name..."
+                placeholder="Search by product name..."
                 className="h-11 pl-9"
                 autoComplete="off"
               />
@@ -347,8 +347,8 @@ function SkuSearchAdd({ sessionId, existingSkuIds }: { sessionId: string; existi
                   return (
                     <li key={sku.id} className="flex items-center justify-between gap-2 p-2">
                       <div className="min-w-0">
-                        <div className="font-mono text-sm font-semibold truncate">{sku.code}</div>
-                        <div className="text-xs text-muted-foreground truncate">{sku.name}</div>
+                        <div className="text-sm font-semibold truncate">{sku.name}</div>
+                        <div className="font-mono text-xs text-muted-foreground truncate">{sku.code}</div>
                       </div>
                       <Button
                         type="button"
@@ -540,7 +540,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
 
   const pickSku = (s: { id: string; code: string; name: string }) => {
     setSelectedSku(s);
-    setSkuQuery(`${s.code} — ${s.name}`);
+    setSkuQuery(`${s.name} — ${s.code}`);
     setSkuPopoverOpen(false);
   };
 
@@ -683,7 +683,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
                   value={skuQuery}
                   onChange={(e) => { setSkuQuery(e.target.value); setSelectedSku(null); setSkuPopoverOpen(true); }}
                   onFocus={() => { if (skuQuery.trim()) setSkuPopoverOpen(true); }}
-                  placeholder="Search SKU by code or name..."
+                  placeholder="Search by product name..."
                   className="h-11 pl-9"
                   autoComplete="off"
                 />
@@ -720,8 +720,8 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
                         className="w-full text-left p-2 hover:bg-accent"
                         onClick={() => pickSku(s)}
                       >
-                        <div className="font-mono text-sm font-semibold truncate">{s.code}</div>
-                        <div className="text-xs text-muted-foreground truncate">{s.name}</div>
+                        <div className="text-sm font-semibold truncate">{s.name}</div>
+                        <div className="font-mono text-xs text-muted-foreground truncate">{s.code}</div>
                       </button>
                     </li>
                   ))}

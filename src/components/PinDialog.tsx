@@ -138,10 +138,10 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
         <div className="flex flex-col items-center gap-4 py-4">
           <InputOTP maxLength={4} value={pin} onChange={setPin} disabled={isLocked || loading} autoFocus>
             <InputOTPGroup>
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-              <InputOTPSlot index={3} />
+              <InputOTPSlot index={0} mask />
+              <InputOTPSlot index={1} mask />
+              <InputOTPSlot index={2} mask />
+              <InputOTPSlot index={3} mask />
             </InputOTPGroup>
           </InputOTP>
           {error && (
