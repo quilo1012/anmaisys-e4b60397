@@ -221,7 +221,7 @@ interface SessionRow {
   tickets: number | null;
   tickets_unit: "tubs" | "bags" | null;
   locked: boolean; notes: string | null;
-  production_items: { id: string; sku_id: string; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; tickets_unit: "tubs" | "bags" | null; production_blender_entries?: { blender_number: number; quantity: number }[] }[];
+  production_items: { id: string; sku_id: string; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; started_at: string | null; finished_at: string | null; tickets_unit: "tubs" | "bags" | null; production_blender_entries?: { blender_number: number; quantity: number }[] }[];
 }
 
 
@@ -254,7 +254,7 @@ export default function ShiftHistoryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty, notes, blender_ref, tickets_unit, production_blender_entries(blender_number, quantity))")
+        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty, notes, blender_ref, started_at, finished_at, tickets_unit, production_blender_entries(blender_number, quantity))")
         .gte("session_date", from).lte("session_date", to)
         .order("session_date", { ascending: false });
       if (error) throw error;
@@ -352,23 +352,41 @@ export default function ShiftHistoryPage() {
 
 
   const exportCSV = () => {
-    const rows = [["Date", "Shift", "Line", "Leader", "Staff", "SKU", "Target", "Actual", "Eff%", "Notes"]];
+    // Mirrors the Production Control spreadsheet layout so the export pastes straight
+    // in. The 5th column is intentionally unnamed there (it holds the description).
+    const hm = (iso: string | null | undefined) => (iso ? format(new Date(iso), "HH:mm") : "");
+    const rows: string[][] = [[
+      "Date", "Assembly Number", "Work Centre", "Product Code", "",
+      "Weight (in Kg)", "QTY", "Start Time", "Finish Time", "Shift",
+    ]];
     for (const s of filtered) {
       if (s.production_items.length === 0) {
-        rows.push([s.session_date, s.shift, s.line, s.leader_name ?? "", String(s.staff_actual ?? ""), "", "", "", "", s.notes ?? ""]);
-      } else {
-        for (const i of s.production_items) {
-          const sku = skuMap.get(i.sku_id);
-          const t = Number(i.target_qty ?? i.planned_qty ?? 0);
-          const a = Number(i.actual_qty ?? 0);
-          rows.push([s.session_date, s.shift, s.line, s.leader_name ?? "", String(s.staff_actual ?? ""), baseSkuCode(sku?.code), String(t), String(a), t > 0 ? ((a / t) * 100).toFixed(0) : "0", s.notes ?? ""]);
-        }
+        rows.push([s.session_date, "", s.line, "", "", "", "", "", "", s.shift]);
+        continue;
+      }
+      for (const i of s.production_items) {
+        const sku = skuMap.get(i.sku_id);
+        const code = baseSkuCode(sku?.code) || i.sku_code_text || "";
+        const name = sku?.name ?? "";
+        const grams = parseWeightFromSku(sku?.code ?? "", name, (sku as { weight?: number | null } | undefined)?.weight ?? null);
+        rows.push([
+          s.session_date,
+          i.blender_ref ?? "",
+          s.line,
+          code,
+          name,
+          grams ? String(grams / 1000) : "",
+          String(Number(i.actual_qty ?? 0)),
+          hm(i.started_at),
+          hm(i.finished_at),
+          s.shift,
+        ]);
       }
     }
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `shift-history-${Date.now()}.csv`; a.click();
+    const a = document.createElement("a"); a.href = url; a.download = `production-control-${format(new Date(), "yyyy-MM-dd")}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
 
