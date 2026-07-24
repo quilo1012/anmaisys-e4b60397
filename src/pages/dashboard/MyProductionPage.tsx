@@ -24,8 +24,6 @@ import { invokeFunction } from "@/lib/invokeFunction";
 
 type Shift = "DAY" | "NIGHT";
 
-/** Sentinel for "not one of the products already running — let me search the catalog". */
-const OTHER_SKU = "__other__";
 /** Sentinel for "the catalog doesn't have it — I'll write the code myself". */
 const MANUAL_SKU = "__manual__";
 
@@ -597,75 +595,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     },
   });
 
-  type Recent = { id: string; code: string; name: string; batch: string; assembly: string; thisShift: boolean };
-  /** Most recent entry first, deduped per SKU — this shift's products lead. */
-  const recentSkus: Recent[] = useMemo(() => {
-    const out: Recent[] = [];
-    const seen = new Set<string>();
-    for (const e of prefillQ.data ?? []) {
-      const sku = e.production_items?.sku;
-      if (!sku?.id || seen.has(sku.id)) continue;
-      seen.add(sku.id);
-      out.push({
-        id: sku.id, code: sku.code, name: sku.name,
-        batch: e.production_items?.batch_code ?? "",
-        assembly: e.production_items?.blender_ref ?? "",
-        thisShift: e.session_id === sessionId,
-      });
-    }
-    return out.sort((a, b) => Number(b.thisShift) - Number(a.thisShift));
-  }, [prefillQ.data, sessionId]);
-
-  // The products this line is known to run, busiest first. This is what makes the
-  // picker useful on a line that has never logged anything through the app.
-  const lineSkusQ = useQuery({
-    enabled: !!jobLine,
-    staleTime: 10 * 60_000,
-    queryKey: ["log-line-skus", jobLine],
-    queryFn: async () => {
-      const { data } = await (supabase as any)
-        .from("sku_line_speeds")
-        .select("sku_code, total_qty_produced")
-        .eq("line_name", jobLine)
-        .order("total_qty_produced", { ascending: false })
-        .limit(100);
-      // One row per shift, so the same product appears twice — sum them.
-      const byCode = new Map<string, { code: string; qty: number }>();
-      for (const r of (data ?? []) as any[]) {
-        const code = String(r.sku_code ?? "").trim();
-        if (!code) continue;
-        const key = code.toLowerCase();
-        const prev = byCode.get(key);
-        const qty = Number(r.total_qty_produced ?? 0);
-        if (prev) prev.qty += qty;
-        else byCode.set(key, { code, qty });
-      }
-      const top = [...byCode.values()].sort((a, b) => b.qty - a.qty).slice(0, 8);
-      if (top.length === 0) return [];
-      const { data: prods } = await (supabase as any)
-        .from("sku_products")
-        .select("id, code, name")
-        .in("code", top.map((t) => t.code));
-      const byExactCode = new Map<string, any>(((prods ?? []) as any[]).map((p) => [p.code, p]));
-      return top
-        .map((t) => byExactCode.get(t.code))
-        .filter(Boolean)
-        .map((p: any) => ({ id: p.id as string, code: p.code as string, name: p.name as string }));
-    },
-  });
-
-  /** Everything offered in the dropdown: this shift, then the line's usual products. */
-  const pickable: Recent[] = useMemo(() => {
-    const out = [...recentSkus];
-    const seen = new Set(out.map((r) => r.id));
-    for (const s of lineSkusQ.data ?? []) {
-      if (seen.has(s.id)) continue;
-      seen.add(s.id);
-      out.push({ id: s.id, code: s.code, name: s.name, batch: "", assembly: "", thisShift: false });
-    }
-    return out;
-  }, [recentSkus, lineSkusQ.data]);
-
   /** Blender labels recently used on this line, most recent first. */
   const recentBlenders: string[] = useMemo(() => {
     const out: string[] = [];
@@ -679,9 +608,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   const [skuQuery, setSkuQuery] = useState("");
   const [skuDebounced, setSkuDebounced] = useState("");
   const [selectedSku, setSelectedSku] = useState<{ id: string; code: string; name: string } | null>(null);
-  // Which product this entry is for: a SKU already running this shift, or OTHER_SKU
-  // to search the catalog. Operators mostly switch between the two or three
-  // products on their line, so picking one is faster than typing it again.
+  // "" = searching the catalog (default), MANUAL_SKU = typing a code by hand.
   const [skuChoice, setSkuChoice] = useState<string>("");
   const [skuPopoverOpen, setSkuPopoverOpen] = useState(false);
   const [assembly, setAssembly] = useState(""); // stored in blender_ref
@@ -691,13 +618,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   const [startTime, setStartTime] = useState("");   // "HH:mm"
   const [finishTime, setFinishTime] = useState("");
   const [saving, setSaving] = useState(false);
-
-  // The search box shows on its own while the line's product list is still empty.
-  // Commit to search mode as soon as the operator types, so the box doesn't
-  // disappear under them when that list arrives a moment later.
-  useEffect(() => {
-    if (!skuChoice && skuQuery.trim()) setSkuChoice(OTHER_SKU);
-  }, [skuQuery, skuChoice]);
 
   useEffect(() => {
     const t = setTimeout(() => setSkuDebounced(skuQuery.trim()), 300);
@@ -723,34 +643,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
 
   const results = searchQ.data || [];
 
-  /** Reuse a SKU already logged this shift: fills SKU + its last batch/assembly. */
-  const applyRecent = (r: Recent) => {
-    setSelectedSku({ id: r.id, code: r.code, name: r.name });
-    setSkuQuery(`${productLabel(r.name)} — ${r.code}`);
-    // Batch and assembly belong to the run, not the product — only carry them
-    // over within the same shift, otherwise the operator would log a stale batch.
-    if (r.thisShift) {
-      if (r.batch) setBatch(r.batch);
-      if (r.assembly) setAssembly(r.assembly);
-    }
-    // Stamp the start of this run once the operator commits to a product.
-    setStartTime((t) => t || nowHM());
-  };
-
-  /** Picked from the "which product" dropdown. */
-  const onSkuChoice = (v: string) => {
-    setSkuChoice(v);
-    if (v === OTHER_SKU || v === MANUAL_SKU) {
-      setSelectedSku(null);
-      setSkuQuery("");
-      setSkuDebounced("");
-      setSkuPopoverOpen(false);
-      return;
-    }
-    const r = pickable.find((x) => x.id === v);
-    if (r) applyRecent(r);
-  };
-
   /** Fill the form from an iTouching job — the operator only confirms/adjusts. */
   const applyJob = async (j: IntouchJob) => {
     const { data: match } = await (supabase as any)
@@ -763,7 +655,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
 
     if (match) {
       setSelectedSku(match);
-      setSkuChoice(pickable.some((r) => r.id === match.id) ? match.id : OTHER_SKU);
+      setSkuChoice("");
       setSkuQuery(`${productLabel(match.name)} — ${match.code}`);
       toast.success(`Filled from iTouching job ${j.code}`);
       return;
@@ -771,7 +663,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     // Code isn't in the catalog. Search by the job's description so the operator
     // can pick the right product, or just type it in and log it as-is.
     setSelectedSku(null);
-    setSkuChoice(OTHER_SKU);
+    setSkuChoice("");
     setSkuQuery(j.description?.trim() || j.code);
     setSkuPopoverOpen(true);
     toast.warning(`${j.code} isn't in the SKU catalog — pick the product below or type it in.`);
@@ -969,42 +861,9 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
         <div className="space-y-1.5">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">SKU produced</div>
 
-          {/* This line's products — what's running now first, then what it usually
-              runs. The operator picks one instead of retyping it. */}
-          {pickable.length > 0 && (
-            <Select value={skuChoice} onValueChange={onSkuChoice}>
-              <SelectTrigger className="h-11">
-                <SelectValue placeholder="Which product?" />
-              </SelectTrigger>
-              {/* Capped so the list can't swallow the form behind it. */}
-              <SelectContent className="max-h-[45vh]">
-                {pickable.some((r) => r.thisShift) && (
-                  <SelectGroup>
-                    <SelectLabel>This shift</SelectLabel>
-                    {pickable.filter((r) => r.thisShift).map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        <span className="block truncate">{productLabel(r.name)}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                )}
-                {pickable.some((r) => !r.thisShift) && (
-                  <SelectGroup>
-                    <SelectLabel>Usual on {jobLine}</SelectLabel>
-                    {pickable.filter((r) => !r.thisShift).map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        <span className="block truncate">{productLabel(r.name)}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                )}
-                <SelectItem value={OTHER_SKU}>Another product — search…</SelectItem>
-                <SelectItem value={MANUAL_SKU}>Type the SKU by hand</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-
-          {(pickable.length === 0 || skuChoice === OTHER_SKU) && (
+          {/* Plain search — type the product name or code and pick it. To repeat
+              the same SKU on another blender, use "Save & next blender" below. */}
+          {skuChoice !== MANUAL_SKU && (
             <Popover open={skuPopoverOpen && (results.length > 0 || searchQ.isFetching)} onOpenChange={setSkuPopoverOpen}>
               <PopoverTrigger asChild>
                 <div className="relative">
@@ -1013,7 +872,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                     value={skuQuery}
                     onChange={(e) => { setSkuQuery(e.target.value); setSelectedSku(null); setSkuPopoverOpen(true); }}
                     onFocus={() => { if (skuQuery.trim()) setSkuPopoverOpen(true); }}
-                    placeholder="Search by product name..."
+                    placeholder="Search by product name or code..."
                     className="h-11 pl-9"
                     autoComplete="off"
                   />
@@ -1061,8 +920,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
             </Popover>
           )}
 
-          {/* Last resort: the product isn't in the catalog at all, so the operator
-              writes the code and the shift still gets logged. */}
+          {/* Fallback: the product isn't in the catalog, so the operator writes
+              the code and the shift still gets logged. */}
           {skuChoice === MANUAL_SKU && (
             <Input
               value={skuQuery}
@@ -1072,6 +931,20 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
               autoComplete="off"
             />
           )}
+
+          <button
+            type="button"
+            className="text-[11px] text-muted-foreground underline underline-offset-2"
+            onClick={() => {
+              const goManual = skuChoice !== MANUAL_SKU;
+              setSkuChoice(goManual ? MANUAL_SKU : "");
+              setSelectedSku(null);
+              setSkuQuery("");
+              setSkuPopoverOpen(false);
+            }}
+          >
+            {skuChoice === MANUAL_SKU ? "Search the catalog instead" : "Can't find it? Type the SKU by hand"}
+          </button>
 
           {!selectedSku && skuQuery.trim() && (
             <div className="text-[11px] text-amber-600 dark:text-amber-400">
