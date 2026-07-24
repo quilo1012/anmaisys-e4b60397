@@ -266,14 +266,12 @@ export default function SKUProductsPage() {
   const downloadTemplate = async () => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("SKUs");
-    ws.addRow([
-      "UIPart Number","Description","Part Weight","Material","Machine","Cavities","Tool Number",
-      "Standard Cycle Time","Standard Setup Time","Stopped Cycle","Slow Cycle","Fast Cycle","Very Fast Cycle","Very Fast Cycle",
-    ]);
-    ws.addRow(["BFHYDRATDS","BODYFUEL HYDRATION DRINK",12.5,"PET","Filler 1",8,"T-001",3.6,30,5,4,3,2.5,2.5]);
-    ws.addRow(["BFENERGYDS","BODYFUEL ENERGY DRINK",12.0,"PET","Filler 2",8,"T-002",3.8,30,5,4,3,2.5,2.5]);
+    // Columns match the importer: SKU + Description required; Category, TargetPerHour, Weight optional.
+    ws.addRow(["SKU", "Description", "Category", "TargetPerHour", "Weight"]);
+    ws.addRow(["END500BRBC", "ENDURANCE BREATHE ENERGY & ELECTROLYTE POWDER 500G - BLACKCURRANT", "VELOCITY AND ENDURANCE", "", 500]);
+    ws.addRow(["END500BROB", "ENDURANCE BREATHE ENERGY & ELECTROLYTE POWDER 500G - ORANGE BURST", "VELOCITY AND ENDURANCE", "", 500]);
     ws.getRow(1).font = { bold: true };
-    ws.columns.forEach((c) => { c.width = 24; });
+    ws.columns = [{ width: 18 }, { width: 60 }, { width: 24 }, { width: 16 }, { width: 12 }];
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const a = document.createElement("a");
@@ -291,7 +289,7 @@ export default function SKUProductsPage() {
             <h1 className="text-2xl font-bold">SKU Products</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Upload Excel (.xlsx) — required columns: <code>SKU</code> (or product_code) and <code>Description</code> (or name).
-              Optional: <code>Category</code>, <code>TargetPerHour</code>. Legacy <code>.csv</code> is still accepted.
+              Optional: <code>Category</code>, <code>TargetPerHour</code>, <code>Weight</code>. Legacy <code>.csv</code> is still accepted.
             </p>
           </div>
           <div className="flex gap-2">
