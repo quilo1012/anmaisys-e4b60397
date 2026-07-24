@@ -192,12 +192,12 @@ export function QualityActionsView() {
         let batch = "";
         const { data: items } = await (supabase as any)
           .from("production_items")
-          .select("blender_ref, sku_code_text, sku_id")
+          .select("batch_code, blender_ref, sku_code_text, sku_id")
           .eq("session_id", (sess as any).id)
           .order("created_at", { ascending: false })
           .limit(1);
         const it = (items ?? [])[0];
-        if (it) { batch = it.blender_ref ?? ""; sku = await resolveSkuCode(it); }
+        if (it) { batch = it.batch_code ?? it.blender_ref ?? ""; sku = await resolveSkuCode(it); }
         if (cancelled) return;
         const leaderName = (sess as any).leader_name ?? "";
         const matched = leaders.find((l) => l.name === leaderName);
@@ -220,10 +220,11 @@ export function QualityActionsView() {
     if (!open || !form.batch.trim()) return;
     const t = setTimeout(async () => {
       try {
+        const b = form.batch.trim();
         const { data } = await (supabase as any)
           .from("production_items")
           .select("sku_code_text, sku_id")
-          .eq("blender_ref", form.batch.trim())
+          .or(`batch_code.eq.${b},blender_ref.eq.${b}`)
           .order("created_at", { ascending: false })
           .limit(1);
         const it = (data ?? [])[0];
