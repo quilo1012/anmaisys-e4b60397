@@ -303,28 +303,19 @@ Deno.serve(async (req) => {
   }
 
   // ⏸️ Toggle controlled by Settings → iTouching (system_settings.intouch_auto_wo_enabled).
-  // When OFF, the cron / manual poll runs but does NOT open any Work Order.
+  // It gates Work Order creation ONLY — the poll itself keeps running so machine
+  // status and production downtime stay current, which is what the setting has
+  // always promised on screen. Returning early here instead froze the whole
+  // iTouching bridge from 2026-07-05: no statuses, no downtime, nothing.
+  let autoWoEnabled = true;
   try {
     const { data: ss } = await admin
       .from("system_settings")
       .select("intouch_auto_wo_enabled")
       .limit(1)
       .maybeSingle();
-    if (!ss?.intouch_auto_wo_enabled) {
-      return new Response(JSON.stringify({
-        ok: true,
-        paused: true,
-        reason: "intouch_auto_wo_enabled is OFF",
-        polled: 0,
-        opened_wos: [],
-        skipped: [],
-        errors: [],
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-  } catch (_e) { /* fall through and run normally if flag read fails */ }
+    autoWoEnabled = ss?.intouch_auto_wo_enabled === true;
+  } catch (_e) { /* flag unreadable — keep opening orders rather than going silent */ }
 
 
   const results = {
@@ -549,6 +540,13 @@ Deno.serve(async (req) => {
 
       if (!isDown) continue;
 
+      // Everything below opens or updates a maintenance Work Order, so this is
+      // where the Settings toggle applies — not at the top of the poll.
+      if (!autoWoEnabled) {
+        results.skipped.push(`${m.intouch_machine_name} (${codeName} → auto Work Orders are OFF)`);
+        continue;
+      }
+
       if (!m.line_id) {
         results.skipped.push(`${m.intouch_machine_name} (no line mapped)`);
         continue;
@@ -695,7 +693,7 @@ Deno.serve(async (req) => {
 
     console.log("intouch-poll result", JSON.stringify(results));
     const debug = new URL(req.url).searchParams.get("debug") === "1";
-    const payload: any = { ok: true, ...results };
+    const payload: any = { ok: true, auto_wo_enabled: autoWoEnabled, ...results };
     if (debug) {
       payload.raw_statuses = statuses.map((s) => ({
         MachineID: s.MachineID,
