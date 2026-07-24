@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProductionInputCard } from "@/components/ProductionInputCard";
 import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
@@ -605,6 +605,56 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     return out.sort((a, b) => Number(b.thisShift) - Number(a.thisShift));
   }, [prefillQ.data, sessionId]);
 
+  // The products this line is known to run, busiest first. This is what makes the
+  // picker useful on a line that has never logged anything through the app.
+  const lineSkusQ = useQuery({
+    enabled: !!jobLine,
+    staleTime: 10 * 60_000,
+    queryKey: ["log-line-skus", jobLine],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("sku_line_speeds")
+        .select("sku_code, total_qty_produced")
+        .eq("line_name", jobLine)
+        .order("total_qty_produced", { ascending: false })
+        .limit(100);
+      // One row per shift, so the same product appears twice — sum them.
+      const byCode = new Map<string, { code: string; qty: number }>();
+      for (const r of (data ?? []) as any[]) {
+        const code = String(r.sku_code ?? "").trim();
+        if (!code) continue;
+        const key = code.toLowerCase();
+        const prev = byCode.get(key);
+        const qty = Number(r.total_qty_produced ?? 0);
+        if (prev) prev.qty += qty;
+        else byCode.set(key, { code, qty });
+      }
+      const top = [...byCode.values()].sort((a, b) => b.qty - a.qty).slice(0, 12);
+      if (top.length === 0) return [];
+      const { data: prods } = await (supabase as any)
+        .from("sku_products")
+        .select("id, code, name")
+        .in("code", top.map((t) => t.code));
+      const byExactCode = new Map<string, any>(((prods ?? []) as any[]).map((p) => [p.code, p]));
+      return top
+        .map((t) => byExactCode.get(t.code))
+        .filter(Boolean)
+        .map((p: any) => ({ id: p.id as string, code: p.code as string, name: p.name as string }));
+    },
+  });
+
+  /** Everything offered in the dropdown: this shift, then the line's usual products. */
+  const pickable: Recent[] = useMemo(() => {
+    const out = [...recentSkus];
+    const seen = new Set(out.map((r) => r.id));
+    for (const s of lineSkusQ.data ?? []) {
+      if (seen.has(s.id)) continue;
+      seen.add(s.id);
+      out.push({ id: s.id, code: s.code, name: s.name, batch: "", assembly: "", thisShift: false });
+    }
+    return out;
+  }, [recentSkus, lineSkusQ.data]);
+
   /** Blender labels recently used on this line, most recent first. */
   const recentBlenders: string[] = useMemo(() => {
     const out: string[] = [];
@@ -630,6 +680,13 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   const [startTime, setStartTime] = useState("");   // "HH:mm"
   const [finishTime, setFinishTime] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // The search box shows on its own while the line's product list is still empty.
+  // Commit to search mode as soon as the operator types, so the box doesn't
+  // disappear under them when that list arrives a moment later.
+  useEffect(() => {
+    if (!skuChoice && skuQuery.trim()) setSkuChoice(OTHER_SKU);
+  }, [skuQuery, skuChoice]);
 
   useEffect(() => {
     const t = setTimeout(() => setSkuDebounced(skuQuery.trim()), 300);
@@ -678,7 +735,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
       setSkuDebounced("");
       return;
     }
-    const r = recentSkus.find((x) => x.id === v);
+    const r = pickable.find((x) => x.id === v);
     if (r) applyRecent(r);
   };
 
@@ -694,7 +751,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
 
     if (match) {
       setSelectedSku(match);
-      setSkuChoice(recentSkus.some((r) => r.id === match.id) ? match.id : OTHER_SKU);
+      setSkuChoice(pickable.some((r) => r.id === match.id) ? match.id : OTHER_SKU);
       setSkuQuery(`${match.name} — ${match.code}`);
       toast.success(`Filled from iTouching job ${j.code}`);
       return;
@@ -893,28 +950,40 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
         <div className="space-y-1.5">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">SKU produced</div>
 
-          {/* The products this line has been running, this shift's first: the
-              operator picks one instead of retyping it. */}
-          {recentSkus.length > 0 && (
+          {/* This line's products — what's running now first, then what it usually
+              runs. The operator picks one instead of retyping it. */}
+          {pickable.length > 0 && (
             <Select value={skuChoice} onValueChange={onSkuChoice}>
               <SelectTrigger className="h-11">
                 <SelectValue placeholder="Which product?" />
               </SelectTrigger>
               <SelectContent>
-                {recentSkus.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    <span className="block max-w-[260px] truncate">
-                      {r.name}
-                      {!r.thisShift && <span className="text-muted-foreground"> · earlier</span>}
-                    </span>
-                  </SelectItem>
-                ))}
+                {pickable.some((r) => r.thisShift) && (
+                  <SelectGroup>
+                    <SelectLabel>This shift</SelectLabel>
+                    {pickable.filter((r) => r.thisShift).map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        <span className="block max-w-[260px] truncate">{r.name}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                {pickable.some((r) => !r.thisShift) && (
+                  <SelectGroup>
+                    <SelectLabel>Usual on {jobLine}</SelectLabel>
+                    {pickable.filter((r) => !r.thisShift).map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        <span className="block max-w-[260px] truncate">{r.name}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
                 <SelectItem value={OTHER_SKU}>Another product — search…</SelectItem>
               </SelectContent>
             </Select>
           )}
 
-          {(recentSkus.length === 0 || skuChoice === OTHER_SKU) && (
+          {(pickable.length === 0 || skuChoice === OTHER_SKU) && (
             <Popover open={skuPopoverOpen && (results.length > 0 || searchQ.isFetching)} onOpenChange={setSkuPopoverOpen}>
               <PopoverTrigger asChild>
                 <div className="relative">
@@ -971,7 +1040,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
             </Popover>
           )}
 
-          {(recentSkus.length === 0 || skuChoice === OTHER_SKU) && !selectedSku && skuQuery.trim() && (
+          {(pickable.length === 0 || skuChoice === OTHER_SKU) && !selectedSku && skuQuery.trim() && (
             <div className="text-[11px] text-amber-600 dark:text-amber-400">
               Not linked to the catalog — will be logged exactly as typed. Search above to pick the product instead.
             </div>
