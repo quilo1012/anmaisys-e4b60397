@@ -203,7 +203,7 @@ export default function SKUProductsPage() {
     mutationFn: async (sku: Partial<Sku>) => {
       const payload = {
         code: sku.code ?? "", name: sku.name ?? "", category: sku.category ?? null,
-        target_per_hour: sku.target_per_hour ?? null, weight: sku.weight ?? null, active: sku.active ?? true,
+        target_per_hour: sku.target_per_hour ?? 0, weight: sku.weight ?? null, active: sku.active ?? true,
       };
       if (!payload.code || !payload.name) throw new Error("Code and Name required");
       if (sku.id) {
