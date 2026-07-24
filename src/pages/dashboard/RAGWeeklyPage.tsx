@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, AlertOctagon, BarChart3, Printer, CalendarIcon, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, AlertOctagon, BarChart3, Printer, CalendarIcon, Eye, EyeOff, ChevronDown, ChevronUp, Upload } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -27,7 +27,8 @@ import { useAuth } from "@/contexts/AuthContext";
 
 
 import { Settings2 } from "lucide-react";
-import { downloadRagTemplate } from "@/lib/ragTemplateExport";
+import { downloadRagTemplate, exportRagFilledTemplate, type RagFill } from "@/lib/ragTemplateExport";
+import { parseRagTemplateFile } from "@/lib/ragTemplateImport";
 import { useRole } from "@/hooks/useRole";
 import { useIsFetching } from "@tanstack/react-query";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
@@ -157,6 +158,29 @@ export default function RAGWeeklyPage() {
     date: string; line: string; shift: Shift; entry?: Entry;
   } | null>(null);
   const [manageLinesOpen, setManageLinesOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<
+    { file: File; fileName: string; rows: number; comments: number; lines: string[] } | null
+  >(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleImportFile = async (file: File) => {
+    try {
+      const parsed = await parseRagTemplateFile(file, lines);
+      if (!parsed.rows.length && !parsed.comments.length) {
+        toast.error("No RAG data found in that file. Use a sheet from ‘Download Excel’ or the blank template.");
+        return;
+      }
+      setImportPreview({
+        file,
+        fileName: file.name,
+        rows: parsed.rows.length,
+        comments: parsed.comments.length,
+        lines: parsed.linesDetected,
+      });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
   
 
   const weekDates = useMemo(
@@ -462,270 +486,79 @@ export default function RAGWeeklyPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // RAG block-layout importer (lines as blocks; Plan/Actual/Downtime rows × Mon-Sun × Day/Night/Total)
-  const importLayoutMutation = useMutation({
+  // RAG template importer — reads back the exact filled-template layout
+  // (Plan / Actual / UPM Target / UPM Actual / Downtime / Comments) produced by
+  // the "Download Excel" button, so an edited sheet round-trips 1:1.
+  const importTemplateMutation = useMutation({
     mutationFn: async (file: File) => {
-      const XLSX = await import("xlsx");
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array", cellDates: true });
-
-      const inWeek = (d: string) => d >= weekStartStr && d <= weekEndStr;
-      const toDate = (v: unknown): string | null => {
-        if (v === null || v === undefined || v === "") return null;
-        if (v instanceof Date && !isNaN(v.getTime())) {
-          const s = format(v, "yyyy-MM-dd");
-          return inWeek(s) ? s : null;
-        }
-        const s = String(v).trim();
-        // strict dd/mm/yyyy or dd-mm-yyyy (year >= 2020)
-        const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
-        if (m) {
-          const [, d, mo, y] = m;
-          const yyyy = y.length === 2 ? `20${y}` : y;
-          if (Number(yyyy) < 2020) return null;
-          const out = `${yyyy}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
-          return inWeek(out) ? out : null;
-        }
-        // Excel serial number
-        const n = Number(s);
-        if (!isNaN(n) && n > 40000 && n < 80000) {
-          const out = format(new Date(Math.round((n - 25569) * 86400 * 1000)), "yyyy-MM-dd");
-          return inWeek(out) ? out : null;
-        }
-        return null;
-      };
-      const num = (v: unknown) => {
-        const raw = String(v ?? "").trim();
-        const n = Number(raw.replace(/[, ]/g, ""));
-        return isNaN(n) ? 0 : n;
-      };
-      const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
-      const clean = (v: unknown) => norm(v).replace(/[^a-z0-9]+/g, " ").trim();
-      const knownLines = lines;
-      const selectedWeekDates = weekDates.map((d) => format(d, "yyyy-MM-dd"));
-
-      const agg = new Map<string, { plan: number; actual: number; downtime: number }>();
-      const bump = (date: string, line: string, shift: Shift, patch: Partial<{ plan: number; actual: number; downtime: number }>) => {
-        const k = `${date}|${line}|${shift}`;
-        const ex = agg.get(k) ?? { plan: 0, actual: 0, downtime: 0 };
-        // Replace with the largest non-zero value seen (avoids double-counting
-        // when the sheet repeats Plan/Actual/Downtime in summary/total rows).
-        agg.set(k, {
-          plan: Math.max(ex.plan, patch.plan ?? 0),
-          actual: Math.max(ex.actual, patch.actual ?? 0),
-          downtime: Math.max(ex.downtime, patch.downtime ?? 0),
-        });
-      };
-
-
-      let debugSample: unknown[][] = [];
-      let blocksFound = 0;
-      let metricRowsFound = 0;
-
-      for (const sheetName of wb.SheetNames) {
-        const ws = wb.Sheets[sheetName];
-        const aoa = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "", raw: false });
-        if (!debugSample.length) debugSample = aoa.slice(0, 20) as unknown[][];
-
-        let currentLine: string | null = null;
-        let currentDates: string[] = [];
-        let currentCols: number[] = [];
-        let currentDayNightCols: { day: number; night: number }[] = [];
-
-        const hasMetricNear = (startRow: number) => {
-          for (let rr = startRow + 1; rr <= Math.min(aoa.length - 1, startRow + 8); rr++) {
-            const label = clean((aoa[rr] ?? []).slice(0, 8).join(" "));
-            if (/\b(plan|planned|target|actual|produced|downtime|down time|dt)\b/.test(label)) return true;
-          }
-          return false;
-        };
-
-        const aliasMap: Record<string, string> = {
-          "tablet": "Capsules & Tablets",
-          "tablets": "Capsules & Tablets",
-          "tablet line": "Capsules & Tablets",
-          "tablets line": "Capsules & Tablets",
-          "capsule": "Capsules & Tablets",
-          "capsules": "Capsules & Tablets",
-          "capsule line": "Capsules & Tablets",
-          "capsules line": "Capsules & Tablets",
-          "caps tabs": "Capsules & Tablets",
-          "c t": "Capsules & Tablets",
-          "gel": "Gel Line",
-          "gel line": "Gel Line",
-        };
-        const findLineMatch = (text: string): string | null => {
-          const t = clean(text);
-          if (!t) return null;
-          if (aliasMap[t] && knownLines.includes(aliasMap[t])) return aliasMap[t];
-          // exact
-          for (const l of knownLines) if (clean(l) === t) return l;
-          // substring (either direction)
-          for (const l of knownLines) {
-            const ll = clean(l);
-            if (ll.length >= 3 && (t.includes(ll) || ll.includes(t))) return l;
-          }
-          // token-overlap fallback (handles "Capsules & Tablets" vs "capsules and tablets",
-          // "Caps & Tabs", "C & T", "Gel", etc.)
-          const stop = new Set(["line", "linha", "ln", "and", "the", "of", "de", "da", "do"]);
-          const tTokens = new Set(t.split(" ").filter((w) => w.length >= 3 && !stop.has(w)));
-          const tAbbrev = t.replace(/\s+/g, "");
-          for (const l of knownLines) {
-            const ll = clean(l);
-            const lTokens = ll.split(" ").filter((w) => w.length >= 3 && !stop.has(w));
-            if (lTokens.length === 0) continue;
-            const hits = lTokens.filter((w) => tTokens.has(w)).length;
-            if (hits >= Math.min(1, lTokens.length) && (hits / lTokens.length) >= 0.5) return l;
-            // abbreviation match: "c t" / "ct" against "capsules tablets"
-            const initials = lTokens.map((w) => w[0]).join("");
-            if (initials.length >= 2 && (tAbbrev === initials || t.split(" ").join("") === initials)) return l;
-          }
-          // fallback when database line labels differ from Excel labels (ex: "Line 1 - Filler")
-          const lineToken = t.match(/\b(?:line|linha|ln|l)\s*0*(\d{1,2})\b/);
-          if (lineToken) {
-            const n = Number(lineToken[1]);
-            const dbMatch = knownLines.find((l) => new RegExp(`\\b0*${n}\\b`).test(clean(l)));
-            return dbMatch ?? `Line ${n}`;
-          }
-          return null;
-        };
-
-        const updateHeaderFromRows = (rowIndex: number) => {
-          const candidates: { col: number; date: string }[] = [];
-          for (let rr = Math.max(0, rowIndex - 3); rr <= Math.min(aoa.length - 1, rowIndex + 3); rr++) {
-            const row = aoa[rr] ?? [];
-            for (let c = 0; c < row.length; c++) {
-              const d = toDate(row[c]);
-              if (d) candidates.push({ col: c, date: d });
-            }
-          }
-          if (candidates.length >= 5) {
-            const seen = new Set<string>();
-            const uniq: { col: number; date: string }[] = [];
-            for (const d of candidates.sort((a, b) => a.col - b.col)) {
-              if (!seen.has(d.date)) { seen.add(d.date); uniq.push(d); }
-            }
-            currentDates = uniq.slice(0, 7).map((u) => u.date);
-            currentCols = uniq.slice(0, 7).map((u) => u.col);
-            currentDayNightCols = currentCols.map((col) => ({ day: col, night: col + 1 }));
-            return true;
-          }
-
-          for (let rr = Math.max(0, rowIndex - 3); rr <= Math.min(aoa.length - 1, rowIndex + 3); rr++) {
-            const row = aoa[rr] ?? [];
-            const dayCols = new Map<string, number>();
-            for (let c = 0; c < row.length; c++) {
-              const label = clean(row[c]);
-              const weekday = label.match(/^(mon|monday|seg|segunda|tue|tuesday|ter|terca|terça|wed|wednesday|qua|quarta|thu|thursday|qui|quinta|fri|friday|sex|sexta|sat|saturday|sab|sábado|sun|sunday|dom|domingo)$/)?.[1];
-              if (weekday && !dayCols.has(weekday.slice(0, 3))) dayCols.set(weekday.slice(0, 3), c);
-            }
-            const ordered = ["mon", "seg", "tue", "ter", "wed", "qua", "thu", "qui", "fri", "sex", "sat", "sab", "sun", "dom"]
-              .map((d) => dayCols.get(d))
-              .filter((c): c is number => typeof c === "number");
-            const uniqueOrdered = [...new Set(ordered)];
-            if (uniqueOrdered.length >= 5) {
-              currentDates = selectedWeekDates;
-              currentCols = uniqueOrdered.slice(0, 7);
-              currentDayNightCols = currentCols.map((col) => ({ day: col, night: col + 1 }));
-              return true;
-            }
-          }
-
-          return false;
-        };
-
-        for (let r = 0; r < aoa.length; r++) {
-          const row = aoa[r] ?? [];
-
-          // line label detection across first 10 cells, partial match + line-number fallback
-          for (let c = 0; c < Math.min(10, row.length); c++) {
-            const cell = norm(row[c]);
-            if (!cell || cell.length < 3) continue;
-            const match = findLineMatch(cell);
-            if (match && hasMetricNear(r)) {
-              currentLine = match;
-              currentDates = []; currentCols = []; currentDayNightCols = [];
-              updateHeaderFromRows(r);
-              blocksFound++;
-              break;
-            }
-          }
-
-          // date row detection
-          const dc: { col: number; date: string }[] = [];
-          for (let c = 1; c < row.length; c++) {
-            const d = toDate(row[c]);
-            if (d) dc.push({ col: c, date: d });
-          }
-          if (dc.length >= 5) {
-            const seen = new Set<string>();
-            const uniq: { col: number; date: string }[] = [];
-            for (const d of dc) if (!seen.has(d.date)) { seen.add(d.date); uniq.push(d); }
-            currentDates = uniq.slice(0, 7).map((u) => u.date);
-            currentCols = uniq.slice(0, 7).map((u) => u.col);
-            currentDayNightCols = currentCols.map((col) => ({ day: col, night: col + 1 }));
-            continue;
-          }
-
-          if (currentLine && !currentDates.length) updateHeaderFromRows(r);
-          if (!currentLine || !currentDates.length) continue;
-
-          const label = clean(row.slice(0, 8).join(" "));
-          // Skip summary/derived rows so they don't double-count
-          if (/\b(total|variance|var|upm|percent|percentage)\b/.test(label) || label.includes("%")) continue;
-          let metric: "plan" | "actual" | "downtime" | null = null;
-          if (/\b(downtime|down time|dt|paragem|parada)\b/.test(label)) metric = "downtime";
-          else if (/\b(actual|produced|production)\b/.test(label)) metric = "actual";
-          else if (/\b(plan|planned|target)\b/.test(label)) metric = "plan";
-          if (!metric) continue;
-
-          metricRowsFound++;
-
-          for (let i = 0; i < currentDates.length; i++) {
-            const date = currentDates[i];
-            const cols = currentDayNightCols[i] ?? { day: currentCols[i], night: currentCols[i] + 1 };
-            const dayVal = num(row[cols.day]);
-            const nightVal = num(row[cols.night]);
-            const patchDay = metric === "plan" ? { plan: dayVal } : metric === "actual" ? { actual: dayVal } : { downtime: dayVal };
-            const patchNight = metric === "plan" ? { plan: nightVal } : metric === "actual" ? { actual: nightVal } : { downtime: nightVal };
-            bump(date, currentLine, "DAY", patchDay);
-            bump(date, currentLine, "NIGHT", patchNight);
-          }
-        }
+      const parsed = await parseRagTemplateFile(file, lines);
+      if (!parsed.rows.length && !parsed.comments.length) {
+        throw new Error(
+          "No RAG data found. Use a sheet from ‘Download Excel’ (or the blank template) and keep the layout intact.",
+        );
       }
 
-      const payload: Omit<Entry, "id">[] = [];
-
-      for (const [k, v] of agg) {
-        if (!v.plan && !v.actual && !v.downtime) continue;
-        const [entry_date, line, shift] = k.split("|");
-        payload.push({
-          entry_date, line, shift: shift as Shift,
-          plan_qty: v.plan, actual_qty: v.actual,
-          upm_target: 0, upm_actual: 0,
-          downtime_min: v.downtime, notes: null,
-        });
-      }
-      if (!payload.length) throw new Error("No RAG blocks detected. Check that line names match and dates are present.");
+      // 1) Entries — keep any per-cell notes already stored.
+      const rows = parsed.rows.map((r) => ({
+        entry_date: r.entry_date,
+        line: r.line,
+        shift: r.shift,
+        plan_qty: r.plan_qty,
+        actual_qty: r.actual_qty,
+        upm_target: r.upm_target,
+        upm_actual: r.upm_actual,
+        downtime_min: r.downtime_min,
+        notes: entryMap.get(`${r.entry_date}|${r.line}|${r.shift}`)?.notes ?? null,
+      }));
 
       const BATCH = 500;
       let count = 0;
-      for (let i = 0; i < payload.length; i += BATCH) {
-        const slice = payload.slice(i, i + BATCH);
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const slice = rows.slice(i, i + BATCH);
+        if (!slice.length) continue;
         const { error } = await supabase
           .from("rag_weekly_entries")
           .upsert(slice, { onConflict: "entry_date,line,shift" });
         if (error) throw error;
         count += slice.length;
       }
-      return count;
+
+      // 2) Comments — one per line for the week (same key the export reads).
+      let commentCount = 0;
+      const commentRows = parsed.comments
+        .filter((c) => c.comment.trim())
+        .map((c) => ({
+          line: c.line,
+          entry_date: weekStartStr,
+          week_start: weekStartStr,
+          comment: c.comment.trim(),
+        }));
+      if (commentRows.length) {
+        const userId = (await supabase.auth.getUser()).data.user?.id ?? null;
+        const now = new Date().toISOString();
+        const withMeta = commentRows.map((c) => ({ ...c, updated_by: userId, updated_at: now }));
+        const { error } = await (supabase as any)
+          .from("rag_weekly_comments")
+          .upsert(withMeta, { onConflict: "line,entry_date" });
+        if (error) throw error;
+        commentCount = withMeta.length;
+      }
+
+      return { count, commentCount };
     },
-    onSuccess: (n) => {
+    onSuccess: ({ count, commentCount }) => {
       qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
-      toast.success(`Imported ${n} RAG cells`);
+      qc.invalidateQueries({ queryKey: ["rag-comments", weekStartStr] });
+      qc.invalidateQueries({ queryKey: ["rag-comments"] });
+      toast.success(
+        `Imported ${count} cell${count === 1 ? "" : "s"}` +
+          (commentCount ? ` and ${commentCount} comment${commentCount === 1 ? "" : "s"}` : ""),
+      );
+      setImportPreview(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const syncMutation = useMutation({
     mutationFn: async () => {
@@ -841,12 +674,12 @@ export default function RAGWeeklyPage() {
                   isSyncing={
                     ragFetching > 0 ||
                     upsertMutation.isPending ||
-                    importLayoutMutation.isPending ||
+                    importTemplateMutation.isPending ||
                     syncMutation.isPending
                   }
                   error={
                     upsertMutation.error ||
-                    importLayoutMutation.error ||
+                    importTemplateMutation.error ||
                     syncMutation.error
                   }
                 />
@@ -896,6 +729,24 @@ export default function RAGWeeklyPage() {
                   >
                     <Download className="h-4 w-4 mr-1" />Download Template
                   </Button>
+                )}
+                {isAdmin && (
+                  <>
+                    <input
+                      ref={importInputRef}
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void handleImportFile(f);
+                        e.target.value = "";
+                      }}
+                    />
+                    <Button variant="outline" onClick={() => importInputRef.current?.click()}>
+                      <Upload className="h-4 w-4 mr-1" />Import Excel
+                    </Button>
+                  </>
                 )}
                 {isAdmin && (
                   <Button variant="outline" onClick={() => setManageLinesOpen(true)}>
@@ -959,6 +810,36 @@ export default function RAGWeeklyPage() {
                             .eq("week_start", weekStartStrLocal);
                           const cMap = new Map<string, string>();
                           for (const r of (cRows ?? []) as { line: string; comment: string }[]) cMap.set(r.line, r.comment ?? "");
+                          const fill: RagFill = {
+                            get: (line, dateStr, shift) => {
+                              const e = entryMap.get(`${dateStr}|${line}|${shift}`);
+                              if (!e) return undefined;
+                              return {
+                                plan: e.plan_qty,
+                                actual: e.actual_qty,
+                                upmTarget: e.upm_target,
+                                upmActual: e.upm_actual,
+                                downtime: e.downtime_min,
+                              };
+                            },
+                            comment: (line) => cMap.get(line),
+                          };
+                          await exportRagFilledTemplate(weekStart, lines, fill);
+                        } catch (e) { toast.error((e as Error).message); }
+                      }}
+                    >
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />Download Excel <span className="ml-1 text-xs text-muted-foreground">(edit &amp; re-import)</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        try {
+                          const weekStartStrLocal = format(weekStart, "yyyy-MM-dd");
+                          const { data: cRows } = await (supabase as any)
+                            .from("rag_weekly_comments")
+                            .select("line, comment")
+                            .eq("week_start", weekStartStrLocal);
+                          const cMap = new Map<string, string>();
+                          for (const r of (cRows ?? []) as { line: string; comment: string }[]) cMap.set(r.line, r.comment ?? "");
                           exportRagExcel({
                             weekStart,
                             lines,
@@ -970,7 +851,7 @@ export default function RAGWeeklyPage() {
                         } catch (e) { toast.error((e as Error).message); }
                       }}
                     >
-                      <FileSpreadsheet className="h-4 w-4 mr-2" />Download Excel
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />Excel report <span className="ml-1 text-xs text-muted-foreground">(analytics)</span>
                     </DropdownMenuItem>
 
                   </DropdownMenuContent>
@@ -1112,6 +993,44 @@ export default function RAGWeeklyPage() {
       )}
 
       <ManageLinesDialog open={manageLinesOpen} onOpenChange={setManageLinesOpen} />
+
+      <Dialog open={!!importPreview} onOpenChange={(o) => { if (!o) setImportPreview(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-4 w-4" /> Import RAG Excel
+            </DialogTitle>
+          </DialogHeader>
+          {importPreview && (
+            <div className="space-y-2 text-sm">
+              <p className="font-medium break-all">{importPreview.fileName}</p>
+              <p>
+                This will import <b>{importPreview.rows}</b> cell{importPreview.rows === 1 ? "" : "s"}
+                {importPreview.comments > 0 && (
+                  <> and <b>{importPreview.comments}</b> comment{importPreview.comments === 1 ? "" : "s"}</>
+                )}{" "}
+                across <b>{importPreview.lines.length}</b> line{importPreview.lines.length === 1 ? "" : "s"} into week{" "}
+                <b>{format(weekStart, "dd MMM")} – {format(addDays(weekStart, 6), "dd MMM yyyy")}</b>.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Existing values for those cells are overwritten; cells left blank in the sheet are ignored.
+                Auto-calculated cells (Total, Variance %, Week Total) are not imported.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportPreview(null)} disabled={importTemplateMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => importPreview && importTemplateMutation.mutate(importPreview.file)}
+              disabled={importTemplateMutation.isPending}
+            >
+              {importTemplateMutation.isPending ? "Importing…" : "Import"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

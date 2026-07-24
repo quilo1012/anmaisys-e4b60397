@@ -16,24 +16,54 @@ const WEEK_NIGHT_COL = LAST_DAY_COL + 2; // 24
 const WEEK_TOTAL_COL = LAST_DAY_COL + 3; // 25
 const TOTAL_COLS = WEEK_TOTAL_COL;
 
+/** One editable metric a filled export can pre-populate. */
+export type RagFillField = "plan" | "actual" | "upmTarget" | "upmActual" | "downtime";
+
+export interface RagFillCell {
+  plan?: number;
+  actual?: number;
+  upmTarget?: number;
+  upmActual?: number;
+  downtime?: number;
+}
+
+/**
+ * Data source for a *filled* export. Both callbacks are optional-return:
+ * missing values simply leave the corresponding cell blank, exactly like the
+ * empty template. Keys are the literal DB line name, ISO date (yyyy-MM-dd) and
+ * shift — matching what the importer reads back.
+ */
+export interface RagFill {
+  get: (line: string, dateStr: string, shift: "DAY" | "NIGHT") => RagFillCell | undefined;
+  comment: (line: string) => string | undefined;
+}
+
 type Metric = {
   label: string;
   fill: string;
+  field?: RagFillField;
   isVariance?: boolean;
   isComment?: boolean;
 };
 
 const METRICS: Metric[] = [
-  { label: "Plan", fill: "FFF8FAFC" },
-  { label: "Actual", fill: "FFFFFFFF" },
+  { label: "Plan", fill: "FFF8FAFC", field: "plan" },
+  { label: "Actual", fill: "FFFFFFFF", field: "actual" },
   { label: "Variance %", fill: "FFF1F5F9", isVariance: true },
-  { label: "UPM Target", fill: "FFF8FAFC" },
-  { label: "UPM Actual", fill: "FFFFFFFF" },
-  { label: "Downtime (min)", fill: "FFFEF2F2" },
+  { label: "UPM Target", fill: "FFF8FAFC", field: "upmTarget" },
+  { label: "UPM Actual", fill: "FFFFFFFF", field: "upmActual" },
+  { label: "Downtime (min)", fill: "FFFEF2F2", field: "downtime" },
   { label: "Comments", fill: "FFFFFFFF", isComment: true },
 ];
 
-export async function downloadRagTemplate(weekStart: Date, lines: string[]) {
+/**
+ * Build the RAG Weekly workbook. When `fill` is omitted the result is the blank
+ * template (formulas + empty input cells). When `fill` is provided the input
+ * cells are pre-populated with real data while every derived cell (Total,
+ * Variance %, Week roll-up, All-Lines block) stays a live formula — so the file
+ * is simultaneously a report *and* a re-importable template.
+ */
+async function buildRagWorkbook(weekStart: Date, lines: string[], fill?: RagFill) {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
   wb.creator = "AN Maintenance";
@@ -43,6 +73,7 @@ export async function downloadRagTemplate(weekStart: Date, lines: string[]) {
   });
 
   const dates = Array.from({ length: DAYS }, (_, i) => addDays(weekStart, i));
+  const dateStrs = dates.map((d) => format(d, "yyyy-MM-dd"));
 
   ws.columns = [
     { width: 22 },
@@ -130,12 +161,12 @@ export async function downloadRagTemplate(weekStart: Date, lines: string[]) {
 
   // Writes the metric rows for a given line/section starting at `row`.
   // Returns the first row of the metrics (used by callers for cross-row formulas).
-  const writeMetrics = (row: number, metrics: Metric[]) => {
+  const writeMetrics = (row: number, metrics: Metric[], line: string) => {
     const firstMetricRow = row;
     const planRow = firstMetricRow; // Plan is first
     const actualRow = firstMetricRow + 1; // Actual is second
 
-    metrics.forEach((m, idx) => {
+    metrics.forEach((m) => {
       const r = ws.getRow(row);
       const lbl = r.getCell(1);
       lbl.value = m.label;
@@ -171,6 +202,14 @@ export async function downloadRagTemplate(weekStart: Date, lines: string[]) {
         } else {
           day.numFmt = "#,##0;-#,##0;-";
           night.numFmt = "#,##0;-#,##0;-";
+          // Pre-fill editable input cells when data is supplied. Zero / missing
+          // values stay blank so the sheet reads the same as the empty template.
+          if (fill && m.field) {
+            const dayVal = fill.get(line, dateStrs[i], "DAY")?.[m.field];
+            const nightVal = fill.get(line, dateStrs[i], "NIGHT")?.[m.field];
+            if (typeof dayVal === "number" && dayVal !== 0) day.value = dayVal;
+            if (typeof nightVal === "number" && nightVal !== 0) night.value = nightVal;
+          }
           total.value = { formula: `${colLetter(base)}${row}+${colLetter(base + 1)}${row}` };
           total.numFmt = "#,##0;-#,##0;-";
           total.font = { bold: true };
@@ -184,6 +223,12 @@ export async function downloadRagTemplate(weekStart: Date, lines: string[]) {
         const merged = ws.getCell(row, WEEK_DAY_COL);
         merged.border = border;
         merged.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+        // The app stores one comment per line per week — park it in the Week
+        // Total slot of the Comments row. The importer reads it back from here.
+        if (fill) {
+          const c = fill.comment(line);
+          if (c && c.trim()) merged.value = c.trim();
+        }
       } else if (m.isVariance) {
         const wd = r.getCell(WEEK_DAY_COL);
         const wn = r.getCell(WEEK_NIGHT_COL);
@@ -278,7 +323,7 @@ export async function downloadRagTemplate(weekStart: Date, lines: string[]) {
     writeDayHeader(row);
     row += 2;
 
-    const { planRow, actualRow, nextRow } = writeMetrics(row, METRICS);
+    const { planRow, actualRow, nextRow } = writeMetrics(row, METRICS, line);
     lineRows.push({ plan: planRow, actual: actualRow });
     row = nextRow + 1; // spacer
   }
@@ -396,14 +441,48 @@ export async function downloadRagTemplate(weekStart: Date, lines: string[]) {
     c.alignment = { wrapText: true };
   });
 
-  const buf = await wb.xlsx.writeBuffer();
+  return wb;
+}
+
+async function downloadWorkbook(wb: unknown, filename: string) {
+  const buf = await (wb as { xlsx: { writeBuffer: () => Promise<ArrayBuffer> } }).xlsx.writeBuffer();
   const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `rag-template-week${getISOWeek(weekStart)}-${format(weekStart, "yyyy-MM-dd")}.xlsx`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Build the workbook and return its xlsx bytes without touching the DOM.
+ * Used by the download helpers and by round-trip tests.
+ */
+export async function buildRagWorkbookBuffer(
+  weekStart: Date,
+  lines: string[],
+  fill?: RagFill,
+): Promise<ArrayBuffer> {
+  const wb = await buildRagWorkbook(weekStart, lines, fill);
+  return wb.xlsx.writeBuffer();
+}
+
+/** Blank template — empty input cells + live formulas. */
+export async function downloadRagTemplate(weekStart: Date, lines: string[]) {
+  const wb = await buildRagWorkbook(weekStart, lines);
+  await downloadWorkbook(wb, `rag-template-week${getISOWeek(weekStart)}-${format(weekStart, "yyyy-MM-dd")}.xlsx`);
+}
+
+/**
+ * Filled template — identical layout to `downloadRagTemplate`, but with the
+ * week's real Plan / Actual / UPM / Downtime / Comments pre-populated. Because
+ * the layout matches the importer exactly, the user can download it, edit in
+ * Excel, and re-import via RAG Weekly → Import Excel.
+ */
+export async function exportRagFilledTemplate(weekStart: Date, lines: string[], fill: RagFill) {
+  const wb = await buildRagWorkbook(weekStart, lines, fill);
+  await downloadWorkbook(wb, `rag-weekly-week${getISOWeek(weekStart)}-${format(weekStart, "yyyy-MM-dd")}.xlsx`);
 }
