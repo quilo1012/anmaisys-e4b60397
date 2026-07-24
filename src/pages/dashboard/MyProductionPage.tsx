@@ -46,6 +46,20 @@ function hmToIso(hm: string): string | null {
   d.setHours(h, m, 0, 0);
   return d.toISOString();
 }
+/** Format digits as HH:mm while typing, so the time is entered by hand on a
+ *  tablet instead of opening the native clock dial. */
+function maskHM(v: string): string {
+  const d = v.replace(/\D/g, "").slice(0, 4);
+  return d.length <= 2 ? d : `${d.slice(0, 2)}:${d.slice(2)}`;
+}
+/** Clamp a typed time to a valid HH:mm on blur ("" when unparseable). */
+function normalizeHM(v: string): string {
+  const m = /^(\d{1,2}):?(\d{1,2})$/.exec(v.trim());
+  if (!m) return "";
+  const h = Math.min(23, Number(m[1]));
+  const mi = Math.min(59, Number(m[2]));
+  return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+}
 /** Minutes between two "HH:mm" (handles crossing midnight), or null. */
 function hmDurationMin(start: string, finish: string): number | null {
   if (!start || !finish) return null;
@@ -645,10 +659,16 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
       const { data: userRes } = await (supabase as any).auth.getUser();
       const uid = userRes?.user?.id ?? null;
 
+      // Each blender keeps its OWN start/finish, so several blenders on the same
+      // SKU don't overwrite each other's times.
+      const entryTimes: Record<string, string | null> = {};
+      if (startTime) entryTimes.started_at = hmToIso(startTime);
+      if (finishTime) entryTimes.finished_at = hmToIso(finishTime);
+
       if (existingEntry?.id) {
         const { error: upErr } = await (supabase as any)
           .from("production_blender_entries")
-          .update({ quantity: Number(existingEntry.quantity || 0) + quantity, entered_by: uid })
+          .update({ quantity: Number(existingEntry.quantity || 0) + quantity, entered_by: uid, ...entryTimes })
           .eq("id", existingEntry.id);
         if (upErr) throw upErr;
       } else {
@@ -661,6 +681,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
             blender_label: blenderLabel,
             quantity,
             entered_by: uid,
+            ...entryTimes,
           });
         if (insEntryErr) throw insEntryErr;
       }
@@ -814,13 +835,25 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
               <Button type="button" className="h-11 shrink-0 bg-green-600 hover:bg-green-700 text-white" onClick={() => setStartTime(nowHM())}>
                 <Play className="h-4 w-4 mr-1" /> Start
               </Button>
-              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="h-11" aria-label="Start time" />
+              <Input
+                type="text" inputMode="numeric" placeholder="HH:mm" maxLength={5}
+                value={startTime}
+                onChange={(e) => setStartTime(maskHM(e.target.value))}
+                onBlur={(e) => setStartTime(normalizeHM(e.target.value))}
+                className="h-11 text-center tabular-nums" aria-label="Start time"
+              />
             </div>
             <div className="flex items-center gap-1.5">
               <Button type="button" className="h-11 shrink-0 bg-red-600 hover:bg-red-700 text-white" onClick={() => setFinishTime(nowHM())}>
                 <Square className="h-4 w-4 mr-1" /> Finish
               </Button>
-              <Input type="time" value={finishTime} onChange={(e) => setFinishTime(e.target.value)} className="h-11" aria-label="Finish time" />
+              <Input
+                type="text" inputMode="numeric" placeholder="HH:mm" maxLength={5}
+                value={finishTime}
+                onChange={(e) => setFinishTime(maskHM(e.target.value))}
+                onBlur={(e) => setFinishTime(normalizeHM(e.target.value))}
+                className="h-11 text-center tabular-nums" aria-label="Finish time"
+              />
             </div>
           </div>
         </div>
@@ -850,7 +883,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_blender_entries")
-        .select("id, blender_number, blender_label, quantity, created_at, production_item_id, production_items!inner(blender_ref, sku:sku_products(code, name))")
+        .select("id, blender_number, blender_label, quantity, started_at, finished_at, created_at, production_item_id, production_items!inner(blender_ref, sku:sku_products(code, name))")
         .eq("session_id", sessionId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -912,6 +945,13 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                       </span>
                       {assembly && (
                         <span className="text-[10px] text-muted-foreground">Assembly {assembly}</span>
+                      )}
+                      {(e.started_at || e.finished_at) && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {e.started_at ? format(new Date(e.started_at), "HH:mm") : "—"}
+                          {" → "}
+                          {e.finished_at ? format(new Date(e.finished_at), "HH:mm") : "—"}
+                        </span>
                       )}
                     </div>
                   </div>
