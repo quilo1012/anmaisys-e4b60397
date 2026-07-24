@@ -81,7 +81,7 @@ export default function SKUPerformancePage() {
     refetchIntervalInBackground: false,
     queryFn: async () => {
       let q = supabase.from("production_sessions")
-        .select("id, session_date, line, production_items(sku_id, planned_qty, target_qty, actual_qty)")
+        .select("id, session_date, line, production_items(sku_id, sku_code_text, planned_qty, target_qty, actual_qty)")
         .gte("session_date", dateFrom).lte("session_date", dateTo);
       if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
       const { data, error } = await q;
@@ -90,16 +90,20 @@ export default function SKUPerformancePage() {
       const agg = new Map<string, Row>();
       for (const s of (data ?? []) as Array<{
         id: string; session_date: string; line: string;
-        production_items: Array<{ sku_id: string; planned_qty: number | null; target_qty: number | null; actual_qty: number | null }>;
+        production_items: Array<{ sku_id: string | null; sku_code_text: string | null; planned_qty: number | null; target_qty: number | null; actual_qty: number | null }>;
       }>) {
         for (const it of s.production_items ?? []) {
-          if (!it.sku_id) continue;
+          // Catalog SKUs resolve by id; free-text SKUs (logged as typed) fall back to
+          // sku_code_text so they aren't silently dropped from the breakdown.
+          const codeText = (it.sku_code_text ?? "").trim();
+          const idKey = it.sku_id ?? (codeText ? `text:${codeText}` : "");
+          if (!idKey) continue; // no SKU reference at all
           if (skuFilter !== "__all__" && it.sku_id !== skuFilter) continue;
-          const key = `${it.sku_id}|${s.line}`;
-          const sku = skuMap.get(it.sku_id);
+          const key = `${idKey}|${s.line}`;
+          const sku = it.sku_id ? skuMap.get(it.sku_id) : undefined;
           const cur = agg.get(key) ?? {
-            sku_id: it.sku_id,
-            sku_code: sku?.code ?? "?",
+            sku_id: idKey,
+            sku_code: sku?.code ?? codeText ?? "—",
             sku_name: sku?.name ?? "",
             line: s.line,
             sessions: 0,
