@@ -26,6 +26,8 @@ type Shift = "DAY" | "NIGHT";
 
 /** Sentinel for "not one of the products already running — let me search the catalog". */
 const OTHER_SKU = "__other__";
+/** Sentinel for "the catalog doesn't have it — I'll write the code myself". */
+const MANUAL_SKU = "__manual__";
 
 
 function manualActualQty(row: any): number {
@@ -738,10 +740,11 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   /** Picked from the "which product" dropdown. */
   const onSkuChoice = (v: string) => {
     setSkuChoice(v);
-    if (v === OTHER_SKU) {
+    if (v === OTHER_SKU || v === MANUAL_SKU) {
       setSelectedSku(null);
       setSkuQuery("");
       setSkuDebounced("");
+      setSkuPopoverOpen(false);
       return;
     }
     const r = pickable.find((x) => x.id === v);
@@ -989,6 +992,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                   </SelectGroup>
                 )}
                 <SelectItem value={OTHER_SKU}>Another product — search…</SelectItem>
+                <SelectItem value={MANUAL_SKU}>Type the SKU by hand</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -1050,9 +1054,21 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
             </Popover>
           )}
 
-          {(pickable.length === 0 || skuChoice === OTHER_SKU) && !selectedSku && skuQuery.trim() && (
+          {/* Last resort: the product isn't in the catalog at all, so the operator
+              writes the code and the shift still gets logged. */}
+          {skuChoice === MANUAL_SKU && (
+            <Input
+              value={skuQuery}
+              onChange={(e) => setSkuQuery(e.target.value)}
+              placeholder="Type the SKU code, e.g. AF91CL"
+              className="h-11"
+              autoComplete="off"
+            />
+          )}
+
+          {!selectedSku && skuQuery.trim() && (
             <div className="text-[11px] text-amber-600 dark:text-amber-400">
-              Not linked to the catalog — will be logged exactly as typed. Search above to pick the product instead.
+              Not linked to the catalog — will be logged exactly as typed. Admin reconciles it later.
             </div>
           )}
         </div>
