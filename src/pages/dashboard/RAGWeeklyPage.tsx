@@ -166,6 +166,11 @@ export default function RAGWeeklyPage() {
   const weekStartStr = format(weekStart, "yyyy-MM-dd");
   const weekEndStr = format(addDays(weekStart, 6), "yyyy-MM-dd");
 
+  // Target ±1% adjuster: pick a date + shift, then bump/drop all its targets at once.
+  const [bumpDate, setBumpDate] = useState<string>(weekStartStr);
+  const [bumpShift, setBumpShift] = useState<Shift>("DAY");
+  useEffect(() => { setBumpDate(weekStartStr); }, [weekStartStr]);
+
   const { data: lines = [] } = useQuery({
     queryKey: ["rag-lines"],
     queryFn: async () => {
@@ -426,18 +431,20 @@ export default function RAGWeeklyPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Bump EVERY target (plan_qty) for the visible week by 1% in one click — compounds
-  // ×1.01, rounded, at least +1, so you don't have to click each cell's +1%.
-  const bumpAllMutation = useMutation({
-    mutationFn: async () => {
-      const targets = entries.filter((e) => Number(e.plan_qty) > 0);
-      if (targets.length === 0) throw new Error("No targets to increase this week");
+  // Adjust every target (plan_qty) for a chosen date + shift by ±1% in one click —
+  // compounds ×1.01 / ×0.99, rounded, at least ±1, across all lines of that slot.
+  const bumpMutation = useMutation({
+    mutationFn: async ({ date, shift, dir }: { date: string; shift: Shift; dir: 1 | -1 }) => {
+      const targets = entries.filter((e) => e.entry_date === date && e.shift === shift && Number(e.plan_qty) > 0);
+      if (targets.length === 0) throw new Error("No targets for that date & shift");
       const rows = targets.map((e) => {
         const cur = Number(e.plan_qty) || 0;
+        const next = dir > 0
+          ? Math.max(cur + 1, Math.round(cur * 1.01))
+          : Math.max(0, Math.min(cur - 1, Math.round(cur * 0.99)));
         return {
           entry_date: e.entry_date, line: e.line, shift: e.shift,
-          plan_qty: Math.max(cur + 1, Math.round(cur * 1.01)),
-          actual_qty: e.actual_qty,
+          plan_qty: next, actual_qty: e.actual_qty,
           upm_target: e.upm_target, upm_actual: e.upm_actual,
           downtime_min: e.downtime_min, notes: e.notes ?? null,
         };
@@ -448,9 +455,9 @@ export default function RAGWeeklyPage() {
       if (error) throw error;
       return rows.length;
     },
-    onSuccess: (n) => {
+    onSuccess: (n, vars) => {
       qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
-      toast.success(`+1% applied to ${n} target${n === 1 ? "" : "s"}`);
+      toast.success(`${vars.dir > 0 ? "+" : "−"}1% applied to ${n} target${n === 1 ? "" : "s"}`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -889,15 +896,37 @@ export default function RAGWeeklyPage() {
                   {syncMutation.isPending ? "Syncing..." : "Sync from system"}
                 </Button>
                 {canEditRagEntries && (
-                  <Button
-                    variant="outline"
-                    onClick={() => bumpAllMutation.mutate()}
-                    disabled={bumpAllMutation.isPending || entries.length === 0}
-                    title="Increase every target this week by 1% at once"
-                  >
-                    <ChevronUp className={`h-4 w-4 mr-1 ${bumpAllMutation.isPending ? "animate-pulse" : ""}`} />
-                    {bumpAllMutation.isPending ? "Applying…" : "+1% all targets"}
-                  </Button>
+                  <div className="flex items-center gap-1.5 rounded-md border px-1.5 py-1">
+                    <span className="pl-1 text-xs font-medium text-muted-foreground">Target</span>
+                    <Select value={bumpDate} onValueChange={setBumpDate}>
+                      <SelectTrigger className="h-8 w-[118px]"><SelectValue placeholder="Date" /></SelectTrigger>
+                      <SelectContent>
+                        {weekDates.map((d) => {
+                          const ds = format(d, "yyyy-MM-dd");
+                          return <SelectItem key={ds} value={ds}>{format(d, "EEE dd/MM")}</SelectItem>;
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <Select value={bumpShift} onValueChange={(v) => setBumpShift(v as Shift)}>
+                      <SelectTrigger className="h-8 w-[86px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DAY">Day</SelectItem>
+                        <SelectItem value="NIGHT">Night</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline" size="sm" className="h-8 px-2.5 font-semibold"
+                      disabled={bumpMutation.isPending}
+                      onClick={() => bumpMutation.mutate({ date: bumpDate, shift: bumpShift, dir: -1 })}
+                      title="Decrease targets for this date & shift by 1%"
+                    >−1%</Button>
+                    <Button
+                      variant="default" size="sm" className="h-8 px-2.5 font-semibold"
+                      disabled={bumpMutation.isPending}
+                      onClick={() => bumpMutation.mutate({ date: bumpDate, shift: bumpShift, dir: 1 })}
+                      title="Increase targets for this date & shift by 1%"
+                    >+1%</Button>
+                  </div>
                 )}
                 {isAdmin && (
                   <Button
@@ -1790,32 +1819,12 @@ function DayNightTotalSummary({
                       row.key === "plan" ? (existing?.plan_qty ?? 0)
                       : row.key === "actual" ? (existing?.actual_qty ?? 0)
                       : (existing?.downtime_min ?? 0);
-                    const input = (
+                    return (
                       <SummaryInlineInput
                         value={current}
                         onCommit={(v) => commitValue(ds, shift, v)}
                         onOpen={() => onOpenFull?.(ds, lineName, shift)}
                       />
-                    );
-                    if (row.key !== "plan") return input;
-                    // Plan (target) row: quick "+1%" stretch button. Each click compounds
-                    // ×1.01 (rounded), guaranteeing at least +1 so small targets still move.
-                    const bump = () => {
-                      if (current <= 0) return;
-                      commitValue(ds, shift, Math.max(current + 1, Math.round(current * 1.01)));
-                    };
-                    return (
-                      <div className="flex items-center justify-end gap-0.5">
-                        <span className="min-w-0 flex-1">{input}</span>
-                        <button
-                          type="button"
-                          onClick={bump}
-                          title="Increase target by 1%"
-                          className="shrink-0 rounded px-1 text-[9px] font-semibold leading-none text-primary hover:bg-primary/10"
-                        >
-                          +1%
-                        </button>
-                      </div>
                     );
                   };
                   const isDt = row.key.startsWith("dt:");
