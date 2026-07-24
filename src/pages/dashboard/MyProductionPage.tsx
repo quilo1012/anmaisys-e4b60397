@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
+import { invokeFunction } from "@/lib/invokeFunction";
 
 type Shift = "DAY" | "NIGHT";
 
@@ -527,8 +528,34 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
   );
 }
 
+/** A scheduled/running job as returned by intouch-list-scheduled-jobs. */
+type IntouchJob = { code: string; description: string; qty: number; status: string; seq: number; batch: string; actual: number };
+
 function LogProductionCard({ sessionId }: { sessionId: string }) {
   const qc = useQueryClient();
+  const { selectedLineName: jobLine } = useDeviceLineCtx();
+  const { sessionDate: jobDate, shiftCode: jobShiftCode } = getCurrentFactoryShift();
+  const jobShift: Shift = jobShiftCode === "day" ? "DAY" : "NIGHT";
+
+  // Jobs scheduled in iTouching for this line + shift. Best-effort: if iTouching
+  // is unreachable the panel simply doesn't render and logging stays manual.
+  const jobsQ = useQuery({
+    enabled: !!jobLine,
+    queryKey: ["intouch-jobs", jobLine, jobDate, jobShift],
+    staleTime: 5 * 60_000,
+    retry: false,
+    queryFn: async (): Promise<IntouchJob[]> => {
+      const { data, error } = await invokeFunction<{ sections: { line: string; items: IntouchJob[] }[] }>(
+        "intouch-list-scheduled-jobs",
+        { session_date: jobDate, shift: jobShift },
+      );
+      if (error) return [];
+      const section = (data?.sections ?? []).find((s) => s.line === jobLine);
+      return section?.items ?? [];
+    },
+  });
+  const jobs = jobsQ.data ?? [];
+
   const [skuQuery, setSkuQuery] = useState("");
   const [skuDebounced, setSkuDebounced] = useState("");
   const [selectedSku, setSelectedSku] = useState<{ id: string; code: string; name: string } | null>(null);
@@ -564,6 +591,26 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
   });
 
   const results = searchQ.data || [];
+
+  /** Fill the form from an iTouching job — the operator only confirms/adjusts. */
+  const applyJob = async (j: IntouchJob) => {
+    const { data: match } = await (supabase as any)
+      .from("sku_products")
+      .select("id, code, name")
+      .ilike("code", j.code)
+      .maybeSingle();
+    if (match) {
+      setSelectedSku(match);
+      setSkuQuery(`${match.name} — ${match.code}`);
+    } else {
+      // Not in the catalog — log it as typed; an admin reconciles the SKU later.
+      setSelectedSku(null);
+      setSkuQuery(j.code);
+    }
+    if (j.batch) setBatch(j.batch);
+    if (j.qty > 0) setQty(String(j.qty));
+    toast.success(`Filled from iTouching job ${j.code}`);
+  };
 
   const pickSku = (s: { id: string; code: string; name: string }) => {
     setSelectedSku(s);
@@ -707,6 +754,40 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
             <div className="text-xs text-muted-foreground">Record produced quantity to the current shift.</div>
           </div>
         </div>
+
+        {/* Scheduled jobs from iTouching — tap one to fill SKU, batch and quantity. */}
+        {jobs.length > 0 && (
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">
+              Job from iTouching · {jobLine}
+            </div>
+            <div className="space-y-1.5">
+              {jobs.map((j, idx) => (
+                <button
+                  key={`${j.code}-${j.seq}-${idx}`}
+                  type="button"
+                  onClick={() => applyJob(j)}
+                  className="w-full rounded-md border bg-background p-2.5 text-left transition-colors hover:bg-accent active:scale-[0.99]"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-semibold">{j.description || j.code}</span>
+                    {j.status === "Running" && (
+                      <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                        Running
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                    <span className="font-mono">{j.code}</span>
+                    {j.qty > 0 && <span>Order qty: <b className="text-foreground">{j.qty.toLocaleString()}</b></span>}
+                    {j.batch && <span>Batch {j.batch}</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="text-[11px] text-muted-foreground">Tap a job to fill the form, then confirm the quantity.</div>
+          </div>
+        )}
 
         {/* SKU */}
         <div className="space-y-1.5">
