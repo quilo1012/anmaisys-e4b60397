@@ -506,7 +506,8 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
   const [skuDebounced, setSkuDebounced] = useState("");
   const [selectedSku, setSelectedSku] = useState<{ id: string; code: string; name: string } | null>(null);
   const [skuPopoverOpen, setSkuPopoverOpen] = useState(false);
-  const [assembly, setAssembly] = useState(""); // stored in blender_ref (replaces the old batch code)
+  const [assembly, setAssembly] = useState(""); // stored in blender_ref
+  const [batch, setBatch] = useState("");        // stored in batch_code — used by Quality to pull the SKU
   const [blender, setBlender] = useState<number | null>(null);
   const [qty, setQty] = useState<string>("");
   const [startTime, setStartTime] = useState("");   // "HH:mm"
@@ -548,6 +549,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
     setSkuQuery("");
     setSkuDebounced("");
     setAssembly("");
+    setBatch("");
     setBlender(null);
     setQty("");
     setStartTime("");
@@ -562,6 +564,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
     const rawCode = skuQuery.trim().replace(/\s+—\s+.*$/, "").trim();
     if (!selectedSku && !rawCode) { toast.error("Enter or select a SKU"); return; }
     if (!assembly.trim()) { toast.error("Enter the assembly number"); return; }
+    if (!batch.trim()) { toast.error("Enter the batch code"); return; }
     if (!Number.isFinite(blenderNum) || !Number.isInteger(blenderNum) || blenderNum < 1) { toast.error("Enter a valid blender number"); return; }
     if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
     if (!startTime) { toast.error("Enter the start time"); return; }
@@ -597,6 +600,7 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
             actual_qty: 0,
             notes: "manual_sku",
             blender_ref: assembly.trim(),
+            batch_code: batch.trim() || null,
             started_at: hmToIso(startTime),
             finished_at: hmToIso(finishTime),
           })
@@ -604,12 +608,15 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
           .maybeSingle();
         if (insErr) throw insErr;
         itemId = created?.id ?? null;
-      } else if (startTime || finishTime) {
-        // Existing batch item — record/refresh the production times
+      } else {
+        // Existing batch item — record/refresh the production times and batch code
         const timePatch: any = {};
         if (startTime) timePatch.started_at = hmToIso(startTime);
         if (finishTime) timePatch.finished_at = hmToIso(finishTime);
-        await (supabase as any).from("production_items").update(timePatch).eq("id", itemId);
+        if (batch.trim()) timePatch.batch_code = batch.trim();
+        if (Object.keys(timePatch).length) {
+          await (supabase as any).from("production_items").update(timePatch).eq("id", itemId);
+        }
       }
       if (!itemId) throw new Error("Could not resolve production item");
 
@@ -731,6 +738,18 @@ function LogProductionCard({ sessionId }: { sessionId: string }) {
             value={assembly}
             onChange={(e) => setAssembly(e.target.value)}
             placeholder="e.g. ASM-12345"
+            className="h-11"
+            autoComplete="off"
+          />
+        </div>
+
+        {/* Batch code (required) — Quality pulls the SKU from this */}
+        <div className="space-y-1.5">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Batch code</div>
+          <Input
+            value={batch}
+            onChange={(e) => setBatch(e.target.value)}
+            placeholder="e.g. B-2026-0723"
             className="h-11"
             autoComplete="off"
           />
