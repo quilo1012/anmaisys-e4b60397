@@ -490,7 +490,20 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
           const matched = normalize(assignedLeader) === normalize(eng.name);
           setLeader({ name: eng.name, matched });
           if (!matched) {
-            toast.error(`${eng.name} is not the leader for ${line} today (${assignedLeader} is).`);
+            // Point the leader at the line they ARE running today, so a wrong-tablet
+            // login says where to go instead of dead-ending.
+            const { data: mine } = await (supabase as any)
+              .from("production_sessions")
+              .select("line")
+              .eq("session_date", today)
+              .eq("shift", shift)
+              .ilike("leader_name", eng.name);
+            const myLines = ((mine ?? []) as { line: string }[]).map((r) => r.line).filter(Boolean);
+            toast.error(
+              myLines.length
+                ? `${eng.name} is the leader for ${myLines.join(", ")} today, not ${line}. Sign in on that line's tablet.`
+                : `${eng.name} is not the leader for ${line} today (${assignedLeader} is).`,
+            );
             return;
           }
           setOpen(true);
