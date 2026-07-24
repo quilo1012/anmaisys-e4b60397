@@ -155,6 +155,22 @@ export async function exportRagPdf(input: RagExportInput) {
 
   const { dates, byLine } = computeDaily(entries, lines, weekStart);
 
+  // A day later than today hasn't run yet, so a plan with 0 actual is not a
+  // miss — it just hasn't happened. Painting it red 0% made half a mid-week
+  // report look like a failure. Future days show the target and leave the
+  // Actual / % blank instead.
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const isFuture = (d: string) => d > todayStr;
+  /** Percentage cell honouring the future-day rule. */
+  const pctCell = (plan: number, actual: number, future: boolean, extra: Record<string, any> = {}) => {
+    if (future && actual === 0) return { content: "", styles: { halign: "center", ...extra } };
+    const pct = plan ? (actual / plan) * 100 : null;
+    return {
+      content: pct === null ? "" : `${pct.toFixed(0)}%`,
+      styles: { fillColor: pctColorRgb(pct), halign: "center", ...extra },
+    };
+  };
+
   // Header rows: two levels — Day name across 3 cols (Target / Actual / %) + Week totals
   const head1: any[] = [{ content: "Line", rowSpan: 2, styles: { valign: "middle", halign: "left" } }];
   for (let i = 0; i < 7; i++) {
@@ -183,11 +199,7 @@ export async function exportRagPdf(input: RagExportInput) {
         rp += t.plan; ra += t.actual;
         dailyGrand[idx].plan += t.plan;
         dailyGrand[idx].actual += t.actual;
-        const pct = t.plan ? (t.actual / t.plan) * 100 : null;
-        row.push(t.plan || "", t.actual || "", {
-          content: pct === null ? "" : `${pct.toFixed(0)}%`,
-          styles: { fillColor: pctColorRgb(pct), halign: "center" },
-        });
+        row.push(t.plan || "", t.actual || "", pctCell(t.plan, t.actual, isFuture(d)));
       });
       lp += rp; la += ra;
       const rpct = rp ? (ra / rp) * 100 : null;
@@ -204,11 +216,10 @@ export async function exportRagPdf(input: RagExportInput) {
       const t = m.get(d)!;
       const p = t.day.plan + t.night.plan;
       const a = t.day.actual + t.night.actual;
-      const pct = p ? (a / p) * 100 : null;
       totalRow.push(
         { content: p || "", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } },
         { content: a || "", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } },
-        { content: pct === null ? "" : `${pct.toFixed(0)}%`, styles: { fillColor: pctColorRgb(pct), fontStyle: "bold", halign: "center" } },
+        pctCell(p, a, isFuture(d), { fontStyle: "bold" }),
       );
     });
     totalRow.push(lp || "", la || "", {
@@ -228,12 +239,11 @@ export async function exportRagPdf(input: RagExportInput) {
 
   // Totals row
   const totRow: any[] = [{ content: "TOTAL", styles: { fontStyle: "bold" } }];
-  dailyGrand.forEach((t) => {
-    const p = t.plan ? (t.actual / t.plan) * 100 : null;
+  dailyGrand.forEach((t, idx) => {
     totRow.push(
       { content: t.plan || "", styles: { fontStyle: "bold" } },
       { content: t.actual || "", styles: { fontStyle: "bold" } },
-      { content: p === null ? "" : `${p.toFixed(0)}%`, styles: { fillColor: pctColorRgb(p), fontStyle: "bold", halign: "center" } },
+      pctCell(t.plan, t.actual, isFuture(dates[idx]), { fontStyle: "bold" }),
     );
   });
   const wp = weekTotals.plan ? (weekTotals.actual / weekTotals.plan) * 100 : null;
@@ -315,7 +325,9 @@ export async function exportRagPdf(input: RagExportInput) {
       const t = byLine.get(line)!.get(d)!;
       const p = t.day.plan + t.night.plan;
       const a = t.day.actual + t.night.actual;
-      if (!p) { prev = null; return; }
+      // Skip days with no plan, and future days that haven't run — plotting their
+      // 0% dragged every line down to the axis and back, a misleading zigzag.
+      if (!p || (isFuture(d) && a === 0)) { prev = null; return; }
       const pct = Math.min(yMax, (a / p) * 100);
       const x = px(i), y = py(pct);
       if (prev) doc.line(prev.x, prev.y, x, y);
