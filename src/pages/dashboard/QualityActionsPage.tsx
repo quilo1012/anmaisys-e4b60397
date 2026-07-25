@@ -16,7 +16,7 @@ import { generateQualityReportPDF, generateQualityReportExcel } from "@/lib/qual
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2, ClipboardCheck } from "lucide-react";
+import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2, ClipboardCheck, Printer } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
@@ -320,6 +320,29 @@ export function QualityActionsView() {
   const printPDF = () => { generateQualityReportPDF(reportInput()).catch(() => toast.error("Could not generate PDF")); };
   const fullExcel = () => { try { generateQualityReportExcel(reportInput()); } catch { toast.error("Could not generate Excel"); } };
 
+  // One-tap report of TODAY's actions, independent of the date-range filter —
+  // it queries today directly so it's right even if the filter is on a past range.
+  const printDaily = async () => {
+    const day = format(new Date(), "yyyy-MM-dd");
+    try {
+      const { data, error } = await supabase.from("quality_actions").select("*")
+        .gte("recorded_at", day).lte("recorded_at", `${day}T23:59:59`)
+        .order("recorded_at", { ascending: false });
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as QualityAction[];
+      if (rows.length === 0) { toast.info("No quality actions logged today"); return; }
+      await generateQualityReportPDF({
+        actions: rows.map((a) => ({
+          recorded_at: a.recorded_at, action_no: a.action_no, status: a.status, severity: a.severity,
+          line: a.line, shift: a.shift, leader_name: a.leader_name, department: a.department,
+          sku: a.sku, batch: a.batch, labels: a.labels, description: a.description,
+        })),
+        periodLabel: `Daily report · ${format(new Date(), "dd/MM/yyyy")}`,
+        generatedBy: profile?.name || "—",
+      });
+    } catch { toast.error("Could not generate the daily report"); }
+  };
+
   return (
     <div className="space-y-6">
         <div className="flex items-center justify-end flex-wrap gap-3">
@@ -337,6 +360,7 @@ export function QualityActionsView() {
             </div>
             {canManage && <Button variant="outline" onClick={() => setListsOpen(true)}><Tags className="h-4 w-4 mr-1" />Lists</Button>}
             {canManage && <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" />Import</Button>}
+            <Button variant="outline" onClick={printDaily}><Printer className="h-4 w-4 mr-1" />Daily report</Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline"><Download className="h-4 w-4 mr-1" />Export</Button>
