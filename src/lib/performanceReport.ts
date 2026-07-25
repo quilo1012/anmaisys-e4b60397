@@ -70,7 +70,7 @@ async function loadLogoDataUrl(): Promise<string | null> {
   } catch { return null; }
 }
 
-export async function generatePerformanceReportPDF(input: PerfReportInput) {
+export async function generatePerformanceReportPDF(input: PerfReportInput, opts?: { output?: "save" | "bloburl" }) {
   const { periodLabel, filtersLabel, lines, totalTarget, totalActual, openActions, generatedBy } = input;
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
@@ -187,5 +187,10 @@ export async function generatePerformanceReportPDF(input: PerfReportInput) {
     },
   });
 
-  doc.save(`production-performance-${Date.now()}.pdf`);
+  const filename = `production-performance-${Date.now()}.pdf`;
+  // "bloburl" powers an in-app preview (shown in an iframe) so the user can look
+  // before printing; "save" downloads straight away.
+  if (opts?.output === "bloburl") return doc.output("bloburl") as unknown as string;
+  doc.save(filename);
+  return undefined;
 }
