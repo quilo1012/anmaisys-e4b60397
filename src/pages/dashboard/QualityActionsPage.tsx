@@ -16,7 +16,7 @@ import { generateQualityReportPDF, generateQualityReportExcel } from "@/lib/qual
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2, ClipboardCheck, Printer } from "lucide-react";
+import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2, ClipboardCheck, Printer, Pencil } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
@@ -107,6 +107,30 @@ export function QualityActionsView() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(makeEmptyForm());
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Open the same form pre-filled to edit an existing action.
+  const openEdit = (a: QualityAction) => {
+    setEditingId(a.id);
+    setForm({
+      action_no: a.action_no ?? "",
+      action_type_id: "",
+      line: a.line ?? "",
+      shift: a.shift ?? "DAY",
+      leader_id: leaders.find((l) => l.name === a.leader_name)?.id ?? "",
+      leader_name: a.leader_name ?? "",
+      date: a.recorded_at ? a.recorded_at.slice(0, 10) : todayISO(),
+      sku: a.sku ?? "",
+      batch: a.batch ?? "",
+      department: a.department ?? "",
+      status: a.status ?? "todo",
+      severity: a.severity ?? "",
+      labels: a.labels ?? [],
+      description: a.description ?? "",
+    });
+    setDetailId(null);
+    setOpen(true);
+  };
 
   const from = useMemo(() => format(drRange.from ?? subDays(new Date(), 30), "yyyy-MM-dd"), [drRange]);
   const to = useMemo(() => format(drRange.to ?? new Date(), "yyyy-MM-dd"), [drRange]);
@@ -171,13 +195,11 @@ export function QualityActionsView() {
   const create = useMutation({
     mutationFn: async () => {
       const leader = leaders.find((l) => l.id === form.leader_id);
-      const { data: u } = await supabase.auth.getUser();
-      const { error } = await supabase.from("quality_actions").insert({
+      const recorded_at = new Date(`${form.date || todayISO()}T12:00:00`).toISOString();
+      const payload = {
         action_no: form.action_no || null,
-        action_type_id: null,
         line: form.line || null,
         shift: form.shift || null,
-        leader_id: null,
         leader_name: leader?.name ?? (form.leader_name || null),
         sku: form.sku || null,
         batch: form.batch || null,
@@ -186,16 +208,24 @@ export function QualityActionsView() {
         severity: form.severity || null,
         labels: form.labels,
         description: form.description || null,
-        points: 1,
-        recorded_by: u.user?.id ?? null,
-        recorded_at: new Date(`${form.date || todayISO()}T12:00:00`).toISOString(),
-      } as never);
-      if (error) throw error;
+        recorded_at,
+      };
+      if (editingId) {
+        const { error } = await supabase.from("quality_actions").update(payload as never).eq("id", editingId);
+        if (error) throw error;
+      } else {
+        const { data: u } = await supabase.auth.getUser();
+        const { error } = await supabase.from("quality_actions").insert({
+          ...payload, action_type_id: null, leader_id: null, points: 1, recorded_by: u.user?.id ?? null,
+        } as never);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["quality_actions"] });
-      setOpen(false); setForm(makeEmptyForm());
-      toast.success("Logged");
+      const wasEdit = !!editingId;
+      setOpen(false); setForm(makeEmptyForm()); setEditingId(null);
+      toast.success(wasEdit ? "Saved" : "Logged");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -371,10 +401,10 @@ export function QualityActionsView() {
                 <DropdownMenuItem onClick={exportCSV}>Raw data (.csv)</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setForm(makeEmptyForm()); }}>
-              <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-1" />Log action</Button></DialogTrigger>
+            <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditingId(null); setForm(makeEmptyForm()); } }}>
+              <DialogTrigger asChild><Button onClick={() => { setEditingId(null); setForm(makeEmptyForm()); }}><Plus className="h-4 w-4 mr-1" />Log action</Button></DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
-                <DialogHeader><DialogTitle>Log quality action</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>{editingId ? "Edit quality action" : "Log quality action"}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Action #</Label>
@@ -595,6 +625,7 @@ export function QualityActionsView() {
           onStatus={(status) => detailAction && setStatus.mutate({ id: detailAction.id, status })}
           onSeverity={(severity) => detailAction && setSeverity.mutate({ id: detailAction.id, severity })}
           onDelete={() => { if (detailAction) { deleteAction.mutate(detailAction.id); setDetailId(null); } }}
+          onEdit={() => { if (detailAction) openEdit(detailAction); }}
         />
 
         {canManage && (
@@ -742,10 +773,10 @@ function PhotoThumb({ path, canDelete, onDelete }: { path: string; canDelete: bo
   );
 }
 
-function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSeverity, onDelete }: {
+function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSeverity, onDelete, onEdit }: {
   action: QualityAction | null; canManage: boolean;
   onOpenChange: (open: boolean) => void; onStatus: (status: string) => void; onSeverity: (severity: string | null) => void;
-  onDelete: () => void;
+  onDelete: () => void; onEdit: () => void;
 }) {
   const { data: history = [] } = useQualityHistory(action?.id);
   const upload = useUploadQualityPhoto();
@@ -846,7 +877,10 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
               </div>
 
               {canManage && (
-                <div className="flex justify-end border-t pt-3">
+                <div className="flex items-center justify-between border-t pt-3">
+                  <Button variant="outline" size="sm" onClick={onEdit}>
+                    <Pencil className="h-4 w-4 mr-1" /> Edit action
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
