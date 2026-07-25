@@ -70,7 +70,7 @@ async function loadLogoDataUrl(): Promise<string | null> {
   } catch { return null; }
 }
 
-export async function generatePerformanceReportPDF(input: PerfReportInput, opts?: { output?: "save" | "bloburl" }) {
+export async function generatePerformanceReportPDF(input: PerfReportInput, opts?: { output?: "save" | "dataurl" | "bloburl" }) {
   const { periodLabel, filtersLabel, lines, totalTarget, totalActual, openActions, generatedBy } = input;
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
@@ -188,8 +188,12 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
   });
 
   const filename = `production-performance-${Date.now()}.pdf`;
-  // "bloburl" powers an in-app preview (shown in an iframe) so the user can look
-  // before printing; "save" downloads straight away.
+  // "dataurl" feeds the in-app preview iframe — a self-contained data: URI
+  //   renders even inside a sandboxed iframe (the Lovable editor), where a
+  //   blob: URL gets "blocked by Chrome".
+  // "bloburl" is for opening the PDF in a new tab to print (top-level blob nav
+  //   is allowed; data: is not).
+  if (opts?.output === "dataurl") return doc.output("datauristring") as unknown as string;
   if (opts?.output === "bloburl") return doc.output("bloburl") as unknown as string;
   doc.save(filename);
   return undefined;

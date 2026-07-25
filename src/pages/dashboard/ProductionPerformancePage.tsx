@@ -313,7 +313,7 @@ export default function ProductionPerformancePage() {
   const ragFill = (e: number) => e >= 100 ? "hsl(142 76% 36%)" : e >= 80 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)";
   const medal = (i: number) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
 
-  const buildReport = (output: "save" | "bloburl") => {
+  const buildReport = (output: "save" | "dataurl" | "bloburl") => {
     const scored = sortedByLine.filter((l) => l.target > 0);
     const totalTarget = scored.reduce((a, l) => a + l.target, 0);
     const totalActual = scored.reduce((a, l) => a + l.actual, 0);
@@ -327,14 +327,25 @@ export default function ProductionPerformancePage() {
       generatedBy: profile?.name || "—",
     }, { output });
   };
-  // Preview first: render into an iframe so the user can look before printing.
+  // Preview first: a data: URI renders in the iframe even inside a sandboxed
+  // frame (the Lovable editor), where a blob: URL is blocked by Chrome.
   const printReport = async () => {
     try {
-      const url = await buildReport("bloburl");
-      if (url) { if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(url as string); }
+      const url = await buildReport("dataurl");
+      if (url) setPreviewUrl(url as string);
     } catch { toast.error("Could not generate the performance report"); }
   };
   const downloadReport = async () => { try { await buildReport("save"); } catch { toast.error("Could not download the report"); } };
+  // Printing: open the PDF in a new tab (top-level blob nav is allowed and the
+  // browser's PDF viewer has a print button). Falls back to download if pop-ups
+  // are blocked.
+  const printInTab = async () => {
+    try {
+      const url = await buildReport("bloburl");
+      const w = url ? window.open(url as string, "_blank") : null;
+      if (!w) { await buildReport("save"); toast.info("Pop-up blocked — the report was downloaded instead"); }
+    } catch { toast.error("Could not open the report for printing"); }
+  };
 
 
   return (
@@ -614,13 +625,13 @@ export default function ProductionPerformancePage() {
       </div>
 
       {/* Print preview — look before printing/downloading. */}
-      <Dialog open={!!previewUrl} onOpenChange={(o) => { if (!o) { if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(null); } }}>
+      <Dialog open={!!previewUrl} onOpenChange={(o) => { if (!o) setPreviewUrl(null); }}>
         <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
           <DialogHeader className="flex-row items-center justify-between gap-2 border-b px-4 py-3 space-y-0">
             <DialogTitle className="text-base">Report preview</DialogTitle>
             <div className="flex items-center gap-2 pr-6">
               <Button size="sm" variant="outline" onClick={downloadReport}><Download className="h-4 w-4 mr-1" />Download</Button>
-              <Button size="sm" onClick={() => previewFrame.current?.contentWindow?.print()}><Printer className="h-4 w-4 mr-1" />Print</Button>
+              <Button size="sm" onClick={printInTab}><Printer className="h-4 w-4 mr-1" />Print</Button>
             </div>
           </DialogHeader>
           {previewUrl && (
