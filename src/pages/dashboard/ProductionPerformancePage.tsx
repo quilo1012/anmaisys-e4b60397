@@ -149,6 +149,9 @@ export default function ProductionPerformancePage() {
   // line, so the floor sees what's outstanding right on the performance screen.
   const { data: openActions = [] } = useQuery({
     queryKey: ["perf-open-quality", range.from, range.to, shift, lineFilter],
+    // Live feed: keep the panel current as actions are opened/closed elsewhere.
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       let q = supabase.from("quality_actions")
         .select("id, action_no, recorded_at, line, shift, status, severity, description")
@@ -459,6 +462,13 @@ export default function ProductionPerformancePage() {
               <AlertTriangle className="h-4 w-4 text-amber-500" />
               Open Quality Actions
               <Badge variant="outline" className="ml-1">{openActions.length}</Badge>
+              <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                Live
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
