@@ -373,7 +373,14 @@ export default function ShiftHistoryPage() {
     () => [...lines].sort((a, b) => lineRank(a.name) - lineRank(b.name) || a.name.localeCompare(b.name)),
     [lines]
   );
+  // A session the operator page auto-creates at shift change but nobody logged
+  // anything on: no items, no leader, no tickets, no staff. These show up as an
+  // empty NIGHT row on lines with no night plan — hide them.
+  const isPhantom = (s: SessionRow) =>
+    s.production_items.length === 0 && !s.leader_name && !s.tickets && !s.staff_planned && !s.staff_actual;
+
   const filtered = useMemo(() => sessions.filter((s) =>
+    !isPhantom(s) &&
     (fLine === "__all__" || s.line === fLine) &&
     (fShift === "__all__" || s.shift === fShift) &&
     (fLeader === "__all__" || s.leader_name === fLeader) &&
