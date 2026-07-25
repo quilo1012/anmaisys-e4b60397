@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Check, Download, Lock, Unlock, Trash2, Upload } from "lucide-react";
+import { Check, Download, Lock, Unlock, Trash2, Upload, Plus } from "lucide-react";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { InlineActualInput } from "@/components/InlineActualInput";
@@ -253,6 +253,60 @@ export default function ShiftHistoryPage() {
   const [editSkuId, setEditSkuId] = useState<string>("");
   const [importOpen, setImportOpen] = useState(false);
 
+  // Add a production entry by hand — the alternative to importing an Excel.
+  const [addOpen, setAddOpen] = useState(false);
+  const [addDate, setAddDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [addLine, setAddLine] = useState("");
+  const [addShift, setAddShift] = useState<"DAY" | "NIGHT">("DAY");
+  const [addSkuId, setAddSkuId] = useState("");
+  const [addTarget, setAddTarget] = useState("");
+  const [addActual, setAddActual] = useState("");
+
+  const addProduction = useMutation({
+    mutationFn: async () => {
+      if (!addLine) throw new Error("Pick a line");
+      if (!addSkuId) throw new Error("Pick a SKU");
+      const target = Number(addTarget) || 0;
+      const actual = Number(addActual) || 0;
+      // Find or create the session for this date/line/shift.
+      const { data: existing, error: findErr } = await supabase
+        .from("production_sessions").select("id, locked")
+        .eq("session_date", addDate).eq("shift", addShift).eq("line", addLine)
+        .maybeSingle();
+      if (findErr) throw findErr;
+      if (existing?.locked) throw new Error("That shift is locked — unlock it first");
+      let sessionId = existing?.id;
+      if (!sessionId) {
+        const { data: ins, error } = await supabase
+          .from("production_sessions").insert({ session_date: addDate, shift: addShift, line: addLine })
+          .select("id").single();
+        if (error) throw error;
+        sessionId = ins.id;
+      }
+      // Add the SKU line, or top up if it's already on the shift.
+      const { data: item } = await supabase
+        .from("production_items").select("id, actual_qty, target_qty")
+        .eq("session_id", sessionId).eq("sku_id", addSkuId).maybeSingle();
+      if (item) {
+        const { error } = await supabase.from("production_items")
+          .update({ actual_qty: Number(item.actual_qty ?? 0) + actual, target_qty: target || item.target_qty }).eq("id", item.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("production_items").insert({
+          session_id: sessionId, sku_id: addSkuId, target_qty: target, planned_qty: target, actual_qty: actual,
+        });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shift_history"] });
+      toast.success("Production added");
+      setAddOpen(false);
+      setAddSkuId(""); setAddTarget(""); setAddActual("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
   const { data: sessions = [] } = useQuery({
     queryKey: ["shift_history", from, to],
@@ -436,6 +490,11 @@ export default function ShiftHistoryPage() {
             {isAdmin && (
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                 <Upload className="h-4 w-4 mr-1" />Import Production
+              </Button>
+            )}
+            {isAdmin && (
+              <Button size="sm" onClick={() => { setAddLine(fLine !== "__all__" ? fLine : (sortedLines[0]?.name ?? "")); setAddDate(from); setAddOpen(true); }}>
+                <Plus className="h-4 w-4 mr-1" />Add Production
               </Button>
             )}
             <Button variant="outline" onClick={exportExcel}><Download className="h-4 w-4 mr-1" />Export Excel</Button>
@@ -732,6 +791,45 @@ export default function ShiftHistoryPage() {
                 onClick={() => editingItem && saveItemActual.mutate({ id: editingItem.id, actual: Number(editActual) || 0, unit: editUnit, prevNotes: editingItem.notes, sku_id: isAdmin && editSkuId && editSkuId !== editingItem.sku_id ? editSkuId : undefined })}
                 disabled={saveItemActual.isPending}
               >Save</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add production by hand — no Excel needed. */}
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Add production</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <div><Label className="text-xs">Date</Label><Input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} /></div>
+                <div><Label className="text-xs">Line</Label>
+                  <Select value={addLine} onValueChange={setAddLine}>
+                    <SelectTrigger><SelectValue placeholder="Line" /></SelectTrigger>
+                    <SelectContent>{sortedLines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div><Label className="text-xs">Shift</Label>
+                  <Select value={addShift} onValueChange={(v) => setAddShift(v as "DAY" | "NIGHT")}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div><Label className="text-xs">SKU</Label>
+                <Select value={addSkuId} onValueChange={setAddSkuId}>
+                  <SelectTrigger><SelectValue placeholder="Pick a SKU" /></SelectTrigger>
+                  <SelectContent className="max-h-72">{skus.map((s) => <SelectItem key={s.id} value={s.id}>{s.code} — {s.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><Label className="text-xs">Target (optional)</Label><Input type="number" inputMode="numeric" value={addTarget} onChange={(e) => setAddTarget(e.target.value)} placeholder="0" /></div>
+                <div><Label className="text-xs">Produced (actual)</Label><Input type="number" inputMode="numeric" value={addActual} onChange={(e) => setAddActual(e.target.value)} placeholder="0" autoFocus /></div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Adds this SKU to the shift. If it's already there, the produced quantity is added on top.</p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+              <Button onClick={() => addProduction.mutate()} disabled={addProduction.isPending || !addLine || !addSkuId}>Add</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
