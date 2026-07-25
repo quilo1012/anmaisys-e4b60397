@@ -235,7 +235,9 @@ export default function ShiftHistoryPage() {
   const { data: skus = [] } = useSkuProducts(false);
   const skuMap = useMemo(() => new Map(skus.map((s) => [s.id, s])), [skus]);
 
-  const [from, setFrom] = useState(format(subDays(new Date(), 14), "yyyy-MM-dd"));
+  // Open on today. Daily ops fill in the current day, so a 14-day default just
+  // meant clearing it every time. From/To still take any range by hand.
+  const [from, setFrom] = useState(format(new Date(), "yyyy-MM-dd"));
   const [to, setTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const [fLine, setFLine] = useState("__all__");
   const [fShift, setFShift] = useState("__all__");
@@ -487,7 +489,7 @@ export default function ShiftHistoryPage() {
               }}>Today</Button>
               <Button variant="ghost" size="sm" className="flex-1" onClick={() => {
                 setFrom(format(subDays(new Date(), 14), "yyyy-MM-dd")); setTo(format(new Date(), "yyyy-MM-dd")); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
-              }}>Reset</Button>
+              }}>Last 14 days</Button>
             </div>
 
           </CardContent>
