@@ -97,7 +97,8 @@ export function usePurchaseOrderMutations() {
   const qc = useQueryClient();
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["purchase_orders"] });
-    qc.invalidateQueries({ queryKey: ["stock"] });
+    // Receiving a PO increments products.quantity; the stock list reads ["products"].
+    qc.invalidateQueries({ queryKey: ["products"] });
   };
 
   const create = useMutation({

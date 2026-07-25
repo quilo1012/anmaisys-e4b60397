@@ -788,7 +788,11 @@ function EngineerDashboardContent() {
               <Focus className="h-4 w-4 text-primary" />
               <AlertTitle className="m-0 text-sm font-semibold">
                 Showing WOs{lineFilterParam ? ` for ${lineFilterParam}` : ""}
-                {dateFilterParam ? ` · ${format(new Date(dateFilterParam + "T12:00:00"), "d MMM")}` : ""}
+                {(() => {
+                  if (!dateFilterParam) return "";
+                  const d = new Date(dateFilterParam + "T12:00:00");
+                  return isNaN(d.getTime()) ? "" : ` · ${format(d, "d MMM")}`;
+                })()}
               </AlertTitle>
             </div>
             <Button

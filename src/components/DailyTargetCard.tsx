@@ -65,9 +65,12 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
         .update({ actual_qty: n })
         .eq("id", rowId));
     } else {
+      // Upsert (not insert) so a concurrent plan/actual save on the same
+      // line+date+shift can't create a duplicate row or hit the unique constraint.
+      // Omit plan_qty so we never clobber a plan saved a moment earlier.
       ({ error } = await (supabase as any)
         .from("rag_weekly_entries")
-        .insert({ line, entry_date: entryDate, shift, plan_qty: 0, actual_qty: n }));
+        .upsert({ line, entry_date: entryDate, shift, actual_qty: n }, { onConflict: "entry_date,line,shift" }));
     }
     setSaving(false);
     if (error) { toast.error(error.message); setVal(String(actual)); return; }
@@ -90,9 +93,11 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
         .update({ plan_qty: n })
         .eq("id", rowId));
     } else {
+      // Upsert (not insert) to avoid a duplicate/constraint error when an actual
+      // is saved concurrently; omit actual_qty so we never clobber it.
       ({ error } = await (supabase as any)
         .from("rag_weekly_entries")
-        .insert({ line, entry_date: entryDate, shift, plan_qty: n, actual_qty: 0 }));
+        .upsert({ line, entry_date: entryDate, shift, plan_qty: n }, { onConflict: "entry_date,line,shift" }));
     }
     setPlanSaving(false);
     if (error) { toast.error(error.message); setPlanVal(String(plan)); return; }

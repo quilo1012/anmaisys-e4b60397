@@ -113,7 +113,7 @@ export function MachineSelector({ lineId, side, machineName, onChange }: Props) 
               {grouped.map(([type, items]) => (
                 <SelectGroup key={type}>
                   <SelectLabel>{type}</SelectLabel>
-                  {items.map((m) => {
+                  {items.filter((m) => (m.name ?? "").trim()).map((m) => {
                     const label = formatMachineLabel(m);
                     return (
                       <SelectItem key={m.id} value={m.name}>

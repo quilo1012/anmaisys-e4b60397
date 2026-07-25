@@ -732,8 +732,8 @@ export default function DowntimePage() {
     });
     if (filteredRisks.length) {
       autoTable(doc, {
-        head: [["Machine", "Failures", "MTBF (h)", "MTTR (m)", "Risk"]],
-        body: filteredRisks.map((r: any) => [r.machine, r.count, r.mtbfHours ?? "—", r.mttrMinutes ?? "—", r.risk]),
+        head: [["Machine", "Failures", "MTBF (h)", "Risk"]],
+        body: filteredRisks.map((r) => [r.machine, r.failures30d, r.mtbfHours ?? "—", r.risk]),
         styles: { fontSize: 8, cellPadding: 2 },
         headStyles: { fillColor: [59, 130, 246] },
       });
@@ -748,11 +748,10 @@ export default function DowntimePage() {
       XLSX.utils.book_append_sheet(
         wb,
         XLSX.utils.json_to_sheet(
-          filteredRisks.map((r: any) => ({
+          filteredRisks.map((r) => ({
             Machine: r.machine,
-            Failures: r.count,
+            Failures: r.failures30d,
             "MTBF (h)": r.mtbfHours ?? "",
-            "MTTR (m)": r.mttrMinutes ?? "",
             Risk: r.risk,
           })),
         ),

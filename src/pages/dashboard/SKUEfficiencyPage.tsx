@@ -39,7 +39,8 @@ export default function SKUEfficiencyPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["sku-efficiency", days],
     queryFn: async () => {
-      const since = new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10);
+      const d = new Date(Date.now() - days * 86400_000);
+      const since = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       const { data: sessions, error: sErr } = await supabase
         .from("production_sessions")
         .select("id, line, session_date")

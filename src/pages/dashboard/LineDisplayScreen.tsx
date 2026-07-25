@@ -165,7 +165,7 @@ export default function LineDisplayScreen() {
       if (!ids.length) return [] as ProductionItem[];
       const { data, error } = await supabase
         .from("production_items")
-        .select("id, planned_qty, actual_qty, sku:sku_products(code, name)")
+        .select("id, planned_qty, target_qty, actual_qty, sku:sku_products(code, name)")
         .in("session_id", ids);
       if (error) throw error;
       return (data ?? []) as unknown as ProductionItem[];
@@ -271,7 +271,7 @@ export default function LineDisplayScreen() {
         );
         const current = sorted[0] ?? (items ?? [])[0];
         if (!current) return null;
-        const p = Number(current.planned_qty ?? 0);
+        const p = Number(current.target_qty ?? current.planned_qty ?? 0);
         const a = Number(current.actual_qty ?? 0);
         const pc = p > 0 ? Math.min(100, (a / p) * 100) : 0;
         const c = pc >= 95 ? "bg-green-500" : pc >= 75 ? "bg-amber-500" : "bg-red-500";
@@ -317,7 +317,7 @@ export default function LineDisplayScreen() {
         ) : (
           <ul className="space-y-3">
             {items.map((it) => {
-              const p = Number(it.planned_qty ?? 0);
+              const p = Number(it.target_qty ?? it.planned_qty ?? 0);
               const a = Number(it.actual_qty ?? 0);
               const pc = p > 0 ? Math.min(100, (a / p) * 100) : 0;
               const c = pc >= 95 ? "bg-green-500" : pc >= 75 ? "bg-amber-500" : "bg-red-500";

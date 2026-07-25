@@ -192,7 +192,7 @@ export default function SKUPerformancePage() {
               </Select>
             </div>
             <span className="text-xs text-muted-foreground whitespace-nowrap sm:ml-auto">
-              {format(parseISO(dateFrom), "dd MMM")} → {format(parseISO(dateTo), "dd MMM yyyy")}
+              {dateFrom ? format(parseISO(dateFrom), "dd MMM") : "—"} → {dateTo ? format(parseISO(dateTo), "dd MMM yyyy") : "—"}
             </span>
           </div>
         </div>

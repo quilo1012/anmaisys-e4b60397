@@ -98,10 +98,12 @@ export function DateRangeFilter({ value, preset, onChange, className, storageKey
       if (parsed.preset && parsed.preset !== "custom") {
         onChange(getPresetRange(parsed.preset), parsed.preset);
       } else if (parsed.preset === "custom") {
-        onChange(
-          { from: parsed.from ? new Date(parsed.from) : undefined, to: parsed.to ? new Date(parsed.to) : undefined },
-          "custom",
-        );
+        const safeDate = (s?: string) => {
+          if (!s) return undefined;
+          const d = new Date(s);
+          return isNaN(d.getTime()) ? undefined : d;
+        };
+        onChange({ from: safeDate(parsed.from), to: safeDate(parsed.to) }, "custom");
       }
     } catch {
       /* ignore */

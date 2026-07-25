@@ -427,7 +427,7 @@ function OperatorDashboardContent() {
                         <SelectValue placeholder="Select the machine on this line..." />
                       </SelectTrigger>
                       <SelectContent className="max-h-[60vh]">
-                        {showList.map((m: any) => {
+                        {showList.filter((m: any) => (m.name ?? "").trim()).map((m: any) => {
                           const isUuid = typeof m.code === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.code);
                           const showCode = m.code && !isUuid;
                           return (
@@ -499,7 +499,7 @@ function OperatorDashboardContent() {
                   {(() => {
                     if (!isSealerPrinterLine) {
                       return [
-                        ...(problemDescriptions || []).map((pd: any) => (
+                        ...(problemDescriptions || []).filter((pd: any) => (pd.name ?? "").trim()).map((pd: any) => (
                           <SelectItem key={pd.id} value={pd.name}>{pd.name}</SelectItem>
                         )),
                         <SelectItem key="__custom__" value="__custom__">Other — describe the problem…</SelectItem>,

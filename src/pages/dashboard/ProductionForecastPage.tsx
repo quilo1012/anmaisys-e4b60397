@@ -78,7 +78,8 @@ export default function ProductionForecastPage() {
     queryFn: async (): Promise<Estimate[]> => {
       if (!calculated) return [];
       const { sku, qty, line: pickedLine } = calculated;
-      const since = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
+      const d = new Date(Date.now() - 90 * 86400_000);
+      const since = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
       // target_per_hour is units/hour → convert to units/minute
       const stdUpm = Number(sku.target_per_hour ?? 0) / 60;
