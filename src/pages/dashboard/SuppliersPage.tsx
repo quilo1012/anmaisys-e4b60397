@@ -275,6 +275,7 @@ function NewPoDialog({
   const [supplierId, setSupplierId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<DraftItem[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   const addRow = () => setItems((r) => [...r, { product_id: null, product_name: "", quantity: 1, unit_price: 0 }]);
 
@@ -392,18 +393,23 @@ function NewPoDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button
-            disabled={!items.length || items.some((i) => !i.product_name.trim())}
+            disabled={submitting || !items.length || items.some((i) => !i.product_name.trim())}
             onClick={async () => {
-              await onCreate({
-                supplier_id: supplierId || null,
-                notes: notes || null,
-                items,
-              });
-              setOpen(false);
-              setSupplierId(""); setNotes(""); setItems([]);
+              setSubmitting(true);
+              try {
+                await onCreate({
+                  supplier_id: supplierId || null,
+                  notes: notes || null,
+                  items,
+                });
+                setOpen(false);
+                setSupplierId(""); setNotes(""); setItems([]);
+              } finally {
+                setSubmitting(false);
+              }
             }}
           >
-            Create
+            {submitting ? "Creating…" : "Create"}
           </Button>
         </DialogFooter>
       </DialogContent>

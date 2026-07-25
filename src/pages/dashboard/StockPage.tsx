@@ -82,7 +82,12 @@ export default function StockPage() {
     e.preventDefault();
     const product = products?.find((p) => p.id === adjustId);
     if (!product) return;
-    const newQty = product.quantity + parseInt(adjustQty);
+    const delta = Number(adjustQty);
+    if (!Number.isFinite(delta)) {
+      toast({ title: "Error", description: "Enter a valid number.", variant: "destructive" });
+      return;
+    }
+    const newQty = product.quantity + delta;
     if (newQty < 0) {
       toast({ title: "Error", description: "Stock cannot go below 0.", variant: "destructive" });
       return;
@@ -90,7 +95,7 @@ export default function StockPage() {
     try {
       await updateStock.mutateAsync({ id: adjustId, quantity: newQty });
       toast({ title: "Stock updated" });
-      await logAuditEvent("adjust_stock", "product", adjustId, { adjustment: parseInt(adjustQty), new_quantity: newQty });
+      await logAuditEvent("adjust_stock", "product", adjustId, { adjustment: delta, new_quantity: newQty });
       queryClient.invalidateQueries({ queryKey: ["stock_adjustment_history"] });
       setAdjustId(""); setAdjustQty("");
     } catch (err: any) {

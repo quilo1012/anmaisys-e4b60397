@@ -181,12 +181,14 @@ export function ImportProductionDialog({ open, onOpenChange, onImported }: {
             .from("production_items").select("id, actual_qty")
             .eq("session_id", sessionId).eq("sku_id", sku_id).maybeSingle();
           if (existingItem) {
-            await supabase.from("production_items")
+            const { error: upErr } = await supabase.from("production_items")
               .update({ actual_qty: qty }).eq("id", existingItem.id);
+            if (upErr) throw upErr;
           } else {
-            await supabase.from("production_items").insert({
+            const { error: insErr } = await supabase.from("production_items").insert({
               session_id: sessionId, sku_id, target_qty: 0, planned_qty: 0, actual_qty: qty,
             });
+            if (insErr) throw insErr;
           }
           itemCount++;
         }

@@ -359,13 +359,15 @@ export function AssemblyListImporter({
             .from("production_items").select("id")
             .eq("session_id", sessionId).eq("sku_id", sku_id).maybeSingle();
           if (ex) {
-            await supabase.from("production_items").update({
+            const { error: upErr } = await supabase.from("production_items").update({
               target_qty: qty, planned_qty: qty,
             }).eq("id", ex.id);
+            if (upErr) throw upErr;
           } else {
-            await supabase.from("production_items").insert({
+            const { error: insErr } = await supabase.from("production_items").insert({
               session_id: sessionId, sku_id, target_qty: qty, planned_qty: qty, actual_qty: 0,
             });
+            if (insErr) throw insErr;
           }
           items++;
         }

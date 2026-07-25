@@ -87,7 +87,7 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
   const { role } = useAuth();
   const cards: NavCard[] = [
     { title: "Work Orders", description: "Manage all maintenance work orders", url: "/dashboard/work-orders", icon: ClipboardList, badge: openWOs, accent: OPS },
-    { title: "Production Planner", description: "Daily shift planning by line", url: "/dashboard/planner", icon: CalendarRange, accent: OPS },
+    { title: "Production Planner", description: "Daily shift planning by line", url: "/dashboard/planner", icon: CalendarRange, accent: OPS, comingSoon: true },
     { title: "Production OEE", description: "Performance, RAG and leaderboard", url: "/dashboard/production-performance", icon: Gauge, accent: REPORTS },
     { title: "Quality Actions", description: "Log and track quality issues", url: "/dashboard/quality", icon: CheckSquare, accent: OPS },
     

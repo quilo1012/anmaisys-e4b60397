@@ -125,7 +125,8 @@ export function ProductionInputCard({
   const deleteItem = async (it: Item) => {
     setDeletingId(it.id);
     try {
-      await (supabase as any).from("production_blender_entries").delete().eq("production_item_id", it.id);
+      const { error: blErr } = await (supabase as any).from("production_blender_entries").delete().eq("production_item_id", it.id);
+      if (blErr) throw blErr;
       const { error } = await (supabase as any).from("production_items").delete().eq("id", it.id);
       if (error) throw error;
       toast.success(`Removed ${it.code} from this shift`);

@@ -525,7 +525,8 @@ export default function ManageUsers() {
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       if (editUser.role !== editRole) {
-        await supabase.from("user_roles").delete().eq("user_id", editUser.id);
+        const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", editUser.id);
+        if (delErr) throw delErr;
         const { error: roleErr } = await supabase.from("user_roles").insert({ user_id: editUser.id, role: editRole } as any);
         if (roleErr) throw roleErr;
         logAuditEvent("user_role_changed", "user", editUser.id, { name: editName.trim(), email: editEmail.trim(), old_role: editUser.role, new_role: editRole });
