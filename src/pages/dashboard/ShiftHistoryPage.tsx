@@ -648,49 +648,6 @@ export default function ShiftHistoryPage() {
 
 
 
-        {viewMode === "monthly" && summary.lines.length > 0 && (
-          <Card className="shadow-sm">
-            <CardHeader className="py-3">
-              <CardTitle className="text-base">Summary by line · {format(monthAnchor, "MMMM yyyy")}</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-auto">
-                <table className="w-full text-sm border-separate border-spacing-0">
-                  <thead className="bg-muted text-[11px] uppercase tracking-wide">
-                    <tr>
-                      <th className="text-left px-3 py-2 border-b">Line</th>
-                      <th className="text-right px-3 py-2 border-b">Days</th>
-                      <th className="text-right px-3 py-2 border-b">Target</th>
-                      <th className="text-right px-3 py-2 border-b">Produced</th>
-                      <th className="text-right px-3 py-2 border-b w-20">%</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {summary.lines.map((l) => (
-                      <tr key={l.line} className="odd:bg-muted/20">
-                        <td className="px-3 py-1.5 font-medium">{l.line}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{l.days}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{Math.round(l.target).toLocaleString()}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums font-semibold">{Math.round(l.actual).toLocaleString()}</td>
-                        <td className={cn("px-3 py-1.5 text-right tabular-nums font-semibold", l.target > 0 ? (l.pct >= 100 ? "text-emerald-600" : l.pct >= 90 ? "text-amber-600" : "text-destructive") : "text-muted-foreground")}>
-                          {l.target > 0 ? `${l.pct.toFixed(0)}%` : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="bg-muted/50 font-bold">
-                      <td className="px-3 py-2">Total</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{summary.days}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{Math.round(summary.target).toLocaleString()}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{Math.round(summary.actual).toLocaleString()}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—"}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         <Card>
           <CardContent className="p-0">
             {filtered.length === 0 ? (
