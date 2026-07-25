@@ -229,7 +229,9 @@ interface SessionRow {
 export default function ShiftHistoryPage() {
   const qc = useQueryClient();
   const { role } = useAuth();
-  const isAdmin = role === "admin" || role === "manager" || role === "maintenance_manager";
+  // Who may adjust Production Control — import, correct the SKU, edit actuals.
+  // Supervisor manages the floor, so they get the same control as admin/manager.
+  const isAdmin = role === "admin" || role === "manager" || role === "maintenance_manager" || role === "supervisor";
   const { data: lines = [] } = useLines();
   const { data: leaders = [] } = useLeaders();
   const { data: skus = [] } = useSkuProducts(false);
