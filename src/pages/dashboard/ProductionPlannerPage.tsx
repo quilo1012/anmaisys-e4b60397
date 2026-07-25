@@ -516,9 +516,9 @@ export default function ProductionPlannerPage() {
               <div>
                 <Label>Date <span className="text-destructive">*</span></Label>
                 <div className="flex items-center gap-1">
-                  <Button variant="outline" size="icon" onClick={() => setDate(format(subDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronLeft className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="icon" aria-label="Previous day" onClick={() => setDate(format(subDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronLeft className="h-4 w-4" /></Button>
                   <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1" />
-                  <Button variant="outline" size="icon" onClick={() => setDate(format(addDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronRight className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="icon" aria-label="Next day" onClick={() => setDate(format(addDays(parseISO(date), 1), "yyyy-MM-dd"))}><ChevronRight className="h-4 w-4" /></Button>
                   <Button
                     variant="outline"
                     size="sm"

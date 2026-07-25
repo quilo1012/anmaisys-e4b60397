@@ -340,6 +340,7 @@ export default function LineDisplayScreen() {
                         <span className="font-mono">/ {p.toLocaleString()}</span>
                         <Button
                           size="icon"
+                          aria-label="Save actual quantity"
                           className="h-9 w-9 bg-green-600 hover:bg-green-700"
                           disabled={saving}
                           onClick={async () => {
@@ -365,6 +366,7 @@ export default function LineDisplayScreen() {
                         <Button
                           size="icon"
                           variant="outline"
+                          aria-label="Cancel edit"
                           className="h-9 w-9"
                           onClick={() => setEditingId(null)}
                         >
@@ -380,6 +382,7 @@ export default function LineDisplayScreen() {
                           <Button
                             size="icon"
                             variant="ghost"
+                            aria-label="Edit actual quantity"
                             className="h-8 w-8 text-slate-400 hover:text-white"
                             onClick={() => {
                               setEditingId(it.id);

@@ -660,6 +660,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   type="button"
                   variant="outline"
                   size="icon"
+                  aria-label={cShowPwd ? "Hide password" : "Show password"}
                   onClick={() => setCShowPwd((s) => !s)}
                 >
                   {cShowPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -808,6 +809,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   type="button"
                   variant="outline"
                   size="icon"
+                  aria-label={rShow ? "Hide password" : "Show password"}
                   onClick={() => setRShow((s) => !s)}
                 >
                   {rShow ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -888,6 +890,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   type="button"
                   variant="outline"
                   size="icon"
+                  aria-label={aShow ? "Hide password" : "Show password"}
                   onClick={() => setAShow((s) => !s)}
                 >
                   {aShow ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

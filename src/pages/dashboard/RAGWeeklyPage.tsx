@@ -661,11 +661,11 @@ export default function RAGWeeklyPage() {
           <CardHeader className="flex flex-col gap-3 p-3 md:p-6">
             <div className="flex flex-row items-center justify-between gap-2 flex-wrap">
               <CardTitle className="flex items-center gap-2 text-sm md:text-base">
-                <Button size="icon" variant="outline" onClick={() => setWeekStart(addWeeks(weekStart, -1))}>
+                <Button size="icon" variant="outline" aria-label="Previous week" onClick={() => setWeekStart(addWeeks(weekStart, -1))}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="px-1 md:px-2">Wk {weekNumber} · {format(weekStart, "dd MMM")} – {format(addDays(weekStart, 6), "dd MMM yyyy")}</span>
-                <Button size="icon" variant="outline" onClick={() => setWeekStart(addWeeks(weekStart, 1))}>
+                <Button size="icon" variant="outline" aria-label="Next week" onClick={() => setWeekStart(addWeeks(weekStart, 1))}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </CardTitle>
@@ -859,11 +859,11 @@ export default function RAGWeeklyPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap border-t pt-3">
-              <Button size="icon" variant="ghost" onClick={() => setWeekStart(startOfWeek(addDays(monthAnchor, -1), { weekStartsOn: 1 }))}>
+              <Button size="icon" variant="ghost" aria-label="Previous month" onClick={() => setWeekStart(startOfWeek(addDays(monthAnchor, -1), { weekStartsOn: 1 }))}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-sm font-medium min-w-[110px] text-center">{format(monthAnchor, "MMMM yyyy")}</span>
-              <Button size="icon" variant="ghost" onClick={() => setWeekStart(startOfWeek(addDays(endOfMonth(monthAnchor), 1), { weekStartsOn: 1 }))}>
+              <Button size="icon" variant="ghost" aria-label="Next month" onClick={() => setWeekStart(startOfWeek(addDays(endOfMonth(monthAnchor), 1), { weekStartsOn: 1 }))}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <Popover>

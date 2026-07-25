@@ -947,7 +947,7 @@ function QualityListsManager() {
                   <Button size="sm" variant="outline" onClick={() => toggle(o)}>{o.active ? "Hide" : "Show"}</Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" aria-label="Delete option" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>

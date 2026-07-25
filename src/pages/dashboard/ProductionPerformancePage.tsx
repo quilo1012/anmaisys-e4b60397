@@ -335,7 +335,7 @@ export default function ProductionPerformancePage() {
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" className="shrink-0" onClick={() => {
+              <Button variant="outline" size="icon" aria-label="Previous period" className="shrink-0" onClick={() => {
                 if (period === "custom") {
                   const from = parseISO(date), to = parseISO(endDate);
                   const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
@@ -356,7 +356,7 @@ export default function ProductionPerformancePage() {
                 setEndDate(e.target.value);
                 if (period !== "custom") setPeriod("custom");
               }} className="flex-1 sm:w-40 sm:flex-none min-w-0" />
-              <Button variant="outline" size="icon" className="shrink-0" onClick={() => {
+              <Button variant="outline" size="icon" aria-label="Next period" className="shrink-0" onClick={() => {
                 if (period === "custom") {
                   const from = parseISO(date), to = parseISO(endDate);
                   const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);

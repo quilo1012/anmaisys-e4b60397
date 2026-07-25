@@ -325,7 +325,7 @@ function TasksEditor({ scheduleId, canManage }: { scheduleId: string; canManage:
           <span className="flex-1 text-sm">{t.title}</span>
           {t.required && <Badge variant="outline" className="text-[10px]">required</Badge>}
           {canManage && (
-            <Button size="icon" variant="ghost" onClick={() => delTask.mutate({ id: t.id, schedule_id: scheduleId })}>
+            <Button size="icon" variant="ghost" aria-label="Delete task" onClick={() => delTask.mutate({ id: t.id, schedule_id: scheduleId })}>
               <Trash2 className="h-3.5 w-3.5 text-destructive" />
             </Button>
           )}

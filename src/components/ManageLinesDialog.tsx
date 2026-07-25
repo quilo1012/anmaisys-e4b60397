@@ -115,6 +115,7 @@ export function ManageLinesDialog({ open, onOpenChange }: { open: boolean; onOpe
                 <Button
                   size="icon"
                   variant="ghost"
+                  aria-label="Delete line"
                   onClick={() => {
                     if (confirm(`Delete line "${r.name}"? This cannot be undone.`)) remove.mutate(r.id);
                   }}

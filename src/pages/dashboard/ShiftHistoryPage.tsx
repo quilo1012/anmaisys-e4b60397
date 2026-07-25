@@ -704,7 +704,7 @@ export default function ShiftHistoryPage() {
                                   <div className="flex items-center justify-end gap-1">
                                     <UITooltip>
                                       <TooltipTrigger asChild>
-                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
+                                        <Button size="icon" variant="ghost" aria-label={s.locked ? "Unlock session" : "Lock session"} className="h-8 w-8" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
                                           {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                                         </Button>
                                       </TooltipTrigger>
@@ -712,7 +712,7 @@ export default function ShiftHistoryPage() {
                                     </UITooltip>
                                     <UITooltip>
                                       <TooltipTrigger asChild>
-                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setDeleting(s.id)}>
+                                        <Button size="icon" variant="ghost" aria-label="Delete session" className="h-8 w-8" onClick={() => setDeleting(s.id)}>
                                           <Trash2 className="h-4 w-4 text-destructive" />
                                         </Button>
                                       </TooltipTrigger>

@@ -785,14 +785,14 @@ export default function ManageUsers() {
                             </Button>
                           )}
                           {!managerBlockedTarget && (
-                            <Button size="icon" variant="ghost" onClick={() => openEditUser(user)}>
+                            <Button size="icon" variant="ghost" aria-label="Edit user" onClick={() => openEditUser(user)}>
                               <Pencil className="h-4 w-4" />
                             </Button>
                           )}
                           {!isCurrentUser && !managerBlockedTarget && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">
+                                <Button size="icon" variant="ghost" aria-label="Delete user" className="text-destructive hover:text-destructive">
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </AlertDialogTrigger>
@@ -889,12 +889,12 @@ export default function ManageUsers() {
                     <TableCell className="text-muted-foreground">{new Date(eng.created_at).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button size="icon" variant="ghost" onClick={() => openEditEngineer(eng)}>
+                        <Button size="icon" variant="ghost" aria-label="Edit engineer" onClick={() => openEditEngineer(eng)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">
+                            <Button size="icon" variant="ghost" aria-label="Delete engineer" className="text-destructive hover:text-destructive">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
@@ -996,12 +996,12 @@ export default function ManageUsers() {
                       <TableCell className="text-muted-foreground">{new Date(ld.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => openEditLeader(ld)}>
+                          <Button size="icon" variant="ghost" aria-label="Edit line leader" onClick={() => openEditLeader(ld)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">
+                              <Button size="icon" variant="ghost" aria-label="Delete line leader" className="text-destructive hover:text-destructive">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </AlertDialogTrigger>

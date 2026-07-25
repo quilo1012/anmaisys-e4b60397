@@ -79,7 +79,7 @@ export function WOChat({ workOrderId }: { workOrderId: string }) {
           </div>
           <div className="flex gap-2 p-2 border-t">
             <input type="file" accept="image/*" ref={fileRef} className="hidden" onChange={handleImageUpload} />
-            <Button variant="ghost" size="icon" onClick={() => fileRef.current?.click()} disabled={uploading}>
+            <Button variant="ghost" size="icon" aria-label="Attach image" onClick={() => fileRef.current?.click()} disabled={uploading}>
               {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
             </Button>
             <Input
@@ -89,7 +89,7 @@ export function WOChat({ workOrderId }: { workOrderId: string }) {
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
               className="flex-1"
             />
-            <Button size="icon" onClick={handleSend} disabled={!text.trim() || sendMessage.isPending}>
+            <Button size="icon" aria-label="Send message" onClick={handleSend} disabled={!text.trim() || sendMessage.isPending}>
               <Send className="h-4 w-4" />
             </Button>
           </div>

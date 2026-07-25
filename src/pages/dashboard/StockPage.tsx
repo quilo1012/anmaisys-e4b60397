@@ -268,8 +268,8 @@ export default function StockPage() {
                         {isManager && (
                           <TableCell>
                             <div className="flex gap-1">
-                              <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                              <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" aria-label="Edit product" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" aria-label="Delete product" className="text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>
                             </div>
                           </TableCell>
                         )}
@@ -409,7 +409,7 @@ export default function StockPage() {
                     {categoryOptions.map((c) => (
                       <Badge key={c.id} variant="secondary" className="gap-1 pr-1">
                         {c.name}
-                        <Button size="icon" variant="ghost" className="h-4 w-4 p-0 text-destructive hover:bg-transparent" onClick={() => deleteCategory.mutate(c.id)}>
+                        <Button size="icon" variant="ghost" aria-label="Delete category" className="h-4 w-4 p-0 text-destructive hover:bg-transparent" onClick={() => deleteCategory.mutate(c.id)}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </Badge>

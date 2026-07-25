@@ -370,8 +370,8 @@ export default function SKUProductsPage() {
                     <TableCell>{p.weight ?? "—"}</TableCell>
                     <TableCell>{p.active ? <Badge className="bg-green-600 hover:bg-green-600 text-white border-transparent">Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => { setEditing(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => confirm("Delete SKU?") && del.mutate(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Edit SKU" onClick={() => { setEditing(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Delete SKU" onClick={() => confirm("Delete SKU?") && del.mutate(p.id)}><Trash2 className="h-4 w-4" /></Button>
                     </TableCell>
                   </TableRow>
                 ))}

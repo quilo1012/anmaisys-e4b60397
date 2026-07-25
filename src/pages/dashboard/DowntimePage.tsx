@@ -1149,13 +1149,13 @@ export default function DowntimePage() {
                                   </Button>
                                 ) : (
                                   <div className="flex items-center gap-1">
-                                    <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                                    <Button size="icon" variant="ghost" aria-label="Edit downtime record" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                                     {!r.ended_at && (
                                       <Button size="icon" variant="ghost" className="text-green-600" onClick={() => handleResolve(r.id)} title="Mark Resolved">
                                         <CheckCircle className="h-4 w-4" />
                                       </Button>
                                     )}
-                                    <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(r.id)}>
+                                    <Button size="icon" variant="ghost" aria-label="Delete downtime record" className="text-destructive" onClick={() => setDeleteId(r.id)}>
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </div>
