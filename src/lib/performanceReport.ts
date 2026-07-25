@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- jsPDF autoTable cells are loosely typed */
 // Printable Production Performance report: logo header, overall KPI, per-line
 // table (target / actual / gap / %), and the open quality actions for the period.
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// jsPDF + autoTable are loaded on demand inside the export function to keep them
+// out of any route bundle that statically imports this module.
 import logoUrl from "@/assets/appliedlogo.jpeg";
 
 export interface PerfReportLine {
@@ -50,6 +50,8 @@ async function loadLogoDataUrl(): Promise<string | null> {
 
 export async function generatePerformanceReportPDF(input: PerfReportInput) {
   const { periodLabel, filtersLabel, lines, totalTarget, totalActual, openActions, generatedBy } = input;
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const margin = 14;

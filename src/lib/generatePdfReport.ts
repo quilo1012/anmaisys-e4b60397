@@ -1,5 +1,4 @@
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// jsPDF + autoTable loaded on demand inside generatePdfReport.
 import { format } from "date-fns";
 import type { WorkOrder } from "@/hooks/useWorkOrders";
 import { invokeFunction } from "@/lib/invokeFunction";
@@ -48,7 +47,7 @@ interface ReportData {
   callerRole?: string | null;
 }
 
-export function generatePdfReport(data: ReportData) {
+export async function generatePdfReport(data: ReportData) {
   // Defense-in-depth client guard. Real authorization happens server-side
   // via authorizePdfGeneration(), but this prevents misuse if a caller forgets.
   if (
@@ -59,6 +58,8 @@ export function generatePdfReport(data: ReportData) {
   ) {
     throw new Error("You don't have permission to generate this report.");
   }
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 

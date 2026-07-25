@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- jsPDF autoTable + xlsx-js-style cells are loosely typed */
 // Quality report professional exports — PDF (jsPDF) + Excel (xlsx-js-style).
 // Mirrors src/lib/ragExports.ts.
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// jsPDF + autoTable loaded on demand inside exportQualityPdf.
 import XLSX from "xlsx-js-style";
 import { format } from "date-fns";
 import logoUrl from "@/assets/appliedlogo.jpeg";
@@ -88,6 +87,8 @@ async function loadLogoDataUrl(): Promise<string | null> {
 // PDF
 // ============================================================
 export async function exportQualityPdf(input: QualityExportInput) {
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const margin = 14;

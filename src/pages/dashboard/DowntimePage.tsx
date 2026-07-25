@@ -19,8 +19,7 @@ import {
   Clock, Loader2, Plus, Pencil, Trash2, CheckCircle, AlertTriangle, Activity,
   TrendingUp, ChevronDown, History, Cog, Printer, FileText, FileSpreadsheet, Lightbulb,
 } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// jsPDF + autoTable loaded on demand inside handleExportPdf.
 import * as XLSX from "xlsx-js-style";
 import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
 import { DateRangeFilter, type DateRangePreset, getPresetRange } from "@/components/DateRangeFilter";
@@ -713,7 +712,9 @@ export default function DowntimePage() {
       Notes: r.notes || "",
     }));
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
     const doc = new jsPDF({ orientation: "landscape" });
     doc.setFontSize(14);
     doc.text("Downtime & Reliability Report", 14, 14);

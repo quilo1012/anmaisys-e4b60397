@@ -2,8 +2,7 @@
 // Professional Quality report exports for the Quality Actions data:
 //   - PDF (jsPDF + autoTable): printable report with logo header, KPIs, breakdowns, full list.
 //   - Excel (xlsx-js-style): styled workbook with a Summary sheet + an Actions sheet.
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// jsPDF + autoTable loaded on demand inside generateQualityReportPDF.
 import XLSX from "xlsx-js-style";
 import logoUrl from "@/assets/appliedlogo.jpeg";
 import { statusMeta, severityMeta } from "@/lib/qualityConstants";
@@ -67,6 +66,8 @@ async function loadLogoDataUrl(): Promise<string | null> {
 // ── PDF ──────────────────────────────────────────────────────────────────────
 export async function generateQualityReportPDF(input: QualityReportInput) {
   const { actions, periodLabel, generatedBy } = input;
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const margin = 14;

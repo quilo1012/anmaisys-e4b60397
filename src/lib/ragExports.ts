@@ -1,6 +1,5 @@
 // RAG Weekly professional exports — PDF (jsPDF) + Excel (xlsx-js-style)
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// jsPDF + autoTable loaded on demand inside exportRagPdf.
 import XLSX from "xlsx-js-style";
 import { format, addDays, getISOWeek } from "date-fns";
 import logoUrl from "@/assets/appliedlogo.jpeg";
@@ -127,6 +126,8 @@ const BOTTOM_MARGIN = 14;
 
 export async function exportRagPdf(input: RagExportInput) {
   const { weekStart, lines, entries, autoDtBucketMap, generatedBy, comments } = input;
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();

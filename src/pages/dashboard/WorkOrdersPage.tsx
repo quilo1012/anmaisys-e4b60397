@@ -439,7 +439,7 @@ export default function WorkOrdersPage() {
                   const avg = (a: number[]) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0);
                   try {
                     const { generatePdfReport } = await import("@/lib/generatePdfReport");
-                    generatePdfReport({
+                    await generatePdfReport({
                       workOrders: allWOs,
                       machineLineMap,
                       engineerRanking: engPerf,
