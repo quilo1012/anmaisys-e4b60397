@@ -330,6 +330,38 @@ export default function ShiftHistoryPage() {
     },
   });
 
+  // The official target is the RAG Weekly plan — the same source Performance uses.
+  // production_items.target_qty is left at 0 on most manual logs, which made the
+  // KPI target far too low (12k vs 22k) and inflated attainment to ~191%.
+  const { data: ragTargets = [] } = useQuery({
+    queryKey: ["shift_history_rag", from, to, fShift, fLine],
+    queryFn: async () => {
+      let q = supabase.from("rag_weekly_entries").select("entry_date, line, shift, plan_qty")
+        .gte("entry_date", from).lte("entry_date", to);
+      if (fShift !== "__all__") q = q.eq("shift", fShift);
+      if (fLine !== "__all__") q = q.eq("line", fLine);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as { entry_date: string; line: string; shift: string; plan_qty: number }[];
+    },
+  });
+  // RAG has no leader/SKU breakdown, so when either filter is active we can't map
+  // the plan to it — fall back to the item target for those narrowed views.
+  const useRagTarget = fLeader === "__all__" && fSku === "__all__";
+  const ragPlanByLine = useMemo(() => {
+    const m = new Map<string, number>();
+    if (useRagTarget) for (const r of ragTargets) m.set(r.line, (m.get(r.line) ?? 0) + Number(r.plan_qty ?? 0));
+    return m;
+  }, [ragTargets, useRagTarget]);
+  const ragPlanBySession = useMemo(() => {
+    const m = new Map<string, number>();
+    if (useRagTarget) for (const r of ragTargets) {
+      const k = `${r.entry_date}|${r.line}|${r.shift}`;
+      m.set(k, (m.get(k) ?? 0) + Number(r.plan_qty ?? 0));
+    }
+    return m;
+  }, [ragTargets, useRagTarget]);
+
   const lineRank = (name: string) => {
     const n = (name ?? "").toLowerCase().trim();
     const m = n.match(/line\s*(\d+)/);
@@ -355,28 +387,44 @@ export default function ShiftHistoryPage() {
 
   // Totals for the selected range — powers the KPI bar and the per-line summary.
   const summary = useMemo(() => {
-    let target = 0, actual = 0;
+    let actual = 0;
     const days = new Set<string>();
     const perLine = new Map<string, { target: number; actual: number; days: Set<string> }>();
+    const sessionTargetByLine = new Map<string, number>();
     for (const s of filtered) {
       days.add(s.session_date);
-      const t = s.production_items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
       const a = s.production_items.reduce((acc, i) => acc + Number(i.actual_qty ?? 0), 0);
-      target += t; actual += a;
+      const t = s.production_items.reduce((acc, i) => acc + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
+      actual += a;
+      sessionTargetByLine.set(s.line, (sessionTargetByLine.get(s.line) ?? 0) + t);
       const pl = perLine.get(s.line) ?? { target: 0, actual: 0, days: new Set<string>() };
-      pl.target += t; pl.actual += a; pl.days.add(s.session_date);
+      pl.actual += a; pl.days.add(s.session_date);
       perLine.set(s.line, pl);
+    }
+    // Target per line = RAG plan (official), falling back to the item target for
+    // lines the plan doesn't cover or when a leader/SKU filter rules RAG out.
+    let target = 0;
+    for (const [line, pl] of perLine) {
+      pl.target = useRagTarget && ragPlanByLine.has(line) ? ragPlanByLine.get(line)! : (sessionTargetByLine.get(line) ?? 0);
+      target += pl.target;
+    }
+    // Lines with a plan but no production yet still count toward the target (Actual 0).
+    if (useRagTarget) for (const [line, t] of ragPlanByLine) {
+      if (!perLine.has(line)) { perLine.set(line, { target: t, actual: 0, days: new Set<string>() }); target += t; }
     }
     const lines = [...perLine.entries()]
       .map(([line, v]) => ({ line, target: v.target, actual: v.actual, days: v.days.size, pct: v.target > 0 ? (v.actual / v.target) * 100 : 0 }))
       .sort((a, b) => lineRank(a.line) - lineRank(b.line) || a.line.localeCompare(b.line));
     return { target, actual, days: days.size, lineCount: perLine.size, pct: target > 0 ? (actual / target) * 100 : 0, lines };
-  }, [filtered]);
+  }, [filtered, ragPlanByLine, useRagTarget]);
 
   const trendData = useMemo(() => {
     const byDate = new Map<string, { date: string; DAY: number[]; NIGHT: number[] }>();
     for (const s of filtered) {
-      const target = s.production_items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
+      const ragKey = `${s.session_date}|${s.line}|${s.shift}`;
+      const target = useRagTarget && ragPlanBySession.has(ragKey)
+        ? ragPlanBySession.get(ragKey)!
+        : s.production_items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
       const actual = s.production_items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
       if (target <= 0) continue;
       const eff = (actual / target) * 100;
@@ -392,7 +440,7 @@ export default function ShiftHistoryPage() {
         DAY: r.DAY.length ? +(r.DAY.reduce((a, b) => a + b, 0) / r.DAY.length).toFixed(1) : null,
         NIGHT: r.NIGHT.length ? +(r.NIGHT.reduce((a, b) => a + b, 0) / r.NIGHT.length).toFixed(1) : null,
       }));
-  }, [filtered]);
+  }, [filtered, ragPlanBySession, useRagTarget]);
 
 
   const lockMut = useMutation({
