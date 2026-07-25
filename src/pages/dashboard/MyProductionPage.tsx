@@ -62,14 +62,19 @@ function nowHM(): string {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
-/** Build an ISO timestamp for today at the given "HH:mm" (local), or null. */
+/** Build an ISO timestamp for the given "HH:mm" (local), anchored to the current
+ *  factory session date. On a night shift (18:00–06:00) the hours after midnight
+ *  (00:00–05:59) belong to the day AFTER the session date, so we roll them forward
+ *  — otherwise a 01:00 finish would be stamped on the shift's start day. */
 function hmToIso(hm: string): string | null {
   if (!hm) return null;
   const [h, m] = hm.split(":").map(Number);
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  return d.toISOString();
+  const { sessionDate, shiftCode } = getCurrentFactoryShift();
+  const [y, mo, d] = sessionDate.split("-").map(Number);
+  const base = new Date(y, mo - 1, d, h, m, 0, 0);
+  if (shiftCode === "night" && h < 6) base.setDate(base.getDate() + 1);
+  return base.toISOString();
 }
 /** Format digits as HH:mm while typing, so the time is entered by hand on a
  *  tablet instead of opening the native clock dial. */

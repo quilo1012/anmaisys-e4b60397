@@ -208,7 +208,7 @@ export default function WorkOrdersPage() {
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter((w) =>
-        `WO-${new Date(w.created_at).getFullYear()}-${String(w.wo_number).padStart(6, "0")}`.toLowerCase().includes(term) ||
+        `WO-${new Date(w.created_at).getFullYear()}-${String(w.wo_number ?? "").padStart(6, "0")}`.toLowerCase().includes(term) ||
         (w.requester_name || "").toLowerCase().includes(term) ||
         (w.machine || "").toLowerCase().includes(term) ||
         (w.description || "").toLowerCase().includes(term) ||
@@ -338,7 +338,7 @@ export default function WorkOrdersPage() {
         <CardContent className="p-3 space-y-1">
           <div className="flex justify-between items-center">
             <span className="font-mono text-xs font-medium flex items-center gap-1">
-              WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+              WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number ?? "").padStart(6, "0")}
               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
             </span>
             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${pri.className}`}>{pri.label}</Badge>
@@ -585,7 +585,7 @@ export default function WorkOrdersPage() {
                         <CardContent className="p-3 space-y-2">
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <span className="font-mono text-xs font-semibold flex items-center gap-1.5">
-                              WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                              WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number ?? "").padStart(6, "0")}
                               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
                             </span>
                             <div className="flex items-center gap-1">
@@ -674,7 +674,7 @@ export default function WorkOrdersPage() {
                             <TableCell className="font-mono font-medium">
                               <div className="flex items-center gap-2">
                                 <span className="cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-                                  WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                                  WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number ?? "").padStart(6, "0")}
                                 </span>
                                 <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
                               </div>

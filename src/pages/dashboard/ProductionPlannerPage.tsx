@@ -354,6 +354,10 @@ export default function ProductionPlannerPage() {
         toast.error(`Saved session, but RAG sync failed: ${ragErr.message}`);
       } else {
         toast.success(`Session saved. RAG target updated to ${totalPlan.toLocaleString()}.`);
+        // Refresh RAG readers (RAG Weekly grid, DailyTargetCard) so the new target
+        // shows immediately instead of waiting for the periodic refetch.
+        queryClient.invalidateQueries({ queryKey: ["rag-week"] });
+        queryClient.invalidateQueries({ queryKey: ["use-line-shift-target"] });
       }
 
     } catch (err: any) {

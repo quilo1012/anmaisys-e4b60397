@@ -187,7 +187,7 @@ export default function WorkOrderDetail() {
   const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
   // Warehouse service WOs never touch the production line → no downtime control / impact.
   const isWarehouseWO = (wo as any).wo_type === "warehouse_service";
-  const woLabel = `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`;
+  const woLabel = `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number ?? "").padStart(6, "0")}`;
 
   // ── Metrics from v_wo_metrics view (single source of truth) ──────────
   // Falls back to inline math while the view is still loading or hasn't

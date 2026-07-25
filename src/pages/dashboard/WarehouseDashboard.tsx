@@ -324,7 +324,7 @@ export default function WarehouseDashboard() {
                         onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
                       >
                         <TableCell className="font-mono text-xs">
-                          WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                          WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number ?? "").padStart(6, "0")}
                         </TableCell>
                         <TableCell>{wo.warehouse_location || "—"}</TableCell>
                         <TableCell>{wo.machine || "—"}</TableCell>

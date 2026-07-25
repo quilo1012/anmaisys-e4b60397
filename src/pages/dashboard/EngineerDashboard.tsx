@@ -605,7 +605,7 @@ function EngineerDashboardContent() {
           <CardContent className="p-4 space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono font-bold text-base">
-                WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number ?? "").padStart(6, "0")}
               </span>
               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
               <StatusBadge status={wo.status} />
@@ -641,7 +641,7 @@ function EngineerDashboardContent() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <span className="font-mono font-bold text-xl md:text-2xl cursor-pointer hover:underline truncate" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-                WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number ?? "").padStart(6, "0")}
               </span>
               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
             </div>
@@ -932,7 +932,7 @@ function EngineerDashboardContent() {
                             <td className="p-2 font-mono font-medium">
                               <div className="flex items-center gap-2">
                                 <span className="cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-                                  WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                                  WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number ?? "").padStart(6, "0")}
                                 </span>
                                 <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
                               </div>
@@ -1063,7 +1063,7 @@ function EngineerDashboardContent() {
                           onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
                         >
                           <td className="p-2 font-mono whitespace-nowrap">
-                            WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                            WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number ?? "").padStart(6, "0")}
                           </td>
                           <td className="p-2 whitespace-nowrap">{wo.line_at_time || "—"}</td>
                           <td className="p-2 max-w-[280px] truncate">{wo.description || wo.machine || "—"}</td>

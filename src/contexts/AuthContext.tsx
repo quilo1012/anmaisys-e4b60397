@@ -287,6 +287,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         currentSession = null;
       }
 
+      // If the stored session is present but already expired, refresh it before use
+      // so the first data queries don't fire with a stale access token (and 401).
+      if (currentSession && isExpired(currentSession)) {
+        try {
+          const refreshedResult = await raceWithFallback(supabase.auth.refreshSession(), 10_000, null);
+          const refreshed = refreshedResult?.data;
+          if (refreshed?.session) currentSession = refreshed.session;
+        } catch {
+          // Keep the (expired) session; autoRefreshToken will retry shortly.
+        }
+      }
+
       // If no session but tokens may exist (failed refresh), attempt explicit refresh
       // This handles transient refresh-token failures across tabs/devices without logging out
       if (!currentSession) {
