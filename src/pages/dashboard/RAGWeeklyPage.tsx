@@ -28,7 +28,31 @@ import { useAuth } from "@/contexts/AuthContext";
 
 import { Settings2 } from "lucide-react";
 import { downloadRagTemplate, exportRagFilledTemplate, type RagFill } from "@/lib/ragTemplateExport";
-import { parseRagTemplateFile } from "@/lib/ragTemplateImport";
+import { parseRagTemplateFile, type ParsedTemplateRow } from "@/lib/ragTemplateImport";
+import { parseRagPerformanceFile } from "@/lib/ragPerformanceImport";
+
+/** A comment parsed from an import; week_start present only for multi-week files. */
+type RagImportComment = { line: string; comment: string; week_start?: string };
+interface RagImportParse {
+  rows: ParsedTemplateRow[];
+  comments: RagImportComment[];
+  linesDetected: string[];
+  weeks: string[];
+}
+
+/**
+ * Parse a RAG import file, accepting either the app's own template/export OR the
+ * factory's "Production Line Performance — RAG status" standard workbook.
+ */
+async function parseRagImportFile(file: File, knownLines: string[]): Promise<RagImportParse> {
+  const tpl = await parseRagTemplateFile(file, knownLines);
+  if (tpl.rows.length || tpl.comments.length) {
+    return { rows: tpl.rows, comments: tpl.comments, linesDetected: tpl.linesDetected, weeks: [] };
+  }
+  const perf = await parseRagPerformanceFile(file, knownLines);
+  const weeks = [...new Set(perf.comments.map((c) => c.week_start))].sort();
+  return { rows: perf.rows, comments: perf.comments, linesDetected: perf.linesDetected, weeks };
+}
 import { useRole } from "@/hooks/useRole";
 import { useIsFetching } from "@tanstack/react-query";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
@@ -159,23 +183,25 @@ export default function RAGWeeklyPage() {
   } | null>(null);
   const [manageLinesOpen, setManageLinesOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<
-    { file: File; fileName: string; rows: number; comments: number; lines: string[] } | null
+    { fileName: string; rows: ParsedTemplateRow[]; comments: RagImportComment[]; lines: string[]; weeks: string[] } | null
   >(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleImportFile = async (file: File) => {
     try {
-      const parsed = await parseRagTemplateFile(file, lines);
+      const parsed = await parseRagImportFile(file, lines);
       if (!parsed.rows.length && !parsed.comments.length) {
-        toast.error("No RAG data found in that file. Use a sheet from ‘Download Excel’ or the blank template.");
+        toast.error(
+          "No RAG data found in that file. Use a sheet from ‘Download Excel’, the blank template, or the Production Line Performance workbook.",
+        );
         return;
       }
       setImportPreview({
-        file,
         fileName: file.name,
-        rows: parsed.rows.length,
-        comments: parsed.comments.length,
+        rows: parsed.rows,
+        comments: parsed.comments,
         lines: parsed.linesDetected,
+        weeks: parsed.weeks,
       });
     } catch (e) {
       toast.error((e as Error).message);
@@ -490,12 +516,9 @@ export default function RAGWeeklyPage() {
   // (Plan / Actual / UPM Target / UPM Actual / Downtime / Comments) produced by
   // the "Download Excel" button, so an edited sheet round-trips 1:1.
   const importTemplateMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const parsed = await parseRagTemplateFile(file, lines);
+    mutationFn: async (parsed: { rows: ParsedTemplateRow[]; comments: RagImportComment[] }) => {
       if (!parsed.rows.length && !parsed.comments.length) {
-        throw new Error(
-          "No RAG data found. Use a sheet from ‘Download Excel’ (or the blank template) and keep the layout intact.",
-        );
+        throw new Error("No RAG data to import.");
       }
 
       // 1) Entries — keep any per-cell notes already stored.
@@ -527,12 +550,10 @@ export default function RAGWeeklyPage() {
       let commentCount = 0;
       const commentRows = parsed.comments
         .filter((c) => c.comment.trim())
-        .map((c) => ({
-          line: c.line,
-          entry_date: weekStartStr,
-          week_start: weekStartStr,
-          comment: c.comment.trim(),
-        }));
+        .map((c) => {
+          const ws = c.week_start ?? weekStartStr;
+          return { line: c.line, entry_date: ws, week_start: ws, comment: c.comment.trim() };
+        });
       if (commentRows.length) {
         const userId = (await supabase.auth.getUser()).data.user?.id ?? null;
         const now = new Date().toISOString();
@@ -1005,12 +1026,16 @@ export default function RAGWeeklyPage() {
             <div className="space-y-2 text-sm">
               <p className="font-medium break-all">{importPreview.fileName}</p>
               <p>
-                This will import <b>{importPreview.rows}</b> cell{importPreview.rows === 1 ? "" : "s"}
-                {importPreview.comments > 0 && (
-                  <> and <b>{importPreview.comments}</b> comment{importPreview.comments === 1 ? "" : "s"}</>
+                This will import <b>{importPreview.rows.length}</b> cell{importPreview.rows.length === 1 ? "" : "s"}
+                {importPreview.comments.length > 0 && (
+                  <> and <b>{importPreview.comments.length}</b> comment{importPreview.comments.length === 1 ? "" : "s"}</>
                 )}{" "}
-                across <b>{importPreview.lines.length}</b> line{importPreview.lines.length === 1 ? "" : "s"} into week{" "}
-                <b>{format(weekStart, "dd MMM")} – {format(addDays(weekStart, 6), "dd MMM yyyy")}</b>.
+                across <b>{importPreview.lines.length}</b> line{importPreview.lines.length === 1 ? "" : "s"}
+                {importPreview.weeks.length > 1 ? (
+                  <> and <b>{importPreview.weeks.length}</b> weeks (dates taken from the file).</>
+                ) : (
+                  <> into week <b>{format(weekStart, "dd MMM")} – {format(addDays(weekStart, 6), "dd MMM yyyy")}</b>.</>
+                )}
               </p>
               <p className="text-xs text-muted-foreground">
                 Existing values for those cells are overwritten; cells left blank in the sheet are ignored.
@@ -1023,7 +1048,7 @@ export default function RAGWeeklyPage() {
               Cancel
             </Button>
             <Button
-              onClick={() => importPreview && importTemplateMutation.mutate(importPreview.file)}
+              onClick={() => importPreview && importTemplateMutation.mutate({ rows: importPreview.rows, comments: importPreview.comments })}
               disabled={importTemplateMutation.isPending}
             >
               {importTemplateMutation.isPending ? "Importing…" : "Import"}
