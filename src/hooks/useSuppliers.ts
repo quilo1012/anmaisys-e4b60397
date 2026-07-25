@@ -141,16 +141,13 @@ export function usePurchaseOrderMutations() {
           .eq("purchase_order_id", id);
         for (const it of (items ?? []) as any[]) {
           if (!it.product_id) continue;
-          const { data: prod } = await supabase
-            .from("products")
-            .select("quantity")
-            .eq("id", it.product_id)
-            .single();
-          const current = (prod as any)?.quantity ?? 0;
-          await supabase
-            .from("products")
-            .update({ quantity: current + it.quantity })
-            .eq("id", it.product_id);
+          // Atomic increment via RPC (avoids the read-then-write race that could
+          // lose concurrent stock updates). See migration 20260725140000.
+          const { error: incErr } = await (supabase as any).rpc("increment_product_quantity", {
+            p_product_id: it.product_id,
+            p_delta: it.quantity,
+          });
+          if (incErr) throw incErr;
         }
       }
     },

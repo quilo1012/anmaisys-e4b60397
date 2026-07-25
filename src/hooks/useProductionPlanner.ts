@@ -179,10 +179,13 @@ export function useSaveItems() {
       session_id: string;
       items: Array<Omit<ProductionItem, "id" | "session_id">>;
     }) => {
-      await supabase.from("production_items").delete().eq("session_id", input.session_id);
-      if (input.items.length === 0) return;
-      const rows = input.items.map((i) => ({ ...i, session_id: input.session_id }));
-      const { error } = await supabase.from("production_items").insert(rows);
+      // Atomic replace via RPC: delete + insert run in one DB transaction, so a
+      // failed insert can no longer wipe the session's SKUs (see migration
+      // 20260725140000_atomic_production_items_and_stock).
+      const { error } = await (supabase as any).rpc("save_production_items", {
+        p_session_id: input.session_id,
+        p_items: input.items,
+      });
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
