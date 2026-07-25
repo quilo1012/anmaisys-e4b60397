@@ -802,19 +802,36 @@ export default function RAGWeeklyPage() {
                     <DropdownMenuItem
                       onClick={async () => {
                         try {
-                          const weekStartStrLocal = format(weekStart, "yyyy-MM-dd");
+                          const from = format(weekStart, "yyyy-MM-dd");
+                          const to = format(addDays(weekStart, 6), "yyyy-MM-dd");
+                          // Comments: same source the board shows (by entry_date
+                          // across the week), one note per line.
                           const { data: cRows } = await (supabase as any)
                             .from("rag_weekly_comments")
-                            .select("line, comment")
-                            .eq("week_start", weekStartStrLocal);
+                            .select("line, comment, entry_date")
+                            .gte("entry_date", from).lte("entry_date", to);
                           const cMap = new Map<string, string>();
-                          for (const r of (cRows ?? []) as { line: string; comment: string }[]) cMap.set(r.line, r.comment ?? "");
+                          for (const r of (cRows ?? []) as { line: string; comment: string }[]) {
+                            const t = (r.comment ?? "").trim();
+                            if (!t) continue;
+                            cMap.set(r.line, cMap.has(r.line) ? `${cMap.get(r.line)} · ${t}` : t);
+                          }
+                          // Exclusions: mirror the cells the board drops from its totals.
+                          const { data: exRows } = await (supabase as any)
+                            .from("rag_week_exclusions")
+                            .select("line, entry_date, shift")
+                            .gte("entry_date", from).lte("entry_date", to);
+                          const exclusions = new Set<string>();
+                          for (const r of (exRows ?? []) as { line: string; entry_date: string; shift: string }[]) {
+                            exclusions.add(r.shift === "ALL" ? `${r.line}|${r.entry_date}` : `${r.line}|${r.entry_date}|${r.shift}`);
+                          }
                           await exportRagPdf({
                             weekStart,
                             lines,
                             entries,
                             autoDtBucketMap,
                             comments: cMap,
+                            exclusions,
                             generatedBy: profile?.name || user?.email || "System",
                           });
                         } catch (e) { toast.error((e as Error).message); }

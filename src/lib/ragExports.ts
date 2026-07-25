@@ -48,6 +48,8 @@ export interface RagExportEntry {
   plan_qty: number;
   actual_qty: number;
   downtime_min: number;
+  upm_target?: number;
+  upm_actual?: number;
 }
 
 export interface RagExportInput {
@@ -59,6 +61,11 @@ export interface RagExportInput {
   generatedBy: string;
   /** Optional map of line -> comment for the week */
   comments?: Map<string, string>;
+  /**
+   * Cells excluded on the RAG board — applied to totals so the PDF matches.
+   * Keys: `${line}|${date}` (whole day) and `${line}|${date}|${shift}` (one shift).
+   */
+  exclusions?: Set<string>;
 }
 
 interface DayTotals {
@@ -155,20 +162,51 @@ export async function exportRagPdf(input: RagExportInput) {
 
   const { dates, byLine } = computeDaily(entries, lines, weekStart);
 
+  // Mirror the RAG board exactly so the print matches the screen.
+  const entryMap = new Map<string, RagExportEntry>();
+  for (const e of entries) entryMap.set(`${e.entry_date}|${e.line}|${e.shift}`, e);
+  const bucketNames = Array.from(autoDtBucketMap?.keys() ?? []);
+  // Downtime per cell = sum of all auto buckets, or the manually-entered total
+  // when there is no auto downtime (same fallback the board uses).
+  const cellDt = (ds: string, line: string, shift: "DAY" | "NIGHT"): number => {
+    const key = `${ds}|${line}|${shift}`;
+    let auto = 0;
+    for (const b of bucketNames) auto += autoDtBucketMap.get(b)?.get(key) ?? 0;
+    if (auto === 0) auto = Number(entryMap.get(key)?.downtime_min) || 0;
+    return auto;
+  };
+  const cellUpm = (ds: string, line: string, shift: "DAY" | "NIGHT"): number =>
+    Number(entryMap.get(`${ds}|${line}|${shift}`)?.upm_actual) || 0;
+  const exSet = input.exclusions ?? new Set<string>();
+  const isExcl = (line: string, ds: string, shift?: "DAY" | "NIGHT"): boolean =>
+    exSet.has(`${line}|${ds}`) || (shift ? exSet.has(`${line}|${ds}|${shift}`) : false);
+
+  // Board shows Variance (Actual/Plan − 1), not achievement, with these colours.
+  const varStr = (plan: number, actual: number): string => {
+    if (plan <= 0 && actual <= 0) return "";
+    if (plan <= 0 && actual > 0) return "N/A";
+    if (plan > 0 && actual <= 0) return "-100%";
+    return `${Math.round(((actual - plan) / plan) * 100)}%`;
+  };
+  const varColor = (plan: number, actual: number): [number, number, number] | false => {
+    if (plan <= 0) return false;
+    if (actual <= 0) return [252, 201, 201];
+    if (actual >= plan) return [198, 240, 210];
+    return (actual / plan) * 100 >= 90 ? [252, 235, 193] : [252, 201, 201];
+  };
+
   // A day later than today hasn't run yet, so a plan with 0 actual is not a
-  // miss — it just hasn't happened. Painting it red 0% made half a mid-week
-  // report look like a failure. Future days show the target and leave the
+  // miss — it just hasn't happened. Future days show the target and leave the
   // Actual / % blank instead.
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const isFuture = (d: string) => d > todayStr;
-  /** Percentage cell honouring the future-day rule. */
+  /** Variance cell honouring the future-day rule + board RAG colour. */
   const pctCell = (plan: number, actual: number, future: boolean, extra: Record<string, any> = {}) => {
     if (future && actual === 0) return { content: "", styles: { halign: "center", ...extra } };
-    const pct = plan ? (actual / plan) * 100 : null;
-    return {
-      content: pct === null ? "" : `${pct.toFixed(0)}%`,
-      styles: { fillColor: pctColorRgb(pct), halign: "center", ...extra },
-    };
+    const col = varColor(plan, actual);
+    const styles: Record<string, any> = { halign: "center", ...extra };
+    if (col) styles.fillColor = col;
+    return { content: varStr(plan, actual), styles };
   };
 
   // Header rows: two levels — Day name across 3 cols (Target / Actual / %) + Week totals
@@ -178,7 +216,7 @@ export async function exportRagPdf(input: RagExportInput) {
   }
   head1.push({ content: "Week Total", colSpan: 3, styles: { halign: "center" } });
   const head2: any[] = [];
-  for (let i = 0; i < 8; i++) head2.push("Target", "Actual", "%");
+  for (let i = 0; i < 8; i++) head2.push("Plan", "Actual", "Var");
 
   const body: any[] = [];
   const weekTotals: { plan: number; actual: number } = { plan: 0, actual: 0 };
@@ -192,25 +230,31 @@ export async function exportRagPdf(input: RagExportInput) {
       { label: "Night", get: (t) => t.night },
     ];
     for (const sr of shiftRows) {
+      const shift: "DAY" | "NIGHT" = sr.label === "Day" ? "DAY" : "NIGHT";
       const row: any[] = [{ content: `${line} · ${sr.label}`, styles: { halign: "left" } }];
       let rp = 0, ra = 0;
       dates.forEach((d, idx) => {
         const t = sr.get(m.get(d)!);
-        rp += t.plan; ra += t.actual;
-        dailyGrand[idx].plan += t.plan;
-        dailyGrand[idx].actual += t.actual;
-        row.push(t.plan || "", t.actual || "", pctCell(t.plan, t.actual, isFuture(d)));
+        const excluded = isExcl(line, d, shift);
+        if (!excluded) {
+          rp += t.plan; ra += t.actual;
+          dailyGrand[idx].plan += t.plan;
+          dailyGrand[idx].actual += t.actual;
+        }
+        const cell = pctCell(t.plan, t.actual, isFuture(d));
+        if (excluded) cell.styles = { ...cell.styles, fillColor: [230, 230, 230], textColor: [150, 150, 150] };
+        row.push(t.plan || "", t.actual || "", cell);
       });
       lp += rp; la += ra;
-      const rpct = rp ? (ra / rp) * 100 : null;
+      const rvc = varColor(rp, ra);
       row.push(rp || "", ra || "", {
-        content: rpct === null ? "" : `${rpct.toFixed(0)}%`,
-        styles: { fillColor: pctColorRgb(rpct), halign: "center" },
+        content: varStr(rp, ra),
+        styles: { ...(rvc ? { fillColor: rvc } : {}), halign: "center" },
       });
       body.push(row);
     }
     weekTotals.plan += lp; weekTotals.actual += la;
-    const wpct = lp ? (la / lp) * 100 : null;
+    const wvc = varColor(lp, la);
     const totalRow: any[] = [{ content: `${line} · Total`, styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }];
     dates.forEach((d) => {
       const t = m.get(d)!;
@@ -223,8 +267,8 @@ export async function exportRagPdf(input: RagExportInput) {
       );
     });
     totalRow.push(lp || "", la || "", {
-      content: wpct === null ? "" : `${wpct.toFixed(0)}%`,
-      styles: { fillColor: pctColorRgb(wpct), halign: "center", fontStyle: "bold" },
+      content: varStr(lp, la),
+      styles: { ...(wvc ? { fillColor: wvc } : {}), halign: "center", fontStyle: "bold" },
     });
     body.push(totalRow);
     const cmt = comments?.get(line)?.trim();
@@ -246,11 +290,11 @@ export async function exportRagPdf(input: RagExportInput) {
       pctCell(t.plan, t.actual, isFuture(dates[idx]), { fontStyle: "bold" }),
     );
   });
-  const wp = weekTotals.plan ? (weekTotals.actual / weekTotals.plan) * 100 : null;
+  const gvc = varColor(weekTotals.plan, weekTotals.actual);
   totRow.push(
     { content: weekTotals.plan || "", styles: { fontStyle: "bold" } },
     { content: weekTotals.actual || "", styles: { fontStyle: "bold" } },
-    { content: wp === null ? "" : `${wp.toFixed(0)}%`, styles: { fillColor: pctColorRgb(wp), fontStyle: "bold", halign: "center" } },
+    { content: varStr(weekTotals.plan, weekTotals.actual), styles: { ...(gvc ? { fillColor: gvc } : {}), fontStyle: "bold", halign: "center" } },
   );
   body.push(totRow);
 
@@ -356,10 +400,23 @@ export async function exportRagPdf(input: RagExportInput) {
   // Downtime summary
   const dtStartY = legY + 8;
   const dtCategories = ["WO Request", "MAINT", "Break", "Cleaning"];
-  const dtHead = [["Line", "WO Requests", "Maint Downtime (iTouching)", "Break", "Cleaning"]];
+  const dtHead = [["Line", "WO Requests", "Maint (iTouching)", "Break", "Cleaning", "Total DT", "UPM (avg)"]];
   const dtBody = lines.map((line) => {
     const cells = dtCategories.map((bucket) => sumBucket(autoDtBucketMap, bucket, line, dates));
-    return [line, ...cells.map((v) => (v ? `${v} min` : "—"))];
+    // Total downtime + average UPM, computed like the board (all buckets, manual
+    // fallback, excluded cells skipped) so the print matches the screen.
+    let total = 0;
+    const upms: number[] = [];
+    for (const d of dates) {
+      for (const s of ["DAY", "NIGHT"] as const) {
+        if (isExcl(line, d, s)) continue;
+        total += cellDt(d, line, s);
+        const u = cellUpm(d, line, s);
+        if (u > 0) upms.push(u);
+      }
+    }
+    const upmAvg = upms.length ? upms.reduce((a, b) => a + b, 0) / upms.length : 0;
+    return [line, ...cells.map((v) => (v ? `${v} min` : "—")), total ? `${total} min` : "—", upmAvg ? upmAvg.toFixed(1) : "—"];
   });
 
   // The old guard reserved a flat 40mm regardless of how many lines there were,
