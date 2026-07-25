@@ -387,7 +387,7 @@ const App = () => (
                 <Route
                   path="/dashboard/sku-products"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="sku.manage">
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="sku.manage">
                       <SKUProductsPage />
                     </ProtectedRoute>
                   }

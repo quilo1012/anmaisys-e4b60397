@@ -135,7 +135,7 @@ const MATRIX: Record<Action, Role[]> = {
   "planner.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "planner.manage": [],
   "sku.view": [],
-  "sku.manage": ["admin", "manager", "planner"],
+  "sku.manage": ["admin", "manager", "supervisor", "planner"],
 
   "rag.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "rag.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
