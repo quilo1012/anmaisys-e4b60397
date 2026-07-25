@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Medal, BarChart3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { generatePerformanceReportPDF } from "@/lib/performanceReport";
 import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
@@ -27,6 +29,7 @@ interface SessionAgg {
 export default function ProductionPerformancePage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { profile } = useAuth();
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [period, setPeriod] = useState<Period>("day");
@@ -138,6 +141,24 @@ export default function ProductionPerformancePage() {
   const skuMap = useMemo(() => new Map(skus.map((s) => [s.id, s])), [skus]);
 
   type RagRow = { entry_date: string; line: string; shift: string; plan_qty: number; actual_qty: number };
+
+  // Quality actions still open (todo / in progress) in the same period + shift +
+  // line, so the floor sees what's outstanding right on the performance screen.
+  const { data: openActions = [] } = useQuery({
+    queryKey: ["perf-open-quality", range.from, range.to, shift, lineFilter],
+    queryFn: async () => {
+      let q = supabase.from("quality_actions")
+        .select("id, action_no, recorded_at, line, shift, status, severity, description")
+        .gte("recorded_at", range.from).lte("recorded_at", `${range.to}T23:59:59`)
+        .in("status", ["todo", "in_progress"])
+        .order("recorded_at", { ascending: false });
+      if (shift !== "all") q = q.eq("shift", shift);
+      if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
 
   const { data: queryResult } = useQuery<{ sessions: SessionAgg[]; ragRows: RagRow[] }>({
     queryKey: ["oee", range.from, range.to, shift, lineFilter, leaderFilter],
@@ -286,12 +307,32 @@ export default function ProductionPerformancePage() {
   const ragFill = (e: number) => e >= 100 ? "hsl(142 76% 36%)" : e >= 80 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)";
   const medal = (i: number) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
 
+  const printReport = async () => {
+    const scored = sortedByLine.filter((l) => l.target > 0);
+    const totalTarget = scored.reduce((a, l) => a + l.target, 0);
+    const totalActual = scored.reduce((a, l) => a + l.actual, 0);
+    const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    try {
+      await generatePerformanceReportPDF({
+        periodLabel: `${cap(period)} · ${format(parseISO(range.from), "dd/MM/yyyy")} – ${format(parseISO(range.to), "dd/MM/yyyy")}`,
+        filtersLabel: `Shift: ${shift === "all" ? "All" : cap(shift.toLowerCase())} · Line: ${lineFilter === "__all__" ? "All" : lineFilter} · Leader: ${leaderFilter === "__all__" ? "All" : leaderFilter}`,
+        lines: sortedByLine.map((l) => ({ line: l.line, leader: l.leader, target: l.target, actual: l.actual, eff: l.eff })),
+        totalTarget, totalActual,
+        openActions: openActions.map((a) => ({ recorded_at: a.recorded_at, action_no: a.action_no, line: a.line, shift: a.shift, severity: a.severity, description: a.description })),
+        generatedBy: profile?.name || "—",
+      });
+    } catch { toast.error("Could not generate the performance report"); }
+  };
+
 
   return (
     <DashboardLayout>
       <div className="p-4 md:p-6 space-y-6">
         <div className="space-y-3">
-          <h1 className="text-xl md:text-2xl font-bold">Production Performance</h1>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h1 className="text-xl md:text-2xl font-bold">Production Performance</h1>
+            <Button variant="outline" size="sm" onClick={printReport}><Printer className="h-4 w-4 mr-1" />Print report</Button>
+          </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" className="shrink-0" onClick={() => {
@@ -401,6 +442,41 @@ export default function ProductionPerformancePage() {
             </Card>
           );
         })()}
+
+        {/* Open quality actions for the same period + shift + line. */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              Open Quality Actions
+              <Badge variant="outline" className="ml-1">{openActions.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {openActions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No open quality actions in this period.</p>
+            ) : (
+              <div className="divide-y">
+                {openActions.slice(0, 8).map((a) => (
+                  <button key={a.id} type="button" onClick={() => navigate("/dashboard/quality")}
+                    className="flex w-full items-center gap-3 py-1.5 text-left hover:bg-accent/40 rounded px-1">
+                    <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">{a.action_no ?? "—"}</span>
+                    <span className="text-xs text-muted-foreground w-16 shrink-0">{format(new Date(a.recorded_at), "dd/MM")}{a.shift ? ` · ${a.shift === "DAY" ? "D" : "N"}` : ""}</span>
+                    <span className="text-xs w-20 shrink-0 truncate">{a.line ?? "—"}</span>
+                    {a.severity && <Badge variant="outline" className="text-[10px] shrink-0">{a.severity}</Badge>}
+                    <span className="text-sm truncate flex-1">{a.description ?? "—"}</span>
+                  </button>
+                ))}
+                {openActions.length > 8 && (
+                  <button type="button" onClick={() => navigate("/dashboard/quality")}
+                    className="w-full py-2 text-center text-xs text-primary hover:underline">
+                    View all {openActions.length} in Quality →
+                  </button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Line status cards */}
         {sortedByLine.length === 0 ? (
