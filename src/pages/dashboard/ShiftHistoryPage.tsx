@@ -11,14 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Check, Download, Lock, Unlock, Trash2, Upload, Plus } from "lucide-react";
+import { Check, Download, Lock, Unlock, Trash2, Upload, Plus, ChevronLeft, ChevronRight, CalendarDays, CalendarRange } from "lucide-react";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { InlineActualInput } from "@/components/InlineActualInput";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { baseSkuCode } from "@/lib/skuDisplay";
-import { format, subDays } from "date-fns";
+import { format, subDays, startOfMonth, endOfMonth, addMonths } from "date-fns";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
@@ -245,7 +245,16 @@ export default function ShiftHistoryPage() {
   const [fShift, setFShift] = useState("__all__");
   const [fLeader, setFLeader] = useState("__all__");
   const [fSku, setFSku] = useState("__all__");
-  
+
+  // Daily = single day / custom range; Monthly = a whole month with a summary.
+  const [viewMode, setViewMode] = useState<"daily" | "monthly">("daily");
+  const [monthAnchor, setMonthAnchor] = useState<Date>(() => new Date());
+  useEffect(() => {
+    if (viewMode !== "monthly") return;
+    setFrom(format(startOfMonth(monthAnchor), "yyyy-MM-dd"));
+    setTo(format(endOfMonth(monthAnchor), "yyyy-MM-dd"));
+  }, [viewMode, monthAnchor]);
+
   const [deleting, setDeleting] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<{ id: string; sku_id: string; code: string; target: number; actual: number; notes: string | null } | null>(null);
   const [editActual, setEditActual] = useState<string>("");
@@ -343,6 +352,26 @@ export default function ShiftHistoryPage() {
     if (lr !== 0) return lr;
     return (a.line ?? "").localeCompare(b.line ?? "");
   }), [sessions, fLine, fShift, fLeader, fSku]);
+
+  // Totals for the selected range — powers the KPI bar and the per-line summary.
+  const summary = useMemo(() => {
+    let target = 0, actual = 0;
+    const days = new Set<string>();
+    const perLine = new Map<string, { target: number; actual: number; days: Set<string> }>();
+    for (const s of filtered) {
+      days.add(s.session_date);
+      const t = s.production_items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
+      const a = s.production_items.reduce((acc, i) => acc + Number(i.actual_qty ?? 0), 0);
+      target += t; actual += a;
+      const pl = perLine.get(s.line) ?? { target: 0, actual: 0, days: new Set<string>() };
+      pl.target += t; pl.actual += a; pl.days.add(s.session_date);
+      perLine.set(s.line, pl);
+    }
+    const lines = [...perLine.entries()]
+      .map(([line, v]) => ({ line, target: v.target, actual: v.actual, days: v.days.size, pct: v.target > 0 ? (v.actual / v.target) * 100 : 0 }))
+      .sort((a, b) => lineRank(a.line) - lineRank(b.line) || a.line.localeCompare(b.line));
+    return { target, actual, days: days.size, lineCount: perLine.size, pct: target > 0 ? (actual / target) * 100 : 0, lines };
+  }, [filtered]);
 
   const trendData = useMemo(() => {
     const byDate = new Map<string, { date: string; DAY: number[]; NIGHT: number[] }>();
@@ -469,7 +498,16 @@ export default function ShiftHistoryPage() {
     <DashboardLayout>
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-bold">Production Control</h1>
+          <div>
+            <h1 className="text-2xl font-bold">Production Control</h1>
+            <p className="text-sm text-muted-foreground">
+              {viewMode === "monthly"
+                ? `Monthly view · ${format(monthAnchor, "MMMM yyyy")}`
+                : from === to
+                  ? `Daily view · ${from}`
+                  : `${from} → ${to}`}
+            </p>
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             {isAdmin && (
               <Button variant="outline" size="sm" onClick={async () => {
@@ -506,6 +544,58 @@ export default function ShiftHistoryPage() {
           onOpenChange={setImportOpen}
           onImported={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
         />
+
+        {/* View toggle + month navigator */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="inline-flex rounded-lg border bg-muted/40 p-0.5">
+            <Button
+              size="sm"
+              variant={viewMode === "daily" ? "default" : "ghost"}
+              className="gap-1.5"
+              onClick={() => { setViewMode("daily"); const t = format(new Date(), "yyyy-MM-dd"); setFrom(t); setTo(t); }}
+            >
+              <CalendarDays className="h-4 w-4" /> Daily
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === "monthly" ? "default" : "ghost"}
+              className="gap-1.5"
+              onClick={() => setViewMode("monthly")}
+            >
+              <CalendarRange className="h-4 w-4" /> Monthly
+            </Button>
+          </div>
+          {viewMode === "monthly" && (
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setMonthAnchor(addMonths(monthAnchor, -1))}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="min-w-[130px] text-center text-sm font-semibold">{format(monthAnchor, "MMMM yyyy")}</span>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setMonthAnchor(addMonths(monthAnchor, 1))}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setMonthAnchor(new Date())}>This month</Button>
+            </div>
+          )}
+        </div>
+
+        {/* KPI summary for the selected period */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Produced", value: Math.round(summary.actual).toLocaleString(), sub: undefined as string | undefined, accent: "text-primary" },
+            { label: "Target", value: Math.round(summary.target).toLocaleString(), sub: undefined, accent: "text-foreground" },
+            { label: "Attainment", value: summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—", sub: undefined, accent: summary.pct >= 100 ? "text-emerald-600" : summary.pct >= 90 ? "text-amber-600" : "text-destructive" },
+            { label: viewMode === "monthly" ? "Days produced" : "Days", value: `${summary.days}`, sub: `${summary.lineCount} line${summary.lineCount === 1 ? "" : "s"}`, accent: "text-foreground" },
+          ].map((k) => (
+            <Card key={k.label} className="border-l-4 border-l-primary/60 shadow-sm">
+              <CardContent className="p-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{k.label}</div>
+                <div className={cn("text-2xl font-bold tabular-nums", k.accent)}>{k.value}</div>
+                {k.sub && <div className="text-[11px] text-muted-foreground">{k.sub}</div>}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
 
         <Card>
