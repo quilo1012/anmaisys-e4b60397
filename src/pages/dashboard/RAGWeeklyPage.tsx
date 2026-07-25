@@ -27,7 +27,8 @@ import { useAuth } from "@/contexts/AuthContext";
 
 
 import { Settings2 } from "lucide-react";
-import { downloadRagTemplate, exportRagFilledTemplate, type RagFill } from "@/lib/ragTemplateExport";
+import { downloadRagTemplate, type RagFill } from "@/lib/ragTemplateExport";
+import { exportRagPerformance } from "@/lib/ragPerformanceExport";
 import { parseRagTemplateFile, type ParsedTemplateRow } from "@/lib/ragTemplateImport";
 import { parseRagPerformanceFile } from "@/lib/ragPerformanceImport";
 
@@ -845,11 +846,11 @@ export default function RAGWeeklyPage() {
                             },
                             comment: (line) => cMap.get(line),
                           };
-                          await exportRagFilledTemplate(weekStart, lines, fill);
+                          await exportRagPerformance(weekStart, lines, fill);
                         } catch (e) { toast.error((e as Error).message); }
                       }}
                     >
-                      <FileSpreadsheet className="h-4 w-4 mr-2" />Download Excel <span className="ml-1 text-xs text-muted-foreground">(edit &amp; re-import)</span>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />Download Excel <span className="ml-1 text-xs text-muted-foreground">(standard · edit &amp; re-import)</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={async () => {
