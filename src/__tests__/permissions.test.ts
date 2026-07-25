@@ -2,17 +2,20 @@ import { describe, it, expect } from "vitest";
 import { dashboardPathFor, roleDashMap, type Role } from "@/lib/permissions";
 
 describe("dashboardPathFor", () => {
-  it("admin → manager dashboard", () => {
-    expect(dashboardPathFor("admin")).toBe("/dashboard/manager");
+  // These assert the real landing routes in roleDashMap (single source of truth
+  // used by SessionRedirect). They were stale after admin/manager were moved to
+  // the Control Center and operator to My Production.
+  it("admin → control center", () => {
+    expect(dashboardPathFor("admin")).toBe("/dashboard/control-center");
   });
-  it("manager → manager dashboard", () => {
-    expect(dashboardPathFor("manager")).toBe("/dashboard/manager");
+  it("manager → control center", () => {
+    expect(dashboardPathFor("manager")).toBe("/dashboard/control-center");
   });
   it("engineer → engineer dashboard", () => {
     expect(dashboardPathFor("engineer")).toBe("/dashboard/engineer");
   });
-  it("operator → operator dashboard", () => {
-    expect(dashboardPathFor("operator")).toBe("/dashboard/operator");
+  it("operator → my production", () => {
+    expect(dashboardPathFor("operator")).toBe("/dashboard/operator/my-production");
   });
   it("null role → /login", () => {
     expect(dashboardPathFor(null)).toBe("/login");
