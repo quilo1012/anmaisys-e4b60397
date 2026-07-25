@@ -1,13 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
 import { EmptyState } from "@/components/EmptyState";
@@ -38,6 +39,8 @@ export default function ProductionPerformancePage() {
   const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
   const [savingLeaderFor, setSavingLeaderFor] = useState<string | null>(null);
   const [addingLeaderFor, setAddingLeaderFor] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const previewFrame = useRef<HTMLIFrameElement>(null);
   const [newLeaderName, setNewLeaderName] = useState("");
 
   const addNewLeader = async (lineName: string, hasSession: boolean) => {
@@ -307,22 +310,28 @@ export default function ProductionPerformancePage() {
   const ragFill = (e: number) => e >= 100 ? "hsl(142 76% 36%)" : e >= 80 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)";
   const medal = (i: number) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
 
-  const printReport = async () => {
+  const buildReport = (output: "save" | "bloburl") => {
     const scored = sortedByLine.filter((l) => l.target > 0);
     const totalTarget = scored.reduce((a, l) => a + l.target, 0);
     const totalActual = scored.reduce((a, l) => a + l.actual, 0);
     const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    return generatePerformanceReportPDF({
+      periodLabel: `${cap(period)} · ${format(parseISO(range.from), "dd/MM/yyyy")} – ${format(parseISO(range.to), "dd/MM/yyyy")}`,
+      filtersLabel: `Shift: ${shift === "all" ? "All" : cap(shift.toLowerCase())} · Line: ${lineFilter === "__all__" ? "All" : lineFilter} · Leader: ${leaderFilter === "__all__" ? "All" : leaderFilter}`,
+      lines: sortedByLine.map((l) => ({ line: l.line, leader: l.leader, target: l.target, actual: l.actual, eff: l.eff })),
+      totalTarget, totalActual,
+      openActions: openActions.map((a) => ({ recorded_at: a.recorded_at, action_no: a.action_no, line: a.line, shift: a.shift, severity: a.severity, description: a.description })),
+      generatedBy: profile?.name || "—",
+    }, { output });
+  };
+  // Preview first: render into an iframe so the user can look before printing.
+  const printReport = async () => {
     try {
-      await generatePerformanceReportPDF({
-        periodLabel: `${cap(period)} · ${format(parseISO(range.from), "dd/MM/yyyy")} – ${format(parseISO(range.to), "dd/MM/yyyy")}`,
-        filtersLabel: `Shift: ${shift === "all" ? "All" : cap(shift.toLowerCase())} · Line: ${lineFilter === "__all__" ? "All" : lineFilter} · Leader: ${leaderFilter === "__all__" ? "All" : leaderFilter}`,
-        lines: sortedByLine.map((l) => ({ line: l.line, leader: l.leader, target: l.target, actual: l.actual, eff: l.eff })),
-        totalTarget, totalActual,
-        openActions: openActions.map((a) => ({ recorded_at: a.recorded_at, action_no: a.action_no, line: a.line, shift: a.shift, severity: a.severity, description: a.description })),
-        generatedBy: profile?.name || "—",
-      });
+      const url = await buildReport("bloburl");
+      if (url) { if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(url as string); }
     } catch { toast.error("Could not generate the performance report"); }
   };
+  const downloadReport = async () => { try { await buildReport("save"); } catch { toast.error("Could not download the report"); } };
 
 
   return (
@@ -593,6 +602,22 @@ export default function ProductionPerformancePage() {
         </div>
         )}
       </div>
+
+      {/* Print preview — look before printing/downloading. */}
+      <Dialog open={!!previewUrl} onOpenChange={(o) => { if (!o) { if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(null); } }}>
+        <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="flex-row items-center justify-between gap-2 border-b px-4 py-3 space-y-0">
+            <DialogTitle className="text-base">Report preview</DialogTitle>
+            <div className="flex items-center gap-2 pr-6">
+              <Button size="sm" variant="outline" onClick={downloadReport}><Download className="h-4 w-4 mr-1" />Download</Button>
+              <Button size="sm" onClick={() => previewFrame.current?.contentWindow?.print()}><Printer className="h-4 w-4 mr-1" />Print</Button>
+            </div>
+          </DialogHeader>
+          {previewUrl && (
+            <iframe ref={previewFrame} src={previewUrl} title="Report preview" className="flex-1 w-full rounded-b-lg" />
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
 
   );
