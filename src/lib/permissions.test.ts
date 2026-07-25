@@ -24,7 +24,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "stock.pricing": ["admin"],
   "users.view": ["admin", "manager"],
   "users.manage": ["admin", "manager"],
-  "audit.view": ["admin", "manager", "supervisor"],
+  "audit.view": ["admin"],
   "reports.analytics": ["admin", "manager", "supervisor"],
   // financial/executive report actions are defined but intentionally unassigned
   // (no UI wires them yet); the reports that exist are gated by reports.analytics.

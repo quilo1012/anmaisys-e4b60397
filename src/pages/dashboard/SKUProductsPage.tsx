@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser, Undo2 } from "lucide-react";
 import { toast } from "sonner";
-import ExcelJS from "exceljs";
+// exceljs is loaded on demand (see parseXLSX / downloadTemplate) to keep it out
+// of the initial route bundle (~938 KB).
 
 interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; weight: number | null; active: boolean }
 
@@ -130,6 +131,7 @@ function cellText(v: unknown): string {
 }
 
 async function parseXLSX(file: File): Promise<Partial<Sku>[]> {
+  const ExcelJS = (await import("exceljs")).default;
   const buf = await file.arrayBuffer();
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf);
@@ -279,6 +281,7 @@ export default function SKUProductsPage() {
   };
 
   const downloadTemplate = async () => {
+    const ExcelJS = (await import("exceljs")).default;
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("SKUs");
     // Columns match the importer: SKU + Description required; Category, TargetPerHour, Weight optional.

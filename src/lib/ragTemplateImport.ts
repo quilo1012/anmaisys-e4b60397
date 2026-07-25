@@ -63,7 +63,7 @@ export async function parseRagTemplateFile(
   file: File,
   knownLines: string[],
 ): Promise<TemplateParseResult> {
-  const XLSX = await import("xlsx");
+  const XLSX = await import("xlsx-js-style");
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: "array", cellDates: true });
 

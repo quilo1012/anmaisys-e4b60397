@@ -29,7 +29,7 @@ export async function parseRagLayoutFile(
   weekStart: Date,
   weekDates: Date[],
 ): Promise<ParseResult> {
-  const XLSX = await import("xlsx");
+  const XLSX = await import("xlsx-js-style");
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: "array", cellDates: true });
 

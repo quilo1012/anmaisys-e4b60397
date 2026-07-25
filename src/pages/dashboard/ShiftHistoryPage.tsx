@@ -473,7 +473,7 @@ export default function ShiftHistoryPage() {
           <div className="flex items-center gap-2 flex-wrap">
             {isAdmin && (
               <Button variant="outline" size="sm" onClick={async () => {
-                const XLSX = await import("xlsx");
+                const XLSX = await import("xlsx-js-style");
                 const headers = ["Date","Assembly Number","Work Centre","Product Code","Product Description","Weight","QTY","Start Time","Finish Time","Shift"];
                 const sample = [
                   ["25/06/2026","ASM-0001","Line 1","SKU-001","Sample Product A","0.500","1200","06:00","14:00","DAY"],
