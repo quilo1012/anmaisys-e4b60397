@@ -55,6 +55,33 @@ const makeEmptyForm = () => ({
   department: "", status: "todo", severity: "", labels: [] as string[], description: "",
 });
 
+/** Trash button + confirm, for deleting a quality action straight from the list
+ *  instead of digging into the detail dialog. Shown only when the viewer can
+ *  manage quality. */
+function RowDeleteButton({ actionNo, onConfirm }: { actionNo?: string | number | null; onConfirm: () => void }) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" title="Delete action" aria-label="Delete action">
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this action?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {actionNo ? `Action ${actionNo}` : "This action"} will be permanently removed. This cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={onConfirm}>Delete</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 export function QualityActionsView() {
   const { can } = useRole();
   const canManage = can("quality.manage");
@@ -462,11 +489,20 @@ export function QualityActionsView() {
                 const sev = severityMeta(a.severity);
                 const st = statusMeta(a.status);
                 return (
-                  <button key={a.id} type="button" onClick={() => setDetailId(a.id)}
-                    className="w-full rounded-lg border p-3 text-left transition-colors hover:bg-accent/40 active:scale-[0.99]">
+                  <div key={a.id} role="button" tabIndex={0}
+                    onClick={() => setDetailId(a.id)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetailId(a.id); } }}
+                    className="w-full cursor-pointer rounded-lg border p-3 text-left transition-colors hover:bg-accent/40 active:scale-[0.99]">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-sm font-semibold">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
-                      <Badge variant="outline" className={cn("text-[10px]", st.badge)}>{st.label}</Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="outline" className={cn("text-[10px]", st.badge)}>{st.label}</Badge>
+                        {canManage && (
+                          <span onClick={(e) => e.stopPropagation()}>
+                            <RowDeleteButton actionNo={a.action_no} onConfirm={() => deleteAction.mutate(a.id)} />
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {a.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{a.description}</p>}
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
@@ -474,7 +510,7 @@ export function QualityActionsView() {
                       {a.line && <span className="truncate">· {a.line}{a.leader_name ? ` · ${a.leader_name}` : ""}</span>}
                       {sev && <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge>}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </CardContent>
@@ -488,9 +524,10 @@ export function QualityActionsView() {
                   <TableHead>When</TableHead><TableHead>#</TableHead><TableHead>Status</TableHead><TableHead>Severity</TableHead>
                   <TableHead>Line</TableHead><TableHead>Leader</TableHead>
                   <TableHead>Dept</TableHead><TableHead>Labels</TableHead><TableHead>Notes</TableHead>
+                  {canManage && <TableHead className="w-10 text-right">Delete</TableHead>}
                 </TableRow></TableHeader>
                 <TableBody>
-                  {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
+                  {filtered.length === 0 && <TableRow><TableCell colSpan={canManage ? 10 : 9} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
                   {filtered.map((a) => {
                     const sev = severityMeta(a.severity);
                     return (
@@ -513,6 +550,11 @@ export function QualityActionsView() {
                         </div>
                       </TableCell>
                       <TableCell className="max-w-xs truncate">{a.description ?? "—"}</TableCell>
+                      {canManage && (
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <RowDeleteButton actionNo={a.action_no} onConfirm={() => deleteAction.mutate(a.id)} />
+                        </TableCell>
+                      )}
                     </TableRow>
                     );
                   })}
