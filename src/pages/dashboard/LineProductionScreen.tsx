@@ -496,10 +496,12 @@ export default function LineProductionScreen() {
   const saveNotes = useMutation({
     mutationFn: async (value: string) => {
       if (!sessionQ.data?.id) throw new Error("No session");
-      const { error } = await (supabase as any)
-        .from("production_sessions")
-        .update({ notes: value })
-        .eq("id", sessionQ.data.id);
+      // Operators have no direct UPDATE policy on production_sessions; this
+      // SECURITY DEFINER RPC lets them save observations on their own unlocked
+      // line (and management roles anywhere) while touching only `notes`.
+      const { error } = await (supabase.rpc as any)("save_session_notes", {
+        _session_id: sessionQ.data.id, _notes: value,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
