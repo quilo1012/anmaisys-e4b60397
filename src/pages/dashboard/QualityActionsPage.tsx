@@ -147,7 +147,8 @@ export function QualityActionsView() {
   const { data: lines = [] } = useQuery({
     queryKey: ["lines"],
     queryFn: async () => {
-      const { data } = await supabase.from("lines").select("name").order("name");
+      const { data, error } = await supabase.from("lines").select("name").order("name");
+      if (error) throw error;
       // Drop blank names — a Radix <SelectItem value=""> would crash the Line select.
       return (data ?? []).filter((x) => x.name && x.name.trim()) as { name: string }[];
     },
@@ -155,7 +156,8 @@ export function QualityActionsView() {
   const { data: leaders = [] } = useQuery({
     queryKey: ["line_leaders_active"],
     queryFn: async () => {
-      const { data } = await supabase.from("line_leaders").select("id, name").eq("active", true).order("name");
+      const { data, error } = await supabase.from("line_leaders").select("id, name").eq("active", true).order("name");
+      if (error) throw error;
       return (data ?? []).filter((x) => x.id && x.name && x.name.trim()) as { id: string; name: string }[];
     },
   });

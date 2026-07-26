@@ -260,13 +260,14 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
     enabled: !!line,
     queryKey: ["target-gate-leader", line, today, shift],
     queryFn: async () => {
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("production_sessions")
         .select("leader_name")
         .eq("session_date", today)
         .eq("line", line)
         .eq("shift", shift)
         .maybeSingle();
+      if (error) throw error;
       return (data?.leader_name as string | null) ?? null;
     },
     refetchInterval: 60_000,
@@ -488,21 +489,23 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     enabled: !!jobLine,
     queryKey: ["log-prefill", jobLine, sessionId],
     queryFn: async () => {
-      const { data: sessions } = await (supabase as any)
+      const { data: sessions, error: sessErr } = await (supabase as any)
         .from("production_sessions")
         .select("id")
         .eq("line", jobLine)
         .order("session_date", { ascending: false })
         .limit(6);
+      if (sessErr) throw sessErr;
       const ids: string[] = (sessions ?? []).map((s: any) => s.id);
       if (sessionId && !ids.includes(sessionId)) ids.unshift(sessionId);
       if (ids.length === 0) return [];
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("production_blender_entries")
         .select("session_id, blender_label, blender_number, created_at, production_items!inner(blender_ref, batch_code, sku:sku_products(id, code, name))")
         .in("session_id", ids)
         .order("created_at", { ascending: false })
         .limit(200);
+      if (error) throw error;
       return (data ?? []) as any[];
     },
   });
