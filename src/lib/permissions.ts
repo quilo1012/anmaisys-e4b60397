@@ -126,7 +126,9 @@ const MATRIX: Record<Action, Role[]> = {
   "system.settings": ["admin"],
 
   "production.view": ALL,
-  "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "engineer", "co_engineer"],
+  // engineer/co_engineer intentionally excluded: they never edit production
+  // (no RLS write path for them either). They keep production.view (read-only).
+  "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
   "production.target.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
   "production.target.manage": ["admin", "manager", "supervisor", "planner"],
   "production.performance.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
