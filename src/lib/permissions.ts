@@ -141,7 +141,9 @@ const MATRIX: Record<Action, Role[]> = {
 
   "rag.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "rag.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "rag.comment": ["admin", "manager", "supervisor", "planner"],
+  // planner excluded: commenting wasn't part of the planner enablement (no RLS
+  // insert path for planner either). supervisor is enabled to match RLS.
+  "rag.comment": ["admin", "manager", "supervisor"],
 
   "smarttarget.view": [],
 

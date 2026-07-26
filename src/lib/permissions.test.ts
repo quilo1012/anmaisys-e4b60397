@@ -42,7 +42,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "sku.manage": ["admin", "manager", "supervisor", "planner"],
   "rag.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "rag.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "rag.comment": ["admin", "manager", "supervisor", "planner"],
+  "rag.comment": ["admin", "manager", "supervisor"],
   "smarttarget.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "quality.view": ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer"],
   "quality.manage": ["admin", "manager", "supervisor", "quality_supervisor"],

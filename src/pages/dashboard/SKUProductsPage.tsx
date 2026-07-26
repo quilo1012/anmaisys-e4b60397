@@ -260,7 +260,7 @@ export default function SKUProductsPage() {
       toast.success(`Imported ${ok} from ${valid.length} rows — existing SKUs kept. Use "Restore previous import" to undo.`);
     } catch (e) {
       const message = (e as Error).message || "Import failed";
-      toast.error(message.includes("Forbidden") ? "Only Admin or Manager can import SKUs" : message);
+      toast.error(message.includes("Forbidden") ? "Only Admin, Manager, Supervisor or Planner can import SKUs" : message);
     } finally { setImporting(false); }
   };
 

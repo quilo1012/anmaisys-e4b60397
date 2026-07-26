@@ -148,8 +148,8 @@ export default function RAGWeeklyPage() {
   const { user, profile } = useAuth();
   const isAdmin = isRole("admin");
   const isManager = isRole("manager");
-  const canComment = isAdmin || isManager;
-  // Single source of truth: the permission matrix (includes supervisor).
+  // Single source of truth: the permission matrix (admin/manager/supervisor).
+  const canComment = can("rag.comment");
   const canEditRagEntries = can("rag.manage");
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
