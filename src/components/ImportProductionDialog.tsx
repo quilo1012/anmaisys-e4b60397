@@ -137,71 +137,20 @@ export function ImportProductionDialog({ open, onOpenChange, onImported }: {
     if (valid.length === 0) { toast.error("No valid rows to import"); return; }
     setImporting(true);
     try {
-      // Match the file's codes to the catalog case-insensitively and by base
-      // code (stripping a "- Bn" batch suffix), so real SKUs aren't missed over
-      // a case or batch-suffix difference. Anything still unmatched is imported
-      // as a free-text SKU below rather than dropped.
-      const norm = (c: string) => c.trim().toLowerCase();
-      const baseCode = (c: string) => norm(c).replace(/\s*-\s*b\d+\s*$/i, "");
-      const { data: skus } = await supabase.from("sku_products").select("id, code");
-      const skuMap = new Map<string, string>();
-      for (const s of (skus ?? []) as any[]) {
-        skuMap.set(norm(s.code), s.id);
-        if (!skuMap.has(baseCode(s.code))) skuMap.set(baseCode(s.code), s.id);
-      }
-      const resolveSku = (code: string) => skuMap.get(norm(code)) ?? skuMap.get(baseCode(code)) ?? null;
-
-      // Group rows by date+shift+line
-      const groups = new Map<string, ParsedRow[]>();
-      for (const r of valid) {
-        const k = `${r.date}|${r.shift}|${r.line}`;
-        const g = groups.get(k) ?? [];
-        g.push(r); groups.set(k, g);
-      }
-
-      let sessionCount = 0; let itemCount = 0; let skippedUnknown = 0;
-      for (const [k, grp] of groups) {
-        const [session_date, shift, line] = k.split("|");
-        // upsert session
-        const { data: existing } = await supabase
-          .from("production_sessions")
-          .select("id")
-          .eq("session_date", session_date).eq("shift", shift).eq("line", line)
-          .maybeSingle();
-        let sessionId = existing?.id;
-        if (!sessionId) {
-          const { data: ins, error } = await supabase
-            .from("production_sessions")
-            .insert({ session_date, shift, line })
-            .select("id").single();
-          if (error) throw error;
-          sessionId = ins.id;
-        }
-        sessionCount++;
-        // aggregate qty per code (keeping the original code text for free-text rows)
-        const aggr = new Map<string, number>();
-        for (const r of grp) {
-          aggr.set(r.sku_code, (aggr.get(r.sku_code) ?? 0) + r.qty);
-        }
-        for (const [code, qty] of aggr) {
-          const sku_id = resolveSku(code);
-          // Not in the catalog → keep it as a free-text SKU instead of dropping
-          // the row, so every line in the file lands.
-          let q = supabase.from("production_items").select("id").eq("session_id", sessionId);
-          q = sku_id ? q.eq("sku_id", sku_id) : q.is("sku_id", null).eq("sku_code_text", code);
-          const { data: existingItem } = await q.maybeSingle();
-          if (existingItem) {
-            await supabase.from("production_items").update({ actual_qty: qty }).eq("id", existingItem.id);
-          } else {
-            await supabase.from("production_items").insert({
-              session_id: sessionId, sku_id, sku_code_text: sku_id ? null : code,
-              target_qty: 0, planned_qty: 0, actual_qty: qty,
-            });
-          }
-          if (!sku_id) skippedUnknown++; // counted as "kept as free-text" in the toast
-          itemCount++;
-        }
-      }
+      // One transactional call: the whole import runs inside a single SECURITY
+      // DEFINER function, so it's all-or-nothing. Previously this looped inserts
+      // client-side, so a failure mid-way left a partial import with no rollback.
+      // Code matching (case-insensitive + base code) and the free-text fallback
+      // for unmatched codes now live in the SQL function.
+      const payload = valid.map((r) => ({
+        date: r.date, shift: r.shift, line: r.line, sku_code: r.sku_code, qty: r.qty,
+      }));
+      const { data, error } = await (supabase.rpc as any)("import_production_rows", { _rows: payload });
+      if (error) throw error;
+      const res = (data ?? {}) as { sessions?: number; items?: number; freetext?: number };
+      const sessionCount = res.sessions ?? 0;
+      const itemCount = res.items ?? 0;
+      const skippedUnknown = res.freetext ?? 0;
       toast.success(`Imported ${itemCount} items across ${sessionCount} sessions${skippedUnknown ? ` · ${skippedUnknown} not in catalog, kept as typed` : ""}`);
       onImported?.();
       onOpenChange(false);
