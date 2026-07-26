@@ -223,7 +223,7 @@ interface SessionRow {
   tickets: number | null;
   tickets_unit: "tubs" | "bags" | null;
   locked: boolean; notes: string | null;
-  production_items: { id: string; sku_id: string; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; started_at: string | null; finished_at: string | null; tickets_unit: "tubs" | "bags" | null; production_blender_entries?: { blender_number: number; quantity: number }[] }[];
+  production_items: { id: string; sku_id: string; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; batch_code: string | null; started_at: string | null; finished_at: string | null; tickets_unit: "tubs" | "bags" | null; production_blender_entries?: { blender_number: number; quantity: number }[] }[];
 }
 
 
@@ -323,7 +323,7 @@ export default function ShiftHistoryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty, notes, blender_ref, started_at, finished_at, tickets_unit, production_blender_entries(blender_number, quantity))")
+        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty, notes, blender_ref, batch_code, started_at, finished_at, tickets_unit, production_blender_entries(blender_number, quantity))")
         .gte("session_date", from).lte("session_date", to)
         .order("session_date", { ascending: false });
       if (error) throw error;
@@ -735,7 +735,7 @@ export default function ShiftHistoryPage() {
                         let zebra = 0;
                         filtered.forEach((s) => {
                           const items = s.production_items.length === 0
-                            ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null, tickets_unit: null as "tubs" | "bags" | null }]
+                            ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null, batch_code: null, tickets_unit: null as "tubs" | "bags" | null }]
                             : s.production_items;
                           if (s.line !== prevLine) {
                             out.push(
@@ -815,19 +815,19 @@ export default function ShiftHistoryPage() {
                                   {i.sku_id && !s.locked ? (
                                     <input
                                       type="text"
-                                      defaultValue={i.blender_ref ?? ""}
+                                      defaultValue={i.batch_code ?? ""}
                                       placeholder="B#"
-                                      className="w-[60px] h-7 px-1 text-xs font-mono rounded border bg-background"
+                                      className="w-[80px] h-7 px-1 text-xs font-mono rounded border bg-background"
                                       onBlur={async (e) => {
                                         const v = e.target.value.trim() || null;
-                                        if (v === (i.blender_ref ?? null)) return;
-                                        const { error } = await supabase.from("production_items").update({ blender_ref: v }).eq("id", i.id);
+                                        if (v === (i.batch_code ?? null)) return;
+                                        const { error } = await supabase.from("production_items").update({ batch_code: v }).eq("id", i.id);
                                         if (error) toast.error(error.message);
                                         else { toast.success("Batch saved"); qc.invalidateQueries({ queryKey: ["shift_history"] }); }
                                       }}
                                     />
                                   ) : (
-                                    <span className="text-xs font-mono">{i.blender_ref || "—"}</span>
+                                    <span className="text-xs font-mono">{i.batch_code || "—"}</span>
                                   )}
                                 </td>
                                 <td className="px-3 py-2 text-xs tabular-nums whitespace-nowrap">
@@ -881,7 +881,7 @@ export default function ShiftHistoryPage() {
                 <div className="md:hidden p-3 space-y-2">
                   {filtered.flatMap((s) => {
                     const items = s.production_items.length === 0
-                      ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null, tickets_unit: null as "tubs" | "bags" | null }]
+                      ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null, batch_code: null, tickets_unit: null as "tubs" | "bags" | null }]
                       : s.production_items;
                     return items.map((i, idx) => {
                       const sku = skuMap.get(i.sku_id);
@@ -944,18 +944,18 @@ export default function ShiftHistoryPage() {
                             value={i.sku_id && !s.locked ? (
                               <input
                                 type="text"
-                                defaultValue={i.blender_ref ?? ""}
+                                defaultValue={i.batch_code ?? ""}
                                 placeholder="B#"
                                 className="w-full h-8 px-2 text-xs font-mono rounded border bg-background"
                                 onBlur={async (e) => {
                                   const v = e.target.value.trim() || null;
-                                  if (v === (i.blender_ref ?? null)) return;
-                                  const { error } = await supabase.from("production_items").update({ blender_ref: v }).eq("id", i.id);
+                                  if (v === (i.batch_code ?? null)) return;
+                                  const { error } = await supabase.from("production_items").update({ batch_code: v }).eq("id", i.id);
                                   if (error) toast.error(error.message);
                                   else { toast.success("Batch saved"); qc.invalidateQueries({ queryKey: ["shift_history"] }); }
                                 }}
                               />
-                            ) : (<span className="font-mono">{i.blender_ref || "—"}</span>)}
+                            ) : (<span className="font-mono">{i.batch_code || "—"}</span>)}
                           />
                           <TableCardField label="Blender" value={<span className="tabular-nums">{blenders.length ? blenders.join(", ") : "—"}</span>} />
                           <TableCardField
