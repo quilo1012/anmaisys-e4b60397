@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, Tablet, User as UserIcon, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, Tablet, ShieldAlert, CheckCircle2, Monitor, Smartphone } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePublicTabletAccounts } from "@/hooks/useOperatorAccounts";
@@ -46,6 +46,36 @@ function getStoredTabletId(): string {
 
 type Mode = "staff" | "tablet";
 
+// Access environments shown as cards. They're a UX layer over the auth `mode`
+// (email/password vs tablet account); the real access a user gets is still
+// decided by their role (RBAC + RLS), never by the device they picked.
+type Env = "desktop" | "tablet" | "mobile";
+const ENV_KEY = "an_login_env";
+const ENVIRONMENTS: Array<{
+  key: Env; mode: Mode; label: string; tagline: string; profile: string;
+  icon: typeof Monitor; color: string; tint: string;
+}> = [
+  { key: "desktop", mode: "staff", label: "Desktop", tagline: "Gestão e Administração",
+    profile: "Admin, Gestor, Supervisor, Engenharia, Planejamento",
+    icon: Monitor, color: "#1E3A8A", tint: "rgba(30,58,138,0.08)" },
+  { key: "tablet", mode: "tablet", label: "Tablet", tagline: "Operação em Linha",
+    profile: "Operador, Técnico, Manutenção, Produção",
+    icon: Tablet, color: "#16A34A", tint: "rgba(22,163,74,0.08)" },
+  { key: "mobile", mode: "staff", label: "Mobile", tagline: "Acesso Operacional Rápido",
+    profile: "Técnico externo, Líder, Campo",
+    icon: Smartphone, color: "#7C3AED", tint: "rgba(124,58,237,0.08)" },
+];
+
+/** Soft role↔environment mismatch note (informational; access still follows role). */
+function envMismatch(role: string | null | undefined, env: Env): string | null {
+  const r = (role ?? "").toLowerCase();
+  if (env === "tablet" && ["admin", "manager", "supervisor"].includes(r))
+    return "⚠️ Ambiente incorreto — Seu usuário possui permissão Desktop. Utilize o acesso Gestão/Administração.";
+  if (env === "desktop" && r === "operator")
+    return "⚠️ Permissão insuficiente — Este usuário não possui acesso administrativo.";
+  return null;
+}
+
 export default function Login() {
   const navigate = useNavigate();
   // Every login lands on the welcome home (site banner + quick links), on any device.
@@ -69,6 +99,13 @@ export default function Login() {
     const stored = localStorage.getItem(MODE_KEY);
     return stored === "tablet" ? "tablet" : "staff";
   });
+  const [environment, setEnvironment] = useState<Env>(() => {
+    if (typeof window === "undefined") return "desktop";
+    const storedEnv = localStorage.getItem(ENV_KEY) as Env | null;
+    if (storedEnv === "desktop" || storedEnv === "tablet" || storedEnv === "mobile") return storedEnv;
+    return localStorage.getItem(MODE_KEY) === "tablet" ? "tablet" : "desktop";
+  });
+  const selectedEnv = ENVIRONMENTS.find((e) => e.key === environment) ?? ENVIRONMENTS[0];
 
   // ── Form state ──────────────────────────────────────────────
   const [email, setEmail] = useState("");
@@ -163,6 +200,14 @@ export default function Login() {
     }
   };
 
+  // Pick an access environment: it maps to the underlying auth mode and is kept
+  // for the role↔environment note. Desktop and Mobile both use email/password.
+  const selectEnv = (env: Env) => {
+    setEnvironment(env);
+    try { localStorage.setItem(ENV_KEY, env); } catch { /* ignore */ }
+    switchMode(env === "tablet" ? "tablet" : "staff");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -252,6 +297,10 @@ export default function Login() {
           role: roleResult || "unknown",
           mode,
         });
+        // Soft note if the role doesn't fit the chosen environment. Access still
+        // follows the role — we inform, we don't block.
+        const mismatch = envMismatch(roleResult as string, environment);
+        if (mismatch) toast({ title: mismatch, variant: "destructive" });
         if (safeNext) {
           window.location.href = safeNext;
           return;
@@ -283,37 +332,48 @@ export default function Login() {
     <AuthShell
       brandIconUrl={brandIconUrl}
       backgroundImages={loginBannerUrls}
-      title="Welcome"
-      subtitle="Sign in to access the system"
+      title="Escolha seu ambiente de acesso"
+      subtitle="Selecione o dispositivo correto conforme sua função."
     >
-      {/* Staff / Tablet segmented control */}
-      <div className="mb-6 grid grid-cols-2 gap-1 rounded-full border border-white/60 bg-white/50 backdrop-blur-sm p-1">
-        <button
-          type="button"
-          onClick={() => switchMode("staff")}
-          aria-pressed={mode === "staff"}
-          className={`flex items-center justify-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A8A]/30 ${
-            mode === "staff"
-              ? "bg-white text-[#1E3A8A] shadow-sm ring-1 ring-slate-200"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          <UserIcon className="h-3.5 w-3.5" />
-          Staff
-        </button>
-        <button
-          type="button"
-          onClick={() => switchMode("tablet")}
-          aria-pressed={mode === "tablet"}
-          className={`flex items-center justify-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A8A]/30 ${
-            mode === "tablet"
-              ? "bg-white text-[#1E3A8A] shadow-sm ring-1 ring-slate-200"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          <Tablet className="h-3.5 w-3.5" />
-          Tablet
-        </button>
+      {/* Environment cards — Desktop / Tablet / Mobile */}
+      <div className="mb-5 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Ambiente de acesso">
+        {ENVIRONMENTS.map((env) => {
+          const Icon = env.icon;
+          const active = environment === env.key;
+          return (
+            <button
+              key={env.key}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => selectEnv(env.key)}
+              title={env.profile}
+              className={`group flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all focus-visible:outline-none focus-visible:ring-2 ${
+                active ? "scale-[1.02] shadow-md" : "border-white/70 bg-white/60 hover:-translate-y-0.5 hover:shadow-sm"
+              }`}
+              style={active ? { borderColor: env.color, background: env.tint, boxShadow: `0 0 0 1px ${env.color}` } : undefined}
+            >
+              <span
+                className="flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform group-hover:scale-110"
+                style={{ background: env.color }}
+              >
+                <Icon className="h-5 w-5" />
+              </span>
+              <span className="text-xs font-bold uppercase tracking-wide" style={{ color: active ? env.color : undefined }}>{env.label}</span>
+              <span className="text-[10px] leading-tight text-slate-500">{env.tagline}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Selected environment context */}
+      <div className="mb-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs"
+        style={{ borderColor: selectedEnv.color, background: selectedEnv.tint }}>
+        <selectedEnv.icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: selectedEnv.color }} />
+        <span className="text-slate-700">
+          <b>Ambiente selecionado: {selectedEnv.label}</b> — Perfil esperado: {selectedEnv.profile}.
+          <span className="text-slate-500"> Digite suas credenciais para continuar.</span>
+        </span>
       </div>
 
       <form
@@ -452,6 +512,10 @@ export default function Login() {
           </button>
         </p>
       )}
+
+      <p className="mt-5 border-t border-white/50 pt-3 text-center text-[11px] leading-relaxed text-slate-500">
+        🔒 Conexão segura · 🛡 Controle de acesso por perfil · 📋 Todas as ações são auditadas
+      </p>
     </AuthShell>
   );
 }
