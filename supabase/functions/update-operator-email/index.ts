@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { writeAudit } from "../_shared/audit.ts";
 import { z } from "https://esm.sh/zod@3.23.8";
 
 const corsHeaders = {
@@ -123,6 +124,10 @@ Deno.serve(async (req) => {
 
     await admin.from("profiles").update({ email: newEmail }).eq("id", acc.user_id);
 
+    await writeAudit(admin, {
+      callerId, req, action: "update", entity_type: "user",
+      entity_id: acc.user_id, details: { field: "email" },
+    });
     return new Response(
       JSON.stringify({ success: true, email: newEmail }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

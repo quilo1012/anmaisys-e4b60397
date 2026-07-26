@@ -274,7 +274,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("seed-demo error:", error);
+    const message = "Internal error";
     return new Response(JSON.stringify({ error: message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { writeAudit } from "../_shared/audit.ts";
 import { z } from "https://esm.sh/zod@3.23.8";
 
 const corsHeaders = {
@@ -60,6 +61,10 @@ Deno.serve(async (req) => {
       if (!error) updated++;
     }
 
+    await writeAudit(admin, {
+      callerId: caller.id, req, action: "update", entity_type: "user",
+      entity_id: user_id ?? null, details: { reset: "operator_password", updated, total: targets.length },
+    });
     return new Response(JSON.stringify({ success: true, updated, total: targets.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -70,7 +75,8 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("reset-operator-password error:", error);
+    const message = "Internal error";
     return new Response(JSON.stringify({ error: message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { writeAudit } from "../_shared/audit.ts";
 import { z } from "https://esm.sh/zod@3.23.8";
 
 const BodySchema = z.object({
@@ -83,6 +84,10 @@ Deno.serve(async (req) => {
       });
     }
 
+    await writeAudit(supabaseAdmin, {
+      callerId: userId, req, action: "pin_changed", entity_type: "system",
+      details: { target: "admin_pin" },
+    });
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

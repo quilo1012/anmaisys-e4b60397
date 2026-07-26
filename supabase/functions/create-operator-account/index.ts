@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { writeAudit } from "../_shared/audit.ts";
 import { z } from "https://esm.sh/zod@3.23.8";
 
 const corsHeaders = {
@@ -115,6 +116,10 @@ Deno.serve(async (req) => {
     });
     if (olaErr) throw olaErr;
 
+    await writeAudit(admin, {
+      callerId: caller.id, req, action: "user_created", entity_type: "user",
+      entity_id: newUserId, details: { role: "operator", label },
+    });
     return new Response(
       JSON.stringify({ success: true, user_id: newUserId, email, label }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -123,7 +128,8 @@ Deno.serve(async (req) => {
     if (error instanceof z.ZodError) {
       return json({ error: error.errors[0].message }, 400);
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("create-operator-account error:", error);
+    const message = "Internal error";
     const status = error instanceof HttpError ? error.status : 400;
     return json({ error: message }, status);
   }

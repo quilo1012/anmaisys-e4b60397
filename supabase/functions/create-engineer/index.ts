@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { writeAudit } from "../_shared/audit.ts";
 import { z } from "https://esm.sh/zod@3.23.8";
 
 const corsHeaders = {
@@ -53,6 +54,9 @@ Deno.serve(async (req) => {
 
     if (pinError) throw pinError;
 
+    await writeAudit(supabaseAdmin, {
+      callerId, req, action: "create", entity_type: "engineer", entity_id: eng.id,
+    });
     return new Response(JSON.stringify({ success: true, engineerId: eng.id }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -64,7 +68,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("create-engineer error:", error);
+    const message = "Internal error";
     return new Response(JSON.stringify({ error: message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
