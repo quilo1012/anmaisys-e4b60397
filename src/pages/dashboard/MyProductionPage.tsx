@@ -405,9 +405,9 @@ function TargetMeta({ target, produced }: { target: number; produced: number }) 
       const { data, error } = await (supabase.rpc as any)("verify_target_pin", { _pin: p });
       if (error) throw error;
       if (data === true) { setRevealed(true); setOpen(false); setPin(""); }
-      else { toast.error("PIN incorreto"); setPin(""); }
+      else { toast.error("Incorrect PIN"); setPin(""); }
     } catch (e: any) {
-      toast.error(e?.message || "Não foi possível verificar o PIN");
+      toast.error(e?.message || "Couldn't verify the PIN");
     } finally { setChecking(false); }
   };
 
@@ -416,13 +416,13 @@ function TargetMeta({ target, produced }: { target: number; produced: number }) 
       <>
         <button type="button" onClick={() => setOpen(true)}
           className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-          <Lock className="h-3 w-3" /> Ver meta
+          <Lock className="h-3 w-3" /> View target
         </button>
         <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setPin(""); }}>
           <DialogContent className="sm:max-w-xs">
-            <DialogHeader><DialogTitle className="flex items-center gap-2"><Lock className="h-4 w-4" /> Ver meta</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><Lock className="h-4 w-4" /> View target</DialogTitle></DialogHeader>
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Digite o PIN para ver a meta e o progresso do turno.</p>
+              <p className="text-sm text-muted-foreground">Enter the PIN to see the target and shift progress.</p>
               <Input
                 type="password" inputMode="numeric" autoFocus value={pin}
                 onChange={(e) => setPin(e.target.value)}
@@ -431,9 +431,9 @@ function TargetMeta({ target, produced }: { target: number; produced: number }) 
               />
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setOpen(false); setPin(""); }}>Cancelar</Button>
+              <Button variant="outline" onClick={() => { setOpen(false); setPin(""); }}>Cancel</Button>
               <Button onClick={verify} disabled={checking || !pin.trim()}>
-                {checking && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Revelar
+                {checking && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Reveal
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -445,9 +445,9 @@ function TargetMeta({ target, produced }: { target: number; produced: number }) 
   return (
     <div className="w-full max-w-[230px]">
       <div className="text-right text-[11px] text-muted-foreground">
-        Produzido <b className="tabular-nums text-foreground">{produced.toLocaleString()}</b> de{" "}
-        <b className="tabular-nums text-foreground">{target.toLocaleString()}</b> — faltam{" "}
-        <b className="tabular-nums text-foreground">{remaining.toLocaleString()}</b>
+        Produced <b className="tabular-nums text-foreground">{produced.toLocaleString()}</b> of{" "}
+        <b className="tabular-nums text-foreground">{target.toLocaleString()}</b> —{" "}
+        <b className="tabular-nums text-foreground">{remaining.toLocaleString()}</b> left
       </div>
       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <div className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : "bg-primary"}`} style={{ width: `${pct}%` }} />
