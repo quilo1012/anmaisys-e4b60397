@@ -894,7 +894,7 @@ export default function ShiftHistoryPage() {
                                   </UITooltip>
                                 </td>
                                 <td className="px-3 py-2">
-                                  {i.sku_id && !s.locked ? (
+                                  {(i.sku_id || i.sku_code_text) && !s.locked ? (
                                     <input
                                       type="text"
                                       defaultValue={i.batch_code ?? ""}
@@ -916,7 +916,7 @@ export default function ShiftHistoryPage() {
                                   {blenders.length ? blenders.join(", ") : "—"}
                                 </td>
                                 <td className="px-3 py-2">
-                                  {i.id && i.sku_id ? (
+                                  {i.id && (i.sku_id || i.sku_code_text) ? (
                                     <InlineUnitQtyInput
                                       itemId={i.id}
                                       unit={effUnit}
@@ -930,10 +930,10 @@ export default function ShiftHistoryPage() {
                                   {weight ? weight.toLocaleString() : "—"}
                                 </td>
                                 <td className="px-3 py-2">
-                                  {i.sku_id ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="started_at" value={i.started_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
+                                  {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="started_at" value={i.started_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
                                 </td>
                                 <td className="px-3 py-2">
-                                  {i.sku_id ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
+                                  {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
                                 </td>
                                 <td className="px-3 py-2">
                                   <div className="flex items-center justify-end gap-1">
@@ -945,7 +945,7 @@ export default function ShiftHistoryPage() {
                                       </TooltipTrigger>
                                       <TooltipContent>{s.locked ? "Unlock row" : "Lock row"}</TooltipContent>
                                     </UITooltip>
-                                    {i.sku_id && (
+                                    {(i.sku_id || i.sku_code_text) && (
                                       <UITooltip>
                                         <TooltipTrigger asChild>
                                           <Button size="icon" variant="ghost" className="h-8 w-8" disabled={s.locked}
@@ -1008,7 +1008,7 @@ export default function ShiftHistoryPage() {
                               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
                                 {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                               </Button>
-                              {i.sku_id && (
+                              {(i.sku_id || i.sku_code_text) && (
                                 <Button size="icon" variant="ghost" className="h-8 w-8" disabled={s.locked}
                                   onClick={() => setDeletingItem({ id: i.id, code: skuMap.get(i.sku_id)?.code ?? i.sku_code_text ?? "this SKU" })}>
                                   <Trash2 className="h-4 w-4 text-destructive" />
@@ -1035,7 +1035,7 @@ export default function ShiftHistoryPage() {
                           <TableCardField label="Description" value={<span className="text-muted-foreground">{name}</span>} block />
                           <TableCardField
                             label="Batch"
-                            value={i.sku_id && !s.locked ? (
+                            value={(i.sku_id || i.sku_code_text) && !s.locked ? (
                               <input
                                 type="text"
                                 defaultValue={i.batch_code ?? ""}
@@ -1052,15 +1052,15 @@ export default function ShiftHistoryPage() {
                             ) : (<span className="font-mono">{i.batch_code || "—"}</span>)}
                           />
                           <TableCardField label="Blender" value={<span className="tabular-nums">{blenders.length ? blenders.join(", ") : "—"}</span>} />
-                          {i.sku_id && (
+                          {(i.sku_id || i.sku_code_text) && (
                             <TableCardField label="Start" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="started_at" value={i.started_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
                           )}
-                          {i.sku_id && (
+                          {(i.sku_id || i.sku_code_text) && (
                             <TableCardField label="Finish" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
                           )}
                           <TableCardField
                             label={`Qty (${effUnit})`}
-                            value={i.id && i.sku_id ? (
+                            value={i.id && (i.sku_id || i.sku_code_text) ? (
                               <InlineUnitQtyInput
                                 itemId={i.id}
                                 unit={effUnit}
