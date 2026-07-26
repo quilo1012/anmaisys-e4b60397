@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { format, subDays } from "date-fns";
 import { Brain, TrendingUp, TrendingDown, AlertCircle, CheckCircle2, Target, Sparkles, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,16 +38,24 @@ export default function WeeklyProductionReportPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
 
   useEffect(() => {
+    let mounted = true;
     (async () => {
-      const since = format(subDays(new Date(), 90), "yyyy-MM-dd");
-      const { data } = await supabase
-        .from("prediction_log")
-        .select("entry_date,line,shift,predicted_target,applied_target,actual_qty,error_pct,resolved")
-        .gte("entry_date", since)
-        .eq("resolved", true)
-        .order("entry_date", { ascending: false });
-      setRows((data ?? []) as Row[]);
+      try {
+        const since = format(subDays(new Date(), 90), "yyyy-MM-dd");
+        const { data, error } = await supabase
+          .from("prediction_log")
+          .select("entry_date,line,shift,predicted_target,applied_target,actual_qty,error_pct,resolved")
+          .gte("entry_date", since)
+          .eq("resolved", true)
+          .order("entry_date", { ascending: false });
+        if (error) throw error;
+        if (mounted) setRows((data ?? []) as Row[]);
+      } catch (e) {
+        // Surface the failure instead of rendering the hard-coded baseline as if real.
+        if (mounted) { toast.error((e as Error).message); setRows([]); }
+      }
     })();
+    return () => { mounted = false; };
   }, []);
 
   const overall = useMemo(() => {

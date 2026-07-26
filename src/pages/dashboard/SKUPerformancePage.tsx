@@ -53,7 +53,8 @@ export default function SKUPerformancePage() {
   const { data: lines = [] } = useQuery({
     queryKey: ["lines"],
     queryFn: async () => {
-      const { data } = await supabase.from("lines").select("name").order("name");
+      const { data, error } = await supabase.from("lines").select("name").order("name");
+      if (error) throw error;
       return (data ?? []) as { name: string }[];
     },
   });
@@ -65,7 +66,8 @@ export default function SKUPerformancePage() {
       const pageSize = 1000;
       const rows: { id: string; code: string; name: string }[] = [];
       for (let offset = 0; ; offset += pageSize) {
-        const { data } = await supabase.from("sku_products").select("id, code, name").order("code").range(offset, offset + pageSize - 1);
+        const { data, error } = await supabase.from("sku_products").select("id, code, name").order("code").range(offset, offset + pageSize - 1);
+        if (error) throw error;
         const page = (data ?? []) as { id: string; code: string; name: string }[];
         rows.push(...page);
         if (page.length < pageSize) break;

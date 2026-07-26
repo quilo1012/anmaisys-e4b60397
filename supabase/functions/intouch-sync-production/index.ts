@@ -1130,16 +1130,13 @@ Deno.serve(async (req) => {
     let session_date: string | undefined = body.session_date;
     let shift: "DAY" | "NIGHT" | undefined = body.shift;
     if (isCron && (!session_date || !shift)) {
-      const auto = body.auto;
-      const londonNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/London" }));
-      if (auto === "morning") {
-        const y = new Date(londonNow); y.setDate(y.getDate() - 1);
-        session_date = y.toISOString().slice(0, 10);
-        shift = "NIGHT";
-      } else {
-        session_date = londonNow.toISOString().slice(0, 10);
-        shift = "DAY";
-      }
+      // Derive the bucket from the ACTUAL London hour, not the cron's `auto`
+      // label. The label filed the 18:00–23:59 NIGHT shift into the previous day
+      // (auto="morning" for any hour outside 6–17), silently mis-bucketing every
+      // evening-NIGHT actual. currentLondonShift() is hour-aware and DST-safe.
+      const current = currentLondonShift();
+      session_date = current.session_date;
+      shift = current.shift;
     }
     if (!isCron && body.force === true && (!session_date || !shift)) {
       const current = currentLondonShift();

@@ -275,7 +275,8 @@ export default function LineProductionScreen() {
     enabled: !!canonicalLineName,
     queryKey: ["lps-line-id", canonicalLineName],
     queryFn: async () => {
-      const { data } = await (supabase as any).from("lines").select("id").eq("name", canonicalLineName).maybeSingle();
+      const { data, error } = await (supabase as any).from("lines").select("id").eq("name", canonicalLineName).maybeSingle();
+      if (error) throw error;
       return (data?.id as string) ?? null;
     },
     staleTime: 5 * 60_000,
