@@ -167,6 +167,34 @@ function InlineSessionNumberCell({
     </div>
   );
 }
+/** Inline time (HH:mm) for an item's started_at / finished_at. Saves on blur. */
+function InlineTimeCell({ itemId, sessionDate, field, value, disabled, onSaved }: {
+  itemId: string; sessionDate: string; field: "started_at" | "finished_at";
+  value: string | null; disabled?: boolean; onSaved: () => void;
+}) {
+  const initial = value ? new Date(value).toTimeString().slice(0, 5) : "";
+  const [val, setVal] = useState(initial);
+  useEffect(() => { setVal(initial); }, [initial]);
+  const commit = async () => {
+    if (val === initial) return;
+    let iso: string | null = null;
+    if (val) {
+      const [h, m] = val.split(":").map(Number);
+      const d = new Date(`${sessionDate}T00:00:00`);
+      d.setHours(h, m, 0, 0);
+      iso = d.toISOString();
+    }
+    const { error } = await supabase.from("production_items").update({ [field]: iso } as never).eq("id", itemId);
+    if (error) { toast.error(error.message); setVal(initial); return; }
+    onSaved();
+  };
+  return (
+    <input type="time" disabled={disabled} value={val}
+      onChange={(e) => setVal(e.target.value)} onBlur={commit}
+      className="h-7 w-[92px] rounded border bg-background px-1 text-xs tabular-nums disabled:opacity-60" />
+  );
+}
+
 /** Inline unit toggle: Tubs / Bags. Per-item. Saves on click. */
 function InlineUnitToggle({
   itemId, value, disabled, onSaved,
@@ -778,6 +806,8 @@ export default function ShiftHistoryPage() {
                         <th className="text-left px-3 py-2 border-b">Blender</th>
                         <th className="text-right px-3 py-2 border-b">Qty</th>
                         <th className="text-right px-3 py-2 border-b">Weight (g)</th>
+                        <th className="text-left px-3 py-2 border-b">Start</th>
+                        <th className="text-left px-3 py-2 border-b">Finish</th>
                         <th className="text-right px-3 py-2 border-b w-24">Actions</th>
                       </tr>
                     </thead>
@@ -793,7 +823,7 @@ export default function ShiftHistoryPage() {
                           if (s.line !== prevLine) {
                             out.push(
                               <tr key={`sep-${s.id}-${s.line}`} className="bg-primary/5">
-                                <td colSpan={11} className="px-3 py-1.5 text-[11px] uppercase font-semibold tracking-wider text-primary border-b border-primary/20">
+                                <td colSpan={13} className="px-3 py-1.5 text-[11px] uppercase font-semibold tracking-wider text-primary border-b border-primary/20">
                                   {s.line}
                                 </td>
                               </tr>
@@ -899,6 +929,12 @@ export default function ShiftHistoryPage() {
                                 </td>
                                 <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
                                   {weight ? weight.toLocaleString() : "—"}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {i.sku_id ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="started_at" value={i.started_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {i.sku_id ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
                                 </td>
                                 <td className="px-3 py-2">
                                   <div className="flex items-center justify-end gap-1">
@@ -1017,6 +1053,12 @@ export default function ShiftHistoryPage() {
                             ) : (<span className="font-mono">{i.batch_code || "—"}</span>)}
                           />
                           <TableCardField label="Blender" value={<span className="tabular-nums">{blenders.length ? blenders.join(", ") : "—"}</span>} />
+                          {i.sku_id && (
+                            <TableCardField label="Start" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="started_at" value={i.started_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
+                          )}
+                          {i.sku_id && (
+                            <TableCardField label="Finish" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
+                          )}
                           <TableCardField
                             label={`Qty (${effUnit})`}
                             value={i.id && i.sku_id ? (
