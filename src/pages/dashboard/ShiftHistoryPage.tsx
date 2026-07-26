@@ -46,7 +46,7 @@ function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU", allowA
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     const base = query
-      ? skus.filter((s) => s.code.toLowerCase().includes(query) || s.name.toLowerCase().includes(query))
+      ? skus.filter((s) => (s.code ?? "").toLowerCase().includes(query) || (s.name ?? "").toLowerCase().includes(query))
       : skus;
     return base.slice(0, 60);
   }, [skus, q]);
@@ -362,14 +362,13 @@ export default function ShiftHistoryPage() {
   const [addLine, setAddLine] = useState("");
   const [addShift, setAddShift] = useState<"DAY" | "NIGHT">("DAY");
   const [addSkuId, setAddSkuId] = useState("");
-  const [addTarget, setAddTarget] = useState("");
   const [addActual, setAddActual] = useState("");
 
   const addProduction = useMutation({
     mutationFn: async () => {
       if (!addLine) throw new Error("Pick a line");
       if (!addSkuId) throw new Error("Pick a SKU");
-      const target = Number(addTarget) || 0;
+      // Target isn't set here — it comes from the RAG Weekly plan.
       const actual = Number(addActual) || 0;
       // Find or create the session for this date/line/shift.
       const { data: existing, error: findErr } = await supabase
@@ -392,11 +391,11 @@ export default function ShiftHistoryPage() {
         .eq("session_id", sessionId).eq("sku_id", addSkuId).maybeSingle();
       if (item) {
         const { error } = await supabase.from("production_items")
-          .update({ actual_qty: Number(item.actual_qty ?? 0) + actual, target_qty: target || item.target_qty }).eq("id", item.id);
+          .update({ actual_qty: Number(item.actual_qty ?? 0) + actual }).eq("id", item.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("production_items").insert({
-          session_id: sessionId, sku_id: addSkuId, target_qty: target, planned_qty: target, actual_qty: actual,
+          session_id: sessionId, sku_id: addSkuId, target_qty: 0, planned_qty: 0, actual_qty: actual,
         });
         if (error) throw error;
       }
@@ -405,7 +404,7 @@ export default function ShiftHistoryPage() {
       qc.invalidateQueries({ queryKey: ["shift_history"] });
       toast.success("Production added");
       setAddOpen(false);
-      setAddSkuId(""); setAddTarget(""); setAddActual("");
+      setAddSkuId(""); setAddActual("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1160,11 +1159,8 @@ export default function ShiftHistoryPage() {
               <div><Label className="text-xs">SKU</Label>
                 <SkuCombobox skus={skus} value={addSkuId} onChange={setAddSkuId} />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div><Label className="text-xs">Target (optional)</Label><Input type="number" inputMode="numeric" value={addTarget} onChange={(e) => setAddTarget(e.target.value)} placeholder="0" /></div>
-                <div><Label className="text-xs">Produced (actual)</Label><Input type="number" inputMode="numeric" value={addActual} onChange={(e) => setAddActual(e.target.value)} placeholder="0" autoFocus /></div>
-              </div>
-              <p className="text-[11px] text-muted-foreground">Adds this SKU to the shift. If it's already there, the produced quantity is added on top.</p>
+              <div><Label className="text-xs">Produced (actual)</Label><Input type="number" inputMode="numeric" value={addActual} onChange={(e) => setAddActual(e.target.value)} placeholder="0" autoFocus /></div>
+              <p className="text-[11px] text-muted-foreground">Adds this SKU to the shift. If it's already there, the produced quantity is added on top. The target comes from the RAG Weekly plan.</p>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
