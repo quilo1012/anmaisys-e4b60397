@@ -476,37 +476,60 @@ export default function ControlCenterPage() {
               {!workOrders?.length ? (
                 <p className="text-muted-foreground text-center py-8">No active work orders.</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Line</TableHead>
-                      <TableHead>Machine</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Problem</TableHead>
-                      <TableHead>Engineer</TableHead>
-                      <TableHead>Downtime</TableHead>
-                      <TableHead>Created</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {workOrders.map((wo: any) => {
-                      const machine = machines?.find((m: any) => m.name === wo.machine);
-                      const downMin = differenceInMinutes(new Date(), new Date(wo.created_at));
-                      const sc = getWoStatusConfig(wo.status);
-                      return (
-                        <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-                          <TableCell className="font-medium">{machine ? getZoneFor(machine) : "Unassigned"}</TableCell>
-                          <TableCell>{wo.machine || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
-                          <TableCell><StatusBadge status={wo.status} label={sc.label} /></TableCell>
-                          <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
-                          <TableCell>{wo.engineer_name || "—"}</TableCell>
-                          <TableCell className="font-mono">{formatDowntime(downMin)}</TableCell>
-                          <TableCell className="text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                <ResponsiveTable
+                  table={
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Line</TableHead>
+                          <TableHead>Machine</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Problem</TableHead>
+                          <TableHead>Engineer</TableHead>
+                          <TableHead>Downtime</TableHead>
+                          <TableHead>Created</TableHead>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {workOrders.map((wo: any) => {
+                          const machine = machines?.find((m: any) => m.name === wo.machine);
+                          const downMin = differenceInMinutes(new Date(), new Date(wo.created_at));
+                          const sc = getWoStatusConfig(wo.status);
+                          return (
+                            <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                              <TableCell className="font-medium">{machine ? getZoneFor(machine) : "Unassigned"}</TableCell>
+                              <TableCell>{wo.machine || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
+                              <TableCell><StatusBadge status={wo.status} label={sc.label} /></TableCell>
+                              <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
+                              <TableCell>{wo.engineer_name || "—"}</TableCell>
+                              <TableCell className="font-mono">{formatDowntime(downMin)}</TableCell>
+                              <TableCell className="text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  }
+                  cards={workOrders.map((wo: any) => {
+                    const machine = machines?.find((m: any) => m.name === wo.machine);
+                    const downMin = differenceInMinutes(new Date(), new Date(wo.created_at));
+                    const sc = getWoStatusConfig(wo.status);
+                    return (
+                      <TableCard
+                        key={wo.id}
+                        onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
+                        title={wo.machine || "Unassigned machine"}
+                        right={<StatusBadge status={wo.status} label={sc.label} />}
+                      >
+                        <TableCardField label="Line" value={machine ? getZoneFor(machine) : "Unassigned"} />
+                        <TableCardField label="Problem" value={wo.description || "—"} block />
+                        <TableCardField label="Engineer" value={wo.engineer_name || "—"} />
+                        <TableCardField label="Downtime" value={<span className="font-mono">{formatDowntime(downMin)}</span>} />
+                        <TableCardField label="Created" value={<span className="text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</span>} />
+                      </TableCard>
+                    );
+                  })}
+                />
               )}
             </CardContent>
           </Card>
