@@ -15,6 +15,7 @@ import { Check, Download, Lock, Unlock, Trash2, Upload, Plus, ChevronLeft, Chevr
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { InlineActualInput } from "@/components/InlineActualInput";
+import { TableCard, TableCardField } from "@/components/ResponsiveTable";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { baseSkuCode } from "@/lib/skuDisplay";
