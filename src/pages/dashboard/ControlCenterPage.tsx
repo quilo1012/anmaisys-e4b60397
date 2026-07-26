@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getWoStatusConfig } from "@/lib/woStatusConfig";
 import { formatWONumber } from "@/lib/woFormat";
 import { cn } from "@/lib/utils";
+import { ResponsiveTable, TableCard, TableCardField } from "@/components/ResponsiveTable";
 
 // Non-numbered zones, in display order. Numbered production lines ("Line 1"…"Line 6")
 // are ordered numerically before these by getZones().
