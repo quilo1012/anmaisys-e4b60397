@@ -2001,33 +2001,42 @@ export type Database = {
       }
       production_blender_entries: {
         Row: {
+          blender_label: string | null
           blender_number: number
           created_at: string
           entered_by: string | null
+          finished_at: string | null
           id: string
           production_item_id: string
           quantity: number
           session_id: string
+          started_at: string | null
           updated_at: string
         }
         Insert: {
+          blender_label?: string | null
           blender_number: number
           created_at?: string
           entered_by?: string | null
+          finished_at?: string | null
           id?: string
           production_item_id: string
           quantity?: number
           session_id: string
+          started_at?: string | null
           updated_at?: string
         }
         Update: {
+          blender_label?: string | null
           blender_number?: number
           created_at?: string
           entered_by?: string | null
+          finished_at?: string | null
           id?: string
           production_item_id?: string
           quantity?: number
           session_id?: string
+          started_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2113,6 +2122,7 @@ export type Database = {
       production_items: {
         Row: {
           actual_qty: number
+          batch_code: string | null
           blender_ref: string | null
           created_at: string
           display_order: number
@@ -2134,6 +2144,7 @@ export type Database = {
         }
         Insert: {
           actual_qty?: number
+          batch_code?: string | null
           blender_ref?: string | null
           created_at?: string
           display_order?: number
@@ -2155,6 +2166,7 @@ export type Database = {
         }
         Update: {
           actual_qty?: number
+          batch_code?: string | null
           blender_ref?: string | null
           created_at?: string
           display_order?: number
@@ -3471,6 +3483,45 @@ export type Database = {
         }
         Relationships: []
       }
+      sku_products_backup: {
+        Row: {
+          active: boolean
+          category: string | null
+          code: string
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          target_per_hour: number
+          updated_at: string
+          weight: number | null
+        }
+        Insert: {
+          active?: boolean
+          category?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          target_per_hour?: number
+          updated_at?: string
+          weight?: number | null
+        }
+        Update: {
+          active?: boolean
+          category?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          target_per_hour?: number
+          updated_at?: string
+          weight?: number | null
+        }
+        Relationships: []
+      }
       suppliers: {
         Row: {
           active: boolean
@@ -4307,6 +4358,10 @@ export type Database = {
         Returns: boolean
       }
       import_sku_products: { Args: { _rows: Json }; Returns: Json }
+      increment_product_quantity: {
+        Args: { p_delta: number; p_product_id: string }
+        Returns: undefined
+      }
       is_operator_chat_admin: { Args: { uid: string }; Returns: boolean }
       list_active_profile_names: {
         Args: never
@@ -4429,6 +4484,11 @@ export type Database = {
       }
       restore_item_skus_from_backup: { Args: never; Returns: number }
       restore_remaining_null_skus: { Args: never; Returns: number }
+      restore_sku_products_from_backup: { Args: never; Returns: Json }
+      save_production_items: {
+        Args: { p_items: Json; p_session_id: string }
+        Returns: Json
+      }
       set_admin_pin: { Args: { _new_pin: string }; Returns: undefined }
       set_engineer_pin: {
         Args: { _new_pin: string; _user_id: string }
@@ -4438,6 +4498,7 @@ export type Database = {
         Args: { _engineer_id: string; _new_pin: string }
         Returns: undefined
       }
+      snapshot_sku_products: { Args: never; Returns: Json }
       touch_device: { Args: { _token: string }; Returns: undefined }
       unpair_device: { Args: { _device_id: string }; Returns: undefined }
       update_leader:

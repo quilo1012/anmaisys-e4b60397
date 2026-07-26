@@ -426,14 +426,32 @@ html, body, #root {
     max-width: 100%;
     height: auto;
   }
-  /* Long words / URLs shouldn't blow out cards */
+  /* Long words / URLs shouldn't blow out cards.
+     IMPORTANT: exclude tables — overflow-wrap:anywhere on a narrow <td>
+     collapses text to one character per line (the "M-a-c-h-i-n-e vertical"
+     bug on mobile). Tables get horizontal scroll via their wrapper. */
   main p,
   main h1,
   main h2,
-  main h3,
-  main span,
-  main div {
+  main h3 {
     overflow-wrap: anywhere;
+  }
+  main span:not(table span):not(th span):not(td span),
+  main div:not(table div):not(th div):not(td div) {
+    overflow-wrap: anywhere;
+  }
+  /* Table cells: never break letter-by-letter. Wrap on word boundaries and
+     let the wrapper scroll horizontally when the row is wider than screen. */
+  main table {
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+  main th {
+    white-space: nowrap;
+  }
+  main td {
+    word-break: normal;
+    overflow-wrap: break-word;
   }
 }
 

@@ -30,7 +30,7 @@ export function SignupSettingsCard() {
 
   useEffect(() => {
     let ok = true;
-    cfg().select("invite_code, enabled").eq("id", true).maybeSingle().then(({ data }: { data: { invite_code: string | null; enabled: boolean } | null }) => {
+    cfg().select("invite_code, enabled").eq("id", true).maybeSingle().then(({ data }: any) => {
       if (!ok || !data) { setLoading(false); return; }
       setCode(data.invite_code ?? "");
       setEnabled(!!data.enabled);
