@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { writeAudit } from "../_shared/audit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,6 +51,10 @@ Deno.serve(async (req) => {
     deleteResult = await deleteAll("work_orders"); if (deleteResult) return deleteResult;
     deleteResult = await deleteAll("engineer_scores"); if (deleteResult) return deleteResult;
 
+    await writeAudit(adminClient, {
+      callerId: user.id, req, action: "work_orders_cleared", entity_type: "system",
+      details: { cleared_tables: ["wo_messages", "wo_photos", "parts_used", "work_orders", "engineer_scores"] },
+    });
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

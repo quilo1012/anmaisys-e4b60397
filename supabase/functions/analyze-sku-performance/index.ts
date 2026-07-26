@@ -28,15 +28,24 @@ Deno.serve(async (req) => {
       return json({ error: "unauthorized" }, 401);
     }
 
-    const body = await req.json().catch(() => ({}));
-    const skuId: string | undefined = body?.sku_id;
-    const line: string | undefined = body?.line;
-    if (!skuId || !line) return json({ error: "sku_id and line are required" }, 400);
-
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // Authorization: only management roles may read production history through the
+    // service role. Mirrors the production.sku_performance.view UI gate so a plain
+    // operator/viewer token can't pull this data and bypass RLS.
+    const { data: callerRoles } = await admin
+      .from("user_roles").select("role").eq("user_id", claimsData.claims.sub);
+    if (!(callerRoles ?? []).some((r: { role: string }) => ["admin", "manager", "supervisor"].includes(r.role))) {
+      return json({ error: "forbidden" }, 403);
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const skuId: string | undefined = body?.sku_id;
+    const line: string | undefined = body?.line;
+    if (!skuId || !line) return json({ error: "sku_id and line are required" }, 400);
 
     // Load all history for this SKU on this line
     const { data: items, error: itemsErr } = await admin

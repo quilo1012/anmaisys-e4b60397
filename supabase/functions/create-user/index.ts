@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { writeAudit } from "../_shared/audit.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
 import bcrypt from "npm:bcryptjs@2.4.3";
@@ -173,6 +174,10 @@ Deno.serve(async (req) => {
       }
     }
 
+    await writeAudit(supabaseAdmin, {
+      callerId, req, action: "user_created", entity_type: "user",
+      entity_id: newUser.user.id, details: { role, name },
+    });
     return jsonResponse({ success: true, userId: newUser.user.id }, 200);
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {

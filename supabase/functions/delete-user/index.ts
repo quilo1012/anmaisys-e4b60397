@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { writeAudit } from "../_shared/audit.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
 
@@ -87,6 +88,10 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Could not delete user" }, 400);
     }
 
+    await writeAudit(supabaseAdmin, {
+      callerId, req, action: "user_deleted", entity_type: "user",
+      entity_id: userId, details: { deleted_role: targetRole ?? null },
+    });
     return jsonResponse({ success: true }, 200);
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {

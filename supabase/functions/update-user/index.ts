@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { writeAudit } from "../_shared/audit.ts";
 import { z } from "npm:zod@3.23.8";
 
 const MAX_BODY_BYTES = 8 * 1024;
@@ -262,6 +263,14 @@ Deno.serve(async (req) => {
       }
     }
 
+    await writeAudit(supabaseAdmin, {
+      callerId, req,
+      action: role && role !== targetRole ? "user_role_changed" : "update",
+      entity_type: "user", entity_id: userId,
+      details: role && role !== targetRole
+        ? { old_role: targetRole ?? null, new_role: role }
+        : { updated: true },
+    });
     return jsonResponse({ success: true }, 200);
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
