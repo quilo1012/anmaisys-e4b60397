@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
@@ -381,6 +382,79 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
 
 /** A scheduled/running job as returned by intouch-list-scheduled-jobs. */
 type IntouchJob = { code: string; description: string; qty: number; status: string; seq: number; batch: string; actual: number };
+
+/** The shift target is hidden by default so operators aren't shown the number.
+ *  Anyone with the shared company PIN can reveal it — it's not leader-only.
+ *  Once revealed it stays visible for this screen's session. */
+function TargetMeta({ target, produced }: { target: number; produced: number }) {
+  const [revealed, setRevealed] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [pin, setPin] = useState("");
+  const [checking, setChecking] = useState(false);
+
+  if (target <= 0) return null;
+
+  const remaining = Math.max(0, target - produced);
+  const pct = Math.min(100, Math.round((produced / target) * 100));
+
+  const verify = async () => {
+    const p = pin.trim();
+    if (!p) return;
+    setChecking(true);
+    try {
+      const { data, error } = await (supabase.rpc as any)("verify_target_pin", { _pin: p });
+      if (error) throw error;
+      if (data === true) { setRevealed(true); setOpen(false); setPin(""); }
+      else { toast.error("PIN incorreto"); setPin(""); }
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível verificar o PIN");
+    } finally { setChecking(false); }
+  };
+
+  if (!revealed) {
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+          <Lock className="h-3 w-3" /> Ver meta
+        </button>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setPin(""); }}>
+          <DialogContent className="sm:max-w-xs">
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><Lock className="h-4 w-4" /> Ver meta</DialogTitle></DialogHeader>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Digite o PIN para ver a meta e o progresso do turno.</p>
+              <Input
+                type="password" inputMode="numeric" autoFocus value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") verify(); }}
+                placeholder="PIN" className="h-11 text-center tracking-[0.4em]" autoComplete="off"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setOpen(false); setPin(""); }}>Cancelar</Button>
+              <Button onClick={verify} disabled={checking || !pin.trim()}>
+                {checking && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Revelar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-[230px]">
+      <div className="text-right text-[11px] text-muted-foreground">
+        Produzido <b className="tabular-nums text-foreground">{produced.toLocaleString()}</b> de{" "}
+        <b className="tabular-nums text-foreground">{target.toLocaleString()}</b> — faltam{" "}
+        <b className="tabular-nums text-foreground">{remaining.toLocaleString()}</b>
+      </div>
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : "bg-primary"}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
 
 function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId: string; target?: number; produced?: number }) {
   const qc = useQueryClient();
@@ -868,12 +942,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <div className="text-xs uppercase tracking-wider text-muted-foreground">Quantity produced</div>
-            {target > 0 && (
-              <div className="text-[11px] text-muted-foreground">
-                Remaining: <b className="text-foreground tabular-nums">{Math.max(0, target - produced).toLocaleString()}</b>
-                <span className="text-muted-foreground/60"> of {target.toLocaleString()}</span>
-              </div>
-            )}
+            <TargetMeta target={target} produced={produced} />
           </div>
           <Input
             type="number"
