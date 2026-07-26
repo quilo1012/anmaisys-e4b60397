@@ -137,10 +137,19 @@ export function ImportProductionDialog({ open, onOpenChange, onImported }: {
     if (valid.length === 0) { toast.error("No valid rows to import"); return; }
     setImporting(true);
     try {
-      // Pre-fetch SKU map
-      const codes = Array.from(new Set(valid.map((r) => r.sku_code)));
-      const { data: skus } = await supabase.from("sku_products").select("id, code").in("code", codes);
-      const skuMap = new Map((skus ?? []).map((s: any) => [s.code, s.id]));
+      // Match the file's codes to the catalog case-insensitively and by base
+      // code (stripping a "- Bn" batch suffix), so real SKUs aren't missed over
+      // a case or batch-suffix difference. Anything still unmatched is imported
+      // as a free-text SKU below rather than dropped.
+      const norm = (c: string) => c.trim().toLowerCase();
+      const baseCode = (c: string) => norm(c).replace(/\s*-\s*b\d+\s*$/i, "");
+      const { data: skus } = await supabase.from("sku_products").select("id, code");
+      const skuMap = new Map<string, string>();
+      for (const s of (skus ?? []) as any[]) {
+        skuMap.set(norm(s.code), s.id);
+        if (!skuMap.has(baseCode(s.code))) skuMap.set(baseCode(s.code), s.id);
+      }
+      const resolveSku = (code: string) => skuMap.get(norm(code)) ?? skuMap.get(baseCode(code)) ?? null;
 
       // Group rows by date+shift+line
       const groups = new Map<string, ParsedRow[]>();
@@ -169,29 +178,31 @@ export function ImportProductionDialog({ open, onOpenChange, onImported }: {
           sessionId = ins.id;
         }
         sessionCount++;
-        // aggregate qty per sku
+        // aggregate qty per code (keeping the original code text for free-text rows)
         const aggr = new Map<string, number>();
         for (const r of grp) {
-          if (!skuMap.has(r.sku_code)) { skippedUnknown++; continue; }
           aggr.set(r.sku_code, (aggr.get(r.sku_code) ?? 0) + r.qty);
         }
         for (const [code, qty] of aggr) {
-          const sku_id = skuMap.get(code)!;
-          const { data: existingItem } = await supabase
-            .from("production_items").select("id, actual_qty")
-            .eq("session_id", sessionId).eq("sku_id", sku_id).maybeSingle();
+          const sku_id = resolveSku(code);
+          // Not in the catalog → keep it as a free-text SKU instead of dropping
+          // the row, so every line in the file lands.
+          let q = supabase.from("production_items").select("id").eq("session_id", sessionId);
+          q = sku_id ? q.eq("sku_id", sku_id) : q.is("sku_id", null).eq("sku_code_text", code);
+          const { data: existingItem } = await q.maybeSingle();
           if (existingItem) {
-            await supabase.from("production_items")
-              .update({ actual_qty: qty }).eq("id", existingItem.id);
+            await supabase.from("production_items").update({ actual_qty: qty }).eq("id", existingItem.id);
           } else {
             await supabase.from("production_items").insert({
-              session_id: sessionId, sku_id, target_qty: 0, planned_qty: 0, actual_qty: qty,
+              session_id: sessionId, sku_id, sku_code_text: sku_id ? null : code,
+              target_qty: 0, planned_qty: 0, actual_qty: qty,
             });
           }
+          if (!sku_id) skippedUnknown++; // counted as "kept as free-text" in the toast
           itemCount++;
         }
       }
-      toast.success(`Imported ${itemCount} items across ${sessionCount} sessions${skippedUnknown ? ` · ${skippedUnknown} unknown SKUs skipped` : ""}`);
+      toast.success(`Imported ${itemCount} items across ${sessionCount} sessions${skippedUnknown ? ` · ${skippedUnknown} not in catalog, kept as typed` : ""}`);
       onImported?.();
       onOpenChange(false);
       setRows([]); setFileName("");
