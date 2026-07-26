@@ -55,14 +55,14 @@ const ENVIRONMENTS: Array<{
   key: Env; mode: Mode; label: string; tagline: string; profile: string;
   icon: typeof Monitor; color: string; tint: string;
 }> = [
-  { key: "desktop", mode: "staff", label: "Desktop", tagline: "Gestão e Administração",
-    profile: "Admin, Gestor, Supervisor, Engenharia, Planejamento",
+  { key: "desktop", mode: "staff", label: "Desktop", tagline: "Management & Administration",
+    profile: "Admin, Manager, Supervisor, Engineering, Planning",
     icon: Monitor, color: "#1E3A8A", tint: "rgba(30,58,138,0.08)" },
-  { key: "tablet", mode: "tablet", label: "Tablet", tagline: "Operação em Linha",
-    profile: "Operador, Técnico, Manutenção, Produção",
+  { key: "tablet", mode: "tablet", label: "Tablet", tagline: "Line Operation",
+    profile: "Operator, Technician, Maintenance, Production",
     icon: Tablet, color: "#16A34A", tint: "rgba(22,163,74,0.08)" },
-  { key: "mobile", mode: "staff", label: "Mobile", tagline: "Acesso Operacional Rápido",
-    profile: "Técnico externo, Líder, Campo",
+  { key: "mobile", mode: "staff", label: "Mobile", tagline: "Quick Operational Access",
+    profile: "External technician, Leader, Field",
     icon: Smartphone, color: "#7C3AED", tint: "rgba(124,58,237,0.08)" },
 ];
 
@@ -70,9 +70,9 @@ const ENVIRONMENTS: Array<{
 function envMismatch(role: string | null | undefined, env: Env): string | null {
   const r = (role ?? "").toLowerCase();
   if (env === "tablet" && ["admin", "manager", "supervisor"].includes(r))
-    return "⚠️ Ambiente incorreto — Seu usuário possui permissão Desktop. Utilize o acesso Gestão/Administração.";
+    return "⚠️ Wrong environment — Your account has Desktop access. Use the Management / Administration login.";
   if (env === "desktop" && r === "operator")
-    return "⚠️ Permissão insuficiente — Este usuário não possui acesso administrativo.";
+    return "⚠️ Insufficient permission — This account has no administrative access.";
   return null;
 }
 
@@ -332,11 +332,11 @@ export default function Login() {
     <AuthShell
       brandIconUrl={brandIconUrl}
       backgroundImages={loginBannerUrls}
-      title="Escolha seu ambiente de acesso"
-      subtitle="Selecione o dispositivo correto conforme sua função."
+      title="Choose your access environment"
+      subtitle="Select the right device for your role."
     >
       {/* Environment cards — Desktop / Tablet / Mobile */}
-      <div className="mb-5 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Ambiente de acesso">
+      <div className="mb-5 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Access environment">
         {ENVIRONMENTS.map((env) => {
           const Icon = env.icon;
           const active = environment === env.key;
@@ -371,8 +371,8 @@ export default function Login() {
         style={{ borderColor: selectedEnv.color, background: selectedEnv.tint }}>
         <selectedEnv.icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: selectedEnv.color }} />
         <span className="text-slate-700">
-          <b>Ambiente selecionado: {selectedEnv.label}</b> — Perfil esperado: {selectedEnv.profile}.
-          <span className="text-slate-500"> Digite suas credenciais para continuar.</span>
+          <b>Selected environment: {selectedEnv.label}</b> — Expected role: {selectedEnv.profile}.
+          <span className="text-slate-500"> Enter your credentials to continue.</span>
         </span>
       </div>
 
@@ -514,7 +514,7 @@ export default function Login() {
       )}
 
       <p className="mt-5 border-t border-white/50 pt-3 text-center text-[11px] leading-relaxed text-slate-500">
-        🔒 Conexão segura · 🛡 Controle de acesso por perfil · 📋 Todas as ações são auditadas
+        🔒 Secure connection · 🛡 Role-based access control · 📋 All actions are audited
       </p>
     </AuthShell>
   );
