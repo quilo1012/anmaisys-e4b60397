@@ -709,7 +709,8 @@ export default function ShiftHistoryPage() {
               <div className="p-6 text-muted-foreground text-center">No sessions</div>
             ) : (
               <TooltipProvider delayDuration={200}>
-                <div className="max-h-[70vh] overflow-auto">
+                {/* Desktop / tablet — full editable table */}
+                <div className="hidden md:block max-h-[70vh] overflow-auto">
                   <table className="w-full text-sm border-separate border-spacing-0">
                     <thead className="sticky top-0 z-10 bg-muted text-[11px] uppercase tracking-wide">
                       <tr>
@@ -873,6 +874,105 @@ export default function ShiftHistoryPage() {
                       })()}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile — one card per SKU row */}
+                <div className="md:hidden p-3 space-y-2">
+                  {filtered.flatMap((s) => {
+                    const items = s.production_items.length === 0
+                      ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null, tickets_unit: null as "tubs" | "bags" | null }]
+                      : s.production_items;
+                    return items.map((i, idx) => {
+                      const sku = skuMap.get(i.sku_id);
+                      const code = sku?.code ?? "";
+                      const name = sku?.name ?? (i.sku_id ? "Unknown" : "—");
+                      const noteUnit = i.tickets_unit ?? (/\[unit:tubs\]/i.test(i.notes ?? "") ? "tubs" : /\[unit:bags\]/i.test(i.notes ?? "") ? "bags" : null);
+                      const blob = `${code} ${name}`.toLowerCase();
+                      const effUnit: "tubs" | "bags" = noteUnit ?? (/tub/.test(blob) ? "tubs" : /bag|sach|pouch/.test(blob) ? "bags" : "bags");
+                      const blenders = Array.from(new Set((i.production_blender_entries ?? []).map((b) => b.blender_number))).sort((x, y) => x - y);
+                      const noLeader = !s.leader_id;
+                      return (
+                        <TableCard
+                          key={`m-${s.id}-${i.id ?? idx}`}
+                          className={cn(noLeader && "border-yellow-500/50 bg-yellow-500/5")}
+                          title={
+                            <span className="flex items-center gap-2">
+                              <span className="font-mono">{baseSkuCode(code) || i.sku_code_text || "—"}</span>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px] font-semibold px-1.5 py-0",
+                                  s.shift === "DAY"
+                                    ? "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                                    : "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300",
+                                )}
+                              >
+                                {s.shift}
+                              </Badge>
+                            </span>
+                          }
+                          right={
+                            <div className="flex items-center gap-1">
+                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
+                                {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setDeleting(s.id)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          }
+                        >
+                          <TableCardField label="Date" value={s.session_date ? format(new Date(s.session_date), "dd/MM") : "—"} />
+                          <TableCardField label="Line" value={s.line.replace(/\s*filler\s*/i, " ").replace(/\s+/g, " ").trim()} />
+                          <TableCardField
+                            label="Leader"
+                            value={idx === 0 ? (
+                              <InlineLeaderCell
+                                sessionId={s.id}
+                                leaderId={s.leader_id}
+                                leaderName={s.leader_name}
+                                leaders={leaders}
+                                disabled={s.locked}
+                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                              />
+                            ) : (s.leader_name || "—")}
+                          />
+                          <TableCardField label="Description" value={<span className="text-muted-foreground">{name}</span>} block />
+                          <TableCardField
+                            label="Batch"
+                            value={i.sku_id && !s.locked ? (
+                              <input
+                                type="text"
+                                defaultValue={i.blender_ref ?? ""}
+                                placeholder="B#"
+                                className="w-full h-8 px-2 text-xs font-mono rounded border bg-background"
+                                onBlur={async (e) => {
+                                  const v = e.target.value.trim() || null;
+                                  if (v === (i.blender_ref ?? null)) return;
+                                  const { error } = await supabase.from("production_items").update({ blender_ref: v }).eq("id", i.id);
+                                  if (error) toast.error(error.message);
+                                  else { toast.success("Batch saved"); qc.invalidateQueries({ queryKey: ["shift_history"] }); }
+                                }}
+                              />
+                            ) : (<span className="font-mono">{i.blender_ref || "—"}</span>)}
+                          />
+                          <TableCardField label="Blender" value={<span className="tabular-nums">{blenders.length ? blenders.join(", ") : "—"}</span>} />
+                          <TableCardField
+                            label={`Qty (${effUnit})`}
+                            value={i.id && i.sku_id ? (
+                              <InlineUnitQtyInput
+                                itemId={i.id}
+                                unit={effUnit}
+                                value={Number(i.actual_qty ?? 0)}
+                                disabled={s.locked}
+                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                              />
+                            ) : "—"}
+                          />
+                        </TableCard>
+                      );
+                    });
+                  })}
                 </div>
               </TooltipProvider>
             )}
