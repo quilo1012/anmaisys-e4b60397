@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Check, Download, Lock, Unlock, Trash2, Upload, Plus, ChevronLeft, ChevronRight, CalendarDays, CalendarRange } from "lucide-react";
+import { Check, Download, Lock, Unlock, Trash2, Upload, Plus, ChevronLeft, ChevronRight, CalendarDays, CalendarRange, ChevronsUpDown, Search } from "lucide-react";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { InlineActualInput } from "@/components/InlineActualInput";
@@ -24,6 +25,58 @@ import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlann
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 import XLSX from "xlsx-js-style";
+
+/** Drop the customs code ("… [HS CODE:2106909285]") from a catalog name. */
+function skuLabel(name: string | null | undefined): string {
+  return String(name ?? "").replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim();
+}
+
+/** Searchable SKU picker — the same standard as the operator's Log Production,
+ *  instead of a native select listing ~1,500 SKUs with the HS code inline. */
+function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU" }: {
+  skus: { id: string; code: string; name: string }[];
+  value: string; onChange: (id: string) => void; placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const selected = skus.find((s) => s.id === value);
+  const filtered = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    const base = query
+      ? skus.filter((s) => s.code.toLowerCase().includes(query) || s.name.toLowerCase().includes(query))
+      : skus;
+    return base.slice(0, 60);
+  }, [skus, q]);
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQ(""); }}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+          <span className="truncate">{selected ? `${selected.code} — ${skuLabel(selected.name)}` : placeholder}</span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <div className="relative border-b p-2">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="Search by name or code..." className="h-9 pl-8" autoComplete="off" />
+        </div>
+        <div className="max-h-72 overflow-auto">
+          {filtered.length === 0 ? (
+            <div className="p-3 text-sm text-muted-foreground">No SKUs found</div>
+          ) : filtered.map((s) => (
+            <button key={s.id} type="button"
+              onClick={() => { onChange(s.id); setOpen(false); setQ(""); }}
+              className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-accent">
+              <span className="text-sm font-medium leading-tight">{skuLabel(s.name)}</span>
+              <span className="font-mono text-xs text-muted-foreground">{s.code}</span>
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 /** Inline Leader dropdown that saves on selection. Falls back to the stored
  *  leader_name when the leader_id is missing or points to an inactive leader,
@@ -1005,14 +1058,7 @@ export default function ShiftHistoryPage() {
                 {isAdmin && (
                   <div>
                     <Label>SKU</Label>
-                    <Select value={editSkuId} onValueChange={setEditSkuId}>
-                      <SelectTrigger><SelectValue placeholder="Pick a SKU" /></SelectTrigger>
-                      <SelectContent className="max-h-72">
-                        {skus.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>{s.code} — {s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SkuCombobox skus={skus} value={editSkuId} onChange={setEditSkuId} />
                   </div>
                 )}
                 <div>
@@ -1062,10 +1108,7 @@ export default function ShiftHistoryPage() {
                 </div>
               </div>
               <div><Label className="text-xs">SKU</Label>
-                <Select value={addSkuId} onValueChange={setAddSkuId}>
-                  <SelectTrigger><SelectValue placeholder="Pick a SKU" /></SelectTrigger>
-                  <SelectContent className="max-h-72">{skus.map((s) => <SelectItem key={s.id} value={s.id}>{s.code} — {s.name}</SelectItem>)}</SelectContent>
-                </Select>
+                <SkuCombobox skus={skus} value={addSkuId} onChange={setAddSkuId} />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div><Label className="text-xs">Target (optional)</Label><Input type="number" inputMode="numeric" value={addTarget} onChange={(e) => setAddTarget(e.target.value)} placeholder="0" /></div>
