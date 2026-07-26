@@ -318,7 +318,10 @@ export default function ShiftHistoryPage() {
     setTo(format(endOfMonth(monthAnchor), "yyyy-MM-dd"));
   }, [viewMode, monthAnchor]);
 
-  const [deleting, setDeleting] = useState<string | null>(null);
+  // Per-row delete targets the SINGLE SKU item — NOT the whole session. A trash
+  // icon that sat on a SKU row but deleted the entire shift once wiped a full
+  // line of production by accident.
+  const [deletingItem, setDeletingItem] = useState<{ id: string; code: string } | null>(null);
   const [editingItem, setEditingItem] = useState<{ id: string; sku_id: string; code: string; target: number; actual: number; notes: string | null } | null>(null);
   const [editActual, setEditActual] = useState<string>("");
   const [editUnit, setEditUnit] = useState<"tubs" | "bags">("tubs");
@@ -525,21 +528,12 @@ export default function ShiftHistoryPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const delMut = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("production_sessions").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setDeleting(null); toast.success("Deleted"); },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const delItemMut = useMutation({
     mutationFn: async (itemId: string) => {
       const { error } = await supabase.from("production_items").delete().eq("id", itemId);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); toast.success("SKU removed"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift_history"] }); setDeletingItem(null); toast.success("SKU removed"); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -916,14 +910,17 @@ export default function ShiftHistoryPage() {
                                       </TooltipTrigger>
                                       <TooltipContent>{s.locked ? "Unlock row" : "Lock row"}</TooltipContent>
                                     </UITooltip>
-                                    <UITooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setDeleting(s.id)}>
-                                          <Trash2 className="h-4 w-4 text-destructive" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>Delete session</TooltipContent>
-                                    </UITooltip>
+                                    {i.sku_id && (
+                                      <UITooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button size="icon" variant="ghost" className="h-8 w-8" disabled={s.locked}
+                                            onClick={() => setDeletingItem({ id: i.id, code: skuMap.get(i.sku_id)?.code ?? i.sku_code_text ?? "this SKU" })}>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Delete this SKU row</TooltipContent>
+                                      </UITooltip>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
@@ -976,9 +973,12 @@ export default function ShiftHistoryPage() {
                               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
                                 {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                               </Button>
-                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setDeleting(s.id)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
+                              {i.sku_id && (
+                                <Button size="icon" variant="ghost" className="h-8 w-8" disabled={s.locked}
+                                  onClick={() => setDeletingItem({ id: i.id, code: skuMap.get(i.sku_id)?.code ?? i.sku_code_text ?? "this SKU" })}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              )}
                             </div>
                           }
                         >
@@ -1042,15 +1042,17 @@ export default function ShiftHistoryPage() {
 
 
 
-        <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <AlertDialog open={!!deletingItem} onOpenChange={(o) => !o && setDeletingItem(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete session?</AlertDialogTitle>
-              <AlertDialogDescription>This permanently removes the session and all its SKU records.</AlertDialogDescription>
+              <AlertDialogTitle>Delete this SKU row?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Removes only <b className="font-mono">{deletingItem?.code}</b> from this shift. The rest of the line's production stays.
+              </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => deleting && delMut.mutate(deleting)} className="bg-destructive">Delete</AlertDialogAction>
+              <AlertDialogAction onClick={() => deletingItem && delItemMut.mutate(deletingItem.id)} className="bg-destructive">Delete</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
