@@ -31,7 +31,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "system.clear": ["admin"],
   "system.settings": ["admin"],
   "production.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
-  "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "engineer", "co_engineer"],
+  "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
   "production.target.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
   "production.target.manage": ["admin", "manager", "supervisor", "planner"],
   "production.performance.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
