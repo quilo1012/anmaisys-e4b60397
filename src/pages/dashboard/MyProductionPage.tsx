@@ -15,7 +15,7 @@ import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
-import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat } from "lucide-react";
+import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -1028,6 +1028,41 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
 function LoggedThisShift({ sessionId }: { sessionId: string }) {
   const qc = useQueryClient();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Fix a wrong blender / batch / quantity after saving.
+  const [editing, setEditing] = useState<{ id: string; itemId: string; blender: string; batch: string; qty: string } | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const onSaveEdit = async () => {
+    if (!editing) return;
+    const label = editing.blender.trim();
+    const num = Number((label.match(/\d+/) ?? [""])[0]);
+    const quantity = Number(editing.qty);
+    if (!label || !Number.isFinite(num) || num < 1) { toast.error("Enter the blender (e.g. 3 or 7/8)"); return; }
+    if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
+    setSavingEdit(true);
+    try {
+      const { error: e1 } = await (supabase as any)
+        .from("production_blender_entries")
+        .update({ blender_label: label, blender_number: num, quantity })
+        .eq("id", editing.id);
+      if (e1) throw e1;
+      // Batch code lives on the parent production item.
+      const { error: e2 } = await (supabase as any)
+        .from("production_items")
+        .update({ batch_code: editing.batch.trim() || null })
+        .eq("id", editing.itemId);
+      if (e2) throw e2;
+      toast.success("Entry updated");
+      setEditing(null);
+      qc.invalidateQueries({ queryKey: ["blender-entries", sessionId] });
+      qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
+      qc.invalidateQueries({ queryKey: ["log-prefill"] });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update entry");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const entriesQ = useQuery({
     enabled: !!sessionId,
@@ -1035,7 +1070,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_blender_entries")
-        .select("id, blender_number, blender_label, quantity, started_at, finished_at, created_at, production_item_id, production_items!inner(blender_ref, sku:sku_products(code, name))")
+        .select("id, blender_number, blender_label, quantity, started_at, finished_at, created_at, production_item_id, production_items!inner(blender_ref, batch_code, sku:sku_products(code, name))")
         .eq("session_id", sessionId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -1112,6 +1147,22 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                     type="button"
                     size="icon"
                     variant="ghost"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    onClick={() => setEditing({
+                      id: e.id,
+                      itemId: e.production_item_id,
+                      blender: String(e.blender_label ?? e.blender_number ?? ""),
+                      batch: e.production_items?.batch_code ?? "",
+                      qty: String(e.quantity ?? ""),
+                    })}
+                    aria-label="Edit entry"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
                     onClick={() => onDelete(e.id)}
                     disabled={deletingId === e.id}
@@ -1129,6 +1180,39 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
           </div>
         </>
       )}
+
+      {/* Fix a saved entry — wrong blender, batch or quantity. */}
+      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Edit entry</DialogTitle></DialogHeader>
+          {editing && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Blender</div>
+                <Input value={editing.blender} onChange={(ev) => setEditing({ ...editing, blender: ev.target.value })}
+                  placeholder="e.g. 3 or 7/8" className="h-11" autoComplete="off" />
+              </div>
+              <div className="space-y-1.5">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Batch code</div>
+                <Input value={editing.batch} onChange={(ev) => setEditing({ ...editing, batch: ev.target.value })}
+                  placeholder="e.g. B-2026-0725" className="h-11" autoComplete="off" />
+              </div>
+              <div className="space-y-1.5">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Quantity produced</div>
+                <Input type="number" inputMode="numeric" min={0} value={editing.qty}
+                  onChange={(ev) => setEditing({ ...editing, qty: ev.target.value })}
+                  placeholder="0" className="h-11 text-lg font-semibold" autoComplete="off" />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={onSaveEdit} disabled={savingEdit}>
+              {savingEdit && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Save changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
