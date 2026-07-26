@@ -916,7 +916,14 @@ export default function ShiftHistoryPage() {
                                   {blenders.length ? blenders.join(", ") : "—"}
                                 </td>
                                 <td className="px-3 py-2">
-                                  {i.id && (i.sku_id || i.sku_code_text) ? (
+                                  {blenders.length > 0 ? (
+                                    <UITooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-help border-b border-dashed border-muted-foreground/40 tabular-nums text-sm">{a.toLocaleString()}</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Summed from the blender entries — edit the blenders to change it.</TooltipContent>
+                                    </UITooltip>
+                                  ) : i.id && (i.sku_id || i.sku_code_text) ? (
                                     <InlineUnitQtyInput
                                       itemId={i.id}
                                       unit={effUnit}
@@ -1059,8 +1066,10 @@ export default function ShiftHistoryPage() {
                             <TableCardField label="Finish" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
                           )}
                           <TableCardField
-                            label={`Qty (${effUnit})`}
-                            value={i.id && (i.sku_id || i.sku_code_text) ? (
+                            label={blenders.length > 0 ? "Qty (from blenders)" : `Qty (${effUnit})`}
+                            value={blenders.length > 0 ? (
+                              <span className="tabular-nums">{Number(i.actual_qty ?? 0).toLocaleString()}</span>
+                            ) : i.id && (i.sku_id || i.sku_code_text) ? (
                               <InlineUnitQtyInput
                                 itemId={i.id}
                                 unit={effUnit}
