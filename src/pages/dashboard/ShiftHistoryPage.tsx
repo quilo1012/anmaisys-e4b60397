@@ -890,7 +890,7 @@ export default function ShiftHistoryPage() {
                       const noteUnit = i.tickets_unit ?? (/\[unit:tubs\]/i.test(i.notes ?? "") ? "tubs" : /\[unit:bags\]/i.test(i.notes ?? "") ? "bags" : null);
                       const blob = `${code} ${name}`.toLowerCase();
                       const effUnit: "tubs" | "bags" = noteUnit ?? (/tub/.test(blob) ? "tubs" : /bag|sach|pouch/.test(blob) ? "bags" : "bags");
-                      const blenders = Array.from(new Set((i.production_blender_entries ?? []).map((b) => b.blender_number))).sort((x, y) => x - y);
+                      const blenders = Array.from(new Set(((i as any).production_blender_entries ?? []).map((b: any) => b.blender_number as number))).sort((x: number, y: number) => x - y);
                       const noLeader = !s.leader_id;
                       return (
                         <TableCard
