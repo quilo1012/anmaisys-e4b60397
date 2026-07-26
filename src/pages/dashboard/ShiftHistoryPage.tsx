@@ -33,13 +33,16 @@ function skuLabel(name: string | null | undefined): string {
 
 /** Searchable SKU picker — the same standard as the operator's Log Production,
  *  instead of a native select listing ~1,500 SKUs with the HS code inline. */
-function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU" }: {
+function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU", allowAll = false, allLabel = "All SKUs" }: {
   skus: { id: string; code: string; name: string }[];
   value: string; onChange: (id: string) => void; placeholder?: string;
+  allowAll?: boolean; allLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const selected = skus.find((s) => s.id === value);
+  const triggerText = allowAll && value === "__all__" ? allLabel
+    : selected ? `${selected.code} — ${skuLabel(selected.name)}` : placeholder;
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     const base = query
@@ -51,7 +54,7 @@ function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU" }: {
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQ(""); }}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
-          <span className="truncate">{selected ? `${selected.code} — ${skuLabel(selected.name)}` : placeholder}</span>
+          <span className="truncate">{triggerText}</span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -62,6 +65,12 @@ function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU" }: {
             placeholder="Search by name or code..." className="h-9 pl-8" autoComplete="off" />
         </div>
         <div className="max-h-72 overflow-auto">
+          {allowAll && !q.trim() && (
+            <button type="button" onClick={() => { onChange("__all__"); setOpen(false); setQ(""); }}
+              className="flex w-full px-3 py-2 text-left text-sm font-medium hover:bg-accent">
+              {allLabel}
+            </button>
+          )}
           {filtered.length === 0 ? (
             <div className="p-3 text-sm text-muted-foreground">No SKUs found</div>
           ) : filtered.map((s) => (
@@ -738,10 +747,7 @@ export default function ShiftHistoryPage() {
               </Select>
             </div>
             <div className="col-span-2 sm:col-span-3 md:col-span-5"><Label className="text-xs">SKU</Label>
-              <Select value={fSku} onValueChange={setFSku}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="__all__">All SKUs</SelectItem>{skus.map((s) => <SelectItem key={s.id} value={s.id}>{s.code} — {s.name}</SelectItem>)}</SelectContent>
-              </Select>
+              <SkuCombobox skus={skus} value={fSku} onChange={setFSku} allowAll placeholder="All SKUs" />
             </div>
             <div className="col-span-2 sm:col-span-3 md:col-span-1 flex items-end gap-2">
               <Button variant="outline" size="sm" className="flex-1" onClick={() => {
