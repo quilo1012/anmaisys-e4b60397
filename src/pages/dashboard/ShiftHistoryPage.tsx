@@ -372,11 +372,13 @@ export default function ShiftHistoryPage() {
       const actual = Number(addActual) || 0;
       // Find or create the session for this date/line/shift.
       const { data: existing, error: findErr } = await supabase
-        .from("production_sessions").select("id, locked")
+        .from("production_sessions").select("id")
         .eq("session_date", addDate).eq("shift", addShift).eq("line", addLine)
         .maybeSingle();
       if (findErr) throw findErr;
-      if (existing?.locked) throw new Error("That shift is locked — unlock it first");
+      // No lock check here: Add Production is admin/manager/supervisor-only, and
+      // those roles intentionally bypass the session lock (operators are still
+      // blocked at the RLS level via is_session_locked). Lock/unlock still exists.
       let sessionId = existing?.id;
       if (!sessionId) {
         const { data: ins, error } = await supabase
