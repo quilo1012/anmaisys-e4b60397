@@ -63,6 +63,22 @@ export default function DirectMessagesPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [translations, setTranslations] = useState<Record<string, TranslationState>>({});
+  const [transcriptions, setTranscriptions] = useState<Record<string, { text?: string; loading?: boolean; error?: boolean }>>({});
+
+  // Convert an existing voice note to text (server-side, Gemini via the AI
+  // gateway) — the browser can only transcribe live mic, not a stored file.
+  const handleTranscribe = async (id: string, path: string) => {
+    const existing = transcriptions[id];
+    if (existing?.text || existing?.loading) return;
+    setTranscriptions((p) => ({ ...p, [id]: { loading: true } }));
+    try {
+      const { data, error } = await invokeFunction<{ text?: string; error?: string }>("transcribe-audio", { path });
+      if (error || data?.error) throw new Error(data?.error || error?.message || "Failed");
+      setTranscriptions((p) => ({ ...p, [id]: { text: (data?.text || "").trim() || "(no speech detected)" } }));
+    } catch {
+      setTranscriptions((p) => ({ ...p, [id]: { error: true } }));
+    }
+  };
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Voice dictation: speak → the browser transcribes into the message box. No
@@ -386,6 +402,11 @@ export default function DirectMessagesPage() {
                                 )}
                                 <p className="whitespace-pre-wrap">{m.message}</p>
                                 {m.audio_url && <VoiceNote path={m.audio_url} />}
+                                {m.audio_url && transcriptions[m.id]?.text && (
+                                  <p className="whitespace-pre-wrap mt-1 pt-1 border-t border-current/20 italic opacity-90 text-sm">
+                                    {transcriptions[m.id]!.text}
+                                  </p>
+                                )}
                                 {(() => {
                                   const t = translations[m.id];
                                   if (t?.show && t.text) {
@@ -433,6 +454,13 @@ export default function DirectMessagesPage() {
                                       {label}
                                     </button>
                                   );
+                                })()}
+                                {m.audio_url && (() => {
+                                  const tr = transcriptions[m.id];
+                                  if (tr?.loading) return <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Converting…</span>;
+                                  if (tr?.error) return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} className="text-[10px] text-destructive hover:underline">Transcription failed · Retry</button>;
+                                  if (tr?.text) return null;
+                                  return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} className="text-[10px] text-muted-foreground hover:text-foreground hover:underline">Convert to text</button>;
                                 })()}
                               </div>
                             </div>
