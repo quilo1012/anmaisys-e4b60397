@@ -422,6 +422,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           lastKnownSessionRef.current = newSession;
           setSession(newSession);
           setUser(newSession.user);
+          // Keep the shared-tablet stored credential in sync with the rotated
+          // refresh_token. Supabase rotates it every ~1h; without this the stored
+          // an_tablet_cred token goes stale, so a later silent re-login uses an
+          // already-rotated token — which Supabase rejects (reuse detection can
+          // revoke the whole session) and the tablet drops to /login. Only touch
+          // it when a tablet credential exists.
+          if (newSession.refresh_token) {
+            try {
+              const raw = localStorage.getItem(TABLET_CRED_KEY);
+              if (raw) {
+                const cred = JSON.parse(raw) as { accountId?: string; refresh_token?: string };
+                if (cred?.refresh_token && cred.refresh_token !== newSession.refresh_token) {
+                  localStorage.setItem(
+                    TABLET_CRED_KEY,
+                    JSON.stringify({ accountId: cred.accountId, refresh_token: newSession.refresh_token }),
+                  );
+                }
+              }
+            } catch { /* ignore */ }
+          }
         }
         // If refresh produced no session, do NOT clear — keep current state.
         // Supabase will retry; clearing here causes spurious logouts on tab switch.
