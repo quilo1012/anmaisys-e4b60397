@@ -63,7 +63,7 @@ export default function DirectMessagesPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [translations, setTranslations] = useState<Record<string, TranslationState>>({});
-  const [transcriptions, setTranscriptions] = useState<Record<string, { text?: string; loading?: boolean; error?: boolean }>>({});
+  const [transcriptions, setTranscriptions] = useState<Record<string, { text?: string; loading?: boolean; error?: string }>>({});
 
   // Convert an existing voice note to text (server-side, Gemini via the AI
   // gateway) — the browser can only transcribe live mic, not a stored file.
@@ -75,8 +75,13 @@ export default function DirectMessagesPage() {
       const { data, error } = await invokeFunction<{ text?: string; error?: string }>("transcribe-audio", { path });
       if (error || data?.error) throw new Error(data?.error || error?.message || "Failed");
       setTranscriptions((p) => ({ ...p, [id]: { text: (data?.text || "").trim() || "(no speech detected)" } }));
-    } catch {
-      setTranscriptions((p) => ({ ...p, [id]: { error: true } }));
+    } catch (e: any) {
+      // Surface the real reason (not-deployed 404, unsupported audio format,
+      // rate limit / credits, etc.) instead of a silent "failed" — otherwise the
+      // cause is invisible and impossible to fix.
+      const msg = (e?.message || "Transcription failed").toString();
+      setTranscriptions((p) => ({ ...p, [id]: { error: msg } }));
+      toast.error(msg);
     }
   };
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -458,7 +463,7 @@ export default function DirectMessagesPage() {
                                 {m.audio_url && (() => {
                                   const tr = transcriptions[m.id];
                                   if (tr?.loading) return <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Converting…</span>;
-                                  if (tr?.error) return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} className="text-[10px] text-destructive hover:underline">Transcription failed · Retry</button>;
+                                  if (tr?.error) return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} title={tr.error} className="text-[10px] text-destructive hover:underline max-w-[220px] truncate">Failed: {tr.error} · Retry</button>;
                                   if (tr?.text) return null;
                                   return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} className="text-[10px] text-muted-foreground hover:text-foreground hover:underline">Convert to text</button>;
                                 })()}
