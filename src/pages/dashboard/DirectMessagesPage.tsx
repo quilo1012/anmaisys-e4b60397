@@ -13,7 +13,7 @@ import {
   useDMUnreadBySender,
   type DMPartner,
 } from "@/hooks/useDirectMessages";
-import { MessageCircle, Send, Loader2, Search } from "lucide-react";
+import { MessageCircle, Send, Loader2, Search, Mic } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { invokeFunction } from "@/lib/invokeFunction";
@@ -41,6 +41,42 @@ export default function DirectMessagesPage() {
   const [text, setText] = useState("");
   const [translations, setTranslations] = useState<Record<string, TranslationState>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Voice dictation: speak → the browser transcribes into the message box. No
+  // audio is uploaded or stored — the operator reviews the text and sends it as
+  // a normal message. Uses the built-in Web Speech API (hidden if unsupported).
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const dictationBaseRef = useRef("");
+  const speechSupported =
+    typeof window !== "undefined" &&
+    !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+
+  const toggleDictation = () => {
+    if (!speechSupported) return;
+    if (listening) {
+      try { recognitionRef.current?.stop(); } catch { /* ignore */ }
+      return;
+    }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const rec = new SR();
+    rec.lang = navigator.language || "en-GB"; // follows the tablet's language
+    rec.continuous = true;
+    rec.interimResults = true;
+    dictationBaseRef.current = text.trim() ? text.trim() + " " : "";
+    rec.onresult = (e: any) => {
+      let transcript = "";
+      for (let i = 0; i < e.results.length; i++) transcript += e.results[i][0].transcript;
+      setText(dictationBaseRef.current + transcript);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recognitionRef.current = rec;
+    setListening(true);
+    try { rec.start(); } catch { setListening(false); }
+  };
+
+  useEffect(() => () => { try { recognitionRef.current?.stop(); } catch { /* ignore */ } }, []);
 
   const handleTranslate = async (id: string, text: string) => {
     const existing = translations[id];
@@ -308,6 +344,17 @@ export default function DirectMessagesPage() {
                       }}
                       className="flex-1"
                     />
+                    {speechSupported && (
+                      <Button
+                        size="icon"
+                        variant={listening ? "destructive" : "outline"}
+                        onClick={toggleDictation}
+                        title={listening ? "Stop dictation" : "Dictate a message"}
+                        aria-label={listening ? "Stop dictation" : "Dictate a message"}
+                      >
+                        <Mic className={cn("h-4 w-4", listening && "animate-pulse")} />
+                      </Button>
+                    )}
                     <Button
                       size="icon"
                       onClick={handleSend}
