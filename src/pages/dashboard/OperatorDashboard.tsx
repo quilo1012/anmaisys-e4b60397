@@ -275,7 +275,7 @@ function OperatorDashboardContent() {
           type="button"
           onClick={() => { setLineStopped(true); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
           className={cn(
-            "px-3 h-8 rounded-sm font-medium transition-colors inline-flex items-center gap-1.5",
+            "px-5 h-12 rounded-sm font-bold text-base transition-colors inline-flex items-center gap-2",
             lineStopped ? "bg-red-600 text-white" : "text-muted-foreground hover:bg-accent"
           )}
         >
@@ -285,7 +285,7 @@ function OperatorDashboardContent() {
           type="button"
           onClick={() => { setLineStopped(false); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
           className={cn(
-            "px-3 h-8 rounded-sm font-medium transition-colors inline-flex items-center gap-1.5",
+            "px-5 h-12 rounded-sm font-bold text-base transition-colors inline-flex items-center gap-2",
             !lineStopped ? "bg-amber-500 text-white" : "text-muted-foreground hover:bg-accent"
           )}
         >
@@ -329,7 +329,7 @@ function OperatorDashboardContent() {
                 autoCapitalize="off"
                 spellCheck={false}
                 aria-invalid={!requestedBy.trim()}
-                className={cn(!requestedBy.trim() && "border-destructive/60")}
+                className={cn("h-12 text-base", !requestedBy.trim() && "border-destructive/60")}
               />
               {!requestedBy.trim() && <p className="text-xs text-destructive">Enter your name to send the request.</p>}
             </div>
@@ -491,10 +491,36 @@ function OperatorDashboardContent() {
             )}
 
 
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="desc">Problem Description</Label>
+              {/* One-touch quick chips for the line's common problems (48px+ targets).
+                  They set the same `description` the Select uses — the Select stays
+                  the source of truth (full list + custom), nothing bypassed. Counts
+                  come from this line's real WO history (machineSuggestions). */}
+              {!isSealerPrinterLine && (problemDescriptions?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {(problemDescriptions || []).slice(0, 6).map((pd: any) => {
+                    const active = description === pd.name;
+                    const hist = machineSuggestions?.topProblems.find(([p]) => p === pd.name)?.[1];
+                    return (
+                      <button
+                        key={pd.id}
+                        type="button"
+                        onClick={() => { setDescription(pd.name); setCustomDescription(""); }}
+                        className={cn(
+                          "min-h-[48px] rounded-lg border-2 px-4 text-sm font-semibold transition-colors inline-flex items-center gap-2",
+                          active ? "border-primary bg-primary/10 text-primary" : "border-border bg-card hover:border-primary/50",
+                        )}
+                      >
+                        <span>{pd.name}</span>
+                        {hist ? <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs font-mono text-amber-600 dark:text-amber-400">{hist}x</span> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               <Select value={description} onValueChange={(v) => { setDescription(v); if (v !== "__custom__") setCustomDescription(""); }}>
-                <SelectTrigger><SelectValue placeholder="Select problem..." /></SelectTrigger>
+                <SelectTrigger className="h-12"><SelectValue placeholder="Select problem..." /></SelectTrigger>
                 <SelectContent>
                   {(() => {
                     if (!isSealerPrinterLine) {
@@ -634,11 +660,14 @@ function OperatorDashboardContent() {
               <Button
                 type="submit"
                 disabled={createWO.isPending}
-                className="touch-manipulation"
+                className={cn(
+                  "w-full h-14 text-base font-black uppercase tracking-wide touch-manipulation",
+                  lineStopped ? "bg-red-600 hover:bg-red-700 text-white" : "",
+                )}
                 title={typeof navigator !== "undefined" && !navigator.onLine ? "Offline — will sync when connection is restored" : undefined}
               >
-                {createWO.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Submit Work Order
+                {createWO.isPending && <Loader2 className="h-5 w-5 animate-spin mr-2" />}
+                {lineStopped ? "🛑 Submit — Line Stopped" : "Submit Work Order"}
               </Button>
             </div>
           </form>
