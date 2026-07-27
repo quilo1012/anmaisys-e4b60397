@@ -74,7 +74,17 @@ export default function DirectMessagesPage() {
     try {
       const { data, error } = await invokeFunction<{ text?: string; error?: string }>("transcribe-audio", { path });
       if (error || data?.error) throw new Error(data?.error || error?.message || "Failed");
-      setTranscriptions((p) => ({ ...p, [id]: { text: (data?.text || "").trim() || "(no speech detected)" } }));
+      let text = (data?.text || "").trim();
+      // Transcription comes back verbatim in the spoken language; translate it to
+      // English for the admin view (reuses the deployed translate-message fn).
+      if (text) {
+        try {
+          const { data: tr } = await invokeFunction<{ translated?: string }>("translate-message", { text });
+          const en = (tr?.translated || "").trim();
+          if (en) text = en;
+        } catch { /* keep the original transcript if translation fails */ }
+      }
+      setTranscriptions((p) => ({ ...p, [id]: { text: text || "(no speech detected)" } }));
     } catch (e: any) {
       // Surface the real reason (not-deployed 404, unsupported audio format,
       // rate limit / credits, etc.) instead of a silent "failed" — otherwise the
