@@ -459,10 +459,18 @@ export default function ShiftHistoryPage() {
 
   const lineRank = (name: string) => {
     const n = (name ?? "").toLowerCase().trim();
+    // Capsules & Tablets (displayed as "Tablet") always sorts first when present.
+    if (n.includes("capsule") || n.includes("tablet")) return -1;
     const m = n.match(/line\s*(\d+)/);
     if (m) return parseInt(m[1], 10);
-    if (n.includes("capsule")) return 100;
     return 200;
+  };
+  // Display label for a line in this screen: rename Capsules & Tablets to
+  // "Tablet" and drop the legacy "filler" token. Display-only — the stored line
+  // name (the session key / filter value) is never changed.
+  const lineLabel = (name: string) => {
+    const cleaned = (name ?? "").replace(/\s*filler\s*/i, " ").replace(/\s+/g, " ").trim();
+    return /capsule|tablet/i.test(cleaned) ? "Tablet" : cleaned;
   };
   const sortedLines = useMemo(
     () => [...lines].sort((a, b) => lineRank(a.name) - lineRank(b.name) || a.name.localeCompare(b.name)),
@@ -760,7 +768,7 @@ export default function ShiftHistoryPage() {
             <div><Label className="text-xs">Filler Line</Label>
               <Select value={fLine} onValueChange={setFLine}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="__all__">All lines</SelectItem>{sortedLines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+                <SelectContent><SelectItem value="__all__">All lines</SelectItem>{sortedLines.map((l) => <SelectItem key={l.id} value={l.name}>{lineLabel(l.name)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div><Label className="text-xs">Leader</Label>
@@ -825,7 +833,7 @@ export default function ShiftHistoryPage() {
                             out.push(
                               <tr key={`sep-${s.id}-${s.line}`} className="bg-primary/5">
                                 <td colSpan={13} className="px-3 py-1.5 text-[11px] uppercase font-semibold tracking-wider text-primary border-b border-primary/20">
-                                  {s.line}
+                                  {lineLabel(s.line)}
                                 </td>
                               </tr>
                             );
@@ -872,7 +880,7 @@ export default function ShiftHistoryPage() {
                                   </Badge>
                                 </td>
                                 <td className="px-3 py-2 whitespace-nowrap text-xs">
-                                  {s.line.replace(/\s*filler\s*/i, " ").replace(/\s+/g, " ").trim()}
+                                  {lineLabel(s.line)}
                                 </td>
                                 <td className="px-3 py-2">
                                   {idx === 0 ? (
@@ -1027,7 +1035,7 @@ export default function ShiftHistoryPage() {
                           }
                         >
                           <TableCardField label="Date" value={s.session_date ? format(new Date(s.session_date), "dd/MM") : "—"} />
-                          <TableCardField label="Line" value={s.line.replace(/\s*filler\s*/i, " ").replace(/\s+/g, " ").trim()} />
+                          <TableCardField label="Line" value={lineLabel(s.line)} />
                           <TableCardField
                             label="Leader"
                             value={idx === 0 ? (
@@ -1157,7 +1165,7 @@ export default function ShiftHistoryPage() {
                 <div><Label className="text-xs">Line</Label>
                   <Select value={addLine} onValueChange={setAddLine}>
                     <SelectTrigger><SelectValue placeholder="Line" /></SelectTrigger>
-                    <SelectContent>{sortedLines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>{sortedLines.map((l) => <SelectItem key={l.id} value={l.name}>{lineLabel(l.name)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div><Label className="text-xs">Shift</Label>
