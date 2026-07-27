@@ -20,6 +20,7 @@ import {
   TrendingUp, ChevronDown, History, Cog, Printer, FileText, FileSpreadsheet, Lightbulb,
 } from "lucide-react";
 import { generateDowntimeReportPDF, type DowntimeReportInput } from "@/lib/downtimeReport";
+import { computeHeatmap } from "@/lib/downtimeHeatmap";
 import * as XLSX from "xlsx";
 import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
 import { DateRangeFilter, type DateRangePreset, getPresetRange } from "@/components/DateRangeFilter";
@@ -769,7 +770,31 @@ export default function DowntimePage() {
       Notes: r.notes || "",
     }));
 
-  const buildReportInput = (): DowntimeReportInput => ({
+  const buildReportInput = (): DowntimeReportInput => {
+    // Same aggregation as the on-screen Pattern Matrix (shared module) so the
+    // PDF's matrix and totals never diverge from what the user sees.
+    const hm = computeHeatmap(heatmapRecords, fromMs, toMs, filterLine, filterShift);
+    const cellVal = (line: string, di: number, s: "Day" | "Night") => {
+      const c = hm.matrix.get(line)?.get(`${di}-${s}`);
+      return c && c.minutes > 0 ? formatMinutes(c.minutes) : "—";
+    };
+    const flat14 = (fn: (di: number, s: "Day" | "Night") => string) =>
+      Array.from({ length: 7 }, (_, di) => [fn(di, "Day"), fn(di, "Night")]).flat();
+    const matrix = hm.lines.length
+      ? {
+          rows: hm.lines.map((line) => ({
+            line: line === "—" ? "(line removed)" : line,
+            cells: flat14((di, s) => cellVal(line, di, s)),
+            total: formatMinutes(hm.lineTotals.get(line)?.minutes ?? 0),
+          })),
+          totals: flat14((di, s) => {
+            const v = hm.dayShiftTotals.get(`${di}-${s}`)?.minutes ?? 0;
+            return v > 0 ? formatMinutes(v) : "—";
+          }),
+          grandTotal: formatMinutes(hm.grandTotalMinutes),
+        }
+      : undefined;
+    return {
     rangeLabel: `${format(startDate, "PP")} — ${format(endDate, "PP")}`,
     filtersLabel: `Line: ${filterLine === "all" ? "All" : filterLine}  ·  Shift: ${filterShift === "all" ? "All" : filterShift}  ·  Category: ${filterCategory === "all" ? "All" : filterCategory}  ·  Status: ${filterStatus === "all" ? "All" : filterStatus}`,
     kpis: {
@@ -804,7 +829,10 @@ export default function DowntimePage() {
         failures: m.count,
         topProblem: m.topProblemCount > 1 ? `${m.topProblem} (×${m.topProblemCount})` : m.topProblem,
       })),
-  });
+    matrix,
+    insights: hm.insights,
+    };
+  };
 
   const handleExportPdf = async () => {
     try {

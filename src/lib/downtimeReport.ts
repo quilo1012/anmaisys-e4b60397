@@ -5,6 +5,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import logoUrl from "@/assets/appliedlogo.jpeg";
+import { DAYS } from "@/lib/downtimeHeatmap";
 
 type RGB = [number, number, number];
 const NAVY: RGB = [30, 58, 138];
@@ -36,6 +37,11 @@ export interface DowntimeReportInput {
   risks: { machine: string; failures: number; mtbf: string; risk: string; lastFailure: string }[];
   topProblems: { rank: number; machine: string; failures: number; topProblem: string }[];
   insights?: string[];
+  matrix?: {
+    rows: { line: string; cells: string[]; total: string }[]; // cells: 14 (dayIdx*2 + Day/Night)
+    totals: string[]; // 14
+    grandTotal: string;
+  };
 }
 
 async function loadLogoDataUrl(): Promise<string | null> {
@@ -51,7 +57,7 @@ async function loadLogoDataUrl(): Promise<string | null> {
 }
 
 export async function generateDowntimeReportPDF(input: DowntimeReportInput, opts?: { output?: "save" | "bloburl" }) {
-  const { rangeLabel, filtersLabel, kpis, records, risks, topProblems, insights = [] } = input;
+  const { rangeLabel, filtersLabel, kpis, records, risks, topProblems, insights = [], matrix } = input;
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -122,7 +128,34 @@ export async function generateDowntimeReportPDF(input: DowntimeReportInput, opts
     didDrawPage: (data: any) => { if (data.pageNumber > 1) drawHeader(); drawFooter(data); },
   };
 
+  // ── Pattern Matrix (day × shift) ───────────────────────────────────────
+  if (matrix && matrix.rows.length) {
+    sectionTitle("Pattern Matrix — downtime by day & shift");
+    const head: any[] = [{ content: "Line", styles: { halign: "left" } }];
+    DAYS.forEach((d) => { head.push(`${d} D`); head.push(`${d} N`); });
+    head.push("Total");
+    autoTable(doc, {
+      ...commonTable,
+      startY: y,
+      head: [head],
+      body: matrix.rows.map((r) => [
+        { content: r.line, styles: { fontStyle: "bold" as const, halign: "left" as const } },
+        ...r.cells.map((c) => ({ content: c, styles: { halign: "center" as const, textColor: (c === "—" ? SUBTLE : INK) as any } })),
+        { content: r.total, styles: { halign: "right" as const, fontStyle: "bold" as const } },
+      ]),
+      foot: [[
+        { content: "Totals (wall-clock)", styles: { fontStyle: "bold" as const, halign: "left" as const } },
+        ...matrix.totals.map((c) => ({ content: c, styles: { halign: "center" as const } })),
+        { content: matrix.grandTotal, styles: { halign: "right" as const } },
+      ]],
+      styles: { ...commonTable.styles, fontSize: 6.5, cellPadding: 1.2 },
+      footStyles: { fillColor: CARD_BORDER as any, textColor: INK as any, fontStyle: "bold" as const },
+    });
+    y = (doc as any).lastAutoTable.finalY + 8;
+  }
+
   // ── Downtime Records ───────────────────────────────────────────────────
+  if (y > pageH - 40) { doc.addPage(); drawHeader(); y = 30; }
   sectionTitle("Downtime Records", records.length);
   autoTable(doc, {
     ...commonTable,
