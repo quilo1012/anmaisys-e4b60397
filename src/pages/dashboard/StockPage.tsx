@@ -32,7 +32,10 @@ export default function StockPage() {
   const addCategory = useAddCategory();
   const deleteCategory = useDeleteCategory();
   const { toast } = useToast();
-  const isManager = role === "admin" || (role === "manager" || role === "maintenance_manager");
+  // Mirrors the stock.manage matrix / products write RLS (incl. supervisor).
+  const isManager = role === "admin" || role === "manager" || role === "maintenance_manager" || role === "supervisor";
+  // Deleting a product is admin-only in RLS — don't offer it to the others.
+  const isAdmin = role === "admin";
   const queryClient = useQueryClient();
   const { data: adjustmentHistory } = useStockAdjustmentHistory(10);
 
@@ -269,7 +272,7 @@ export default function StockPage() {
                           <TableCell>
                             <div className="flex gap-1">
                               <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                              <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                              {isAdmin && <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>}
                             </div>
                           </TableCell>
                         )}
