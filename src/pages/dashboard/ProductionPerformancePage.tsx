@@ -539,13 +539,13 @@ export default function ProductionPerformancePage() {
             // setup/near, red below-target (pulsing).
             const gap = l.actual - l.target;
             const status = l.eff >= 100 ? "ON TARGET" : l.eff >= 80 ? "SETUP" : "BELOW TARGET";
-            const ring = l.eff >= 100 ? "border-emerald-500/70" : l.eff >= 80 ? "border-amber-500/70" : "border-red-500";
-            // All cards share the same deep-slate panel; status is carried by the
-            // border + accents. (A washed red fill made Line 5's numbers unreadable.)
-            const panelBg = "bg-slate-900";
-            const chip = l.eff >= 100 ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : l.eff >= 80 ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-red-500/20 text-red-400 border-red-500/40";
-            const effColor = l.eff >= 100 ? "text-emerald-400" : l.eff >= 80 ? "text-amber-400" : "text-red-400";
-            const gapColor = gap >= 0 ? "text-emerald-400" : "text-red-400";
+            // Theme-consistent panel (matches the rest of the app); status is
+            // carried by a strong border + accent colours, numbers stay high
+            // contrast in both light and dark.
+            const ring = l.eff >= 100 ? "border-emerald-500" : l.eff >= 80 ? "border-amber-500" : "border-red-500";
+            const chip = l.eff >= 100 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30" : l.eff >= 80 ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30" : "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30";
+            const effColor = l.eff >= 100 ? "text-emerald-600 dark:text-emerald-400" : l.eff >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
+            const gapColor = gap >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400";
             const barColor = l.eff >= 100 ? "bg-emerald-500" : l.eff >= 80 ? "bg-amber-500" : "bg-red-500";
             const handleClick = () => navigate("/dashboard/shift-history");
             const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -561,10 +561,10 @@ export default function ProductionPerformancePage() {
                 tabIndex={0}
                 onClick={handleClick}
                 onKeyDown={handleKeyDown}
-                className={`cursor-pointer rounded-xl border-2 ${ring} ${panelBg} p-4 shadow-lg transition-transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-primary`}
+                className={`cursor-pointer rounded-xl border-2 ${ring} bg-card p-4 shadow-sm transition-transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-primary`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="text-xl font-black uppercase tracking-wide text-white truncate">{l.line}</div>
+                  <div className="text-xl font-black uppercase tracking-wide text-foreground truncate">{l.line}</div>
                   <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${chip} ${l.eff < 80 ? "animate-pulse" : ""}`}>● {status}</span>
                 </div>
                 <div
@@ -584,7 +584,7 @@ export default function ProductionPerformancePage() {
                         }
                       }}
                     >
-                      <SelectTrigger className="h-8 w-full text-xs bg-slate-800 border-slate-700 text-slate-100">
+                      <SelectTrigger className="h-8 w-full text-xs bg-background/60">
                         <SelectValue placeholder="— Assign leader —" />
                       </SelectTrigger>
                       <SelectContent>
@@ -634,21 +634,21 @@ export default function ProductionPerformancePage() {
                   </div>
                 <div className="mt-4 flex items-end justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actual</div>
-                    <div className="font-mono text-4xl font-bold leading-none text-white tabular-nums">{l.actual.toLocaleString("en-US")}</div>
-                    <div className="mt-1 text-xs text-slate-400 tabular-nums">/ {l.target.toLocaleString("en-US")} target</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Actual</div>
+                    <div className="font-mono text-4xl font-bold leading-none text-foreground tabular-nums">{l.actual.toLocaleString("en-US")}</div>
+                    <div className="mt-1 text-xs text-muted-foreground tabular-nums">/ {l.target.toLocaleString("en-US")} target</div>
                   </div>
                   <div className={`text-right ${effColor}`}>
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Perf</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Perf</div>
                     <div className="font-mono text-3xl font-bold leading-none tabular-nums">{Math.round(l.eff)}%</div>
                   </div>
                 </div>
                 <div className="mt-3">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold uppercase tracking-wider text-slate-500">Gap</span>
+                    <span className="font-bold uppercase tracking-wider text-muted-foreground">Gap</span>
                     <span className={`font-mono text-lg font-bold tabular-nums ${gapColor}`}>{gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")}</span>
                   </div>
-                  <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-800">
+                  <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
                     <div className={`h-full ${barColor}`} style={{ width: `${Math.min(100, Math.max(0, l.eff))}%` }} />
                   </div>
                 </div>
