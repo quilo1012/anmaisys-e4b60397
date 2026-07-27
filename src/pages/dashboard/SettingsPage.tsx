@@ -1,5 +1,5 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Settings as SettingsIcon, Users, ShieldCheck, Plug, ArrowRight } from "lucide-react";
+import { Settings as SettingsIcon, Users, ShieldCheck, Plug, ArrowRight, MessageCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -7,6 +7,7 @@ const LINKS = [
   { title: "Users & roles", desc: "Create, approve and manage staff accounts and roles.", icon: Users, url: "/users/manage" },
   { title: "Permissions", desc: "Fine-tune what each role can see and do.", icon: ShieldCheck, url: "/dashboard/permissions" },
   { title: "iTouching Sync", desc: "Configure and monitor the iTouching i4 integration.", icon: Plug, url: "/dashboard/intouch-settings" },
+  { title: "Operator Chat", desc: "Choose which admins operators can message on each shift (Day / Night).", icon: MessageCircle, url: "/dashboard/operator-chat-settings" },
 ];
 
 export default function SettingsPage() {
