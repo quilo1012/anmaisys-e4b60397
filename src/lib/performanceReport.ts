@@ -20,6 +20,7 @@ export interface PerfReportOpenAction {
   shift: string | null;
   severity: string | null;
   description: string | null;
+  status?: string | null;
 }
 export interface PerfReportInput {
   periodLabel: string;
@@ -154,28 +155,31 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
   });
   y = (doc as any).lastAutoTable.finalY + 9;
 
-  // ── Open quality actions ──────────────────────────────────────────────
+  // ── Quality actions (all statuses in the period) ──────────────────────
+  const fmtStatus = (s: string | null | undefined) =>
+    s === "in_progress" ? "In progress" : s === "todo" ? "To do" : s === "complete" ? "Complete" : (s ?? "—");
   doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...INK);
-  doc.text(`Open Quality Actions  (${openActions.length})`, margin, y);
+  doc.text(`Quality Actions  (${openActions.length})`, margin, y);
   y += 3;
   doc.setTextColor(0);
   autoTable(doc, {
     startY: y,
-    head: [["Date", "Action #", "Line", "Shift", "Severity", "Description"]],
+    head: [["Date", "Action #", "Line", "Shift", "Status", "Severity", "Description"]],
     body: openActions.length
       ? openActions.map((a) => [
           fmtDate(a.recorded_at),
           a.action_no ?? "—",
           a.line ?? "—",
           a.shift ?? "—",
+          fmtStatus(a.status),
           { content: (a.severity ?? "—").toUpperCase(), styles: { ...sevChip(a.severity), fontStyle: "bold", halign: "center" } },
           (a.description ?? "").slice(0, 70) || "—",
         ])
-      : [[{ content: "No open quality actions in this period.", colSpan: 6, styles: { halign: "center", textColor: SUBTLE, fontStyle: "italic" } }]],
+      : [[{ content: "No quality actions in this period.", colSpan: 7, styles: { halign: "center", textColor: SUBTLE, fontStyle: "italic" } }]],
     styles: { fontSize: 8, cellPadding: 1.8, overflow: "linebreak", lineColor: [226, 232, 240], lineWidth: 0.1 },
     headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [248, 250, 252] },
-    columnStyles: { 4: { halign: "center" } },
+    columnStyles: { 4: { halign: "center" }, 5: { halign: "center" } },
     margin: { left: margin, right: margin, top: 30 },
     didDrawPage: (data: any) => {
       if (data.pageNumber > 1) drawHeader();
