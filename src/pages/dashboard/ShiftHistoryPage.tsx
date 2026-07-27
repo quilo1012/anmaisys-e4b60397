@@ -592,13 +592,19 @@ export default function ShiftHistoryPage() {
     // Mirrors the Production Control spreadsheet layout so the export pastes straight
     // in. The 5th column is intentionally unnamed there (it holds the description).
     const hm = (iso: string | null | undefined) => (iso ? format(new Date(iso), "HH:mm") : "");
+    // session_date is a plain yyyy-mm-dd string — reformat to dd/MM/yyyy without
+    // Date() so there's no timezone shift.
+    const ddmmyyyy = (d: string) => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d ?? "");
+      return m ? `${m[3]}/${m[2]}/${m[1]}` : (d ?? "");
+    };
     const rows: (string | number)[][] = [[
       "Date", "Assembly Number", "Work Centre", "Product Code", "",
       "Weight (in Kg)", "QTY", "Start Time", "Finish Time", "Shift",
     ]];
     for (const s of filtered) {
       if (s.production_items.length === 0) {
-        rows.push([s.session_date, "", s.line, "", "", "", "", "", "", s.shift]);
+        rows.push([ddmmyyyy(s.session_date), "", lineLabel(s.line), "", "", "", "", "", "", s.shift]);
         continue;
       }
       for (const i of s.production_items) {
@@ -607,9 +613,9 @@ export default function ShiftHistoryPage() {
         const name = sku?.name ?? "";
         const grams = parseWeightFromSku(sku?.code ?? "", name, (sku as { weight?: number | null } | undefined)?.weight ?? null);
         rows.push([
-          s.session_date,
+          ddmmyyyy(s.session_date),
           i.blender_ref ?? "",
-          s.line,
+          lineLabel(s.line),
           code,
           name,
           // Numbers stay numbers — the CSV version quoted everything, so Excel
