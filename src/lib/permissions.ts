@@ -44,7 +44,6 @@ export type Action =
   | "production.target.view"
   | "production.target.manage"
   | "production.performance.view"
-  | "production.sku_performance.view"
   | "packaging.view"
   // Planner / Scheduling
   | "planner.view"
@@ -133,7 +132,6 @@ const MATRIX: Record<Action, Role[]> = {
   "production.target.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
   "production.target.manage": ["admin", "manager", "supervisor", "planner"],
   "production.performance.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
-  "production.sku_performance.view": ["admin", "manager", "supervisor"],
   // Packaging module: everyone who could open it before (production.view = ALL)
   // PLUS warehouse and quality_supervisor, for whom the PVS module is built.
   "packaging.view": [...ALL, "warehouse", "quality_supervisor"],
@@ -310,7 +308,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "downtime", label: "Downtime", actions: ["downtime.view", "downtime.manage"] },
   { key: "machines", label: "Machines & Problems", actions: ["machines.view", "machines.manage", "problems.view", "problems.manage"] },
   { key: "stock", label: "Stock", actions: ["stock.view", "stock.manage", "stock.pricing"] },
-  { key: "production", label: "Production", actions: ["production.view", "production.manage", "production.target.view", "production.target.manage", "production.performance.view", "production.sku_performance.view", "packaging.view"] },
+  { key: "production", label: "Production", actions: ["production.view", "production.manage", "production.target.view", "production.target.manage", "production.performance.view", "packaging.view"] },
   { key: "planner", label: "Planner & SKU", actions: ["planner.view", "planner.manage", "sku.view", "sku.manage"] },
   { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
   { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
@@ -354,7 +352,6 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "production.target.view": "See production targets per line/shift.",
   "production.target.manage": "Create and edit production targets.",
   "production.performance.view": "Access the Production Performance dashboard.",
-  "production.sku_performance.view": "Access the SKU Performance dashboard with AI insights.",
   "packaging.view": "Open the Packaging Verification (PVS) module.",
   "planner.view": "Open the Planner and see the plan.",
   "planner.manage": "Edit the plan and schedule SKUs.",

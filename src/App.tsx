@@ -52,7 +52,6 @@ const SuppliersPage = lazyWithReload(() => import("./pages/dashboard/SuppliersPa
 
 const SKUProductsPage = lazyWithReload(() => import("./pages/dashboard/SKUProductsPage"));
 const ProductionPerformancePage = lazyWithReload(() => import("./pages/dashboard/ProductionPerformancePage"));
-const SKUPerformancePage = lazyWithReload(() => import("./pages/dashboard/SKUPerformancePage"));
 
 
 
@@ -415,15 +414,6 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/dashboard/sku-performance"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="production.sku_performance.view">
-                      <SKUPerformancePage />
-                    </ProtectedRoute>
-                  }
-                />
-
                 <Route
                   path="/dashboard/quality"
                   element={
