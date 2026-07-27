@@ -31,7 +31,7 @@ interface Props {
 const ALL_USERS = "__all__";
 
 /**
- * Full downtime history for a work order with filters by date range and by user
+ * Full downtime history for a maintenance order with filters by date range and by user
  * (stop/resume operator). Includes a print-friendly audit table.
  */
 export function DowntimeHistorySection({ workOrderId }: Props) {

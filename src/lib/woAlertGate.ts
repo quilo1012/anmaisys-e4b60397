@@ -1,5 +1,5 @@
 /**
- * Pure gating helper used by `useWOAlerts` to decide whether a Work Order
+ * Pure gating helper used by `useWOAlerts` to decide whether a Maintenance Order
  * realtime event should trigger the critical siren for the current engineer.
  *
  * Extracted so the rules are unit-testable independently of Supabase + React.

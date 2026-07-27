@@ -824,7 +824,7 @@ export default function MachinesPage() {
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
               <DialogTitle>QR Code — {qrMachine?.name}</DialogTitle>
-              <DialogDescription>Scan to open machine history or create a Work Order</DialogDescription>
+              <DialogDescription>Scan to open machine history or create a Maintenance Order</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col items-center gap-4 py-4">
               <QRCodeSVG

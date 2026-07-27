@@ -24,11 +24,11 @@ function PermissionBanner({
   let message: string;
   if (role === "operator") {
     if (lineId && lineName) {
-      message = `You need access to line "${lineName}" to stop or resume this work order. Ask an admin to add this line to your tablet account.`;
+      message = `You need access to line "${lineName}" to stop or resume this maintenance order. Ask an admin to add this line to your tablet account.`;
     } else if (lineId) {
-      message = `You need access to this work order's production line to control downtime. Ask an admin to add the line to your tablet account.`;
+      message = `You need access to this maintenance order's production line to control downtime. Ask an admin to add the line to your tablet account.`;
     } else {
-      message = `This work order is not bound to a production line. Ask an admin to assign one before downtime can be controlled.`;
+      message = `This maintenance order is not bound to a production line. Ask an admin to assign one before downtime can be controlled.`;
     }
   } else {
     message = `Your role does not allow controlling line downtime. Only the assigned engineer, the operator on the same line, managers and admins can stop or resume the line.`;
@@ -146,7 +146,7 @@ export function LineDowntimeControl({
       await stopLine.mutateAsync({ workOrderId, reason, isRecurrence });
       toast({
         title: isRecurrence ? "🚨 Line stopped again — engineer notified" : "🛑 Line marked as stopped",
-        description: stopCount > 0 ? `Stop #${stopCount + 1} recorded (recurrence)` : "First stop recorded for this work order",
+        description: stopCount > 0 ? `Stop #${stopCount + 1} recorded (recurrence)` : "First stop recorded for this maintenance order",
         variant: "destructive",
       });
       setStopDialogOpen(false);
@@ -323,7 +323,7 @@ function StopDialog({
         <DialogHeader>
           <DialogTitle>Confirm line stop (#{stopNumber})</DialogTitle>
           <DialogDescription>
-            This will start a downtime counter for this work order. You can resume the line whenever the machine is back to work.
+            This will start a downtime counter for this maintenance order. You can resume the line whenever the machine is back to work.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">

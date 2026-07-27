@@ -147,7 +147,7 @@ export default function ProblemsPage() {
       <div className="space-y-6">
         <PageHeader
           title="Problem Descriptions"
-          description="Manage standardized problem descriptions for work orders"
+          description="Manage standardized problem descriptions for maintenance orders"
           icon={<AlertTriangle className="h-5 w-5" />}
           actions={<Button onClick={() => { resetForm(); setShowAdd(true); }}><Plus className="h-4 w-4 mr-2" /> Add Problem</Button>}
         />

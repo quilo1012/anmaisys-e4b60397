@@ -124,9 +124,9 @@ function OperatorDashboardContent() {
     const sig = (fallbackRequester?.trim() || "Operator").slice(0, 100);
     try {
       await closeWO.mutateAsync({ woId, signatureName: sig });
-      toast({ title: "Work Order Closed", description: "The work order has been closed." });
+      toast({ title: "Maintenance Order Closed", description: "The maintenance order has been closed." });
     } catch {
-      toast({ title: "Error", description: "Failed to close work order", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to close maintenance order", variant: "destructive" });
     }
   };
 
@@ -256,7 +256,7 @@ function OperatorDashboardContent() {
       setRequestedBy(""); setMachineName(""); setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId(""); setDescription(""); setCustomDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
-      toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to create maintenance order", variant: "destructive" });
     }
   };
 
@@ -303,7 +303,7 @@ function OperatorDashboardContent() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 flex-wrap">
             <Plus className="h-5 w-5" />
-            Create Work Order
+            Create Maintenance Order
             {lineName && (
               <Badge variant="outline" className="ml-1 border-primary text-primary font-semibold">
                 Line: {lineName}
@@ -667,7 +667,7 @@ function OperatorDashboardContent() {
                 title={typeof navigator !== "undefined" && !navigator.onLine ? "Offline — will sync when connection is restored" : undefined}
               >
                 {createWO.isPending && <Loader2 className="h-5 w-5 animate-spin mr-2" />}
-                {lineStopped ? "🛑 Submit — Line Stopped" : "Submit Work Order"}
+                {lineStopped ? "🛑 Submit — Line Stopped" : "Submit Maintenance Order"}
               </Button>
             </div>
           </form>
@@ -682,7 +682,7 @@ function OperatorDashboardContent() {
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5" />
-              My Work Orders
+              My Maintenance Orders
             </CardTitle>
             <Button size="sm" variant="outline" onClick={() => navigate("/dashboard/operator/my-production")}>
               <Factory className="h-4 w-4 mr-2" />
@@ -697,7 +697,7 @@ function OperatorDashboardContent() {
           {isLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
           ) : !shiftWOs.length ? (
-            <p className="text-muted-foreground text-center py-8">No work orders this shift yet. Create one above!</p>
+            <p className="text-muted-foreground text-center py-8">No maintenance orders this shift yet. Create one above!</p>
           ) : (
             <div className="overflow-x-auto -mx-3 sm:mx-0">
             <Table>
@@ -756,7 +756,7 @@ function OperatorDashboardContent() {
                                 className="h-11 min-w-11 px-3 touch-manipulation"
                                 disabled={closeWO.isPending}
                                 onClick={() => handleQuickClose(wo.id, wo.requester_name ?? null)}
-                                aria-label="Close work order"
+                                aria-label="Close maintenance order"
                               >
                                 <CheckCircle className="h-4 w-4 mr-1.5" aria-hidden="true" /> Close
                               </Button>

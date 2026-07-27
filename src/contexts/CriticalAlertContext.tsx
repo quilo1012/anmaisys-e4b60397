@@ -513,7 +513,7 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
           onInteractOutside={(e) => e.preventDefault()}
           // Stop the close (X) click from bubbling to underlying elements
           // (e.g. dashboard nav cards), which previously caused the user to be
-          // redirected to Work Orders after closing the modal.
+          // redirected to Maintenance Orders after closing the modal.
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
@@ -522,7 +522,7 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
             <Volume2 className="h-5 w-5 text-primary" /> Enable Alert Sounds
           </DialogTitle>
           <DialogDescription>
-            To receive critical Work Order alerts (audio + vibration) even when this tab is in
+            To receive critical Maintenance Order alerts (audio + vibration) even when this tab is in
             the background, your device requires a one-time gesture to unlock audio playback.
           </DialogDescription>
           <Button size="lg" className="h-14 text-base" onClick={enableAudio}>
@@ -555,7 +555,7 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
               <AlertTriangle className="h-12 w-12" />
             </div>
             <DialogTitle className="text-3xl font-extrabold tracking-wide">
-              🚨 NEW WORK ORDER
+              🚨 NEW MAINTENANCE ORDER
             </DialogTitle>
             {active && (
               <DialogDescription className="text-destructive-foreground/90 text-base space-y-1">
@@ -623,7 +623,7 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
       {/* Decline reason dialog */}
       <Dialog open={declineOpen} onOpenChange={setDeclineOpen}>
         <DialogContent className="max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
-          <DialogTitle>Decline Work Order</DialogTitle>
+          <DialogTitle>Decline Maintenance Order</DialogTitle>
           <DialogDescription>
             Select a reason. The WO stays open for other engineers and your decline is logged in the timeline.
           </DialogDescription>

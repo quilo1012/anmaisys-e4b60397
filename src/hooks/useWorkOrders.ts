@@ -235,7 +235,7 @@ export function useAcceptAndStartWorkOrder() {
         .select()
         .single();
       if (error) throw error;
-      if (!updated) throw new Error("Work order update failed — no rows affected");
+      if (!updated) throw new Error("Maintenance order update failed — no rows affected");
       await logWOAction(woId, engineerId, engineerName, "started");
       return { before };
     },
@@ -357,7 +357,7 @@ export function useStartWorkOrder() {
 
 export class LineStillStoppedError extends Error {
   code = "line_still_stopped" as const;
-  constructor(message = "Line is still marked as stopped. Resume the line before finishing the work order.") {
+  constructor(message = "Line is still marked as stopped. Resume the line before finishing the maintenance order.") {
     super(message);
     this.name = "LineStillStoppedError";
   }
@@ -464,7 +464,7 @@ export function useCloseWorkOrder() {
         .eq("id", woId)
         .select("id");
       if (error) throw error;
-      if (!data || data.length === 0) throw new Error("You don't have permission to close this work order.");
+      if (!data || data.length === 0) throw new Error("You don't have permission to close this maintenance order.");
       return { before, closedAt: now };
     },
     onSuccess: (result, vars) => {

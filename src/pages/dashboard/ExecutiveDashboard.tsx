@@ -50,7 +50,7 @@ export default function ExecutiveDashboard() {
     return shiftFilter === "DAY" ? isDay : !isDay;
   }, [shiftFilter]);
 
-  // Work orders filtered by the selected KPI period (by created_at) and shift.
+  // Maintenance orders filtered by the selected KPI period (by created_at) and shift.
   const inRange = useCallback((iso: string) => {
     const d = new Date(iso);
     if (kpiRange.from && d < kpiRange.from) return false;
@@ -187,7 +187,7 @@ export default function ExecutiveDashboard() {
           <Card className="lg:col-span-2">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" /> Work Orders — Selected Period
+                <BarChart3 className="h-4 w-4" /> Maintenance Orders — Selected Period
               </CardTitle>
             </CardHeader>
             <CardContent>

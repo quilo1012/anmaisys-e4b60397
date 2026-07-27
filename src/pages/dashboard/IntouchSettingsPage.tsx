@@ -559,7 +559,7 @@ export default function IntouchSettingsPage() {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <p className="text-muted-foreground">
-                These production lines have no entry in the Machine Map. Sync, "Send to iTouching" and automatic Work Orders will skip them until they are mapped to an iTouching MachineID.
+                These production lines have no entry in the Machine Map. Sync, "Send to iTouching" and automatic Maintenance Orders will skip them until they are mapped to an iTouching MachineID.
               </p>
               <div className="flex flex-wrap gap-2">
                 {unmappedLines.map((l) => (
@@ -583,7 +583,7 @@ export default function IntouchSettingsPage() {
             <CardTitle className="text-lg flex items-center justify-between gap-2">
               <span className="flex items-center gap-2">
                 <AlertCircle className="h-5 w-5" />
-                Auto Work Orders from iTouching stop codes
+                Auto Maintenance Orders from iTouching stop codes
               </span>
               <span className={"text-xs font-semibold px-2 py-1 rounded " + (autoWoEnabled ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/15 text-amber-700 dark:text-amber-300")}>
                 {autoWoEnabled ? "ON" : "OFF"}
@@ -592,7 +592,7 @@ export default function IntouchSettingsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              When ON, the iTouching poller opens Work Orders automatically when a mapped machine enters a downtime state with an approved stop code. When OFF, the poll still runs but no order is created.
+              When ON, the iTouching poller opens Maintenance Orders automatically when a mapped machine enters a downtime state with an approved stop code. When OFF, the poll still runs but no order is created.
             </p>
             <div className="flex items-center gap-3">
               <Switch

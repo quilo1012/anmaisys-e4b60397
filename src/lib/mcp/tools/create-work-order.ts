@@ -11,9 +11,9 @@ function supabaseForUser(ctx: ToolContext) {
 
 export default defineTool({
   name: "create_work_order",
-  title: "Create work order",
+  title: "Create maintenance order",
   description:
-    "Create a new maintenance work order as the signed-in user. Requires a description and requester name.",
+    "Create a new maintenance maintenance order as the signed-in user. Requires a description and requester name.",
   inputSchema: {
     description: z.string().trim().min(3).describe("What is broken or needs maintenance."),
     requester_name: z.string().trim().min(1).describe("Name of the person requesting."),

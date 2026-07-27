@@ -471,11 +471,11 @@ export default function ControlCenterPage() {
         {viewMode === "table" ? (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Active Work Orders — Realtime</CardTitle>
+              <CardTitle className="text-base">Active Maintenance Orders — Realtime</CardTitle>
             </CardHeader>
             <CardContent>
               {!workOrders?.length ? (
-                <p className="text-muted-foreground text-center py-8">No active work orders.</p>
+                <p className="text-muted-foreground text-center py-8">No active maintenance orders.</p>
               ) : (
                 <ResponsiveTable
                   table={

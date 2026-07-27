@@ -160,7 +160,7 @@ function ManagerDashboardContent() {
   }, [woMetrics]);
 
   // Total downtime aligned with the Downtime page (#10): includes both manual
-  // downtime rows and Work Order line-stopped windows; parallel stoppages
+  // downtime rows and Maintenance Order line-stopped windows; parallel stoppages
   // counted once via reconcileMinutes.
   const totalDowntimeMin = useMemo(() => {
     const recs = (downtimeRecords || []).filter(
@@ -212,7 +212,7 @@ function ManagerDashboardContent() {
 
   const quickLinks = [
     { title: "Analytics", desc: "Charts & performance", icon: BarChart3, url: "/dashboard/analytics" },
-    { title: "Work Orders", desc: "Table & Kanban", icon: ClipboardList, url: "/dashboard/work-orders" },
+    { title: "Maintenance Orders", desc: "Table & Kanban", icon: ClipboardList, url: "/dashboard/work-orders" },
     { title: "Machines", desc: "Manage machines", icon: Cog, url: "/dashboard/machines" },
     { title: "Problems", desc: "Problem descriptions", icon: AlertCircle, url: "/dashboard/problems" },
     { title: "Stock", desc: "Parts & inventory", icon: Package, url: "/dashboard/stock" },
@@ -247,7 +247,7 @@ function ManagerDashboardContent() {
             value={openCount}
             icon={ClipboardList}
             tone="blue"
-            tooltip="Open Work Orders: orders created that have not yet been accepted by an engineer. Shows the current backlog awaiting response."
+            tooltip="Open Maintenance Orders: orders created that have not yet been accepted by an engineer. Shows the current backlog awaiting response."
           />
           <KpiCard
             label="In Progress"
@@ -317,7 +317,7 @@ function ManagerDashboardContent() {
         {/* Quick Actions */}
         <div className="flex gap-3 flex-wrap">
           <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => navigate("/dashboard/work-orders", { state: { openCreate: true } })}>
-            <Plus className="h-4 w-4 mr-2" /> New Work Order
+            <Plus className="h-4 w-4 mr-2" /> New Maintenance Order
           </Button>
           <Button variant="outline" onClick={() => navigate("/dashboard/work-orders?status=open")}>
             <ExternalLink className="h-4 w-4 mr-2" /> View Open WOs

@@ -45,7 +45,7 @@ export function PushNotificationSetup() {
         {supported && permission !== "denied" && (
           <>
             <p className="text-sm text-muted-foreground">
-              Receive native alerts for new work orders and critical events even
+              Receive native alerts for new maintenance orders and critical events even
               when this tab is closed.
             </p>
             <div className="flex flex-wrap gap-2">

@@ -34,7 +34,7 @@ interface Props {
  * "Report Recurring Failure" CTA shown on a finished/closed WO.
  *
  * Calls the SECURITY DEFINER RPC `reopen_wo_as_recurrence`, which creates a
- * NEW work order in `open` status linked to the original via
+ * NEW maintenance order in `open` status linked to the original via
  * `recurrence_of_wo_id`. The new WO then flows through the normal engineer
  * lifecycle (accept → start → finish), and we navigate the operator to it.
  *
@@ -128,7 +128,7 @@ export function OperatorRecurrenceCard({ wo }: Props) {
               <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
                 Fix signed off by {wo.engineer_name || "engineer"}
                 {finishedTs && ` ${formatDistanceToNow(new Date(finishedTs), { addSuffix: true })}`}.
-                If the same problem returns, reopen this work order — its time will be
+                If the same problem returns, reopen this maintenance order — its time will be
                 added to the previous repair (no new WO number).
                 {recurrenceCount && recurrenceCount > 0 ? (
                   <> · <span className="font-semibold">{recurrenceCount} previous reopen{recurrenceCount === 1 ? "" : "s"}</span></>

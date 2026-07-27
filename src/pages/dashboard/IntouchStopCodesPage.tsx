@@ -139,7 +139,7 @@ export default function IntouchStopCodesPage() {
             <label className="flex items-center gap-2">
               <Switch checked={newRow.requires_wo ?? true}
                 onCheckedChange={(v) => setNewRow({ ...newRow, requires_wo: v })} />
-              Creates Work Order
+              Creates Maintenance Order
             </label>
             <label className="flex items-center gap-2">
               <Switch checked={newRow.active ?? true}

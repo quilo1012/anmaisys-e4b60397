@@ -30,7 +30,7 @@ export interface DowntimeTotal {
   has_open_stop: boolean;
 }
 
-/** All downtime events for a work order, oldest → newest. */
+/** All downtime events for a maintenance order, oldest → newest. */
 export function useDowntimeEvents(workOrderId: string | undefined) {
   const queryClient = useQueryClient();
 
@@ -71,7 +71,7 @@ export function useDowntimeEvents(workOrderId: string | undefined) {
   return query;
 }
 
-/** Aggregate totals per work order from v_wo_downtime_total view. */
+/** Aggregate totals per maintenance order from v_wo_downtime_total view. */
 export function useDowntimeTotals(workOrderIds: string[]) {
   const queryClient = useQueryClient();
   const idsKey = [...workOrderIds].sort().join(",");
@@ -168,7 +168,7 @@ export function useResumeLine() {
         .limit(1)
         .maybeSingle();
       if (findErr) throw findErr;
-      if (!openEvt) throw new Error("No open downtime event found for this work order");
+      if (!openEvt) throw new Error("No open downtime event found for this maintenance order");
 
       const now = new Date().toISOString();
       const { data, error } = await (supabase as any)

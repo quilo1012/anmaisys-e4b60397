@@ -10,7 +10,7 @@ interface Props {
 }
 
 /**
- * Renders the full timeline of line stops for a single work order.
+ * Renders the full timeline of line stops for a single maintenance order.
  * Both screen (rich) and print (audit table) variants are emitted.
  */
 export function DowntimeTimelineCard({ workOrderId }: Props) {

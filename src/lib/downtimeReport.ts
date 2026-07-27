@@ -106,7 +106,7 @@ export async function generateDowntimeReportPDF(input: DowntimeReportInput, opts
   card(1, "Active Stoppages", String(kpis.active), kpis.active > 0 ? AMBER_TX : INK, kpis.active > 0 ? AMBER_TX : NAVY);
   card(2, "Avg MTTR", kpis.avgMTTR, INK, NAVY);
   card(3, "Avg MTBF", kpis.avgMTBF, INK, NAVY);
-  card(4, "Work Orders", String(kpis.wos), INK, NAVY);
+  card(4, "Maintenance Orders", String(kpis.wos), INK, NAVY);
   card(5, "High-Risk Machines", String(kpis.highRisk), kpis.highRisk > 0 ? RED_TX : INK, kpis.highRisk > 0 ? RED_TX : NAVY);
 
   let y = cardY + cardH + 6;

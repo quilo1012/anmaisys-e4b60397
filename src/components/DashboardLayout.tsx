@@ -60,7 +60,7 @@ export interface NavItem {
 
 export const navItems: NavItem[] = [
   // Overview
-  { title: "Dashboard", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Overview", action: "dashboard.operator" },
+  { title: "Operator Panel", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Overview", action: "dashboard.operator" },
   { title: "My Production", url: "/dashboard/operator/my-production", icon: Factory, roles: ["operator"], group: "Overview", action: "production.target.view" },
   { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer", "co_engineer"], group: "Overview", action: "dashboard.engineer" },
   { title: "My Tasks", url: "/dashboard/engineer?focus=tasks", icon: Briefcase, roles: ["engineer", "co_engineer"], group: "Overview", action: "dashboard.engineer" },
@@ -71,7 +71,7 @@ export const navItems: NavItem[] = [
 
 
   // Maintenance
-  { title: "Work Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance", action: "wo.view" },
+  { title: "Maintenance Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance", action: "wo.view" },
   { title: "Service Requests", url: "/dashboard/warehouse", icon: ClipboardList, roles: ["warehouse"], group: "Maintenance", action: "wo.view" },
   { title: "Downtime & Reliability", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance", action: "downtime.view" },
   { title: "PM Intelligence", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Maintenance", action: "pm.view" },
@@ -314,11 +314,11 @@ const roleBadgeClass: Record<string, string> = {
 };
 
 const routeTitles: Record<string, string> = {
-  "/dashboard/operator": "Dashboard",
+  "/dashboard/operator": "Operator Panel",
   "/dashboard/operator/my-production": "My Production",
   "/dashboard/engineer": "Dashboard",
   "/dashboard/manager": "Dashboard",
-  "/dashboard/work-orders": "Work Orders",
+  "/dashboard/work-orders": "Maintenance Orders",
   "/dashboard/downtime": "Downtime",
   "/dashboard/downtime-map": "Downtime Heatmap",
   "/dashboard/pm-intelligence": "PM Intelligence",

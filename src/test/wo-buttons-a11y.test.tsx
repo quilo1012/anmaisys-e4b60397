@@ -1,5 +1,5 @@
 /**
- * Accessibility regression tests for the critical Work Order flow buttons.
+ * Accessibility regression tests for the critical Maintenance Order flow buttons.
  *
  * Guards against regressions of:
  *  - Hit area (WCAG 2.5.5): h-11 + min-w-11 utility classes (≥ 44×44px)
@@ -34,7 +34,7 @@ expect.extend(toHaveNoViolations);
 function WOActionButtons() {
   return (
     <div className="flex gap-2 flex-wrap">
-      <Button size="sm" className="h-11 min-w-11 px-3 bg-green-600 hover:bg-green-700 text-white dark:text-white" aria-label="Accept work order">
+      <Button size="sm" className="h-11 min-w-11 px-3 bg-green-600 hover:bg-green-700 text-white dark:text-white" aria-label="Accept maintenance order">
         <CheckCircle className="h-4 w-4 mr-1.5" aria-hidden="true" /> Accept
       </Button>
       <Button size="sm" className="h-11 min-w-11 px-3 bg-purple-600 hover:bg-purple-700 text-white dark:text-white" aria-label="Mark arrived and start">
@@ -43,19 +43,19 @@ function WOActionButtons() {
       <Button size="sm" className="h-11 min-w-11 px-3 bg-amber-600 hover:bg-amber-700 text-white dark:text-white" aria-label="Start work">
         <Play className="h-4 w-4 mr-1.5" aria-hidden="true" /> Start Work
       </Button>
-      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 border-green-500 text-foreground hover:bg-green-500/10" aria-label="Resume work order">
+      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 border-green-500 text-foreground hover:bg-green-500/10" aria-label="Resume maintenance order">
         <PlayCircle className="h-4 w-4 mr-1.5 text-green-600 dark:text-green-400" aria-hidden="true" /> Resume
       </Button>
-      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 border-yellow-500 text-foreground hover:bg-yellow-500/10" aria-label="Pause work order">
+      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 border-yellow-500 text-foreground hover:bg-yellow-500/10" aria-label="Pause maintenance order">
         <Pause className="h-4 w-4 mr-1.5 text-yellow-600 dark:text-yellow-400" aria-hidden="true" /> Pause
       </Button>
       <Button size="sm" variant="outline" className="h-11 min-w-11 px-3" aria-label="Register parts used">
         <Package className="h-4 w-4 mr-1.5" aria-hidden="true" /> Parts
       </Button>
-      <Button size="sm" variant="secondary" className="h-11 min-w-11 px-3" aria-label="Finish work order">
+      <Button size="sm" variant="secondary" className="h-11 min-w-11 px-3" aria-label="Finish maintenance order">
         <PenTool className="h-4 w-4 mr-1.5" aria-hidden="true" /> Finish
       </Button>
-      <Button size="sm" variant="default" className="h-11 min-w-11 px-3" aria-label="Close work order">
+      <Button size="sm" variant="default" className="h-11 min-w-11 px-3" aria-label="Close maintenance order">
         <CheckCircle className="h-4 w-4 mr-1.5" aria-hidden="true" /> Close
       </Button>
     </div>
@@ -63,14 +63,14 @@ function WOActionButtons() {
 }
 
 const CRITICAL_LABELS = [
-  "Accept work order",
+  "Accept maintenance order",
   "Mark arrived and start",
   "Start work",
-  "Resume work order",
-  "Pause work order",
+  "Resume maintenance order",
+  "Pause maintenance order",
   "Register parts used",
-  "Finish work order",
-  "Close work order",
+  "Finish maintenance order",
+  "Close maintenance order",
 ];
 
 describe("WO flow critical buttons — accessibility", () => {

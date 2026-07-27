@@ -1,9 +1,9 @@
 /**
  * Shared mapping helpers for RAG Weekly downtime so the calculation
- * stays in lock-step with the Work Orders list.
+ * stays in lock-step with the Maintenance Orders list.
  *
- * Rules (must match RAGWeeklyPage / Work Orders):
- *  - A Work Order only contributes downtime when `line_stopped_at` is set.
+ * Rules (must match RAGWeeklyPage / Maintenance Orders):
+ *  - A Maintenance Order only contributes downtime when `line_stopped_at` is set.
  *  - The end timestamp is `line_resumed_at`, falling back to `finished_at`,
  *    then `closed_at`. For terminal statuses with no end timestamps at all,
  *    fall back to `line_stopped_at` (zero-length) so they aren't treated as
