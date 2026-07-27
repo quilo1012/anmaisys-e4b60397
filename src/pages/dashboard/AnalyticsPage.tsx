@@ -113,6 +113,57 @@ export default function AnalyticsPage() {
     };
   }, [qaRows]);
 
+  // Production leader performance in range → Leader Performance section.
+  const { data: leaderRows = [] } = useQuery({
+    queryKey: ["analytics-leader-perf", startDate.toISOString(), endDate.toISOString()],
+    queryFn: async () => {
+      const from = format(startDate, "yyyy-MM-dd");
+      const to = format(endDate, "yyyy-MM-dd");
+      const { data, error } = await supabase
+        .from("production_sessions")
+        .select("session_date, shift, line, leader_name, production_items(target_qty, planned_qty, actual_qty)")
+        .gte("session_date", from)
+        .lte("session_date", to);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        session_date: string; shift: string | null; line: string | null; leader_name: string | null;
+        production_items: { target_qty: number | null; planned_qty: number | null; actual_qty: number | null }[];
+      }>;
+    },
+  });
+
+  const leaderPerf = useMemo(() => {
+    type Agg = { leader: string; sessions: number; target: number; actual: number; lines: Set<string>; shifts: Set<string> };
+    const map = new Map<string, Agg>();
+    for (const s of leaderRows) {
+      const leader = (s.leader_name || "").trim();
+      if (!leader) continue;
+      const cur = map.get(leader) ?? { leader, sessions: 0, target: 0, actual: 0, lines: new Set<string>(), shifts: new Set<string>() };
+      cur.sessions += 1;
+      if (s.line) cur.lines.add(s.line);
+      if (s.shift) cur.shifts.add(s.shift);
+      for (const i of s.production_items ?? []) {
+        cur.target += Number(i.target_qty ?? i.planned_qty ?? 0);
+        cur.actual += Number(i.actual_qty ?? 0);
+      }
+      map.set(leader, cur);
+    }
+    const rows = Array.from(map.values())
+      .map((a) => ({
+        leader: a.leader, sessions: a.sessions, target: a.target, actual: a.actual,
+        eff: a.target > 0 ? (a.actual / a.target) * 100 : 0,
+        lines: a.lines.size, shifts: Array.from(a.shifts).sort().join("/"),
+      }))
+      .sort((x, y) => y.actual - x.actual);
+    const totalActual = rows.reduce((s, r) => s + r.actual, 0);
+    const totalTarget = rows.reduce((s, r) => s + r.target, 0);
+    return {
+      rows, totalActual, totalTarget,
+      avgEff: totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0,
+      topByOutput: rows.slice(0, 8).map((r) => ({ name: truncLabel(r.leader, 14), value: r.actual })),
+    };
+  }, [leaderRows]);
+
   // Filter WOs by date range
   const allWOs = useMemo(() => {
     if (!rawWOs) return undefined;
@@ -463,6 +514,70 @@ export default function AnalyticsPage() {
           <KpiCard accent="purple" icon={<Activity className="h-4 w-4" />} label="Avg MTBF" value={formatMTBF(kpis.avgMTBF / 60)} sublabel={hasNoActivity ? "No activity in selected period" : "Mean Time Between Failures"} />
           <KpiCard accent={slaCompliance.rate < 80 ? "red" : "green"} icon={<Timer className="h-4 w-4" />} label="SLA Compliance" value={`${slaCompliance.rate}%`} valueClassName={slaCompliance.rate < 80 ? "text-destructive" : "text-green-600"} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
         </div>
+        {/* Leader Performance — production line leaders aggregated for the range */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" /> Leader Performance
+              <Badge variant="secondary" className="ml-1 text-xs font-normal">{leaderPerf.rows.length} leaders</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {leaderPerf.rows.length === 0 ? (
+              <EmptyState icon={Users} title="No production leader data" description="No production sessions with an assigned leader in the selected period." className="py-8" />
+            ) : (
+              <>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border p-3"><div className="text-[11px] text-muted-foreground uppercase tracking-wider">Total Output</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalActual.toLocaleString("en-US")}</div></div>
+                  <div className="rounded-lg border p-3"><div className="text-[11px] text-muted-foreground uppercase tracking-wider">Total Target</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalTarget.toLocaleString("en-US")}</div></div>
+                  <div className="rounded-lg border p-3"><div className="text-[11px] text-muted-foreground uppercase tracking-wider">Avg Efficiency</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.avgEff >= 100 ? "text-green-600" : leaderPerf.avgEff >= 80 ? "text-amber-600" : "text-red-600"}`}>{leaderPerf.avgEff.toFixed(1)}%</div></div>
+                </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={leaderPerf.topByOutput} layout="vertical" margin={{ left: 8, right: 24 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} />
+                      <YAxis type="category" dataKey="name" width={92} tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={(v: number) => v.toLocaleString("en-US")} />
+                      <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]}><LabelList dataKey="value" position="right" className="text-[10px]" formatter={(v: number) => v.toLocaleString("en-US")} /></Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[600px]">
+                    <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="p-2 text-left">#</th>
+                        <th className="p-2 text-left">Leader</th>
+                        <th className="p-2 text-right">Sessions</th>
+                        <th className="p-2 text-right">Lines</th>
+                        <th className="p-2 text-left">Shifts</th>
+                        <th className="p-2 text-right">Output</th>
+                        <th className="p-2 text-right">Target</th>
+                        <th className="p-2 text-right">Efficiency</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leaderPerf.rows.map((r, i) => (
+                        <tr key={r.leader} className="border-t">
+                          <td className="p-2">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</td>
+                          <td className="p-2 font-medium">{r.leader}</td>
+                          <td className="p-2 text-right tabular-nums">{r.sessions}</td>
+                          <td className="p-2 text-right tabular-nums">{r.lines}</td>
+                          <td className="p-2">{r.shifts || "—"}</td>
+                          <td className="p-2 text-right tabular-nums font-semibold">{r.actual.toLocaleString("en-US")}</td>
+                          <td className="p-2 text-right tabular-nums text-muted-foreground">{r.target.toLocaleString("en-US")}</td>
+                          <td className="p-2 text-right"><Badge className={`${r.eff >= 100 ? "bg-green-500/15 text-green-600 border-green-500/40" : r.eff >= 80 ? "bg-amber-500/15 text-amber-600 border-amber-500/40" : "bg-red-500/15 text-red-600 border-red-500/40"} border`}>{r.eff.toFixed(1)}%</Badge></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 print:hidden">
           <Link to="/dashboard/downtime" className="block">
             <Card className="hover:border-primary transition-colors h-full">
