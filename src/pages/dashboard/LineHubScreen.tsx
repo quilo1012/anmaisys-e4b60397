@@ -69,7 +69,7 @@ export default function LineHubScreen() {
           <Wrench className="h-32 w-32 text-white group-hover:scale-110 transition-transform" strokeWidth={1.5} />
           <div className="text-center">
             <div className="text-5xl font-black mb-2">REQUEST</div>
-            <div className="text-amber-100 text-xl">Open maintenance work order</div>
+            <div className="text-amber-100 text-xl">Open maintenance maintenance order</div>
           </div>
         </button>
       </div>

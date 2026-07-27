@@ -11,14 +11,14 @@ function supabaseForUser(ctx: ToolContext) {
 
 export default defineTool({
   name: "list_work_orders",
-  title: "List work orders",
+  title: "List maintenance orders",
   description:
-    "List recent maintenance work orders visible to the signed-in user. Optionally filter by status or priority.",
+    "List recent maintenance maintenance orders visible to the signed-in user. Optionally filter by status or priority.",
   inputSchema: {
     status: z
       .enum(["OPEN", "IN_PROGRESS", "PAUSED", "FINISHED", "CANCELLED", "PENDING", "COMPLETED"])
       .optional()
-      .describe("Filter by work order status."),
+      .describe("Filter by maintenance order status."),
     priority: z.enum(["low", "medium", "high", "critical"]).optional().describe("Filter by priority."),
     limit: z.number().int().min(1).max(100).default(25).describe("Max rows to return (1–100)."),
   },

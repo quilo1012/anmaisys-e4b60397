@@ -98,13 +98,13 @@ export function useWOAlerts() {
 
           // Background notification (when tab hidden)
           sendWebNotification(
-            "🚨 NEW WORK ORDER",
+            "🚨 NEW MAINTENANCE ORDER",
             `${wo.machine} — ${wo.requester_name}\n${wo.description}`
           );
 
           // Toast as supplementary signal
           toast({
-            title: "🚨 New Work Order",
+            title: "🚨 New Maintenance Order",
             description: `${wo.machine} — ${wo.requester_name}`,
             duration: 10000,
           });
@@ -145,11 +145,11 @@ export function useWOAlerts() {
               priority: updated.priority,
             });
             sendWebNotification(
-              "🔁 RECURRING WORK ORDER",
+              "🔁 RECURRING MAINTENANCE ORDER",
               `${updated.machine} — ${updated.requester_name}\n${updated.description}`
             );
             toast({
-              title: "🔁 Recurring Work Order",
+              title: "🔁 Recurring Maintenance Order",
               description: `${updated.machine} — ${updated.requester_name}`,
               duration: 10000,
             });
@@ -195,7 +195,7 @@ export function useWOAlerts() {
             sendWebNotification(`✅ ${woLabel} Completed!`, `Machine: ${wo.machine} — Status: ${wo.status}`);
             toast({
               title: `✅ ${woLabel} Completed!`,
-              description: `Machine: ${wo.machine} — Your work order has been ${wo.status}.`,
+              description: `Machine: ${wo.machine} — Your maintenance order has been ${wo.status}.`,
               duration: 8000,
             });
           }

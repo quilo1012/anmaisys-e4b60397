@@ -11,10 +11,10 @@ function supabaseForUser(ctx: ToolContext) {
 
 export default defineTool({
   name: "get_work_order",
-  title: "Get work order",
-  description: "Fetch a single work order by its UUID or numeric wo_number.",
+  title: "Get maintenance order",
+  description: "Fetch a single maintenance order by its UUID or numeric wo_number.",
   inputSchema: {
-    id: z.string().optional().describe("Work order UUID."),
+    id: z.string().optional().describe("Maintenance order UUID."),
     wo_number: z.number().int().optional().describe("Numeric wo_number (e.g. 1234)."),
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },

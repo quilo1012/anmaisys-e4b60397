@@ -90,7 +90,7 @@ export function TeamsSetupCard() {
           Microsoft Teams
         </CardTitle>
         <CardDescription>
-          Push Adaptive Card alerts to a Teams channel for critical work orders, unassigned WOs, and line stops.
+          Push Adaptive Card alerts to a Teams channel for critical maintenance orders, unassigned WOs, and line stops.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

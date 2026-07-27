@@ -11,7 +11,7 @@ const DAY_END = Date.parse("2025-06-25T17:00:00Z");
 const NIGHT_START = DAY_END;
 const NIGHT_END = Date.parse("2025-06-26T05:00:00Z");
 
-/** Work Orders list duration: line_stopped_at → line_resumed_at (clamped to now). */
+/** Maintenance Orders list duration: line_stopped_at → line_resumed_at (clamped to now). */
 function woListMinutes(r: {
   line_stopped_at?: string | null;
   line_resumed_at?: string | null;
@@ -95,7 +95,7 @@ describe("RAG Weekly downtime mapping", () => {
     expect(stop?.end).toBeNull();
   });
 
-  it("RAG Weekly total matches sum of Work Orders durations when stops do not overlap", () => {
+  it("RAG Weekly total matches sum of Maintenance Orders durations when stops do not overlap", () => {
     const rows = [
       { // 9 min
         status: "finished",

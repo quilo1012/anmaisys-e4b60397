@@ -162,7 +162,7 @@ export default function PMIntelligencePage() {
           <div>
             <h1 className="text-2xl font-bold">PM Intelligence</h1>
             <p className="text-sm text-muted-foreground">
-              Analyzes the last 90 days of work orders by machine, compares real MTBF/MTTR to the
+              Analyzes the last 90 days of maintenance orders by machine, compares real MTBF/MTTR to the
               current PM interval, and recommends adjustments.
             </p>
           </div>
@@ -197,7 +197,7 @@ export default function PMIntelligencePage() {
                   {stats.length === 0 && (
                     <tr>
                       <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                        No work orders in the last 90 days.
+                        No maintenance orders in the last 90 days.
                       </td>
                     </tr>
                   )}

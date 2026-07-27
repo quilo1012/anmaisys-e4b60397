@@ -266,10 +266,10 @@ function FinancialDashboardContent() {
         </div>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Work Order Cost Breakdown</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Maintenance Order Cost Breakdown</CardTitle></CardHeader>
           <CardContent>
             {!filteredCosts.length ? (
-              <EmptyState icon={Inbox} title="No completed work orders" description="No completed work orders with cost data in this date range." className="py-6" />
+              <EmptyState icon={Inbox} title="No completed maintenance orders" description="No completed maintenance orders with cost data in this date range." className="py-6" />
 
             ) : (
               <Table>

@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 /**
- * Returns the count of work orders that currently have the line marked as stopped
+ * Returns the count of maintenance orders that currently have the line marked as stopped
  * AND have not yet been resumed. Engineers, managers, and admins can see this.
  */
 export function useStoppedLinesCount() {

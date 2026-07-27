@@ -68,7 +68,7 @@ export function generatePdfReport(data: ReportData) {
   doc.text("AN Maintenance", 14, 20);
   doc.setFontSize(12);
   doc.setFont("helvetica", "normal");
-  doc.text("Work Orders Report", 14, 28);
+  doc.text("Maintenance Orders Report", 14, 28);
   doc.setFontSize(9);
   doc.setTextColor(100);
   doc.text(data.dateRange, 14, 34);

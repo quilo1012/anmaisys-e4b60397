@@ -509,7 +509,7 @@ function EngineerDashboardContent() {
       ?? (wo.engineer_id && wo.engineer_name ? { id: wo.engineer_id, name: wo.engineer_name } : { id: user!.id, name: profile?.name || user!.email || "Engineer" });
     setCurrentEngineer(engineer);
     startWO.mutateAsync({ woId, engineerId: engineer.id, engineerName: engineer.name })
-      .then(() => toast({ title: "✅ Work Order started!", description: "Don't forget to add a Before photo!" }))
+      .then(() => toast({ title: "✅ Maintenance Order started!", description: "Don't forget to add a Before photo!" }))
       .catch((err: any) => toast({ title: "Error starting WO", description: err.message, variant: "destructive" }));
   };
 
@@ -544,7 +544,7 @@ function EngineerDashboardContent() {
       });
       setCurrentEngineer(null);
       sessionStorage.removeItem("currentEngineer");
-      toast({ title: "✅ Work order finished" });
+      toast({ title: "✅ Maintenance order finished" });
     } catch (err: any) {
       if (err instanceof LineStillStoppedError || err?.code === "line_still_stopped") {
         setStoppedFinishCtx({ woId, signature: engineer.name, notes });
@@ -579,7 +579,7 @@ function EngineerDashboardContent() {
         });
         setCurrentEngineer(null);
         sessionStorage.removeItem("currentEngineer");
-        toast({ title: "✅ Line resumed and work order finished" });
+        toast({ title: "✅ Line resumed and maintenance order finished" });
       } catch (err: any) {
         toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
       }
@@ -761,7 +761,7 @@ function EngineerDashboardContent() {
   const DesktopFinishButton = ({ wo }: { wo: any }) => {
     const checklistComplete = useChecklistComplete(wo.description, wo.id);
     return (
-      <Button size="sm" variant="secondary" className="h-11 min-w-11 px-3 touch-manipulation" onClick={() => handleFinishClick(wo.id)} disabled={!!(wo as any).paused_at || !checklistComplete} aria-label="Finish work order">
+      <Button size="sm" variant="secondary" className="h-11 min-w-11 px-3 touch-manipulation" onClick={() => handleFinishClick(wo.id)} disabled={!!(wo as any).paused_at || !checklistComplete} aria-label="Finish maintenance order">
         <PenTool className="h-4 w-4 mr-1.5" aria-hidden="true" /> Finish
       </Button>
     );
@@ -803,8 +803,8 @@ function EngineerDashboardContent() {
         {activeWOs && activeWOs.filter(wo => wo.status === "open").length > 0 && (
           <Alert variant="destructive" className="border-destructive bg-destructive/10 animate-pulse">
             <AlertTriangle className="h-5 w-5" />
-            <AlertTitle className="text-lg font-bold">⚠️ {activeWOs.filter(wo => wo.status === "open").length} Open Work Order(s) Waiting!</AlertTitle>
-            <AlertDescription>There are unassigned work orders that need attention.</AlertDescription>
+            <AlertTitle className="text-lg font-bold">⚠️ {activeWOs.filter(wo => wo.status === "open").length} Open Maintenance Order(s) Waiting!</AlertTitle>
+            <AlertDescription>There are unassigned maintenance orders that need attention.</AlertDescription>
           </Alert>
         )}
 
@@ -873,13 +873,13 @@ function EngineerDashboardContent() {
 
         <Card id="my-tasks" className="scroll-mt-24">
           <CardHeader className="p-4 md:p-6">
-            <CardTitle className="flex items-center gap-2 text-lg"><ClipboardList className="h-5 w-5" /> Work Orders</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-lg"><ClipboardList className="h-5 w-5" /> Maintenance Orders</CardTitle>
           </CardHeader>
           <CardContent className="p-3 md:p-6 pt-0">
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : !activeWOs?.length ? (
-              <p className="text-muted-foreground text-center py-8">No open work orders right now.</p>
+              <p className="text-muted-foreground text-center py-8">No open maintenance orders right now.</p>
             ) : isMobile ? (
               (() => {
                 const openWOs = activeWOs.filter((w) => w.status === "open");
@@ -944,7 +944,7 @@ function EngineerDashboardContent() {
                             <td className="p-2">
                               <div className="flex gap-2 flex-wrap">
                                 {wo.status === "open" && (
-                                  <Button size="sm" className="h-11 min-w-11 px-3 touch-manipulation bg-green-600 hover:bg-green-700 text-white dark:text-white" onClick={() => handleAcceptClick(wo.id)} disabled={acceptWO.isPending} aria-label="Accept work order">
+                                  <Button size="sm" className="h-11 min-w-11 px-3 touch-manipulation bg-green-600 hover:bg-green-700 text-white dark:text-white" onClick={() => handleAcceptClick(wo.id)} disabled={acceptWO.isPending} aria-label="Accept maintenance order">
                                     <CheckCircle className="h-4 w-4 mr-1.5" aria-hidden="true" /> Accept
                                   </Button>
                                 )}
@@ -961,11 +961,11 @@ function EngineerDashboardContent() {
                                 {wo.status === "in_progress" && (
                                   <>
                                     {(wo as any).paused_at ? (
-                                      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 touch-manipulation border-green-500 text-foreground hover:bg-green-500/10" onClick={() => resumeWO.mutate(wo.id)} disabled={resumeWO.isPending} aria-label="Resume work order">
+                                      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 touch-manipulation border-green-500 text-foreground hover:bg-green-500/10" onClick={() => resumeWO.mutate(wo.id)} disabled={resumeWO.isPending} aria-label="Resume maintenance order">
                                         <PlayCircle className="h-4 w-4 mr-1.5 text-green-600 dark:text-green-400" aria-hidden="true" /> Resume
                                       </Button>
                                     ) : (
-                                      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 touch-manipulation border-yellow-500 text-foreground hover:bg-yellow-500/10" onClick={() => { setPauseDialogWO(wo.id); setPauseReason(""); }} disabled={pauseWO.isPending} aria-label="Pause work order">
+                                      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 touch-manipulation border-yellow-500 text-foreground hover:bg-yellow-500/10" onClick={() => { setPauseDialogWO(wo.id); setPauseReason(""); }} disabled={pauseWO.isPending} aria-label="Pause maintenance order">
                                         <Pause className="h-4 w-4 mr-1.5 text-yellow-600 dark:text-yellow-400" aria-hidden="true" /> Pause
                                       </Button>
                                     )}
@@ -1035,7 +1035,7 @@ function EngineerDashboardContent() {
             {(() => {
               const myHistory = (engineerHistory || []) as any[];
               if (!myHistory.length) {
-                return <p className="text-muted-foreground text-center py-6">No completed work orders yet.</p>;
+                return <p className="text-muted-foreground text-center py-6">No completed maintenance orders yet.</p>;
               }
               return (
                 <div className="w-full overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
@@ -1090,7 +1090,7 @@ function EngineerDashboardContent() {
       <Dialog open={!!signDialogWO} onOpenChange={(open) => { if (!open) { setSignDialogWO(null); setSignName(""); setResolutionNotes(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><PenTool className="h-5 w-5" /> Confirm & Finish Work Order</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><PenTool className="h-5 w-5" /> Confirm & Finish Maintenance Order</DialogTitle>
             <DialogDescription>Describe the resolution and sign to finish</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -1129,7 +1129,7 @@ function EngineerDashboardContent() {
               <AlertTriangle className="h-5 w-5" /> Line is still marked as stopped
             </DialogTitle>
             <DialogDescription>
-              You must resume the line before finishing this work order. Otherwise the
+              You must resume the line before finishing this maintenance order. Otherwise the
               factory dashboard will keep showing the line as stopped after the WO is closed.
             </DialogDescription>
           </DialogHeader>
@@ -1148,8 +1148,8 @@ function EngineerDashboardContent() {
       <Dialog open={!!pauseDialogWO} onOpenChange={(open) => { if (!open) { setPauseDialogWO(null); setPauseReason(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Pause className="h-5 w-5" /> Pause Work Order</DialogTitle>
-            <DialogDescription>Enter a reason for pausing this work order.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><Pause className="h-5 w-5" /> Pause Maintenance Order</DialogTitle>
+            <DialogDescription>Enter a reason for pausing this maintenance order.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label htmlFor="pause-reason">Reason *</Label>
@@ -1165,7 +1165,7 @@ function EngineerDashboardContent() {
                   setPauseDialogWO(null);
                   setPauseReason("");
                 } catch (e: any) {
-                  toast({ title: "Cannot pause", description: e?.message || "Failed to pause work order", variant: "destructive" });
+                  toast({ title: "Cannot pause", description: e?.message || "Failed to pause maintenance order", variant: "destructive" });
                 }
               }}
               disabled={pauseWO.isPending || !pauseReason.trim()}
@@ -1206,7 +1206,7 @@ function EngineerDashboardContent() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Add Co-Engineer</DialogTitle>
             <DialogDescription>
-              Enter your PIN to join this Work Order. Your name will appear on the final signature alongside the primary engineer.
+              Enter your PIN to join this Maintenance Order. Your name will appear on the final signature alongside the primary engineer.
             </DialogDescription>
           </DialogHeader>
           <Input
@@ -1223,7 +1223,7 @@ function EngineerDashboardContent() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => { setCollabDialogWO(null); setCollabPin(""); }}>Cancel</Button>
             <Button onClick={handleAddCollaborator} disabled={collabPin.length < 4 || collabBusy}>
-              {collabBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Join Work Order"}
+              {collabBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Join Maintenance Order"}
             </Button>
           </DialogFooter>
         </DialogContent>

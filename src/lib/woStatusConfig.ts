@@ -1,5 +1,5 @@
 /**
- * Single source of truth for Work Order status badges.
+ * Single source of truth for Maintenance Order status badges.
  *
  * Replaces the duplicated `statusConfig` maps that were scattered across
  * OperatorDashboard / EngineerDashboard / WorkOrdersPage. The previous

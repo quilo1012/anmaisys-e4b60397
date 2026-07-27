@@ -64,7 +64,7 @@ export function EngineerChangePinDialog({ open, onOpenChange }: Props) {
             <KeyRound className="h-5 w-5" /> Change Your PIN
           </DialogTitle>
           <DialogDescription>
-            Set a new 4-digit PIN. You'll use this to confirm work order actions.
+            Set a new 4-digit PIN. You'll use this to confirm maintenance order actions.
           </DialogDescription>
         </DialogHeader>
 

@@ -176,7 +176,7 @@ export default function WorkOrderDetail() {
     return (
       <DashboardLayout>
         <div className="text-center py-16">
-          <p className="text-muted-foreground">Work order not found.</p>
+          <p className="text-muted-foreground">Maintenance order not found.</p>
           <Button variant="link" onClick={() => navigate(-1)}>Go back</Button>
         </div>
       </DashboardLayout>
@@ -540,7 +540,7 @@ export default function WorkOrderDetail() {
             {partsLoading ? (
               <div className="flex justify-center py-4 print:hidden"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
             ) : !partsUsed?.length ? (
-              <p className="text-muted-foreground text-sm print:text-[8pt]">No parts registered for this work order.</p>
+              <p className="text-muted-foreground text-sm print:text-[8pt]">No parts registered for this maintenance order.</p>
             ) : (
               <Table>
                 <TableHeader>

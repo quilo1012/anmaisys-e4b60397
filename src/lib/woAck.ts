@@ -1,5 +1,5 @@
 // Client-side acknowledgement tracker for WO critical alerts.
-// Prevents the "🚨 NEW WORK ORDER" modal from re-firing on remount,
+// Prevents the "🚨 NEW MAINTENANCE ORDER" modal from re-firing on remount,
 // reconnect, navigation, or page refresh — even before the server-side
 // `engineer_notified_acknowledged_at` column propagates back.
 

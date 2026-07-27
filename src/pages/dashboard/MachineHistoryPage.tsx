@@ -84,19 +84,19 @@ export default function MachineHistoryPage() {
         {/* Tabs */}
         <Tabs defaultValue="workorders" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="workorders">Work Orders</TabsTrigger>
+            <TabsTrigger value="workorders">Maintenance Orders</TabsTrigger>
             <TabsTrigger value="locations">Location History</TabsTrigger>
             <TabsTrigger value="failures">Failure Chart</TabsTrigger>
           </TabsList>
 
           <TabsContent value="workorders">
             <Card>
-              <CardHeader><CardTitle className="text-base">Work Order History</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base">Maintenance Order History</CardTitle></CardHeader>
               <CardContent>
                 {isLoading ? (
                   <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
                 ) : !machineWOs.length ? (
-                  <p className="text-muted-foreground text-center py-8">No work orders for this machine.</p>
+                  <p className="text-muted-foreground text-center py-8">No maintenance orders for this machine.</p>
                 ) : (
                   <Table>
                     <TableHeader>

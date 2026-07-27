@@ -41,7 +41,7 @@ export function RejectWoDialog({ woId, woNumber, onOpenChange }: Props) {
       setReason("");
       onOpenChange(false);
     } catch (e: any) {
-      toast.error(e?.message ?? "Failed to reject work order");
+      toast.error(e?.message ?? "Failed to reject maintenance order");
     } finally {
       setSubmitting(false);
     }
@@ -51,7 +51,7 @@ export function RejectWoDialog({ woId, woNumber, onOpenChange }: Props) {
     <Dialog open={!!woId} onOpenChange={(o) => { if (!o) { setReason(""); onOpenChange(false); } }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Reject Work Order{woNumber ? ` #${woNumber}` : ""}</DialogTitle>
+          <DialogTitle>Reject Maintenance Order{woNumber ? ` #${woNumber}` : ""}</DialogTitle>
         </DialogHeader>
         <div className="space-y-2">
           <Label htmlFor="reject-reason">Reason for rejection</Label>

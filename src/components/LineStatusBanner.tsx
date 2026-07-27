@@ -13,7 +13,7 @@ interface LineStatusBannerProps {
 }
 
 /**
- * Visual banner indicating production line status for a Work Order.
+ * Visual banner indicating production line status for a Maintenance Order.
  * - Red (pulsing) when the line is currently stopped
  * - Green when the line was previously stopped but is back to running
  * - Neutral when the line never stopped

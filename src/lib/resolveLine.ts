@@ -1,4 +1,4 @@
-// Resolve a friendly line label for a work order using:
+// Resolve a friendly line label for a maintenance order using:
 //   1. the WO snapshot (line_at_time), ignoring the literal "removed"
 //   2. the live machine→line mapping from the machines table
 //   3. a fallback placeholder (default "—")

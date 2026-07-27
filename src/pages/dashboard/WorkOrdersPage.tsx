@@ -276,7 +276,7 @@ export default function WorkOrdersPage() {
     e.preventDefault();
     setSubmitAttempted(true);
     if (!newRequester.trim()) {
-      toast({ title: "Requester required", description: "Please enter who is requesting the work order.", variant: "destructive" });
+      toast({ title: "Requester required", description: "Please enter who is requesting the maintenance order.", variant: "destructive" });
       return;
     }
     if (newWoType === "warehouse_service") {
@@ -285,14 +285,14 @@ export default function WorkOrdersPage() {
         return;
       }
     } else if (!newMachine.trim()) {
-      toast({ title: "Machine required", description: "Please select a machine before creating the work order.", variant: "destructive" });
+      toast({ title: "Machine required", description: "Please select a machine before creating the maintenance order.", variant: "destructive" });
       return;
     } else if (!newLineStopped) {
       toast({ title: "Line status required", description: "Please select whether the line is stopped or running.", variant: "destructive" });
       return;
     }
     if (!newDesc.trim()) {
-      toast({ title: "Problem description required", description: "Please describe the problem before creating the work order.", variant: "destructive" });
+      toast({ title: "Problem description required", description: "Please describe the problem before creating the maintenance order.", variant: "destructive" });
       return;
     }
     try {
@@ -307,7 +307,7 @@ export default function WorkOrdersPage() {
       } else {
         await createWO.mutateAsync({ requester_name: newRequester.trim(), wo_type: "production", line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), line_stopped: newLineStopped === "stopped" } as any);
       }
-      toast({ title: "Work Order Created" });
+      toast({ title: "Maintenance Order Created" });
       setShowCreate(false); setNewWoType("production"); setNewWarehouseLocation(""); setNewLineStopped("running"); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes(""); setTouched({}); setSubmitAttempted(false);
 
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
@@ -321,13 +321,13 @@ export default function WorkOrdersPage() {
     if (!editWO) return;
     try {
       await updateWO.mutateAsync({ id: editWO.id, requester_name: editRequester.trim(), machine: editMachine.trim(), description: editDesc.trim(), notes: editNotes.trim() });
-      toast({ title: "Work Order Updated" }); setEditWO(null);
+      toast({ title: "Maintenance Order Updated" }); setEditWO(null);
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    try { await deleteWO.mutateAsync(deleteId); toast({ title: "Work Order Deleted" }); setDeleteId(null); }
+    try { await deleteWO.mutateAsync(deleteId); toast({ title: "Maintenance Order Deleted" }); setDeleteId(null); }
     catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
 
@@ -366,8 +366,8 @@ export default function WorkOrdersPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader
-          title="Work Orders"
-          description="Manage and track all work orders"
+          title="Maintenance Orders"
+          description="Manage and track all maintenance orders"
           icon={<ClipboardList className="h-5 w-5" />}
           actions={
             <>
@@ -544,7 +544,7 @@ export default function WorkOrdersPage() {
           <CardContent>
             {/* Print-only header */}
             <div className="print-header hidden print:block">
-              <h1 style={{ fontSize: "16pt", fontWeight: "bold" }}>AN Maintenance — Work Orders Report</h1>
+              <h1 style={{ fontSize: "16pt", fontWeight: "bold" }}>AN Maintenance — Maintenance Orders Report</h1>
               <p style={{ fontSize: "10pt", color: "#666" }}>
                 {drPreset === "custom" ? `Period: ${drRange.from ? format(drRange.from, "yyyy-MM-dd") : "…"} to ${drRange.to ? format(drRange.to, "yyyy-MM-dd") : "…"}` : drPreset !== "all" ? `Filter: ${drPreset}` : "All records"}
                 {lineFilter !== "all" ? ` | Line: ${lineFilter}` : ""}
@@ -558,8 +558,8 @@ export default function WorkOrdersPage() {
             ) : !filteredWOs?.length ? (
               <div className="text-center py-12">
                 <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />
-                <p className="text-muted-foreground font-medium">No work orders found</p>
-                <p className="text-muted-foreground text-sm mt-1">Try adjusting your filters or create a new work order.</p>
+                <p className="text-muted-foreground font-medium">No maintenance orders found</p>
+                <p className="text-muted-foreground text-sm mt-1">Try adjusting your filters or create a new maintenance order.</p>
               </div>
             ) : viewMode === "board" ? (
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4 no-print">
@@ -629,8 +629,8 @@ export default function WorkOrdersPage() {
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
-                                    <AlertDialogTitle>Force Close Work Order?</AlertDialogTitle>
-                                    <AlertDialogDescription>This will force-close the work order regardless of its current status. This action will be recorded in the audit log.</AlertDialogDescription>
+                                    <AlertDialogTitle>Force Close Maintenance Order?</AlertDialogTitle>
+                                    <AlertDialogDescription>This will force-close the maintenance order regardless of its current status. This action will be recorded in the audit log.</AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -687,7 +687,7 @@ export default function WorkOrdersPage() {
                             <div className="flex items-center gap-1">
                               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
                               {wo.status === "in_progress" && wo.started_at && differenceInMinutes(new Date(), new Date(wo.started_at)) > 4320 && (
-                                <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-[10px]" variant="outline" title="This work order has been in progress for more than 3 days. Consider reviewing or closing it.">Stale</Badge>
+                                <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-[10px]" variant="outline" title="This maintenance order has been in progress for more than 3 days. Consider reviewing or closing it.">Stale</Badge>
                               )}
                             </div>
                           </TableCell>}
@@ -718,8 +718,8 @@ export default function WorkOrdersPage() {
                                   </AlertDialogTrigger>
                                   <AlertDialogContent>
                                     <AlertDialogHeader>
-                                      <AlertDialogTitle>Force Close Work Order?</AlertDialogTitle>
-                                      <AlertDialogDescription>This will force-close the work order regardless of its current status. This action will be recorded in the audit log.</AlertDialogDescription>
+                                      <AlertDialogTitle>Force Close Maintenance Order?</AlertDialogTitle>
+                                      <AlertDialogDescription>This will force-close the maintenance order regardless of its current status. This action will be recorded in the audit log.</AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                       <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -752,7 +752,7 @@ export default function WorkOrdersPage() {
         {/* Create WO Dialog */}
         <Dialog open={showCreate} onOpenChange={(o) => { setShowCreate(o); if (!o) { setTouched({}); setSubmitAttempted(false); } }}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Create Work Order</DialogTitle><DialogDescription className="sr-only">Fill in work order details</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>Create Maintenance Order</DialogTitle><DialogDescription className="sr-only">Fill in maintenance order details</DialogDescription></DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4" autoComplete="off">
               <div className="space-y-2"><Label>Requested By <span className="text-destructive">*</span></Label>
                 <Input value={newRequester} onChange={(e) => setNewRequester(e.target.value)} onBlur={() => markTouched("requester")} placeholder="Your name / tablet" className={showErr("requester", !newRequester) ? "border-destructive focus-visible:ring-destructive" : ""} />
@@ -841,7 +841,7 @@ export default function WorkOrdersPage() {
         {/* Edit WO Dialog */}
         <Dialog open={!!editWO} onOpenChange={(open) => !open && setEditWO(null)}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Edit Work Order</DialogTitle><DialogDescription className="sr-only">Modify work order details</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>Edit Maintenance Order</DialogTitle><DialogDescription className="sr-only">Modify maintenance order details</DialogDescription></DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2"><Label>Requested By</Label>
                 <Input value={editRequester} onChange={(e) => setEditRequester(e.target.value)} placeholder="Your name / tablet" />
@@ -873,7 +873,7 @@ export default function WorkOrdersPage() {
         <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete work order?</AlertDialogTitle>
+              <AlertDialogTitle>Delete maintenance order?</AlertDialogTitle>
               <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -887,9 +887,9 @@ export default function WorkOrdersPage() {
         <AlertDialog open={showClearWOs} onOpenChange={(o) => { setShowClearWOs(o); if (!o) { setClearPin(""); setClearConfirmText(""); } }}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Clear all work orders?</AlertDialogTitle>
+              <AlertDialogTitle>Clear all maintenance orders?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete ALL work orders, messages, photos, parts used records, and engineer scores. This action cannot be undone. Enter admin PIN and type CONFIRM to proceed.
+                This will permanently delete ALL maintenance orders, messages, photos, parts used records, and engineer scores. This action cannot be undone. Enter admin PIN and type CONFIRM to proceed.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="px-6 pb-2 space-y-3">
@@ -930,7 +930,7 @@ export default function WorkOrdersPage() {
                   });
                   const result = await res.json();
                   if (!res.ok) throw new Error(result.error || "Failed");
-                  toast({ title: "Work orders cleared", description: "All work order data has been removed." });
+                  toast({ title: "Maintenance orders cleared", description: "All maintenance order data has been removed." });
                   logAuditEvent("work_orders_cleared", "system", undefined, { cleared_by: user?.email });
                   setShowClearWOs(false);
                   setClearPin("");

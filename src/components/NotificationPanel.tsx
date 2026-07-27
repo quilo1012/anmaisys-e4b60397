@@ -165,7 +165,7 @@ export function NotificationPanel() {
             const priority = PRIORITY_FROM_WO[wo.priority] || "medium";
             addNotification({
               type: "new_wo",
-              title: priority === "critical" ? "🚨 Critical Work Order" : "New Work Order",
+              title: priority === "critical" ? "🚨 Critical Maintenance Order" : "New Maintenance Order",
               message: `WO #${wo.wo_number} • ${wo.machine} — ${wo.description}`,
               priority,
               woId: wo.id,

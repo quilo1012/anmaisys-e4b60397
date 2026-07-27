@@ -772,7 +772,7 @@ export default function LineProductionScreen() {
             <div className="text-2xl font-semibold">Maintenance terminal</div>
             <div className="text-muted-foreground">
               <span className="font-medium">{line}</span> is not mapped to iTouching.
-              <br />Use <strong>Request Maintenance</strong> above to open a work order.
+              <br />Use <strong>Request Maintenance</strong> above to open a maintenance order.
               No production tracking is available for this line.
             </div>
           </CardContent>

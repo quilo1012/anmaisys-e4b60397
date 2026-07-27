@@ -738,7 +738,7 @@ export default function DowntimePage() {
         </div>
       </div>
       <div className="space-y-2">
-        <Label>Link to Work Order</Label>
+        <Label>Link to Maintenance Order</Label>
         <Select value={formWOId || undefined} onValueChange={setFormWOId}>
           <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
           <SelectContent>

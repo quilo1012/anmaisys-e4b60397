@@ -66,7 +66,7 @@ export function AudioStatusButton() {
               Critical alert sound
             </Label>
             <p className="text-xs text-muted-foreground">
-              Plays a continuous siren for new Work Orders.
+              Plays a continuous siren for new Maintenance Orders.
             </p>
           </div>
           <Switch

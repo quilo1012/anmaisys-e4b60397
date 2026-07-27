@@ -16,7 +16,7 @@ interface Props {
 }
 
 /**
- * Line-centric picker for new Work Orders.
+ * Line-centric picker for new Maintenance Orders.
  *  Step 1 (required): pick a production line.
  *  Step 2 (optional): mark that the problem is on a mobile asset (Printer / Bag Sealer).
  *

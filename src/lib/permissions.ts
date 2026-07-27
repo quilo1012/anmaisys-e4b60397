@@ -7,7 +7,7 @@ export type Role = Database["public"]["Enums"]["app_role"];
  * Keep names verb-led and resource-suffixed: `verb.resource`.
  */
 export type Action =
-  // Work Orders
+  // Maintenance Orders
   | "wo.view"
   | "wo.create"
   | "wo.update"
@@ -303,7 +303,7 @@ export function canUseDirectMessages(role: Role | null | undefined): boolean {
  * that needs to describe actions to end-users. Single source of truth.
  */
 export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] = [
-  { key: "wo", label: "Work Orders", actions: ["wo.view", "wo.create", "wo.update", "wo.close", "wo.delete", "wo.force", "wo.print"] },
+  { key: "wo", label: "Maintenance Orders", actions: ["wo.view", "wo.create", "wo.update", "wo.close", "wo.delete", "wo.force", "wo.print"] },
   { key: "downtime", label: "Downtime", actions: ["downtime.view", "downtime.manage"] },
   { key: "machines", label: "Machines & Problems", actions: ["machines.view", "machines.manage", "problems.view", "problems.manage"] },
   { key: "stock", label: "Stock", actions: ["stock.view", "stock.manage", "stock.pricing"] },
@@ -330,13 +330,13 @@ export const ACTION_LABELS: Partial<Record<Action, string>> = {
 };
 
 export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
-  "wo.view": "See the Work Orders list and details.",
-  "wo.create": "Open new Work Orders / maintenance requests.",
+  "wo.view": "See the Maintenance Orders list and details.",
+  "wo.create": "Open new Maintenance Orders / maintenance requests.",
   "wo.update": "Edit fields, assign engineers, change status.",
-  "wo.close": "Mark Work Orders as completed.",
-  "wo.delete": "Permanently remove Work Orders.",
+  "wo.close": "Mark Maintenance Orders as completed.",
+  "wo.delete": "Permanently remove Maintenance Orders.",
   "wo.force": "Force-close a WO bypassing normal flow (admin action).",
-  "wo.print": "Print or export Work Orders to PDF.",
+  "wo.print": "Print or export Maintenance Orders to PDF.",
   "downtime.view": "See downtime events and history.",
   "downtime.manage": "Create, edit and close downtime events.",
   "machines.view": "Browse the machines registry.",

@@ -27,7 +27,7 @@ export function RecurrenceBadge({ originalWoId, compact }: Props) {
           className={`inline-flex items-center gap-1 rounded-full border border-amber-500/60 bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-900/60 font-semibold ${
             compact ? "px-1.5 py-0 text-[10px]" : "px-2 py-0.5 text-xs"
           }`}
-          aria-label="Recurrence of previous work order"
+          aria-label="Recurrence of previous maintenance order"
         >
           <RotateCw className={compact ? "h-2.5 w-2.5" : "h-3 w-3"} />
           {compact ? "🔁" : "Recurrence"}

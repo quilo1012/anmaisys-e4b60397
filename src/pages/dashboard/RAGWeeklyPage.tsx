@@ -256,7 +256,7 @@ export default function RAGWeeklyPage() {
   }, [weekStartStr, qc]);
 
 
-  // Auto downtime per (date|line|shift) from work orders + manual downtime.
+  // Auto downtime per (date|line|shift) from maintenance orders + manual downtime.
   const padStartIso = new Date(weekStart.getTime() - 24 * 3600_000).toISOString();
   const padEndIso = addDays(weekStart, 8).toISOString();
   const { data: lineStops = [], error: lineStopsError } = useQuery({
@@ -915,7 +915,7 @@ export default function RAGWeeklyPage() {
             </CardHeader>
             <CardContent className="text-xs space-y-1">
               <p className="text-muted-foreground">
-                The following Work Orders contribute minutes to more than one (date · line · shift) cell.
+                The following Maintenance Orders contribute minutes to more than one (date · line · shift) cell.
                 Splitting across the 06:00/18:00 boundary is expected; review to confirm no double-counting.
               </p>
               <div className="max-h-40 overflow-auto mt-2 space-y-1">
@@ -1997,7 +1997,7 @@ function DowntimeBreakdownPopover({
             to={`/dashboard/engineer?line=${encodeURIComponent(line)}&date=${encodeURIComponent(dateStr)}`}
             className="text-[11px] text-primary hover:underline"
           >
-            Open Work Orders →
+            Open Maintenance Orders →
           </Link>
         </div>
 

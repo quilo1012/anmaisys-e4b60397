@@ -86,7 +86,7 @@ const ADMIN = "bg-red-500/15 text-red-600 dark:text-red-400";
 export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCardsProps) {
   const { role } = useAuth();
   const cards: NavCard[] = [
-    { title: "Work Orders", description: "Manage all maintenance work orders", url: "/dashboard/work-orders", icon: ClipboardList, badge: openWOs, accent: OPS },
+    { title: "Maintenance Orders", description: "Manage all maintenance maintenance orders", url: "/dashboard/work-orders", icon: ClipboardList, badge: openWOs, accent: OPS },
     { title: "Production Planner", description: "Daily shift planning by line", url: "/dashboard/planner", icon: CalendarRange, accent: OPS },
     { title: "Production OEE", description: "Performance, RAG and leaderboard", url: "/dashboard/production-performance", icon: Gauge, accent: REPORTS },
     { title: "Quality Actions", description: "Log and track quality issues", url: "/dashboard/quality", icon: CheckSquare, accent: OPS },
@@ -140,8 +140,8 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
 
 export function OperatorNavCards({ myOpenWOs }: { myOpenWOs?: number }) {
   const cards: NavCard[] = [
-    { title: "New Work Order", description: "Submit a maintenance request", url: "#wo-form-anchor", icon: Plus, accent: "bg-emerald-500/15 text-emerald-600" },
-    { title: "My Work Orders", description: "Track your submitted orders", url: "/dashboard/operator", icon: ClipboardList, badge: myOpenWOs },
+    { title: "New Maintenance Order", description: "Submit a maintenance request", url: "#wo-form-anchor", icon: Plus, accent: "bg-emerald-500/15 text-emerald-600" },
+    { title: "My Maintenance Orders", description: "Track your submitted orders", url: "/dashboard/operator", icon: ClipboardList, badge: myOpenWOs },
     { title: "My Production", description: "View today's line target and enter produced quantities", url: "/dashboard/operator/my-production", icon: Factory, accent: "bg-blue-500/15 text-blue-600" },
   ];
   return <DashboardNavCards cards={cards} />;
@@ -149,7 +149,7 @@ export function OperatorNavCards({ myOpenWOs }: { myOpenWOs?: number }) {
 
 export function EngineerNavCards({ assignedCount, stockLow }: { assignedCount?: number; stockLow?: number }) {
   const cards: NavCard[] = [
-    { title: "My Tasks", description: "View assigned work orders", url: "/dashboard/engineer", icon: Wrench, badge: assignedCount, accent: "bg-blue-500/15 text-blue-600" },
+    { title: "My Tasks", description: "View assigned maintenance orders", url: "/dashboard/engineer", icon: Wrench, badge: assignedCount, accent: "bg-blue-500/15 text-blue-600" },
     { title: "Preventive Maintenance", description: "Recurring schedules and checklists", url: "/dashboard/preventive", icon: Wrench, accent: ASSETS },
     { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package, badge: stockLow, accent: "bg-amber-500/15 text-amber-600" },
   ];
