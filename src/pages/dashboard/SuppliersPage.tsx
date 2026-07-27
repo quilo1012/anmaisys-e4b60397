@@ -141,7 +141,7 @@ export default function SuppliersPage() {
                               </Button>
                             )}
                             {po.status === "sent" && (
-                              <Button size="sm" onClick={() => poM.setStatus.mutate({ id: po.id, status: "received" })}>
+                              <Button size="sm" disabled={poM.setStatus.isPending} onClick={() => poM.setStatus.mutate({ id: po.id, status: "received" })}>
                                 <CheckCircle2 className="h-3 w-3 mr-1" /> Receive
                               </Button>
                             )}

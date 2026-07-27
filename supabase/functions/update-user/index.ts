@@ -125,8 +125,8 @@ Deno.serve(async (req) => {
 
     const { data: targetRole } = await supabaseAdmin.rpc("get_user_role", { _user_id: userId });
 
-    if (isManager && !isAdmin && (targetRole === "admin" || targetRole === "manager" || targetRole === "supervisor" || targetRole === "maintenance_manager" || targetRole === "planner")) {
-      throw new Error("Managers cannot modify Admin, Manager, Supervisor, Maintenance Manager or Planner users");
+    if (isManager && !isAdmin && (targetRole === "admin" || targetRole === "manager" || targetRole === "supervisor" || targetRole === "maintenance_manager" || targetRole === "planner" || targetRole === "quality_supervisor" || targetRole === "warehouse" || targetRole === "viewer")) {
+      throw new Error("Managers cannot modify Admin, Manager, Supervisor, QC Supervisor, Maintenance Manager, Planner, Warehouse or Viewer users");
     }
 
     if (isManager && !isAdmin && role && role !== "engineer" && role !== "co_engineer" && role !== "operator") {

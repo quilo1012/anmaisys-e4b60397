@@ -168,29 +168,18 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Provisions the auth user (with the default password) if it doesn't exist yet.
     await ensureOperatorIdentity(admin, acc as TabletAccount);
 
     // Perform sign-in with a fresh anon client.
-    let { data: signIn, error: signErr } = await signInTablet(SUPABASE_URL, ANON_KEY, acc.email, password);
+    const { data: signIn, error: signErr } = await signInTablet(SUPABASE_URL, ANON_KEY, acc.email, password);
 
-    // Some tablet rows existed without a matching auth user, and older tablets
-    // may still have the previous default hash. When the operator enters the
-    // approved default password, repair the auth password server-side and retry.
-    if ((signErr || !signIn.session) && password === DEFAULT_TABLET_PASSWORD) {
-      const { data: authUsers, error: listErr } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      if (listErr) throw listErr;
-      const user = authUsers.users.find((u) => u.email?.toLowerCase() === acc.email.toLowerCase());
-      if (user?.id) {
-        await admin.auth.admin.updateUserById(user.id, {
-          password: DEFAULT_TABLET_PASSWORD,
-          email_confirm: true,
-          user_metadata: { name: acc.label },
-        });
-        const retry = await signInTablet(SUPABASE_URL, ANON_KEY, acc.email, password);
-        signIn = retry.data;
-        signErr = retry.error;
-      }
-    }
+    // SECURITY: no password "self-heal" here. Previously, submitting the shared
+    // default password would RESET an existing account's password back to the
+    // default — a universal backdoor that also destroyed any admin-set custom
+    // password. New accounts already get the default via ensureOperatorIdentity;
+    // accounts with a custom password must be reset by an admin
+    // (reset-operator-password), never by submitting the default.
 
     if (signErr || !signIn.session) {
       recordFailure(account_id);

@@ -455,11 +455,16 @@ export function useCloseWorkOrder() {
         updatePayload.line_resumed_at = now;
         updatePayload.line_resumed_by = user!.id;
       }
-      const { error } = await supabase
+      // .select() so an RLS-blocked update (0 rows, no error) is caught instead
+      // of reporting a false "closed" — e.g. a role without a work_orders UPDATE
+      // policy would otherwise see a success toast while the WO stays open.
+      const { data, error } = await supabase
         .from("work_orders")
         .update(updatePayload)
-        .eq("id", woId);
+        .eq("id", woId)
+        .select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("You don't have permission to close this work order.");
       return { before, closedAt: now };
     },
     onSuccess: (result, vars) => {
@@ -493,11 +498,23 @@ export function useForceCloseWorkOrder() {
 
   return useMutation({
     mutationFn: async (woId: string) => {
-      const { data: before } = await supabase.from("work_orders").select("status").eq("id", woId).single();
-      const { error } = await supabase
-        .from("work_orders")
-        .update({ status: "force_closed" as any, closed_by: user!.id, completed_at: new Date().toISOString() } as any)
-        .eq("id", woId);
+      const now = new Date().toISOString();
+      const { data: before } = await supabase.from("work_orders").select("status, line_stopped, line_resumed_at").eq("id", woId).single();
+      // Resume the line on force-close too, otherwise the auto-close triggers
+      // (which key off finished_at / line_resumed_at) never fire and the
+      // downtime_events row stays open forever, inflating downtime without bound.
+      const payload: any = {
+        status: "force_closed",
+        closed_by: user!.id,
+        completed_at: now,
+        finished_at: now,
+      };
+      if (before?.line_stopped && !before?.line_resumed_at) {
+        payload.line_stopped = false;
+        payload.line_resumed_at = now;
+        payload.line_resumed_by = user!.id;
+      }
+      const { error } = await supabase.from("work_orders").update(payload).eq("id", woId);
       if (error) throw error;
       return { before };
     },
