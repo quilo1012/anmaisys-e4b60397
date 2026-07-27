@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { lazyWithReload } from "@/lib/lazyWithReload";
+import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -84,7 +85,9 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 30 * 1000,
       gcTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
+      // Refetch when the tablet/app regains focus or reconnects, so screens
+      // don't sit on stale data until a manual refresh.
+      refetchOnWindowFocus: true,
       refetchOnReconnect: true,
       retry: (failureCount, error: unknown) => {
         const status = (error as { status?: number; statusCode?: number } | null)?.status
@@ -166,6 +169,8 @@ const SessionRedirect = () => {
   return <Navigate to={roleDashMap[role]} replace />;
 };
 
+const AppUpdater = () => { useAppUpdater(); return null; };
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -176,6 +181,7 @@ const App = () => (
           <LanguageProvider>
           <CriticalAlertProvider>
             <ErrorBoundary>
+            <AppUpdater />
             <PermissionOverridesSync />
             <Suspense fallback={<PageLoader />}>
               <Routes>
