@@ -539,8 +539,10 @@ export default function ProductionPerformancePage() {
             // setup/near, red below-target (pulsing).
             const gap = l.actual - l.target;
             const status = l.eff >= 100 ? "ON TARGET" : l.eff >= 80 ? "SETUP" : "BELOW TARGET";
-            const ring = l.eff >= 100 ? "border-emerald-500/70" : l.eff >= 80 ? "border-amber-500/70" : "border-red-500/80";
-            const panelBg = l.eff >= 80 ? "bg-slate-900" : "bg-red-950/40";
+            const ring = l.eff >= 100 ? "border-emerald-500/70" : l.eff >= 80 ? "border-amber-500/70" : "border-red-500";
+            // All cards share the same deep-slate panel; status is carried by the
+            // border + accents. (A washed red fill made Line 5's numbers unreadable.)
+            const panelBg = "bg-slate-900";
             const chip = l.eff >= 100 ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : l.eff >= 80 ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-red-500/20 text-red-400 border-red-500/40";
             const effColor = l.eff >= 100 ? "text-emerald-400" : l.eff >= 80 ? "text-amber-400" : "text-red-400";
             const gapColor = gap >= 0 ? "text-emerald-400" : "text-red-400";
