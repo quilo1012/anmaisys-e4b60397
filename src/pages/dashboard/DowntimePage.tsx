@@ -19,8 +19,7 @@ import {
   Clock, Loader2, Plus, Pencil, Trash2, CheckCircle, AlertTriangle, Activity,
   TrendingUp, ChevronDown, History, Cog, Printer, FileText, FileSpreadsheet, Lightbulb,
 } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { generateDowntimeReportPDF, type DowntimeReportInput } from "@/lib/downtimeReport";
 import * as XLSX from "xlsx";
 import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
 import { DateRangeFilter, type DateRangePreset, getPresetRange } from "@/components/DateRangeFilter";
@@ -770,32 +769,49 @@ export default function DowntimePage() {
       Notes: r.notes || "",
     }));
 
-  const handleExportPdf = () => {
-    const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(14);
-    doc.text("Downtime & Reliability Report", 14, 14);
-    doc.setFontSize(10);
-    doc.text(
-      `Range: ${format(startDate, "PP")} — ${format(endDate, "PP")}   |   Records: ${filteredRecords.length}   |   Avg MTTR: ${avgMTTR}m   |   Avg MTBF: ${avgMTBF}h`,
-      14, 21,
-    );
-    const rows = buildExportRows();
-    autoTable(doc, {
-      startY: 26,
-      head: [["Line", "Machine", "Category", "Reason", "Start", "End", "Duration", "Notes"]],
-      body: rows.map((r) => [r.Line, r.Machine, r.Category, r.Reason, r.Start, r.End, r.Duration, r.Notes]),
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [234, 88, 12] },
-    });
-    if (filteredRisks.length) {
-      autoTable(doc, {
-        head: [["Machine", "Failures", "MTBF (h)", "MTTR (m)", "Risk"]],
-        body: filteredRisks.map((r: any) => [r.machine, r.count, r.mtbfHours ?? "—", r.mttrMinutes ?? "—", r.risk]),
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [59, 130, 246] },
-      });
+  const buildReportInput = (): DowntimeReportInput => ({
+    rangeLabel: `${format(startDate, "PP")} — ${format(endDate, "PP")}`,
+    filtersLabel: `Line: ${filterLine === "all" ? "All" : filterLine}  ·  Shift: ${filterShift === "all" ? "All" : filterShift}  ·  Category: ${filterCategory === "all" ? "All" : filterCategory}  ·  Status: ${filterStatus === "all" ? "All" : filterStatus}`,
+    kpis: {
+      totalDowntime: formatMinutes(kpis.totalRange) || "0m",
+      active: kpis.active,
+      avgMTTR: `${avgMTTR} min`,
+      avgMTBF: `${avgMTBF} hrs`,
+      wos: filteredWOs.length,
+      highRisk: filteredRisks.filter((r: any) => r.risk === "HIGH").length,
+    },
+    records: filteredRecords.map((r) => ({
+      line: r.line || "—",
+      machine: r.machine || "—",
+      category: r.category || "—",
+      reason: r.reason || "—",
+      started: format(new Date(r.started_at), "dd/MM HH:mm"),
+      duration: getDuration(r),
+      status: r.ended_at ? "resolved" : "active",
+    })),
+    risks: filteredRisks.map((r: any) => ({
+      machine: r.machine,
+      failures: r.failures30d,
+      mtbf: r.mtbfHours != null ? String(r.mtbfHours) : "—",
+      risk: r.risk,
+      lastFailure: r.lastFailure ? format(new Date(r.lastFailure), "dd/MM HH:mm") : "—",
+    })),
+    topProblems: [...machineHistory]
+      .sort((a, b) => b.count - a.count)
+      .map((m, i) => ({
+        rank: i + 1,
+        machine: m.machine,
+        failures: m.count,
+        topProblem: m.topProblemCount > 1 ? `${m.topProblem} (×${m.topProblemCount})` : m.topProblem,
+      })),
+  });
+
+  const handleExportPdf = async () => {
+    try {
+      await generateDowntimeReportPDF(buildReportInput());
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to generate PDF", variant: "destructive" });
     }
-    doc.save(`downtime-reliability_${rangeLabel}.pdf`);
   };
 
   const handleExportXlsx = () => {
@@ -856,8 +872,16 @@ export default function DowntimePage() {
     };
   }, []);
 
-  const handlePrint = () => {
-    setTimeout(() => window.print(), 50);
+  const handlePrint = async () => {
+    // Print the clean generated report, not the raw page DOM. Open the PDF in a
+    // new tab to print; fall back to a download if the tab is blocked.
+    try {
+      const url = await generateDowntimeReportPDF(buildReportInput(), { output: "bloburl" });
+      const w = url ? window.open(url, "_blank") : null;
+      if (!w) await generateDowntimeReportPDF(buildReportInput());
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to generate PDF", variant: "destructive" });
+    }
   };
 
   const printGeneratedAt = format(new Date(), "yyyy-MM-dd HH:mm");
