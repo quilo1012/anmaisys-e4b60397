@@ -1,18 +1,24 @@
-import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Keeps the tablet on the latest deployed build without a manual refresh.
  * Vite emits a hashed `/assets/index-*.js` entry that changes on every publish,
  * so we compare the currently-running entry against the one in the freshly
- * fetched index.html. When a new build is out we reload **when it's safe**:
+ * fetched index.html. When a new build is out:
  *   - if the app is backgrounded → reload right away (zero interruption);
- *   - if it's in use → show a sticky "Update" toast and reload the next time the
- *     app is backgrounded, so we never wipe a half-typed entry.
+ *   - if it's in use → expose `updateReady` so the UI can show a prominent
+ *     "Update now" banner, and still auto-reload the next time the app is
+ *     backgrounded, so we never wipe a half-typed entry or leave the tablet
+ *     stuck on a stale build.
+ *
+ * Returns `{ updateReady, reloadNow }` for the banner in <AppUpdater/>.
  */
 export function useAppUpdater() {
   const baselineRef = useRef<string | null>(null);
-  const pendingReloadRef = useRef(false);
+  const pendingRef = useRef(false);
+  const [updateReady, setUpdateReady] = useState(false);
+
+  const reloadNow = useCallback(() => { location.reload(); }, []);
 
   useEffect(() => {
     const currentEntry = (): string | null => {
@@ -40,30 +46,24 @@ export function useAppUpdater() {
       }
     };
 
-    const reloadWhenSafe = () => {
-      if (document.visibilityState === "hidden") {
-        location.reload();
-        return;
-      }
-      if (pendingReloadRef.current) return;
-      pendingReloadRef.current = true;
-      toast("A new version is available", {
-        description: "Tap to update now — it refreshes automatically when idle.",
-        action: { label: "Update", onClick: () => location.reload() },
-        duration: Infinity,
-        id: "app-update",
-      });
+    const onUpdateDetected = () => {
+      if (pendingRef.current) return;
+      // Backgrounded → reload straight away, no interruption.
+      if (document.visibilityState === "hidden") { location.reload(); return; }
+      // In use → surface the banner and remember to reload once idle.
+      pendingRef.current = true;
+      setUpdateReady(true);
     };
 
     const check = async () => {
       if (stopped || !baselineRef.current) return;
       const latest = await fetchLatestEntry();
-      if (latest && latest !== baselineRef.current) reloadWhenSafe();
+      if (latest && latest !== baselineRef.current) onUpdateDetected();
     };
 
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
-        if (pendingReloadRef.current) location.reload();
+        if (pendingRef.current) location.reload();
       } else {
         check();
       }
@@ -80,4 +80,6 @@ export function useAppUpdater() {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
+
+  return { updateReady, reloadNow };
 }

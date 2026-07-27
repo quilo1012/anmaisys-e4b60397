@@ -167,7 +167,30 @@ const SessionRedirect = () => {
   return <Navigate to={roleDashMap[role]} replace />;
 };
 
-const AppUpdater = () => { useAppUpdater(); return null; };
+const AppUpdater = () => {
+  const { updateReady, reloadNow } = useAppUpdater();
+  if (!updateReady) return null;
+  // Prominent, unmissable top banner (kiosk tablets miss subtle toasts). The app
+  // still auto-reloads once idle, but this lets the person update on demand
+  // instead of ending up stuck on a stale build.
+  return (
+    <div
+      role="alert"
+      className="fixed inset-x-0 top-0 z-[200] flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-primary px-4 py-2.5 text-primary-foreground shadow-lg"
+    >
+      <span className="flex items-center gap-2 text-sm font-semibold">
+        <RefreshCw className="h-4 w-4 shrink-0" />
+        A new version is available
+      </span>
+      <button
+        onClick={reloadNow}
+        className="rounded-md bg-primary-foreground px-3 py-1 text-xs font-bold text-primary hover:opacity-90"
+      >
+        Update now
+      </button>
+    </div>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
