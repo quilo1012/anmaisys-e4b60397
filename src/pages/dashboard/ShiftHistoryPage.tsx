@@ -33,16 +33,16 @@ function skuLabel(name: string | null | undefined): string {
 
 /** Searchable SKU picker — the same standard as the operator's Log Production,
  *  instead of a native select listing ~1,500 SKUs with the HS code inline. */
-function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU", allowAll = false, allLabel = "All SKUs" }: {
+function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU", allowAll = false, allLabel = "All SKUs", triggerCodeOnly = false, triggerClassName }: {
   skus: { id: string; code: string; name: string }[];
   value: string; onChange: (id: string) => void; placeholder?: string;
-  allowAll?: boolean; allLabel?: string;
+  allowAll?: boolean; allLabel?: string; triggerCodeOnly?: boolean; triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const selected = skus.find((s) => s.id === value);
   const triggerText = allowAll && value === "__all__" ? allLabel
-    : selected ? `${selected.code} — ${skuLabel(selected.name)}` : placeholder;
+    : selected ? (triggerCodeOnly ? baseSkuCode(selected.code) || selected.code : `${selected.code} — ${skuLabel(selected.name)}`) : placeholder;
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     const base = query
@@ -53,8 +53,8 @@ function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU", allowA
   return (
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQ(""); }}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
-          <span className="truncate">{triggerText}</span>
+        <Button variant="outline" role="combobox" className={cn("w-full justify-between font-normal", triggerClassName)}>
+          <span className={cn("truncate", triggerCodeOnly && "font-mono text-xs")}>{triggerText}</span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -84,6 +84,46 @@ function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU", allowA
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** Inline SKU corrector — admin picks the right catalog SKU straight from the
+ *  Production Control grid to fix a wrong pick or a typed free-text code. Saving
+ *  sets sku_id and clears any stale sku_code_text so exports/displays stop
+ *  falling back to the bad value. Read-only text for everyone else. */
+function InlineSkuCell({ itemId, skuId, codeText, displayCode, skus, editable, onSaved }: {
+  itemId: string; skuId: string | null; codeText: string | null; displayCode: string;
+  skus: { id: string; code: string; name: string }[]; editable: boolean; onSaved: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  if (!editable) {
+    return displayCode
+      ? <span className="font-mono text-xs font-bold whitespace-nowrap">{displayCode}</span>
+      : codeText
+        ? <span className="italic text-xs text-amber-600 dark:text-amber-400" title="Not in catalog — admin should reconcile the SKU">{codeText}</span>
+        : <span className="text-xs">—</span>;
+  }
+  const save = async (id: string) => {
+    if (!id || id === (skuId ?? "")) return;
+    setSaving(true);
+    const { error } = await supabase.from("production_items")
+      .update({ sku_id: id, sku_code_text: null }).eq("id", itemId);
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("SKU corrected");
+    onSaved();
+  };
+  return (
+    <div className={cn("w-[150px]", saving && "opacity-50 pointer-events-none")}>
+      <SkuCombobox
+        skus={skus}
+        value={skuId ?? ""}
+        onChange={save}
+        triggerCodeOnly
+        triggerClassName="h-7"
+        placeholder={codeText ? `⚠ ${codeText}` : "Pick SKU"}
+      />
+    </div>
   );
 }
 
@@ -900,7 +940,17 @@ export default function ShiftHistoryPage() {
                                     />
                                   ) : null}
                                 </td>
-                                <td className="px-3 py-2 font-mono text-xs font-bold whitespace-nowrap">{baseSkuCode(code) || (i.sku_code_text ? <span className="italic font-normal text-amber-600 dark:text-amber-400" title="Not in catalog — admin should reconcile the SKU">{i.sku_code_text}</span> : "—")}</td>
+                                <td className="px-3 py-2">
+                                  <InlineSkuCell
+                                    itemId={i.id}
+                                    skuId={i.sku_id}
+                                    codeText={i.sku_code_text}
+                                    displayCode={baseSkuCode(code)}
+                                    skus={skus}
+                                    editable={isAdmin && (i.sku_id != null || i.sku_code_text != null)}
+                                    onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                                  />
+                                </td>
                                 <td className="px-3 py-2 max-w-[240px]">
                                   <UITooltip>
                                     <TooltipTrigger asChild>
@@ -1012,7 +1062,15 @@ export default function ShiftHistoryPage() {
                           className={cn(noLeader && "border-yellow-500/50 bg-yellow-500/5")}
                           title={
                             <span className="flex items-center gap-2">
-                              <span className="font-mono">{baseSkuCode(code) || i.sku_code_text || "—"}</span>
+                              <InlineSkuCell
+                                itemId={i.id}
+                                skuId={i.sku_id}
+                                codeText={i.sku_code_text}
+                                displayCode={baseSkuCode(code)}
+                                skus={skus}
+                                editable={isAdmin && (i.sku_id != null || i.sku_code_text != null)}
+                                onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                              />
                               <Badge
                                 variant="outline"
                                 className={cn(
