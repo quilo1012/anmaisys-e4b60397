@@ -1082,7 +1082,47 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
   });
 
   const entries = entriesQ.data || [];
-  const total = entries.reduce((s, e) => s + Number(e.quantity || 0), 0);
+
+  // Items logged WITHOUT a blender (e.g. a directly-typed entry) never appeared
+  // in the blender-entries list, yet they still count toward the session total
+  // shown in the Target popover — so the two totals disagreed. List them here
+  // too, so "Logged this shift" reconciles with the popover and any stray/direct
+  // entry is visible and removable.
+  const directItemsQ = useQuery({
+    enabled: !!sessionId,
+    queryKey: ["direct-items", sessionId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("production_items")
+        .select("id, actual_qty, batch_code, blender_ref, created_at, sku:sku_products(code, name), production_blender_entries(id)")
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return ((data || []) as any[]).filter(
+        (it) => !(it.production_blender_entries?.length) && Number(it.actual_qty || 0) !== 0,
+      );
+    },
+  });
+  const directItems = directItemsQ.data || [];
+  const total =
+    entries.reduce((s, e) => s + Number(e.quantity || 0), 0) +
+    directItems.reduce((s, it) => s + Number(it.actual_qty || 0), 0);
+
+  const onDeleteItem = async (id: string) => {
+    if (!window.confirm("Delete this entry?")) return;
+    setDeletingId(id);
+    try {
+      const { error } = await (supabase as any).from("production_items").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Entry deleted");
+      qc.invalidateQueries({ queryKey: ["direct-items", sessionId] });
+      qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete entry");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const onDelete = async (id: string) => {
     if (!window.confirm("Delete this entry?")) return;
@@ -1107,14 +1147,14 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
     <div className="pt-4 border-t space-y-2">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold">Logged this shift</div>
-        <div className="text-xs text-muted-foreground">{entries.length} {entries.length === 1 ? "entry" : "entries"}</div>
+        <div className="text-xs text-muted-foreground">{entries.length + directItems.length} {entries.length + directItems.length === 1 ? "entry" : "entries"}</div>
       </div>
 
-      {entriesQ.isLoading ? (
+      {entriesQ.isLoading || directItemsQ.isLoading ? (
         <div className="text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading...
         </div>
-      ) : entries.length === 0 ? (
+      ) : entries.length === 0 && directItems.length === 0 ? (
         <div className="text-sm text-muted-foreground py-2">No entries logged yet this shift.</div>
       ) : (
         <>
@@ -1176,6 +1216,33 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                 </li>
               );
             })}
+            {directItems.map((it) => (
+              <li key={it.id} className="flex items-center gap-3 p-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono text-sm font-semibold truncate">{it.sku?.code ?? "—"}</span>
+                    <span className="text-xs text-muted-foreground truncate">{productLabel(it.sku?.name)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium">No blender</span>
+                    {it.blender_ref && <span className="text-[10px] text-muted-foreground">Assembly {it.blender_ref}</span>}
+                    {it.batch_code && <span className="text-[10px] text-muted-foreground truncate">{it.batch_code}</span>}
+                  </div>
+                </div>
+                <div className="text-base font-semibold tabular-nums">{Number(it.actual_qty).toLocaleString()}</div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  onClick={() => onDeleteItem(it.id)}
+                  disabled={deletingId === it.id}
+                  aria-label="Delete entry"
+                >
+                  {deletingId === it.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                </Button>
+              </li>
+            ))}
           </ul>
           <div className="flex items-center justify-between pt-1">
             <span className="text-xs uppercase tracking-wider text-muted-foreground">Total produced this shift</span>
