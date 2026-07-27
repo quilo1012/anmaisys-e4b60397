@@ -110,11 +110,14 @@ export default function DirectMessagesPage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const cancelSendRef = useRef(false);
+  const recordRecognitionRef = useRef<any>(null);
+  const recordTranscriptRef = useRef("");
   const audioSupported =
     typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia &&
     typeof MediaRecorder !== "undefined";
 
   const stopStream = () => { audioStreamRef.current?.getTracks().forEach((t) => t.stop()); audioStreamRef.current = null; };
+  const stopRecordTranscription = () => { try { recordRecognitionRef.current?.stop(); } catch { /* ignore */ } recordRecognitionRef.current = null; };
 
   const uploadAndSendAudio = async (blob: Blob) => {
     if (!activeId || !user) return;
@@ -124,7 +127,10 @@ export default function DirectMessagesPage() {
       const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
       const { error: upErr } = await supabase.storage.from("dm-audio").upload(path, blob, { contentType: blob.type || "audio/webm" });
       if (upErr) throw upErr;
-      await sendMsg.mutateAsync({ recipientId: activeId, message: "🎤 Voice message", audioUrl: path });
+      // Send the transcribed speech as the message text (audio player still shows);
+      // fall back to a label if transcription is unsupported or empty.
+      const spoken = recordTranscriptRef.current.trim();
+      await sendMsg.mutateAsync({ recipientId: activeId, message: spoken || "🎤 Voice message", audioUrl: path });
     } catch (e: any) {
       toast.error(e?.message || "Failed to send voice message");
     } finally {
@@ -149,6 +155,27 @@ export default function DirectMessagesPage() {
       };
       mediaRecorderRef.current = mr;
       mr.start();
+
+      // Transcribe the speech in parallel (best-effort) so the voice note also
+      // carries the text of what was said.
+      recordTranscriptRef.current = "";
+      if (speechSupported) {
+        try {
+          const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+          const rec = new SR();
+          rec.lang = navigator.language || "en-GB";
+          rec.continuous = true;
+          rec.interimResults = true;
+          rec.onresult = (e: any) => {
+            let t = "";
+            for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+            recordTranscriptRef.current = t;
+          };
+          recordRecognitionRef.current = rec;
+          rec.start();
+        } catch { /* transcription is best-effort */ }
+      }
+
       setRecording(true);
     } catch {
       stopStream();
@@ -156,10 +183,10 @@ export default function DirectMessagesPage() {
     }
   };
 
-  const stopAndSend = () => { cancelSendRef.current = false; try { mediaRecorderRef.current?.stop(); } catch { /* ignore */ } setRecording(false); };
-  const cancelRecording = () => { cancelSendRef.current = true; try { mediaRecorderRef.current?.stop(); } catch { /* ignore */ } stopStream(); setRecording(false); };
+  const stopAndSend = () => { cancelSendRef.current = false; stopRecordTranscription(); try { mediaRecorderRef.current?.stop(); } catch { /* ignore */ } setRecording(false); };
+  const cancelRecording = () => { cancelSendRef.current = true; recordTranscriptRef.current = ""; stopRecordTranscription(); try { mediaRecorderRef.current?.stop(); } catch { /* ignore */ } stopStream(); setRecording(false); };
 
-  useEffect(() => () => { stopStream(); }, []);
+  useEffect(() => () => { stopStream(); stopRecordTranscription(); }, []);
 
   const handleTranslate = async (id: string, text: string) => {
     const existing = translations[id];
