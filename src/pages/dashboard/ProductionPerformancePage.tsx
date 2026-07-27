@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
+import { getCurrentFactoryShift } from "@/lib/shifts";
 import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
@@ -31,10 +32,13 @@ export default function ProductionPerformancePage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { profile } = useAuth();
-  const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  // Open on the CURRENT factory shift, not just the calendar day — at 02:00 the
+  // running shift is the previous day's NIGHT, so getCurrentFactoryShift() gives
+  // the right session_date + shift.
+  const [date, setDate] = useState(() => getCurrentFactoryShift().sessionDate);
+  const [endDate, setEndDate] = useState(() => getCurrentFactoryShift().sessionDate);
   const [period, setPeriod] = useState<Period>("day");
-  const [shift, setShift] = useState<"all" | "DAY" | "NIGHT">("all");
+  const [shift, setShift] = useState<"all" | "DAY" | "NIGHT">(() => getCurrentFactoryShift().shiftCode === "night" ? "NIGHT" : "DAY");
   const [lineFilter, setLineFilter] = useState<string>("__all__");
   const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
   const [savingLeaderFor, setSavingLeaderFor] = useState<string | null>(null);
