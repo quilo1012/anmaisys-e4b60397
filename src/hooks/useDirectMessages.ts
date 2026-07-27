@@ -73,6 +73,7 @@ export interface DirectMessage {
   recipient_id: string;
   message: string;
   image_url: string | null;
+  audio_url: string | null;
   read_at: string | null;
   created_at: string;
 }
@@ -160,10 +161,12 @@ export function useSendDM() {
       recipientId,
       message,
       imageUrl,
+      audioUrl,
     }: {
       recipientId: string;
       message: string;
       imageUrl?: string;
+      audioUrl?: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
       const { error } = await supabase.from("direct_messages" as any).insert({
@@ -172,6 +175,7 @@ export function useSendDM() {
         recipient_id: recipientId,
         message,
         image_url: imageUrl ?? null,
+        audio_url: audioUrl ?? null,
       } as any);
       if (error) throw error;
     },

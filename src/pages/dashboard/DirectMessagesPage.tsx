@@ -13,10 +13,33 @@ import {
   useDMUnreadBySender,
   type DMPartner,
 } from "@/hooks/useDirectMessages";
-import { MessageCircle, Send, Loader2, Search, Mic } from "lucide-react";
+import { MessageCircle, Send, Loader2, Search, Mic, Captions, X } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { invokeFunction } from "@/lib/invokeFunction";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+/** Plays a private voice note: resolves a short-lived signed URL for the stored path. */
+function VoiceNote({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    let ok = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.storage.from("dm-audio").createSignedUrl(path, 3600);
+        if (error) throw error;
+        if (ok) setUrl(data?.signedUrl ?? null);
+      } catch { /* ignore — show a retry affordance */ } finally { if (ok) setLoading(false); }
+    })();
+    return () => { ok = false; };
+  }, [path]);
+  if (loading) return <div className="mt-1 flex items-center gap-1 text-xs opacity-70"><Loader2 className="h-3 w-3 animate-spin" /> Loading voice…</div>;
+  if (!url) return <div className="mt-1 text-xs opacity-70">Voice message unavailable</div>;
+  return <audio controls src={url} className="mt-1 max-w-full h-9" />;
+}
 
 type TranslationState = {
   text?: string;
@@ -77,6 +100,66 @@ export default function DirectMessagesPage() {
   };
 
   useEffect(() => () => { try { recognitionRef.current?.stop(); } catch { /* ignore */ } }, []);
+
+  // Voice note: record audio and SEND it (distinct from dictation above, which
+  // only fills the text box). Stored in the private dm-audio bucket; played via a
+  // short-lived signed URL.
+  const [recording, setRecording] = useState(false);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const cancelSendRef = useRef(false);
+  const audioSupported =
+    typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia &&
+    typeof MediaRecorder !== "undefined";
+
+  const stopStream = () => { audioStreamRef.current?.getTracks().forEach((t) => t.stop()); audioStreamRef.current = null; };
+
+  const uploadAndSendAudio = async (blob: Blob) => {
+    if (!activeId || !user) return;
+    setUploadingAudio(true);
+    try {
+      const ext = (blob.type.includes("mp4") || blob.type.includes("mpeg")) ? "mp4" : "webm";
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("dm-audio").upload(path, blob, { contentType: blob.type || "audio/webm" });
+      if (upErr) throw upErr;
+      await sendMsg.mutateAsync({ recipientId: activeId, message: "🎤 Voice message", audioUrl: path });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to send voice message");
+    } finally {
+      setUploadingAudio(false);
+    }
+  };
+
+  const startRecording = async () => {
+    if (!activeId || !audioSupported) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+      audioChunksRef.current = [];
+      cancelSendRef.current = false;
+      const mr = new MediaRecorder(stream);
+      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stopStream();
+        if (cancelSendRef.current) return;
+        const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
+        if (blob.size > 0) await uploadAndSendAudio(blob);
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setRecording(true);
+    } catch {
+      stopStream();
+      toast.error("Microphone permission is needed to record a voice message.");
+    }
+  };
+
+  const stopAndSend = () => { cancelSendRef.current = false; try { mediaRecorderRef.current?.stop(); } catch { /* ignore */ } setRecording(false); };
+  const cancelRecording = () => { cancelSendRef.current = true; try { mediaRecorderRef.current?.stop(); } catch { /* ignore */ } stopStream(); setRecording(false); };
+
+  useEffect(() => () => { stopStream(); }, []);
 
   const handleTranslate = async (id: string, text: string) => {
     const existing = translations[id];
@@ -275,6 +358,7 @@ export default function DirectMessagesPage() {
                                   </p>
                                 )}
                                 <p className="whitespace-pre-wrap">{m.message}</p>
+                                {m.audio_url && <VoiceNote path={m.audio_url} />}
                                 {(() => {
                                   const t = translations[m.id];
                                   if (t?.show && t.text) {
@@ -344,28 +428,56 @@ export default function DirectMessagesPage() {
                       }}
                       className="flex-1"
                     />
-                    {speechSupported && (
-                      <Button
-                        size="icon"
-                        variant={listening ? "destructive" : "outline"}
-                        onClick={toggleDictation}
-                        title={listening ? "Stop dictation" : "Dictate a message"}
-                        aria-label={listening ? "Stop dictation" : "Dictate a message"}
-                      >
-                        <Mic className={cn("h-4 w-4", listening && "animate-pulse")} />
-                      </Button>
+                    {recording ? (
+                      <>
+                        <div className="flex items-center px-2 text-xs font-medium text-destructive whitespace-nowrap">
+                          <span className="animate-pulse">● Rec</span>
+                        </div>
+                        <Button size="icon" variant="ghost" onClick={cancelRecording} disabled={uploadingAudio} title="Cancel" aria-label="Cancel recording">
+                          <X className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="destructive" onClick={stopAndSend} disabled={uploadingAudio} title="Stop & send voice message" aria-label="Stop and send voice message">
+                          {uploadingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        {speechSupported && (
+                          <Button
+                            size="icon"
+                            variant={listening ? "destructive" : "outline"}
+                            onClick={toggleDictation}
+                            title={listening ? "Stop dictation" : "Dictate to text"}
+                            aria-label={listening ? "Stop dictation" : "Dictate to text"}
+                          >
+                            <Captions className={cn("h-4 w-4", listening && "animate-pulse")} />
+                          </Button>
+                        )}
+                        {audioSupported && (
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            onClick={startRecording}
+                            disabled={!activeId || uploadingAudio}
+                            title="Record voice message"
+                            aria-label="Record voice message"
+                          >
+                            {uploadingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+                          </Button>
+                        )}
+                        <Button
+                          size="icon"
+                          onClick={handleSend}
+                          disabled={!text.trim() || sendMsg.isPending}
+                        >
+                          {sendMsg.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </>
                     )}
-                    <Button
-                      size="icon"
-                      onClick={handleSend}
-                      disabled={!text.trim() || sendMsg.isPending}
-                    >
-                      {sendMsg.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                    </Button>
                   </div>
                 </>
               )}
