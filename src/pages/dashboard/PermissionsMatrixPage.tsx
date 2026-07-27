@@ -50,6 +50,7 @@ const ROLE_LABELS: Record<Role, string> = {
   operator: "Operator",
   viewer: "Viewer",
   warehouse: "Warehouse Admin",
+  production_office_admin: "Office Admin",
 };
 
 

@@ -38,7 +38,7 @@ interface Engineer {
   labor_rate?: number | null;
 }
 
-const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", supervisor: "Supervisor", quality_supervisor: "Supervisor QC", maintenance_manager: "Maintenance Manager", planner: "Planner", engineer: "Engineer", co_engineer: "Co-Engineer", operator: "Operator", viewer: "Viewer", warehouse: "Warehouse Admin" };
+const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", supervisor: "Supervisor", quality_supervisor: "Supervisor QC", maintenance_manager: "Maintenance Manager", planner: "Planner", engineer: "Engineer", co_engineer: "Co-Engineer", operator: "Operator", viewer: "Viewer", warehouse: "Warehouse Admin", production_office_admin: "Production Office Admin" };
 const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = {
   admin: Shield,
   manager: Shield,
@@ -51,12 +51,13 @@ const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = 
   operator: HardHat,
   viewer: Shield,
   warehouse: Package,
+  production_office_admin: Shield,
 };
 
-const adminRoleOptions: AppRole[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse"];
+const adminRoleOptions: AppRole[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse", "production_office_admin"];
 const managerCreateRoleOptions: AppRole[] = ["engineer", "co_engineer"];
 const managerEditRoleOptions: AppRole[] = ["engineer", "co_engineer", "operator"];
-const protectedStaffRoles: AppRole[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner"];
+const protectedStaffRoles: AppRole[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "production_office_admin"];
 
 function roleBadgeClass(role?: AppRole) {
   if (role === "admin") return "border-destructive/30 bg-destructive/10 text-destructive";
