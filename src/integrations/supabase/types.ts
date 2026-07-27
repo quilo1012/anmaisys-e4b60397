@@ -371,6 +371,7 @@ export type Database = {
       }
       direct_messages: {
         Row: {
+          audio_url: string | null
           created_at: string
           id: string
           image_url: string | null
@@ -381,6 +382,7 @@ export type Database = {
           sender_name: string
         }
         Insert: {
+          audio_url?: string | null
           created_at?: string
           id?: string
           image_url?: string | null
@@ -391,6 +393,7 @@ export type Database = {
           sender_name: string
         }
         Update: {
+          audio_url?: string | null
           created_at?: string
           id?: string
           image_url?: string | null
@@ -1314,6 +1317,42 @@ export type Database = {
           wo_id?: string | null
         }
         Relationships: []
+      }
+      operator_chat_admins: {
+        Row: {
+          day: boolean
+          night: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          day?: boolean
+          night?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          day?: boolean
+          night?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_chat_admins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operator_chat_admins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       operator_line_accounts: {
         Row: {
@@ -4106,6 +4145,7 @@ export type Database = {
         Returns: undefined
       }
       is_operator_chat_admin: { Args: { uid: string }; Returns: boolean }
+      is_operator_chat_admin_now: { Args: { uid: string }; Returns: boolean }
       is_session_locked: { Args: { _session_id: string }; Returns: boolean }
       list_active_profile_names: {
         Args: never
