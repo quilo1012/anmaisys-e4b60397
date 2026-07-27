@@ -895,7 +895,7 @@ export default function ShiftHistoryPage() {
                                       leaderId={s.leader_id}
                                       leaderName={s.leader_name}
                                       leaders={leaders}
-                                      disabled={s.locked}
+                                      disabled={s.locked && !isAdmin}
                                       onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
                                     />
                                   ) : null}
@@ -910,7 +910,7 @@ export default function ShiftHistoryPage() {
                                   </UITooltip>
                                 </td>
                                 <td className="px-3 py-2">
-                                  {(i.sku_id || i.sku_code_text) && !s.locked ? (
+                                  {(i.sku_id || i.sku_code_text) && (isAdmin || !s.locked) ? (
                                     <input
                                       type="text"
                                       defaultValue={i.batch_code ?? ""}
@@ -932,7 +932,7 @@ export default function ShiftHistoryPage() {
                                   {blenders.length ? blenders.join(", ") : "—"}
                                 </td>
                                 <td className="px-3 py-2">
-                                  {blenders.length > 0 ? (
+                                  {blenders.length > 0 && !isAdmin ? (
                                     <UITooltip>
                                       <TooltipTrigger asChild>
                                         <span className="cursor-help border-b border-dashed border-muted-foreground/40 tabular-nums text-sm">{a.toLocaleString()}</span>
@@ -944,7 +944,7 @@ export default function ShiftHistoryPage() {
                                       itemId={i.id}
                                       unit={effUnit}
                                       value={a}
-                                      disabled={s.locked}
+                                      disabled={s.locked && !isAdmin}
                                       onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
                                     />
                                   ) : null}
@@ -953,10 +953,10 @@ export default function ShiftHistoryPage() {
                                   {weight ? weight.toLocaleString() : "—"}
                                 </td>
                                 <td className="px-3 py-2">
-                                  {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="started_at" value={i.started_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
+                                  {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="started_at" value={i.started_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
                                 </td>
                                 <td className="px-3 py-2">
-                                  {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
+                                  {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
                                 </td>
                                 <td className="px-3 py-2">
                                   <div className="flex items-center justify-end gap-1">
@@ -971,7 +971,7 @@ export default function ShiftHistoryPage() {
                                     {(i.sku_id || i.sku_code_text) && (
                                       <UITooltip>
                                         <TooltipTrigger asChild>
-                                          <Button size="icon" variant="ghost" className="h-8 w-8" disabled={s.locked}
+                                          <Button size="icon" variant="ghost" className="h-8 w-8" disabled={s.locked && !isAdmin}
                                             onClick={() => setDeletingItem({ id: i.id, code: skuMap.get(i.sku_id)?.code ?? i.sku_code_text ?? "this SKU" })}>
                                             <Trash2 className="h-4 w-4 text-destructive" />
                                           </Button>
@@ -1032,7 +1032,7 @@ export default function ShiftHistoryPage() {
                                 {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                               </Button>
                               {(i.sku_id || i.sku_code_text) && (
-                                <Button size="icon" variant="ghost" className="h-8 w-8" disabled={s.locked}
+                                <Button size="icon" variant="ghost" className="h-8 w-8" disabled={s.locked && !isAdmin}
                                   onClick={() => setDeletingItem({ id: i.id, code: skuMap.get(i.sku_id)?.code ?? i.sku_code_text ?? "this SKU" })}>
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
@@ -1050,7 +1050,7 @@ export default function ShiftHistoryPage() {
                                 leaderId={s.leader_id}
                                 leaderName={s.leader_name}
                                 leaders={leaders}
-                                disabled={s.locked}
+                                disabled={s.locked && !isAdmin}
                                 onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
                               />
                             ) : (s.leader_name || "—")}
@@ -1058,7 +1058,7 @@ export default function ShiftHistoryPage() {
                           <TableCardField label="Description" value={<span className="text-muted-foreground">{name}</span>} block />
                           <TableCardField
                             label="Batch"
-                            value={(i.sku_id || i.sku_code_text) && !s.locked ? (
+                            value={(i.sku_id || i.sku_code_text) && (isAdmin || !s.locked) ? (
                               <input
                                 type="text"
                                 defaultValue={i.batch_code ?? ""}
@@ -1076,21 +1076,21 @@ export default function ShiftHistoryPage() {
                           />
                           <TableCardField label="Blender" value={<span className="tabular-nums">{blenders.length ? blenders.join(", ") : "—"}</span>} />
                           {(i.sku_id || i.sku_code_text) && (
-                            <TableCardField label="Start" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="started_at" value={i.started_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
+                            <TableCardField label="Start" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="started_at" value={i.started_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
                           )}
                           {(i.sku_id || i.sku_code_text) && (
-                            <TableCardField label="Finish" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
+                            <TableCardField label="Finish" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
                           )}
                           <TableCardField
-                            label={blenders.length > 0 ? "Qty (from blenders)" : `Qty (${effUnit})`}
-                            value={blenders.length > 0 ? (
+                            label={blenders.length > 0 && !isAdmin ? "Qty (from blenders)" : `Qty (${effUnit})`}
+                            value={blenders.length > 0 && !isAdmin ? (
                               <span className="tabular-nums">{Number(i.actual_qty ?? 0).toLocaleString()}</span>
                             ) : i.id && (i.sku_id || i.sku_code_text) ? (
                               <InlineUnitQtyInput
                                 itemId={i.id}
                                 unit={effUnit}
                                 value={Number(i.actual_qty ?? 0)}
-                                disabled={s.locked}
+                                disabled={s.locked && !isAdmin}
                                 onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
                               />
                             ) : "—"}
