@@ -231,6 +231,29 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
     return { matrix: perLine, lines, lineTotals, dayShiftTotals, insights, grandMax };
   }, [records, fromMs, toMs, lineFilter, shiftFilter]);
 
+  // Calendar date (dd/MM) under each weekday column — shown only when the range
+  // hits that weekday exactly once (i.e. a single week); blank for multi-week ranges.
+  const dayDates = useMemo(() => {
+    const byIdx = new Map<number, Set<string>>();
+    const startP = londonAllParts(new Date(fromMs));
+    const endP = londonAllParts(new Date(toMs));
+    const endNum = endP.year * 10000 + endP.month * 100 + endP.day;
+    let y = startP.year, mo = startP.month, d = startP.day;
+    for (let guard = 0; guard < 400; guard++) {
+      const cur = new Date(Date.UTC(y, mo - 1, d));
+      const cy = cur.getUTCFullYear(), cmo = cur.getUTCMonth() + 1, cd = cur.getUTCDate();
+      if (cy * 10000 + cmo * 100 + cd > endNum) break;
+      const dayIdx = (cur.getUTCDay() + 6) % 7;
+      const label = `${String(cd).padStart(2, "0")}/${String(cmo).padStart(2, "0")}`;
+      const s = byIdx.get(dayIdx) ?? new Set<string>(); s.add(label); byIdx.set(dayIdx, s);
+      const next = new Date(Date.UTC(cy, cmo - 1, cd + 1));
+      y = next.getUTCFullYear(); mo = next.getUTCMonth() + 1; d = next.getUTCDate();
+    }
+    const out: (string | null)[] = [];
+    for (let i = 0; i < 7; i++) { const s = byIdx.get(i); out[i] = s && s.size === 1 ? [...s][0] : null; }
+    return out;
+  }, [fromMs, toMs]);
+
   const visibleShifts = (shiftFilter === "all" ? SHIFTS : [shiftFilter]) as readonly Shift[];
 
   if (isLoading) return <Skeleton className="h-96" />;
@@ -239,25 +262,40 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Pattern Matrix</CardTitle>
-          <CardDescription>
-            Each cell shows total downtime and number of events. Darker = worse. Europe/London time.
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Pattern Matrix</CardTitle>
+              <CardDescription>
+                Total downtime and event count per line, by day and shift. Europe/London time.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <span>Less</span>
+              <span className="h-3 w-5 rounded-sm bg-emerald-500/15 ring-1 ring-inset ring-border" />
+              <span className="h-3 w-5 rounded-sm bg-amber-400/25" />
+              <span className="h-3 w-5 rounded-sm bg-orange-500/40" />
+              <span className="h-3 w-5 rounded-sm bg-red-600/70" />
+              <span>More</span>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <table className="w-full text-xs border-separate border-spacing-1 min-w-[760px]">
+          <table className="w-full text-xs border-separate border-spacing-1 min-w-[820px]">
             <thead>
               <tr>
-                <th className="text-left p-2 sticky left-0 bg-card">Line</th>
-                {DAYS.map((d) => (
-                  <th key={d} colSpan={visibleShifts.length} className="text-center p-1 font-semibold">{d}</th>
+                <th className="text-left p-2 sticky left-0 bg-card z-10">Line</th>
+                {DAYS.map((d, di) => (
+                  <th key={d} colSpan={visibleShifts.length} className="text-center px-1 pt-1 pb-0 border-b border-border/60">
+                    <div className="font-semibold text-foreground">{d}</div>
+                    <div className="text-[10px] font-normal text-muted-foreground tabular-nums h-3">{dayDates[di] ?? ""}</div>
+                  </th>
                 ))}
                 <th className="text-right p-2">Total</th>
               </tr>
-              <tr className="text-[10px] text-muted-foreground">
-                <th />
+              <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <th className="sticky left-0 bg-card z-10" />
                 {DAYS.flatMap((d) => visibleShifts.map((s) => (
-                  <th key={`${d}-${s}`} className="font-normal">{s[0]}</th>
+                  <th key={`${d}-${s}`} className="font-medium pb-1">{s[0]}</th>
                 )))}
                 <th />
               </tr>
@@ -275,29 +313,30 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
                 const total = lineTotals.get(line)?.minutes ?? 0;
                 return (
                   <tr key={line}>
-                    <td className="p-2 font-medium sticky left-0 bg-card">
+                    <td className="p-2 font-medium sticky left-0 bg-card z-10 border-r border-border/60 whitespace-nowrap">
                       {line === "—" ? <span className="italic text-muted-foreground">(line removed)</span> : line}
                     </td>
                     {DAYS.map((_, di) =>
                       visibleShifts.map((s) => {
                         const c = lm.get(`${di}-${s}`) ?? { minutes: 0, count: 0 };
+                        const hasData = c.minutes > 0;
                         return (
                           <td
                             key={`${line}-${di}-${s}`}
-                            className={`text-center rounded ${cellColor(c.minutes, grandMax)}`}
+                            className={`text-center rounded-md ${hasData ? cellColor(c.minutes, grandMax) : "bg-muted/20"}`}
                             title={`${line} • ${DAYS[di]} ${s}: ${formatMinutes(c.minutes)} (${c.count} events)`}
                           >
-                            <div className="px-1 py-1 leading-tight">
+                            <div className="px-1 py-1.5 leading-tight">
                               <div className="font-semibold tabular-nums">
-                                {c.minutes > 0 ? formatMinutes(c.minutes) : "—"}
+                                {hasData ? formatMinutes(c.minutes) : <span className="text-muted-foreground/40">—</span>}
                               </div>
-                              {c.count > 0 && <div className="text-[10px] opacity-80">{c.count}×</div>}
+                              {c.count > 0 && <div className="text-[10px] opacity-80 tabular-nums">{c.count}×</div>}
                             </div>
                           </td>
                         );
                       }),
                     )}
-                    <td className="p-2 text-right font-semibold tabular-nums">{formatMinutes(total)}</td>
+                    <td className="p-2 text-right font-semibold tabular-nums border-l border-border/60">{formatMinutes(total)}</td>
                   </tr>
                 );
               })}
