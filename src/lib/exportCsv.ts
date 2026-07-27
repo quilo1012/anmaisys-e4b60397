@@ -15,6 +15,15 @@ interface WOForExport {
   completed_at: string | null;
 }
 
+// Quote every cell and neutralise CSV formula injection. Without this, any field
+// with a comma/quote/newline shifts the columns, and a leading =,+,-,@ executes as
+// a formula in Excel/Sheets.
+function csvCell(v: unknown): string {
+  let s = String(v ?? "");
+  if (/^[=+\-@]/.test(s)) s = "'" + s;
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
 export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_orders.csv", partsCounts?: Record<string, number>) {
   const headers = ["WO#", "Requester", "Line", "Machine", "Description", "Status", "Operator", "Engineer", "Created", "Started", "Completed", "Response Time (min)", "Total Time (min)", "Parts Used"];
   const rows = workOrders.map((wo) => {
@@ -25,17 +34,17 @@ export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_
       wo.requester_name,
       wo.line_at_time || "",
       wo.machine || "",
-      `"${wo.description.replace(/"/g, '""')}"`,
+      wo.description,
       wo.status,
       wo.operator?.name || "",
       wo.engineer?.name || "",
       wo.created_at,
       wo.started_at || "",
       wo.completed_at || "",
-      String(responseTime),
-      String(totalTime),
-      String(wo.id && partsCounts?.[wo.id] ? partsCounts[wo.id] : ""),
-    ].join(",");
+      responseTime,
+      totalTime,
+      wo.id && partsCounts?.[wo.id] ? partsCounts[wo.id] : "",
+    ].map(csvCell).join(",");
   });
   const csv = [headers.join(","), ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

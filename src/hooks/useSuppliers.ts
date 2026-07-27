@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export type Supplier = {
   id: string;
@@ -126,34 +127,22 @@ export function usePurchaseOrderMutations() {
 
   const setStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: PurchaseOrder["status"] }) => {
+      // Receiving flips status AND adds items to stock — do it atomically in a
+      // transactional RPC (in-DB `quantity = quantity + qty`, idempotent on the
+      // PO status). The old client-side read-then-write could wipe on-hand stock
+      // if a read returned null, and left partial state on any mid-loop failure.
+      if (status === "received") {
+        const { error } = await (supabase.rpc as any)("receive_purchase_order", { _po_id: id });
+        if (error) throw error;
+        return;
+      }
       const patch: Record<string, unknown> = { status };
       if (status === "sent") patch.sent_at = new Date().toISOString();
-      if (status === "received") patch.received_at = new Date().toISOString();
       const { error } = await supabase.from("purchase_orders" as any).update(patch as any).eq("id", id);
       if (error) throw error;
-
-      // When marked as received, add items quantities to stock.
-      if (status === "received") {
-        const { data: items } = await supabase
-          .from("purchase_order_items" as any)
-          .select("product_id, quantity")
-          .eq("purchase_order_id", id);
-        for (const it of (items ?? []) as any[]) {
-          if (!it.product_id) continue;
-          const { data: prod } = await supabase
-            .from("products")
-            .select("quantity")
-            .eq("id", it.product_id)
-            .single();
-          const current = (prod as any)?.quantity ?? 0;
-          await supabase
-            .from("products")
-            .update({ quantity: current + it.quantity })
-            .eq("id", it.product_id);
-        }
-      }
     },
     onSuccess: invalidate,
+    onError: (e: any) => toast.error(e?.message ?? "Failed to update purchase order"),
   });
 
   const remove = useMutation({
@@ -162,6 +151,7 @@ export function usePurchaseOrderMutations() {
       if (error) throw error;
     },
     onSuccess: invalidate,
+    onError: (e: any) => toast.error(e?.message ?? "Failed to delete purchase order"),
   });
 
   return { create, setStatus, remove };
