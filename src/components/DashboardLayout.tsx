@@ -88,7 +88,6 @@ export const navItems: NavItem[] = [
 
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "supervisor"], group: "Production", action: "sku.manage" },
   { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor"], group: "Production", action: "quality.view" },
-  { title: "Packaging", url: "/dashboard/packaging", icon: Boxes, roles: ["admin", "manager", "supervisor", "quality_supervisor", "planner", "warehouse"], group: "Production", action: "packaging.view" },
 
   // Reports
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "supervisor"], group: "Reports", action: "reports.analytics" },
@@ -334,7 +333,6 @@ const routeTitles: Record<string, string> = {
   "/dashboard/production-performance": "Performance",
   
   "/dashboard/quality": "Quality",
-  "/dashboard/packaging": "Packaging",
   "/dashboard/sku-products": "SKU Products",
   "/dashboard/analytics": "Analytics",
   "/dashboard/reliability": "Reliability Dashboard",
