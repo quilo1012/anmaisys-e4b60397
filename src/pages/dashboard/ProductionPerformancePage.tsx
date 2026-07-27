@@ -150,8 +150,10 @@ export default function ProductionPerformancePage() {
 
   // Quality actions still open (todo / in progress) in the same period + shift +
   // line, so the floor sees what's outstanding right on the performance screen.
-  const { data: openActions = [] } = useQuery({
-    queryKey: ["perf-open-quality", range.from, range.to, shift, lineFilter],
+  // All quality actions in the period (any status) — the report lists them all
+  // with a Status column, so completed actions still show.
+  const { data: periodActions = [] } = useQuery({
+    queryKey: ["perf-quality-actions", range.from, range.to, shift, lineFilter],
     // Live feed: keep the panel current as actions are opened/closed elsewhere.
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
@@ -159,7 +161,6 @@ export default function ProductionPerformancePage() {
       let q = supabase.from("quality_actions")
         .select("id, action_no, recorded_at, line, shift, status, severity, description")
         .gte("recorded_at", range.from).lte("recorded_at", `${range.to}T23:59:59`)
-        .in("status", ["todo", "in_progress"])
         .order("recorded_at", { ascending: false });
       if (shift !== "all") q = q.eq("shift", shift);
       if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
@@ -168,6 +169,8 @@ export default function ProductionPerformancePage() {
       return (data ?? []) as any[];
     },
   });
+  // The live dashboard card keeps showing only still-open actions.
+  const openActions = periodActions.filter((a) => a.status === "todo" || a.status === "in_progress");
 
   const { data: queryResult } = useQuery<{ sessions: SessionAgg[]; ragRows: RagRow[] }>({
     queryKey: ["oee", range.from, range.to, shift, lineFilter, leaderFilter],
@@ -326,7 +329,7 @@ export default function ProductionPerformancePage() {
       filtersLabel: `Shift: ${shift === "all" ? "All" : cap(shift.toLowerCase())} · Line: ${lineFilter === "__all__" ? "All" : lineFilter} · Leader: ${leaderFilter === "__all__" ? "All" : leaderFilter}`,
       lines: sortedByLine.map((l) => ({ line: l.line, leader: l.leader, target: l.target, actual: l.actual, eff: l.eff })),
       totalTarget, totalActual,
-      openActions: openActions.map((a) => ({ recorded_at: a.recorded_at, action_no: a.action_no, line: a.line, shift: a.shift, severity: a.severity, description: a.description })),
+      openActions: periodActions.map((a) => ({ recorded_at: a.recorded_at, action_no: a.action_no, line: a.line, shift: a.shift, severity: a.severity, description: a.description, status: a.status })),
       generatedBy: profile?.name || "—",
     }, { output });
   };
