@@ -319,7 +319,6 @@ export default function ProductionPerformancePage() {
   const sortedByLine = useMemo(() => [...byLine].sort((a, b) => lineRank(a.line) - lineRank(b.line) || a.line.localeCompare(b.line)), [byLine]);
   const sortedLines = useMemo(() => [...lines].sort((a, b) => lineRank(a.name) - lineRank(b.name) || a.name.localeCompare(b.name)), [lines]);
 
-  const ragColor = (e: number) => e >= 100 ? "border-green-500" : e >= 80 ? "border-amber-500" : "border-red-500";
   const ragFill = (e: number) => e >= 100 ? "hsl(142 76% 36%)" : e >= 80 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)";
   const medal = (i: number) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
 
@@ -533,8 +532,17 @@ export default function ProductionPerformancePage() {
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {sortedByLine.map((l) => {
 
-            const headerBg = l.eff >= 100 ? "bg-green-500/15" : l.eff >= 80 ? "bg-amber-500/15" : "bg-red-500/15";
-            const headerText = l.eff >= 100 ? "text-green-600 dark:text-green-400" : l.eff >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
+            // Industrial Andon panel — high-contrast dark, readable from across
+            // the floor / on a line TV. Status colours: green on-target, amber
+            // setup/near, red below-target (pulsing).
+            const gap = l.actual - l.target;
+            const status = l.eff >= 100 ? "ON TARGET" : l.eff >= 80 ? "SETUP" : "BELOW TARGET";
+            const ring = l.eff >= 100 ? "border-emerald-500/70" : l.eff >= 80 ? "border-amber-500/70" : "border-red-500/80";
+            const panelBg = l.eff >= 80 ? "bg-slate-900" : "bg-red-950/40";
+            const chip = l.eff >= 100 ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : l.eff >= 80 ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-red-500/20 text-red-400 border-red-500/40";
+            const effColor = l.eff >= 100 ? "text-emerald-400" : l.eff >= 80 ? "text-amber-400" : "text-red-400";
+            const gapColor = gap >= 0 ? "text-emerald-400" : "text-red-400";
+            const barColor = l.eff >= 100 ? "bg-emerald-500" : l.eff >= 80 ? "bg-amber-500" : "bg-red-500";
             const handleClick = () => navigate("/dashboard/shift-history");
             const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -543,21 +551,23 @@ export default function ProductionPerformancePage() {
               }
             };
             return (
-              <Card
+              <div
                 key={l.line}
                 role="button"
                 tabIndex={0}
                 onClick={handleClick}
                 onKeyDown={handleKeyDown}
-                className={`overflow-hidden border-l-4 cursor-pointer hover:shadow-md hover:border-primary/50 transition-colors transition-shadow ${ragColor(l.eff)}`}
+                className={`cursor-pointer rounded-xl border-2 ${ring} ${panelBg} p-4 shadow-lg transition-transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-primary`}
               >
-                <div className={`${headerBg} ${headerText} px-4 py-2 flex items-center justify-between gap-2`}>
-                  <div className="font-semibold truncate">{l.line}</div>
-                  <div
-                    className="shrink-0"
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()}
-                  >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-xl font-black uppercase tracking-wide text-white truncate">{l.line}</div>
+                  <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${chip} ${l.eff < 80 ? "animate-pulse" : ""}`}>● {status}</span>
+                </div>
+                <div
+                  className="mt-2"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
                     <Select
                       value={l.leader ?? "__none__"}
                       disabled={savingLeaderFor === l.line}
@@ -570,8 +580,8 @@ export default function ProductionPerformancePage() {
                         }
                       }}
                     >
-                      <SelectTrigger className="h-7 w-36 text-xs bg-background/60">
-                        <SelectValue placeholder="— None —" />
+                      <SelectTrigger className="h-8 w-full text-xs bg-slate-800 border-slate-700 text-slate-100">
+                        <SelectValue placeholder="— Assign leader —" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none__">— None —</SelectItem>
@@ -618,16 +628,27 @@ export default function ProductionPerformancePage() {
                       </div>
                     )}
                   </div>
-                </div>
-                <CardContent className="p-4 flex items-center gap-4">
-                  <CircularProgress value={l.eff} size={88} strokeWidth={8} />
-                  <div className="flex-1 text-sm space-y-0.5">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Target</span><span className="font-medium">{l.target.toLocaleString("en-US")}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Actual</span><span className="font-medium">{l.actual.toLocaleString("en-US")}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Gap</span><span className={`font-medium ${l.actual - l.target >= 0 ? "text-green-500" : "text-red-500"}`}>{(l.actual - l.target).toLocaleString("en-US")}</span></div>
+                <div className="mt-4 flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actual</div>
+                    <div className="font-mono text-4xl font-bold leading-none text-white tabular-nums">{l.actual.toLocaleString("en-US")}</div>
+                    <div className="mt-1 text-xs text-slate-400 tabular-nums">/ {l.target.toLocaleString("en-US")} target</div>
                   </div>
-                </CardContent>
-              </Card>
+                  <div className={`text-right ${effColor}`}>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Perf</div>
+                    <div className="font-mono text-3xl font-bold leading-none tabular-nums">{Math.round(l.eff)}%</div>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold uppercase tracking-wider text-slate-500">Gap</span>
+                    <span className={`font-mono text-lg font-bold tabular-nums ${gapColor}`}>{gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")}</span>
+                  </div>
+                  <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div className={`h-full ${barColor}`} style={{ width: `${Math.min(100, Math.max(0, l.eff))}%` }} />
+                  </div>
+                </div>
+              </div>
             );
           })}
         </div>
