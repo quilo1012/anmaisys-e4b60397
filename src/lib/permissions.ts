@@ -117,7 +117,7 @@ const MATRIX: Record<Action, Role[]> = {
   "users.manage": ["admin", "manager"],
   "audit.view": ["admin", "manager", "supervisor"],
 
-  "reports.analytics": ["admin", "manager", "supervisor"],
+  "reports.analytics": ["admin", "manager", "supervisor", "production_office_admin"],
   "reports.financial": [],
   "reports.executive": [],
 
@@ -128,24 +128,24 @@ const MATRIX: Record<Action, Role[]> = {
   // engineer/co_engineer intentionally excluded: they never edit production
   // (no RLS write path for them either). They keep production.view (read-only).
   "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
-  "production.target.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
-  "production.target.manage": ["admin", "manager", "supervisor", "planner"],
-  "production.performance.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
+  "production.target.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "production_office_admin"],
+  "production.target.manage": ["admin", "manager", "supervisor", "planner", "production_office_admin"],
+  "production.performance.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "production_office_admin"],
   // Packaging module: everyone who could open it before (production.view = ALL)
   // PLUS warehouse and quality_supervisor, for whom the PVS module is built.
 
-  "planner.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
+  "planner.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
   "planner.manage": [],
-  "sku.view": [],
-  "sku.manage": ["admin", "manager", "supervisor", "planner"],
+  "sku.view": ["production_office_admin"],
+  "sku.manage": ["admin", "manager", "supervisor", "planner", "production_office_admin"],
 
-  "rag.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "rag.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
+  "rag.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
+  "rag.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
   // planner excluded: commenting wasn't part of the planner enablement (no RLS
   // insert path for planner either). supervisor is enabled to match RLS.
-  "rag.comment": ["admin", "manager", "supervisor"],
+  "rag.comment": ["admin", "manager", "supervisor", "production_office_admin"],
 
-  "smarttarget.view": [],
+  "smarttarget.view": ["production_office_admin"],
 
   "quality.view": ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer"],
   "quality.manage": ["admin", "manager", "supervisor", "quality_supervisor"],
@@ -171,7 +171,7 @@ const MATRIX: Record<Action, Role[]> = {
   "assets.manage": ["admin", "manager", "maintenance_manager"],
 
   "dashboard.executive": ["admin", "manager"],
-  "dashboard.manager": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "viewer"],
+  "dashboard.manager": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "viewer", "production_office_admin"],
   "dashboard.engineer": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
   "dashboard.operator": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator"],
 
@@ -198,6 +198,7 @@ export const roleDashMap: Record<Role, string> = {
   viewer: "/dashboard/manager",
   warehouse: "/dashboard/warehouse",
   quality_supervisor: "/dashboard/quality",
+  production_office_admin: "/dashboard/production-performance",
 };
 
 /** Returns the dashboard path for a role, falling back to /login when unknown. */
@@ -275,7 +276,7 @@ export function canOnDevice(role: Role | null | undefined, action: Action, isMob
 
 /** All known actions (for admin UIs). */
 export const ALL_ACTIONS: Action[] = Object.keys(MATRIX) as Action[];
-export const ALL_ROLES: Role[] = [...ALL, "warehouse", "quality_supervisor"];
+export const ALL_ROLES: Role[] = [...ALL, "warehouse", "quality_supervisor", "production_office_admin"];
 
 /** Returns true if the role can perform ANY of the listed actions. */
 export function canAny(role: Role | null | undefined, actions: Action[]): boolean {
