@@ -547,8 +547,13 @@ export default function DowntimePage() {
     const from = startOfDay(startDate).getTime();
     const to = endOfDay(endDate).getTime();
     return sharedFiltered.filter(r => {
-      const t = new Date(r.started_at).getTime();
-      if (t < from || t > to) return false;
+      // Match the heatmap's overlap rule (HeatmapSection): include any stop whose
+      // interval overlaps the range, not only those that STARTED inside it —
+      // otherwise a stop that began before the range (or is still open, counted
+      // to now) paints the heatmap red but is missing from this list.
+      const start = new Date(r.started_at).getTime();
+      const end = r.ended_at ? new Date(r.ended_at).getTime() : Date.now();
+      if (end <= from || start >= to) return false;
       if (filterCategory !== "all" && r.category !== filterCategory) return false;
       if (filterStatus === "active" && r.ended_at) return false;
       if (filterStatus === "resolved" && !r.ended_at) return false;
