@@ -1073,7 +1073,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_blender_entries")
-        .select("id, blender_number, blender_label, quantity, started_at, finished_at, created_at, production_item_id, production_items!inner(blender_ref, batch_code, sku:sku_products(code, name))")
+        .select("id, blender_number, blender_label, quantity, started_at, finished_at, created_at, production_item_id, production_items!inner(blender_ref, batch_code, sku_code_text, sku:sku_products(code, name))")
         .eq("session_id", sessionId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -1094,7 +1094,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("id, actual_qty, batch_code, blender_ref, created_at, sku:sku_products(code, name), production_blender_entries(id)")
+        .select("id, actual_qty, batch_code, blender_ref, created_at, sku_code_text, sku:sku_products(code, name), production_blender_entries(id)")
         .eq("session_id", sessionId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -1166,7 +1166,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                 <li key={e.id} className="flex items-center gap-3 p-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-mono text-sm font-semibold truncate">{sku?.code ?? "—"}</span>
+                      <span className="font-mono text-sm font-semibold truncate">{sku?.code ?? e.production_items?.sku_code_text ?? "—"}</span>
                       <span className="text-xs text-muted-foreground truncate">{productLabel(sku?.name)}</span>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -1220,7 +1220,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
               <li key={it.id} className="flex items-center gap-3 p-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-mono text-sm font-semibold truncate">{it.sku?.code ?? "—"}</span>
+                    <span className="font-mono text-sm font-semibold truncate">{it.sku?.code ?? it.sku_code_text ?? "—"}</span>
                     <span className="text-xs text-muted-foreground truncate">{productLabel(it.sku?.name)}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
