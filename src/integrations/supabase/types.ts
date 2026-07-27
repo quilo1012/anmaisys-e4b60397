@@ -1321,21 +1321,42 @@ export type Database = {
       operator_chat_admins: {
         Row: {
           day: boolean
+          fri: boolean
+          mon: boolean
           night: boolean
+          sat: boolean
+          sun: boolean
+          thu: boolean
+          tue: boolean
           updated_at: string
           user_id: string
+          wed: boolean
         }
         Insert: {
           day?: boolean
+          fri?: boolean
+          mon?: boolean
           night?: boolean
+          sat?: boolean
+          sun?: boolean
+          thu?: boolean
+          tue?: boolean
           updated_at?: string
           user_id: string
+          wed?: boolean
         }
         Update: {
           day?: boolean
+          fri?: boolean
+          mon?: boolean
           night?: boolean
+          sat?: boolean
+          sun?: boolean
+          thu?: boolean
+          tue?: boolean
           updated_at?: string
           user_id?: string
+          wed?: boolean
         }
         Relationships: [
           {
@@ -4088,6 +4109,7 @@ export type Database = {
           items_deleted: number
         }[]
       }
+      close_shift_downtime: { Args: never; Returns: undefined }
       compute_smart_target: {
         Args: { _entry_date: string; _line: string; _shift: string }
         Returns: Json
