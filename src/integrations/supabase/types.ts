@@ -4357,12 +4357,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      import_production_rows: { Args: { _rows: Json }; Returns: Json }
       import_sku_products: { Args: { _rows: Json }; Returns: Json }
       increment_product_quantity: {
         Args: { p_delta: number; p_product_id: string }
         Returns: undefined
       }
       is_operator_chat_admin: { Args: { uid: string }; Returns: boolean }
+      is_session_locked: { Args: { _session_id: string }; Returns: boolean }
       list_active_profile_names: {
         Args: never
         Returns: {
@@ -4472,6 +4474,7 @@ export type Database = {
         Args: { _label?: string; _line_ids: string[]; _token: string }
         Returns: undefined
       }
+      receive_purchase_order: { Args: { _po_id: string }; Returns: Json }
       refresh_site_banner: { Args: never; Returns: undefined }
       reject_wo: { Args: { _reason: string; _wo_id: string }; Returns: Json }
       reopen_wo_as_recurrence: {
@@ -4488,6 +4491,10 @@ export type Database = {
       save_production_items: {
         Args: { p_items: Json; p_session_id: string }
         Returns: Json
+      }
+      save_session_notes: {
+        Args: { _notes: string; _session_id: string }
+        Returns: undefined
       }
       set_admin_pin: { Args: { _new_pin: string }; Returns: undefined }
       set_engineer_pin: {
@@ -4534,6 +4541,7 @@ export type Database = {
         }[]
       }
       verify_pin_with_lockout: { Args: { _pin: string }; Returns: Json }
+      verify_target_pin: { Args: { _pin: string }; Returns: boolean }
       wo_total_pause_seconds: { Args: { _wo_id: string }; Returns: number }
     }
     Enums: {
