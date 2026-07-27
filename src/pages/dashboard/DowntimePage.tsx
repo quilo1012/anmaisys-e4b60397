@@ -125,10 +125,14 @@ interface HeatmapSectionProps {
 }
 
 function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFilter }: HeatmapSectionProps) {
-  const { matrix, lines, lineTotals, dayShiftTotals, insights, grandMax } = useMemo(() => {
+  const { matrix, lines, lineTotals, dayShiftTotals, insights, grandMax, grandTotalMinutes } = useMemo(() => {
     const perLineIntervals = new Map<string, Map<string, Interval[]>>();
     const perLineCounts = new Map<string, Map<string, number>>();
     const lineAllIntervals = new Map<string, Interval[]>();
+    // Cross-line intervals so the Totals row and grand total are wall-clock
+    // (overlapping stops on different lines counted once), matching the Overview.
+    const allKeyIntervals = new Map<string, Interval[]>();
+    const globalIntervals: Interval[] = [];
 
     for (const r of records ?? []) {
       if (!r.started_at) continue;
@@ -164,6 +168,10 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
             ivs.push([cursor, boundary]);
             li.set(key, ivs);
             allIvs.push([cursor, boundary]);
+            const ak = allKeyIntervals.get(key) ?? [];
+            ak.push([cursor, boundary]);
+            allKeyIntervals.set(key, ak);
+            globalIntervals.push([cursor, boundary]);
           }
         }
         cursor = boundary;
@@ -191,16 +199,17 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
         const count = counts?.get(key) ?? 0;
         cells.set(key, { minutes, count });
         if (minutes > grandMax) grandMax = minutes;
-        const dst = dayShiftTotals.get(key) ?? { minutes: 0, count: 0 };
-        dst.minutes += minutes;
-        dst.count += count;
-        dayShiftTotals.set(key, dst);
       });
       perLine.set(line, cells);
       const totalMin = unionMinutes(lineAllIntervals.get(line) ?? []);
       const totalCount = Array.from(counts?.values() ?? []).reduce((a, b) => a + b, 0);
       lineTotals.set(line, { minutes: totalMin, count: totalCount });
     });
+
+    // Totals row and grand total are wall-clock unions across lines (parallel
+    // stops counted once) — the same basis as the Overview's Total Downtime.
+    allKeyIntervals.forEach((ivs, key) => dayShiftTotals.set(key, { minutes: unionMinutes(ivs), count: 0 }));
+    const grandTotalMinutes = unionMinutes(globalIntervals);
 
     const lines = Array.from(perLine.keys()).sort((a, b) => {
       const ma = /line\s*(\d+)/i.exec(a)?.[1];
@@ -228,7 +237,7 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
       }
     }
 
-    return { matrix: perLine, lines, lineTotals, dayShiftTotals, insights, grandMax };
+    return { matrix: perLine, lines, lineTotals, dayShiftTotals, insights, grandMax, grandTotalMinutes };
   }, [records, fromMs, toMs, lineFilter, shiftFilter]);
 
   // Calendar date (dd/MM) under each weekday column — shown only when the range
@@ -266,7 +275,8 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
             <div>
               <CardTitle>Pattern Matrix</CardTitle>
               <CardDescription>
-                Total downtime and event count per line, by day and shift. Europe/London time.
+                Cells show each line's downtime by day and shift. Totals are wall-clock — parallel
+                stops on different lines counted once — so they match the Overview. Europe/London time.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -355,12 +365,8 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
                       );
                     }),
                   )}
-                  <td className="p-2 text-right font-bold tabular-nums">
-                    {(() => {
-                      let g = 0;
-                      for (const c of dayShiftTotals.values()) g += c.minutes;
-                      return g > 0 ? formatMinutes(g) : "—";
-                    })()}
+                  <td className="p-2 text-right font-bold tabular-nums border-l border-border/60">
+                    {grandTotalMinutes > 0 ? formatMinutes(grandTotalMinutes) : "—"}
                   </td>
                 </tr>
               </tfoot>
@@ -528,6 +534,13 @@ export default function DowntimePage() {
     const extras = woStops.filter((w) => !existingWoIds.has(w.work_order_id));
     return [...base, ...extras];
   }, [records, woStops]);
+
+  // The heatmap uses the SAME source as the Overview KPIs (work-order stops
+  // included, "No Planned Shift" periods excluded) so their totals reconcile.
+  const heatmapRecords = useMemo(
+    () => unifiedRecords.filter((r) => !isNoPlannedShift(r.reason, r.category)),
+    [unifiedRecords],
+  );
 
   // Apply shared page filters (line + shift) to unifiedRecords
   const isInShift = (iso: string): boolean => {
@@ -1331,7 +1344,7 @@ export default function DowntimePage() {
             {/* ─────────── HEATMAP TAB ─────────── */}
             <TabsContent value="heatmap" className="mt-6">
               <HeatmapSection
-                records={records}
+                records={heatmapRecords}
                 isLoading={isLoading}
                 fromMs={fromMs}
                 toMs={toMs}
