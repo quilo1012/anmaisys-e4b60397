@@ -14,264 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      _bkp_blender_before_clear: {
-        Row: {
-          blender_number: number | null
-          created_at: string | null
-          entered_by: string | null
-          id: string | null
-          production_item_id: string | null
-          quantity: number | null
-          session_id: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          blender_number?: number | null
-          created_at?: string | null
-          entered_by?: string | null
-          id?: string | null
-          production_item_id?: string | null
-          quantity?: number | null
-          session_id?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          blender_number?: number | null
-          created_at?: string | null
-          entered_by?: string | null
-          id?: string | null
-          production_item_id?: string | null
-          quantity?: number | null
-          session_id?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      _bkp_prod_items_before_clear: {
-        Row: {
-          actual_qty: number | null
-          blender_ref: string | null
-          created_at: string | null
-          display_order: number | null
-          id: string | null
-          intouch_qty: number | null
-          notes: string | null
-          planned_qty: number | null
-          scrap_qty: number | null
-          session_id: string | null
-          sku_code_text: string | null
-          sku_id: string | null
-          target_manual_at: string | null
-          target_manual_by: string | null
-          target_qty: number | null
-          tickets_unit: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          actual_qty?: number | null
-          blender_ref?: string | null
-          created_at?: string | null
-          display_order?: number | null
-          id?: string | null
-          intouch_qty?: number | null
-          notes?: string | null
-          planned_qty?: number | null
-          scrap_qty?: number | null
-          session_id?: string | null
-          sku_code_text?: string | null
-          sku_id?: string | null
-          target_manual_at?: string | null
-          target_manual_by?: string | null
-          target_qty?: number | null
-          tickets_unit?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          actual_qty?: number | null
-          blender_ref?: string | null
-          created_at?: string | null
-          display_order?: number | null
-          id?: string | null
-          intouch_qty?: number | null
-          notes?: string | null
-          planned_qty?: number | null
-          scrap_qty?: number | null
-          session_id?: string | null
-          sku_code_text?: string | null
-          sku_id?: string | null
-          target_manual_at?: string | null
-          target_manual_by?: string | null
-          target_qty?: number | null
-          tickets_unit?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      _bkp_production_items_20260722: {
-        Row: {
-          actual_qty: number | null
-          blender_ref: string | null
-          created_at: string | null
-          display_order: number | null
-          id: string | null
-          intouch_qty: number | null
-          notes: string | null
-          planned_qty: number | null
-          scrap_qty: number | null
-          session_id: string | null
-          sku_id: string | null
-          target_manual_at: string | null
-          target_manual_by: string | null
-          target_qty: number | null
-          tickets_unit: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          actual_qty?: number | null
-          blender_ref?: string | null
-          created_at?: string | null
-          display_order?: number | null
-          id?: string | null
-          intouch_qty?: number | null
-          notes?: string | null
-          planned_qty?: number | null
-          scrap_qty?: number | null
-          session_id?: string | null
-          sku_id?: string | null
-          target_manual_at?: string | null
-          target_manual_by?: string | null
-          target_qty?: number | null
-          tickets_unit?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          actual_qty?: number | null
-          blender_ref?: string | null
-          created_at?: string | null
-          display_order?: number | null
-          id?: string | null
-          intouch_qty?: number | null
-          notes?: string | null
-          planned_qty?: number | null
-          scrap_qty?: number | null
-          session_id?: string | null
-          sku_id?: string | null
-          target_manual_at?: string | null
-          target_manual_by?: string | null
-          target_qty?: number | null
-          tickets_unit?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      _bkp_production_targets_20260722: {
-        Row: {
-          created_at: string | null
-          id: string | null
-          line: string | null
-          shift: string | null
-          sku_id: string | null
-          target_qty: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string | null
-          line?: string | null
-          shift?: string | null
-          sku_id?: string | null
-          target_qty?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string | null
-          line?: string | null
-          shift?: string | null
-          sku_id?: string | null
-          target_qty?: number | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      _bkp_sku_production_history_20260722: {
-        Row: {
-          created_at: string | null
-          id: string | null
-          line_id: string | null
-          quantity: number | null
-          run_minutes: number | null
-          session_date: string | null
-          shift: string | null
-          sku_id: string | null
-          units_per_hour: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string | null
-          line_id?: string | null
-          quantity?: number | null
-          run_minutes?: number | null
-          session_date?: string | null
-          shift?: string | null
-          sku_id?: string | null
-          units_per_hour?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string | null
-          line_id?: string | null
-          quantity?: number | null
-          run_minutes?: number | null
-          session_date?: string | null
-          shift?: string | null
-          sku_id?: string | null
-          units_per_hour?: number | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      _bkp_sku_products_20260722: {
-        Row: {
-          active: boolean | null
-          category: string | null
-          code: string | null
-          created_at: string | null
-          id: string | null
-          name: string | null
-          notes: string | null
-          target_per_hour: number | null
-          updated_at: string | null
-          weight: number | null
-        }
-        Insert: {
-          active?: boolean | null
-          category?: string | null
-          code?: string | null
-          created_at?: string | null
-          id?: string | null
-          name?: string | null
-          notes?: string | null
-          target_per_hour?: number | null
-          updated_at?: string | null
-          weight?: number | null
-        }
-        Update: {
-          active?: boolean | null
-          category?: string | null
-          code?: string | null
-          created_at?: string | null
-          id?: string | null
-          name?: string | null
-          notes?: string | null
-          target_per_hour?: number | null
-          updated_at?: string | null
-          weight?: number | null
-        }
-        Relationships: []
-      }
       audit_logs: {
         Row: {
           action: string
@@ -4357,12 +4099,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      import_production_rows: { Args: { _rows: Json }; Returns: Json }
       import_sku_products: { Args: { _rows: Json }; Returns: Json }
       increment_product_quantity: {
         Args: { p_delta: number; p_product_id: string }
         Returns: undefined
       }
       is_operator_chat_admin: { Args: { uid: string }; Returns: boolean }
+      is_session_locked: { Args: { _session_id: string }; Returns: boolean }
       list_active_profile_names: {
         Args: never
         Returns: {
@@ -4472,6 +4216,7 @@ export type Database = {
         Args: { _label?: string; _line_ids: string[]; _token: string }
         Returns: undefined
       }
+      receive_purchase_order: { Args: { _po_id: string }; Returns: Json }
       refresh_site_banner: { Args: never; Returns: undefined }
       reject_wo: { Args: { _reason: string; _wo_id: string }; Returns: Json }
       reopen_wo_as_recurrence: {
@@ -4488,6 +4233,10 @@ export type Database = {
       save_production_items: {
         Args: { p_items: Json; p_session_id: string }
         Returns: Json
+      }
+      save_session_notes: {
+        Args: { _notes: string; _session_id: string }
+        Returns: undefined
       }
       set_admin_pin: { Args: { _new_pin: string }; Returns: undefined }
       set_engineer_pin: {
@@ -4534,6 +4283,7 @@ export type Database = {
         }[]
       }
       verify_pin_with_lockout: { Args: { _pin: string }; Returns: Json }
+      verify_target_pin: { Args: { _pin: string }; Returns: boolean }
       wo_total_pause_seconds: { Args: { _wo_id: string }; Returns: number }
     }
     Enums: {
