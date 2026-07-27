@@ -48,6 +48,7 @@ const DowntimePage = lazyWithReload(() => import("./pages/dashboard/DowntimePage
 const PreventiveMaintenancePage = lazyWithReload(() => import("./pages/dashboard/PreventiveMaintenancePage"));
 const SettingsPage = lazyWithReload(() => import("./pages/dashboard/SettingsPage"));
 const OperatorChatSettingsPage = lazyWithReload(() => import("./pages/dashboard/OperatorChatSettingsPage"));
+const ShiftPasswordSettingsPage = lazyWithReload(() => import("./pages/dashboard/ShiftPasswordSettingsPage"));
 const SuppliersPage = lazyWithReload(() => import("./pages/dashboard/SuppliersPage"));
 
 const SKUProductsPage = lazyWithReload(() => import("./pages/dashboard/SKUProductsPage"));
@@ -409,6 +410,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager"]}>
                       <OperatorChatSettingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/shift-password-settings"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <ShiftPasswordSettingsPage />
                     </ProtectedRoute>
                   }
                 />

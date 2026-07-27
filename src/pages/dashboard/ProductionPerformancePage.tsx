@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
 import { CircularProgress } from "@/components/ui/circular-progress";
+import { ShiftLock } from "@/components/ShiftLock";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
@@ -517,7 +518,8 @@ export default function ProductionPerformancePage() {
           </CardContent>
         </Card>
 
-        {/* Line status cards */}
+        {/* Line status cards — gated behind the per-shift password */}
+        <ShiftLock shifts={shift === "all" ? ["DAY", "NIGHT"] : [shift]}>
         {sortedByLine.length === 0 ? (
           <Card>
             <CardContent className="p-0">
@@ -653,6 +655,7 @@ export default function ProductionPerformancePage() {
           })}
         </div>
         )}
+        </ShiftLock>
       </div>
 
       {/* Print preview — look before printing/downloading. */}
