@@ -420,7 +420,7 @@ const App = () => (
                 <Route
                   path="/dashboard/packaging"
                   element={
-                    <ProtectedRoute requiredAction="production.view">
+                    <ProtectedRoute requiredAction="packaging.view">
                       <PackagingPage />
                     </ProtectedRoute>
                   }
