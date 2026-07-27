@@ -377,7 +377,19 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const unlock = () => unlockDMAudio();
+    const unlock = () => {
+      unlockDMAudio();
+      // Ask for OS notification permission once, on a real user gesture, so DM
+      // alerts reach the tablet even when the app is backgrounded/unfocused.
+      // Nothing requested this before, so permission stayed "default" and native
+      // notifications never fired. Never re-prompts once answered.
+      try {
+        if (typeof Notification !== "undefined" && Notification.permission === "default") {
+          const p = Notification.requestPermission();
+          if (p && typeof (p as Promise<unknown>).then === "function") (p as Promise<unknown>).catch(() => {});
+        }
+      } catch { /* ignore */ }
+    };
     const opts = { once: true } as AddEventListenerOptions;
     window.addEventListener("pointerdown", unlock, opts);
     window.addEventListener("touchstart", unlock, opts);
