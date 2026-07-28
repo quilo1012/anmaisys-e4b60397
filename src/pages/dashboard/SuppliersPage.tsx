@@ -132,7 +132,7 @@ export default function SuppliersPage() {
                           <TableCell className="text-xs">{new Date(po.created_at).toLocaleDateString()}</TableCell>
                           <TableCell>{po.supplier?.name ?? <span className="text-muted-foreground">—</span>}</TableCell>
                           <TableCell>{po.items?.length ?? 0}</TableCell>
-                          <TableCell>€{total.toFixed(2)}</TableCell>
+                          <TableCell>£{total.toFixed(2)}</TableCell>
                           <TableCell><Badge variant={badge.variant}>{badge.label}</Badge></TableCell>
                           <TableCell className="text-right space-x-1">
                             {po.status === "draft" && (
@@ -309,7 +309,7 @@ function NewPoDialog({
                 <TableRow>
                   <TableHead>Product</TableHead>
                   <TableHead className="w-24">Qty</TableHead>
-                  <TableHead className="w-28">Unit €</TableHead>
+                  <TableHead className="w-28">Unit £</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>

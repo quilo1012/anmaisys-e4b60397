@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -543,9 +544,9 @@ export default function IntouchSettingsPage() {
             </p>
           </div>
           <Button variant="outline" asChild>
-            <a href="/dashboard/intouch-machines">
+            <Link to="/dashboard/intouch-machines">
               <Plug className="h-4 w-4 mr-1" />Open Machine Map
-            </a>
+            </Link>
           </Button>
         </div>
 
