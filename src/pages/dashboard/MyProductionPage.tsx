@@ -577,28 +577,44 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
 
   /** Fill the form from an iTouching job — the operator only confirms/adjusts. */
   const applyJob = async (j: IntouchJob) => {
-    const { data: match } = await (supabase as any)
-      .from("sku_products")
-      .select("id, code, name")
-      .ilike("code", j.code)
-      .maybeSingle();
+    const code = (j.code ?? "").trim();
+    const desc = (j.description ?? "").trim();
+
+    // Auto-fill the batch from the job. The produced QUANTITY is intentionally
+    // NOT filled — the operator enters the real quantity they made and submits.
     if (j.batch) setBatch(j.batch);
-    if (j.qty > 0) setQty(String(j.qty));
+
+    // Link to the catalog by code first, then fall back to the product name so a
+    // job with a missing/blank code still resolves instead of erroring.
+    let match: { id: string; code: string; name: string } | null = null;
+    if (code) {
+      const { data } = await (supabase as any)
+        .from("sku_products").select("id, code, name").ilike("code", code).limit(1).maybeSingle();
+      match = data ?? null;
+    }
+    if (!match && desc) {
+      const core = productLabel(desc); // strip the "[HS CODE:…]" suffix
+      if (core) {
+        const { data } = await (supabase as any)
+          .from("sku_products").select("id, code, name").ilike("name", `%${core}%`).limit(1);
+        match = (data && data[0]) ?? null;
+      }
+    }
 
     if (match) {
       setSelectedSku(match);
       setSkuChoice("");
       setSkuQuery(`${productLabel(match.name)} — ${match.code}`);
-      toast.success(`Filled from iTouching job ${j.code}`);
+      toast.success("Filled from iTouching — now enter the produced quantity");
       return;
     }
-    // Code isn't in the catalog. Search by the job's description so the operator
-    // can pick the right product, or just type it in and log it as-is.
+    // Not in the catalog: prefill the search with the product name so the operator
+    // can pick it or type it in, then enter the produced quantity.
     setSelectedSku(null);
     setSkuChoice("");
-    setSkuQuery(j.description?.trim() || j.code);
+    setSkuQuery(desc || code);
     setSkuPopoverOpen(true);
-    toast.warning(`${j.code} isn't in the SKU catalog — pick the product below or type it in.`);
+    toast.warning(`${desc || code || "This job"} isn't linked to the catalog — pick the product below or type it in.`);
   };
 
   const pickSku = (s: { id: string; code: string; name: string }) => {
