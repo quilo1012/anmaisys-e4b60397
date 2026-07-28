@@ -714,7 +714,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
         .select("id")
         .eq("session_id", sessionId);
       findQ = skuId ? findQ.eq("sku_id", skuId) : findQ.is("sku_id", null).eq("sku_code_text", skuText);
-      findQ = findQ.eq("batch_code", batch.trim());
+      findQ = findQ.eq("batch_code", batchClean);
       const { data: existingItem, error: findErr } = await findQ.maybeSingle();
       if (findErr) throw findErr;
 
@@ -731,9 +731,11 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
             actual_qty: 0,
             notes: "manual_sku",
             blender_ref: assembly.trim() || null,
-            batch_code: batch.trim(),
-            manufacture_month: mfgMonth ? `${mfgMonth}-01` : null,
-            expiry_month: expMonth ? `${expMonth}-01` : null,
+            batch_code: batchClean,
+            manufacture_month: mfgClean ? `${mfgClean}-01` : null,
+            expiry_month: expClean ? `${expClean}-01` : null,
+            destination: destClean || null,
+            not_for_eu: notForEu,
             started_at: hmToIso(startTime),
             finished_at: hmToIso(finishTime),
           })
@@ -746,10 +748,12 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
         const timePatch: any = {};
         if (startTime) timePatch.started_at = hmToIso(startTime);
         if (finishTime) timePatch.finished_at = hmToIso(finishTime);
-        if (batch.trim()) timePatch.batch_code = batch.trim();
-        if (mfgMonth) timePatch.manufacture_month = `${mfgMonth}-01`;
-        if (expMonth) timePatch.expiry_month = `${expMonth}-01`;
+        if (batchClean) timePatch.batch_code = batchClean;
+        if (mfgClean) timePatch.manufacture_month = `${mfgClean}-01`;
+        if (expClean) timePatch.expiry_month = `${expClean}-01`;
         if (assembly.trim()) timePatch.blender_ref = assembly.trim();
+        timePatch.destination = destClean || null;
+        timePatch.not_for_eu = notForEu;
         if (Object.keys(timePatch).length) {
           // .select() so a locked-session RLS no-op (0 rows, no error) surfaces
           // instead of silently dropping the times/batch under a success toast.
