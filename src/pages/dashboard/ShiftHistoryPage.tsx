@@ -27,6 +27,12 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Re
 import XLSX from "xlsx-js-style";
 
 /** Drop the customs code ("… [HS CODE:2106909285]") from a catalog name. */
+/** date "yyyy-mm-dd" → "MM/YY" for the compact batch mfg/expiry readout. */
+function monthMMYY(d: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})/.exec(d ?? "");
+  return m ? `${m[2]}/${m[1].slice(2)}` : "";
+}
+
 function skuLabel(name: string | null | undefined): string {
   return String(name ?? "").replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim();
 }
@@ -353,7 +359,7 @@ interface SessionRow {
   tickets: number | null;
   tickets_unit: "tubs" | "bags" | null;
   locked: boolean; notes: string | null;
-  production_items: { id: string; sku_id: string; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; batch_code: string | null; started_at: string | null; finished_at: string | null; tickets_unit: "tubs" | "bags" | null; production_blender_entries?: { blender_number: number; quantity: number }[] }[];
+  production_items: { id: string; sku_id: string; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; batch_code: string | null; manufacture_month: string | null; expiry_month: string | null; started_at: string | null; finished_at: string | null; tickets_unit: "tubs" | "bags" | null; production_blender_entries?: { blender_number: number; quantity: number }[] }[];
 }
 
 
@@ -457,11 +463,12 @@ export default function ShiftHistoryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty, notes, blender_ref, batch_code, started_at, finished_at, tickets_unit, production_blender_entries(blender_number, quantity))")
+        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty, notes, blender_ref, batch_code, manufacture_month, expiry_month, started_at, finished_at, tickets_unit, production_blender_entries(blender_number, quantity))")
         .gte("session_date", from).lte("session_date", to)
         .order("session_date", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as SessionRow[];
+      // manufacture_month/expiry_month aren't in the generated types yet; cast.
+      return (data ?? []) as unknown as SessionRow[];
     },
   });
 
@@ -638,13 +645,19 @@ export default function ShiftHistoryPage() {
       const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d ?? "");
       return m ? `${m[3]}/${m[2]}/${m[1]}` : (d ?? "");
     };
+    // Month (yyyy-mm-dd) → MM/YYYY for the traceability columns.
+    const fmtMon = (d: string | null | undefined) => {
+      const m = /^(\d{4})-(\d{2})/.exec(d ?? "");
+      return m ? `${m[2]}/${m[1]}` : "";
+    };
     const rows: (string | number)[][] = [[
       "Date", "Assembly Number", "Work Centre", "Product Code", "",
       "Weight (in Kg)", "QTY", "Start Time", "Finish Time", "Shift",
+      "Batch", "Manufactured", "Expiry",
     ]];
     for (const s of filtered) {
       if (s.production_items.length === 0) {
-        rows.push([ddmmyyyy(s.session_date), "", lineLabel(s.line), "", "", "", "", "", "", s.shift]);
+        rows.push([ddmmyyyy(s.session_date), "", lineLabel(s.line), "", "", "", "", "", "", s.shift, "", "", ""]);
         continue;
       }
       for (const i of s.production_items) {
@@ -665,6 +678,9 @@ export default function ShiftHistoryPage() {
           hm(i.started_at),
           hm(i.finished_at),
           s.shift,
+          i.batch_code ?? "",
+          fmtMon(i.manufacture_month),
+          fmtMon(i.expiry_month),
         ]);
       }
     }
@@ -673,6 +689,7 @@ export default function ShiftHistoryPage() {
     ws["!cols"] = [
       { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 42 },
       { wch: 13 }, { wch: 9 }, { wch: 10 }, { wch: 11 }, { wch: 8 },
+      { wch: 16 }, { wch: 12 }, { wch: 12 },
     ];
     ws["!freeze"] = { xSplit: "0", ySplit: "1" };
     for (let c = 0; c < rows[0].length; c++) {
@@ -976,6 +993,13 @@ export default function ShiftHistoryPage() {
                                     />
                                   ) : (
                                     <span className="text-xs font-mono">{i.batch_code || "—"}</span>
+                                  )}
+                                  {(i.manufacture_month || i.expiry_month) && (
+                                    <div className="mt-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
+                                      {i.manufacture_month && <span title="Manufactured">M {monthMMYY(i.manufacture_month)}</span>}
+                                      {i.manufacture_month && i.expiry_month && " · "}
+                                      {i.expiry_month && <span title="Expiry">E {monthMMYY(i.expiry_month)}</span>}
+                                    </div>
                                   )}
                                 </td>
                                 <td className="px-3 py-2 text-xs tabular-nums whitespace-nowrap">
