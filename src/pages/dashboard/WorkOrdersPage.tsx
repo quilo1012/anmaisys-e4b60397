@@ -673,9 +673,9 @@ export default function WorkOrdersPage() {
                           {isCol("wo") && (
                             <TableCell className="font-mono font-medium">
                               <div className="flex items-center gap-2">
-                                <span className="cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                                <button type="button" className="cursor-pointer text-left hover:underline focus:outline-none focus:ring-2 focus:ring-ring rounded" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
                                   WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
-                                </span>
+                                </button>
                                 <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
                               </div>
                             </TableCell>
@@ -698,11 +698,11 @@ export default function WorkOrdersPage() {
                           {isCol("actions") && <TableCell className="no-print">
                             <div className="flex gap-1">
                               {(role === "admin" || (role === "manager" || role === "maintenance_manager")) && (
-                                <Button size="icon" variant="ghost" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
+                                <Button size="icon" variant="ghost" aria-label="Open maintenance order in new tab" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
                               )}
-                              <Button size="icon" variant="ghost" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" aria-label="Edit maintenance order" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
                               {role === "admin" && (
-                                <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(wo.id)} disabled={deleteWO.isPending}><Trash2 className="h-4 w-4" /></Button>
+                                <Button size="icon" variant="ghost" aria-label="Delete maintenance order" className="text-destructive" onClick={() => setDeleteId(wo.id)} disabled={deleteWO.isPending}><Trash2 className="h-4 w-4" /></Button>
                               )}
                               {canClose && (
                                 <Button size="sm" variant="default" onClick={() => closeWO.mutate({ woId: wo.id, signatureName: "Manager/Admin" })} disabled={closeWO.isPending}>

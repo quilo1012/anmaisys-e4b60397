@@ -537,6 +537,7 @@ export default function DirectMessagesPage() {
                         )}
                         <Button
                           size="icon"
+                          aria-label="Send message"
                           onClick={handleSend}
                           disabled={!text.trim() || sendMsg.isPending}
                         >
