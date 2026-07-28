@@ -1285,12 +1285,22 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
             {entries.map((e) => {
               const sku = e.production_items?.sku;
               const assembly = e.production_items?.blender_ref;
+              const pi = e.production_items || {};
+              const batchCode = pi.batch_code;
+              const mm = (d?: string | null) => (d ? `${String(d).slice(5, 7)}/${String(d).slice(2, 4)}` : "");
+              const mfg = mm(pi.manufacture_month);
+              const exp = mm(pi.expiry_month);
+              const dest = pi.destination;
+              const nfe = !!pi.not_for_eu;
               return (
                 <li key={e.id} className="flex items-center gap-3 p-2">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
                       <span className="font-mono text-sm font-semibold truncate">{sku?.code ?? e.production_items?.sku_code_text ?? "—"}</span>
                       <span className="text-xs text-muted-foreground truncate">{productLabel(sku?.name)}</span>
+                      {batchCode && (
+                        <span className="font-mono text-[11px] text-foreground/80">{batchCode}{(mfg || exp) ? `  ${mfg || "—"} → ${exp || "—"}` : ""}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="inline-flex items-center rounded bg-secondary text-secondary-foreground px-1.5 py-0.5 text-[10px] font-medium">
@@ -1298,6 +1308,12 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                       </span>
                       {assembly && (
                         <span className="text-[10px] text-muted-foreground">Assembly {assembly}</span>
+                      )}
+                      {dest && (
+                        <span className="inline-flex items-center rounded bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300 px-1.5 py-0.5 text-[10px] font-medium">→ {dest}</span>
+                      )}
+                      {nfe && (
+                        <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 px-1.5 py-0.5 text-[10px] font-medium">Not for EU</span>
                       )}
                       {(e.started_at || e.finished_at) && (
                         <span className="text-[10px] text-muted-foreground">
@@ -1308,6 +1324,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                       )}
                     </div>
                   </div>
+
                   <div className="text-base font-semibold tabular-nums">{Number(e.quantity).toLocaleString()}</div>
                   <Button
                     type="button"
