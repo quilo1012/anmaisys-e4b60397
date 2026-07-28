@@ -467,6 +467,25 @@ function TargetMeta({ target, produced }: { target: number; produced: number }) 
   );
 }
 
+/** Parse "B26188 07/2026 07/2028" into batch + first-of-month dates.
+ *  First MM/YYYY token = manufactured, second = expiry. Extra text stays in the batch. */
+function parseBatchInput(raw: string): { batch: string; mfg: string; exp: string } {
+  const text = (raw ?? "").trim();
+  if (!text) return { batch: "", mfg: "", exp: "" };
+  const re = /(\d{1,2})\s*\/\s*(\d{4})/g;
+  const months: string[] = [];
+  const stripped = text.replace(re, (_m, mm, yyyy) => {
+    const m = Math.min(12, Math.max(1, parseInt(mm, 10)));
+    months.push(`${yyyy}-${String(m).padStart(2, "0")}`);
+    return " ";
+  });
+  return {
+    batch: stripped.replace(/\s+/g, " ").trim(),
+    mfg: months[0] ?? "",
+    exp: months[1] ?? "",
+  };
+}
+
 function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId: string; target?: number; produced?: number }) {
   const qc = useQueryClient();
   const { selectedLineName: jobLine } = useDeviceLineCtx();
