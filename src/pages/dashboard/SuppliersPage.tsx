@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Truck, Plus, Trash2, PackagePlus, Send, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { useConfirm } from "@/hooks/useConfirm";
 import { toast } from "sonner";
 
 type DraftItem = {
@@ -49,6 +50,7 @@ const STATUS_BADGE: Record<PurchaseOrder["status"], { label: string; variant: "s
 };
 
 export default function SuppliersPage() {
+  const { confirm, confirmDialog } = useConfirm();
   const suppliersQ = useSuppliers();
   const supplierM = useSupplierMutations();
   const posQ = usePurchaseOrders();
@@ -154,7 +156,7 @@ export default function SuppliersPage() {
                               size="sm"
                               variant="ghost"
                               onClick={() => {
-                                if (confirm("Delete this purchase order?")) poM.remove.mutate(po.id);
+                                void confirm({ title: "Delete this purchase order?", destructive: true, confirmText: "Delete" }).then((ok) => { if (ok) poM.remove.mutate(po.id); });
                               }}
                             >
                               <Trash2 className="h-3 w-3" />
@@ -211,7 +213,7 @@ export default function SuppliersPage() {
                             size="sm"
                             variant="ghost"
                             onClick={() => {
-                              if (confirm(`Delete ${s.name}?`)) supplierM.remove.mutate(s.id);
+                              void confirm({ title: `Delete ${s.name}?`, destructive: true, confirmText: "Delete" }).then((ok) => { if (ok) supplierM.remove.mutate(s.id); });
                             }}
                           >
                             <Trash2 className="h-3 w-3" />
@@ -239,6 +241,7 @@ export default function SuppliersPage() {
           </TabsContent>
         </Tabs>
       </div>
+      {confirmDialog}
     </DashboardLayout>
   );
 }

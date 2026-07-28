@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { useConfirm } from "@/hooks/useConfirm";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -148,6 +149,7 @@ async function parseXLSX(file: File): Promise<Partial<Sku>[]> {
 }
 
 export default function SKUProductsPage() {
+  const { confirm, confirmDialog } = useConfirm();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -157,7 +159,7 @@ export default function SKUProductsPage() {
   const [cleaning, setCleaning] = useState(false);
 
   const cleanupBatchSkus = async () => {
-    if (!confirm("Remove all batch SKUs (e.g. 'CRE1KG - B9') and keep only the base (CRE1KG)?\n\nTheir production is moved to the base SKU with the batch kept in the Batch field. This cannot be undone (a backup exists).")) return;
+    if (!window.confirm("Remove all batch SKUs (e.g. 'CRE1KG - B9') and keep only the base (CRE1KG)?\n\nTheir production is moved to the base SKU with the batch kept in the Batch field. This cannot be undone (a backup exists).")) return;
     setCleaning(true);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rpc not in generated types
@@ -228,7 +230,7 @@ export default function SKUProductsPage() {
   });
 
   const handleImport = async (file: File) => {
-    if (!confirm("Import will ADD new SKUs and UPDATE matching ones from the file. Existing SKUs are kept — nothing is deleted. Continue?")) return;
+    if (!window.confirm("Import will ADD new SKUs and UPDATE matching ones from the file. Existing SKUs are kept — nothing is deleted. Continue?")) return;
     setImporting(true);
     try {
       const isXlsx = /\.xlsx$/i.test(file.name);
@@ -265,7 +267,7 @@ export default function SKUProductsPage() {
   };
 
   const restorePrevious = async () => {
-    if (!confirm("Restore the SKU catalog to the state BEFORE the last import? This replaces the current SKUs with the previous snapshot.")) return;
+    if (!window.confirm("Restore the SKU catalog to the state BEFORE the last import? This replaces the current SKUs with the previous snapshot.")) return;
     setImporting(true);
     try {
       const { data, error } = await (supabase.rpc as any)("restore_sku_products_from_backup");
@@ -368,7 +370,7 @@ export default function SKUProductsPage() {
                     <TableCell>{p.active ? <Badge className="bg-green-600 hover:bg-green-600 text-white border-transparent">Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => { setEditing(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => confirm("Delete SKU?") && del.mutate(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => { void confirm({ title: "Delete SKU?", destructive: true, confirmText: "Delete" }).then((ok) => { if (ok) del.mutate(p.id); }); }}><Trash2 className="h-4 w-4" /></Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -384,6 +386,7 @@ export default function SKUProductsPage() {
           </CardContent>
         </Card>
       </div>
+      {confirmDialog}
     </DashboardLayout>
   );
 }

@@ -38,9 +38,12 @@ const statusStyle: Record<PmStatus, { label: string; chip: string; ring: string 
   inactive: { label: "Inactive", chip: "bg-muted text-muted-foreground border-border", ring: "border-l-muted" },
 };
 
+import { useConfirm } from "@/hooks/useConfirm";
+
 export default function PreventiveMaintenancePage() {
   const { role } = useAuth();
   const { toast } = useToast();
+  const { confirm, confirmDialog } = useConfirm();
   const canManage = role === "admin" || (role === "manager" || role === "maintenance_manager");
 
   const { data: schedules, isLoading } = usePmSchedules();
@@ -189,7 +192,7 @@ export default function PreventiveMaintenancePage() {
                 onExecute={() => setExecuteFor(s)}
                 canManage={canManage}
                 onDelete={async () => {
-                  if (!confirm(`Delete schedule "${s.title}"?`)) return;
+                  if (!(await confirm({ title: `Delete schedule "${s.title}"?`, destructive: true, confirmText: "Delete" }))) return;
                   try {
                     await deleteMut.mutateAsync(s.id);
                     toast({ title: "Schedule deleted" });
@@ -206,6 +209,7 @@ export default function PreventiveMaintenancePage() {
         {executeFor && (
           <ExecuteDialog schedule={executeFor} onClose={() => setExecuteFor(null)} />
         )}
+        {confirmDialog}
       </div>
     </DashboardLayout>
   );

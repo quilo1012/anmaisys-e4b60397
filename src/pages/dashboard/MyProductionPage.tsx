@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
+import { useConfirm } from "@/hooks/useConfirm";
 import { invokeFunction } from "@/lib/invokeFunction";
 
 type Shift = "DAY" | "NIGHT";
@@ -1055,6 +1056,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
 
 function LoggedThisShift({ sessionId }: { sessionId: string }) {
   const qc = useQueryClient();
+  const { confirm, confirmDialog } = useConfirm();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   // Fix a wrong blender / batch / quantity after saving.
   const [editing, setEditing] = useState<{ id: string; itemId: string; blender: string; batch: string; qty: string } | null>(null);
@@ -1134,7 +1136,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
     directItems.reduce((s, it) => s + Number(it.actual_qty || 0), 0);
 
   const onDeleteItem = async (id: string) => {
-    if (!window.confirm("Delete this entry?")) return;
+    if (!(await confirm({ title: "Delete this entry?", destructive: true, confirmText: "Delete" }))) return;
     setDeletingId(id);
     try {
       const { error } = await (supabase as any).from("production_items").delete().eq("id", id);
@@ -1150,7 +1152,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
   };
 
   const onDelete = async (id: string) => {
-    if (!window.confirm("Delete this entry?")) return;
+    if (!(await confirm({ title: "Delete this entry?", destructive: true, confirmText: "Delete" }))) return;
     setDeletingId(id);
     try {
       const { error } = await (supabase as any)
@@ -1308,11 +1310,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {confirmDialog}
     </div>
   );
 }
-
-
-
-
-
