@@ -686,8 +686,18 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     // Free-text SKU: if nothing was picked from the catalog, log the typed code
     // as-is (no new SKU is created). Admin reconciles the real SKU later.
     const rawCode = skuQuery.trim().replace(/\s+—\s+.*$/, "").trim();
+    // Re-parse the batch field in case the operator didn't blur it before saving —
+    // "B26188 07/2026 07/2028" must still resolve to batch + dates.
+    const parsed = parseBatchInput(batch);
+    const batchClean = parsed.batch;
+    const mfgClean = parsed.mfg || mfgMonth;
+    const expClean = parsed.exp || expMonth;
+    if (batchClean !== batch) setBatch(batchClean);
+    if (parsed.mfg && parsed.mfg !== mfgMonth) setMfgMonth(parsed.mfg);
+    if (parsed.exp && parsed.exp !== expMonth) setExpMonth(parsed.exp);
+    const destClean = destination.trim();
     if (!selectedSku && !rawCode) { toast.error("Enter or select a SKU"); return; }
-    if (!batch.trim()) { toast.error("Enter the batch code"); return; }
+    if (!batchClean) { toast.error("Enter the batch code"); return; }
     if (!blenderLabel || !Number.isFinite(blenderNum) || blenderNum < 1) { toast.error("Enter the blender (e.g. 3 or 7/8)"); return; }
     if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
 
