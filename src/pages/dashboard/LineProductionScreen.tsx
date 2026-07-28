@@ -36,6 +36,7 @@ import { LineChatButton } from "@/components/LineChatButton";
 import { canUseLineChat } from "@/lib/permissions";
 import { DailyTargetCard } from "@/components/DailyTargetCard";
 import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
+import { useConfirm } from "@/hooks/useConfirm";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
@@ -128,6 +129,7 @@ const EDIT_TABLET_ID = "1"; // only this tablet can edit actuals/observations
 export default function LineProductionScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { confirm, confirmDialog } = useConfirm();
   const { role, signOut, user } = useAuth();
   const isOperator = role === "operator";
   const [line, setLine] = useState<string>(() => localStorage.getItem(LS_LINE_KEY) || "");
@@ -926,7 +928,7 @@ export default function LineProductionScreen() {
                   onMoveUp={canReorderSkus && idx > 0 ? () => moveItem.mutate({ id: it.id, direction: "up" }) : undefined}
                   onMoveDown={canReorderSkus && idx < items.length - 1 ? () => moveItem.mutate({ id: it.id, direction: "down" }) : undefined}
                   onDelete={canManageSkus ? () => {
-                    if (confirm(`Remove ${it.code} from this shift?`)) deleteItem.mutate(it.id);
+                    void confirm({ title: `Remove ${it.code} from this shift?`, destructive: true, confirmText: "Remove" }).then((ok) => { if (ok) deleteItem.mutate(it.id); });
                   } : undefined}
                 />
               );
@@ -1094,6 +1096,7 @@ export default function LineProductionScreen() {
         }}
       />
 
+      {confirmDialog}
     </div>
   );
 }

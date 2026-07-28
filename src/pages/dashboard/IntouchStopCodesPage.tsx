@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useConfirm } from "@/hooks/useConfirm";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +30,7 @@ const PRIORITIES = ["low", "medium", "high", "critical"];
 const CATEGORIES = ["Mechanical", "Electrical", "Machine", "Maintenance", "Filler", "Other"];
 
 export default function IntouchStopCodesPage() {
+  const { confirm, confirmDialog } = useConfirm();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [draft, setDraft] = useState<Record<string, Partial<Row>>>({});
@@ -225,7 +227,7 @@ export default function IntouchStopCodesPage() {
                             <Save className="w-4 h-4" />
                           </Button>
                           <Button size="sm" variant="ghost"
-                            onClick={() => { if (confirm("Delete this mapping?")) del.mutate(r.id); }}>
+                            onClick={() => { void confirm({ title: "Delete this mapping?", destructive: true, confirmText: "Delete" }).then((ok) => { if (ok) del.mutate(r.id); }); }}>
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </TableCell>
@@ -239,6 +241,7 @@ export default function IntouchStopCodesPage() {
         </CardContent>
       </Card>
     </div>
+      {confirmDialog}
     </DashboardLayout>
   );
 }
