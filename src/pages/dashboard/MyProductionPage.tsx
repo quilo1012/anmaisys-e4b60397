@@ -644,6 +644,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     setBatch("");
     setMfgMonth("");
     setExpMonth("");
+    setDestination("");
+    setNotForEu(false);
     resetRunFields();
   };
 
