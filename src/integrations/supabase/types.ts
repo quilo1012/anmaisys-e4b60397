@@ -1927,12 +1927,14 @@ export type Database = {
           batch_code: string | null
           blender_ref: string | null
           created_at: string
+          destination: string | null
           display_order: number
           expiry_month: string | null
           finished_at: string | null
           id: string
           intouch_qty: number | null
           manufacture_month: string | null
+          not_for_eu: boolean
           notes: string | null
           planned_qty: number
           scrap_qty: number
@@ -1951,12 +1953,14 @@ export type Database = {
           batch_code?: string | null
           blender_ref?: string | null
           created_at?: string
+          destination?: string | null
           display_order?: number
           expiry_month?: string | null
           finished_at?: string | null
           id?: string
           intouch_qty?: number | null
           manufacture_month?: string | null
+          not_for_eu?: boolean
           notes?: string | null
           planned_qty?: number
           scrap_qty?: number
@@ -1975,12 +1979,14 @@ export type Database = {
           batch_code?: string | null
           blender_ref?: string | null
           created_at?: string
+          destination?: string | null
           display_order?: number
           expiry_month?: string | null
           finished_at?: string | null
           id?: string
           intouch_qty?: number | null
           manufacture_month?: string | null
+          not_for_eu?: boolean
           notes?: string | null
           planned_qty?: number
           scrap_qty?: number
