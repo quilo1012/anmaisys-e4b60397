@@ -45,6 +45,7 @@ import { useOfflineDetection } from "@/hooks/useOfflineQueue";
 import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDMUnreadCount, unlockDMAudio } from "@/hooks/useDirectMessages";
+import { useTelemetryCrashCount } from "@/hooks/useTelemetryBadge";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -101,6 +102,7 @@ export const navItems: NavItem[] = [
 
   // System — Permissions is reached from inside Settings (avoids the duplicate entry).
   { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "System", action: "system.settings" },
+  { title: "Root Diagnostics", url: "/dashboard/root-diagnostics", icon: Radar, roles: ["admin"], group: "System" },
 ];
 
 
@@ -175,7 +177,7 @@ function SidebarFooterToggle() {
   );
 }
 
-function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread }: { filteredItems: NavItem[]; permissionOverrideCount: number; dmUnread: number }) {
+function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCount }: { filteredItems: NavItem[]; permissionOverrideCount: number; dmUnread: number; crashCount: number }) {
   const location = useLocation();
   const { state } = useSidebar();
   const iconCollapsed = state === "collapsed";
@@ -261,6 +263,17 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread }: { filt
                               <>
                                 <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-[10px] font-semibold text-white min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
                                   {dmUnread > 9 ? "9+" : dmUnread}
+                                </span>
+                                <span
+                                  className="hidden group-data-[collapsible=icon]:block absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-sidebar"
+                                  aria-hidden="true"
+                                />
+                              </>
+                            )}
+                            {item.title === "Root Diagnostics" && crashCount > 0 && (
+                              <>
+                                <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-[10px] font-semibold text-white min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
+                                  {crashCount > 9 ? "9+" : crashCount}
                                 </span>
                                 <span
                                   className="hidden group-data-[collapsible=icon]:block absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-sidebar"
@@ -354,6 +367,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { data: stoppedLinesCount = 0 } = useStoppedLinesCount();
   const { language, toggle: toggleLanguage } = useLanguage();
   const { data: dmUnread = 0 } = useDMUnreadCount();
+  const { data: crashCount = 0 } = useTelemetryCrashCount(role === "admin");
   const [changePwdOpen, setChangePwdOpen] = useState(false);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const [permissionVersion, setPermissionVersion] = useState(0);
@@ -477,7 +491,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             </div>
 
             <SidebarContent>
-              <SidebarNav filteredItems={filteredItems} permissionOverrideCount={permissionOverrideCount} dmUnread={dmUnread} />
+              <SidebarNav filteredItems={filteredItems} permissionOverrideCount={permissionOverrideCount} dmUnread={dmUnread} crashCount={crashCount} />
             </SidebarContent>
             <div className="mt-auto border-t border-sidebar-border p-4 group-data-[collapsible=icon]:p-2">
               <div className="mb-3 flex items-center gap-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mb-2">
