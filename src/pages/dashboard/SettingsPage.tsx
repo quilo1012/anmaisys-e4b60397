@@ -1,5 +1,5 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Settings as SettingsIcon, Users, ShieldCheck, Plug, ArrowRight, MessageCircle, KeyRound } from "lucide-react";
+import { Settings as SettingsIcon, Users, ShieldCheck, Plug, ArrowRight, MessageCircle, KeyRound, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -9,6 +9,7 @@ const LINKS = [
   { title: "iTouching Sync", desc: "Configure and monitor the iTouching i4 integration.", icon: Plug, url: "/dashboard/intouch-settings" },
   { title: "Operator Chat", desc: "Choose which admins operators can message on each shift (Day / Night).", icon: MessageCircle, url: "/dashboard/operator-chat-settings" },
   { title: "Shift Passwords", desc: "Set a password per shift (Day / Night) to unlock its production screens.", icon: KeyRound, url: "/dashboard/shift-password-settings" },
+  { title: "Root Diagnostics", desc: "Captured errors (crashes, RLS/API failures) for debugging. Also opens with Ctrl+Shift+D.", icon: ShieldAlert, url: "/dashboard/root-diagnostics" },
 ];
 
 export default function SettingsPage() {
