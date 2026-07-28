@@ -978,29 +978,62 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
           />
         </div>
 
-        {/* Batch code (required) — Quality pulls the SKU from this */}
+        {/* Batch code (required) — dates can be typed in the same field.
+            "B26188 07/2026 07/2028" → batch B26188, mfg 07/2026, exp 07/2028. */}
         <div className="space-y-1.5">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Batch code</div>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">
+            Batch code
+            {(mfgMonth || expMonth) && (
+              <span className="ml-2 normal-case text-muted-foreground/70">
+                · {mfgMonth ? mfgMonth.slice(5) + "/" + mfgMonth.slice(2, 4) : "—"} → {expMonth ? expMonth.slice(5) + "/" + expMonth.slice(2, 4) : "—"}
+              </span>
+            )}
+          </div>
           <Input
             value={batch}
             onChange={(e) => setBatch(e.target.value)}
-            placeholder="e.g. B-2026-0723"
+            onBlur={() => {
+              const p = parseBatchInput(batch);
+              if (p.batch !== batch) setBatch(p.batch);
+              if (p.mfg) setMfgMonth(p.mfg);
+              if (p.exp) setExpMonth(p.exp);
+            }}
+            placeholder="e.g. B26188 07/2026 07/2028"
             className="h-11"
             autoComplete="off"
           />
+          <div className="text-[11px] text-muted-foreground">
+            Example: <span className="font-mono">B26188 07/2026 07/2028</span> — batch, then Manufactured (07/2026) and Expiry (07/2028). Type the batch on its own if you don't have the dates.
+          </div>
         </div>
 
-        {/* Manufacture / expiry month for batch traceability (optional) */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">Manufactured (month)</div>
-            <Input type="month" value={mfgMonth} onChange={(e) => setMfgMonth(e.target.value)} className="h-11" />
-          </div>
-          <div className="space-y-1.5">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">Expiry (month)</div>
-            <Input type="month" value={expMonth} onChange={(e) => setExpMonth(e.target.value)} className="h-11" />
-          </div>
+        {/* Send to (destination) — optional, with common suggestions */}
+        <div className="space-y-1.5">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Send to <span className="normal-case text-muted-foreground/60">(destination)</span></div>
+          <Input
+            list="log-prod-destinations"
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+            placeholder="e.g. B&M, Stock, Applied..."
+            className="h-11"
+            autoComplete="off"
+          />
+          <datalist id="log-prod-destinations">
+            {["Stock","Applied","Australia","B&M","Basix","Body & Fit","Capsules","Free Soul","Gel","Gymshark","H&B","Homebargains","Laperva / Body Builder","Lazer","LIDL","Peru","USA","V Health"].map((d) => (
+              <option key={d} value={d} />
+            ))}
+          </datalist>
         </div>
+
+        {/* SKU not for EU */}
+        <label className="flex items-center gap-2 select-none cursor-pointer">
+          <Checkbox
+            checked={notForEu}
+            onCheckedChange={(v) => setNotForEu(v === true)}
+          />
+          <span className="text-sm font-medium">SKU not for EU</span>
+        </label>
+
 
         {/* Blender */}
         <div className="space-y-1.5">
