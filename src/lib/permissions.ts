@@ -92,25 +92,25 @@ export type Action =
 const ALL: Role[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
 
 const MATRIX: Record<Action, Role[]> = {
-  "wo.view": [...ALL, "warehouse"],
-  "wo.create": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "warehouse"],
-  "wo.update": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
+  "wo.view": [...ALL, "warehouse", "production_office_admin"],
+  "wo.create": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "warehouse", "production_office_admin"],
+  "wo.update": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"],
   "wo.delete": ["admin"],
-  "wo.close": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
+  "wo.close": ["admin", "manager", "supervisor", "engineer", "co_engineer", "production_office_admin"],
   "wo.force": ["admin"],
-  "wo.print": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
+  "wo.print": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
 
-  "downtime.view": ALL,
-  "downtime.manage": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
+  "downtime.view": [...ALL, "production_office_admin"],
+  "downtime.manage": ["admin", "manager", "supervisor", "engineer", "co_engineer", "production_office_admin"],
 
-  "machines.view": [...ALL, "warehouse"],
-  "machines.manage": ["admin", "manager", "supervisor"],
+  "machines.view": [...ALL, "warehouse", "production_office_admin"],
+  "machines.manage": ["admin", "manager", "supervisor", "production_office_admin"],
 
-  "problems.view": ALL,
-  "problems.manage": ["admin", "manager", "supervisor"],
+  "problems.view": [...ALL, "production_office_admin"],
+  "problems.manage": ["admin", "manager", "supervisor", "production_office_admin"],
 
-  "stock.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "warehouse"],
-  "stock.manage": ["admin", "manager", "supervisor", "maintenance_manager"],
+  "stock.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "warehouse", "production_office_admin"],
+  "stock.manage": ["admin", "manager", "supervisor", "maintenance_manager", "production_office_admin"],
   "stock.pricing": ["admin"],
 
   "users.view": ["admin", "manager"],
@@ -124,10 +124,10 @@ const MATRIX: Record<Action, Role[]> = {
   "system.clear": ["admin"],
   "system.settings": ["admin"],
 
-  "production.view": ALL,
+  "production.view": [...ALL, "production_office_admin"],
   // engineer/co_engineer intentionally excluded: they never edit production
   // (no RLS write path for them either). They keep production.view (read-only).
-  "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
+  "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "production_office_admin"],
   "production.target.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "production_office_admin"],
   "production.target.manage": ["admin", "manager", "supervisor", "planner", "production_office_admin"],
   "production.performance.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "production_office_admin"],
@@ -147,36 +147,36 @@ const MATRIX: Record<Action, Role[]> = {
 
   "smarttarget.view": ["production_office_admin"],
 
-  "quality.view": ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer"],
-  "quality.manage": ["admin", "manager", "supervisor", "quality_supervisor"],
+  "quality.view": ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer", "production_office_admin"],
+  "quality.manage": ["admin", "manager", "supervisor", "quality_supervisor", "production_office_admin"],
 
-  "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
-  "pm.manage": ["admin", "manager", "maintenance_manager"],
+  "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"],
+  "pm.manage": ["admin", "manager", "maintenance_manager", "production_office_admin"],
 
   "engineers.view": ["admin", "manager", "supervisor", "maintenance_manager"],
   "engineers.manage": ["admin", "manager", "maintenance_manager"],
-  "leaders.view": ["admin", "manager", "supervisor"],
-  "leaders.manage": ["admin", "manager"],
+  "leaders.view": ["admin", "manager", "supervisor", "production_office_admin"],
+  "leaders.manage": ["admin", "manager", "production_office_admin"],
 
   "chat.line": [],
   "chat.dm": ["admin", "manager", "supervisor", "operator"],
 
-  "notifications.view": [...ALL, "quality_supervisor"],
+  "notifications.view": [...ALL, "quality_supervisor", "production_office_admin"],
   "notifications.manage": ["admin", "manager"],
 
-  "intouch.view": ["admin", "manager", "maintenance_manager", "planner"],
+  "intouch.view": ["admin", "manager", "maintenance_manager", "planner", "production_office_admin"],
   "intouch.manage": ["admin", "maintenance_manager"],
 
-  "controlcenter.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "assets.manage": ["admin", "manager", "maintenance_manager"],
+  "controlcenter.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
+  "assets.manage": ["admin", "manager", "maintenance_manager", "production_office_admin"],
 
   "dashboard.executive": ["admin", "manager"],
   "dashboard.manager": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "viewer", "production_office_admin"],
   "dashboard.engineer": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
   "dashboard.operator": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator"],
 
-  "reliability.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "suppliers.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
+  "reliability.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
+  "suppliers.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
 
   "permissions.manage": ["admin"],
 };
