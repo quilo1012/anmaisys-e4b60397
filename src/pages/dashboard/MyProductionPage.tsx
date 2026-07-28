@@ -1196,7 +1196,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_blender_entries")
-        .select("id, blender_number, blender_label, quantity, started_at, finished_at, created_at, production_item_id, production_items!inner(blender_ref, batch_code, sku_code_text, sku:sku_products(code, name))")
+        .select("id, blender_number, blender_label, quantity, started_at, finished_at, created_at, production_item_id, production_items!inner(blender_ref, batch_code, manufacture_month, expiry_month, destination, not_for_eu, sku_code_text, sku:sku_products(code, name))")
         .eq("session_id", sessionId)
         .order("created_at", { ascending: false });
       if (error) throw error;
