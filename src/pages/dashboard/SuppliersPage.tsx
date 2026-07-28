@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Truck, Plus, Trash2, PackagePlus, Send, CheckCircle2, XCircle } from "lucide-react";
+import { Truck, Plus, Trash2, PackagePlus, Send, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 type DraftItem = {
@@ -163,7 +163,13 @@ export default function SuppliersPage() {
                         </TableRow>
                       );
                     })}
-                    {!posQ.data?.length && (
+                    {posQ.isLoading && (
+                      <TableRow><TableCell colSpan={6} className="text-center py-6"><Loader2 className="inline h-5 w-5 animate-spin text-muted-foreground" /></TableCell></TableRow>
+                    )}
+                    {posQ.isError && (
+                      <TableRow><TableCell colSpan={6} className="text-center text-destructive py-6">Failed to load purchase orders.</TableCell></TableRow>
+                    )}
+                    {!posQ.isLoading && !posQ.isError && !posQ.data?.length && (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
                           No purchase orders yet.
@@ -213,7 +219,13 @@ export default function SuppliersPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {!suppliersQ.data?.length && (
+                    {suppliersQ.isLoading && (
+                      <TableRow><TableCell colSpan={5} className="text-center py-6"><Loader2 className="inline h-5 w-5 animate-spin text-muted-foreground" /></TableCell></TableRow>
+                    )}
+                    {suppliersQ.isError && (
+                      <TableRow><TableCell colSpan={5} className="text-center text-destructive py-6">Failed to load suppliers.</TableCell></TableRow>
+                    )}
+                    {!suppliersQ.isLoading && !suppliersQ.isError && !suppliersQ.data?.length && (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
                           No suppliers yet.
