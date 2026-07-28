@@ -291,13 +291,13 @@ export default function PermissionsMatrixPage() {
           <div className="flex flex-wrap items-center gap-2">
             {/* Mode switch: Access · Tablet · Mobile visibility */}
             <div className="inline-flex rounded-md border p-0.5">
-              <Button type="button" size="sm" variant={mode === "access" ? "default" : "ghost"} className="h-7 px-2.5" onClick={() => setMode("access")}>
+              <Button type="button" size="sm" variant={mode === "access" ? "default" : "ghost"} className="h-9 px-3" onClick={() => setMode("access")}>
                 <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Access
               </Button>
-              <Button type="button" size="sm" variant={mode === "tablet" ? "default" : "ghost"} className="h-7 px-2.5" onClick={() => setMode("tablet")}>
+              <Button type="button" size="sm" variant={mode === "tablet" ? "default" : "ghost"} className="h-9 px-3" onClick={() => setMode("tablet")}>
                 <Tablet className="mr-1 h-3.5 w-3.5" /> Tablet
               </Button>
-              <Button type="button" size="sm" variant={mode === "mobile" ? "default" : "ghost"} className="h-7 px-2.5" onClick={() => setMode("mobile")}>
+              <Button type="button" size="sm" variant={mode === "mobile" ? "default" : "ghost"} className="h-9 px-3" onClick={() => setMode("mobile")}>
                 <Smartphone className="mr-1 h-3.5 w-3.5" /> Mobile
               </Button>
             </div>
@@ -476,7 +476,7 @@ export default function PermissionsMatrixPage() {
                                       title={!allowed ? "No access" : visible ? `Visible on ${mode}` : `Hidden on ${mode}`}
                                       aria-label={visible ? `visible on ${mode}` : `hidden on ${mode}`}
                                       className={[
-                                        "inline-flex h-7 w-7 items-center justify-center rounded-md border transition",
+                                        "inline-flex h-9 w-9 items-center justify-center rounded-md border transition",
                                         !allowed
                                           ? "border-border bg-muted/20 text-muted-foreground/30 cursor-not-allowed"
                                           : visible
@@ -501,7 +501,7 @@ export default function PermissionsMatrixPage() {
                                       disabled={!isAdmin}
                                       aria-label={`${allowed ? "allowed" : "denied"} — toggle`}
                                       className={[
-                                        "inline-flex h-7 w-7 items-center justify-center rounded-md border transition",
+                                        "inline-flex h-9 w-9 items-center justify-center rounded-md border transition",
                                         allowed
                                           ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
                                           : "border-border bg-muted/40 text-muted-foreground/60 hover:bg-muted",

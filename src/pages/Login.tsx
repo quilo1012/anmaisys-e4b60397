@@ -390,7 +390,7 @@ export default function Login() {
                 value={tabletAccountId}
                 onChange={(e) => setTabletAccountId(e.target.value)}
                 required
-                className="h-11 w-full appearance-none rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-4 text-sm text-slate-900 transition-all hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+                className="h-12 w-full appearance-none rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-4 text-sm text-slate-900 transition-all hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
               >
                 <option value="" disabled>
                   {accountsLoading ? "Loading tablets…" : hasOperatorAccounts ? "Select your tablet…" : "No tablets configured"}
@@ -426,7 +426,7 @@ export default function Login() {
                 placeholder="you@appliednutrition.com"
                 required
                 autoComplete="email"
-                className="h-11 w-full rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+                className="h-12 w-full rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
               />
             </div>
           </div>
@@ -448,7 +448,7 @@ export default function Login() {
               minLength={6}
               required
               autoComplete="current-password"
-              className="h-11 w-full rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-11 text-sm text-slate-900 transition-all placeholder:text-slate-400 hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+              className="h-12 w-full rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-11 text-sm text-slate-900 transition-all placeholder:text-slate-400 hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
             />
             <button
               type="button"
@@ -467,7 +467,7 @@ export default function Login() {
           type="submit"
           disabled={loading || authed || lockedMsLeft > 0}
           aria-live="polite"
-          className={`mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.99] disabled:pointer-events-none ${
+          className={`mt-2 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.99] disabled:pointer-events-none ${
             authed
               ? "bg-emerald-600"
               : "bg-[#1E3A8A] hover:bg-[#1E40AF] disabled:opacity-60"

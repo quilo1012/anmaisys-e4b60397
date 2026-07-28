@@ -584,7 +584,7 @@ export default function ProductionPerformancePage() {
                         }
                       }}
                     >
-                      <SelectTrigger className="h-8 w-full text-xs bg-background/60">
+                      <SelectTrigger className="h-10 w-full text-xs bg-background/60">
                         <SelectValue placeholder="— Assign leader —" />
                       </SelectTrigger>
                       <SelectContent>
@@ -611,11 +611,11 @@ export default function ProductionPerformancePage() {
                             if (e.key === "Escape") { setAddingLeaderFor(null); setNewLeaderName(""); }
                           }}
                           placeholder="Leader name"
-                          className="h-7 w-36 text-xs"
+                          className="h-9 w-36 text-xs"
                         />
                         <Button
                           size="sm"
-                          className="h-7 px-2 text-xs"
+                          className="h-9 px-2 text-xs"
                           disabled={savingLeaderFor === l.line || !newLeaderName.trim()}
                           onClick={() => addNewLeader(l.line, l.hasSession)}
                         >
@@ -624,7 +624,7 @@ export default function ProductionPerformancePage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 px-2 text-xs"
+                          className="h-9 px-2 text-xs"
                           onClick={() => { setAddingLeaderFor(null); setNewLeaderName(""); }}
                         >
                           Cancel

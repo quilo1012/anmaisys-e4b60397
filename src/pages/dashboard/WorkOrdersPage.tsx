@@ -400,8 +400,8 @@ export default function WorkOrdersPage() {
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="inline-flex items-center rounded-md border bg-background p-0.5 shadow-sm">
-                  <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("table")} className="h-7 w-8 p-0"><List className="h-4 w-4" /></Button>
-                  <Button variant={viewMode === "board" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("board")} className="h-7 w-8 p-0"><LayoutGrid className="h-4 w-4" /></Button>
+                  <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("table")} className="h-9 w-9 p-0"><List className="h-4 w-4" /></Button>
+                  <Button variant={viewMode === "board" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("board")} className="h-9 w-9 p-0"><LayoutGrid className="h-4 w-4" /></Button>
                 </div>
                 <DateRangeFilter
                   value={drRange}
@@ -414,10 +414,10 @@ export default function WorkOrdersPage() {
 
 
               <div className="inline-flex items-center gap-1 rounded-md border bg-background p-0.5 shadow-sm">
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
+                <Button variant="ghost" size="sm" className="h-9 px-2.5 text-xs" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
                   <Download className="h-3.5 w-3.5 mr-1" /> CSV
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={async () => {
+                <Button variant="ghost" size="sm" className="h-9 px-2.5 text-xs" onClick={async () => {
                   if (!filteredWOs) return;
                   // Client-side defense-in-depth: block before any network call.
                   if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
@@ -453,7 +453,7 @@ export default function WorkOrdersPage() {
                 }}>
                   <FileText className="h-3.5 w-3.5 mr-1" /> PDF
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs no-print" onClick={() => {
+                <Button variant="ghost" size="sm" className="h-9 px-2.5 text-xs no-print" onClick={() => {
                   if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
                     toast({ title: "Cannot print", description: "You don't have permission to print reports.", variant: "destructive" });
                     return;
@@ -469,7 +469,7 @@ export default function WorkOrdersPage() {
                 </Button>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs"><SlidersHorizontal className="h-3.5 w-3.5 mr-1" /> Columns</Button>
+                    <Button variant="ghost" size="sm" className="h-9 px-2.5 text-xs"><SlidersHorizontal className="h-3.5 w-3.5 mr-1" /> Columns</Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-48 p-3" align="end">
                     <p className="text-xs font-semibold mb-2">Toggle Columns</p>
