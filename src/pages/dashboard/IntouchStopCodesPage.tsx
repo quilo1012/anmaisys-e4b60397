@@ -132,7 +132,7 @@ export default function IntouchStopCodesPage() {
               {lines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button onClick={() => upsert.mutate(newRow)} disabled={upsert.isPending}>
+          <Button onClick={() => upsert.mutate(newRow, { onSuccess: () => setNewRow({ stop_code: "", label: "", default_priority: "medium", category: "Other", line_hint: null, requires_wo: true, active: true }) })} disabled={upsert.isPending}>
             <Plus className="w-4 h-4 mr-1" /> Add
           </Button>
           <div className="md:col-span-7 flex items-center gap-4 text-sm">

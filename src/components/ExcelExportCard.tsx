@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileSpreadsheet, Mail, Copy } from "lucide-react";
+import { FileSpreadsheet, Mail, Copy, Loader2 } from "lucide-react";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { toast } from "sonner";
 
@@ -49,7 +49,7 @@ select cron.schedule(
               else toast.success("Report sent");
             }}
           >
-            <Mail className="h-4 w-4 mr-2" /> Send now
+            {busy ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Sending…</> : <><Mail className="h-4 w-4 mr-2" /> Send now</>}
           </Button>
         </div>
         <div>

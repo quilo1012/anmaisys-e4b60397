@@ -562,7 +562,7 @@ export default function MachinesPage() {
                         )}
                         {m.code && <span className="font-mono text-muted-foreground">{m.code}</span>}
                         {!m.machine_type && (
-                          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Incomplete</Badge>
+                          <Badge variant="outline" className="bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border-yellow-500/30">Incomplete</Badge>
                         )}
                       </div>
                       <div className="grid grid-cols-3 gap-2 pt-1">
@@ -604,7 +604,7 @@ export default function MachinesPage() {
                           {!m.machine_type && (
                             <Badge
                               variant="outline"
-                              className="ml-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200"
+                              className="ml-2 text-xs bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border-yellow-500/30"
                             >
                               Incomplete
                             </Badge>
