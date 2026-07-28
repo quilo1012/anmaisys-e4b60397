@@ -1928,9 +1928,11 @@ export type Database = {
           blender_ref: string | null
           created_at: string
           display_order: number
+          expiry_month: string | null
           finished_at: string | null
           id: string
           intouch_qty: number | null
+          manufacture_month: string | null
           notes: string | null
           planned_qty: number
           scrap_qty: number
@@ -1950,9 +1952,11 @@ export type Database = {
           blender_ref?: string | null
           created_at?: string
           display_order?: number
+          expiry_month?: string | null
           finished_at?: string | null
           id?: string
           intouch_qty?: number | null
+          manufacture_month?: string | null
           notes?: string | null
           planned_qty?: number
           scrap_qty?: number
@@ -1972,9 +1976,11 @@ export type Database = {
           blender_ref?: string | null
           created_at?: string
           display_order?: number
+          expiry_month?: string | null
           finished_at?: string | null
           id?: string
           intouch_qty?: number | null
+          manufacture_month?: string | null
           notes?: string | null
           planned_qty?: number
           scrap_qty?: number
@@ -3405,6 +3411,42 @@ export type Database = {
           intouch_auto_wo_enabled?: boolean
           intouch_sync_enabled?: boolean
           updated_at?: string
+        }
+        Relationships: []
+      }
+      system_telemetry_logs: {
+        Row: {
+          created_at: string
+          error_type: string
+          id: string
+          message: string
+          metadata: Json | null
+          route_path: string | null
+          stack_trace: string | null
+          user_id: string | null
+          user_role: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_type: string
+          id?: string
+          message: string
+          metadata?: Json | null
+          route_path?: string | null
+          stack_trace?: string | null
+          user_id?: string | null
+          user_role?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_type?: string
+          id?: string
+          message?: string
+          metadata?: Json | null
+          route_path?: string | null
+          stack_trace?: string | null
+          user_id?: string | null
+          user_role?: string | null
         }
         Relationships: []
       }
