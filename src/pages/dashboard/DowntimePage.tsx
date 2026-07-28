@@ -1114,7 +1114,7 @@ export default function DowntimePage() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis type="number" />
                         <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(v: number) => [v, "WOs"]} />
+                        <Tooltip formatter={(v: number) => [v, "WOs"]} contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--popover-foreground))" }} labelStyle={{ color: "hsl(var(--popover-foreground))" }} />
                         <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -1129,7 +1129,7 @@ export default function DowntimePage() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                         <YAxis />
-                        <Tooltip />
+                        <Tooltip contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--popover-foreground))" }} labelStyle={{ color: "hsl(var(--popover-foreground))" }} />
                         <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
                       </LineChart>
                     </ResponsiveContainer>
