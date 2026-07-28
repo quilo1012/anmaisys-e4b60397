@@ -59,6 +59,14 @@ function marketOf(name?: string | null, code?: string | null): string {
   return "";
 }
 
+/** iTouching sends the blender number in its "batch" field, prefixed with "B"
+ *  (e.g. "B69" = blender 69, "B7/8" = blender 7/8). Real batch codes look
+ *  nothing like this (B26188, MM26206), so strip the leading "B" and treat the
+ *  value as a blender number — never as a batch code. */
+function blenderFromItouch(v: string): string {
+  return String(v ?? "").trim().replace(/^B(?=[\d])/i, "");
+}
+
 /** Current local time as "HH:mm". */
 function nowHM(): string {
   const d = new Date();
@@ -580,9 +588,10 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     const code = (j.code ?? "").trim();
     const desc = (j.description ?? "").trim();
 
-    // Auto-fill the batch from the job. The produced QUANTITY is intentionally
-    // NOT filled — the operator enters the real quantity they made and submits.
-    if (j.batch) setBatch(j.batch);
+    // iTouching's "batch" is actually the BLENDER number (prefixed "B") — route
+    // it to the Blender field, not Batch Code. The operator still enters the real
+    // batch code and the produced QUANTITY, then submits.
+    if (j.batch) setBlender(blenderFromItouch(j.batch));
 
     // Link to the catalog by code first, then fall back to the product name so a
     // job with a missing/blank code still resolves instead of erroring.
@@ -807,7 +816,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                     <span className="font-mono">{j.code}</span>
                     {j.qty > 0 && <span>Order qty: <b className="text-foreground">{j.qty.toLocaleString()}</b></span>}
-                    {j.batch && <span>Batch {j.batch}</span>}
+                    {j.batch && <span>Blender {blenderFromItouch(j.batch)}</span>}
                   </div>
                 </button>
               ))}
