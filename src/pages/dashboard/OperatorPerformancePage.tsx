@@ -286,10 +286,20 @@ function OperatorPerformanceContent() {
           const lineAuthorized = !!normLine && leaderLines.some((l) => normalize(l) === normLine);
 
           const assigned = (sessionQ.data?.leader_name as string | null | undefined) ?? null;
-          const nameAuthorized = !!assigned?.trim() && normalize(assigned) === normalize(eng.name);
+          const hasAssigned = !!assigned?.trim();
+          const nameAuthorized = hasAssigned && normalize(assigned) === normalize(eng.name);
 
-          if (!lineAuthorized && !nameAuthorized) {
-            toast.error(`${eng.name} is not a leader for ${line}.`);
+          // When a leader is assigned to THIS shift, only that leader's PIN may
+          // unlock — a different leader (even one registered for the line) must be
+          // rejected. Fall back to "any registered line leader" only when no
+          // leader is assigned yet, so the line isn't left stuck.
+          const authorized = hasAssigned ? nameAuthorized : lineAuthorized;
+          if (!authorized) {
+            toast.error(
+              hasAssigned
+                ? `Only ${assigned}'s PIN can unlock the target for ${line}.`
+                : `${eng.name} is not a leader for ${line}.`,
+            );
             return;
           }
           setUnlocked(true);
