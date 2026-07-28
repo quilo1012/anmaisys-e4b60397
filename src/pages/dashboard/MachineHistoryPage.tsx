@@ -2,6 +2,14 @@ import { useParams, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getWoStatusConfig } from "@/lib/woStatusConfig";
+
+const PRIORITY_BADGE: Record<string, string> = {
+  critical: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30",
+  high: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30",
+  medium: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
+  low: "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/30",
+};
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -112,8 +120,8 @@ export default function MachineHistoryPage() {
                       {machineWOs.map((wo) => (
                         <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
                           <TableCell className="font-mono">WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</TableCell>
-                          <TableCell><Badge variant="outline">{wo.status}</Badge></TableCell>
-                          <TableCell><Badge variant="outline">{wo.priority}</Badge></TableCell>
+                          <TableCell><Badge className={`${getWoStatusConfig(wo.status).className} border`}>{getWoStatusConfig(wo.status).label}</Badge></TableCell>
+                          <TableCell><Badge className={`${PRIORITY_BADGE[(wo.priority || "").toLowerCase()] ?? "bg-muted text-muted-foreground border-border"} border capitalize`}>{wo.priority || "—"}</Badge></TableCell>
                           <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
                         </TableRow>
