@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { logSystemError } from "@/lib/telemetry";
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 
@@ -138,6 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logAuthSession("tablet refresh-token recovery failed", {
           userId: currentUserIdRef.current,
           error: error?.message || "No session returned",
+        });
+        logSystemError("API_ERROR", `Tablet silent re-login failed: ${error?.message || "no session"} — dropped to login`, {
+          metadata: { userId: currentUserIdRef.current },
         });
         return false;
       }

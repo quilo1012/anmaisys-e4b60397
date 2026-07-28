@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { logSystemError } from "@/lib/telemetry";
 
 /** Plays a private voice note: resolves a short-lived signed URL for the stored path. */
 function VoiceNote({ path }: { path: string }) {
@@ -92,6 +93,7 @@ export default function DirectMessagesPage() {
       const msg = (e?.message || "Transcription failed").toString();
       setTranscriptions((p) => ({ ...p, [id]: { error: msg } }));
       toast.error(msg);
+      logSystemError("API_ERROR", `Voice transcription failed: ${msg}`, { metadata: { messageId: id, path } });
     }
   };
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -163,7 +165,9 @@ export default function DirectMessagesPage() {
       const spoken = recordTranscriptRef.current.trim();
       await sendMsg.mutateAsync({ recipientId: activeId, message: spoken || "🎤 Voice message", audioUrl: path });
     } catch (e: any) {
-      toast.error(e?.message || "Failed to send voice message");
+      const msg = e?.message || "Failed to send voice message";
+      toast.error(msg);
+      logSystemError("RLS_ERROR", `Voice note send failed: ${msg}`, { metadata: { recipientId: activeId } });
     } finally {
       setUploadingAudio(false);
     }
