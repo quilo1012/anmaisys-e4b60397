@@ -325,7 +325,7 @@ export default function LineDisplayScreen() {
                         <span className="font-mono">/ {p.toLocaleString()}</span>
                         <Button
                           size="icon"
-                          className="h-9 w-9 bg-green-600 hover:bg-green-700"
+                          className="h-11 w-11 touch-manipulation bg-green-600 hover:bg-green-700"
                           disabled={saving}
                           onClick={async () => {
                             const v = Math.max(0, Math.floor(Number(editValue) || 0));
@@ -350,7 +350,7 @@ export default function LineDisplayScreen() {
                         <Button
                           size="icon"
                           variant="outline"
-                          className="h-9 w-9"
+                          className="h-11 w-11 touch-manipulation"
                           onClick={() => setEditingId(null)}
                         >
                           <X className="h-4 w-4" />
@@ -365,7 +365,7 @@ export default function LineDisplayScreen() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-slate-400 hover:text-white"
+                            className="h-11 w-11 touch-manipulation text-slate-400 hover:text-white"
                             onClick={() => {
                               setEditingId(it.id);
                               setEditValue(String(a));

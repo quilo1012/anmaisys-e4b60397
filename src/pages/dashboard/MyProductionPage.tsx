@@ -1215,7 +1215,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    className="h-11 w-11 touch-manipulation text-muted-foreground hover:text-foreground"
                     onClick={() => setEditing({
                       id: e.id,
                       itemId: e.production_item_id,
@@ -1231,7 +1231,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    className="h-11 w-11 touch-manipulation text-muted-foreground hover:text-destructive"
                     onClick={() => onDelete(e.id)}
                     disabled={deletingId === e.id}
                     aria-label="Delete entry"
@@ -1259,7 +1259,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  className="h-11 w-11 touch-manipulation text-muted-foreground hover:text-destructive"
                   onClick={() => onDeleteItem(it.id)}
                   disabled={deletingId === it.id}
                   aria-label="Delete entry"

@@ -475,7 +475,7 @@ function OperatorDashboardContent() {
                         type="button"
                         size="sm"
                         variant="secondary"
-                        className="h-7"
+                        className="h-10"
                         onClick={async () => {
                           const { error } = await (supabase as any).rpc("move_machine_to_line", {
                             _machine_id: m.id,
