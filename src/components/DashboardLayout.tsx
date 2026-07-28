@@ -93,7 +93,7 @@ export const navItems: NavItem[] = [
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Reports", action: "reports.analytics" },
 
   // Communication
-  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "warehouse"], group: "Communication", action: "chat.dm" },
+  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "operator"], group: "Communication", action: "chat.dm" },
 
   // Administration
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Administration", action: "users.manage" },
@@ -583,7 +583,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             </header>
             {!isOnline && (
               <div className="bg-destructive text-destructive-foreground text-center text-sm py-1 px-4 font-medium">
-                ⚠️ You are offline — changes will sync when connection is restored
+                ⚠️ You are offline — changes won't save until you're back online
               </div>
             )}
             <div className={cn("flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0", isMobile && "pb-24")}>

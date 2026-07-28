@@ -33,8 +33,6 @@ export type Action =
   | "audit.view"
   // Reports
   | "reports.analytics"
-  | "reports.financial"
-  | "reports.executive"
   // System
   | "system.clear"
   | "system.settings"
@@ -46,7 +44,6 @@ export type Action =
   | "production.performance.view"
   // Planner / Scheduling
   | "planner.view"
-  | "planner.manage"
   | "sku.view"
   | "sku.manage"
   // RAG Weekly
@@ -118,8 +115,6 @@ const MATRIX: Record<Action, Role[]> = {
   "audit.view": ["admin", "manager", "supervisor"],
 
   "reports.analytics": ["admin", "manager", "supervisor", "production_office_admin"],
-  "reports.financial": [],
-  "reports.executive": [],
 
   "system.clear": ["admin"],
   "system.settings": ["admin"],
@@ -135,7 +130,6 @@ const MATRIX: Record<Action, Role[]> = {
   // PLUS warehouse and quality_supervisor, for whom the PVS module is built.
 
   "planner.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
-  "planner.manage": [],
   "sku.view": ["production_office_admin"],
   "sku.manage": ["admin", "manager", "supervisor", "planner", "production_office_admin"],
 
@@ -308,7 +302,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "machines", label: "Machines & Problems", actions: ["machines.view", "machines.manage", "problems.view", "problems.manage"] },
   { key: "stock", label: "Stock", actions: ["stock.view", "stock.manage", "stock.pricing"] },
   { key: "production", label: "Production", actions: ["production.view", "production.manage", "production.target.view", "production.target.manage", "production.performance.view"] },
-  { key: "planner", label: "Planner & SKU", actions: ["planner.view", "planner.manage", "sku.view", "sku.manage"] },
+  { key: "planner", label: "Planner & SKU", actions: ["planner.view", "sku.view", "sku.manage"] },
   { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
   { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
   { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage"] },
@@ -320,7 +314,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "cc", label: "Control Center", actions: ["controlcenter.view", "assets.manage"] },
   { key: "dash", label: "Dashboards", actions: ["dashboard.executive", "dashboard.manager", "dashboard.engineer", "dashboard.operator"] },
   { key: "users", label: "Users & Audit", actions: ["users.view", "users.manage", "audit.view"] },
-  { key: "reports", label: "Reports", actions: ["reports.analytics", "reports.financial", "reports.executive", "reliability.view", "suppliers.view"] },
+  { key: "reports", label: "Reports", actions: ["reports.analytics", "reliability.view", "suppliers.view"] },
   { key: "system", label: "System", actions: ["system.clear", "system.settings", "permissions.manage"] },
 ];
 
@@ -352,7 +346,6 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "production.target.manage": "Create and edit production targets.",
   "production.performance.view": "Access the Production Performance dashboard.",
   "planner.view": "Open the Planner and see the plan.",
-  "planner.manage": "Edit the plan and schedule SKUs.",
   "sku.view": "Browse SKU catalogue and line speeds.",
   "sku.manage": "Create, edit or import SKUs and speeds.",
   "rag.view": "Open the RAG Weekly board.",
@@ -383,8 +376,6 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "users.manage": "Create, edit or deactivate users and roles.",
   "audit.view": "See the audit log of security-sensitive events.",
   "reports.analytics": "Open the Analytics reports.",
-  "reports.financial": "See financial reports (labour cost, stock value).",
-  "reports.executive": "Access executive-level reports.",
   "reliability.view": "Access the Reliability dashboard (MTTR/MTBF, risk).",
   "suppliers.view": "Open the Suppliers directory.",
   "system.clear": "Bulk-clear operational data (dangerous, admin only).",
