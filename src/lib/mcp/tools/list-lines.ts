@@ -19,7 +19,7 @@ export default defineTool({
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
     const { data, error } = await supabaseForUser(ctx)
-      .from("production_lines")
+      .from("lines")
       .select("id, name")
       .order("name", { ascending: true });
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };

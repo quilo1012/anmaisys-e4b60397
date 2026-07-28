@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getShift, SHIFT_LABEL } from "@/lib/shifts";
+import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
 import { ArrowLeft, Maximize2, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,11 +27,6 @@ type ProductionItem = {
   actual_qty: number | null;
   sku: { code: string | null; name: string | null } | null;
 };
-
-function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 function shiftEndsAt(shift: "day" | "night") {
   const now = new Date();
@@ -71,9 +66,12 @@ export default function LineDisplayScreen() {
     return () => clearInterval(t);
   }, []);
 
-  const shift = getShift(now);
+  // Use the factory shift's session date/shift (Europe/London, with the
+  // 00:00–06:00 night rollback) so the board matches the WRITE path — otherwise
+  // the night shift's data lives under the previous calendar day and the board
+  // shows blank ("No SKUs scheduled yet") from midnight to 06:00.
+  const { sessionDate: date, shiftCode: shift } = getCurrentFactoryShift(now);
   const shiftDb = shift.toUpperCase(); // rag_weekly_entries stores DAY/NIGHT
-  const date = todayISO();
 
   const { data: profile } = useQuery({
     queryKey: ["profile-line", user?.id],
