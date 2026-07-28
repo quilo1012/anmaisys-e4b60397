@@ -46,9 +46,9 @@ const CATEGORIES = ["Mechanical", "Electrical", "Machine", "Maintenance", "Fille
 const LINES = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"] as const;
 
 const riskBadge: Record<RiskLevel, { label: string; className: string }> = {
-  HIGH: { label: "HIGH", className: "bg-red-100 text-red-800 border-red-200" },
-  MEDIUM: { label: "MEDIUM", className: "bg-amber-100 text-amber-800 border-amber-200" },
-  LOW: { label: "LOW", className: "bg-green-100 text-green-800 border-green-200" },
+  HIGH: { label: "HIGH", className: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30" },
+  MEDIUM: { label: "MEDIUM", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" },
+  LOW: { label: "LOW", className: "bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/30" },
 };
 
 type ShiftFilter = "all" | "Day" | "Night";
