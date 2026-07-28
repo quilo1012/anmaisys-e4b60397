@@ -538,8 +538,10 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   const [skuPopoverOpen, setSkuPopoverOpen] = useState(false);
   const [assembly, setAssembly] = useState(""); // stored in blender_ref
   const [batch, setBatch] = useState("");        // stored in batch_code — used by Quality to pull the SKU
-  const [mfgMonth, setMfgMonth] = useState("");  // "YYYY-MM" from <input type="month">
-  const [expMonth, setExpMonth] = useState("");  // "YYYY-MM"
+  const [mfgMonth, setMfgMonth] = useState("");  // "YYYY-MM" — parsed from the batch field
+  const [expMonth, setExpMonth] = useState("");  // "YYYY-MM" — parsed from the batch field
+  const [destination, setDestination] = useState("");
+  const [notForEu, setNotForEu] = useState(false);
   const [blender, setBlender] = useState<string>("");
   const [qty, setQty] = useState<string>("");
   const [startTime, setStartTime] = useState("");   // "HH:mm"
