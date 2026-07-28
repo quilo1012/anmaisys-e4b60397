@@ -174,7 +174,9 @@ function useToast() {
         listeners.splice(index, 1);
       }
     };
-  }, [state]);
+    // Register once on mount; setState identity is stable. Keying on [state]
+    // re-subscribed the listener on every toast (needless churn).
+  }, []);
 
   return {
     ...state,
