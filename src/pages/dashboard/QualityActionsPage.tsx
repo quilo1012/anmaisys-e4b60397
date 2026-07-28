@@ -19,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2, ClipboardCheck, Printer, Pencil } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { toast } from "sonner";
-import { format, subDays, addDays } from "date-fns";
+import { format, subDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
 import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_STATUSES, QUALITY_SEVERITIES, statusMeta, severityMeta } from "@/lib/qualityConstants";
@@ -91,8 +91,8 @@ export function QualityActionsView() {
   const LABELS = qOpts?.labels ?? [...QUALITY_LABELS];
   const DEPTS = qOpts?.departments ?? [...QUALITY_DEPARTMENTS];
 
-  const [view, setView] = useState<"list" | "kanban" | "analytics" | "stats">("list");
-  const { profile, user } = useAuth();
+  const [view, setView] = useState<"list" | "kanban" | "analytics">("list");
+  const { profile } = useAuth();
   const isMobile = useIsMobile();
   const [listsOpen, setListsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -389,9 +389,6 @@ export function QualityActionsView() {
               <button type="button" onClick={() => setView("analytics")} className={cn("inline-flex items-center gap-1 rounded px-3 py-1 text-sm font-medium transition-colors", view === "analytics" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
                 <BarChart3 className="h-4 w-4" /> Analytics
               </button>
-              <button type="button" onClick={() => setView("stats")} className={cn("inline-flex items-center gap-1 rounded px-3 py-1 text-sm font-medium transition-colors", view === "stats" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
-                <ClipboardCheck className="h-4 w-4" /> Stats
-              </button>
             </div>
             {canManage && <Button variant="outline" onClick={() => setListsOpen(true)}><Tags className="h-4 w-4 mr-1" />Lists</Button>}
             {canManage && <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" />Import</Button>}
@@ -535,9 +532,7 @@ export function QualityActionsView() {
           </Select>
         </div>
 
-        {view === "stats" ? (
-          <QualityDailyStats lines={lines} canManage={canManage} userId={user?.id ?? null} />
-        ) : view === "analytics" ? (
+        {view === "analytics" ? (
           <QualityAnalytics actions={filtered} from={from} />
         ) : view === "kanban" ? (
           <IssueKanban actions={filtered} canManage={canManage} onOpen={setDetailId} onMove={(id, status) => setStatus.mutate({ id, status })} />
@@ -1159,198 +1154,3 @@ function ChartCard({ title, data, color }: { title: string; data: { label: strin
   );
 }
 
-
-// ---------------------------------------------------------------------------
-// Daily quality stats: manual entry of batches + QAS/CCP/Toolbox checks per
-// line per day. Actions and % Error are DERIVED (not stored): actions =
-// count of quality_actions logged that day+line; %Error = actions ÷ checks.
-// Weekly/monthly reports aggregate from these daily rows.
-// ---------------------------------------------------------------------------
-type DailyRow = { batches: number; qas: number; ccp: number; toolbox: number };
-const EMPTY_ROW: DailyRow = { batches: 0, qas: 0, ccp: 0, toolbox: 0 };
-
-/** RAG colour for %Error — lower is better. */
-function errClass(pct: number, hasChecks: boolean): string {
-  if (!hasChecks) return "text-muted-foreground";
-  if (pct <= 5) return "text-emerald-600 dark:text-emerald-400";
-  if (pct <= 10) return "text-amber-600 dark:text-amber-400";
-  return "text-red-600 dark:text-red-400";
-}
-
-function QualityDailyStats({ lines, canManage, userId }: { lines: { name: string }[]; canManage: boolean; userId: string | null }) {
-  const qc = useQueryClient();
-  const [day, setDay] = useState<string>(() => todayISO());
-  const [draft, setDraft] = useState<Record<string, DailyRow>>({});
-  const [dirty, setDirty] = useState(false);
-
-  const statsQ = useQuery({
-    queryKey: ["quality_daily_stats", day],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("quality_daily_stats").select("*").eq("stat_date", day);
-      if (error) throw error;
-      return (data ?? []) as any[];
-    },
-  });
-
-  const actionsQ = useQuery({
-    queryKey: ["quality_actions_day", day],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("quality_actions")
-        .select("line").gte("recorded_at", day).lte("recorded_at", `${day}T23:59:59`);
-      if (error) throw error;
-      return (data ?? []) as { line: string | null }[];
-    },
-  });
-
-  const actionCounts = useMemo(() => {
-    const m: Record<string, number> = {};
-    (actionsQ.data ?? []).forEach((a) => { if (a.line) m[a.line] = (m[a.line] ?? 0) + 1; });
-    return m;
-  }, [actionsQ.data]);
-
-  // Seed the editable grid from stored rows whenever the day (or its data) loads.
-  useEffect(() => {
-    const seed: Record<string, DailyRow> = {};
-    (statsQ.data ?? []).forEach((r: any) => {
-      seed[r.line] = { batches: r.batches ?? 0, qas: r.qas_checks ?? 0, ccp: r.ccp_checks ?? 0, toolbox: r.toolbox_checks ?? 0 };
-    });
-    setDraft(seed);
-    setDirty(false);
-  }, [statsQ.data]);
-
-  const rowOf = (line: string): DailyRow => draft[line] ?? EMPTY_ROW;
-  const setField = (line: string, field: keyof DailyRow, raw: string) => {
-    const n = Math.max(0, Math.floor(Number(raw) || 0));
-    setDraft((d) => ({ ...d, [line]: { ...(d[line] ?? EMPTY_ROW), [field]: n } }));
-    setDirty(true);
-  };
-
-  const errPct = (row: DailyRow, actions: number) => {
-    const denom = row.qas + row.ccp + row.toolbox;
-    return denom > 0 ? (actions / denom) * 100 : 0;
-  };
-
-  const totals = useMemo(() => {
-    let batches = 0, qas = 0, ccp = 0, toolbox = 0, actions = 0;
-    lines.forEach((l) => {
-      const r = rowOf(l.name);
-      batches += r.batches; qas += r.qas; ccp += r.ccp; toolbox += r.toolbox;
-      actions += actionCounts[l.name] ?? 0;
-    });
-    return { batches, qas, ccp, toolbox, actions };
-  }, [draft, lines, actionCounts]);
-
-  const save = useMutation({
-    mutationFn: async () => {
-      // Upsert the whole grid so clearing a value to 0 persists (no stale row).
-      const rows = lines.map((l) => {
-        const r = rowOf(l.name);
-        return {
-          stat_date: day, line: l.name,
-          batches: r.batches, qas_checks: r.qas, ccp_checks: r.ccp, toolbox_checks: r.toolbox,
-          created_by: userId,
-        };
-      });
-      const { error } = await (supabase as any)
-        .from("quality_daily_stats").upsert(rows, { onConflict: "stat_date,line" });
-      if (error) throw error;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["quality_daily_stats", day] }); setDirty(false); toast.success("Daily stats saved"); },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const loading = statsQ.isLoading || actionsQ.isLoading;
-  const totalDenom = totals.qas + totals.ccp + totals.toolbox;
-  const totalErr = totalDenom > 0 ? (totals.actions / totalDenom) * 100 : 0;
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> Daily stats</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => setDay(format(subDays(new Date(day), 1), "yyyy-MM-dd"))} aria-label="Previous day">‹</Button>
-            <Input type="date" value={day} max={todayISO()} onChange={(e) => setDay(e.target.value || todayISO())} className="w-[9.5rem]" />
-            <Button variant="outline" size="icon" disabled={day >= todayISO()} onClick={() => setDay(format(addDays(new Date(day), 1), "yyyy-MM-dd"))} aria-label="Next day">›</Button>
-            {canManage && (
-              <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
-                {save.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Save
-              </Button>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : lines.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">No lines configured.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Line</TableHead>
-                  <TableHead className="text-right">Batches</TableHead>
-                  <TableHead className="text-right">QAS 21.0a</TableHead>
-                  <TableHead className="text-right">CCP</TableHead>
-                  <TableHead className="text-right">Toolbox</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                  <TableHead className="text-right">% Error</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lines.map((l) => {
-                  const r = rowOf(l.name);
-                  const actions = actionCounts[l.name] ?? 0;
-                  const denom = r.qas + r.ccp + r.toolbox;
-                  const pct = errPct(r, actions);
-                  const cell = (field: keyof DailyRow, value: number) => (
-                    <TableCell className="text-right">
-                      <Input
-                        type="number" min={0} inputMode="numeric"
-                        value={value === 0 ? "" : value}
-                        placeholder="0"
-                        readOnly={!canManage}
-                        onChange={(e) => setField(l.name, field, e.target.value)}
-                        className="h-8 w-16 ml-auto text-right tabular-nums"
-                      />
-                    </TableCell>
-                  );
-                  return (
-                    <TableRow key={l.name}>
-                      <TableCell className="font-medium">{l.name}</TableCell>
-                      {cell("batches", r.batches)}
-                      {cell("qas", r.qas)}
-                      {cell("ccp", r.ccp)}
-                      {cell("toolbox", r.toolbox)}
-                      <TableCell className="text-right tabular-nums">{actions}</TableCell>
-                      <TableCell className={cn("text-right tabular-nums font-semibold", errClass(pct, denom > 0))}>
-                        {denom > 0 ? `${pct.toFixed(1)}%` : "—"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                <TableRow className="border-t-2 font-semibold">
-                  <TableCell>Total</TableCell>
-                  <TableCell className="text-right tabular-nums">{totals.batches}</TableCell>
-                  <TableCell className="text-right tabular-nums">{totals.qas}</TableCell>
-                  <TableCell className="text-right tabular-nums">{totals.ccp}</TableCell>
-                  <TableCell className="text-right tabular-nums">{totals.toolbox}</TableCell>
-                  <TableCell className="text-right tabular-nums">{totals.actions}</TableCell>
-                  <TableCell className={cn("text-right tabular-nums", errClass(totalErr, totalDenom > 0))}>
-                    {totalDenom > 0 ? `${totalErr.toFixed(1)}%` : "—"}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-            <p className="mt-3 text-xs text-muted-foreground">
-              % Error = Actions ÷ (QAS + CCP + Toolbox). Actions are counted automatically from the quality actions logged on this day.
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
