@@ -528,6 +528,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   const [skuPopoverOpen, setSkuPopoverOpen] = useState(false);
   const [assembly, setAssembly] = useState(""); // stored in blender_ref
   const [batch, setBatch] = useState("");        // stored in batch_code — used by Quality to pull the SKU
+  const [mfgMonth, setMfgMonth] = useState("");  // "YYYY-MM" from <input type="month">
+  const [expMonth, setExpMonth] = useState("");  // "YYYY-MM"
   const [blender, setBlender] = useState<string>("");
   const [qty, setQty] = useState<string>("");
   const [startTime, setStartTime] = useState("");   // "HH:mm"
@@ -611,6 +613,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     setSkuDebounced("");
     setAssembly("");
     setBatch("");
+    setMfgMonth("");
+    setExpMonth("");
     resetRunFields();
   };
 
@@ -668,6 +672,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
             notes: "manual_sku",
             blender_ref: assembly.trim() || null,
             batch_code: batch.trim(),
+            manufacture_month: mfgMonth ? `${mfgMonth}-01` : null,
+            expiry_month: expMonth ? `${expMonth}-01` : null,
             started_at: hmToIso(startTime),
             finished_at: hmToIso(finishTime),
           })
@@ -681,6 +687,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
         if (startTime) timePatch.started_at = hmToIso(startTime);
         if (finishTime) timePatch.finished_at = hmToIso(finishTime);
         if (batch.trim()) timePatch.batch_code = batch.trim();
+        if (mfgMonth) timePatch.manufacture_month = `${mfgMonth}-01`;
+        if (expMonth) timePatch.expiry_month = `${expMonth}-01`;
         if (assembly.trim()) timePatch.blender_ref = assembly.trim();
         if (Object.keys(timePatch).length) {
           // .select() so a locked-session RLS no-op (0 rows, no error) surfaces
@@ -916,6 +924,18 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
             className="h-11"
             autoComplete="off"
           />
+        </div>
+
+        {/* Manufacture / expiry month for batch traceability (optional) */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Manufactured (month)</div>
+            <Input type="month" value={mfgMonth} onChange={(e) => setMfgMonth(e.target.value)} className="h-11" />
+          </div>
+          <div className="space-y-1.5">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Expiry (month)</div>
+            <Input type="month" value={expMonth} onChange={(e) => setExpMonth(e.target.value)} className="h-11" />
+          </div>
         </div>
 
         {/* Blender */}
