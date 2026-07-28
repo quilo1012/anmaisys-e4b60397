@@ -664,7 +664,7 @@ function OperatorDashboardContent() {
                   "w-full h-14 text-base font-black uppercase tracking-wide touch-manipulation",
                   lineStopped ? "bg-red-600 hover:bg-red-700 text-white" : "",
                 )}
-                title={typeof navigator !== "undefined" && !navigator.onLine ? "Offline — will sync when connection is restored" : undefined}
+                title={typeof navigator !== "undefined" && !navigator.onLine ? "Offline — reconnect to submit the request" : undefined}
               >
                 {createWO.isPending && <Loader2 className="h-5 w-5 animate-spin mr-2" />}
                 {lineStopped ? "🛑 Submit — Line Stopped" : "Submit Maintenance Order"}

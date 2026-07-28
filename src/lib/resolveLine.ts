@@ -3,8 +3,7 @@
 //   2. the live machine→line mapping from the machines table
 //   3. a fallback placeholder (default "—")
 //
-// Consolidates logic previously duplicated in FinancialDashboard,
-// AnalyticsPage and ExecutiveDashboard.
+// Consolidates line-resolution logic used by AnalyticsPage and reports.
 
 export interface MachineLike {
   name?: string | null;
