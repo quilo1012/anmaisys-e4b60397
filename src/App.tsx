@@ -1,11 +1,12 @@
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
+import { installTelemetryHandlers, setTelemetryContext } from "@/lib/telemetry";
 import { lazyWithReload } from "@/lib/lazyWithReload";
 import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CriticalAlertProvider } from "@/contexts/CriticalAlertContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -23,6 +24,26 @@ import { usePermissionOverridesSync } from "@/hooks/usePermissionOverrides";
 
 function PermissionOverridesSync() {
   usePermissionOverridesSync();
+  return null;
+}
+
+// Installs global error capture, keeps the telemetry context (user+role) fresh,
+// and opens the admin-only Root Diagnostics console on Ctrl/Cmd+Shift+D.
+function TelemetryInit() {
+  const { user, role } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => { installTelemetryHandlers(); }, []);
+  useEffect(() => { setTelemetryContext(user?.id ?? null, role ?? null); }, [user?.id, role]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "D" || e.key === "d") && role === "admin") {
+        e.preventDefault();
+        navigate("/dashboard/root-diagnostics");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [role, navigate]);
   return null;
 }
 
@@ -78,6 +99,7 @@ const MyProductionPage = lazyWithReload(() => import("./pages/dashboard/MyProduc
 const OperatorPerformancePage = lazyWithReload(() => import("./pages/dashboard/OperatorPerformancePage"));
 const DirectMessagesPage = lazyWithReload(() => import("./pages/dashboard/DirectMessagesPage"));
 const PermissionsMatrixPage = lazyWithReload(() => import("./pages/dashboard/PermissionsMatrixPage"));
+const RootDiagnosticsPage = lazyWithReload(() => import("./pages/dashboard/RootDiagnosticsPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -205,6 +227,7 @@ const App = () => (
             <ErrorBoundary>
             <AppUpdater />
             <PermissionOverridesSync />
+            <TelemetryInit />
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -418,6 +441,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin"]}>
                       <ShiftPasswordSettingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/root-diagnostics"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <RootDiagnosticsPage />
                     </ProtectedRoute>
                   }
                 />

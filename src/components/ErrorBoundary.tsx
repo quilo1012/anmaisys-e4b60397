@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from "react";
+import { logSystemError } from "@/lib/telemetry";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle } from "lucide-react";
@@ -33,6 +34,10 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("ErrorBoundary caught:", error, info);
     this.setState({ info });
+    logSystemError("REACT_CRASH", error.message || "React render crash", {
+      stack: error.stack,
+      metadata: { componentStack: info.componentStack?.slice(0, 4000) },
+    });
   }
 
   // A deterministic crash (bad data, a stale chunk after deploy) re-throws the
