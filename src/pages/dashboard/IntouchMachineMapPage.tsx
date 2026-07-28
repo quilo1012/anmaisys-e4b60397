@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, PlayCircle, ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Loader2, RefreshCw, PlayCircle } from "lucide-react";
+import { DashboardLayout } from "@/components/DashboardLayout";
 
 interface MapRow {
   intouch_machine_id: string;
@@ -23,7 +23,6 @@ interface MapRow {
 
 export default function IntouchMachineMapPage() {
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const [polling, setPolling] = useState(false);
 
   const { data: mapRows = [], isLoading } = useQuery({
@@ -116,10 +115,8 @@ export default function IntouchMachineMapPage() {
   };
 
   return (
+    <DashboardLayout>
     <div className="p-4 md:p-6 space-y-4">
-      <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="-ml-2">
-        <ArrowLeft className="h-4 w-4 mr-2" /> Back to Dashboard
-      </Button>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold">iTouching Machine Mapping</h1>
@@ -221,5 +218,6 @@ export default function IntouchMachineMapPage() {
         </CardContent>
       </Card>
     </div>
+    </DashboardLayout>
   );
 }

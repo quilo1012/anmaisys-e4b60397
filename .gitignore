@@ -31,3 +31,4 @@ dist-ssr
 # accidental nested clone + stray files
 anmaisys-e4b60397/
 *.save
+.claude/settings.json
