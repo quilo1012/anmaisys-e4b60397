@@ -1137,7 +1137,7 @@ const SkuCard = memo(function SkuCard({
           <Button
             size="icon"
             variant="outline"
-            className="h-7 w-7"
+            className="h-10 w-10 touch-manipulation"
             disabled={!onMoveUp}
             onClick={(e) => { e.stopPropagation(); onMoveUp?.(); }}
             title="Move up"
@@ -1147,7 +1147,7 @@ const SkuCard = memo(function SkuCard({
           <Button
             size="icon"
             variant="outline"
-            className="h-7 w-7"
+            className="h-10 w-10 touch-manipulation"
             disabled={!onMoveDown}
             onClick={(e) => { e.stopPropagation(); onMoveDown?.(); }}
             title="Move down"
@@ -1157,7 +1157,7 @@ const SkuCard = memo(function SkuCard({
           <Button
             size="icon"
             variant="outline"
-            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="h-10 w-10 touch-manipulation text-destructive hover:text-destructive hover:bg-destructive/10"
             onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
             title="Remove SKU"
           >

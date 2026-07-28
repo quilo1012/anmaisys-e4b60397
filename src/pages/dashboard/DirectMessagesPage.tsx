@@ -500,18 +500,18 @@ export default function DirectMessagesPage() {
                           handleSend();
                         }
                       }}
-                      className="flex-1"
+                      className="flex-1 h-12"
                     />
                     {recording ? (
                       <>
                         <div className="flex items-center px-2 text-xs font-medium text-destructive whitespace-nowrap">
                           <span className="animate-pulse">● Rec</span>
                         </div>
-                        <Button size="icon" variant="ghost" onClick={cancelRecording} disabled={uploadingAudio} title="Cancel" aria-label="Cancel recording">
-                          <X className="h-4 w-4" />
+                        <Button size="icon" variant="ghost" className="h-12 w-12 touch-manipulation" onClick={cancelRecording} disabled={uploadingAudio} title="Cancel" aria-label="Cancel recording">
+                          <X className="h-5 w-5" />
                         </Button>
-                        <Button size="icon" variant="destructive" onClick={stopAndSend} disabled={uploadingAudio} title="Stop & send voice message" aria-label="Stop and send voice message">
-                          {uploadingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        <Button size="icon" variant="destructive" className="h-12 w-12 touch-manipulation" onClick={stopAndSend} disabled={uploadingAudio} title="Stop & send voice message" aria-label="Stop and send voice message">
+                          {uploadingAudio ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                         </Button>
                       </>
                     ) : (
@@ -520,27 +520,30 @@ export default function DirectMessagesPage() {
                           <Button
                             size="icon"
                             variant={listening ? "destructive" : "outline"}
+                            className="h-12 w-12 touch-manipulation"
                             onClick={toggleDictation}
                             title={listening ? "Stop dictation" : "Dictate to text"}
                             aria-label={listening ? "Stop dictation" : "Dictate to text"}
                           >
-                            <Captions className={cn("h-4 w-4", listening && "animate-pulse")} />
+                            <Captions className={cn("h-5 w-5", listening && "animate-pulse")} />
                           </Button>
                         )}
                         {audioSupported && (
                           <Button
                             size="icon"
                             variant="outline"
+                            className="h-12 w-12 touch-manipulation"
                             onClick={startRecording}
                             disabled={!activeId || uploadingAudio}
                             title="Record voice message"
                             aria-label="Record voice message"
                           >
-                            {uploadingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+                            {uploadingAudio ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                           </Button>
                         )}
                         <Button
                           size="icon"
+                          className="h-12 w-12 touch-manipulation"
                           aria-label="Send message"
                           onClick={handleSend}
                           disabled={!text.trim() || sendMsg.isPending}

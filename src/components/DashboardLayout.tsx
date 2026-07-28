@@ -527,7 +527,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
             <header className="min-h-14 border-b bg-card flex flex-wrap items-center px-2 sm:px-4 py-1.5 gap-2 sm:gap-3 print:hidden">
-              <SidebarTrigger aria-label="Toggle menu" className="shrink-0" />
+              <SidebarTrigger aria-label="Toggle menu" className="shrink-0 h-11 w-11" />
               {isMobile && (
                 <div className="flex items-center gap-1.5">
                   <img src={appliedLogo} alt="AN" className="h-7 w-7 rounded-md object-cover" />
