@@ -283,7 +283,8 @@ Deno.serve(async (req) => {
     if (cErr || !uid) return new Response(JSON.stringify({ error: "invalid_token" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     const admin = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
     const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", uid);
-    if (!(roles ?? []).some((r) => ["admin", "manager"].includes(r.role))) {
+    const allowedRoles = ["admin", "manager", "maintenance_manager", "supervisor", "planner", "production_office_admin"];
+    if (!(roles ?? []).some((r) => allowedRoles.includes(r.role))) {
       return new Response(JSON.stringify({ error: "forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
