@@ -27,7 +27,7 @@ export default function EngineerPreviewPage() {
           Engineer Preview (read-only)
         </div>
         <div className="ml-auto text-xs text-amber-200/80">
-          Interações desativadas — apenas visualização.
+          Interactions disabled — view only.
         </div>
       </div>
 

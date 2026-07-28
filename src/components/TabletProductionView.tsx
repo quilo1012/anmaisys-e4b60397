@@ -125,7 +125,7 @@ export function TabletProductionView() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Dados sincronizados com sucesso!");
+      toast.success("Data synced successfully!");
       qc.invalidateQueries({ queryKey: ["tablet_session"] });
     },
     onError: (e: Error) => toast.error(e.message),

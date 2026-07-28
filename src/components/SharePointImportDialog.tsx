@@ -94,8 +94,8 @@ export function SharePointImportDialog({
             <CloudDownload className="h-5 w-5" /> Import RAG from SharePoint
           </DialogTitle>
           <DialogDescription>
-            Cola o link de partilha (Share link) do ficheiro Excel no SharePoint/OneDrive.
-            O sistema baixa, lê e atualiza apenas os números (Plan / Actual / Downtime) para a semana selecionada.
+            Paste the Share link of the Excel file from SharePoint/OneDrive.
+            The system downloads, reads and updates only the numbers (Plan / Actual / Downtime) for the selected week.
           </DialogDescription>
         </DialogHeader>
 
@@ -120,7 +120,7 @@ export function SharePointImportDialog({
               placeholder="https://yourtenant.sharepoint.com/:x:/s/..."
             />
             <p className="text-xs text-muted-foreground mt-1">
-              No Excel/SharePoint: <strong>Share → Copy link</strong> (permissão "Anyone with link" ou "People in your org").
+              In Excel/SharePoint: <strong>Share → Copy link</strong> (permission "Anyone with link" or "People in your org").
             </p>
           </div>
 
