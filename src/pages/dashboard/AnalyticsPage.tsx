@@ -121,18 +121,46 @@ export default function AnalyticsPage() {
       const to = format(endDate, "yyyy-MM-dd");
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("session_date, shift, line, leader_name, production_items(target_qty, planned_qty, actual_qty)")
+        .select("session_date, shift, line, leader_name, production_items(actual_qty)")
         .gte("session_date", from)
         .lte("session_date", to);
       if (error) throw error;
       return (data ?? []) as Array<{
         session_date: string; shift: string | null; line: string | null; leader_name: string | null;
-        production_items: { target_qty: number | null; planned_qty: number | null; actual_qty: number | null }[];
+        production_items: { actual_qty: number | null }[];
       }>;
     },
   });
 
+  // Official target lives in the RAG Weekly plan (rag_weekly_entries.plan_qty),
+  // per line+date+shift — NOT on production_items. Pull it for the same range so
+  // every leader's target is populated, not just the odd session that happened
+  // to carry a target_qty.
+  const { data: ragTargetRows = [] } = useQuery({
+    queryKey: ["analytics-leader-rag-targets", startDate.toISOString(), endDate.toISOString()],
+    queryFn: async () => {
+      const from = format(startDate, "yyyy-MM-dd");
+      const to = format(endDate, "yyyy-MM-dd");
+      const { data, error } = await (supabase as any)
+        .from("rag_weekly_entries")
+        .select("entry_date, shift, line, plan_qty")
+        .gte("entry_date", from)
+        .lte("entry_date", to);
+      if (error) throw error;
+      return (data ?? []) as Array<{ entry_date: string; shift: string | null; line: string | null; plan_qty: number | null }>;
+    },
+  });
+
   const leaderPerf = useMemo(() => {
+    const normLine = (v: string | null | undefined) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
+    const key = (date: string, shift: string | null, line: string | null) =>
+      `${date}|${String(shift ?? "").trim().toUpperCase()}|${normLine(line)}`;
+    // Sum plan_qty per (date, shift, line) — matches useLineShiftTarget's read.
+    const ragMap = new Map<string, number>();
+    for (const r of ragTargetRows) {
+      const k = key(r.entry_date, r.shift, r.line);
+      ragMap.set(k, (ragMap.get(k) ?? 0) + Number(r.plan_qty ?? 0));
+    }
     type Agg = { leader: string; sessions: number; target: number; actual: number; lines: Set<string>; shifts: Set<string> };
     const map = new Map<string, Agg>();
     for (const s of leaderRows) {
@@ -142,8 +170,9 @@ export default function AnalyticsPage() {
       cur.sessions += 1;
       if (s.line) cur.lines.add(s.line);
       if (s.shift) cur.shifts.add(s.shift);
+      // One RAG target per session (line+date+shift), not per production item.
+      cur.target += ragMap.get(key(s.session_date, s.shift, s.line)) ?? 0;
       for (const i of s.production_items ?? []) {
-        cur.target += Number(i.target_qty ?? i.planned_qty ?? 0);
         cur.actual += Number(i.actual_qty ?? 0);
       }
       map.set(leader, cur);
@@ -162,7 +191,7 @@ export default function AnalyticsPage() {
       avgEff: totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0,
       topByOutput: rows.slice(0, 8).map((r) => ({ name: truncLabel(r.leader, 14), value: r.actual })),
     };
-  }, [leaderRows]);
+  }, [leaderRows, ragTargetRows]);
 
   // Filter WOs by date range
   const allWOs = useMemo(() => {
