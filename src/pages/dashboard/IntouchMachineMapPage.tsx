@@ -40,11 +40,19 @@ export default function IntouchMachineMapPage() {
 
   const { data: lines = [] } = useQuery({
     queryKey: ["lines"],
-    queryFn: async () => (await supabase.from("lines").select("id,name").order("name")).data ?? [],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("lines").select("id,name").order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: machines = [] } = useQuery({
     queryKey: ["machines-names"],
-    queryFn: async () => (await supabase.from("machines").select("name").order("name")).data ?? [],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("machines").select("name").order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const syncFromIntouch = useMutation({

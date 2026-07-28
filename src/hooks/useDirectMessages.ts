@@ -191,12 +191,13 @@ export function useMarkDMRead(partnerId: string | null) {
   return useMutation({
     mutationFn: async () => {
       if (!user || !partnerId) return;
-      await supabase
+      const { error } = await supabase
         .from("direct_messages" as any)
         .update({ read_at: new Date().toISOString() } as any)
         .eq("recipient_id", user.id)
         .eq("sender_id", partnerId)
         .is("read_at", null);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dm_unread", user?.id] });

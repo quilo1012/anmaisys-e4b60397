@@ -76,7 +76,12 @@ function parseQty(raw: unknown): number {
   const hasDot = s.includes(".");
   let clean = s;
   if (hasComma && hasDot) clean = s.replace(/\./g, "").replace(",", ".");
-  else if (hasComma && !hasDot) clean = s.replace(",", ".");
+  else if (hasComma && !hasDot) {
+    // A comma before exactly 3 digits (then end/non-digit) is a US thousands
+    // separator (6,666 → 6666), NOT a decimal. Strip those first, then treat any
+    // remaining comma as the decimal point (6,5 → 6.5). Fixes 6,666 → 7.
+    clean = s.replace(/,(?=\d{3}(\D|$))/g, "").replace(",", ".");
+  }
   const n = Number(clean.replace(/[^\d.\-]/g, ""));
   return isNaN(n) ? 0 : Math.round(n);
 }

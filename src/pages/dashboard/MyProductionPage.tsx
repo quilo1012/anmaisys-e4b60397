@@ -683,7 +683,12 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
         if (batch.trim()) timePatch.batch_code = batch.trim();
         if (assembly.trim()) timePatch.blender_ref = assembly.trim();
         if (Object.keys(timePatch).length) {
-          await (supabase as any).from("production_items").update(timePatch).eq("id", itemId);
+          // .select() so a locked-session RLS no-op (0 rows, no error) surfaces
+          // instead of silently dropping the times/batch under a success toast.
+          const { data: patched, error: patchErr } = await (supabase as any)
+            .from("production_items").update(timePatch).eq("id", itemId).select("id");
+          if (patchErr) throw patchErr;
+          if (!patched?.length) throw new Error("This shift is locked — production times can't be changed.");
         }
       }
       if (!itemId) throw new Error("Could not resolve production item");
