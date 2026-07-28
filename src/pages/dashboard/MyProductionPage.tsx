@@ -578,13 +578,18 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     staleTime: 30_000,
     queryFn: async () => {
       const q = skuDebounced;
+      // PostgREST's or() parser splits on commas/parentheses, so a SKU name like
+      // "… 60 CAPS, 30 SERVS" would break the filter ("failed to parse logic
+      // tree"). Double-quote each value (escaping embedded quotes/backslashes) so
+      // the whole pattern is treated as one term.
+      const safe = q.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
       // Fetch wide, then collapse batch duplicates below — the same product
       // exists as CRE1KG, CRE1KG - B1 … B42, which would otherwise bury the
       // market variants (Peru, Morocco, KSA) the operator is looking for.
       const { data, error } = await (supabase as any)
         .from("sku_products")
         .select("id, code, name")
-        .or(`code.ilike.%${q}%,name.ilike.%${q}%`)
+        .or(`code.ilike."%${safe}%",name.ilike."%${safe}%"`)
         .order("code", { ascending: true })
         .limit(200);
       if (error) throw error;
