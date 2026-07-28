@@ -635,10 +635,33 @@ Deno.serve(async (req) => {
       }
 
 
+      // Requester = the line's shift leader, not "iTouching". Prefer the leader
+      // ASSIGNED to the current session (production_sessions.leader_name); fall
+      // back to the registered line leader, then to "<Line> Leader".
+      let requesterName = "iTouching";
+      try {
+        const { data: ln0 } = await admin.from("lines").select("name").eq("id", m.line_id).maybeSingle();
+        const lineName: string | null = ln0?.name ?? null;
+        if (lineName) {
+          const { date: sd, shift: sh } = currentShiftLondon();
+          const { data: sess } = await admin.from("production_sessions")
+            .select("leader_name").ilike("line", lineName).eq("shift", sh).eq("session_date", sd)
+            .not("leader_name", "is", null).limit(1).maybeSingle();
+          if (sess?.leader_name) {
+            requesterName = `${sess.leader_name} (${lineName})`;
+          } else {
+            const { data: leader } = await admin.from("line_leaders")
+              .select("name").ilike("line", lineName).in("shift", [sh, "BOTH"]).eq("active", true)
+              .limit(1).maybeSingle();
+            requesterName = leader?.name ? `${leader.name} (${lineName})` : `${lineName} Leader`;
+          }
+        }
+      } catch { /* keep the iTouching fallback */ }
+
       const { data: wo, error: woErr } = await admin
         .from("work_orders")
         .insert({
-          requester_name: "iTouching",
+          requester_name: requesterName,
           machine: m.machine_name ?? m.intouch_machine_name,
           line_id: m.line_id,
           description: label,
