@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { logSystemError } from "@/lib/telemetry";
+import { useMarkDiagnosticsSeen } from "@/hooks/useTelemetryBadge";
 
 type Log = {
   id: string; created_at: string; user_id: string | null; user_role: string | null;
@@ -31,6 +32,10 @@ const TYPE_COLOR: Record<string, string> = {
 
 export default function RootDiagnosticsPage() {
   const [filter, setFilter] = useState<string>("all");
+  const markSeen = useMarkDiagnosticsSeen();
+
+  // Opening the page counts as "seen" — clears the sidebar crash badge.
+  useEffect(() => { markSeen(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: logs = [], isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ["telemetry-logs"],
