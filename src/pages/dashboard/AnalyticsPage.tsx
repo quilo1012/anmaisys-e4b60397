@@ -596,7 +596,7 @@ export default function AnalyticsPage() {
         {/* Charts */}
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
-            <CardHeader><CardTitle className="text-base">WOs per Day (Last 7 Days)</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">WOs per Day (Last {Math.min(rangeDays, 30)} Days)</CardTitle></CardHeader>
             <CardContent>
               {!wosPerDay.length || wosPerDay.every((d: any) => !d.count) ? (
                 <EmptyChart />

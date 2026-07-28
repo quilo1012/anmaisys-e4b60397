@@ -95,6 +95,9 @@ function OperatorDashboardContent() {
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
   const [machineName, setMachineName] = useState<string>(""); // optional, regular lines only
+  // Only surface required-field errors after a submit attempt — not on the empty
+  // initial render (which looked broken/aggressive on the floor).
+  const [showErrors, setShowErrors] = useState(false);
   const [lineStopped, setLineStopped] = useState(false);
   const [isRetroactive, setIsRetroactive] = useState(false);
   const [retroDate, setRetroDate] = useState<Date>();
@@ -196,6 +199,7 @@ function OperatorDashboardContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setShowErrors(true);
     if (!requestedBy.trim()) {
       toast({ title: "Name required", description: "Please enter your name before sending the request.", variant: "destructive" });
       return;
@@ -253,6 +257,7 @@ function OperatorDashboardContent() {
         line_stopped: lineStopped,
       });
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
+      setShowErrors(false);
       setRequestedBy(""); setMachineName(""); setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId(""); setDescription(""); setCustomDescription(""); setNotes("");
       setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
     } catch {
@@ -328,10 +333,10 @@ function OperatorDashboardContent() {
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck={false}
-                aria-invalid={!requestedBy.trim()}
-                className={cn("h-12 text-base", !requestedBy.trim() && "border-destructive/60")}
+                aria-invalid={showErrors && !requestedBy.trim()}
+                className={cn("h-12 text-base", showErrors && !requestedBy.trim() && "border-destructive/60")}
               />
-              {!requestedBy.trim() && <p className="text-xs text-destructive">Enter your name to send the request.</p>}
+              {showErrors && !requestedBy.trim() && <p className="text-xs text-destructive">Enter your name to send the request.</p>}
             </div>
 
             {/* WO target — Line vs Sealer/Printer Ink (available on every operator login) */}
@@ -423,7 +428,7 @@ function OperatorDashboardContent() {
                   });
                   return (
                     <Select value={machineName} onValueChange={(v) => setMachineName(v)}>
-                      <SelectTrigger id="machine" className={cn("h-12", !machineName && "border-destructive/60")}>
+                      <SelectTrigger id="machine" className={cn("h-12", showErrors && !machineName && "border-destructive/60")}>
                         <SelectValue placeholder="Select the machine on this line..." />
                       </SelectTrigger>
                       <SelectContent className="max-h-[60vh]">
@@ -447,7 +452,7 @@ function OperatorDashboardContent() {
                 })()}
 
 
-                {!machineName ? (
+                {showErrors && !machineName ? (
                   <p className="text-xs text-destructive">Please select the machine that needs maintenance.</p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
