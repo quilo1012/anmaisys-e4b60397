@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { requestNotificationPermission, sendWebNotification } from "@/lib/shifts";
@@ -13,6 +13,13 @@ export function useWOAlerts() {
   const { toast } = useToast();
   const { triggerAlert, acknowledge, audioEnabled, promptEnableAudio } = useCriticalAlert();
   const { shouldAlertForLine } = useEngineerLineFilter();
+
+  // Read these from a ref inside the realtime callbacks so the critical WO-alert
+  // channel is NOT torn down and re-subscribed every time audio is toggled (a
+  // re-subscribe window could miss an INSERT → a missed siren). The channel
+  // effect below depends only on [role, user].
+  const cbRef = useRef({ audioEnabled, promptEnableAudio, triggerAlert, acknowledge, shouldAlertForLine, toast });
+  cbRef.current = { audioEnabled, promptEnableAudio, triggerAlert, acknowledge, shouldAlertForLine, toast };
 
   // Request notification permission + unlock alert audio on first user gesture
   useEffect(() => {
@@ -73,7 +80,7 @@ export function useWOAlerts() {
 
           if (!shouldFireWOAlert(wo, {
             userId: user.id,
-            shouldAlertForLine,
+            shouldAlertForLine: cbRef.current.shouldAlertForLine,
             isAcknowledged: isWOAcknowledged,
           })) {
             return;
@@ -84,10 +91,10 @@ export function useWOAlerts() {
           // Layer 1+3+4: critical alert (audio loop, modal, vibration, flash title, favicon)
           // If audio is still locked (user dismissed the unlock prompt earlier),
           // surface the prompt again so the next gesture restores the siren.
-          if (!audioEnabled) {
-            promptEnableAudio();
+          if (!cbRef.current.audioEnabled) {
+            cbRef.current.promptEnableAudio();
           }
-          triggerAlert({
+          cbRef.current.triggerAlert({
             woId: wo.id,
             woNumber: wo.wo_number,
             machine: wo.machine,
@@ -103,7 +110,7 @@ export function useWOAlerts() {
           );
 
           // Toast as supplementary signal
-          toast({
+          cbRef.current.toast({
             title: "🚨 New Maintenance Order",
             description: `${wo.machine} — ${wo.requester_name}`,
             duration: 10000,
@@ -134,9 +141,9 @@ export function useWOAlerts() {
             // Targeting gates
             if (updated.engineer_id && updated.engineer_id !== user.id) return;
             if (updated.locked_engineer_id && updated.locked_engineer_id !== user.id) return;
-            if (!shouldAlertForLine(updated.line_id)) return;
-            if (!audioEnabled) promptEnableAudio();
-            triggerAlert({
+            if (!cbRef.current.shouldAlertForLine(updated.line_id)) return;
+            if (!cbRef.current.audioEnabled) cbRef.current.promptEnableAudio();
+            cbRef.current.triggerAlert({
               woId: updated.id,
               woNumber: updated.wo_number,
               machine: updated.machine,
@@ -148,7 +155,7 @@ export function useWOAlerts() {
               "🔁 RECURRING MAINTENANCE ORDER",
               `${updated.machine} — ${updated.requester_name}\n${updated.description}`
             );
-            toast({
+            cbRef.current.toast({
               title: "🔁 Recurring Maintenance Order",
               description: `${updated.machine} — ${updated.requester_name}`,
               duration: 10000,
@@ -164,14 +171,15 @@ export function useWOAlerts() {
             updated.engineer_id === user.id
           ) {
             acknowledgeWOLocal(updated.id);
-            acknowledge(updated.id);
+            cbRef.current.acknowledge(updated.id);
           }
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [role, user, toast, triggerAlert, acknowledge, shouldAlertForLine, audioEnabled, promptEnableAudio]);
+    // Read audioEnabled/toast/etc from cbRef so audio toggles don't re-subscribe.
+  }, [role, user]);
 
   // Operators: single chime when their WO is finished/closed
   useEffect(() => {

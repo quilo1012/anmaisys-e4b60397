@@ -42,24 +42,43 @@ export function getCurrentFactoryShift(date = new Date()): { sessionDate: string
   return { sessionDate: londonDateString(previous), shiftCode: "night" };
 }
 
-/** Start instant of the current factory shift (Day 06:00, Night 18:00 Europe/London). */
-export function getCurrentShiftStart(now: Date = new Date()): Date {
+/** How far Europe/London local is ahead of UTC (ms) at the given instant. */
+function londonOffsetMs(atUtcMs: number): number {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(now);
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
-  let hour = get("hour");
-  if (hour === 24) hour = 0;
-  const minute = get("minute");
-  const second = get("second");
-  const hoursSinceStart =
-    hour >= 6 && hour < 18 ? hour - 6 : hour >= 18 ? hour - 18 : hour + 6;
-  const elapsedSec = hoursSinceStart * 3600 + minute * 60 + second;
-  return new Date(now.getTime() - elapsedSec * 1000);
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date(atUtcMs));
+  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
+  let hh = g("hour"); if (hh === 24) hh = 0;
+  const asUtc = Date.UTC(g("year"), g("month") - 1, g("day"), hh, g("minute"), g("second"));
+  return asUtc - atUtcMs;
+}
+
+/** UTC instant for a Europe/London wall-clock time (offset resolved at the boundary). */
+function londonWallToUtc(y: number, mo: number, d: number, h: number): number {
+  const naive = Date.UTC(y, mo - 1, d, h, 0, 0);
+  return naive - londonOffsetMs(naive);
+}
+
+/**
+ * Start instant of the current factory shift (Day 06:00, Night 18:00 Europe/London).
+ * Built from the actual boundary instant so it stays correct across the BST/GMT
+ * DST switches (the old version assumed 1 wall-clock hour == 3600 real seconds).
+ */
+export function getCurrentShiftStart(now: Date = new Date()): Date {
+  const { sessionDate, shiftCode } = getCurrentFactoryShift(now);
+  const [y, mo, d] = sessionDate.split("-").map(Number);
+  return new Date(londonWallToUtc(y, mo, d, shiftCode === "day" ? 6 : 18));
+}
+
+/** End instant of the current factory shift (Day 18:00, Night 06:00 next day, Europe/London). */
+export function getCurrentShiftEnd(now: Date = new Date()): Date {
+  const { sessionDate, shiftCode } = getCurrentFactoryShift(now);
+  const [y, mo, d] = sessionDate.split("-").map(Number);
+  if (shiftCode === "day") return new Date(londonWallToUtc(y, mo, d, 18));
+  const next = new Date(Date.UTC(y, mo - 1, d + 1));
+  return new Date(londonWallToUtc(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), 6));
 }
 
 export const SHIFT_LABEL: Record<ShiftCode, string> = {

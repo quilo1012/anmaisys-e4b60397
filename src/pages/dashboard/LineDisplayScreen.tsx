@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
+import { getCurrentFactoryShift, getCurrentShiftEnd, SHIFT_LABEL } from "@/lib/shifts";
 import { ArrowLeft, Maximize2, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,19 +27,6 @@ type ProductionItem = {
   actual_qty: number | null;
   sku: { code: string | null; name: string | null } | null;
 };
-
-function shiftEndsAt(shift: "day" | "night") {
-  const now = new Date();
-  const end = new Date(now);
-  if (shift === "day") {
-    end.setHours(18, 0, 0, 0);
-    if (end <= now) end.setDate(end.getDate() + 1);
-  } else {
-    end.setHours(6, 0, 0, 0);
-    if (end <= now) end.setDate(end.getDate() + 1);
-  }
-  return end;
-}
 
 function formatCountdown(ms: number) {
   if (ms <= 0) return "00:00:00";
@@ -196,7 +183,7 @@ export default function LineDisplayScreen() {
   const remaining = Math.max(0, target - actual);
   const pct = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
 
-  const end = useMemo(() => shiftEndsAt(shift), [shift, date]);
+  const end = useMemo(() => getCurrentShiftEnd(now), [now]);
   const countdown = formatCountdown(end.getTime() - now.getTime());
 
   const status = useMemo(() => {

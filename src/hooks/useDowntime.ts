@@ -116,7 +116,10 @@ export function useCreateDowntime() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (record: Omit<DowntimeRecord, "id" | "created_at">) => {
-      const { error } = await supabase.from("downtime" as any).insert(record as any);
+      // source / source_event_id are client-only view-model fields, not columns —
+      // strip them so the insert isn't rejected for unknown columns.
+      const { source: _s, source_event_id: _se, ...row } = record;
+      const { error } = await supabase.from("downtime" as any).insert(row as any);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["downtime"] }),
@@ -126,7 +129,7 @@ export function useCreateDowntime() {
 export function useUpdateDowntime() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<DowntimeRecord> & { id: string }) => {
+    mutationFn: async ({ id, source: _s, source_event_id: _se, ...updates }: Partial<DowntimeRecord> & { id: string }) => {
       const { error } = await supabase.from("downtime" as any).update(updates as any).eq("id", id);
       if (error) throw error;
     },
