@@ -1366,8 +1366,22 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium">No blender</span>
                     {it.blender_ref && <span className="text-[10px] text-muted-foreground">Assembly {it.blender_ref}</span>}
-                    {it.batch_code && <span className="text-[10px] text-muted-foreground truncate">{it.batch_code}</span>}
+                    {it.batch_code && (
+                      <span className="font-mono text-[11px] text-foreground/80 truncate">
+                        {it.batch_code}
+                        {(it.manufacture_month || it.expiry_month)
+                          ? `  ${it.manufacture_month ? `${String(it.manufacture_month).slice(5, 7)}/${String(it.manufacture_month).slice(2, 4)}` : "—"} → ${it.expiry_month ? `${String(it.expiry_month).slice(5, 7)}/${String(it.expiry_month).slice(2, 4)}` : "—"}`
+                          : ""}
+                      </span>
+                    )}
+                    {it.destination && (
+                      <span className="inline-flex items-center rounded bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300 px-1.5 py-0.5 text-[10px] font-medium">→ {it.destination}</span>
+                    )}
+                    {it.not_for_eu && (
+                      <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 px-1.5 py-0.5 text-[10px] font-medium">Not for EU</span>
+                    )}
                   </div>
+
                 </div>
                 <div className="text-base font-semibold tabular-nums">{Number(it.actual_qty).toLocaleString()}</div>
                 <Button
