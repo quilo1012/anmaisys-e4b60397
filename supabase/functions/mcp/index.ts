@@ -17,10 +17,10 @@ function supabaseForUser(ctx) {
 }
 var list_work_orders_default = defineTool({
   name: "list_work_orders",
-  title: "List work orders",
-  description: "List recent maintenance work orders visible to the signed-in user. Optionally filter by status or priority.",
+  title: "List maintenance orders",
+  description: "List recent maintenance maintenance orders visible to the signed-in user. Optionally filter by status or priority.",
   inputSchema: {
-    status: z.enum(["OPEN", "IN_PROGRESS", "PAUSED", "FINISHED", "CANCELLED", "PENDING", "COMPLETED"]).optional().describe("Filter by work order status."),
+    status: z.enum(["OPEN", "IN_PROGRESS", "PAUSED", "FINISHED", "CANCELLED", "PENDING", "COMPLETED"]).optional().describe("Filter by maintenance order status."),
     priority: z.enum(["low", "medium", "high", "critical"]).optional().describe("Filter by priority."),
     limit: z.number().int().min(1).max(100).default(25).describe("Max rows to return (1\u2013100).")
   },
@@ -57,10 +57,10 @@ function supabaseForUser2(ctx) {
 }
 var get_work_order_default = defineTool2({
   name: "get_work_order",
-  title: "Get work order",
-  description: "Fetch a single work order by its UUID or numeric wo_number.",
+  title: "Get maintenance order",
+  description: "Fetch a single maintenance order by its UUID or numeric wo_number.",
   inputSchema: {
-    id: z2.string().optional().describe("Work order UUID."),
+    id: z2.string().optional().describe("Maintenance order UUID."),
     wo_number: z2.number().int().optional().describe("Numeric wo_number (e.g. 1234).")
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
@@ -137,7 +137,7 @@ var list_lines_default = defineTool4({
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
-    const { data, error } = await supabaseForUser4(ctx).from("production_lines").select("id, name").order("name", { ascending: true });
+    const { data, error } = await supabaseForUser4(ctx).from("lines").select("id, name").order("name", { ascending: true });
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {
       content: [{ type: "text", text: JSON.stringify(data ?? []) }],
@@ -158,8 +158,8 @@ function supabaseForUser5(ctx) {
 }
 var create_work_order_default = defineTool5({
   name: "create_work_order",
-  title: "Create work order",
-  description: "Create a new maintenance work order as the signed-in user. Requires a description and requester name.",
+  title: "Create maintenance order",
+  description: "Create a new maintenance maintenance order as the signed-in user. Requires a description and requester name.",
   inputSchema: {
     description: z4.string().trim().min(3).describe("What is broken or needs maintenance."),
     requester_name: z4.string().trim().min(1).describe("Name of the person requesting."),

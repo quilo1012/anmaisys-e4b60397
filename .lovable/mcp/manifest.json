@@ -18,8 +18,8 @@
     "tools": [
       {
         "name": "list_work_orders",
-        "title": "List work orders",
-        "description": "List recent maintenance work orders visible to the signed-in user. Optionally filter by status or priority.",
+        "title": "List maintenance orders",
+        "description": "List recent maintenance maintenance orders visible to the signed-in user. Optionally filter by status or priority.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -39,7 +39,7 @@
                 "PENDING",
                 "COMPLETED"
               ],
-              "description": "Filter by work order status."
+              "description": "Filter by maintenance order status."
             },
             "priority": {
               "type": "string",
@@ -66,8 +66,8 @@
       },
       {
         "name": "get_work_order",
-        "title": "Get work order",
-        "description": "Fetch a single work order by its UUID or numeric wo_number.",
+        "title": "Get maintenance order",
+        "description": "Fetch a single maintenance order by its UUID or numeric wo_number.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -78,7 +78,7 @@
           "properties": {
             "id": {
               "type": "string",
-              "description": "Work order UUID."
+              "description": "Maintenance order UUID."
             },
             "wo_number": {
               "type": "integer",
@@ -137,8 +137,8 @@
       },
       {
         "name": "create_work_order",
-        "title": "Create work order",
-        "description": "Create a new maintenance work order as the signed-in user. Requires a description and requester name.",
+        "title": "Create maintenance order",
+        "description": "Create a new maintenance maintenance order as the signed-in user. Requires a description and requester name.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,

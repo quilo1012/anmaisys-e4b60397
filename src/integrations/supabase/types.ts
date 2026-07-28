@@ -3063,6 +3063,27 @@ export type Database = {
           },
         ]
       }
+      shift_passwords: {
+        Row: {
+          password_hash: string
+          shift_code: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          password_hash: string
+          shift_code: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          password_hash?: string
+          shift_code?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       shift_report_settings: {
         Row: {
           day_enabled: boolean
@@ -4309,6 +4330,11 @@ export type Database = {
         Args: { _engineer_id: string; _new_pin: string }
         Returns: undefined
       }
+      set_shift_password: {
+        Args: { _password: string; _shift_code: string }
+        Returns: undefined
+      }
+      shift_password_is_set: { Args: { _shift_code: string }; Returns: boolean }
       snapshot_sku_products: { Args: never; Returns: Json }
       touch_device: { Args: { _token: string }; Returns: undefined }
       unpair_device: { Args: { _device_id: string }; Returns: undefined }
@@ -4345,6 +4371,10 @@ export type Database = {
         }[]
       }
       verify_pin_with_lockout: { Args: { _pin: string }; Returns: Json }
+      verify_shift_password: {
+        Args: { _password: string; _shift_code: string }
+        Returns: boolean
+      }
       verify_target_pin: { Args: { _pin: string }; Returns: boolean }
       wo_total_pause_seconds: { Args: { _wo_id: string }; Returns: number }
     }
