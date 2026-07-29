@@ -565,28 +565,17 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
 
   const syncFromItouch = useMutation({
     mutationFn: async () => {
-      const { data, error } = await invokeFunction<{ skipped?: boolean; reason?: string; retry_after?: string }>(
-        "intouch-sync-production",
-        { session_date: jobDate, shift: jobShift, line: jobLine, force: true },
-      );
-      if (error) throw error;
-      return data;
+      // READ-ONLY on purpose. This used to call intouch-sync-production, which
+      // writes production_items — and that write path deleted a shift's logged
+      // output whenever iTouching's schedule disagreed with it. iTouching is
+      // only here to save the operator typing, so it must never touch what was
+      // produced. intouch-list-scheduled-jobs just reads the schedule.
+      await qc.invalidateQueries({ queryKey: ["intouch-jobs"] });
+      await qc.refetchQueries({ queryKey: ["intouch-jobs"] });
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       setLastSyncAt(Date.now());
-      if (data?.skipped) {
-        toast.warning(
-          data.reason === "quota_exhausted"
-            ? "iTouching daily quota exhausted — try again tomorrow."
-            : `iTouching sync skipped: ${data.reason ?? "unknown reason"}`,
-        );
-        return;
-      }
-      qc.invalidateQueries({ queryKey: ["intouch-jobs"] });
-      qc.invalidateQueries({ queryKey: ["my-prod-session"] });
-      qc.invalidateQueries({ queryKey: ["my-prod-items"] });
-      qc.invalidateQueries({ queryKey: ["log-prefill"] });
-      toast.success("Updated from iTouching");
+      toast.success("SKU list refreshed from iTouching");
     },
     onError: (e: Error) => toast.error(e.message || "Could not reach iTouching"),
   });
@@ -1075,16 +1064,16 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
               className="h-8 gap-1.5 text-xs"
               disabled={syncFromItouch.isPending || syncCooldown > 0 || !jobLine}
               onClick={() => syncFromItouch.mutate()}
-              title={`Pull the current job and schedule for ${jobLine} from iTouching`}
+              title={`Refresh the SKU list for ${jobLine} from iTouching (does not change logged production)`}
             >
               {syncFromItouch.isPending
                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 : <RefreshCw className="h-3.5 w-3.5" />}
               {syncFromItouch.isPending
-                ? "Updating…"
+                ? "Refreshing…"
                 : syncCooldown > 0
                   ? `Wait ${Math.ceil(syncCooldown / 1000)}s`
-                  : "Update from iTouching"}
+                  : "Refresh SKU list"}
             </Button>
           </div>
 
