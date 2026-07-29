@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Copy, CheckCircle2, AlertCircle, Loader2, Plug, RefreshCw, PowerOff, List, Search, Package, Download } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Loader2, Plug, RefreshCw, PowerOff, List, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -35,12 +35,6 @@ export default function IntouchSettingsPage() {
     details: { intouch: string; matched?: string; guid: string; status: "saved" | "skipped" | "already" | "error"; reason?: string }[];
   }>(null);
 
-  const [products, setProducts] = useState<any[] | null>(null);
-  const [loadingProducts, setLoadingProducts] = useState(false);
-  const [productsErr, setProductsErr] = useState<string | null>(null);
-  const [productFilter, setProductFilter] = useState("");
-  const [importingProducts, setImportingProducts] = useState(false);
-  const [productSource, setProductSource] = useState<string>("");
 
 
 
@@ -49,8 +43,6 @@ export default function IntouchSettingsPage() {
   const [togglingFlag, setTogglingFlag] = useState(false);
   const [autoWoEnabled, setAutoWoEnabled] = useState<boolean>(false);
   const [togglingAutoWo, setTogglingAutoWo] = useState(false);
-  const [resyncingAll, setResyncingAll] = useState(false);
-  const [resyncResult, setResyncResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const [unmappedLines, setUnmappedLines] = useState<{ id: string; name: string }[]>([]);
   const [loadingUnmapped, setLoadingUnmapped] = useState(false);
@@ -154,82 +146,6 @@ export default function IntouchSettingsPage() {
     setPinValue("");
     setPinPrompt(true);
   };
-
-  const syncNow = async () => {
-    if (syncDisabled) {
-      toast.error("Sync is disabled. Enable it first.");
-      return;
-    }
-    setSyncing(true);
-    setSyncResult(null);
-    const { data, error } = await invokeFunction<any>("intouch-sync-production", { force: true });
-    setSyncing(false);
-    if (error) {
-      setSyncResult({ ok: false, msg: error.message || "Sync failed" });
-      toast.error("Sync failed");
-    } else if (data?.skipped) {
-      setSyncResult({ ok: false, msg: "Sync disabled in settings" });
-    } else {
-      const summary = data?.summary || data?.message || JSON.stringify(data ?? {}).slice(0, 160);
-      setSyncResult({ ok: true, msg: `Synced · ${summary}` });
-      toast.success("Sync complete");
-    }
-  };
-
-  const resyncAll = async () => {
-    setResyncingAll(true);
-    setResyncResult(null);
-    const errors: string[] = [];
-    const summary: string[] = [];
-    try {
-      const today = new Date().toISOString().slice(0, 10);
-      // 1) Schedule jobs calendar (today, both shifts)
-      for (const shift of ["DAY", "NIGHT"] as const) {
-        const { data, error } = await invokeFunction<any>("intouch-list-scheduled-jobs", { session_date: today, shift });
-        if (error) errors.push(`schedule ${shift}: ${error.message}`);
-        else summary.push(`${shift}:${data?.items?.length ?? data?.count ?? 0} jobs`);
-      }
-      // 2) Products / SKUs
-      const { data: pData, error: pErr } = await invokeFunction<any>("intouch-list-products", {});
-      if (pErr) errors.push(`products: ${pErr.message}`);
-      else {
-        const list = Array.isArray(pData?.products) ? pData.products : [];
-        setProducts(list);
-        setProductSource(String(pData?.source || ""));
-        summary.push(`${list.length} products`);
-        // Import into sku_products immediately
-        if (list.length > 0) {
-          const rows = list.map((p: any) => ({
-            code: p.code, name: p.name,
-            category: p.category || null,
-            target_per_hour: p.target_per_hour ?? 0,
-            active: true,
-          }));
-          const { data: imp, error: impErr } = await (supabase as any).rpc("import_sku_products", { _rows: rows });
-          if (impErr) errors.push(`import: ${impErr.message}`);
-          else summary.push(`${imp?.count ?? rows.length} SKUs imported`);
-        }
-      }
-      // 3) Production actuals
-      if (!syncDisabled) {
-        const { data: sData, error: sErr } = await invokeFunction<any>("intouch-sync-production", { force: true });
-        if (sErr) errors.push(`production: ${sErr.message}`);
-        else summary.push(sData?.summary || "production synced");
-      }
-    } catch (e: any) {
-      errors.push(e?.message || "unexpected error");
-    } finally {
-      setResyncingAll(false);
-    }
-    if (errors.length === 0) {
-      setResyncResult({ ok: true, msg: `Resync OK · ${summary.join(" · ")}` });
-      toast.success("Full resync complete");
-    } else {
-      setResyncResult({ ok: false, msg: `Errors: ${errors.join(" | ")}` });
-      toast.error("Resync finished with errors");
-    }
-  };
-
 
   const copy = async (text: string) => {
     try {
@@ -418,48 +334,6 @@ export default function IntouchSettingsPage() {
 
 
 
-  const loadProducts = async () => {
-    setLoadingProducts(true);
-    setProductsErr(null);
-    const { data, error } = await invokeFunction<any>("intouch-list-products", {});
-    setLoadingProducts(false);
-    if (error) {
-      setProductsErr(error.message || "Failed to load products");
-      toast.error("Failed to load products", {
-        action: { label: "Retry", onClick: () => loadProducts() },
-      });
-      return;
-    }
-    const list = Array.isArray(data?.products) ? data.products : [];
-    setProducts(list);
-    setProductSource(String(data?.source || ""));
-    toast.success(`${list.length} products loaded from iTouching`);
-  };
-
-  const importProducts = async () => {
-    if (!products || products.length === 0) {
-      toast.error("Load products first");
-      return;
-    }
-    setImportingProducts(true);
-    try {
-      const rows = products.map((p) => ({
-        code: p.code,
-        name: p.name,
-        category: p.category || null,
-        target_per_hour: p.target_per_hour ?? 0,
-        active: true,
-      }));
-      const { data, error } = await (supabase as any).rpc("import_sku_products", { _rows: rows });
-      if (error) throw error;
-      toast.success(`Imported ${data?.count ?? rows.length} SKUs into the system`);
-    } catch (e: any) {
-      toast.error(e.message || "Import failed");
-    } finally {
-      setImportingProducts(false);
-    }
-  };
-
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-5xl">
@@ -534,40 +408,12 @@ export default function IntouchSettingsPage() {
         </Card>
 
 
-        <Card className="border-primary/40">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <RefreshCw className="h-5 w-5" /> Full resync now
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Forces an immediate re-pull of the Schedule Jobs calendar (today, both shifts), the iTouching products / SKUs (imported into the system) and the production actuals.
-            </p>
-            <Button onClick={resyncAll} disabled={resyncingAll}>
-              {resyncingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-              Resync schedule + products + production
-            </Button>
-            {resyncResult && (
-              <div
-                className={
-                  "flex items-start gap-2 rounded-md border p-3 text-sm " +
-                  (resyncResult.ok
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                    : "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300")
-                }
-              >
-                {resyncResult.ok ? (
-                  <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                )}
-                <span className="break-all">{resyncResult.msg}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
+        {/* "Full resync now" removed. It called intouch-sync-production across every
+            line at once, and that write path deleted operator-logged output whenever
+            iTouching's schedule disagreed with it — 11,473 units on 29/07 alone, and
+            roughly 19,000 across the preceding week. The production sync is switched
+            off (settings flag + cron jobs + admin PIN to re-enable), so the button
+            had nothing left to do except carry that risk. */}
 
         <Card>
           <CardHeader><CardTitle className="text-lg">Setup guide</CardTitle></CardHeader>
@@ -768,80 +614,15 @@ export default function IntouchSettingsPage() {
         </Card>
 
 
-        <SyncRunsCard />
+        {/* "Production Sync Status" removed with the production sync itself. It
+            reported on intouch-sync-production runs, and that sync is off — the panel
+            would only ever show a stale success from before it was disabled. */}
 
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Package className="h-5 w-5" /> iTouching Products / SKUs
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Pulls the full product catalogue from iTouching. Review the list and click
-              <strong> Import all into SKUs</strong> to upsert them into the system's SKU database
-              (used by the Production Planner and Line Display).
-            </p>
-            <div className="flex gap-2 flex-wrap">
-              <Button onClick={loadProducts} disabled={loadingProducts}>
-                {loadingProducts ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Package className="h-4 w-4 mr-2" />}
-                Load products
-              </Button>
-              {products && products.length > 0 && (
-                <Button onClick={importProducts} disabled={importingProducts} variant="secondary">
-                  {importingProducts ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-                  Import all {products.length} into SKUs
-                </Button>
-              )}
-              {products && products.length > 0 && (
-                <div className="relative flex-1 min-w-[200px]">
-                  <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Filter by code or name…"
-                    value={productFilter}
-                    onChange={(e) => setProductFilter(e.target.value)}
-                    className="pl-8"
-                  />
-                </div>
-              )}
-            </div>
-            {productSource && (
-              <div className="text-xs text-muted-foreground">Source endpoint: <code>{productSource}</code></div>
-            )}
-            {productsErr && (
-              <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
-                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                <span className="break-all">{productsErr}</span>
-              </div>
-            )}
-            {products && (
-              <div className="rounded-md border border-border divide-y divide-border max-h-[480px] overflow-auto">
-                {products.length === 0 && (
-                  <div className="p-3 text-sm text-muted-foreground">No products returned.</div>
-                )}
-                {products
-                  .filter((p: any) => {
-                    if (!productFilter) return true;
-                    const q = productFilter.toLowerCase();
-                    return (p.code || "").toLowerCase().includes(q) || (p.name || "").toLowerCase().includes(q);
-                  })
-                  .map((p: any, i: number) => (
-                    <div key={p.code || i} className="flex items-center gap-2 p-2 text-sm hover:bg-muted/40">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{p.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          <code className="font-mono mr-2">{p.code}</code>
-                          {p.category && <span className="mr-2">[{p.category}]</span>}
-                          {p.target_per_hour > 0 && <span>· {p.target_per_hour}/h</span>}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* "iTouching Products / SKUs" removed. Importing that catalogue is what
+            put 324 batch-suffixed duplicates into sku_products ("OCMC6 - B1" beside
+            "OCMC6"), which made the operator log codes the system did not hold. The
+            catalogue is maintained in SKU Products now. */}
 
       </div>
 
@@ -877,116 +658,3 @@ export default function IntouchSettingsPage() {
     </DashboardLayout>
   );
 }
-
-interface SyncRun {
-  id: string;
-  status: "running" | "success" | "error";
-  trigger_source: string | null;
-  error_message: string | null;
-  details: Record<string, unknown> | null;
-  started_at: string;
-  finished_at: string | null;
-}
-
-function SyncRunsCard() {
-  const [runs, setRuns] = useState<SyncRun[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const load = async (opts: { showToast?: boolean } = {}) => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("intouch_sync_runs" as never)
-        .select("id, status, trigger_source, error_message, details, started_at, finished_at")
-        .eq("function_name", "intouch-sync-production")
-        .order("started_at", { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      const rows = (data as unknown as SyncRun[]) ?? [];
-      setRuns(rows);
-      setErr(null);
-      if (opts.showToast) toast.success(rows.length ? `Loaded ${rows.length} run(s)` : "No sync runs logged yet");
-    } catch (e) {
-      const msg = (e as Error).message;
-      setErr(msg);
-      if (opts.showToast) toast.error(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-    const t = setInterval(load, 60_000);
-    return () => clearInterval(t);
-  }, []);
-
-  const lastSuccess = runs?.find((r) => r.status === "success");
-  const lastError = runs?.find((r) => r.status === "error");
-  const isStaleError =
-    lastError && (!lastSuccess || new Date(lastError.started_at) > new Date(lastSuccess.started_at));
-  const fmt = (iso?: string | null) =>
-    iso ? new Date(iso).toLocaleString("en-GB", { timeZone: "Europe/London" }) : "—";
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          {isStaleError ? <AlertCircle className="h-5 w-5 text-red-500" /> : <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
-          Production Sync Status
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex flex-wrap gap-3">
-          <div className="rounded-md border p-3 flex-1 min-w-[180px]">
-            <div className="text-xs text-muted-foreground">Last success</div>
-            <div className="text-sm font-medium">{fmt(lastSuccess?.finished_at ?? lastSuccess?.started_at)}</div>
-            {lastSuccess?.details ? (
-              <div className="text-[11px] text-muted-foreground mt-1">
-                {String((lastSuccess.details as any).synced_lines ?? 0)} lines ·{" "}
-                {String((lastSuccess.details as any).synced_skus ?? 0)} SKUs
-              </div>
-            ) : null}
-          </div>
-          <div className={`rounded-md border p-3 flex-1 min-w-[180px] ${isStaleError ? "border-red-500/50 bg-red-500/5" : ""}`}>
-            <div className="text-xs text-muted-foreground">Last error</div>
-            <div className="text-sm font-medium">{fmt(lastError?.started_at)}</div>
-            {lastError?.error_message && (
-              <div className="text-[11px] text-red-500 mt-1 break-words">{lastError.error_message}</div>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => load({ showToast: true })} disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Refresh
-          </Button>
-          {err && <span className="text-xs text-red-500">{err}</span>}
-        </div>
-        <div className="rounded-md border divide-y max-h-72 overflow-auto">
-          <div className="grid grid-cols-[110px_70px_1fr_180px] px-3 py-2 text-xs font-medium bg-muted/40">
-            <div>Status</div><div>Source</div><div>Detail / Error</div><div className="text-right">Started</div>
-          </div>
-          {(runs ?? []).length === 0 && (
-            <div className="p-3 text-sm text-muted-foreground">No runs recorded yet.</div>
-          )}
-          {(runs ?? []).map((r) => (
-            <div key={r.id} className="grid grid-cols-[110px_70px_1fr_180px] px-3 py-2 text-xs items-center">
-              <div className={
-                r.status === "success" ? "text-emerald-500 font-medium" :
-                r.status === "error" ? "text-red-500 font-medium" : "text-muted-foreground"
-              }>{r.status}</div>
-              <div className="text-muted-foreground">{r.trigger_source ?? "—"}</div>
-              <div className="truncate" title={r.error_message ?? JSON.stringify(r.details ?? {})}>
-                {r.error_message ?? (r.details ? `${(r.details as any).synced_lines ?? 0}L · ${(r.details as any).synced_skus ?? 0} SKUs` : "—")}
-              </div>
-              <div className="text-right font-mono text-[11px]">{fmt(r.started_at)}</div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
