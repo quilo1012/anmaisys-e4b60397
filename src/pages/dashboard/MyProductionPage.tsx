@@ -678,11 +678,19 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
   });
 
   /** Case-insensitive match of the typed text against a code and a name. */
-  const matchesQuery = (code: string, name: string | null | undefined) => {
+  const matchesQuery = (code: string | null | undefined, name: string | null | undefined) => {
     const q = skuDebounced.trim().toLowerCase();
     if (!q) return true;
-    return code.toLowerCase().includes(q) || (name ?? "").toLowerCase().includes(q);
+    return `${code ?? ""} ${name ?? ""}`.toLowerCase().includes(q);
   };
+
+  /**
+   * Every suggestion list is keyed on the SKU code, and a code can be missing:
+   * an item logged as free text has no sku_products row, and iTouching hands
+   * back jobs with a blank code. `code.toUpperCase()` on those crashed the whole
+   * screen for the operator — a white page mid-shift, over thirty times tonight.
+   */
+  const codeKey = (code: string | null | undefined) => String(code ?? "").toUpperCase();
 
   /** Extract the SKU from a prefill row; the join can hand back object or array. */
   const skuOfPrefillRow = (e: {
@@ -692,7 +700,9 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     const item = Array.isArray(pi) ? pi[0] : pi;
     const sku = item?.sku as { id: string; code: string; name: string } | { id: string; code: string; name: string }[] | undefined;
     const sk = Array.isArray(sku) ? sku[0] : sku;
-    return sk?.id ? { id: sk.id, code: sk.code, name: sk.name } : null;
+    // Normalise here so no downstream consumer has to defend against a missing
+    // code or name (and so neither ever renders as the string "undefined").
+    return sk?.id ? { id: sk.id, code: String(sk.code ?? ""), name: String(sk.name ?? "") } : null;
   };
 
   /**
@@ -703,7 +713,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
    * next thing they need to pick.
    */
   const currentShiftSkus = useMemo(() => {
-    const plannedCodes = new Set(plannedSkus.map((p) => p.code.toUpperCase()));
+    const plannedCodes = new Set(plannedSkus.map((p) => codeKey(p.code)));
     const seen = new Map<string, { id: string; code: string; name: string }>();
     for (const e of prefillQ.data ?? []) {
       if (e.session_id !== sessionId) continue;
@@ -735,17 +745,17 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     const out: { id: string | null; code: string; name: string; job?: IntouchJob; planned?: number; done?: number }[] = [];
     // Seeded with this shift's SKUs so a product already being produced is listed
     // once, at the top, instead of twice in a row.
-    const seen = new Set<string>(currentShiftSkus.map((c) => c.code.toUpperCase()));
+    const seen = new Set<string>(currentShiftSkus.map((c) => codeKey(c.code)));
     for (const j of jobs) {
       if (j.status === "Running") continue;
       if (!matchesQuery(j.code, j.description)) continue;
-      const k = j.code.toUpperCase();
+      const k = codeKey(j.code);
       if (seen.has(k)) continue;
       seen.add(k);
       out.push({ id: null, code: j.code, name: j.description, job: j });
     }
     for (const p of plannedSkus) {
-      const k = p.code.toUpperCase();
+      const k = codeKey(p.code);
       if (seen.has(k)) continue;
       if (!matchesQuery(p.code, p.name)) continue;
       seen.add(k);
@@ -762,16 +772,16 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
    */
   const recentSuggestions = useMemo(() => {
     const shown = new Set<string>([
-      ...runningJobs.map((j) => j.code.toUpperCase()),
-      ...plannedSuggestions.map((p) => p.code.toUpperCase()),
-      ...currentShiftSkus.map((s) => s.code.toUpperCase()),
+      ...runningJobs.map((j) => codeKey(j.code)),
+      ...plannedSuggestions.map((p) => codeKey(p.code)),
+      ...currentShiftSkus.map((s) => codeKey(s.code)),
     ]);
     const seen = new Map<string, { id: string; code: string; name: string }>();
     for (const e of prefillQ.data ?? []) {
       if (e.session_id === sessionId) continue; // that's this shift, shown above
       const sk = skuOfPrefillRow(e);
       if (!sk) continue;
-      if (shown.has(String(sk.code).toUpperCase()) || seen.has(sk.id)) continue;
+      if (shown.has(codeKey(sk.code)) || seen.has(sk.id)) continue;
       if (!matchesQuery(sk.code, sk.name)) continue;
       seen.set(sk.id, sk);
     }
