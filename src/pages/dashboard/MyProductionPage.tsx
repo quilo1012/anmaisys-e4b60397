@@ -230,7 +230,12 @@ function MyProductionContent() {
       </Card>
 
       {/* Body */}
-      {sessionQ.isLoading ? (
+      {/* `line` comes from DeviceLineContext and is "" for the first render or
+          two after login. sessionQ is disabled while it's empty, and in
+          react-query v5 a DISABLED query reports isLoading === false — so this
+          gate used to fall straight through to "No active shift session" until
+          the operator refreshed. Treat "line not resolved yet" as loading. */}
+      {!line || sessionQ.isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : !sessionId ? (
         <Card>
@@ -607,6 +612,35 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   });
 
   /**
+   * SKUs this line has run recently, newest first. Derived from prefillQ, which
+   * is already fetched for the blender chips — no extra round trip.
+   *
+   * This is the fallback that matters: when iTouching returns no schedule (its
+   * endpoints go quiet, or the sync is down), the operator would otherwise be
+   * back to typing the product out. The last things this line actually ran are
+   * a good guess, because lines run the same handful of SKUs for days.
+   */
+  const recentSkus: { id: string; code: string; name: string }[] = useMemo(() => {
+    const seen = new Map<string, { id: string; code: string; name: string }>();
+    for (const e of prefillQ.data ?? []) {
+      const item = Array.isArray(e.production_items) ? e.production_items[0] : e.production_items;
+      const sku = item?.sku;
+      const s = Array.isArray(sku) ? sku[0] : sku;
+      if (s?.id && !seen.has(s.id)) seen.set(s.id, { id: s.id, code: s.code, name: s.name });
+    }
+    return [...seen.values()].slice(0, 6);
+  }, [prefillQ.data]);
+
+  /** Recents filtered by whatever the operator has typed so far. */
+  const recentSuggestions = useMemo(() => {
+    const q = skuDebounced.trim().toLowerCase();
+    if (!q) return recentSkus;
+    return recentSkus.filter(
+      (s) => s.code.toLowerCase().includes(q) || (s.name ?? "").toLowerCase().includes(q),
+    );
+  }, [recentSkus, skuDebounced]);
+
+  /**
    * iTouching jobs offered inside the SKU dropdown, so the operator picks the
    * product instead of typing it. Empty box → every job scheduled for this line
    * and shift; typing → only the ones that match, still pinned above the
@@ -905,7 +939,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
             <Popover
               // Opens with an EMPTY box when iTouching has jobs for this line —
               // that's the whole point: tap the field, pick the job, type nothing.
-              open={skuPopoverOpen && (skuDebounced.length >= 1 || jobSuggestions.length > 0)}
+              open={skuPopoverOpen && (skuDebounced.length >= 1 || jobSuggestions.length > 0 || recentSuggestions.length > 0)}
               onOpenChange={setSkuPopoverOpen}
             >
               <PopoverAnchor asChild>
@@ -915,7 +949,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                     value={skuQuery}
                     onChange={(e) => { setSkuQuery(e.target.value); setSelectedSku(null); setSkuPopoverOpen(true); }}
                     onFocus={() => setSkuPopoverOpen(true)}
-                    placeholder={jobs.length > 0 ? "Tap to pick from iTouching, or type to search…" : "Search by product name or code..."}
+                    placeholder={jobs.length > 0 || recentSkus.length > 0 ? "Tap to pick a suggestion, or type to search…" : "Search by product name or code..."}
                     className="h-11 pl-9"
                     autoComplete="off"
                   />
@@ -967,6 +1001,24 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                   </div>
                 )}
 
+                {recentSuggestions.length > 0 && (
+                  <div className="border-b">
+                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Recent on {jobLine}
+                    </div>
+                    <ul className="divide-y">
+                      {recentSuggestions.map((s) => (
+                        <li key={`recent-${s.id}`}>
+                          <button type="button" className="w-full p-2 text-left hover:bg-accent" onClick={() => pickSku(s)}>
+                            <div className="truncate text-sm font-semibold">{productLabel(s.name)}</div>
+                            <div className="truncate font-mono text-xs text-muted-foreground">{s.code}</div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {searchQ.isFetching ? (
                   <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" /> Searching...
@@ -981,12 +1033,12 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                       <div className="text-sm font-medium">Use “<span className="font-mono">{skuQuery.trim()}</span>” as typed</div>
                       <div className="text-xs text-muted-foreground">Not in the catalog — it won't create a new SKU. Admin reconciles it later.</div>
                     </button>
-                  ) : jobSuggestions.length > 0 ? null : (
+                  ) : jobSuggestions.length > 0 || recentSuggestions.length > 0 ? null : (
                     <div className="p-3 text-sm text-muted-foreground">No SKUs found</div>
                   )
                 ) : (
                   <ul className="divide-y">
-                    {jobSuggestions.length > 0 && (
+                    {(jobSuggestions.length > 0 || recentSuggestions.length > 0) && (
                       <li className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Catalog
                       </li>
