@@ -226,11 +226,13 @@ export default function ControlCenterPage() {
           e.actual += Number(it.actual_qty ?? 0) || 0;
         }
       }
-      // Open quality actions (todo + in_progress) per line.
+      // Open quality actions (todo + in_progress) opened in the CURRENT shift only.
+      const shiftStartIso = getCurrentShiftStart().toISOString();
       const { data: qa } = await supabase
         .from("quality_actions")
         .select("line, status")
-        .in("status", ["todo", "in_progress"]);
+        .in("status", ["todo", "in_progress"])
+        .gte("recorded_at", shiftStartIso);
       for (const r of (qa ?? []) as any[]) {
         if (!r.line) continue;
         ensure(norm(r.line)).actions += 1;
