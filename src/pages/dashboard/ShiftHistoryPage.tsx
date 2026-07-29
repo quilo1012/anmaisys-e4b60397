@@ -111,6 +111,7 @@ function InlineSkuCell({ itemId, skuId, codeText, displayCode, skus, editable, o
   }
   const save = async (id: string) => {
     if (!id || id === (skuId ?? "")) return;
+    if (isPlaceholderRow(itemId)) { toast.error("This shift has no SKU logged yet — add one first."); return; }
     setSaving(true);
     const { error } = await supabase.from("production_items")
       .update({ sku_id: id, sku_code_text: null }).eq("id", itemId);
@@ -230,6 +231,7 @@ function InlineTimeCell({ itemId, sessionDate, field, value, disabled, onSaved }
       d.setHours(h, m, 0, 0);
       iso = d.toISOString();
     }
+    if (isPlaceholderRow(itemId)) { toast.error("This shift has no SKU logged yet — add one first."); return; }
     const { error } = await supabase.from("production_items").update({ [field]: iso } as never).eq("id", itemId);
     if (error) { toast.error(error.message); setVal(initial); return; }
     onSaved();
@@ -253,6 +255,7 @@ function InlineUnitToggle({
   useEffect(() => { setCurrent(value); }, [value]);
   const pick = async (u: "tubs" | "bags") => {
     if (disabled || saving || u === current) return;
+    if (isPlaceholderRow(itemId)) { toast.error("This shift has no SKU logged yet — add one first."); return; }
     setSaving(true);
     const { error } = await supabase.from("production_items")
       .update({ tickets_unit: u } as never).eq("id", itemId);
@@ -302,6 +305,7 @@ function InlineUnitQtyInput({
     if (val === initial) return;
     const n = val === "" ? 0 : Number(val);
     if (!Number.isFinite(n) || n < 0) { setVal(initial); return; }
+    if (isPlaceholderRow(itemId)) { toast.error("This shift has no SKU logged yet — add one first."); return; }
     setSaving(true);
     const { error } = await supabase.from("production_items")
       .update({ actual_qty: n, tickets_unit: unit } as never).eq("id", itemId);
@@ -362,6 +366,15 @@ interface SessionRow {
   production_items: { id: string; sku_id: string; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; batch_code: string | null; manufacture_month: string | null; expiry_month: string | null; started_at: string | null; finished_at: string | null; tickets_unit: "tubs" | "bags" | null; production_blender_entries?: { blender_number: number; quantity: number }[] }[];
 }
 
+
+/**
+ * A session with no production items still gets one row in the table so the shift
+ * is visible; that row carries a synthetic `${sessionId}-empty` id. It is not a
+ * real production_items row, so every write must refuse it — sending that id to
+ * PostgREST produced `invalid input syntax for type uuid`.
+ */
+const isPlaceholderRow = (id: string | null | undefined) =>
+  typeof id === "string" && id.endsWith("-empty");
 
 export default function ShiftHistoryPage() {
   const qc = useQueryClient();
@@ -614,6 +627,7 @@ export default function ShiftHistoryPage() {
 
   const delItemMut = useMutation({
     mutationFn: async (itemId: string) => {
+      if (isPlaceholderRow(itemId)) throw new Error("This shift has no SKU logged yet — nothing to remove.");
       const { error } = await supabase.from("production_items").delete().eq("id", itemId);
       if (error) throw error;
     },
@@ -627,6 +641,7 @@ export default function ShiftHistoryPage() {
       const newNotes = `[unit:${unit}]${stripped ? " " + stripped : ""}`;
       const payload: { actual_qty: number; notes: string; sku_id?: string } = { actual_qty: actual, notes: newNotes };
       if (sku_id) payload.sku_id = sku_id;
+      if (isPlaceholderRow(id)) throw new Error("This shift has no SKU logged yet — add one first.");
       const { error } = await supabase.from("production_items").update(payload).eq("id", id);
       if (error) throw error;
     },
@@ -986,6 +1001,7 @@ export default function ShiftHistoryPage() {
                                       onBlur={async (e) => {
                                         const v = e.target.value.trim() || null;
                                         if (v === (i.batch_code ?? null)) return;
+                                        if (isPlaceholderRow(i.id)) return;
                                         const { error } = await supabase.from("production_items").update({ batch_code: v }).eq("id", i.id);
                                         if (error) toast.error(error.message);
                                         else { toast.success("Batch saved"); qc.invalidateQueries({ queryKey: ["shift_history"] }); }
@@ -1149,7 +1165,8 @@ export default function ShiftHistoryPage() {
                                 onBlur={async (e) => {
                                   const v = e.target.value.trim() || null;
                                   if (v === (i.batch_code ?? null)) return;
-                                  const { error } = await supabase.from("production_items").update({ batch_code: v }).eq("id", i.id);
+                                  if (isPlaceholderRow(i.id)) return;
+                                        const { error } = await supabase.from("production_items").update({ batch_code: v }).eq("id", i.id);
                                   if (error) toast.error(error.message);
                                   else { toast.success("Batch saved"); qc.invalidateQueries({ queryKey: ["shift_history"] }); }
                                 }}

@@ -59,8 +59,15 @@ async function logWOAction(workOrderId: string, engineerId: string, engineerName
     action,
   } as any);
   // 23505 = unique violation → swallow (action already logged for this engineer)
-  if (error && (error as any).code !== "23505") {
+  // 23503 = foreign key violation → the work order was deleted while this
+  // engineer still had it on screen. There is nothing left to attach a log to,
+  // and the engineer's action already failed for the same reason, so reporting
+  // this as a second failure only adds noise.
+  const code = (error as { code?: string } | null)?.code;
+  if (error && code !== "23505" && code !== "23503") {
     console.error("logWOAction failed:", error);
+  } else if (code === "23503") {
+    console.warn("logWOAction skipped: work order no longer exists", workOrderId);
   }
 }
 
