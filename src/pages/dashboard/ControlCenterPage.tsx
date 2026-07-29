@@ -15,7 +15,7 @@ import {
   Monitor, Loader2, Maximize, Minimize, Trophy, Clock, AlertTriangle, Heart,
   GripVertical, List, PowerOff, Wrench, Activity, Radio, Circle, User, Gauge,
 } from "lucide-react";
-import { getCurrentFactoryShift } from "@/lib/shifts";
+import { getCurrentFactoryShift, getCurrentShiftStart } from "@/lib/shifts";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { differenceInMinutes, format, formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
