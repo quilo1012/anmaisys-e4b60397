@@ -19,6 +19,7 @@ import { CircularProgress } from "@/components/ui/circular-progress";
 import { ShiftLock } from "@/components/ShiftLock";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { LeaderQualityBonusTable } from "@/components/LeaderQualityBonusTable";
 
 type Period = "day" | "week" | "month" | "quarter" | "year" | "custom";
 
