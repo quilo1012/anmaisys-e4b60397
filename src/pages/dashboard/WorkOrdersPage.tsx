@@ -34,6 +34,7 @@ import { FileText } from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { WO_TERMINAL_STATUSES, isWoOpen } from "@/lib/woStatus";
+import { SLA_TARGETS } from "@/lib/sla";
 import { getWoStatusConfig } from "@/lib/woStatusConfig";
 import { ShiftFilter } from "@/components/ShiftFilter";
 import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
@@ -431,8 +432,32 @@ export default function WorkOrdersPage() {
                     return;
                   }
                   const allWOs = filteredWOs;
-                  const engPerf = engineerScores?.map((s) => ({ name: s.engineer_name || "Unknown", score: s.score, completed: 0 })) || [];
+                  // Completed per engineer, counted from the orders in scope. This was
+                  // hard-coded to 0, so the PDF's engineer ranking reported that nobody
+                  // had finished anything.
+                  const completedByEngineer = new Map<string, number>();
+                  for (const w of allWOs) {
+                    if (!(WO_TERMINAL_STATUSES as readonly string[]).includes(w.status)) continue;
+                    const name = (w.engineer_name || "").trim();
+                    if (name) completedByEngineer.set(name, (completedByEngineer.get(name) ?? 0) + 1);
+                  }
+                  const engPerf = engineerScores?.map((s) => {
+                    const name = s.engineer_name || "Unknown";
+                    return { name, score: s.score, completed: completedByEngineer.get(name) ?? 0 };
+                  }) || [];
                   const openWOs = allWOs.filter((w) => isWoOpen(w.status)).length;
+
+                  // SLA: response time against the target for the order's priority —
+                  // the same definition Analytics uses. It was hard-coded to 0, so every
+                  // PDF ever generated reported 0% SLA compliance.
+                  let slaCounted = 0, slaMet = 0;
+                  for (const w of allWOs) {
+                    if (!w.received_at) continue;
+                    slaCounted++;
+                    const responseMin = differenceInMinutes(new Date(w.received_at as string), new Date(w.created_at));
+                    if (responseMin <= (SLA_TARGETS[w.priority || "medium"] ?? 60)) slaMet++;
+                  }
+                  const slaRate = slaCounted ? Math.round((slaMet / slaCounted) * 100) : 0;
                   // Real KPIs (were hard-coded to 0): response = opened→received, MTTR = start→finish.
                   const respArr = allWOs.filter((w) => w.received_at).map((w) => differenceInMinutes(new Date(w.received_at as string), new Date(w.created_at)));
                   const mttrArr = allWOs.filter((w) => w.started_at && w.finished_at).map((w) => differenceInMinutes(new Date(w.finished_at as string), new Date(w.started_at as string)));
@@ -443,7 +468,7 @@ export default function WorkOrdersPage() {
                       workOrders: allWOs,
                       machineLineMap,
                       engineerRanking: engPerf,
-                      kpis: { avgResponse: avg(respArr), avgMTTR: avg(mttrArr), totalWOs: allWOs.length, openWOs, slaRate: 0 },
+                      kpis: { avgResponse: avg(respArr), avgMTTR: avg(mttrArr), totalWOs: allWOs.length, openWOs, slaRate },
                       dateRange: drPreset === "custom" ? `${drRange.from ? format(drRange.from, "yyyy-MM-dd") : "…"} to ${drRange.to ? format(drRange.to, "yyyy-MM-dd") : "…"}` : drPreset !== "all" ? drPreset : "All records",
                       callerRole: role,
                     });
