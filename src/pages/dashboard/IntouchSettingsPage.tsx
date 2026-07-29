@@ -3,11 +3,12 @@ import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Copy, CheckCircle2, AlertCircle, Loader2, Plug, RefreshCw, PowerOff, List, Search, Package, Download } from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -110,31 +111,48 @@ export default function IntouchSettingsPage() {
   };
 
 
-  const toggleSync = async (disabled: boolean) => {
+  /**
+   * The sync writes production_items, and that write path destroyed a shift's
+   * logged output more than once. Switching it back ON therefore asks for the
+   * admin PIN. The check is server-side in set_intouch_sync_enabled(); this
+   * dialog only collects the PIN. Direct column writes are revoked, so there is
+   * no way round it via the API either.
+   *
+   * Switching it OFF needs no PIN — making the safe direction harder to reach
+   * would be backwards.
+   */
+  const [pinPrompt, setPinPrompt] = useState(false);
+  const [pinValue, setPinValue] = useState("");
+
+  const applySyncFlag = async (enabled: boolean, pin: string) => {
     setTogglingFlag(true);
-    const { data: row, error: rowErr } = await (supabase as any)
-      .from("system_settings").select("id").limit(1).maybeSingle();
-    if (rowErr) {
-      toast.error(`Failed to read settings: ${rowErr.message}`);
-      setTogglingFlag(false);
-      return;
-    }
-    if (!row?.id) {
-      toast.error("system_settings row missing");
-      setTogglingFlag(false);
-      return;
-    }
-    const { error } = await (supabase as any)
-      .from("system_settings")
-      .update({ intouch_sync_enabled: !disabled })
-      .eq("id", row.id);
+    const { error } = await (supabase as any).rpc("set_intouch_sync_enabled", {
+      _enabled: enabled,
+      _pin: pin,
+    });
     setTogglingFlag(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(error.message || "Could not change the sync setting");
+      return false;
+    }
+    setSyncDisabled(!enabled);
+    toast.success(enabled ? "Sync enabled" : "Sync disabled (cron + manual)");
+    return true;
+  };
+
+  const confirmEnableSync = async () => {
+    const ok = await applySyncFlag(true, pinValue.trim());
+    if (ok) { setPinPrompt(false); setPinValue(""); }
+  };
+
+  const toggleSync = async (disabled: boolean) => {
+    if (disabled) {
+      // Turning it OFF — no PIN, but the RPC still audits who did it.
+      await applySyncFlag(false, "");
       return;
     }
-    setSyncDisabled(disabled);
-    toast.success(disabled ? "Sync disabled (cron + manual)" : "Sync enabled");
+    setPinValue("");
+    setPinPrompt(true);
   };
 
   const syncNow = async () => {
@@ -827,6 +845,35 @@ export default function IntouchSettingsPage() {
 
       </div>
 
+    
+      {/* Admin PIN required to switch the sync back ON. Server-side check lives
+          in set_intouch_sync_enabled(); this only collects the PIN. */}
+      <Dialog open={pinPrompt} onOpenChange={(o) => { if (!o) { setPinPrompt(false); setPinValue(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enable iTouching sync</DialogTitle>
+            <DialogDescription>
+              This sync writes to production records. It has previously removed operator-logged
+              output, so enabling it requires the admin PIN and is written to the audit log.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            type="password"
+            autoFocus
+            value={pinValue}
+            onChange={(e) => setPinValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && pinValue.trim()) void confirmEnableSync(); }}
+            placeholder="Admin PIN"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPinPrompt(false); setPinValue(""); }}>Cancel</Button>
+            <Button disabled={!pinValue.trim() || togglingFlag} onClick={() => void confirmEnableSync()}>
+              {togglingFlag && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Enable sync
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

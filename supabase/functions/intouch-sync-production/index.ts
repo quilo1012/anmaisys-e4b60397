@@ -1114,13 +1114,16 @@ Deno.serve(async (req) => {
       runId = runRow?.id ?? null;
     } catch { /* ignore */ }
 
-    const explicitPlannerSync = !!body.session_date && !!body.shift;
+    // The kill switch is absolute. It used to be waived for any caller that sent
+    // session_date + shift ("explicit planner sync"), which meant the Line
+    // Production "Sync SKUs" button ran the destructive write path even with the
+    // integration switched off — the switch protected nothing that mattered.
     const { data: settings } = await admin
       .from("system_settings")
       .select("intouch_sync_enabled")
       .limit(1)
       .maybeSingle();
-    if (settings && settings.intouch_sync_enabled === false && !explicitPlannerSync) {
+    if (settings && settings.intouch_sync_enabled === false) {
       return new Response(
         JSON.stringify({ success: false, skipped: true, reason: "intouch_current_shift_sync_disabled" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
