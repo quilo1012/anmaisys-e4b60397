@@ -565,7 +565,24 @@ export function QualityActionsView() {
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
                       <span className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</span>
                       {a.line && <span className="truncate">· {a.line}{a.leader_name ? ` · ${a.leader_name}` : ""}</span>}
-                      {sev && <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label} · {sev.points}p</Badge>}
+                      {canManage ? (
+                        <span onClick={(e) => e.stopPropagation()}>
+                          <Select
+                            value={a.severity || "__none__"}
+                            onValueChange={(v) => setSeverity.mutate({ id: a.id, severity: v === "__none__" ? null : v })}
+                          >
+                            <SelectTrigger className={cn("h-7 w-28 border text-[10px]", sev?.badge)}><SelectValue placeholder="Severity" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">—</SelectItem>
+                              {QUALITY_SEVERITIES.map((x) => (
+                                <SelectItem key={x.value} value={x.value}>{x.label} · {x.points}p</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </span>
+                      ) : sev ? (
+                        <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label} · {sev.points}p</Badge>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -598,7 +615,29 @@ export function QualityActionsView() {
                           <SelectContent>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell>{sev ? <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
+                      {/* Editable inline, like Status. Severity drives the points
+                          score, so re-grading had to be quicker than opening the
+                          detail dialog for every row. */}
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {canManage ? (
+                          <Select
+                            value={a.severity || "__none__"}
+                            onValueChange={(v) => setSeverity.mutate({ id: a.id, severity: v === "__none__" ? null : v })}
+                          >
+                            <SelectTrigger className={cn("h-7 w-28 border text-xs", sev?.badge)}><SelectValue placeholder="—" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">—</SelectItem>
+                              {QUALITY_SEVERITIES.map((x) => (
+                                <SelectItem key={x.value} value={x.value}>{x.label} · {x.points}p</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : sev ? (
+                          <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums font-semibold">{sev ? sev.points : <span className="font-normal text-muted-foreground">—</span>}</TableCell>
                       <TableCell>{a.line ?? "—"}</TableCell>
                       <TableCell>{a.leader_name ?? "—"}</TableCell>
