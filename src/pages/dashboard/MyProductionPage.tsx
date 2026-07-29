@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { OperatorLineGuard } from "@/components/OperatorLineGuard";
@@ -16,7 +16,7 @@ import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
-import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil } from "lucide-react";
+import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -543,6 +543,54 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
       return section?.items ?? [];
     },
   });
+  /**
+   * Pull this line's schedule and actuals from iTouching on demand.
+   *
+   * Scoped to the tablet's own line on purpose: the admin "Full resync" hits
+   * every line at once, and several tablets tapping that would burn the
+   * iTouching daily quota — which blocks the whole factory until midnight UTC.
+   * The edge function already authorises `operator` when the body carries a
+   * line the account is bound to, so this needs no permission change.
+   */
+  const SYNC_COOLDOWN_MS = 60_000;
+  const [lastSyncAt, setLastSyncAt] = useState(0);
+  const [syncCooldown, setSyncCooldown] = useState(0);
+  useEffect(() => {
+    if (!lastSyncAt) return;
+    const tick = () => setSyncCooldown(Math.max(0, SYNC_COOLDOWN_MS - (Date.now() - lastSyncAt)));
+    tick();
+    const t = window.setInterval(tick, 1000);
+    return () => window.clearInterval(t);
+  }, [lastSyncAt]);
+
+  const syncFromItouch = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await invokeFunction<{ skipped?: boolean; reason?: string; retry_after?: string }>(
+        "intouch-sync-production",
+        { session_date: jobDate, shift: jobShift, line: jobLine, force: true },
+      );
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      setLastSyncAt(Date.now());
+      if (data?.skipped) {
+        toast.warning(
+          data.reason === "quota_exhausted"
+            ? "iTouching daily quota exhausted — try again tomorrow."
+            : `iTouching sync skipped: ${data.reason ?? "unknown reason"}`,
+        );
+        return;
+      }
+      qc.invalidateQueries({ queryKey: ["intouch-jobs"] });
+      qc.invalidateQueries({ queryKey: ["my-prod-session"] });
+      qc.invalidateQueries({ queryKey: ["my-prod-items"] });
+      qc.invalidateQueries({ queryKey: ["log-prefill"] });
+      toast.success("Updated from iTouching");
+    },
+    onError: (e: Error) => toast.error(e.message || "Could not reach iTouching"),
+  });
+
   // Memoised so the `?? []` fallback doesn't mint a new array on every render,
   // which would defeat the suggestion memos below.
   const jobs = useMemo(() => jobsQ.data ?? [], [jobsQ.data]);
@@ -1012,7 +1060,27 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
 
         {/* SKU */}
         <div className="space-y-1.5">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">SKU produced</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">SKU produced</div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 text-xs"
+              disabled={syncFromItouch.isPending || syncCooldown > 0 || !jobLine}
+              onClick={() => syncFromItouch.mutate()}
+              title={`Pull the current job and schedule for ${jobLine} from iTouching`}
+            >
+              {syncFromItouch.isPending
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <RefreshCw className="h-3.5 w-3.5" />}
+              {syncFromItouch.isPending
+                ? "Updating…"
+                : syncCooldown > 0
+                  ? `Wait ${Math.ceil(syncCooldown / 1000)}s`
+                  : "Update from iTouching"}
+            </Button>
+          </div>
 
           {/* Plain search — type the product name or code and pick it. To repeat
               the same SKU on another blender, use "Save & next blender" below. */}
