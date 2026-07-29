@@ -714,17 +714,21 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
    * next thing they need to pick.
    */
   const currentShiftSkus = useMemo(() => {
+    const plannedCodes = new Set(plannedSkus.map((p) => p.code.toUpperCase()));
     const seen = new Map<string, { id: string; code: string; name: string }>();
     for (const e of prefillQ.data ?? []) {
       if (e.session_id !== sessionId) continue;
       const sk = skuOfPrefillRow(e);
       if (!sk || seen.has(sk.id)) continue;
       if (!matchesQuery(sk.code, sk.name)) continue;
+      // Being in the plan doesn't change what's shown here, but it does mean the
+      // "Planned" section below must skip it — see the seed of its `seen` set.
+      void plannedCodes;
       seen.set(sk.id, sk);
     }
     return [...seen.values()].slice(0, 4);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefillQ.data, sessionId, skuDebounced]);
+  }, [prefillQ.data, sessionId, plannedSkus, skuDebounced]);
 
   /** iTouching jobs the machine is running RIGHT NOW. */
   const runningJobs: IntouchJob[] = useMemo(
@@ -740,7 +744,9 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
    */
   const plannedSuggestions = useMemo(() => {
     const out: { id: string | null; code: string; name: string; job?: IntouchJob; planned?: number; done?: number }[] = [];
-    const seen = new Set<string>();
+    // Seeded with this shift's SKUs so a product already being produced is listed
+    // once, at the top, instead of twice in a row.
+    const seen = new Set<string>(currentShiftSkus.map((c) => c.code.toUpperCase()));
     for (const j of jobs) {
       if (j.status === "Running") continue;
       if (!matchesQuery(j.code, j.description)) continue;
@@ -758,7 +764,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobs, plannedSkus, skuDebounced]);
+  }, [jobs, plannedSkus, currentShiftSkus, skuDebounced]);
 
   /**
    * A few of the line's previous jobs, as a last resort. Kept short on purpose:
@@ -1193,12 +1199,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
                               <span className="font-mono">{p.code}</span>
                               {p.job?.qty ? <span>Order qty: <b className="text-foreground">{p.job.qty.toLocaleString()}</b></span> : null}
                               {p.job?.batch ? <span>Blender {blenderFromItouch(p.job.batch)}</span> : null}
-                              {p.planned ? (
-                                <span>
-                                  Target: <b className="text-foreground">{p.planned.toLocaleString()}</b>
-                                  {p.done ? ` · ${p.done.toLocaleString()} done` : ""}
-                                </span>
-                              ) : null}
                             </div>
                           </button>
                         </li>

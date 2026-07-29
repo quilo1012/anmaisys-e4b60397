@@ -1246,11 +1246,18 @@ Deno.serve(async (req) => {
 
         // Remove only stale rows (different sku) to keep this session's live
         // row id stable across syncs so operator saves by id keep landing.
+        //
+        // NEVER touch rows an operator entered by hand (`manual_sku`) or any row
+        // that already carries recorded production. iTouching's schedule is not
+        // authoritative over what the floor actually made: this delete used to
+        // wipe operator-logged output whenever the schedule disagreed with it.
         await admin
           .from("production_items")
           .delete()
           .eq("session_id", session.id)
-          .neq("sku_id", liveSku.id);
+          .neq("sku_id", liveSku.id)
+          .not("notes", "ilike", "manual_sku%")
+          .or("actual_qty.is.null,actual_qty.eq.0");
         if (prevItem?.id) {
           await admin.from("production_items").update({
             target_qty: ragPlan,
@@ -1401,8 +1408,14 @@ Deno.serve(async (req) => {
       // sync, so operator saves referencing the old id became silent no-ops
       // and Production Control kept showing 0.
       const nextSkuIds = new Set(rows.map((r) => r.sku_id as string));
+      // Same rule as the live_good path above: a row is only "stale" if the sync
+      // itself created it AND nothing has been produced against it. Operator
+      // entries (`manual_sku`) and anything with actual_qty are off limits —
+      // deleting them silently destroyed a shift's logged output.
       const staleIds = (existingItems ?? [])
         .filter((r: any) => !nextSkuIds.has(r.sku_id))
+        .filter((r: any) => !String(r.notes ?? "").startsWith("manual_sku"))
+        .filter((r: any) => !(Number(r.actual_qty ?? 0) > 0))
         .map((r: any) => r.id as string);
       if (staleIds.length) {
         await admin.from("production_items").delete().in("id", staleIds);
