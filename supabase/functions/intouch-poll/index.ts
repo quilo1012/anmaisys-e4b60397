@@ -669,7 +669,13 @@ Deno.serve(async (req) => {
           status: "open",
           intouch_machine_id: s.MachineID,
           intouch_downtime_code: s.DowntimeCode,
-          notes: `[Auto-created from iTouching poll]\nMachine: ${m.intouch_machine_name}\nStatus: ${s.Status}\nDowntime code: ${s.DowntimeCode}`,
+          // Written for the engineer who opens the order, not for a debugger.
+          // This used to print the raw downtime GUID and the numeric iTouching
+          // status, which meant nothing on the floor and got mistaken for a
+          // different stop code than the one shown in the mapping screen.
+          notes: `${label} detected automatically by iTouching.\n`
+               + `Machine: ${m.intouch_machine_name}\n`
+               + `Detected: ${new Date(now).toLocaleString("en-GB", { timeZone: "Europe/London" })}`,
           line_stopped: true,
           line_stopped_at: now,
         })

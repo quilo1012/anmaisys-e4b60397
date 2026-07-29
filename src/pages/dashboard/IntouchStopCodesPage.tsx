@@ -191,7 +191,10 @@ export default function IntouchStopCodesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-28">Code</TableHead>
+                    {/* A stop code is a 36-char GUID; at w-28 it rendered as
+                        "1ed19e44-dd5..." and was mistaken for a different code than
+                        the full one printed on the order. */}
+                    <TableHead className="w-72">Code</TableHead>
                     <TableHead>Label</TableHead>
                     <TableHead className="w-32">Priority</TableHead>
                     <TableHead className="w-36">Category</TableHead>
@@ -209,6 +212,7 @@ export default function IntouchStopCodesPage() {
                       <TableRow key={r.id}>
                         <TableCell>
                           <Input value={m.stop_code}
+                            className="font-mono text-xs"
                             onChange={(e) => patch(r.id, { stop_code: e.target.value })} />
                         </TableCell>
                         <TableCell>
