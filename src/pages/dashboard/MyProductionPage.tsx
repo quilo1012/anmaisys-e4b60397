@@ -191,6 +191,28 @@ function MyProductionContent() {
     refetchInterval: 30_000,
   });
 
+  /**
+   * SKUs planned for this shift: rows the iTouching sync wrote with a target,
+   * as opposed to `manual_sku` rows an operator typed in. These are "what this
+   * line is supposed to run", which is what the operator should be picking from.
+   */
+  const plannedSkus = useMemo(
+    () =>
+      ((itemsQ.data ?? []) as Array<{
+        sku_id: string | null; code: string; name: string;
+        target_qty: number; actual_qty: number; is_manual: boolean;
+      }>)
+        .filter((i) => !i.is_manual && i.sku_id && Number(i.target_qty || 0) > 0)
+        .map((i) => ({
+          id: i.sku_id as string,
+          code: i.code as string,
+          name: i.name as string,
+          planned: Number(i.target_qty || 0),
+          done: Number(i.actual_qty || 0),
+        })),
+    [itemsQ.data],
+  );
+
   // Official target comes from RAG Weekly plan_qty for line+date+shift
   const ragQ = useLineShiftTarget({
     line,
@@ -253,7 +275,12 @@ function MyProductionContent() {
            each blender, and see "Logged this shift". The old per-item card and
            the separate "Add SKU" panel duplicated it and showed confusing
            fields (Completion 0%, Standard fill time —), so they're gone. */
-        <LogProductionCard sessionId={sessionId} target={totalTarget} produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)} />
+        <LogProductionCard
+          sessionId={sessionId}
+          target={totalTarget}
+          produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)}
+          plannedSkus={plannedSkus}
+        />
       )}
     </div>
   );
@@ -491,7 +518,9 @@ function parseBatchInput(raw: string): { batch: string; mfg: string; exp: string
   };
 }
 
-function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId: string; target?: number; produced?: number }) {
+type PlannedSku = { id: string; code: string; name: string; planned: number; done: number };
+
+function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = [] }: { sessionId: string; target?: number; produced?: number; plannedSkus?: PlannedSku[] }) {
   const qc = useQueryClient();
   const { selectedLineName: jobLine } = useDeviceLineCtx();
   const { sessionDate: jobDate, shiftCode: jobShiftCode } = getCurrentFactoryShift();
@@ -515,7 +544,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     },
   });
   // Memoised so the `?? []` fallback doesn't mint a new array on every render,
-  // which would defeat the jobSuggestions memo below.
+  // which would defeat the suggestion memos below.
   const jobs = useMemo(() => jobsQ.data ?? [], [jobsQ.data]);
 
   // What this line has been running lately. Looking past the current session
@@ -611,50 +640,72 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
     },
   });
 
+  /** Case-insensitive match of the typed text against a code and a name. */
+  const matchesQuery = (code: string, name: string | null | undefined) => {
+    const q = skuDebounced.trim().toLowerCase();
+    if (!q) return true;
+    return code.toLowerCase().includes(q) || (name ?? "").toLowerCase().includes(q);
+  };
+
+  /** iTouching jobs the machine is running RIGHT NOW. */
+  const runningJobs: IntouchJob[] = useMemo(
+    () => jobs.filter((j) => j.status === "Running" && matchesQuery(j.code, j.description)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [jobs, skuDebounced],
+  );
+
   /**
-   * SKUs this line has run recently, newest first. Derived from prefillQ, which
-   * is already fetched for the blender chips — no extra round trip.
-   *
-   * This is the fallback that matters: when iTouching returns no schedule (its
-   * endpoints go quiet, or the sync is down), the operator would otherwise be
-   * back to typing the product out. The last things this line actually ran are
-   * a good guess, because lines run the same handful of SKUs for days.
+   * What this line is SUPPOSED to run: iTouching jobs that aren't running yet,
+   * plus SKUs the sync already wrote onto this shift's session with a target.
+   * Deduped by code, since both describe the same planned work.
    */
-  const recentSkus: { id: string; code: string; name: string }[] = useMemo(() => {
+  const plannedSuggestions = useMemo(() => {
+    const out: { id: string | null; code: string; name: string; job?: IntouchJob; planned?: number; done?: number }[] = [];
+    const seen = new Set<string>();
+    for (const j of jobs) {
+      if (j.status === "Running") continue;
+      if (!matchesQuery(j.code, j.description)) continue;
+      const k = j.code.toUpperCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ id: null, code: j.code, name: j.description, job: j });
+    }
+    for (const p of plannedSkus) {
+      const k = p.code.toUpperCase();
+      if (seen.has(k)) continue;
+      if (!matchesQuery(p.code, p.name)) continue;
+      seen.add(k);
+      out.push({ id: p.id, code: p.code, name: p.name, planned: p.planned, done: p.done });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs, plannedSkus, skuDebounced]);
+
+  /**
+   * A few of the line's previous jobs, as a last resort. Kept short on purpose:
+   * history is the weakest signal here, so it must not crowd out what is
+   * actually running or planned. Anything already shown above is filtered out.
+   */
+  const recentSuggestions = useMemo(() => {
+    const shown = new Set<string>([
+      ...runningJobs.map((j) => j.code.toUpperCase()),
+      ...plannedSuggestions.map((p) => p.code.toUpperCase()),
+    ]);
     const seen = new Map<string, { id: string; code: string; name: string }>();
     for (const e of prefillQ.data ?? []) {
       const item = Array.isArray(e.production_items) ? e.production_items[0] : e.production_items;
       const sku = item?.sku;
-      const s = Array.isArray(sku) ? sku[0] : sku;
-      if (s?.id && !seen.has(s.id)) seen.set(s.id, { id: s.id, code: s.code, name: s.name });
+      const sk = Array.isArray(sku) ? sku[0] : sku;
+      if (!sk?.id) continue;
+      if (shown.has(String(sk.code).toUpperCase()) || seen.has(sk.id)) continue;
+      if (!matchesQuery(sk.code, sk.name)) continue;
+      seen.set(sk.id, { id: sk.id, code: sk.code, name: sk.name });
     }
-    return [...seen.values()].slice(0, 6);
-  }, [prefillQ.data]);
+    return [...seen.values()].slice(0, 3);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillQ.data, runningJobs, plannedSuggestions, skuDebounced]);
 
-  /** Recents filtered by whatever the operator has typed so far. */
-  const recentSuggestions = useMemo(() => {
-    const q = skuDebounced.trim().toLowerCase();
-    if (!q) return recentSkus;
-    return recentSkus.filter(
-      (s) => s.code.toLowerCase().includes(q) || (s.name ?? "").toLowerCase().includes(q),
-    );
-  }, [recentSkus, skuDebounced]);
-
-  /**
-   * iTouching jobs offered inside the SKU dropdown, so the operator picks the
-   * product instead of typing it. Empty box → every job scheduled for this line
-   * and shift; typing → only the ones that match, still pinned above the
-   * catalog, because a scheduled job is a far better guess than a catalog hit.
-   */
-  const jobSuggestions: IntouchJob[] = useMemo(() => {
-    const q = skuDebounced.trim().toLowerCase();
-    if (!q) return jobs;
-    return jobs.filter(
-      (j) =>
-        j.code.toLowerCase().includes(q) ||
-        (j.description ?? "").toLowerCase().includes(q),
-    );
-  }, [jobs, skuDebounced]);
+  const hasSuggestions = runningJobs.length + plannedSuggestions.length + recentSuggestions.length > 0;
 
   // One row per market variant. Each variant (… - PERU, … MOROCCO, … - KSA) has
   // its own name; the batch copies (CRE1KG - B12, PERUCRE500 - B8) share a name,
@@ -939,7 +990,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
             <Popover
               // Opens with an EMPTY box when iTouching has jobs for this line —
               // that's the whole point: tap the field, pick the job, type nothing.
-              open={skuPopoverOpen && (skuDebounced.length >= 1 || jobSuggestions.length > 0 || recentSuggestions.length > 0)}
+              open={skuPopoverOpen && (skuDebounced.length >= 1 || hasSuggestions)}
               onOpenChange={setSkuPopoverOpen}
             >
               <PopoverAnchor asChild>
@@ -949,7 +1000,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                     value={skuQuery}
                     onChange={(e) => { setSkuQuery(e.target.value); setSelectedSku(null); setSkuPopoverOpen(true); }}
                     onFocus={() => setSkuPopoverOpen(true)}
-                    placeholder={jobs.length > 0 || recentSkus.length > 0 ? "Tap to pick a suggestion, or type to search…" : "Search by product name or code..."}
+                    placeholder={hasSuggestions ? "Tap to pick a suggestion, or type to search…" : "Search by product name or code..."}
                     className="h-11 pl-9"
                     autoComplete="off"
                   />
@@ -968,14 +1019,17 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                 {/* iTouching first. A job scheduled for this line right now beats
                     any catalog match, and picking one also fills blender and
                     order quantity — the operator only confirms what was made. */}
-                {jobSuggestions.length > 0 && (
-                  <div className="border-b bg-muted/30">
-                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      From iTouching · {jobLine}
+                {/* Running now → planned → a few previous. Strongest signal first:
+                    what the machine is on beats what is scheduled, which beats
+                    what the line happened to run last week. */}
+                {runningJobs.length > 0 && (
+                  <div className="border-b bg-emerald-500/5">
+                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                      Running now · {jobLine}
                     </div>
                     <ul className="divide-y">
-                      {jobSuggestions.map((j, idx) => (
-                        <li key={`sug-${j.code}-${j.seq}-${idx}`}>
+                      {runningJobs.map((j, idx) => (
+                        <li key={`run-${j.code}-${j.seq}-${idx}`}>
                           <button
                             type="button"
                             className="w-full p-2 text-left hover:bg-accent"
@@ -983,11 +1037,9 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                           >
                             <div className="flex items-center gap-2">
                               <span className="truncate text-sm font-semibold">{productLabel(j.description) || j.code}</span>
-                              {j.status === "Running" && (
-                                <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
-                                  Running
-                                </span>
-                              )}
+                              <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                                Running
+                              </span>
                             </div>
                             <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[11px] text-muted-foreground">
                               <span className="font-mono">{j.code}</span>
@@ -1001,10 +1053,46 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                   </div>
                 )}
 
+                {plannedSuggestions.length > 0 && (
+                  <div className="border-b bg-muted/30">
+                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Planned · {jobLine}
+                    </div>
+                    <ul className="divide-y">
+                      {plannedSuggestions.map((p, idx) => (
+                        <li key={`plan-${p.code}-${idx}`}>
+                          <button
+                            type="button"
+                            className="w-full p-2 text-left hover:bg-accent"
+                            onClick={() => {
+                              setSkuPopoverOpen(false);
+                              if (p.job) void applyJob(p.job);
+                              else if (p.id) pickSku({ id: p.id, code: p.code, name: p.name });
+                            }}
+                          >
+                            <div className="truncate text-sm font-semibold">{productLabel(p.name) || p.code}</div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[11px] text-muted-foreground">
+                              <span className="font-mono">{p.code}</span>
+                              {p.job?.qty ? <span>Order qty: <b className="text-foreground">{p.job.qty.toLocaleString()}</b></span> : null}
+                              {p.job?.batch ? <span>Blender {blenderFromItouch(p.job.batch)}</span> : null}
+                              {p.planned ? (
+                                <span>
+                                  Target: <b className="text-foreground">{p.planned.toLocaleString()}</b>
+                                  {p.done ? ` · ${p.done.toLocaleString()} done` : ""}
+                                </span>
+                              ) : null}
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {recentSuggestions.length > 0 && (
                   <div className="border-b">
                     <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Recent on {jobLine}
+                      Previous jobs · {jobLine}
                     </div>
                     <ul className="divide-y">
                       {recentSuggestions.map((s) => (
@@ -1033,12 +1121,12 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                       <div className="text-sm font-medium">Use “<span className="font-mono">{skuQuery.trim()}</span>” as typed</div>
                       <div className="text-xs text-muted-foreground">Not in the catalog — it won't create a new SKU. Admin reconciles it later.</div>
                     </button>
-                  ) : jobSuggestions.length > 0 || recentSuggestions.length > 0 ? null : (
+                  ) : hasSuggestions ? null : (
                     <div className="p-3 text-sm text-muted-foreground">No SKUs found</div>
                   )
                 ) : (
                   <ul className="divide-y">
-                    {(jobSuggestions.length > 0 || recentSuggestions.length > 0) && (
+                    {hasSuggestions && (
                       <li className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Catalog
                       </li>
