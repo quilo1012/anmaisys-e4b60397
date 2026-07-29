@@ -7,6 +7,9 @@ export interface ReportPrintHeaderProps {
   periodLabel: string;
   /** Optional shift label, e.g. "Day" / "Night" / "All". */
   shift?: string;
+  /** Optional active-filters line, e.g. "Line: Line 3 · Status: open". Printed
+   *  under the title so a report can be read without guessing what it excludes. */
+  filtersLabel?: string;
   /** Brand line (defaults to "Applied Nutrition"). */
   brand?: string;
   /** Optional extra className on the wrapper. */
@@ -24,6 +27,7 @@ export function ReportPrintHeader({
   title,
   periodLabel,
   shift,
+  filtersLabel,
   brand = "Applied Nutrition",
   className = "",
 }: ReportPrintHeaderProps) {
@@ -39,6 +43,9 @@ export function ReportPrintHeader({
         <div>
           <h1 className="text-xl font-bold uppercase tracking-wide">{title}</h1>
           <p className="text-xs text-muted-foreground print:text-gray-700">{brand}</p>
+          {filtersLabel && (
+            <p className="mt-1 text-xs print:text-gray-700">{filtersLabel}</p>
+          )}
         </div>
         <div className="text-right text-xs">
           <p>

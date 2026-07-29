@@ -37,6 +37,7 @@ import { WO_TERMINAL_STATUSES, isWoOpen } from "@/lib/woStatus";
 import { SLA_TARGETS } from "@/lib/sla";
 import { getWoStatusConfig } from "@/lib/woStatusConfig";
 import { ShiftFilter } from "@/components/ShiftFilter";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
 
 const statusConfig = new Proxy({} as Record<string, { label: string; className: string }>, {
@@ -464,13 +465,18 @@ export default function WorkOrdersPage() {
                   const avg = (a: number[]) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0);
                   try {
                     const { generatePdfReport } = await import("@/lib/generatePdfReport");
-                    generatePdfReport({
+                    await generatePdfReport({
                       workOrders: allWOs,
                       machineLineMap,
                       engineerRanking: engPerf,
                       kpis: { avgResponse: avg(respArr), avgMTTR: avg(mttrArr), totalWOs: allWOs.length, openWOs, slaRate },
                       dateRange: drPreset === "custom" ? `${drRange.from ? format(drRange.from, "yyyy-MM-dd") : "…"} to ${drRange.to ? format(drRange.to, "yyyy-MM-dd") : "…"}` : drPreset !== "all" ? drPreset : "All records",
                       callerRole: role,
+                      // The shift was already filtering the list on screen but never
+                      // reached the report, so a day-shift PDF looked identical to a
+                      // night one.
+                      shiftLabel: shiftFilter === "ALL" ? "All shifts" : shiftFilter === "DAY" ? "Day (06–18)" : "Night (18–06)",
+                      generatedBy: user?.email ?? null,
                     });
                   } catch (err: any) {
                     toast({ title: "Cannot generate PDF", description: err?.message ?? "Failed to generate report.", variant: "destructive" });
@@ -567,17 +573,24 @@ export default function WorkOrdersPage() {
 
           </CardHeader>
           <CardContent>
-            {/* Print-only header */}
-            <div className="print-header hidden print:block">
-              <h1 style={{ fontSize: "16pt", fontWeight: "bold" }}>AN Maintenance — Maintenance Orders Report</h1>
-              <p style={{ fontSize: "10pt", color: "#666" }}>
-                {drPreset === "custom" ? `Period: ${drRange.from ? format(drRange.from, "yyyy-MM-dd") : "…"} to ${drRange.to ? format(drRange.to, "yyyy-MM-dd") : "…"}` : drPreset !== "all" ? `Filter: ${drPreset}` : "All records"}
-                {lineFilter !== "all" ? ` | Line: ${lineFilter}` : ""}
-                {statusFilter !== "all" ? ` | Status: ${statusFilter}` : ""}
-                {machineFilter !== "all" ? ` | Machine: ${machineFilter}` : ""}
-              </p>
-              <p style={{ fontSize: "9pt", color: "#999" }}>Generated: {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
-            </div>
+            {/* The shared report header, instead of the hand-rolled one this page used
+                to carry: inline point sizes and #666/#999 greys with no brand, which
+                printed nothing like the rest of the system's reports. It also carries
+                the shift, which the old header omitted. */}
+            <ReportPrintHeader
+              title="Maintenance Orders"
+              periodLabel={
+                drPreset === "custom"
+                  ? `${drRange.from ? format(drRange.from, "dd/MM/yyyy") : "…"} — ${drRange.to ? format(drRange.to, "dd/MM/yyyy") : "…"}`
+                  : drPreset !== "all" ? String(drPreset) : "All records"
+              }
+              shift={shiftFilter === "ALL" ? "All shifts" : shiftFilter === "DAY" ? "Day (06–18)" : "Night (18–06)"}
+              filtersLabel={[
+                lineFilter !== "all" ? `Line: ${lineFilter}` : null,
+                statusFilter !== "all" ? `Status: ${statusFilter}` : null,
+                machineFilter !== "all" ? `Machine: ${machineFilter}` : null,
+              ].filter(Boolean).join("  ·  ") || undefined}
+            />
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : !filteredWOs?.length ? (
