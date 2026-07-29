@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMinutes } from "@/lib/formatDuration";
 import { DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
+import { type ShiftValue } from "@/components/ShiftFilter";
 import { Link } from "react-router-dom";
 import { SLA_TARGETS } from "@/lib/sla";
 import { resolveLine } from "@/lib/resolveLine";
@@ -76,6 +77,26 @@ const fmtMin = (m: number | null | undefined) => {
   return minutes >= 60 ? formatMinutes(minutes) : `${minutes} min`;
 };
 
+/**
+ * Which London shift a timestamp falls in. Day is 06:00–17:59, night is the rest.
+ * Same rule useMaintenanceKpis applies, so a shift-filtered KPI and a shift-filtered
+ * chart on this page can never disagree about where a record belongs.
+ */
+function londonShiftOf(iso: string | null | undefined): "DAY" | "NIGHT" | null {
+  if (!iso) return null;
+  try {
+    const h = parseInt(
+      new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", hour12: false })
+        .format(new Date(iso)),
+      10,
+    );
+    if (Number.isNaN(h)) return null;
+    return h >= 6 && h < 18 ? "DAY" : "NIGHT";
+  } catch {
+    return null;
+  }
+}
+
 const EmptyChart = () => (
   <EmptyState
     icon={BarChart3}
@@ -91,6 +112,7 @@ export default function AnalyticsPage() {
   const { toast } = useToast();
   const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
   const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
+  const [shift, setShift] = useState<ShiftValue>("ALL");
   const startDate = drRange.from ?? startOfDay(subDays(new Date(), 30));
   const endDate = drRange.to ?? endOfDay(new Date());
 
@@ -119,12 +141,16 @@ export default function AnalyticsPage() {
   });
 
   const qa = useMemo(() => {
+    // Shift-filtered on recorded_at, so the Quality block agrees with the KPIs above.
+    const rows = shift === "ALL"
+      ? qaRows
+      : qaRows.filter((r) => londonShiftOf(r.recorded_at) === shift);
     const byStatus: Record<string, number> = {};
     const bySeverity: Record<string, number> = {};
     const byLine: Record<string, number> = {};
     const byDept: Record<string, number> = {};
     const byDay: Record<string, number> = {};
-    for (const r of qaRows) {
+    for (const r of rows) {
       byStatus[r.status || "unknown"] = (byStatus[r.status || "unknown"] || 0) + 1;
       if (r.severity) bySeverity[r.severity] = (bySeverity[r.severity] || 0) + 1;
       byLine[r.line || "—"] = (byLine[r.line || "—"] || 0) + 1;
@@ -132,7 +158,7 @@ export default function AnalyticsPage() {
       const day = (r.recorded_at || "").slice(0, 10);
       if (day) byDay[day] = (byDay[day] || 0) + 1;
     }
-    const total = qaRows.length;
+    const total = rows.length;
     const sevOrder = ["low", "medium", "high", "critical"];
     return {
       total,
@@ -145,19 +171,23 @@ export default function AnalyticsPage() {
       deptData: Object.entries(byDept).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, value]) => ({ name, value })),
       trendData: Object.entries(byDay).sort((a, b) => a[0].localeCompare(b[0])).map(([day, value]) => ({ name: format(new Date(day), "dd/MM"), value })),
     };
-  }, [qaRows]);
+  }, [qaRows, shift]);
 
   // Production leader performance in range → Leader Performance section.
   const { data: leaderRows = [] } = useQuery({
-    queryKey: ["analytics-leader-perf", startDate.toISOString(), endDate.toISOString()],
+    queryKey: ["analytics-leader-perf", startDate.toISOString(), endDate.toISOString(), shift],
     queryFn: async () => {
       const from = format(startDate, "yyyy-MM-dd");
       const to = format(endDate, "yyyy-MM-dd");
-      const { data, error } = await supabase
+      // production_sessions carries a real shift column, so this filters server-side
+      // rather than inferring the shift from a timestamp.
+      let q = supabase
         .from("production_sessions")
         .select("session_date, shift, line, leader_name, production_items(actual_qty)")
         .gte("session_date", from)
         .lte("session_date", to);
+      if (shift !== "ALL") q = q.eq("shift", shift);
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as Array<{
         session_date: string; shift: string | null; line: string | null; leader_name: string | null;
@@ -171,15 +201,19 @@ export default function AnalyticsPage() {
   // every leader's target is populated, not just the odd session that happened
   // to carry a target_qty.
   const { data: ragTargetRows = [] } = useQuery({
-    queryKey: ["analytics-leader-rag-targets", startDate.toISOString(), endDate.toISOString()],
+    queryKey: ["analytics-leader-rag-targets", startDate.toISOString(), endDate.toISOString(), shift],
     queryFn: async () => {
       const from = format(startDate, "yyyy-MM-dd");
       const to = format(endDate, "yyyy-MM-dd");
-      const { data, error } = await (supabase as any)
+      // Targets must be filtered the same way as the sessions, or efficiency would
+      // divide one shift's output by both shifts' target.
+      let q = (supabase as any)
         .from("rag_weekly_entries")
         .select("entry_date, shift, line, plan_qty")
         .gte("entry_date", from)
         .lte("entry_date", to);
+      if (shift !== "ALL") q = q.eq("shift", shift);
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as Array<{ entry_date: string; shift: string | null; line: string | null; plan_qty: number | null }>;
     },
@@ -297,14 +331,17 @@ export default function AnalyticsPage() {
     [leaderPerf.rows],
   );
 
-  // Filter WOs by date range
+  // Range comes from the server now; this keeps the boundary exact and applies the
+  // shift, so every WO-derived widget below sees the same set the KPIs do.
   const allWOs = useMemo(() => {
     if (!rawWOs) return undefined;
     return rawWOs.filter((w) => {
       const d = new Date(w.created_at);
-      return d >= startDate && d <= endDate;
+      if (d < startDate || d > endDate) return false;
+      if (shift !== "ALL" && londonShiftOf(w.created_at) !== shift) return false;
+      return true;
     });
-  }, [rawWOs, startDate, endDate]);
+  }, [rawWOs, startDate, endDate, shift]);
 
   const { data: userCount } = useQuery({
     queryKey: ["user_count"],
@@ -332,7 +369,7 @@ export default function AnalyticsPage() {
   const hasNoActivity = !woLoading && !!rawWOs && (allWOs?.length ?? 0) === 0;
 
   // Single source of truth for Response / MTTR / MTBF — shared with Executive Dashboard.
-  const { avgResponseMin, avgMTTRMin, avgMTBFMin } = useMaintenanceKpis({ from: startDate, to: endDate });
+  const { avgResponseMin, avgMTTRMin, avgMTBFMin } = useMaintenanceKpis({ from: startDate, to: endDate, shift });
   const kpis = { avgResponse: avgResponseMin, avgMTTR: avgMTTRMin, avgMTBF: avgMTBFMin };
 
 
@@ -572,9 +609,12 @@ export default function AnalyticsPage() {
     <DashboardLayout>
       <div className="space-y-6 print-content">
         {/* Print Header — visible only when printing/exported */}
+        {/* The header already accepted a shift label and never received one, so a
+            printed day-shift report was indistinguishable from a night one. */}
         <ReportPrintHeader
           title="Analytics Report"
           periodLabel={`${format(startDate, "dd/MM/yyyy HH:mm")} — ${format(endDate, "dd/MM/yyyy HH:mm")}`}
+          shift={shift === "ALL" ? "All shifts" : shift === "DAY" ? "Day (06–18)" : "Night (18–06)"}
         />
         <div className="hidden print:grid grid-cols-2 gap-4 text-sm mb-4">
           <div className="border rounded p-2">
@@ -613,6 +653,8 @@ export default function AnalyticsPage() {
           dateRange={drRange}
           datePreset={drPreset}
           onDateChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
+          shift={shift}
+          onShiftChange={setShift}
           storageKey="analytics-page"
         >
           <Badge variant="secondary" className="text-xs">{allWOs?.length ?? 0} WOs in range</Badge>
