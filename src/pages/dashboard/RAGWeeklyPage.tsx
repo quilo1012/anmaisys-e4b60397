@@ -393,9 +393,21 @@ export default function RAGWeeklyPage() {
     for (const line of lines) {
       const stops = byLine.get(line) ?? [];
       if (!stops.length) continue;
+      // Cap open/ongoing stops at the END of the shift they started in, so a
+      // single unresolved WO can't keep growing indefinitely and bleed into
+      // later shifts/days. Keep the original `end=null` on the source object
+      // for the "ongoing" label; only the effective end used for minutes is
+      // bounded.
+      const capEndFor = (s: StopDetail): string | null => {
+        if (s.end) return s.end;
+        const sMs = new Date(s.start).getTime();
+        const cap = Math.min(now, londonShiftEndForInstant(sMs));
+        return new Date(cap).toISOString();
+      };
+      const capped = stops.map((s) => ({ ...s, end: capEndFor(s) }));
       // Group stops by bucket once per line.
       const byBucket = new Map<string, StopDetail[]>();
-      for (const s of stops) {
+      for (const s of capped) {
         const b = s.kind || "MAINT";
         const arr = byBucket.get(b) ?? [];
         arr.push(s);
@@ -420,9 +432,11 @@ export default function RAGWeeklyPage() {
           const clamped: ClampedStop[] = [];
           for (const s of stops) {
             const sMs = new Date(s.start).getTime();
-            const eMs = s.end ? new Date(s.end).getTime() : now;
+            const effEndMs = s.end
+              ? new Date(s.end).getTime()
+              : Math.min(now, londonShiftEndForInstant(sMs));
             const cs = Math.max(sMs, ws);
-            const ce = Math.min(eMs, we);
+            const ce = Math.min(effEndMs, we);
             if (ce > cs) {
               clamped.push({
                 ...s,
