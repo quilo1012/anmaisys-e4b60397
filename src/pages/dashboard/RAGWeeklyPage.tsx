@@ -65,6 +65,28 @@ function londonShiftWindow(dateStr: string, shift: "DAY" | "NIGHT"): [number, nu
   const nextStr = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
   return [londonUtcMs(dateStr, 18), londonUtcMs(nextStr, 6)];
 }
+/**
+ * Return the UTC ms of the END of the London factory shift in which `startMs` falls.
+ * Day shift (06:00–18:00) ends today at 18:00. Night shift (18:00–06:00) ends
+ * next day at 06:00; a night stop that started after midnight (00:00–06:00 local)
+ * ends today at 06:00. Used to cap ongoing/open stops so they can't bleed into
+ * later shifts.
+ */
+function londonShiftEndForInstant(startMs: number): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit",
+  }).formatToParts(new Date(startMs));
+  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
+  const y = g("year"), mo = g("month"), d = g("day");
+  let h = g("hour"); if (h === 24) h = 0;
+  const todayStr = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  if (h >= 6 && h < 18) return londonUtcMs(todayStr, 18);
+  if (h < 6) return londonUtcMs(todayStr, 6);
+  const nx = new Date(Date.UTC(y, mo - 1, d + 1));
+  const nxStr = `${nx.getUTCFullYear()}-${String(nx.getUTCMonth() + 1).padStart(2, "0")}-${String(nx.getUTCDate()).padStart(2, "0")}`;
+  return londonUtcMs(nxStr, 6);
+}
 
 type Shift = "DAY" | "NIGHT";
 
@@ -371,9 +393,21 @@ export default function RAGWeeklyPage() {
     for (const line of lines) {
       const stops = byLine.get(line) ?? [];
       if (!stops.length) continue;
+      // Cap open/ongoing stops at the END of the shift they started in, so a
+      // single unresolved WO can't keep growing indefinitely and bleed into
+      // later shifts/days. Keep the original `end=null` on the source object
+      // for the "ongoing" label; only the effective end used for minutes is
+      // bounded.
+      const capEndFor = (s: StopDetail): string | null => {
+        if (s.end) return s.end;
+        const sMs = new Date(s.start).getTime();
+        const cap = Math.min(now, londonShiftEndForInstant(sMs));
+        return new Date(cap).toISOString();
+      };
+      const capped = stops.map((s) => ({ ...s, end: capEndFor(s) }));
       // Group stops by bucket once per line.
       const byBucket = new Map<string, StopDetail[]>();
-      for (const s of stops) {
+      for (const s of capped) {
         const b = s.kind || "MAINT";
         const arr = byBucket.get(b) ?? [];
         arr.push(s);
@@ -398,9 +432,11 @@ export default function RAGWeeklyPage() {
           const clamped: ClampedStop[] = [];
           for (const s of stops) {
             const sMs = new Date(s.start).getTime();
-            const eMs = s.end ? new Date(s.end).getTime() : now;
+            const effEndMs = s.end
+              ? new Date(s.end).getTime()
+              : Math.min(now, londonShiftEndForInstant(sMs));
             const cs = Math.max(sMs, ws);
-            const ce = Math.min(eMs, we);
+            const ce = Math.min(effEndMs, we);
             if (ce > cs) {
               clamped.push({
                 ...s,
