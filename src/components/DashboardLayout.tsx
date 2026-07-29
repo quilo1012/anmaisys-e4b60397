@@ -15,7 +15,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, MessageCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Briefcase, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import {
   AlertDialog,
@@ -99,6 +99,13 @@ export const navItems: NavItem[] = [
   // Administration
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Administration", action: "users.manage" },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Administration", action: "audit.view" },
+  // The three iTouching screens existed as routes and as cards on the home
+  // dashboard, but never in this sidebar — so the only way to reach Stop Codes
+  // was to know its URL. Stop Codes decides which iTouching stops open a
+  // maintenance order, so it has to be findable.
+  { title: "iTouching Sync", url: "/dashboard/intouch-settings", icon: Radar, roles: ["admin"], group: "Administration", action: "intouch.manage" },
+  { title: "iTouching Machines", url: "/dashboard/intouch-machines", icon: Radio, roles: ["admin"], group: "Administration", action: "intouch.manage" },
+  { title: "iTouching Stop Codes", url: "/dashboard/intouch-stop-codes", icon: Radar, roles: ["admin"], group: "Administration", action: "intouch.manage" },
 
   // System — Permissions is reached from inside Settings (avoids the duplicate entry).
   { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "System", action: "system.settings" },
@@ -356,6 +363,8 @@ const routeTitles: Record<string, string> = {
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",
   "/dashboard/intouch-settings": "iTouching Sync",
+  "/dashboard/intouch-machines": "iTouching Machines",
+  "/dashboard/intouch-stop-codes": "iTouching Stop Codes",
 };
 
 export function DashboardLayout({ children }: { children: ReactNode }) {

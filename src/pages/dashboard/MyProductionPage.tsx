@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { OperatorLineGuard } from "@/components/OperatorLineGuard";
@@ -16,13 +16,12 @@ import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
-import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil, RefreshCw } from "lucide-react";
+import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
 import { useConfirm } from "@/hooks/useConfirm";
-import { invokeFunction } from "@/lib/invokeFunction";
 
 type Shift = "DAY" | "NIGHT";
 
@@ -58,14 +57,6 @@ function marketOf(name?: string | null, code?: string | null): string {
   if (/MOROCCO|^MOR/.test(hay)) return "Morocco";
   if (/AUSTRALIA/.test(hay)) return "Australia";
   return "";
-}
-
-/** iTouching sends the blender number in its "batch" field, prefixed with "B"
- *  (e.g. "B69" = blender 69, "B7/8" = blender 7/8). Real batch codes look
- *  nothing like this (B26188, MM26206), so strip the leading "B" and treat the
- *  value as a blender number — never as a batch code. */
-function blenderFromItouch(v: string): string {
-  return String(v ?? "").trim().replace(/^B(?=[\d])/i, "");
 }
 
 /** Current local time as "HH:mm". */
@@ -423,9 +414,6 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
   );
 }
 
-/** A scheduled/running job as returned by intouch-list-scheduled-jobs. */
-type IntouchJob = { code: string; description: string; qty: number; status: string; seq: number; batch: string; actual: number };
-
 /** The shift target is hidden by default so operators aren't shown the number.
  *  Anyone with the shared company PIN can reveal it — it's not leader-only.
  *  Once revealed it stays visible for this screen's session. */
@@ -523,66 +511,10 @@ type PlannedSku = { id: string; code: string; name: string; planned: number; don
 function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = [] }: { sessionId: string; target?: number; produced?: number; plannedSkus?: PlannedSku[] }) {
   const qc = useQueryClient();
   const { selectedLineName: jobLine } = useDeviceLineCtx();
-  const { sessionDate: jobDate, shiftCode: jobShiftCode } = getCurrentFactoryShift();
-  const jobShift: Shift = jobShiftCode === "day" ? "DAY" : "NIGHT";
-
-  // Jobs scheduled in iTouching for this line + shift. Best-effort: if iTouching
-  // is unreachable the panel simply doesn't render and logging stays manual.
-  const jobsQ = useQuery({
-    enabled: !!jobLine,
-    queryKey: ["intouch-jobs", jobLine, jobDate, jobShift],
-    staleTime: 5 * 60_000,
-    retry: false,
-    queryFn: async (): Promise<IntouchJob[]> => {
-      const { data, error } = await invokeFunction<{ sections: { line: string; items: IntouchJob[] }[] }>(
-        "intouch-list-scheduled-jobs",
-        { session_date: jobDate, shift: jobShift },
-      );
-      if (error) return [];
-      const section = (data?.sections ?? []).find((s) => s.line === jobLine);
-      return section?.items ?? [];
-    },
-  });
-  /**
-   * Pull this line's schedule and actuals from iTouching on demand.
-   *
-   * Scoped to the tablet's own line on purpose: the admin "Full resync" hits
-   * every line at once, and several tablets tapping that would burn the
-   * iTouching daily quota — which blocks the whole factory until midnight UTC.
-   * The edge function already authorises `operator` when the body carries a
-   * line the account is bound to, so this needs no permission change.
-   */
-  const SYNC_COOLDOWN_MS = 60_000;
-  const [lastSyncAt, setLastSyncAt] = useState(0);
-  const [syncCooldown, setSyncCooldown] = useState(0);
-  useEffect(() => {
-    if (!lastSyncAt) return;
-    const tick = () => setSyncCooldown(Math.max(0, SYNC_COOLDOWN_MS - (Date.now() - lastSyncAt)));
-    tick();
-    const t = window.setInterval(tick, 1000);
-    return () => window.clearInterval(t);
-  }, [lastSyncAt]);
-
-  const syncFromItouch = useMutation({
-    mutationFn: async () => {
-      // READ-ONLY on purpose. This used to call intouch-sync-production, which
-      // writes production_items — and that write path deleted a shift's logged
-      // output whenever iTouching's schedule disagreed with it. iTouching is
-      // only here to save the operator typing, so it must never touch what was
-      // produced. intouch-list-scheduled-jobs just reads the schedule.
-      await qc.invalidateQueries({ queryKey: ["intouch-jobs"] });
-      await qc.refetchQueries({ queryKey: ["intouch-jobs"] });
-    },
-    onSuccess: () => {
-      setLastSyncAt(Date.now());
-      toast.success("SKU list refreshed from iTouching");
-    },
-    onError: (e: Error) => toast.error(e.message || "Could not reach iTouching"),
-  });
-
-  // Memoised so the `?? []` fallback doesn't mint a new array on every render,
-  // which would defeat the suggestion memos below.
-  const jobs = useMemo(() => jobsQ.data ?? [], [jobsQ.data]);
+  // iTouching is no longer read on this screen at all. It was the source of the
+  // SKU suggestions, but its part codes carry batch suffixes — "OCMC6 - B1" where
+  // our catalogue holds "OCMC6" — so every pick logged a code the system doesn't
+  // have, and the two records diverged. Part codes come from sku_products only.
 
   // What this line has been running lately. Looking past the current session
   // matters: at the start of a shift nothing is logged yet, which is exactly when
@@ -692,6 +624,13 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
    */
   const codeKey = (code: string | null | undefined) => String(code ?? "").toUpperCase();
 
+  // Build marker. The published bundle stayed on MyProductionPage-B3siNI0h.js —
+  // the crashing chunk — across four API deploys and a manual publish, while the
+  // preview was already built from the fix. Changing this file's contents forces
+  // a different chunk hash, so a stale cached build cannot masquerade as current.
+  const CRASH_FIX_BUILD = "codeKey-guard-v2";
+  void CRASH_FIX_BUILD;
+
   /** Extract the SKU from a prefill row; the join can hand back object or array. */
   const skuOfPrefillRow = (e: {
     production_items?: unknown;
@@ -713,57 +652,39 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
    * next thing they need to pick.
    */
   const currentShiftSkus = useMemo(() => {
-    const plannedCodes = new Set(plannedSkus.map((p) => codeKey(p.code)));
     const seen = new Map<string, { id: string; code: string; name: string }>();
     for (const e of prefillQ.data ?? []) {
       if (e.session_id !== sessionId) continue;
       const sk = skuOfPrefillRow(e);
       if (!sk || seen.has(sk.id)) continue;
       if (!matchesQuery(sk.code, sk.name)) continue;
-      // Being in the plan doesn't change what's shown here, but it does mean the
-      // "Planned" section below must skip it — see the seed of its `seen` set.
-      void plannedCodes;
       seen.set(sk.id, sk);
     }
     return [...seen.values()].slice(0, 4);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefillQ.data, sessionId, plannedSkus, skuDebounced]);
-
-  /** iTouching jobs the machine is running RIGHT NOW. */
-  const runningJobs: IntouchJob[] = useMemo(
-    () => jobs.filter((j) => j.status === "Running" && matchesQuery(j.code, j.description)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [jobs, skuDebounced],
-  );
+  }, [prefillQ.data, sessionId, skuDebounced]);
 
   /**
-   * What this line is SUPPOSED to run: iTouching jobs that aren't running yet,
-   * plus SKUs the sync already wrote onto this shift's session with a target.
-   * Deduped by code, since both describe the same planned work.
+   * Planned for this shift, from OUR catalogue only.
+   *
+   * iTouching is deliberately not a source of part codes. Its codes carry batch
+   * suffixes — it reports "OCMC6 - B1" where our SKU is "OCMC6" — so offering
+   * them had the operator logging a code that doesn't exist in the system, and
+   * the two drifted apart. Every code shown here comes from sku_products.
    */
   const plannedSuggestions = useMemo(() => {
-    const out: { id: string | null; code: string; name: string; job?: IntouchJob; planned?: number; done?: number }[] = [];
-    // Seeded with this shift's SKUs so a product already being produced is listed
-    // once, at the top, instead of twice in a row.
     const seen = new Set<string>(currentShiftSkus.map((c) => codeKey(c.code)));
-    for (const j of jobs) {
-      if (j.status === "Running") continue;
-      if (!matchesQuery(j.code, j.description)) continue;
-      const k = codeKey(j.code);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      out.push({ id: null, code: j.code, name: j.description, job: j });
-    }
+    const out: { id: string; code: string; name: string }[] = [];
     for (const p of plannedSkus) {
       const k = codeKey(p.code);
       if (seen.has(k)) continue;
       if (!matchesQuery(p.code, p.name)) continue;
       seen.add(k);
-      out.push({ id: p.id, code: p.code, name: p.name, planned: p.planned, done: p.done });
+      out.push({ id: p.id, code: p.code, name: p.name });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobs, plannedSkus, currentShiftSkus, skuDebounced]);
+  }, [plannedSkus, currentShiftSkus, skuDebounced]);
 
   /**
    * A few of the line's previous jobs, as a last resort. Kept short on purpose:
@@ -772,7 +693,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
    */
   const recentSuggestions = useMemo(() => {
     const shown = new Set<string>([
-      ...runningJobs.map((j) => codeKey(j.code)),
       ...plannedSuggestions.map((p) => codeKey(p.code)),
       ...currentShiftSkus.map((s) => codeKey(s.code)),
     ]);
@@ -787,10 +707,10 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     }
     return [...seen.values()].slice(0, 3);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefillQ.data, sessionId, runningJobs, plannedSuggestions, currentShiftSkus, skuDebounced]);
+  }, [prefillQ.data, sessionId, plannedSuggestions, currentShiftSkus, skuDebounced]);
 
   const hasSuggestions =
-    runningJobs.length + currentShiftSkus.length + plannedSuggestions.length + recentSuggestions.length > 0;
+    currentShiftSkus.length + plannedSuggestions.length + recentSuggestions.length > 0;
 
   // One row per market variant. Each variant (… - PERU, … MOROCCO, … - KSA) has
   // its own name; the batch copies (CRE1KG - B12, PERUCRE500 - B8) share a name,
@@ -805,54 +725,30 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     return [...byName.values()].sort((a, b) => productLabel(a.name).localeCompare(productLabel(b.name)));
   }, [searchQ.data]);
 
-  /** Fill the form from an iTouching job — the operator only confirms/adjusts. */
-  const applyJob = async (j: IntouchJob) => {
-    const code = (j.code ?? "").trim();
-    const desc = (j.description ?? "").trim();
-
-    // iTouching's "batch" is actually the BLENDER number (prefixed "B") — route
-    // it to the Blender field, not Batch Code. The operator still enters the real
-    // batch code and the produced QUANTITY, then submits.
-    if (j.batch) setBlender(blenderFromItouch(j.batch));
-
-    // Link to the catalog by code first, then fall back to the product name so a
-    // job with a missing/blank code still resolves instead of erroring.
-    let match: { id: string; code: string; name: string } | null = null;
-    if (code) {
-      const { data } = await (supabase as any)
-        .from("sku_products").select("id, code, name").ilike("code", code).limit(1).maybeSingle();
-      match = data ?? null;
-    }
-    if (!match && desc) {
-      const core = productLabel(desc); // strip the "[HS CODE:…]" suffix
-      if (core) {
-        const { data } = await (supabase as any)
-          .from("sku_products").select("id, code, name").ilike("name", `%${core}%`).limit(1);
-        match = (data && data[0]) ?? null;
-      }
-    }
-
-    if (match) {
-      setSelectedSku(match);
-      setSkuChoice("");
-      setSkuQuery(`${productLabel(match.name)} — ${match.code}`);
-      toast.success("Filled from iTouching — now enter the produced quantity");
-      return;
-    }
-    // Not in the catalog: prefill the search with the product name so the operator
-    // can pick it or type it in, then enter the produced quantity.
-    setSelectedSku(null);
-    setSkuChoice("");
-    setSkuQuery(desc || code);
-    setSkuPopoverOpen(true);
-    toast.warning(`${desc || code || "This job"} isn't linked to the catalog — pick the product below or type it in.`);
-  };
-
+  /**
+   * Code first, description after. Two reasons: the operator matches the part
+   * code printed on the box, and the free-text fallback on submit takes whatever
+   * precedes the em dash as the code — with the description leading, that logged
+   * the product NAME as the SKU.
+   */
   const pickSku = (s: { id: string; code: string; name: string }) => {
     setSelectedSku(s);
-    setSkuQuery(`${productLabel(s.name)} — ${s.code}`);
+    setSkuQuery(`${s.code} — ${productLabel(s.name)}`);
     setSkuPopoverOpen(false);
   };
+
+  /**
+   * Type a part code, get the rest of the record. When what's typed is an exact
+   * catalogue code, link it automatically instead of making the operator open the
+   * list and tap the row he just spelled out.
+   */
+  useEffect(() => {
+    if (selectedSku || skuChoice === MANUAL_SKU) return;
+    const typed = skuDebounced.trim().toUpperCase();
+    if (typed.length < 3) return;
+    const exact = (searchQ.data ?? []).find((s) => String(s.code ?? "").toUpperCase() === typed);
+    if (exact) pickSku(exact);
+  }, [skuDebounced, searchQ.data, selectedSku, skuChoice]);
 
   const reset = () => {
     setSelectedSku(null);
@@ -1029,72 +925,24 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
           </div>
         </div>
 
-        {/* Scheduled jobs from iTouching — tap one to fill SKU, batch and quantity. */}
-        {jobs.length > 0 && (
-          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">
-              Job from iTouching · {jobLine}
-            </div>
-            <div className="space-y-1.5">
-              {jobs.map((j, idx) => (
-                <button
-                  key={`${j.code}-${j.seq}-${idx}`}
-                  type="button"
-                  onClick={() => applyJob(j)}
-                  className="w-full rounded-md border bg-background p-2.5 text-left transition-colors hover:bg-accent active:scale-[0.99]"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-semibold">{j.description || j.code}</span>
-                    {j.status === "Running" && (
-                      <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
-                        Running
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                    <span className="font-mono">{j.code}</span>
-                    {j.qty > 0 && <span>Order qty: <b className="text-foreground">{j.qty.toLocaleString()}</b></span>}
-                    {j.batch && <span>Blender {blenderFromItouch(j.batch)}</span>}
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="text-[11px] text-muted-foreground">Tap a job to fill the form, then confirm the quantity.</div>
-          </div>
-        )}
+        {/* The iTouching job panel that used to sit here is gone. Its part codes
+            carry batch suffixes ("OCMC6 - B1" against our "OCMC6"), so tapping a
+            job logged a code the system doesn't hold and the two records drifted
+            apart. Part codes now come only from sku_products. */}
 
         {/* SKU */}
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">SKU produced</div>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5 text-xs"
-              disabled={syncFromItouch.isPending || syncCooldown > 0 || !jobLine}
-              onClick={() => syncFromItouch.mutate()}
-              title={`Refresh the SKU list for ${jobLine} from iTouching (does not change logged production)`}
-            >
-              {syncFromItouch.isPending
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                : <RefreshCw className="h-3.5 w-3.5" />}
-              {syncFromItouch.isPending
-                ? "Refreshing…"
-                : syncCooldown > 0
-                  ? `Wait ${Math.ceil(syncCooldown / 1000)}s`
-                  : "Refresh SKU list"}
-            </Button>
-          </div>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Part code produced</div>
 
-          {/* Plain search — type the product name or code and pick it. To repeat
-              the same SKU on another blender, use "Save & next blender" below. */}
+          {/* Type the part code and the rest of the record fills itself from
+              sku_products. The "Refresh SKU list" button that used to sit here
+              pulled the iTouching schedule; it's gone with that source. */}
           {/* PopoverAnchor, not PopoverTrigger: the input must never toggle the
               popover. As a trigger, every tap to place the cursor flipped it shut. */}
           {skuChoice !== MANUAL_SKU && (
             <Popover
-              // Opens with an EMPTY box when iTouching has jobs for this line —
-              // that's the whole point: tap the field, pick the job, type nothing.
+              // Opens with an EMPTY box whenever there is something to suggest, so
+              // the common case is tap-and-pick with no typing at all.
               open={skuPopoverOpen && (skuDebounced.length >= 1 || hasSuggestions)}
               onOpenChange={setSkuPopoverOpen}
             >
@@ -1105,7 +953,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
                     value={skuQuery}
                     onChange={(e) => { setSkuQuery(e.target.value); setSelectedSku(null); setSkuPopoverOpen(true); }}
                     onFocus={() => setSkuPopoverOpen(true)}
-                    placeholder={hasSuggestions ? "Tap to pick a suggestion, or type to search…" : "Search by product name or code..."}
+                    placeholder={hasSuggestions ? "Tap to pick, or type the part code…" : "Type the part code, e.g. OCMC6"}
                     className="h-11 pl-9"
                     autoComplete="off"
                   />
@@ -1121,107 +969,37 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
                   if (skuInputWrapRef.current?.contains(e.target as Node)) e.preventDefault();
                 }}
               >
-                {/* iTouching first. A job scheduled for this line right now beats
-                    any catalog match, and picking one also fills blender and
-                    order quantity — the operator only confirms what was made. */}
-                {/* Running now → planned → a few previous. Strongest signal first:
-                    what the machine is on beats what is scheduled, which beats
-                    what the line happened to run last week. */}
-                {runningJobs.length > 0 && (
-                  <div className="border-b bg-emerald-500/5">
-                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-                      Running now · {jobLine}
+                {/* Part code leads, description follows. The operator matches the
+                    code on the box, and it's what gets logged — burying it under a
+                    long description is how the wrong SKU gets picked. Every code
+                    here is ours (sku_products); iTouching is not a source, because
+                    its codes carry batch suffixes ("OCMC6 - B1" vs "OCMC6"). */}
+                {[
+                  { key: "cur", label: `This shift · ${jobLine}`, rows: currentShiftSkus, box: "border-b bg-primary/5", head: "text-primary" },
+                  { key: "plan", label: `Planned · ${jobLine}`, rows: plannedSuggestions, box: "border-b bg-muted/30", head: "text-muted-foreground" },
+                  { key: "prev", label: `Previous jobs · ${jobLine}`, rows: recentSuggestions, box: "border-b", head: "text-muted-foreground" },
+                ].map((section) =>
+                  section.rows.length === 0 ? null : (
+                    <div key={section.key} className={section.box}>
+                      <div className={`px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider ${section.head}`}>
+                        {section.label}
+                      </div>
+                      <ul className="divide-y">
+                        {section.rows.map((s) => (
+                          <li key={`${section.key}-${s.id}`}>
+                            <button
+                              type="button"
+                              className="w-full p-2 text-left hover:bg-accent"
+                              onClick={() => pickSku({ id: s.id, code: s.code, name: s.name })}
+                            >
+                              <div className="truncate font-mono text-sm font-bold">{s.code}</div>
+                              <div className="truncate text-xs text-muted-foreground">{productLabel(s.name)}</div>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    <ul className="divide-y">
-                      {runningJobs.map((j, idx) => (
-                        <li key={`run-${j.code}-${j.seq}-${idx}`}>
-                          <button
-                            type="button"
-                            className="w-full p-2 text-left hover:bg-accent"
-                            onClick={() => { setSkuPopoverOpen(false); void applyJob(j); }}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="truncate text-sm font-semibold">{productLabel(j.description) || j.code}</span>
-                              <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
-                                Running
-                              </span>
-                            </div>
-                            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[11px] text-muted-foreground">
-                              <span className="font-mono">{j.code}</span>
-                              {j.qty > 0 && <span>Order qty: <b className="text-foreground">{j.qty.toLocaleString()}</b></span>}
-                              {j.batch && <span>Blender {blenderFromItouch(j.batch)}</span>}
-                            </div>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {currentShiftSkus.length > 0 && (
-                  <div className="border-b bg-primary/5">
-                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
-                      This shift · {jobLine}
-                    </div>
-                    <ul className="divide-y">
-                      {currentShiftSkus.map((s) => (
-                        <li key={`cur-${s.id}`}>
-                          <button type="button" className="w-full p-2 text-left hover:bg-accent" onClick={() => pickSku(s)}>
-                            <div className="truncate text-sm font-semibold">{productLabel(s.name)}</div>
-                            <div className="truncate font-mono text-xs text-muted-foreground">{s.code}</div>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {plannedSuggestions.length > 0 && (
-                  <div className="border-b bg-muted/30">
-                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Planned · {jobLine}
-                    </div>
-                    <ul className="divide-y">
-                      {plannedSuggestions.map((p, idx) => (
-                        <li key={`plan-${p.code}-${idx}`}>
-                          <button
-                            type="button"
-                            className="w-full p-2 text-left hover:bg-accent"
-                            onClick={() => {
-                              setSkuPopoverOpen(false);
-                              if (p.job) void applyJob(p.job);
-                              else if (p.id) pickSku({ id: p.id, code: p.code, name: p.name });
-                            }}
-                          >
-                            <div className="truncate text-sm font-semibold">{productLabel(p.name) || p.code}</div>
-                            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[11px] text-muted-foreground">
-                              <span className="font-mono">{p.code}</span>
-                              {p.job?.qty ? <span>Order qty: <b className="text-foreground">{p.job.qty.toLocaleString()}</b></span> : null}
-                              {p.job?.batch ? <span>Blender {blenderFromItouch(p.job.batch)}</span> : null}
-                            </div>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {recentSuggestions.length > 0 && (
-                  <div className="border-b">
-                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Previous jobs · {jobLine}
-                    </div>
-                    <ul className="divide-y">
-                      {recentSuggestions.map((s) => (
-                        <li key={`recent-${s.id}`}>
-                          <button type="button" className="w-full p-2 text-left hover:bg-accent" onClick={() => pickSku(s)}>
-                            <div className="truncate text-sm font-semibold">{productLabel(s.name)}</div>
-                            <div className="truncate font-mono text-xs text-muted-foreground">{s.code}</div>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  ),
                 )}
 
                 {searchQ.isFetching ? (
@@ -1256,14 +1034,14 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
                           onClick={() => pickSku(s)}
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold truncate">{productLabel(s.name)}</span>
+                            <span className="truncate font-mono text-sm font-bold">{s.code}</span>
                             {marketOf(s.name, s.code) && (
                               <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                                 {marketOf(s.name, s.code)}
                               </span>
                             )}
                           </div>
-                          <div className="font-mono text-xs text-muted-foreground truncate">{s.code}</div>
+                          <div className="truncate text-xs text-muted-foreground">{productLabel(s.name)}</div>
                         </button>
                       </li>
                     ))}
