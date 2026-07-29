@@ -34,6 +34,7 @@ export default function IntouchStopCodesPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [draft, setDraft] = useState<Record<string, Partial<Row>>>({});
+  const [q, setQ] = useState("");
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["intouch_stop_code_map"],
@@ -41,11 +42,24 @@ export default function IntouchStopCodesPage() {
       const { data, error } = await supabase
         .from("intouch_stop_code_map")
         .select("*")
-        .order("stop_code", { ascending: true });
+        // Ordered by label, not by stop_code. The stop code is an opaque GUID, so
+        // sorting on it scattered the list at random from a reader's point of view
+        // — "Mechanical Stop" sat near the top because its GUID starts with "1",
+        // and finding a code by name among fifty rows was guesswork.
+        .order("label", { ascending: true });
       if (error) throw error;
       return data as Row[];
     },
   });
+
+  /** Filter by label or code. Codes that open an order are what people come here for. */
+  const filtered = rows.filter((r) => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return true;
+    return (r.label ?? "").toLowerCase().includes(needle)
+        || (r.stop_code ?? "").toLowerCase().includes(needle);
+  });
+  const woCount = rows.filter((r) => r.requires_wo).length;
 
   const { data: lines = [] } = useQuery({
     queryKey: ["lines-for-stopcodes"],
@@ -94,7 +108,7 @@ export default function IntouchStopCodesPage() {
 
   const [newRow, setNewRow] = useState<Partial<Row>>({
     stop_code: "", label: "", default_priority: "medium",
-    category: "Other", line_hint: null, requires_wo: true, active: true,
+    category: "Other", line_hint: null, requires_wo: false, active: true,
   });
 
   return (
@@ -134,12 +148,14 @@ export default function IntouchStopCodesPage() {
               {lines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button onClick={() => upsert.mutate(newRow, { onSuccess: () => setNewRow({ stop_code: "", label: "", default_priority: "medium", category: "Other", line_hint: null, requires_wo: true, active: true }) })} disabled={upsert.isPending}>
+          <Button onClick={() => upsert.mutate(newRow, { onSuccess: () => setNewRow({ stop_code: "", label: "", default_priority: "medium", category: "Other", line_hint: null, requires_wo: false, active: true }) })} disabled={upsert.isPending}>
             <Plus className="w-4 h-4 mr-1" /> Add
           </Button>
           <div className="md:col-span-7 flex items-center gap-4 text-sm">
             <label className="flex items-center gap-2">
-              <Switch checked={newRow.requires_wo ?? true}
+              {/* Defaults to off, matching the column default and the DB trigger:
+                  a code nobody has classified must not open an order. */}
+              <Switch checked={newRow.requires_wo ?? false}
                 onCheckedChange={(v) => setNewRow({ ...newRow, requires_wo: v })} />
               Creates Maintenance Order
             </label>
@@ -153,7 +169,20 @@ export default function IntouchStopCodesPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Existing mappings ({rows.length})</CardTitle></CardHeader>
+        <CardHeader className="space-y-3">
+          <CardTitle className="text-base flex flex-wrap items-center gap-2">
+            Existing mappings ({rows.length})
+            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+              {woCount} open a maintenance order
+            </span>
+          </CardTitle>
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search by name or code — e.g. Mechanical Stop"
+            className="max-w-sm"
+          />
+        </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
@@ -173,7 +202,7 @@ export default function IntouchStopCodesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((r) => {
+                  {filtered.map((r) => {
                     const m = merged(r);
                     const dirty = !!draft[r.id];
                     return (
