@@ -268,6 +268,10 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
     } catch { return 1; }
   });
   const engineRef = useRef<AlertAudioEngine | null>(null);
+  // Mirror of `active` for the global gesture handler below, which is registered
+  // once (empty deps) and would otherwise read a stale value.
+  const activeRef = useRef<CriticalAlertPayload | null>(null);
+  activeRef.current = active;
   const titleTimerRef = useRef<number | null>(null);
   const originalTitleRef = useRef<string>(typeof document !== "undefined" ? document.title : "");
 
@@ -296,10 +300,13 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
         engine.unlock();
         try { localStorage.setItem(AUDIO_FLAG_KEY, "true"); } catch { /* ignore */ }
         setAudioEnabled(true);
-        // If a siren is currently active but muted, restart it now that we
-        // have a user gesture in hand.
-        engine.stop();
-        engine.start();
+        // Restart the siren ONLY if an alert is still on screen. Without this
+        // guard, any tap after a blocked play() started the siren with no WO
+        // to acknowledge — and nothing on screen to stop it.
+        if (activeRef.current) {
+          engine.stop();
+          engine.start();
+        }
       } catch { /* ignore */ }
       window.removeEventListener("pointerdown", handler, true);
       window.removeEventListener("keydown", handler, true);

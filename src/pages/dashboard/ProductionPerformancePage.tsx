@@ -19,7 +19,6 @@ import { CircularProgress } from "@/components/ui/circular-progress";
 import { ShiftLock } from "@/components/ShiftLock";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { LeaderQualityBonusTable } from "@/components/LeaderQualityBonusTable";
 
 type Period = "day" | "week" | "month" | "quarter" | "year" | "custom";
 
@@ -518,18 +517,6 @@ export default function ProductionPerformancePage() {
             )}
           </CardContent>
         </Card>
-
-        <LeaderQualityBonusTable
-          sessions={sessions.map((s) => ({
-            line: s.line,
-            leader_name: s.leader_name,
-            target: s.target,
-            actual: s.actual,
-          }))}
-          range={range}
-          shift={shift}
-          lineFilter={lineFilter}
-        />
 
 
         {/* Line status cards — gated behind the per-shift password */}

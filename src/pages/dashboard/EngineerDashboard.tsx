@@ -180,14 +180,12 @@ function InlineChecklist({ wo, currentEngineer }: { wo: any; currentEngineer: En
   );
 }
 
-// Hook to check if all required checklist items are complete for a WO
-function useChecklistComplete(woDescription: string | undefined, woId: string | undefined) {
-  const { data: checklistItems } = useChecklistsByProblemName(woDescription);
-  const { data: responses } = useChecklistResponses(woId);
-
-  // Checklist temporarily disabled — always allow finishing
-  return true;
-}
+// Checklist enforcement is temporarily disabled, so Finish is only gated on
+// `paused_at`. There used to be a `useChecklistComplete` hook here that fired two
+// queries per WO and then unconditionally returned true. Because it was a hook, the
+// WO card wrappers below had to be components — which is what made them remount on
+// every parent render (see renderMobileWOCard). To re-enable the checklist gate,
+// bring the hook back and give the wrappers stable module-level identities.
 
 // DB-backed photo status button — replaces volatile local state
 function PhotoStatusButton({ woId, photoType, onClick, disabled, size = "lg" }: { woId: string; photoType: "before" | "after"; onClick: () => void; disabled: boolean; size?: "sm" | "lg" }) {
@@ -592,16 +590,24 @@ function EngineerDashboardContent() {
     fileInputRefs.current[`${woId}-${type}`]?.click();
   };
 
-  // Mobile card with inline checklist
-  const MobileWOCard = ({ wo }: { wo: any }) => {
+  // Mobile WO card.
+  //
+  // This is a render *function*, not a component defined in the render body.
+  // As a component it got a brand-new function identity on every parent render,
+  // so React unmounted and remounted the whole card subtree — including its
+  // queries (useWOPhotos) and LineDowntimeControl's effects — every time. Those
+  // remounts set state, which re-rendered the parent, which minted yet another
+  // component type: a render loop that eventually blew the stack on the shop
+  // tablets ("RangeError: Maximum call stack size exceeded" on /dashboard/engineer).
+  // Inlining the JSX keeps the element tree stable across renders.
+  const renderMobileWOCard = (wo: any) => {
     const isOpen = wo.status === "open";
-    const checklistComplete = useChecklistComplete(wo.description, wo.id);
     const isInProgress = wo.status === "in_progress";
     const lockedToOther = !!(wo as any).locked_engineer_id && (wo as any).locked_engineer_id !== user?.id;
 
     if (lockedToOther) {
       return (
-        <Card>
+        <Card key={wo.id}>
           <CardContent className="p-4 space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono font-bold text-base">
@@ -629,7 +635,7 @@ function EngineerDashboardContent() {
     }
 
     return (
-      <Card className={`shadow-md ${isOpen ? "border-destructive bg-destructive/5 animate-pulse" : ""}`}>
+      <Card key={wo.id} className={`shadow-md ${isOpen ? "border-destructive bg-destructive/5 animate-pulse" : ""}`}>
         <CardContent className="p-5 md:p-6 space-y-4">
           {/* Line status banner — top of every card */}
           <LineStatusBanner
@@ -745,7 +751,7 @@ function EngineerDashboardContent() {
                   variant="secondary"
                   className="col-span-2 h-14 text-base font-bold"
                   onClick={() => handleFinishClick(wo.id)}
-                  disabled={!!(wo as any).paused_at || !checklistComplete}
+                  disabled={!!(wo as any).paused_at}
                 >
                   <PenTool className="h-5 w-5 mr-2" /> Finish
                 </Button>
@@ -757,27 +763,12 @@ function EngineerDashboardContent() {
     );
   };
 
-  // Desktop row finish button wrapper (needs hook at component level)
-  const DesktopFinishButton = ({ wo }: { wo: any }) => {
-    const checklistComplete = useChecklistComplete(wo.description, wo.id);
-    return (
-      <Button size="sm" variant="secondary" className="h-11 min-w-11 px-3 touch-manipulation" onClick={() => handleFinishClick(wo.id)} disabled={!!(wo as any).paused_at || !checklistComplete} aria-label="Finish maintenance order">
-        <PenTool className="h-4 w-4 mr-1.5" aria-hidden="true" /> Finish
-      </Button>
-    );
-  };
-
-  // Desktop inline checklist row
-  const DesktopInlineChecklist = ({ wo }: { wo: any }) => {
-    if (wo.status !== "in_progress") return null;
-    return (
-      <tr>
-        <td colSpan={10} className="p-2 pt-0">
-          <InlineChecklist wo={wo} currentEngineer={currentEngineer} />
-        </td>
-      </tr>
-    );
-  };
+  // Desktop row finish button — render function, same reason as renderMobileWOCard.
+  const renderDesktopFinishButton = (wo: any) => (
+    <Button size="sm" variant="secondary" className="h-11 min-w-11 px-3 touch-manipulation" onClick={() => handleFinishClick(wo.id)} disabled={!!(wo as any).paused_at} aria-label="Finish maintenance order">
+      <PenTool className="h-4 w-4 mr-1.5" aria-hidden="true" /> Finish
+    </Button>
+  );
 
   return (
     <DashboardLayout>
@@ -889,13 +880,13 @@ function EngineerDashboardContent() {
                     {openWOs.length > 0 && (
                       <div className="space-y-3">
                         <h3 className="text-sm font-bold uppercase tracking-wide text-destructive">🆕 Open · {openWOs.length}</h3>
-                        {openWOs.map((wo) => <MobileWOCard key={wo.id} wo={wo} />)}
+                        {openWOs.map((wo) => renderMobileWOCard(wo))}
                       </div>
                     )}
                     {inProgressWOs.length > 0 && (
                       <div className="space-y-3">
                         <h3 className="text-sm font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">🔧 In Progress · {inProgressWOs.length}</h3>
-                        {inProgressWOs.map((wo) => <MobileWOCard key={wo.id} wo={wo} />)}
+                        {inProgressWOs.map((wo) => renderMobileWOCard(wo))}
                       </div>
                     )}
                   </div>
@@ -1006,7 +997,7 @@ function EngineerDashboardContent() {
                                         ))}
                                       </div>
                                     )}
-                                    <DesktopFinishButton wo={wo} />
+                                    {renderDesktopFinishButton(wo)}
                                   </>
                                 )}
                                 {/* Print button hidden for engineers (admin/manager only) */}

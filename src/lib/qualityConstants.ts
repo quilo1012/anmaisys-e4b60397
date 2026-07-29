@@ -40,15 +40,31 @@ export interface QualitySeverity {
   badge: string;
   /** Left-border accent class for Kanban cards. */
   accent: string;
+  /** Weight used to score an action. Derived from severity — never stored. */
+  points: number;
 }
 
 export const QUALITY_SEVERITIES: QualitySeverity[] = [
-  { value: "low", label: "Low", badge: "bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/40", accent: "border-l-slate-400" },
-  { value: "medium", label: "Medium", badge: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40", accent: "border-l-amber-400" },
-  { value: "high", label: "High", badge: "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/40", accent: "border-l-orange-500" },
-  { value: "critical", label: "Critical", badge: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/40", accent: "border-l-red-500" },
+  { value: "low", label: "Low", badge: "bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/40", accent: "border-l-slate-400", points: 1 },
+  { value: "medium", label: "Medium", badge: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40", accent: "border-l-amber-400", points: 2 },
+  { value: "high", label: "High", badge: "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/40", accent: "border-l-orange-500", points: 3 },
+  { value: "critical", label: "Critical", badge: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/40", accent: "border-l-red-500", points: 4 },
 ];
 
 export function severityMeta(value: string | null | undefined): QualitySeverity | null {
   return QUALITY_SEVERITIES.find((s) => s.value === value) ?? null;
+}
+
+/**
+ * Points for one action, derived from its severity. Points are NOT a stored
+ * column: severity is the single source of truth, so re-grading an action can
+ * never leave a stale score behind. An action with no severity scores 0.
+ */
+export function severityPoints(value: string | null | undefined): number {
+  return severityMeta(value)?.points ?? 0;
+}
+
+/** Total points across a set of actions. */
+export function sumSeverityPoints(actions: Array<{ severity: string | null }>): number {
+  return actions.reduce((sum, a) => sum + severityPoints(a.severity), 0);
 }

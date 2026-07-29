@@ -377,6 +377,33 @@ export default function Login() {
         autoComplete="on"
         aria-busy={loading}
       >
+        {/* In the Tablet environment, staff who own a personal account (engineers,
+            maintenance, leaders) sign in with email + password exactly like they do
+            on Desktop and Mobile. The shared tablet accounts stay the default for
+            operators — those force role `operator` server-side in tablet-signin, so
+            an engineer must NOT go through them or they'd lose their own role. */}
+        {environment === "tablet" && (
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100/80 p-1">
+            {([
+              { m: "tablet" as Mode, label: "Shared tablet", hint: "Operators" },
+              { m: "staff" as Mode, label: "My account", hint: "Engineers & staff" },
+            ]).map((opt) => (
+              <button
+                key={opt.m}
+                type="button"
+                onClick={() => switchMode(opt.m)}
+                aria-pressed={mode === opt.m}
+                className={`rounded-md px-3 py-2 text-center transition-colors ${
+                  mode === opt.m ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <span className="block text-sm font-medium">{opt.label}</span>
+                <span className="block text-[11px] text-slate-400">{opt.hint}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {mode === "tablet" ? (
           /* ── Tablet selector ─────────────────────────── */
           <div className="space-y-1.5">

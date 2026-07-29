@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_STATUSES, QUALITY_SEVERITIES, statusMeta, severityMeta } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_STATUSES, QUALITY_SEVERITIES, statusMeta, severityMeta, severityPoints, sumSeverityPoints } from "@/lib/qualityConstants";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
 import { useRole } from "@/hooks/useRole";
 import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
@@ -322,9 +322,10 @@ export function QualityActionsView() {
   });
 
   const exportRows = () => {
-    const header = ["Date", "Action #", "Status", "Severity", "Line", "Shift", "Leader", "Department", "SKU", "Batch", "Labels", "Notes"];
+    const header = ["Date", "Action #", "Status", "Severity", "Points", "Line", "Shift", "Leader", "Department", "SKU", "Batch", "Labels", "Notes"];
     const body = filtered.map((a) => [
       a.recorded_at, a.action_no ?? "", statusMeta(a.status).label, severityMeta(a.severity)?.label ?? "",
+      String(severityPoints(a.severity)),
       a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", a.sku ?? "", a.batch ?? "",
       (a.labels ?? []).join("; "), a.description ?? "",
     ]);
@@ -564,7 +565,7 @@ export function QualityActionsView() {
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
                       <span className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</span>
                       {a.line && <span className="truncate">· {a.line}{a.leader_name ? ` · ${a.leader_name}` : ""}</span>}
-                      {sev && <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge>}
+                      {sev && <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label} · {sev.points}p</Badge>}
                     </div>
                   </div>
                 );
@@ -578,12 +579,13 @@ export function QualityActionsView() {
               <Table>
                 <TableHeader><TableRow>
                   <TableHead>When</TableHead><TableHead>#</TableHead><TableHead>Status</TableHead><TableHead>Severity</TableHead>
+                  <TableHead className="text-right">Points</TableHead>
                   <TableHead>Line</TableHead><TableHead>Leader</TableHead>
                   <TableHead>Dept</TableHead><TableHead>Labels</TableHead><TableHead>Notes</TableHead>
                   {canManage && <TableHead className="w-10 text-right">Delete</TableHead>}
                 </TableRow></TableHeader>
                 <TableBody>
-                  {filtered.length === 0 && <TableRow><TableCell colSpan={canManage ? 10 : 9} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
+                  {filtered.length === 0 && <TableRow><TableCell colSpan={canManage ? 11 : 10} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
                   {filtered.map((a) => {
                     const sev = severityMeta(a.severity);
                     return (
@@ -597,6 +599,7 @@ export function QualityActionsView() {
                         </Select>
                       </TableCell>
                       <TableCell>{sev ? <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">{sev ? sev.points : <span className="font-normal text-muted-foreground">—</span>}</TableCell>
                       <TableCell>{a.line ?? "—"}</TableCell>
                       <TableCell>{a.leader_name ?? "—"}</TableCell>
                       <TableCell>{a.department ?? "—"}</TableCell>
@@ -679,7 +682,12 @@ function IssueKanban({ actions, canManage, onOpen, onMove }: {
                 <span className={cn("h-2.5 w-2.5 rounded-full")} style={{ backgroundColor: col.color }} />
                 {col.label}
               </span>
-              <Badge variant="secondary">{items.length}</Badge>
+              <span className="inline-flex items-center gap-1.5">
+                <Badge variant="outline" className="tabular-nums text-[10px] font-semibold" title="Total points in this column">
+                  {sumSeverityPoints(items)} pts
+                </Badge>
+                <Badge variant="secondary">{items.length}</Badge>
+              </span>
             </div>
             <div className="min-h-[80px] space-y-2 p-2">
               {items.length === 0 && <p className="px-2 py-4 text-center text-xs text-muted-foreground">Empty</p>}
@@ -706,7 +714,11 @@ function IssueCard({ a, canManage, onOpen, onMove }: {
       className={cn("rounded-md border border-l-4 bg-background p-2.5 shadow-sm transition-colors hover:bg-accent/50", canManage ? "cursor-grab active:cursor-grabbing" : "cursor-pointer", sev?.accent ?? "border-l-transparent")}>
       <div className="flex items-center justify-between gap-2">
         <span className="font-mono text-xs font-semibold text-foreground">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
-        {sev && <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge>}
+        {sev && (
+          <Badge variant="outline" className={cn("text-[10px]", sev.badge)} title={`${sev.label} — ${sev.points} point${sev.points === 1 ? "" : "s"}`}>
+            {sev.label} · {sev.points}p
+          </Badge>
+        )}
       </div>
       {a.description && <p className="mt-1 line-clamp-2 text-xs">{a.description}</p>}
       {(a.sku || a.batch) && (
@@ -1038,16 +1050,20 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
 
   const [leaderSearch, setLeaderSearch] = useState("");
   const byLeader = useMemo(() => {
-    const m = new Map<string, { count: number; critical: number; high: number }>();
+    const m = new Map<string, { count: number; points: number; critical: number; high: number }>();
     for (const a of actions) {
       const l = a.leader_name?.trim() || "—";
-      const cur = m.get(l) ?? { count: 0, critical: 0, high: 0 };
+      const cur = m.get(l) ?? { count: 0, points: 0, critical: 0, high: 0 };
       cur.count += 1;
+      cur.points += severityPoints(a.severity);
       if (a.severity === "critical") cur.critical += 1;
       else if (a.severity === "high") cur.high += 1;
       m.set(l, cur);
     }
-    return Array.from(m.entries()).map(([label, v]) => ({ label, ...v })).sort((a, b) => b.count - a.count);
+    // Ranked by points, not raw count: ten Lows must not outrank three Criticals.
+    return Array.from(m.entries())
+      .map(([label, v]) => ({ label, ...v }))
+      .sort((a, b) => b.points - a.points || b.count - a.count);
   }, [actions]);
   const filteredLeaders = useMemo(() => {
     const q = leaderSearch.trim().toLowerCase();
@@ -1084,7 +1100,7 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
       {/* Leaderboard — who has the most actions */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-          <CardTitle className="text-base">Actions by leader</CardTitle>
+          <CardTitle className="text-base">Actions by leader <span className="text-xs font-normal text-muted-foreground">· ranked by points</span></CardTitle>
           <Input value={leaderSearch} onChange={(e) => setLeaderSearch(e.target.value)} placeholder="Search leader…" className="h-8 w-48" />
         </CardHeader>
         <CardContent>
@@ -1098,7 +1114,7 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
                   <XAxis type="number" allowDecimals={false} fontSize={11} tickLine={false} />
                   <YAxis type="category" dataKey="label" width={130} fontSize={11} tickLine={false} />
                   <Tooltip contentStyle={{ fontSize: 12 }} cursor={{ fill: "hsl(var(--muted))" }} />
-                  <Bar dataKey="count" name="Actions" fill="hsl(0 72% 51%)" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="points" name="Points" fill="hsl(0 72% 51%)" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
               <p className="mt-2 mb-1 text-[11px] text-muted-foreground">Click a leader to open the scorecard.</p>
@@ -1111,7 +1127,8 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
                     <span className="flex items-center gap-2 whitespace-nowrap">
                       {l.critical > 0 && <Badge variant="outline" className={cn("text-[10px]", severityMeta("critical")?.badge)}>{l.critical} critical</Badge>}
                       {l.high > 0 && <Badge variant="outline" className={cn("text-[10px]", severityMeta("high")?.badge)}>{l.high} high</Badge>}
-                      <span className="font-semibold tabular-nums">{l.count}</span>
+                      <span className="text-xs text-muted-foreground tabular-nums" title={`${l.count} action${l.count === 1 ? "" : "s"}`}>{l.count}×</span>
+                      <span className="font-semibold tabular-nums" title="Total points">{l.points} pts</span>
                     </span>
                   </button>
                 ))}

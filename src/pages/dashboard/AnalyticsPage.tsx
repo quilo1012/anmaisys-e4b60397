@@ -3,7 +3,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, BarChart3, Trophy, Award, TrendingUp, TrendingDown, Printer, FileText } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, BarChart3, Trophy, Award, TrendingUp, TrendingDown, Printer, FileText, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
@@ -28,7 +28,7 @@ import { SLA_TARGETS } from "@/lib/sla";
 import { resolveLine } from "@/lib/resolveLine";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
-import { QUALITY_STATUSES } from "@/lib/qualityConstants";
+import { QUALITY_STATUSES, severityPoints } from "@/lib/qualityConstants";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { EmptyState } from "@/components/EmptyState";
 
@@ -36,6 +36,38 @@ const DONE_STATUSES = ["completed", "closed", "finished"];
 const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#10b981", "#6b7280"];
 
 const truncLabel = (s: string, max = 20) => s.length > max ? s.slice(0, max - 1) + "…" : s;
+
+/** Sortable columns of the Leader Performance table. */
+type LeaderSortKey = "leader" | "sessions" | "lines" | "shifts" | "actual" | "target" | "eff" | "openActions";
+/** These sort A→Z on first click; the numeric ones sort high→low. */
+const LEADER_TEXT_KEYS: LeaderSortKey[] = ["leader", "shifts"];
+
+/** Sortable header cell for the Leader Performance table. */
+function LeaderTh({
+  sortKey, sort, onSort, align = "right", children,
+}: {
+  sortKey: LeaderSortKey;
+  sort: { key: LeaderSortKey; dir: "asc" | "desc" };
+  onSort: (key: LeaderSortKey) => void;
+  align?: "left" | "right";
+  children: React.ReactNode;
+}) {
+  const activeSort = sort.key === sortKey;
+  const Icon = !activeSort ? ChevronsUpDown : sort.dir === "desc" ? ArrowDown : ArrowUp;
+  return (
+    <th className={`p-0 ${align === "left" ? "text-left" : "text-right"}`}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        aria-label={`Sort by ${String(children)}`}
+        className={`flex w-full items-center gap-1 p-2 uppercase transition-colors hover:text-foreground ${align === "left" ? "justify-start" : "justify-end"} ${activeSort ? "text-foreground" : ""}`}
+      >
+        {children}
+        <Icon className={`h-3 w-3 shrink-0 ${activeSort ? "opacity-100" : "opacity-40"}`} aria-hidden="true" />
+      </button>
+    </th>
+  );
+}
 
 /** Show minutes as "N min" under 60, else "Xh Ym". */
 const fmtMin = (m: number | null | undefined) => {
@@ -151,6 +183,21 @@ export default function AnalyticsPage() {
     },
   });
 
+  // Open quality actions per leader. Deliberately NOT scoped to the page date
+  // range: "open" is a statement about today, and an action still sitting in
+  // todo/in_progress from two months ago is exactly the one you must not hide.
+  const { data: openActionRows = [] } = useQuery({
+    queryKey: ["analytics-leader-open-actions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quality_actions")
+        .select("leader_name, status, severity")
+        .in("status", ["todo", "in_progress"]);
+      if (error) throw error;
+      return (data ?? []) as Array<{ leader_name: string | null; status: string | null; severity: string | null }>;
+    },
+  });
+
   const leaderPerf = useMemo(() => {
     const normLine = (v: string | null | undefined) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
     const key = (date: string, shift: string | null, line: string | null) =>
@@ -177,21 +224,76 @@ export default function AnalyticsPage() {
       }
       map.set(leader, cur);
     }
+    // Open quality actions per leader, matched on the same trimmed name.
+    const openMap = new Map<string, { open: number; points: number; critical: number }>();
+    for (const a of openActionRows) {
+      const leader = (a.leader_name || "").trim();
+      if (!leader) continue;
+      const cur = openMap.get(leader) ?? { open: 0, points: 0, critical: 0 };
+      cur.open += 1;
+      cur.points += severityPoints(a.severity);
+      if (a.severity === "high" || a.severity === "critical") cur.critical += 1;
+      openMap.set(leader, cur);
+    }
+
     const rows = Array.from(map.values())
-      .map((a) => ({
-        leader: a.leader, sessions: a.sessions, target: a.target, actual: a.actual,
-        eff: a.target > 0 ? (a.actual / a.target) * 100 : 0,
-        lines: a.lines.size, shifts: Array.from(a.shifts).sort().join("/"),
-      }))
-      .sort((x, y) => y.actual - x.actual);
+      .map((a) => {
+        const oa = openMap.get(a.leader);
+        return {
+          leader: a.leader, sessions: a.sessions, target: a.target, actual: a.actual,
+          // null (not 0) when there's no RAG plan for any of this leader's sessions —
+          // "no target" is not the same as "0% efficiency" and must not rank as such.
+          eff: a.target > 0 ? (a.actual / a.target) * 100 : null,
+          lines: a.lines.size, shifts: Array.from(a.shifts).sort().join("/"),
+          openActions: oa?.open ?? 0, openPoints: oa?.points ?? 0, openCritical: oa?.critical ?? 0,
+        };
+      });
     const totalActual = rows.reduce((s, r) => s + r.actual, 0);
     const totalTarget = rows.reduce((s, r) => s + r.target, 0);
     return {
       rows, totalActual, totalTarget,
       avgEff: totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0,
-      topByOutput: rows.slice(0, 8).map((r) => ({ name: truncLabel(r.leader, 14), value: r.actual })),
+      totalOpenActions: rows.reduce((s, r) => s + r.openActions, 0),
+      totalOpenPoints: rows.reduce((s, r) => s + r.openPoints, 0),
     };
-  }, [leaderRows, ragTargetRows]);
+  }, [leaderRows, ragTargetRows, openActionRows]);
+
+  // Table sort — every column is sortable; Efficiency descending is the default,
+  // so the best-performing leader is on top rather than the highest raw output.
+  const [leaderSort, setLeaderSort] = useState<{ key: LeaderSortKey; dir: "asc" | "desc" }>({ key: "eff", dir: "desc" });
+  const toggleLeaderSort = (key: LeaderSortKey) =>
+    setLeaderSort((cur) =>
+      cur.key === key
+        ? { key, dir: cur.dir === "desc" ? "asc" : "desc" }
+        : { key, dir: LEADER_TEXT_KEYS.includes(key) ? "asc" : "desc" },
+    );
+
+  const leaderRowsSorted = useMemo(() => {
+    const { key, dir } = leaderSort;
+    const sign = dir === "desc" ? -1 : 1;
+    return [...leaderPerf.rows].sort((a, b) => {
+      const x = a[key];
+      const y = b[key];
+      // Leaders with no RAG target always sink to the bottom, in both directions.
+      if (x === null && y === null) return a.leader.localeCompare(b.leader);
+      if (x === null) return 1;
+      if (y === null) return -1;
+      if (typeof x === "string" || typeof y === "string") {
+        return sign * String(x).localeCompare(String(y), undefined, { numeric: true });
+      }
+      return x === y ? a.leader.localeCompare(b.leader) : sign * (x < y ? -1 : 1);
+    });
+  }, [leaderPerf.rows, leaderSort]);
+
+  const leaderTopByEff = useMemo(
+    () =>
+      leaderPerf.rows
+        .filter((r) => r.eff !== null)
+        .sort((a, b) => (b.eff as number) - (a.eff as number))
+        .slice(0, 8)
+        .map((r) => ({ name: truncLabel(r.leader, 14), value: Number((r.eff as number).toFixed(1)) })),
+    [leaderPerf.rows],
+  );
 
   // Filter WOs by date range
   const allWOs = useMemo(() => {
@@ -556,47 +658,71 @@ export default function AnalyticsPage() {
               <EmptyState icon={Users} title="No production leader data" description="No production sessions with an assigned leader in the selected period." className="py-8" />
             ) : (
               <>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-lg border p-3"><div className="text-[11px] text-muted-foreground uppercase tracking-wider">Avg Efficiency</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.avgEff >= 100 ? "text-green-600" : leaderPerf.avgEff >= 80 ? "text-amber-600" : "text-red-600"}`}>{leaderPerf.avgEff.toFixed(1)}%</div></div>
+                  <div className="rounded-lg border p-3"><div className="text-[11px] text-muted-foreground uppercase tracking-wider">Open Actions</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.totalOpenActions > 0 ? "text-amber-600" : ""}`}>{leaderPerf.totalOpenActions.toLocaleString("en-US")}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{leaderPerf.totalOpenPoints.toLocaleString("en-US")} pts</span></div></div>
                   <div className="rounded-lg border p-3"><div className="text-[11px] text-muted-foreground uppercase tracking-wider">Total Output</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalActual.toLocaleString("en-US")}</div></div>
                   <div className="rounded-lg border p-3"><div className="text-[11px] text-muted-foreground uppercase tracking-wider">Total Target</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalTarget.toLocaleString("en-US")}</div></div>
-                  <div className="rounded-lg border p-3"><div className="text-[11px] text-muted-foreground uppercase tracking-wider">Avg Efficiency</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.avgEff >= 100 ? "text-green-600" : leaderPerf.avgEff >= 80 ? "text-amber-600" : "text-red-600"}`}>{leaderPerf.avgEff.toFixed(1)}%</div></div>
                 </div>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={leaderPerf.topByOutput} layout="vertical" margin={{ left: 8, right: 24 }}>
+                    <BarChart data={leaderTopByEff} layout="vertical" margin={{ left: 8, right: 34 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 11 }} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} unit="%" />
                       <YAxis type="category" dataKey="name" width={92} tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={(v: number) => v.toLocaleString("en-US")} />
-                      <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]}><LabelList dataKey="value" position="right" className="text-[10px]" formatter={(v: number) => v.toLocaleString("en-US")} /></Bar>
+                      <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                        {leaderTopByEff.map((r) => (
+                          <Cell key={r.name} fill={r.value >= 100 ? "#22c55e" : r.value >= 80 ? "#f59e0b" : "#ef4444"} />
+                        ))}
+                        <LabelList dataKey="value" position="right" className="text-[10px]" formatter={(v: number) => `${v.toFixed(1)}%`} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-[600px]">
+                  <table className="w-full text-sm min-w-[720px]">
                     <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
                       <tr>
                         <th className="p-2 text-left">#</th>
-                        <th className="p-2 text-left">Leader</th>
-                        <th className="p-2 text-right">Sessions</th>
-                        <th className="p-2 text-right">Lines</th>
-                        <th className="p-2 text-left">Shifts</th>
-                        <th className="p-2 text-right">Output</th>
-                        <th className="p-2 text-right">Target</th>
-                        <th className="p-2 text-right">Efficiency</th>
+                        <LeaderTh sortKey="leader" align="left" sort={leaderSort} onSort={toggleLeaderSort}>Leader</LeaderTh>
+                        <LeaderTh sortKey="eff" sort={leaderSort} onSort={toggleLeaderSort}>Efficiency</LeaderTh>
+                        <LeaderTh sortKey="openActions" sort={leaderSort} onSort={toggleLeaderSort}>Open Actions</LeaderTh>
+                        <LeaderTh sortKey="sessions" sort={leaderSort} onSort={toggleLeaderSort}>Sessions</LeaderTh>
+                        <LeaderTh sortKey="lines" sort={leaderSort} onSort={toggleLeaderSort}>Lines</LeaderTh>
+                        <LeaderTh sortKey="shifts" align="left" sort={leaderSort} onSort={toggleLeaderSort}>Shifts</LeaderTh>
+                        <LeaderTh sortKey="actual" sort={leaderSort} onSort={toggleLeaderSort}>Output</LeaderTh>
+                        <LeaderTh sortKey="target" sort={leaderSort} onSort={toggleLeaderSort}>Target</LeaderTh>
                       </tr>
                     </thead>
                     <tbody>
-                      {leaderPerf.rows.map((r, i) => (
+                      {leaderRowsSorted.map((r, i) => (
                         <tr key={r.leader} className="border-t">
                           <td className="p-2">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</td>
                           <td className="p-2 font-medium">{r.leader}</td>
+                          <td className="p-2 text-right">
+                            {r.eff === null ? (
+                              <span className="text-muted-foreground" title="No RAG weekly plan for this leader's sessions in the period">—</span>
+                            ) : (
+                              <Badge className={`${r.eff >= 100 ? "bg-green-500/15 text-green-600 border-green-500/40" : r.eff >= 80 ? "bg-amber-500/15 text-amber-600 border-amber-500/40" : "bg-red-500/15 text-red-600 border-red-500/40"} border`}>{r.eff.toFixed(1)}%</Badge>
+                            )}
+                          </td>
+                          <td className="p-2 text-right tabular-nums">
+                            {r.openActions === 0 ? (
+                              <span className="text-muted-foreground">0</span>
+                            ) : (
+                              <Link to="/dashboard/quality" className="font-semibold text-amber-600 hover:underline dark:text-amber-400">
+                                {r.openActions}
+                                <span className="ml-1 text-[10px] font-normal text-muted-foreground" title="Open points (Low 1 · Medium 2 · High 3 · Critical 4)">{r.openPoints}p</span>
+                                {r.openCritical > 0 && <span className="ml-1 text-[10px] font-bold text-red-600 dark:text-red-400" title={`${r.openCritical} high/critical`}>⚠{r.openCritical}</span>}
+                              </Link>
+                            )}
+                          </td>
                           <td className="p-2 text-right tabular-nums">{r.sessions}</td>
                           <td className="p-2 text-right tabular-nums">{r.lines}</td>
                           <td className="p-2">{r.shifts || "—"}</td>
                           <td className="p-2 text-right tabular-nums font-semibold">{r.actual.toLocaleString("en-US")}</td>
                           <td className="p-2 text-right tabular-nums text-muted-foreground">{r.target.toLocaleString("en-US")}</td>
-                          <td className="p-2 text-right"><Badge className={`${r.eff >= 100 ? "bg-green-500/15 text-green-600 border-green-500/40" : r.eff >= 80 ? "bg-amber-500/15 text-amber-600 border-amber-500/40" : "bg-red-500/15 text-red-600 border-red-500/40"} border`}>{r.eff.toFixed(1)}%</Badge></td>
                         </tr>
                       ))}
                     </tbody>

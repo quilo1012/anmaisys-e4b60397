@@ -39,7 +39,9 @@ export function EngineerChangePinDialog({ open, onOpenChange }: Props) {
     }
     setSaving(true);
     try {
-      const { error } = await supabase.rpc("set_engineer_pin", { _new_pin: pin, _user_id: user.id });
+      // Self-service RPC — derives the target from the JWT. set_engineer_pin(uuid, text)
+      // takes an arbitrary target id and is service-role-only.
+      const { error } = await supabase.rpc("set_own_engineer_pin" as any, { _new_pin: pin });
       if (error) throw error;
       toast.success("✅ PIN updated successfully");
       reset();

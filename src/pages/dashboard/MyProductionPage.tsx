@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChatButton } from "@/components/LineChatButton";
@@ -509,7 +509,9 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
       return section?.items ?? [];
     },
   });
-  const jobs = jobsQ.data ?? [];
+  // Memoised so the `?? []` fallback doesn't mint a new array on every render,
+  // which would defeat the jobSuggestions memo below.
+  const jobs = useMemo(() => jobsQ.data ?? [], [jobsQ.data]);
 
   // What this line has been running lately. Looking past the current session
   // matters: at the start of a shift nothing is logged yet, which is exactly when
@@ -555,6 +557,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   // "" = searching the catalog (default), MANUAL_SKU = typing a code by hand.
   const [skuChoice, setSkuChoice] = useState<string>("");
   const [skuPopoverOpen, setSkuPopoverOpen] = useState(false);
+  const skuInputWrapRef = useRef<HTMLDivElement>(null);
   const [assembly, setAssembly] = useState(""); // stored in blender_ref
   const [batch, setBatch] = useState("");        // stored in batch_code — used by Quality to pull the SKU
   const [mfgMonth, setMfgMonth] = useState("");  // "YYYY-MM" — parsed from the batch field
@@ -573,7 +576,13 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
   }, [skuQuery]);
 
   const searchQ = useQuery({
-    enabled: skuPopoverOpen && skuDebounced.length >= 1,
+    // Gated on the typed text ONLY. This used to also require skuPopoverOpen,
+    // which deadlocked: the popover's `open` was derived from `results.length`,
+    // so with no results it stayed shut, and every dismiss handler pushed
+    // skuPopoverOpen back to false — which disabled the query, so results could
+    // never arrive. Typing produced silence. The popover now controls nothing
+    // but its own visibility.
+    enabled: skuChoice !== MANUAL_SKU && skuDebounced.length >= 1,
     queryKey: ["log-prod-sku-search", skuDebounced],
     staleTime: 30_000,
     queryFn: async () => {
@@ -596,6 +605,22 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
       return (data || []) as { id: string; code: string; name: string }[];
     },
   });
+
+  /**
+   * iTouching jobs offered inside the SKU dropdown, so the operator picks the
+   * product instead of typing it. Empty box → every job scheduled for this line
+   * and shift; typing → only the ones that match, still pinned above the
+   * catalog, because a scheduled job is a far better guess than a catalog hit.
+   */
+  const jobSuggestions: IntouchJob[] = useMemo(() => {
+    const q = skuDebounced.trim().toLowerCase();
+    if (!q) return jobs;
+    return jobs.filter(
+      (j) =>
+        j.code.toLowerCase().includes(q) ||
+        (j.description ?? "").toLowerCase().includes(q),
+    );
+  }, [jobs, skuDebounced]);
 
   // One row per market variant. Each variant (… - PERU, … MOROCCO, … - KSA) has
   // its own name; the batch copies (CRE1KG - B12, PERUCRE500 - B8) share a name,
@@ -874,26 +899,74 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
 
           {/* Plain search — type the product name or code and pick it. To repeat
               the same SKU on another blender, use "Save & next blender" below. */}
+          {/* PopoverAnchor, not PopoverTrigger: the input must never toggle the
+              popover. As a trigger, every tap to place the cursor flipped it shut. */}
           {skuChoice !== MANUAL_SKU && (
-            <Popover open={skuPopoverOpen && (results.length > 0 || searchQ.isFetching)} onOpenChange={setSkuPopoverOpen}>
-              <PopoverTrigger asChild>
-                <div className="relative">
+            <Popover
+              // Opens with an EMPTY box when iTouching has jobs for this line —
+              // that's the whole point: tap the field, pick the job, type nothing.
+              open={skuPopoverOpen && (skuDebounced.length >= 1 || jobSuggestions.length > 0)}
+              onOpenChange={setSkuPopoverOpen}
+            >
+              <PopoverAnchor asChild>
+                <div className="relative" ref={skuInputWrapRef}>
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
                     value={skuQuery}
                     onChange={(e) => { setSkuQuery(e.target.value); setSelectedSku(null); setSkuPopoverOpen(true); }}
-                    onFocus={() => { if (skuQuery.trim()) setSkuPopoverOpen(true); }}
-                    placeholder="Search by product name or code..."
+                    onFocus={() => setSkuPopoverOpen(true)}
+                    placeholder={jobs.length > 0 ? "Tap to pick from iTouching, or type to search…" : "Search by product name or code..."}
                     className="h-11 pl-9"
                     autoComplete="off"
                   />
                 </div>
-              </PopoverTrigger>
+              </PopoverAnchor>
               <PopoverContent
                 className="p-0 w-[--radix-popover-trigger-width] max-h-72 overflow-auto"
                 align="start"
                 onOpenAutoFocus={(e) => e.preventDefault()}
+                // Typing keeps focus in the input, which sits outside the
+                // content — without this the list closes on the first keypress.
+                onInteractOutside={(e) => {
+                  if (skuInputWrapRef.current?.contains(e.target as Node)) e.preventDefault();
+                }}
               >
+                {/* iTouching first. A job scheduled for this line right now beats
+                    any catalog match, and picking one also fills blender and
+                    order quantity — the operator only confirms what was made. */}
+                {jobSuggestions.length > 0 && (
+                  <div className="border-b bg-muted/30">
+                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      From iTouching · {jobLine}
+                    </div>
+                    <ul className="divide-y">
+                      {jobSuggestions.map((j, idx) => (
+                        <li key={`sug-${j.code}-${j.seq}-${idx}`}>
+                          <button
+                            type="button"
+                            className="w-full p-2 text-left hover:bg-accent"
+                            onClick={() => { setSkuPopoverOpen(false); void applyJob(j); }}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-sm font-semibold">{productLabel(j.description) || j.code}</span>
+                              {j.status === "Running" && (
+                                <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                                  Running
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[11px] text-muted-foreground">
+                              <span className="font-mono">{j.code}</span>
+                              {j.qty > 0 && <span>Order qty: <b className="text-foreground">{j.qty.toLocaleString()}</b></span>}
+                              {j.batch && <span>Blender {blenderFromItouch(j.batch)}</span>}
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {searchQ.isFetching ? (
                   <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" /> Searching...
@@ -908,11 +981,16 @@ function LogProductionCard({ sessionId, target = 0, produced = 0 }: { sessionId:
                       <div className="text-sm font-medium">Use “<span className="font-mono">{skuQuery.trim()}</span>” as typed</div>
                       <div className="text-xs text-muted-foreground">Not in the catalog — it won't create a new SKU. Admin reconciles it later.</div>
                     </button>
-                  ) : (
+                  ) : jobSuggestions.length > 0 ? null : (
                     <div className="p-3 text-sm text-muted-foreground">No SKUs found</div>
                   )
                 ) : (
                   <ul className="divide-y">
+                    {jobSuggestions.length > 0 && (
+                      <li className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Catalog
+                      </li>
+                    )}
                     {results.map((s) => (
                       <li key={s.id}>
                         <button
