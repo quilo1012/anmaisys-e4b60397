@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Trash2, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal } from "lucide-react";
-import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
+import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, useMoveWorkOrderStage, stageOfStatus, type WOStage, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
@@ -102,6 +102,8 @@ export default function WorkOrdersPage() {
   const closeWO = useCloseWorkOrder();
   const createWO = useCreateWorkOrder();
   const updateWO = useUpdateWorkOrder();
+  const moveStage = useMoveWorkOrderStage();
+  const [dragOverStage, setDragOverStage] = useState<WOStage | null>(null);
   const deleteWO = useDeleteWorkOrder();
 
   const { data: machines } = useMachines();
@@ -336,7 +338,11 @@ export default function WorkOrdersPage() {
   const KanbanCard = ({ wo, borderColor }: { wo: WorkOrder; borderColor: string }) => {
     const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
     return (
-      <Card className={`cursor-pointer hover:shadow-md transition-shadow border-l-4 ${borderColor}`} onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+      <Card
+        draggable
+        onDragStart={(e) => { e.dataTransfer.setData("text/plain", wo.id); e.dataTransfer.effectAllowed = "move"; }}
+        className={`cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow border-l-4 ${borderColor}`}
+        onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
         <CardContent className="p-3 space-y-1">
           <div className="flex justify-between items-center">
             <span className="font-mono text-xs font-medium flex items-center gap-1">
@@ -356,11 +362,28 @@ export default function WorkOrdersPage() {
     );
   };
 
-  const KanbanColumn = ({ title, items, color, borderColor }: { title: string; items: WorkOrder[]; color: string; borderColor: string }) => (
-    <div className="space-y-2">
+  const KanbanColumn = ({ title, items, color, borderColor, stage }: { title: string; items: WorkOrder[]; color: string; borderColor: string; stage: WOStage }) => (
+    <div
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverStage(stage); }}
+      onDragLeave={() => setDragOverStage((c) => (c === stage ? null : c))}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOverStage(null);
+        const id = e.dataTransfer.getData("text/plain");
+        const wo = filteredWOs?.find((w) => w.id === id);
+        if (!wo || stageOfStatus(wo.status) === stage) return;
+        moveStage.mutate({ wo, to: stage }, {
+          onSuccess: () => toast({ title: `WO-${String(wo.wo_number).padStart(6, "0")} moved to ${title}` }),
+          // The mutation refuses non-adjacent moves; surface its reason rather than
+          // failing silently, so the card snapping back is explained.
+          onError: (err: Error) => toast({ title: "Cannot move this order", description: err.message, variant: "destructive" }),
+        });
+      }}
+      className={`space-y-2 rounded-lg p-2 transition-colors ${dragOverStage === stage ? "bg-primary/5 ring-2 ring-primary" : ""}`}
+    >
       <div className="flex items-center gap-2 mb-3"><div className={`w-3 h-3 rounded-full ${color}`} /><h3 className="font-semibold text-sm">{title} ({items.length})</h3></div>
       {items.map((wo) => <KanbanCard key={wo.id} wo={wo} borderColor={borderColor} />)}
-      {!items.length && <p className="text-muted-foreground text-xs text-center py-4">No WOs</p>}
+      {!items.length && <p className="text-muted-foreground text-xs text-center py-4">Drop an order here</p>}
     </div>
   );
 
@@ -601,11 +624,11 @@ export default function WorkOrdersPage() {
               </div>
             ) : viewMode === "board" ? (
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4 no-print">
-                <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-blue-500" borderColor="border-l-blue-500" />
-                <KanbanColumn title="Received/Arrived" items={kanbanColumns.received} color="bg-indigo-500" borderColor="border-l-indigo-500" />
-                <KanbanColumn title="In Progress" items={kanbanColumns.inProgress} color="bg-amber-500" borderColor="border-l-amber-500" />
-                <KanbanColumn title="Finished" items={kanbanColumns.finished} color="bg-teal-500" borderColor="border-l-teal-500" />
-                <KanbanColumn title="Done" items={kanbanColumns.done} color="bg-green-500" borderColor="border-l-green-500" />
+                <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-blue-500" borderColor="border-l-blue-500" stage="open" />
+                <KanbanColumn title="Received/Arrived" items={kanbanColumns.received} color="bg-indigo-500" borderColor="border-l-indigo-500" stage="received" />
+                <KanbanColumn title="In Progress" items={kanbanColumns.inProgress} color="bg-amber-500" borderColor="border-l-amber-500" stage="in_progress" />
+                <KanbanColumn title="Finished" items={kanbanColumns.finished} color="bg-teal-500" borderColor="border-l-teal-500" stage="finished" />
+                <KanbanColumn title="Done" items={kanbanColumns.done} color="bg-green-500" borderColor="border-l-green-500" stage="closed" />
               </div>
             ) : (
               <div className="print-content">

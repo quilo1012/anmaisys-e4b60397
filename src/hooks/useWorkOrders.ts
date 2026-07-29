@@ -570,6 +570,63 @@ export function useUpdateWorkOrder() {
   });
 }
 
+/**
+ * Board stages, in the order work really moves through them. Used by the Kanban
+ * drag-and-drop to decide what a drop is allowed to mean.
+ */
+export const WO_STAGES = ["open", "received", "in_progress", "finished", "closed"] as const;
+export type WOStage = (typeof WO_STAGES)[number];
+
+/** Which stage a status belongs to; "arrived" shares a column with "received". */
+export function stageOfStatus(status: string): WOStage {
+  if (status === "arrived") return "received";
+  if (status === "completed" || status === "force_closed") return "closed";
+  return (WO_STAGES as readonly string[]).includes(status) ? (status as WOStage) : "open";
+}
+
+/**
+ * Move an order one stage along the board.
+ *
+ * Deliberately not a bare status write. Each stage owns a timestamp that the
+ * KPIs are computed from — response time reads received_at, MTTR reads
+ * started_at and finished_at — so dropping a card straight from Open onto
+ * Finished would leave those null and quietly corrupt every average that
+ * depends on them. Only adjacent moves are accepted, and each one stamps its
+ * own time if it is not already set. Backwards by one stage is allowed so a
+ * mis-drop can be undone; the timestamps already recorded are left alone,
+ * because they did happen.
+ */
+export function useMoveWorkOrderStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ wo, to }: { wo: WorkOrder; to: WOStage }) => {
+      const from = stageOfStatus(wo.status);
+      if (from === to) return;
+      const fromIdx = WO_STAGES.indexOf(from);
+      const toIdx = WO_STAGES.indexOf(to);
+      if (Math.abs(toIdx - fromIdx) !== 1) {
+        const next = WO_STAGES[fromIdx + (toIdx > fromIdx ? 1 : -1)];
+        throw new Error(`Move it to ${next.replace(/_/g, " ")} first — stages are recorded one at a time.`);
+      }
+
+      const now = new Date().toISOString();
+      const patch: Record<string, string> = { status: to };
+      if (to === "received" && !wo.received_at) patch.received_at = now;
+      if (to === "in_progress" && !wo.started_at) patch.started_at = now;
+      if (to === "finished" && !wo.finished_at) patch.finished_at = now;
+      if (to === "closed" && !wo.closed_at) patch.closed_at = now;
+
+      const { error } = await supabase.from("work_orders").update(patch as never).eq("id", wo.id);
+      if (error) throw error;
+      return { from, to };
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+      logAuditEvent("update", "work_order", vars.wo.id, { moved_to: vars.to, via: "board" });
+    },
+  });
+}
+
 export function usePauseWorkOrder() {
   const queryClient = useQueryClient();
 
