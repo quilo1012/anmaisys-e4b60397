@@ -647,6 +647,37 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     return code.toLowerCase().includes(q) || (name ?? "").toLowerCase().includes(q);
   };
 
+  /** Extract the SKU from a prefill row; the join can hand back object or array. */
+  const skuOfPrefillRow = (e: {
+    production_items?: unknown;
+  }): { id: string; code: string; name: string } | null => {
+    const pi = e.production_items as { sku?: unknown } | { sku?: unknown }[] | undefined;
+    const item = Array.isArray(pi) ? pi[0] : pi;
+    const sku = item?.sku as { id: string; code: string; name: string } | { id: string; code: string; name: string }[] | undefined;
+    const sk = Array.isArray(sku) ? sku[0] : sku;
+    return sk?.id ? { id: sk.id, code: sk.code, name: sk.name } : null;
+  };
+
+  /**
+   * SKUs already logged on THIS shift's session, newest first. These used to be
+   * lumped under "Previous jobs" because the prefill query spans the last six
+   * sessions including the current one — but what the operator logged twenty
+   * minutes ago is the job they are on, not history, and it's usually the very
+   * next thing they need to pick.
+   */
+  const currentShiftSkus = useMemo(() => {
+    const seen = new Map<string, { id: string; code: string; name: string }>();
+    for (const e of prefillQ.data ?? []) {
+      if (e.session_id !== sessionId) continue;
+      const sk = skuOfPrefillRow(e);
+      if (!sk || seen.has(sk.id)) continue;
+      if (!matchesQuery(sk.code, sk.name)) continue;
+      seen.set(sk.id, sk);
+    }
+    return [...seen.values()].slice(0, 4);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillQ.data, sessionId, skuDebounced]);
+
   /** iTouching jobs the machine is running RIGHT NOW. */
   const runningJobs: IntouchJob[] = useMemo(
     () => jobs.filter((j) => j.status === "Running" && matchesQuery(j.code, j.description)),
@@ -690,22 +721,23 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     const shown = new Set<string>([
       ...runningJobs.map((j) => j.code.toUpperCase()),
       ...plannedSuggestions.map((p) => p.code.toUpperCase()),
+      ...currentShiftSkus.map((s) => s.code.toUpperCase()),
     ]);
     const seen = new Map<string, { id: string; code: string; name: string }>();
     for (const e of prefillQ.data ?? []) {
-      const item = Array.isArray(e.production_items) ? e.production_items[0] : e.production_items;
-      const sku = item?.sku;
-      const sk = Array.isArray(sku) ? sku[0] : sku;
-      if (!sk?.id) continue;
+      if (e.session_id === sessionId) continue; // that's this shift, shown above
+      const sk = skuOfPrefillRow(e);
+      if (!sk) continue;
       if (shown.has(String(sk.code).toUpperCase()) || seen.has(sk.id)) continue;
       if (!matchesQuery(sk.code, sk.name)) continue;
-      seen.set(sk.id, { id: sk.id, code: sk.code, name: sk.name });
+      seen.set(sk.id, sk);
     }
     return [...seen.values()].slice(0, 3);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefillQ.data, runningJobs, plannedSuggestions, skuDebounced]);
+  }, [prefillQ.data, sessionId, runningJobs, plannedSuggestions, currentShiftSkus, skuDebounced]);
 
-  const hasSuggestions = runningJobs.length + plannedSuggestions.length + recentSuggestions.length > 0;
+  const hasSuggestions =
+    runningJobs.length + currentShiftSkus.length + plannedSuggestions.length + recentSuggestions.length > 0;
 
   // One row per market variant. Each variant (… - PERU, … MOROCCO, … - KSA) has
   // its own name; the batch copies (CRE1KG - B12, PERUCRE500 - B8) share a name,
@@ -1046,6 +1078,24 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
                               {j.qty > 0 && <span>Order qty: <b className="text-foreground">{j.qty.toLocaleString()}</b></span>}
                               {j.batch && <span>Blender {blenderFromItouch(j.batch)}</span>}
                             </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {currentShiftSkus.length > 0 && (
+                  <div className="border-b bg-primary/5">
+                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                      This shift · {jobLine}
+                    </div>
+                    <ul className="divide-y">
+                      {currentShiftSkus.map((s) => (
+                        <li key={`cur-${s.id}`}>
+                          <button type="button" className="w-full p-2 text-left hover:bg-accent" onClick={() => pickSku(s)}>
+                            <div className="truncate text-sm font-semibold">{productLabel(s.name)}</div>
+                            <div className="truncate font-mono text-xs text-muted-foreground">{s.code}</div>
                           </button>
                         </li>
                       ))}
