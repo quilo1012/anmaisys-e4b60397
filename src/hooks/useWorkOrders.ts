@@ -71,18 +71,37 @@ async function logWOAction(workOrderId: string, engineerId: string, engineerName
   }
 }
 
-export function useWorkOrders(filter?: { operatorOnly?: boolean; statusIn?: WOStatus[]; lineId?: string | null }) {
+export function useWorkOrders(filter?: {
+  operatorOnly?: boolean;
+  statusIn?: WOStatus[];
+  lineId?: string | null;
+  /**
+   * Date window, applied server-side. Pass it whenever the caller reports over a
+   * period rather than showing a live worklist.
+   *
+   * Without it the query returns the 200 most recent orders, which is right for
+   * an operator or engineer screen but silently wrong for a report: with 339
+   * orders on file, that cap reached back only about seven weeks, so a 90-day
+   * view computed its KPIs from 200 of 322 orders and said nothing about the 122
+   * it dropped. Filtering server-side means the range decides what is loaded.
+   */
+  from?: Date;
+  to?: Date;
+}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ["work_orders", filter],
     queryFn: async () => {
+      const ranged = !!(filter?.from || filter?.to);
       let q = supabase
         .from("work_orders")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(ranged ? 5000 : 200);
+      if (filter?.from) q = q.gte("created_at", filter.from.toISOString());
+      if (filter?.to) q = q.lte("created_at", filter.to.toISOString());
 
       // Device line scoping (operator tablets) — takes precedence over operatorOnly self-filter
       if (filter?.lineId) {

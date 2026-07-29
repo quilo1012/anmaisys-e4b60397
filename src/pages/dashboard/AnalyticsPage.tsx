@@ -94,7 +94,9 @@ export default function AnalyticsPage() {
   const startDate = drRange.from ?? startOfDay(subDays(new Date(), 30));
   const endDate = drRange.to ?? endOfDay(new Date());
 
-  const { data: rawWOs, isLoading: woLoading } = useWorkOrders();
+  // Range pushed server-side: without it the hook caps at the 200 newest orders
+  // and every widget below silently reported on a truncated set.
+  const { data: rawWOs, isLoading: woLoading } = useWorkOrders({ from: startDate, to: endDate });
   const { data: partsToday } = useTotalPartsUsedToday();
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: machines, isLoading: machinesLoading } = useMachines();

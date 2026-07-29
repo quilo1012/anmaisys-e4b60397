@@ -50,7 +50,10 @@ function londonShift(iso: string | null | undefined): "DAY" | "NIGHT" | null {
 export function useMaintenanceKpis(args: UseMaintenanceKpisArgs = {}): MaintenanceKpis {
   const { from, to, shift = "ALL" } = args;
   const { data: metrics, isLoading: metricsLoading } = useAllWoMetrics({ from, to });
-  const { data: workOrders, isLoading: woLoading } = useWorkOrders();
+  // MTBF reads work_orders directly, so it needs the same window. Called without a
+  // range the hook returns only the 200 newest orders, which made MTBF quietly
+  // ignore anything older than roughly the last seven weeks.
+  const { data: workOrders, isLoading: woLoading } = useWorkOrders({ from, to });
 
   return useMemo(() => {
     const inShift = (iso: string | null | undefined) => {
