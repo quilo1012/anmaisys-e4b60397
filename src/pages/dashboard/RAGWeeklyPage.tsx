@@ -65,6 +65,28 @@ function londonShiftWindow(dateStr: string, shift: "DAY" | "NIGHT"): [number, nu
   const nextStr = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
   return [londonUtcMs(dateStr, 18), londonUtcMs(nextStr, 6)];
 }
+/**
+ * Return the UTC ms of the END of the London factory shift in which `startMs` falls.
+ * Day shift (06:00–18:00) ends today at 18:00. Night shift (18:00–06:00) ends
+ * next day at 06:00; a night stop that started after midnight (00:00–06:00 local)
+ * ends today at 06:00. Used to cap ongoing/open stops so they can't bleed into
+ * later shifts.
+ */
+function londonShiftEndForInstant(startMs: number): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit",
+  }).formatToParts(new Date(startMs));
+  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
+  const y = g("year"), mo = g("month"), d = g("day");
+  let h = g("hour"); if (h === 24) h = 0;
+  const todayStr = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  if (h >= 6 && h < 18) return londonUtcMs(todayStr, 18);
+  if (h < 6) return londonUtcMs(todayStr, 6);
+  const nx = new Date(Date.UTC(y, mo - 1, d + 1));
+  const nxStr = `${nx.getUTCFullYear()}-${String(nx.getUTCMonth() + 1).padStart(2, "0")}-${String(nx.getUTCDate()).padStart(2, "0")}`;
+  return londonUtcMs(nxStr, 6);
+}
 
 type Shift = "DAY" | "NIGHT";
 
