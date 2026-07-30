@@ -111,8 +111,29 @@ function InlineSkuCell({ itemId, skuId, codeText, displayCode, skus, editable, o
   }
   const save = async (id: string) => {
     if (!id || id === (skuId ?? "")) return;
-    if (isPlaceholderRow(itemId)) { toast.error("This shift has no SKU logged yet — add one first."); return; }
     setSaving(true);
+
+    // Picking a SKU on a placeholder row creates the shift's first entry. The
+    // placeholder id is `${sessionId}-empty`, so the session it belongs to is
+    // already in hand — no lookup needed.
+    //
+    // This row used to look editable and refuse every write: the synthetic id went
+    // to PostgREST as a uuid and failed. Guarding the write stopped the error but
+    // left a dead end, because nothing else on this screen can add the first SKU
+    // to a shift. Line 1 sat empty on both shifts of 29/07 for exactly that reason
+    // while its output was recorded in RAG Weekly, so Performance showed the
+    // numbers and Production Control showed nothing.
+    if (isPlaceholderRow(itemId)) {
+      const sessionId = itemId.slice(0, -"-empty".length);
+      const { error } = await supabase.from("production_items")
+        .insert({ session_id: sessionId, sku_id: id } as never);
+      setSaving(false);
+      if (error) { toast.error(error.message); return; }
+      toast.success("SKU added to this shift — now enter the quantity");
+      onSaved();
+      return;
+    }
+
     const { error } = await supabase.from("production_items")
       .update({ sku_id: id, sku_code_text: null }).eq("id", itemId);
     setSaving(false);
@@ -231,7 +252,7 @@ function InlineTimeCell({ itemId, sessionDate, field, value, disabled, onSaved }
       d.setHours(h, m, 0, 0);
       iso = d.toISOString();
     }
-    if (isPlaceholderRow(itemId)) { toast.error("This shift has no SKU logged yet — add one first."); return; }
+    if (isPlaceholderRow(itemId)) { toast.error("Pick a SKU for this shift first, then this field can be set."); return; }
     const { error } = await supabase.from("production_items").update({ [field]: iso } as never).eq("id", itemId);
     if (error) { toast.error(error.message); setVal(initial); return; }
     onSaved();
@@ -255,7 +276,7 @@ function InlineUnitToggle({
   useEffect(() => { setCurrent(value); }, [value]);
   const pick = async (u: "tubs" | "bags") => {
     if (disabled || saving || u === current) return;
-    if (isPlaceholderRow(itemId)) { toast.error("This shift has no SKU logged yet — add one first."); return; }
+    if (isPlaceholderRow(itemId)) { toast.error("Pick a SKU for this shift first, then this field can be set."); return; }
     setSaving(true);
     const { error } = await supabase.from("production_items")
       .update({ tickets_unit: u } as never).eq("id", itemId);
@@ -305,7 +326,7 @@ function InlineUnitQtyInput({
     if (val === initial) return;
     const n = val === "" ? 0 : Number(val);
     if (!Number.isFinite(n) || n < 0) { setVal(initial); return; }
-    if (isPlaceholderRow(itemId)) { toast.error("This shift has no SKU logged yet — add one first."); return; }
+    if (isPlaceholderRow(itemId)) { toast.error("Pick a SKU for this shift first, then this field can be set."); return; }
     setSaving(true);
     const { error } = await supabase.from("production_items")
       .update({ actual_qty: n, tickets_unit: unit } as never).eq("id", itemId);
@@ -641,7 +662,7 @@ export default function ShiftHistoryPage() {
       const newNotes = `[unit:${unit}]${stripped ? " " + stripped : ""}`;
       const payload: { actual_qty: number; notes: string; sku_id?: string } = { actual_qty: actual, notes: newNotes };
       if (sku_id) payload.sku_id = sku_id;
-      if (isPlaceholderRow(id)) throw new Error("This shift has no SKU logged yet — add one first.");
+      if (isPlaceholderRow(id)) throw new Error("Pick a SKU for this shift first, then this field can be set.");
       const { error } = await supabase.from("production_items").update(payload).eq("id", id);
       if (error) throw error;
     },
