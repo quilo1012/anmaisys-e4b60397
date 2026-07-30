@@ -1,4 +1,5 @@
--- Give the operator a guaranteed window to finish logging after the shift ends.
+-- Operators log production inside a window that ends one hour after the shift:
+-- 19:00 for a day shift, 07:00 the next morning for a night shift (Europe/London).
 --
 -- Production is logged at the end of a run, not while the machine is filling, so
 -- an operator finishing at 17:55 is still writing up at 18:10. Until now any lock
@@ -10,11 +11,10 @@
 -- The window is one hour past the end of the shift: 19:00 for a day shift,
 -- 07:00 the following morning for a night shift, both London time.
 --
--- Trade-off, stated plainly: inside the window the operator can write even to a
--- session a supervisor has already locked. That is the point — the operator is
--- guaranteed time to record what the line made. A supervisor who needs the data
--- frozen can lock it after the window closes, and admin / manager writes are not
--- gated by this at all.
+-- The window replaces the lock for operators, in both directions: it overrides a
+-- lock set before the deadline, and it closes the shift after the deadline even if
+-- nobody locked it. Retroactive entry then needs admin or manager, which is
+-- recorded in the audit log rather than happening quietly.
 
 CREATE OR REPLACE FUNCTION public.session_write_deadline(_session_date date, _shift text)
 RETURNS timestamptz
@@ -38,12 +38,21 @@ STABLE
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
+  -- The window is the whole rule now: writable until the deadline, closed after it,
+  -- whether or not anyone set the lock. That cuts both ways deliberately.
+  --
+  -- It opens the shift, so an operator writing up a run at 18:10 is never refused by
+  -- a lock a supervisor set at 18:00. And it closes the shift on its own, instead of
+  -- staying open indefinitely because nobody remembered to lock it — most sessions
+  -- were never locked, so before this the deadline was advisory at best.
+  --
+  -- Safe to enforce: of 130 operator entries in the 30 days to 30/07, none were made
+  -- after their shift's deadline. The rule matches what the floor already does.
+  --
+  -- Only operators are gated. admin, manager and maintenance_manager writes never
+  -- consult this, so a late correction is still possible and leaves an audit trail.
   SELECT COALESCE((
-    SELECT CASE
-      -- Inside the grace window the shift is writable regardless of the flag.
-      WHEN now() < public.session_write_deadline(s.session_date, s.shift) THEN false
-      ELSE COALESCE(s.locked, false)
-    END
+    SELECT now() >= public.session_write_deadline(s.session_date, s.shift)
     FROM public.production_sessions s
     WHERE s.id = _session_id
   ), false);
