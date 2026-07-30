@@ -157,22 +157,25 @@ export default function ProductionPerformancePage() {
 
   type RagRow = { entry_date: string; line: string; shift: string; plan_qty: number; actual_qty: number };
 
-  // Quality actions still open (todo / in progress) in the same period + shift +
-  // line, so the floor sees what's outstanding right on the performance screen.
-  // All quality actions in the period (any status) — the report lists them all
-  // with a Status column, so completed actions still show.
+  // Quality actions in the period — every status, so the report can list completed
+  // ones with a Status column.
+  //
+  // Filtered by leader, never by line. An action belongs to whoever was leading the
+  // shift: the same leader covers more than one line in a period, and the action's
+  // own `line` is where it happened, not who answers for it. Filtering by line hid a
+  // leader's actions the moment anyone narrowed the screen to a line.
   const { data: periodActions = [] } = useQuery({
-    queryKey: ["perf-quality-actions", range.from, range.to, shift, lineFilter],
+    queryKey: ["perf-quality-actions", range.from, range.to, shift, leaderFilter],
     // Live feed: keep the panel current as actions are opened/closed elsewhere.
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
     queryFn: async () => {
       let q = supabase.from("quality_actions")
-        .select("id, action_no, recorded_at, line, shift, status, severity, description")
+        .select("id, action_no, recorded_at, line, shift, status, severity, description, leader_name")
         .gte("recorded_at", range.from).lte("recorded_at", `${range.to}T23:59:59`)
         .order("recorded_at", { ascending: false });
       if (shift !== "all") q = q.eq("shift", shift);
-      if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
+      if (leaderFilter !== "__all__") q = q.eq("leader_name", leaderFilter);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as any[];
@@ -521,7 +524,7 @@ export default function ProductionPerformancePage() {
                   looked like the whole day. */}
               <span className="text-2xs font-normal text-muted-foreground">
                 {shift === "all" ? "all shifts" : shift === "DAY" ? "day shift" : "night shift"}
-                {lineFilter !== "__all__" ? ` · ${lineFilter}` : ""}
+                {leaderFilter !== "__all__" ? ` · ${leaderFilter}` : ""}
               </span>
               <span className="ml-auto inline-flex items-center gap-1.5 text-2xs font-medium text-emerald-600 dark:text-emerald-400">
                 <span className="relative flex h-2 w-2">
@@ -542,7 +545,8 @@ export default function ProductionPerformancePage() {
                     className="flex w-full items-center gap-3 py-1.5 text-left hover:bg-accent/40 rounded px-1">
                     <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">{a.action_no ?? "—"}</span>
                     <span className="text-xs text-muted-foreground w-16 shrink-0">{format(new Date(a.recorded_at), "dd/MM")}{a.shift ? ` · ${a.shift === "DAY" ? "D" : "N"}` : ""}</span>
-                    <span className="text-xs w-20 shrink-0 truncate">{a.line ?? "—"}</span>
+                    <span className="w-24 shrink-0 truncate text-xs font-medium" title="Leader responsible">{a.leader_name ?? "—"}</span>
+                    <span className="hidden w-20 shrink-0 truncate text-xs text-muted-foreground sm:block" title="Where it happened">{a.line ?? "—"}</span>
                     {a.severity && <Badge variant="outline" className="text-2xs shrink-0">{a.severity}</Badge>}
                     <span className="text-sm truncate flex-1">{a.description ?? "—"}</span>
                   </button>
