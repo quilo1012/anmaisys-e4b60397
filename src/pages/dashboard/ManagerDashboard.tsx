@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, Plus, ExternalLink, Monitor, Clock, Wrench, PowerOff, TrendingDown } from "lucide-react";
 import { formatMinutes } from "@/lib/formatDuration";
@@ -188,7 +189,9 @@ function ManagerDashboardContent() {
 
         {/* The four things that need a person right now — same strip, same numbers,
             wherever you land. */}
-        <FactoryStatusStrip />
+        <SectionErrorBoundary title="Live status">
+          <FactoryStatusStrip />
+        </SectionErrorBoundary>
 
         <PageHeader
           title={dashTitle}
@@ -319,7 +322,9 @@ function ManagerDashboardContent() {
         </section>
 
         {/* Every screen this role can open, grouped as the sidebar groups them. */}
-        <RoleShortcutGrid />
+        <SectionErrorBoundary title="Shortcuts">
+          <RoleShortcutGrid />
+        </SectionErrorBoundary>
 
         <Dialog open={showChangePin} onOpenChange={(o) => { setShowChangePin(o); if (!o) { setNewPin(""); setConfirmPin(""); } }}>
           <DialogContent>

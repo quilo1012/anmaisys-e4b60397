@@ -18,6 +18,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2, ClipboardCheck, Printer, Pencil } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
+import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
@@ -629,7 +630,9 @@ export function QualityActionsView() {
         </div>
 
         {view === "analytics" ? (
-          <QualityAnalytics actions={filtered} from={from} />
+          <SectionErrorBoundary title="Quality analytics">
+            <QualityAnalytics actions={filtered} from={from} />
+          </SectionErrorBoundary>
         ) : view === "kanban" ? (
           <IssueKanban actions={filtered} canManage={canManage} onOpen={setDetailId} onMove={(id, status) => setStatus.mutate({ id, status })} />
         ) : isMobile ? (

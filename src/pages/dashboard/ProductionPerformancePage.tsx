@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { LeaderScorecard } from "@/components/LeaderScorecard";
@@ -379,6 +380,7 @@ export default function ProductionPerformancePage() {
         {/* Landing screen for supervisors and the production office — same opening. */}
         <DashboardWelcome />
 
+        <SectionErrorBoundary title="Leader scorecard">
         <LeaderScorecard
           leaderName={scorecardFor}
           from={range.from}
@@ -386,6 +388,7 @@ export default function ProductionPerformancePage() {
           shift={shift}
           onClose={() => setScorecardFor(null)}
         />
+        </SectionErrorBoundary>
 
         <div className="space-y-3">
           <PageHeader
@@ -512,7 +515,8 @@ export default function ProductionPerformancePage() {
           );
         })()}
 
-        {/* Open quality actions for the same period + shift + line. */}
+        {/* Open quality actions for the same period + shift + leader. */}
+        <SectionErrorBoundary title="Open quality actions">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -561,6 +565,7 @@ export default function ProductionPerformancePage() {
             )}
           </CardContent>
         </Card>
+        </SectionErrorBoundary>
 
 
         {/* Line status cards — gated behind the per-shift password */}
