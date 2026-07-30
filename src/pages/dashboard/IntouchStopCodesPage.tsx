@@ -113,7 +113,7 @@ export default function IntouchStopCodesPage() {
 
   return (
     <DashboardLayout>
-    <div className="container mx-auto p-4 md:p-6 space-y-4">
+    <div className="container mx-auto space-y-4">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-4 h-4 mr-1" /> Back
@@ -261,7 +261,7 @@ export default function IntouchStopCodesPage() {
                           </Button>
                           <Button size="sm" variant="ghost"
                             onClick={() => { void confirm({ title: "Delete this mapping?", destructive: true, confirmText: "Delete" }).then((ok) => { if (ok) del.mutate(r.id); }); }}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
+                            <Trash2 className="w-4 h-4 text-destructive-strong" />
                           </Button>
                         </TableCell>
                       </TableRow>

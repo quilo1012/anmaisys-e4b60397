@@ -920,7 +920,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                   {resolved.some((s) => !s.matched_line) && " · Some lines do not match catalog"}
                 </div>
                 {blockReason && (
-                  <div className="flex items-center gap-2 text-destructive">
+                  <div className="flex items-center gap-2 text-destructive-strong">
                     <AlertTriangle className="h-3 w-3" />
                     <span>{blockReason}</span>
                     {unmatchedActive.length > 0 && (

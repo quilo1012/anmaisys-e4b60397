@@ -28,6 +28,7 @@ import { useSeverityPointRows, useUpdateSeverityPoints } from "@/hooks/useSeveri
 import { useRole } from "@/hooks/useRole";
 import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
 import { LeaderScorecard } from "@/components/LeaderScorecard";
+import { KpiCard } from "@/components/reports/KpiCard";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
 interface QualityAction {
@@ -63,7 +64,7 @@ function RowDeleteButton({ actionNo, onConfirm }: { actionNo?: string | number |
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" title="Delete action" aria-label="Delete action">
+        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive-strong hover:text-destructive-strong" title="Delete action" aria-label="Delete action">
           <Trash2 className="h-4 w-4" />
         </Button>
       </AlertDialogTrigger>
@@ -509,41 +510,47 @@ export function QualityActionsView() {
         {/* KPIs. The status ones are also the status filter — clicking the active one
             clears it, so the numbers and the filter cannot disagree. */}
         <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-          <QualityKpi
-            label="Total actions" icon={<ClipboardCheck className="h-3.5 w-3.5" />}
-            value={kpis.total} accent="border-l-primary/40"
-            hint={`${kpis.totalPoints} points in range`}
+          <KpiCard
+            label="Total actions"
+            icon={<ClipboardCheck className="h-3.5 w-3.5" />}
+            value={kpis.total} accent="blue"
+            sublabel={`${kpis.totalPoints} points in range`}
             active={filterStatus === "__all__"}
             onClick={() => setFilterStatus("__all__")}
           />
-          <QualityKpi
-            label="To do" icon={<span className="h-2 w-2 rounded-full bg-amber-500" />}
-            value={kpis.todo} accent="border-l-amber-500" tone="text-amber-600 dark:text-amber-400"
+          <KpiCard
+            label="To do"
+            icon={<span className="h-2 w-2 rounded-full bg-amber-500" />}
+            value={kpis.todo} accent="warning" toneValue
             active={filterStatus === "todo"}
             onClick={() => setFilterStatus(filterStatus === "todo" ? "__all__" : "todo")}
           />
-          <QualityKpi
-            label="In progress" icon={<span className="h-2 w-2 rounded-full bg-blue-500" />}
-            value={kpis.in_progress} accent="border-l-blue-500" tone="text-blue-600 dark:text-blue-400"
+          <KpiCard
+            label="In progress"
+            icon={<span className="h-2 w-2 rounded-full bg-blue-500" />}
+            value={kpis.in_progress} accent="info" toneValue
             active={filterStatus === "in_progress"}
             onClick={() => setFilterStatus(filterStatus === "in_progress" ? "__all__" : "in_progress")}
           />
-          <QualityKpi
-            label="Complete" icon={<span className="h-2 w-2 rounded-full bg-green-500" />}
-            value={kpis.complete} accent="border-l-green-500" tone="text-green-600 dark:text-green-400"
+          <KpiCard
+            label="Complete"
+            icon={<span className="h-2 w-2 rounded-full bg-green-500" />}
+            value={kpis.complete} accent="ok" toneValue
             active={filterStatus === "complete"}
             onClick={() => setFilterStatus(filterStatus === "complete" ? "__all__" : "complete")}
           />
-          <QualityKpi
-            label="Open points" icon={<ClipboardCheck className="h-3.5 w-3.5" />}
-            value={kpis.openPoints} accent="border-l-purple-500"
-            hint="Weight still outstanding"
+          <KpiCard
+            label="Open points"
+            icon={<ClipboardCheck className="h-3.5 w-3.5" />}
+            value={kpis.openPoints} accent="purple"
+            sublabel="Weight still outstanding"
           />
-          <QualityKpi
-            label="High / Critical open" icon={<span className="h-2 w-2 rounded-full bg-red-500" />}
-            value={kpis.openSevere} accent="border-l-destructive"
-            tone={kpis.openSevere > 0 ? "text-destructive" : undefined}
-            hint={kpis.ungraded ? `${kpis.ungraded} action${kpis.ungraded === 1 ? "" : "s"} with no severity` : "Every action graded"}
+          <KpiCard
+            label="High / Critical open"
+            icon={<span className="h-2 w-2 rounded-full bg-red-500" />}
+            value={kpis.openSevere} accent="danger"
+            toneValue
+            sublabel={kpis.ungraded ? `${kpis.ungraded} action${kpis.ungraded === 1 ? "" : "s"} with no severity` : "Every action graded"}
             active={filterSeverity === "high" || filterSeverity === "critical"}
             onClick={() => setFilterSeverity(filterSeverity === "critical" ? "__all__" : "critical")}
           />
@@ -982,7 +989,7 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                      <Button variant="ghost" size="sm" className="text-destructive-strong hover:text-destructive-strong">
                         <Trash2 className="h-4 w-4 mr-1" /> Delete action
                       </Button>
                     </AlertDialogTrigger>
@@ -1009,42 +1016,6 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
   );
 }
 
-
-/** One KPI tile on the Quality panel; clickable ones double as the status filter. */
-function QualityKpi({
-  label, value, icon, accent, tone, hint, active, onClick,
-}: {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-  accent: string;
-  tone?: string;
-  hint?: string;
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  const clickable = !!onClick;
-  return (
-    <Card
-      role={clickable ? "button" : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      aria-pressed={clickable ? !!active : undefined}
-      onClick={onClick}
-      onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick!(); } } : undefined}
-      className={cn(
-        "border-l-4", accent,
-        clickable && "cursor-pointer transition-colors hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active && clickable && "bg-muted/60 ring-2 ring-primary/40",
-      )}
-    >
-      <CardContent className="p-4">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon} {label}</div>
-        <div className={cn("mt-1 text-2xl font-bold tabular-nums", value > 0 ? tone : undefined)}>{value}</div>
-        {hint && <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
-}
 
 /**
  * What each severity is worth.
@@ -1197,7 +1168,7 @@ function QualityListsManager() {
                   <Button size="sm" variant="outline" onClick={() => toggle(o)}>{o.active ? "Hide" : "Show"}</Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive-strong"><Trash2 className="h-4 w-4" /></Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>

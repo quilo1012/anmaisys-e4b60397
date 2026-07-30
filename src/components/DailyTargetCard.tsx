@@ -195,7 +195,7 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
           </div>
         )}
         {q.isError && (
-          <div className="flex items-center gap-2 text-xs text-destructive border border-destructive/40 rounded-md px-3 py-2">
+          <div className="flex items-center gap-2 text-xs text-destructive-strong border border-destructive/40 rounded-md px-3 py-2">
             <AlertCircle className="h-3.5 w-3.5" />
             Failed to load target. Retrying…
           </div>

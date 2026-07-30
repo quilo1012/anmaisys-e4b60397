@@ -116,7 +116,7 @@ export default function IntouchMachineMapPage() {
 
   return (
     <DashboardLayout>
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold">iTouching Machine Mapping</h1>

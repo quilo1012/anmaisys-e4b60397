@@ -87,7 +87,7 @@ export function PermissionAuditLog({ limit = 30 }: { limit?: number }) {
                           <ArrowRight className="h-3 w-3 text-muted-foreground" />
                           <Badge
                             variant="outline"
-                            className={to === "allowed" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600" : "border-destructive/40 bg-destructive/5 text-destructive"}
+                            className={to === "allowed" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600" : "border-destructive/40 bg-destructive/5 text-destructive-strong"}
                           >
                             {to || "—"}
                           </Badge>

@@ -148,8 +148,8 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
           </InputOTP>
           {error && (
             <div className="flex items-start gap-2 w-full rounded-md border border-destructive bg-destructive/10 p-3">
-              <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-              <p className="text-sm text-destructive font-medium">{error}</p>
+              <AlertCircle className="h-4 w-4 text-destructive-strong shrink-0 mt-0.5" />
+              <p className="text-sm text-destructive-strong font-medium">{error}</p>
             </div>
           )}
           {isLocked && (

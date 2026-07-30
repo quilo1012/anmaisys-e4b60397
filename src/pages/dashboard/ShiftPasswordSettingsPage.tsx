@@ -85,7 +85,7 @@ export default function ShiftPasswordSettingsPage() {
 
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-6">
+      <div className="mx-auto max-w-3xl space-y-6">
         <div>
           <h2 className="flex items-center gap-2 text-2xl font-bold"><KeyRound className="h-6 w-6" /> Shift Passwords</h2>
           <p className="text-muted-foreground">

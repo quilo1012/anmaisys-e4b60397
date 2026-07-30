@@ -294,7 +294,7 @@ export default function DirectMessagesPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="space-y-4">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">{title}</h1>
@@ -454,7 +454,7 @@ export default function DirectMessagesPage() {
                                     return (
                                       <button
                                         onClick={() => handleTranslate(m.id, m.message)}
-                                        className="text-[10px] text-destructive hover:underline"
+                                        className="text-[10px] text-destructive-strong hover:underline"
                                       >
                                         Translation failed · Retry
                                       </button>
@@ -477,7 +477,7 @@ export default function DirectMessagesPage() {
                                 {m.audio_url && (() => {
                                   const tr = transcriptions[m.id];
                                   if (tr?.loading) return <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Converting…</span>;
-                                  if (tr?.error) return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} title={tr.error} className="text-[10px] text-destructive hover:underline max-w-[220px] truncate">Failed: {tr.error} · Retry</button>;
+                                  if (tr?.error) return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} title={tr.error} className="text-[10px] text-destructive-strong hover:underline max-w-[220px] truncate">Failed: {tr.error} · Retry</button>;
                                   if (tr?.text) return null;
                                   return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} className="text-[10px] text-muted-foreground hover:text-foreground hover:underline">Convert to text</button>;
                                 })()}
@@ -504,7 +504,7 @@ export default function DirectMessagesPage() {
                     />
                     {recording ? (
                       <>
-                        <div className="flex items-center px-2 text-xs font-medium text-destructive whitespace-nowrap">
+                        <div className="flex items-center px-2 text-xs font-medium text-destructive-strong whitespace-nowrap">
                           <span className="animate-pulse">● Rec</span>
                         </div>
                         <Button size="icon" variant="ghost" className="h-12 w-12 touch-manipulation" onClick={cancelRecording} disabled={uploadingAudio} title="Cancel" aria-label="Cancel recording">

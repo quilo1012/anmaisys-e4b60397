@@ -161,7 +161,7 @@ function ragColor(actual: number, plan: number): string {
   if (actual >= plan) return "bg-success/20 text-success-strong font-medium";
   const pct = (actual / plan) * 100;
   if (pct >= 90) return "bg-warning/20 text-warning-strong font-medium";
-  return "bg-destructive/20 text-destructive font-medium";
+  return "bg-destructive/20 text-destructive-strong font-medium";
 }
 
 export default function RAGWeeklyPage() {
@@ -1144,7 +1144,7 @@ function InlineCell({
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
       />
       <input
-        className={`${inputCls} text-destructive`}
+        className={`${inputCls} text-destructive-strong`}
         type="number"
         value={dt}
         placeholder="DT"
@@ -1421,11 +1421,11 @@ function DayNightTotalSummary({
     const plan = Number(p) || 0;
     const actual = Number(a) || 0;
     if (plan <= 0) return "text-muted-foreground";
-    if (actual <= 0) return "bg-destructive/10 text-destructive font-semibold rounded px-1.5";
+    if (actual <= 0) return "bg-destructive/10 text-destructive-strong font-semibold rounded px-1.5";
     if (actual >= plan) return "bg-success/15 text-success-strong font-semibold rounded px-1.5";
     const r = (actual / plan) * 100;
     if (r >= 90) return "bg-warning/15 text-warning-strong font-semibold rounded px-1.5";
-    return "bg-destructive/10 text-destructive font-semibold rounded px-1.5";
+    return "bg-destructive/10 text-destructive-strong font-semibold rounded px-1.5";
   };
 
   type Cell = {
@@ -1559,7 +1559,7 @@ function DayNightTotalSummary({
 
     const bucketClass = (b: string) =>
       b === "MAINT"
-        ? "text-destructive"
+        ? "text-destructive-strong"
         : b === "WO Request"
         ? "text-warning-strong"
         : b === "Quality"
@@ -2024,7 +2024,7 @@ function DowntimeBreakdownPopover({
     const tone =
       ["finished","closed","completed","force_closed"].includes(s) ? "bg-success/15 text-success-strong" :
       ["in_progress","arrived","received"].includes(s) ? "bg-primary/15 text-primary" :
-      s === "open" ? "bg-destructive/15 text-destructive" :
+      s === "open" ? "bg-destructive/15 text-destructive-strong" :
       "bg-muted text-muted-foreground";
     return <span className={`ml-1 inline-block px-1 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${tone}`}>{s.replace("_"," ")}</span>;
   };
@@ -2086,7 +2086,7 @@ function DowntimeBreakdownPopover({
 
                   <td className="px-2 py-1.5 font-mono text-[11px]">{fmtTs(s.clampedStart)}</td>
                   <td className="px-2 py-1.5 font-mono text-[11px]">
-                    {s.ongoing ? <span className="text-destructive font-semibold">ongoing</span> : fmtTs(s.clampedEnd)}
+                    {s.ongoing ? <span className="text-destructive-strong font-semibold">ongoing</span> : fmtTs(s.clampedEnd)}
                   </td>
                   <td className="px-2 py-1.5 text-right font-semibold">{s.minutes}</td>
                 </tr>

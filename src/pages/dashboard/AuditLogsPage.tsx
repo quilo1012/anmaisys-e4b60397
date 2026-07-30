@@ -24,7 +24,7 @@ function ChipRow({ label, tone, obj }: { label?: string; tone?: "before" | "afte
     <div className="flex flex-wrap items-center gap-1">
       {label && (
         <span className={cn("text-[10px] font-semibold uppercase",
-          tone === "before" ? "text-destructive" : tone === "after" ? "text-green-600 dark:text-green-400" : "text-muted-foreground")}>
+          tone === "before" ? "text-destructive-strong" : tone === "after" ? "text-green-600 dark:text-green-400" : "text-muted-foreground")}>
           {label}
         </span>
       )}
@@ -246,7 +246,7 @@ export default function AuditLogsPage() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-destructive" />
+                <AlertTriangle className="h-5 w-5 text-destructive-strong" />
                 Clear all audit logs?
               </AlertDialogTitle>
               <AlertDialogDescription>

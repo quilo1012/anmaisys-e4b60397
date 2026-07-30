@@ -28,7 +28,7 @@
     --accent-foreground: 222 47% 11%;
 
     /* 50% not 60%: at 60% both white-on-red (3.61:1) and red-on-white (3.78:1) failed
-       AA, and `text-destructive` is used in 157 places. */
+       AA, and `text-destructive-strong` is used in 157 places. */
     --destructive: 0 84% 50%;
     /* Pure white, not 98%: the 2% tint dropped white-on-red to 4.33:1, just under AA. */
     --destructive-foreground: 0 0% 100%;
@@ -60,6 +60,9 @@
        dark enough to read: 5.07:1 and 5.09:1. */
     --success-strong: 142 72% 29%;
     --warning-strong: 32 90% 34%;
+    /* Red as TEXT. The fill passes AA now, but only just (4.53:1); this has headroom
+       at 5.4:1 for the error messages and negative figures that use it most. */
+    --destructive-strong: 0 84% 45%;
   }
 
   .dark {
@@ -94,6 +97,8 @@
     /* On a dark card the fills are too dark to read, so these go the other way. */
     --success-strong: 142 60% 62%;
     --warning-strong: 43 90% 62%;
+    /* On a dark card the fill measures 3.71:1 as text — AA-large only. 5.96:1 here. */
+    --destructive-strong: 0 80% 68%;
 
     --sidebar-background: 211 64% 28%;
     --sidebar-foreground: 0 0% 100%;

@@ -594,7 +594,7 @@ export default function ControlCenterPage() {
                                 </span>
                               )}
                               {attain !== null && (
-                                <span className={cn("inline-flex items-center gap-1 font-semibold", attain >= 95 ? "text-emerald-600" : attain >= 80 ? "text-amber-600" : "text-destructive")} title="Attainment (actual vs plan)">
+                                <span className={cn("inline-flex items-center gap-1 font-semibold", attain >= 95 ? "text-emerald-600" : attain >= 80 ? "text-amber-600" : "text-destructive-strong")} title="Attainment (actual vs plan)">
                                   <Gauge className="h-3 w-3" /> {attain}%
                                 </span>
                               )}

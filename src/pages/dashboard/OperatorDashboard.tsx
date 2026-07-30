@@ -321,7 +321,7 @@ function OperatorDashboardContent() {
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2" autoComplete="off">
             <div className="space-y-2">
-              <Label htmlFor="requested-by">Requested By <span className="text-destructive">*</span></Label>
+              <Label htmlFor="requested-by">Requested By <span className="text-destructive-strong">*</span></Label>
               <Input
                 id="requested-by"
                 name="requested-by"
@@ -336,7 +336,7 @@ function OperatorDashboardContent() {
                 aria-invalid={showErrors && !requestedBy.trim()}
                 className={cn("h-12 text-base", showErrors && !requestedBy.trim() && "border-destructive/60")}
               />
-              {showErrors && !requestedBy.trim() && <p className="text-xs text-destructive">Enter your name to send the request.</p>}
+              {showErrors && !requestedBy.trim() && <p className="text-xs text-destructive-strong">Enter your name to send the request.</p>}
             </div>
 
             {/* WO target — Line vs Sealer/Printer Ink (available on every operator login) */}
@@ -413,7 +413,7 @@ function OperatorDashboardContent() {
             {!isSealerPrinterLine && (
               <div className="md:col-span-2 space-y-2">
                 <Label htmlFor="machine">
-                  Machine <span className="text-destructive">*</span>
+                  Machine <span className="text-destructive-strong">*</span>
                 </Label>
                 {(() => {
                   const showList = (machines || []).filter((m: any) => {
@@ -453,7 +453,7 @@ function OperatorDashboardContent() {
 
 
                 {showErrors && !machineName ? (
-                  <p className="text-xs text-destructive">Please select the machine that needs maintenance.</p>
+                  <p className="text-xs text-destructive-strong">Please select the machine that needs maintenance.</p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     Pick the specific machine so the WO history is accurate.

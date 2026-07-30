@@ -205,7 +205,7 @@ export function NotificationPanel() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="relative" aria-label={`${unreadCount} unread notifications`}>
-          <Bell className={cn("h-5 w-5", criticalCount > 0 && "animate-pulse text-destructive")} />
+          <Bell className={cn("h-5 w-5", criticalCount > 0 && "animate-pulse text-destructive-strong")} />
           {unreadCount > 0 && (
             <span className={cn(
               "absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full text-[10px] flex items-center justify-center font-bold",
@@ -221,7 +221,7 @@ export function NotificationPanel() {
           <div>
             <h4 className="font-semibold text-sm">Notifications</h4>
             {criticalCount > 0 && (
-              <p className="text-[11px] text-destructive font-medium">{criticalCount} urgent</p>
+              <p className="text-[11px] text-destructive-strong font-medium">{criticalCount} urgent</p>
             )}
           </div>
           {unreadCount > 0 && (

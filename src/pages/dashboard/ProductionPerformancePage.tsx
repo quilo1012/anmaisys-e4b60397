@@ -369,7 +369,7 @@ export default function ProductionPerformancePage() {
 
   return (
     <DashboardLayout>
-      <div className="p-4 md:p-6 space-y-6">
+      <div className="space-y-6">
         {/* Landing screen for supervisors and the production office — same opening. */}
         <DashboardWelcome />
 

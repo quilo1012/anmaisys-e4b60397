@@ -125,7 +125,7 @@ export function SharePointImportDialog({
           </div>
 
           {err && (
-            <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-2 rounded">
+            <div className="flex items-start gap-2 text-sm text-destructive-strong bg-destructive/10 p-2 rounded">
               <AlertTriangle className="h-4 w-4 mt-0.5" /> {err}
             </div>
           )}

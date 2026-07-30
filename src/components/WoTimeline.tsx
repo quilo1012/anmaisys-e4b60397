@@ -105,7 +105,7 @@ export function WoTimeline({ workOrderId }: Props) {
               <li key={d.id} className="ml-4">
                 <span className="absolute -left-1.5 flex h-3 w-3 items-center justify-center rounded-full bg-destructive" />
                 <div className="flex items-baseline justify-between gap-3">
-                  <p className="text-sm font-medium text-destructive flex items-center gap-1">
+                  <p className="text-sm font-medium text-destructive-strong flex items-center gap-1">
                     <XCircle className="h-3.5 w-3.5" /> Declined by {d.engineer_name}
                   </p>
                   <span className="text-xs font-mono text-muted-foreground">

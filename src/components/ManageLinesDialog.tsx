@@ -119,7 +119,7 @@ export function ManageLinesDialog({ open, onOpenChange }: { open: boolean; onOpe
                     if (confirm(`Delete line "${r.name}"? This cannot be undone.`)) remove.mutate(r.id);
                   }}
                 >
-                  <Trash2 className="h-4 w-4 text-destructive" />
+                  <Trash2 className="h-4 w-4 text-destructive-strong" />
                 </Button>
               </div>
             </div>

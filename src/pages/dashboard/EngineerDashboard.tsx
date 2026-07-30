@@ -165,7 +165,7 @@ function InlineChecklist({ wo, currentEngineer }: { wo: any; currentEngineer: En
                 />
                 <Label htmlFor={`inline-cl-${item.id}`} className="cursor-pointer text-sm flex-1">
                   {item.description}
-                  {item.is_required && <span className="text-destructive ml-1">*</span>}
+                  {item.is_required && <span className="text-destructive-strong ml-1">*</span>}
                 </Label>
               </div>
             );
@@ -173,7 +173,7 @@ function InlineChecklist({ wo, currentEngineer }: { wo: any; currentEngineer: En
         </div>
       ))}
       {requiredIncomplete.length > 0 && (
-        <p className="text-xs text-destructive font-medium flex items-center gap-1">
+        <p className="text-xs text-destructive-strong font-medium flex items-center gap-1">
           <AlertTriangle className="h-3 w-3" /> {requiredIncomplete.length} required item(s) incomplete — Finish blocked
         </p>
       )}
@@ -883,7 +883,7 @@ function EngineerDashboardContent() {
                   <div className="space-y-6">
                     {openWOs.length > 0 && (
                       <div className="space-y-3">
-                        <h3 className="text-sm font-bold uppercase tracking-wide text-destructive">🆕 Open · {openWOs.length}</h3>
+                        <h3 className="text-sm font-bold uppercase tracking-wide text-destructive-strong">🆕 Open · {openWOs.length}</h3>
                         {openWOs.map((wo) => renderMobileWOCard(wo))}
                       </div>
                     )}
@@ -1093,7 +1093,7 @@ function EngineerDashboardContent() {
               <p className="text-sm text-muted-foreground">Finishing as: <strong className="text-primary">{currentEngineer.name}</strong></p>
             )}
             <div className="space-y-2">
-              <Label htmlFor="resolution-notes">What was done to resolve the problem? <span className="text-destructive">*</span></Label>
+              <Label htmlFor="resolution-notes">What was done to resolve the problem? <span className="text-destructive-strong">*</span></Label>
               <Textarea
                 id="resolution-notes"
                 placeholder="e.g. Replaced sealing belt, recalibrated pressure sensor, cleared jammed capsule…"
@@ -1120,7 +1120,7 @@ function EngineerDashboardContent() {
       <Dialog open={!!stoppedFinishCtx} onOpenChange={(o) => { if (!o) setStoppedFinishCtx(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
+            <DialogTitle className="flex items-center gap-2 text-destructive-strong">
               <AlertTriangle className="h-5 w-5" /> Line is still marked as stopped
             </DialogTitle>
             <DialogDescription>

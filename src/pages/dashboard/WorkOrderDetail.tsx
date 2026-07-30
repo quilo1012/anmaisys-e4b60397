@@ -479,7 +479,7 @@ export default function WorkOrderDetail() {
                   <div className="text-center print:border print:border-black print:py-2">
                     <p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Line Status</p>
                     <p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">at closure</p>
-                    <p className={`text-2xl font-bold flex items-center justify-center gap-1 print:text-base ${lineOperating ? "text-emerald-600" : "text-destructive"}`}>
+                    <p className={`text-2xl font-bold flex items-center justify-center gap-1 print:text-base ${lineOperating ? "text-emerald-600" : "text-destructive-strong"}`}>
                       {lineOperating ? <><CheckCircle className="h-5 w-5 print:hidden" /> Running</> : <><AlertOctagon className="h-5 w-5 print:hidden" /> Stopped</>}
                     </p>
                   </div>
@@ -519,7 +519,7 @@ export default function WorkOrderDetail() {
               if (wo.status === "force_closed" && wo.completed_at) evs.push({ ts: wo.completed_at, icon: "force", title: "Force closed", sub: wo.closer?.name ? `by ${wo.closer.name}` : undefined });
               evs.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
               const iconFor = (i: Ev["icon"]) => {
-                if (i === "stop") return <span className="text-destructive">🛑</span>;
+                if (i === "stop") return <span className="text-destructive-strong">🛑</span>;
                 if (i === "resume") return <span className="text-emerald-600">✓</span>;
                 if (i === "force") return <span className="text-muted-foreground">✕</span>;
                 return <span className="text-primary">●</span>;
@@ -568,7 +568,7 @@ export default function WorkOrderDetail() {
                               <li key={it.id} className="text-sm print:text-[8pt] flex items-start gap-2">
                                 {done ? <CheckSquare className="h-4 w-4 text-emerald-600 mt-0.5 print:h-3 print:w-3" /> : <Square className="h-4 w-4 text-muted-foreground mt-0.5 print:h-3 print:w-3" />}
                                 <div>
-                                  <span>{it.description}{it.is_required && <span className="text-destructive ml-1">*</span>}</span>
+                                  <span>{it.description}{it.is_required && <span className="text-destructive-strong ml-1">*</span>}</span>
                                   {done && r?.completed_at && (
                                     <p className="text-xs print:text-[7pt] text-muted-foreground">{wo.engineer_name || "—"} · {format(new Date(r.completed_at), "dd/MM HH:mm:ss")}</p>
                                   )}
@@ -681,7 +681,7 @@ export default function WorkOrderDetail() {
               <div className="grid gap-4 md:grid-cols-4">
                 <div><p className="text-sm text-muted-foreground">Parts Cost</p><p className="text-xl font-bold">£{costBreakdown.partsCost.toFixed(2)}</p></div>
                 <div><p className="text-sm text-muted-foreground">Labor Cost ({costBreakdown.repairHours}h)</p><p className="text-xl font-bold">£{costBreakdown.laborCost.toFixed(2)}</p></div>
-                <div><p className="text-sm text-muted-foreground">Overtime</p><p className="text-xl font-bold">{costBreakdown.overtimeCost > 0 ? <span className="text-destructive">£{costBreakdown.overtimeCost.toFixed(2)}</span> : "—"}</p></div>
+                <div><p className="text-sm text-muted-foreground">Overtime</p><p className="text-xl font-bold">{costBreakdown.overtimeCost > 0 ? <span className="text-destructive-strong">£{costBreakdown.overtimeCost.toFixed(2)}</span> : "—"}</p></div>
                 <div><p className="text-sm text-muted-foreground">Total Cost</p><p className="text-2xl font-bold text-primary">£{costBreakdown.totalCost.toFixed(2)}</p></div>
               </div>
             </CardContent>

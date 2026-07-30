@@ -33,6 +33,7 @@ import { useMachines } from "@/hooks/useMachines";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { KpiCard } from "@/components/reports/KpiCard";
 
 const statusStyle: Record<PmStatus, { label: string; chip: string; ring: string }> = {
   overdue: { label: "Overdue", chip: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40", ring: "border-l-red-500" },
@@ -106,7 +107,7 @@ export default function PreventiveMaintenancePage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 p-4 md:p-6 print-content">
+      <div className="space-y-4 print-content">
         <ReportPrintHeader
           title="Preventive Maintenance Schedule"
           periodLabel={format(new Date(), "dd/MM/yyyy")}
@@ -197,10 +198,10 @@ export default function PreventiveMaintenancePage() {
         {/* KPIs double as the status filter — clicking the active one clears it, so the
             tiles are the only filter control needed for status. */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 print:grid-cols-4 print:gap-2">
-          <KpiTile icon={<AlertTriangle className="h-5 w-5" />} label="Overdue" value={kpis.overdue} hint="Past its due date" tone={kpis.overdue ? "danger" : "ok"} onClick={() => setFilter((f) => (f === "overdue" ? "all" : "overdue"))} active={filter === "overdue"} />
-          <KpiTile icon={<Clock className="h-5 w-5" />} label="Due in 7 days" value={kpis.dueSoon} hint="Plan these into the week" tone={kpis.dueSoon ? "warning" : "ok"} onClick={() => setFilter((f) => (f === "due_soon" ? "all" : "due_soon"))} active={filter === "due_soon"} />
-          <KpiTile icon={<CalendarClock className="h-5 w-5" />} label="Scheduled" value={kpis.scheduled} hint="On plan, nothing to do" tone="info" onClick={() => setFilter((f) => (f === "ok" ? "all" : "ok"))} active={filter === "ok"} />
-          <KpiTile icon={<CheckCircle2 className="h-5 w-5" />} label="All schedules" value={kpis.total} hint="Across every machine" tone="ok" onClick={() => setFilter("all")} active={filter === "all"} />
+          <KpiCard icon={<AlertTriangle className="h-5 w-5" />} label="Overdue" value={kpis.overdue} sublabel="Past its due date" toneValue accent={kpis.overdue ? "danger" : "ok"} onClick={() => setFilter((f) => (f === "overdue" ? "all" : "overdue"))} active={filter === "overdue"} />
+          <KpiCard icon={<Clock className="h-5 w-5" />} label="Due in 7 days" value={kpis.dueSoon} sublabel="Plan these into the week" toneValue accent={kpis.dueSoon ? "warning" : "ok"} onClick={() => setFilter((f) => (f === "due_soon" ? "all" : "due_soon"))} active={filter === "due_soon"} />
+          <KpiCard icon={<CalendarClock className="h-5 w-5" />} label="Scheduled" value={kpis.scheduled} sublabel="On plan, nothing to do" toneValue accent="info" onClick={() => setFilter((f) => (f === "ok" ? "all" : "ok"))} active={filter === "ok"} />
+          <KpiCard icon={<CheckCircle2 className="h-5 w-5" />} label="All schedules" value={kpis.total} sublabel="Across every machine" toneValue accent="ok" onClick={() => setFilter("all")} active={filter === "all"} />
         </div>
 
         {/* Search — the same toolbar shape as Maintenance Orders, so the two screens
@@ -285,54 +286,6 @@ export default function PreventiveMaintenancePage() {
   );
 }
 
-/** Status tile that also filters the list. Left-border accent + muted label + large
- *  number is the KpiCard shape used across the reports, so this screen reads as part
- *  of the same system; it stays a separate component only because KpiCard is not
- *  clickable. */
-function KpiTile({
-  icon, label, value, hint, tone, onClick, active,
-}: {
-  icon: React.ReactNode; label: string; value: number; hint?: string;
-  tone: "ok" | "warning" | "danger" | "info";
-  onClick?: () => void; active?: boolean;
-}) {
-  const accent: Record<string, string> = {
-    ok: "border-l-emerald-500",
-    warning: "border-l-amber-500",
-    danger: "border-l-destructive",
-    info: "border-l-blue-500",
-  };
-  const valueTone: Record<string, string> = {
-    ok: "",
-    warning: "text-amber-600 dark:text-amber-400",
-    danger: "text-destructive",
-    info: "",
-  };
-  return (
-    <Card
-      role="button"
-      tabIndex={0}
-      aria-pressed={!!active}
-      onClick={onClick}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick?.(); } }}
-      className={cn(
-        "cursor-pointer border-l-4 transition-colors hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        accent[tone],
-        active && "bg-muted/60 ring-2 ring-primary/40",
-      )}
-    >
-      <CardContent className="pt-4 pb-3">
-        <div className="flex items-center gap-2 text-muted-foreground mb-1">
-          {icon}
-          <span className="text-xs font-medium">{label}</span>
-        </div>
-        <p className={cn("text-3xl font-bold leading-tight tabular-nums", value > 0 ? valueTone[tone] : "")}>{value}</p>
-        {hint && <p className="text-[10px] text-muted-foreground mt-1">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
 function ScheduleCard({
   schedule, status, expanded, onToggle, onExecute, canManage, onDelete,
 }: {
@@ -373,7 +326,7 @@ function ScheduleCard({
               <CheckCircle2 className="h-4 w-4" /> Mark done
             </Button>
             {canManage && (
-              <Button size="sm" variant="ghost" onClick={onDelete} className="text-destructive">
+              <Button size="sm" variant="ghost" onClick={onDelete} className="text-destructive-strong">
                 <Trash2 className="h-4 w-4" />
               </Button>
             )}
@@ -419,7 +372,7 @@ function TasksEditor({ scheduleId, canManage }: { scheduleId: string; canManage:
           {t.required && <Badge variant="outline" className="text-[10px]">required</Badge>}
           {canManage && (
             <Button size="icon" variant="ghost" onClick={() => delTask.mutate({ id: t.id, schedule_id: scheduleId })}>
-              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+              <Trash2 className="h-3.5 w-3.5 text-destructive-strong" />
             </Button>
           )}
         </div>

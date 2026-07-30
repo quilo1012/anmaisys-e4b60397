@@ -128,7 +128,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
               </Button>
             </div>
             {errors.newPassword && (
-              <p className="text-xs text-destructive">{errors.newPassword}</p>
+              <p className="text-xs text-destructive-strong">{errors.newPassword}</p>
             )}
           </div>
           <div className="space-y-2">
@@ -143,7 +143,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
               disabled={loading}
             />
             {errors.confirmPassword && (
-              <p className="text-xs text-destructive">{errors.confirmPassword}</p>
+              <p className="text-xs text-destructive-strong">{errors.confirmPassword}</p>
             )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">

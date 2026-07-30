@@ -63,7 +63,7 @@ export default function RootDiagnosticsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 p-4 md:p-6">
+      <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold">
@@ -80,7 +80,7 @@ export default function RootDiagnosticsPage() {
             <Button variant="outline" size="sm" onClick={() => logSystemError("API_ERROR", "Test log from Root Diagnostics")}>
               <Terminal className="h-4 w-4 mr-1" /> Test log
             </Button>
-            <Button variant="outline" size="sm" className="text-destructive" onClick={clearAll} disabled={!logs.length}>
+            <Button variant="outline" size="sm" className="text-destructive-strong" onClick={clearAll} disabled={!logs.length}>
               <Trash2 className="h-4 w-4 mr-1" /> Clear
             </Button>
           </div>
@@ -100,7 +100,7 @@ export default function RootDiagnosticsPage() {
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : isError ? (
-          <Card><CardContent className="p-6 text-sm text-destructive">Failed to load telemetry (are you admin?).</CardContent></Card>
+          <Card><CardContent className="p-6 text-sm text-destructive-strong">Failed to load telemetry (are you admin?).</CardContent></Card>
         ) : shown.length === 0 ? (
           <Card><CardContent className="p-8 text-center text-muted-foreground">No errors captured. 🎉</CardContent></Card>
         ) : (

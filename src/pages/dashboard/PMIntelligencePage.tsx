@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Brain, CheckCircle2, AlertTriangle, ArrowDown, ArrowUp, ArrowLeft, Printer } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { KpiCard } from "@/components/reports/KpiCard";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 
 type RecKind = "reduce" | "no_pm" | "ok" | "increase";
@@ -51,16 +52,6 @@ const recMeta: Record<RecKind, { label: string; cls: string; icon: any }> = {
   ok: { label: "OK — calibrated", cls: "bg-blue-500/15 text-blue-700 border-blue-500/30 dark:text-blue-300", icon: CheckCircle2 },
   increase: { label: "Can extend", cls: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-300", icon: ArrowUp },
 };
-
-function SummaryTile({ label, value, hint, cls }: { label: string; value: number; hint: string; cls: string }) {
-  return (
-    <div className={`rounded-lg border p-3 ${cls}`}>
-      <p className="text-[10px] uppercase tracking-wide opacity-80">{label}</p>
-      <p className="text-2xl font-bold tabular-nums">{value}</p>
-      <p className="text-[11px] opacity-70 leading-snug">{hint}</p>
-    </div>
-  );
-}
 
 export default function PMIntelligencePage() {
   const navigate = useNavigate();
@@ -172,7 +163,7 @@ export default function PMIntelligencePage() {
 
   return (
     <DashboardLayout>
-      <div className="p-4 md:p-6 space-y-6 print-content">
+      <div className="space-y-6 print-content">
         <ReportPrintHeader
           title="PM Intelligence"
           periodLabel="Last 90 days"
@@ -196,10 +187,10 @@ export default function PMIntelligencePage() {
             reading 30 rows. Each tile is also the count for its badge below. */}
         {!isLoading && stats.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 print:grid-cols-4 print:gap-2">
-            <SummaryTile label="Service too late" value={counts.reduce} hint="PM falls after the average failure" cls="border-red-500/40 bg-red-500/5 text-red-700 dark:text-red-300" />
-            <SummaryTile label="No PM scheduled" value={counts.no_pm} hint="Failing with nothing planned" cls="border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-300" />
-            <SummaryTile label="Calibrated" value={counts.ok} hint="Interval matches the evidence" cls="border-blue-500/40 bg-blue-500/5 text-blue-700 dark:text-blue-300" />
-            <SummaryTile label="Can extend" value={counts.increase} hint="Serviced more often than needed" cls="border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300" />
+            <KpiCard label="Service too late" value={counts.reduce} sublabel="PM falls after the average failure" toneValue accent="danger" />
+            <KpiCard label="No PM scheduled" value={counts.no_pm} sublabel="Failing with nothing planned" toneValue accent="warning" />
+            <KpiCard label="Calibrated" value={counts.ok} sublabel="Interval matches the evidence" toneValue accent="info" />
+            <KpiCard label="Can extend" value={counts.increase} sublabel="Serviced more often than needed" toneValue accent="ok" />
           </div>
         )}
 

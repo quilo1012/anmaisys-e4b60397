@@ -270,7 +270,7 @@ export default function PermissionsMatrixPage() {
 
   return (
     <DashboardLayout>
-    <div className="space-y-4 p-4 md:p-6">
+    <div className="space-y-4">
       {/* Sticky header */}
       <div className="sticky top-0 z-20 -mx-4 md:-mx-6 border-b bg-background/95 px-4 py-3 backdrop-blur md:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -580,7 +580,7 @@ export default function PermissionsMatrixPage() {
                       </Badge>
                     </td>
                     <td className="p-2 text-center">
-                      <Badge variant="outline" className={c.to ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600" : "border-destructive/40 bg-destructive/5 text-destructive"}>
+                      <Badge variant="outline" className={c.to ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600" : "border-destructive/40 bg-destructive/5 text-destructive-strong"}>
                         {c.to ? "Allowed" : "Denied"}
                       </Badge>
                     </td>

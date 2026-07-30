@@ -175,8 +175,8 @@ export default function StockPage() {
         {lowStockCount > 0 && (
           <Card className="border-destructive">
             <CardContent className="pt-6 flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              <p className="text-destructive font-medium">{lowStockCount} product(s) at or below minimum stock level</p>
+              <AlertTriangle className="h-5 w-5 text-destructive-strong" />
+              <p className="text-destructive-strong font-medium">{lowStockCount} product(s) at or below minimum stock level</p>
             </CardContent>
           </Card>
         )}
@@ -211,7 +211,7 @@ export default function StockPage() {
                         </div>
                         <div className="flex items-end justify-between gap-2">
                           <div>
-                            <p className={`text-3xl font-bold ${isLow ? "text-destructive" : ""}`}>{p.quantity}</p>
+                            <p className={`text-3xl font-bold ${isLow ? "text-destructive-strong" : ""}`}>{p.quantity}</p>
                             <p className="text-xs text-muted-foreground">Min: {p.min_stock}</p>
                           </div>
                           <div className="text-right space-y-1">
@@ -259,7 +259,7 @@ export default function StockPage() {
                         <TableCell>{p.code}</TableCell>
                         <TableCell><Badge variant="outline" className="capitalize">{p.category}</Badge></TableCell>
                         {isManager && <TableCell>£{(p.price || 0).toFixed(2)}</TableCell>}
-                        <TableCell className={isLow ? "text-destructive font-bold" : ""}>{p.quantity}</TableCell>
+                        <TableCell className={isLow ? "text-destructive-strong font-bold" : ""}>{p.quantity}</TableCell>
                         <TableCell>{p.min_stock}</TableCell>
                         <TableCell>
                           {isLow ? (
@@ -272,7 +272,7 @@ export default function StockPage() {
                           <TableCell>
                             <div className="flex gap-1">
                               <Button size="icon" variant="ghost" aria-label="Edit part" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                              {isAdmin && <Button size="icon" variant="ghost" aria-label="Delete part" className="text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>}
+                              {isAdmin && <Button size="icon" variant="ghost" aria-label="Delete part" className="text-destructive-strong" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>}
                             </div>
                           </TableCell>
                         )}
@@ -293,13 +293,13 @@ export default function StockPage() {
                 <CardHeader><CardTitle className="text-base flex items-center gap-2"><Plus className="h-4 w-4" /> Add Product</CardTitle></CardHeader>
                 <CardContent>
                   <form onSubmit={handleAdd} className="space-y-3" autoComplete="off">
-                     <div className="space-y-1"><Label>Name <span className="text-destructive">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
+                     <div className="space-y-1"><Label>Name <span className="text-destructive-strong">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
                      <div className="space-y-1"><Label>Line</Label><Input value={productLine} onChange={(e) => setProductLine(e.target.value)} placeholder="e.g. Line A1" /></div>
-                     <div className="space-y-1"><Label>Code <span className="text-destructive">*</span></Label><Input value={code} onChange={(e) => setCode(e.target.value)} required /></div>
+                     <div className="space-y-1"><Label>Code <span className="text-destructive-strong">*</span></Label><Input value={code} onChange={(e) => setCode(e.target.value)} required /></div>
                      <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1"><Label>Initial Qty</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
                       <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} /></div>
-                      <div className="space-y-1"><Label>Price (£) <span className="text-destructive">*</span></Label><Input type="number" step="0.01" min="0.01" required value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+                      <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={price} onChange={(e) => setPrice(e.target.value)} /></div>
                      </div>
                     <div className="space-y-1">
                       <Label>Category</Label>
@@ -412,7 +412,7 @@ export default function StockPage() {
                     {categoryOptions.map((c) => (
                       <Badge key={c.id} variant="secondary" className="gap-1 pr-1">
                         {c.name}
-                        <Button size="icon" variant="ghost" className="h-4 w-4 p-0 text-destructive hover:bg-transparent" onClick={() => deleteCategory.mutate(c.id)}>
+                        <Button size="icon" variant="ghost" className="h-4 w-4 p-0 text-destructive-strong hover:bg-transparent" onClick={() => deleteCategory.mutate(c.id)}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </Badge>
@@ -435,7 +435,7 @@ export default function StockPage() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1"><Label>Quantity</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
                 <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} /></div>
-                <div className="space-y-1"><Label>Price (£) <span className="text-destructive">*</span></Label><Input type="number" step="0.01" min="0.01" required value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>
+                <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>
               </div>
               <div className="space-y-1">
                 <Label>Category</Label>

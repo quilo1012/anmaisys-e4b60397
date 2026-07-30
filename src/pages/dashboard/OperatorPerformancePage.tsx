@@ -156,7 +156,7 @@ function OperatorPerformanceContent() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-5xl mx-auto">
+    <div className="space-y-4 max-w-5xl mx-auto">
       {/* Header */}
       <Card>
         <CardContent className="p-4 md:p-6 flex items-center justify-between flex-wrap gap-3">

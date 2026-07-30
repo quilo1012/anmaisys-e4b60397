@@ -132,8 +132,8 @@ export default function ProblemsPage() {
 
   const formContent = (
     <div className="space-y-4">
-      <div className="space-y-2"><Label>Problem Name <span className="text-destructive">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Motor Overheating" required /></div>
-      <div className="space-y-2"><Label>Category <span className="text-destructive">*</span></Label><Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Electrical, Mechanical, Pneumatic" required /></div>
+      <div className="space-y-2"><Label>Problem Name <span className="text-destructive-strong">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Motor Overheating" required /></div>
+      <div className="space-y-2"><Label>Category <span className="text-destructive-strong">*</span></Label><Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Electrical, Mechanical, Pneumatic" required /></div>
       <div className="space-y-2"><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Detailed description..." rows={3} /></div>
       <div className="flex items-center gap-2">
         <Switch checked={active} onCheckedChange={setActive} />
@@ -222,7 +222,7 @@ export default function ProblemsPage() {
                           <div className="flex gap-1">
                             <Button size="sm" variant="outline" onClick={() => openAssign(p)}>Lines</Button>
                             <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                            <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" className="text-destructive-strong" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>

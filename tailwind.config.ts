@@ -21,6 +21,11 @@ export default {
   		'2xl': '1536px',
   	},
   	extend: {
+  		fontSize: {
+  			// The app had 211 one-off text-[10px]/[11px]/[9px] sizes below text-xs.
+  			// 11px is the smallest that still reads on a line tablet at arm's length.
+  			'2xs': ['0.6875rem', { lineHeight: '1rem' }],
+  		},
   		colors: {
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
@@ -37,7 +42,9 @@ export default {
   			},
   			destructive: {
   				DEFAULT: 'hsl(var(--destructive))',
-  				foreground: 'hsl(var(--destructive-foreground))'
+  				foreground: 'hsl(var(--destructive-foreground))',
+  				// Use for TEXT: the fill is only 3.71:1 on a dark card.
+  				strong: 'hsl(var(--destructive-strong))'
   			},
   			muted: {
   				DEFAULT: 'hsl(var(--muted))',

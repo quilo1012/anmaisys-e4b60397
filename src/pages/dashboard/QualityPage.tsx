@@ -7,7 +7,7 @@ import { QualityActionsView } from "./QualityActionsPage";
 export default function QualityPage() {
   return (
     <DashboardLayout>
-      <div className="space-y-6 p-4 md:p-6">
+      <div className="space-y-6">
         {/* Landing screen for the quality supervisor — same opening. */}
         <DashboardWelcome />
 

@@ -60,7 +60,7 @@ const managerEditRoleOptions: AppRole[] = ["engineer", "co_engineer", "operator"
 const protectedStaffRoles: AppRole[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "production_office_admin"];
 
 function roleBadgeClass(role?: AppRole) {
-  if (role === "admin") return "border-destructive/30 bg-destructive/10 text-destructive";
+  if (role === "admin") return "border-destructive/30 bg-destructive/10 text-destructive-strong";
   if (role === "manager") return "border-primary/30 bg-primary/10 text-primary";
   if (role === "supervisor") return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
   if (role === "maintenance_manager" || role === "planner") return "border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300";
@@ -700,10 +700,10 @@ export default function ManageUsers() {
             <DialogContent>
               <DialogHeader><DialogTitle>Create New User</DialogTitle></DialogHeader>
               <form onSubmit={handleCreateUser} className="space-y-4" autoComplete="off">
-                <div className="space-y-2"><Label>Full Name <span className="text-destructive">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
-                <div className="space-y-2"><Label>Email <span className="text-destructive">*</span></Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+                <div className="space-y-2"><Label>Full Name <span className="text-destructive-strong">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
+                <div className="space-y-2"><Label>Email <span className="text-destructive-strong">*</span></Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
                 <div className="space-y-2">
-                  <Label>Password <span className="text-destructive">*</span></Label>
+                  <Label>Password <span className="text-destructive-strong">*</span></Label>
                   <Button type="button" variant="outline" size="sm" className="w-full justify-start" onClick={() => fillGeneratedUserPassword("create")}>
                     <KeyRound className="h-4 w-4 mr-2" />Generate strong password
                   </Button>
@@ -718,10 +718,10 @@ export default function ManageUsers() {
                     required
                     aria-invalid={!!passwordError}
                   />
-                  {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
+                  {passwordError && <p className="text-xs text-destructive-strong">{passwordError}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label>Role <span className="text-destructive">*</span></Label>
+                  <Label>Role <span className="text-destructive-strong">*</span></Label>
                    <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -792,7 +792,7 @@ export default function ManageUsers() {
                           {!isCurrentUser && !managerBlockedTarget && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">
+                                <Button size="icon" variant="ghost" className="text-destructive-strong hover:text-destructive-strong">
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </AlertDialogTrigger>
@@ -849,9 +849,9 @@ export default function ManageUsers() {
             <DialogContent>
               <DialogHeader><DialogTitle>Create Engineer Identity</DialogTitle></DialogHeader>
               <form onSubmit={handleCreateEngineer} className="space-y-4" autoComplete="off">
-                <div className="space-y-2"><Label>Engineer Name <span className="text-destructive">*</span></Label><Input value={engName} onChange={(e) => setEngName(e.target.value)} required /></div>
+                <div className="space-y-2"><Label>Engineer Name <span className="text-destructive-strong">*</span></Label><Input value={engName} onChange={(e) => setEngName(e.target.value)} required /></div>
                 <div className="space-y-2">
-                  <Label>PIN (4 digits) <span className="text-destructive">*</span></Label>
+                  <Label>PIN (4 digits) <span className="text-destructive-strong">*</span></Label>
                   <Input type="password" value={engPin} onChange={(e) => setEngPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 1234" minLength={4} maxLength={4} required />
                 </div>
                 <Button type="submit" className="w-full" disabled={engLoading || engPin.length < 4}>
@@ -894,7 +894,7 @@ export default function ManageUsers() {
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">
+                            <Button size="icon" variant="ghost" className="text-destructive-strong hover:text-destructive-strong">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
@@ -949,7 +949,7 @@ export default function ManageUsers() {
                 <DialogContent>
                   <DialogHeader><DialogTitle>Create Leader Identity</DialogTitle></DialogHeader>
                   <form onSubmit={handleCreateLeader} className="space-y-4" autoComplete="off">
-                    <div className="space-y-2"><Label>Leader Name <span className="text-destructive">*</span></Label><Input value={ldName} onChange={(e) => setLdName(e.target.value)} required /></div>
+                    <div className="space-y-2"><Label>Leader Name <span className="text-destructive-strong">*</span></Label><Input value={ldName} onChange={(e) => setLdName(e.target.value)} required /></div>
                     <div className="space-y-2">
                       <Label>Lines</Label>
                       <Input value={ldLine} onChange={(e) => setLdLine(e.target.value)} placeholder="e.g. Line 1, Line 2" />
@@ -957,7 +957,7 @@ export default function ManageUsers() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>PIN (4 digits) <span className="text-destructive">*</span></Label>
+                      <Label>PIN (4 digits) <span className="text-destructive-strong">*</span></Label>
                       <Input type="password" value={ldPin} onChange={(e) => setLdPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 1234" minLength={4} maxLength={4} required />
                     </div>
                     <Button type="submit" className="w-full" disabled={ldLoading || ldPin.length < 4}>
@@ -1001,7 +1001,7 @@ export default function ManageUsers() {
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">
+                              <Button size="icon" variant="ghost" className="text-destructive-strong hover:text-destructive-strong">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </AlertDialogTrigger>
@@ -1094,7 +1094,7 @@ export default function ManageUsers() {
                   maxLength={128}
                   aria-invalid={!!editPasswordError}
                 />
-                {editPasswordError && <p className="text-xs text-destructive">{editPasswordError}</p>}
+                {editPasswordError && <p className="text-xs text-destructive-strong">{editPasswordError}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>

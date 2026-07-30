@@ -203,7 +203,7 @@ export function ImportProductionDialog({ open, onOpenChange, onImported }: {
                         <TableCell>{r.line || "—"}</TableCell>
                         <TableCell className="font-mono text-xs">{r.sku_code || "—"}</TableCell>
                         <TableCell>{r.qty || "—"}</TableCell>
-                        <TableCell className="text-xs">{r.valid ? <span className="text-green-500">OK</span> : <span className="text-destructive">{r.error}</span>}</TableCell>
+                        <TableCell className="text-xs">{r.valid ? <span className="text-green-500">OK</span> : <span className="text-destructive-strong">{r.error}</span>}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

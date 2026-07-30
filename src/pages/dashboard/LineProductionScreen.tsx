@@ -1160,7 +1160,7 @@ const SkuCard = memo(function SkuCard({
           <Button
             size="icon"
             variant="outline"
-            className="h-10 w-10 touch-manipulation text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="h-10 w-10 touch-manipulation text-destructive-strong hover:text-destructive-strong hover:bg-destructive/10"
             onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
             title="Remove SKU"
           >

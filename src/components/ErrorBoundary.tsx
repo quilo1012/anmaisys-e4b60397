@@ -96,7 +96,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="p-6 flex items-center justify-center min-h-[300px]">
           <Card className="max-w-md w-full">
             <CardContent className="p-6 text-center space-y-4">
-              <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
+              <AlertTriangle className="h-10 w-10 text-destructive-strong mx-auto" />
               <div>
                 <h2 className="text-lg font-semibold">Something went wrong</h2>
                 <p className="text-sm text-muted-foreground mt-1 break-words">

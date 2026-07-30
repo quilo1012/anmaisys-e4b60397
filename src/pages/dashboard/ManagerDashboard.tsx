@@ -25,56 +25,11 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { FactoryStatusStrip } from "@/components/FactoryStatusStrip";
 import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { RoleShortcutGrid } from "@/components/RoleShortcutGrid";
-import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
+import { KpiCard } from "@/components/reports/KpiCard";
 import { isWoOpen, countOpenWOs } from "@/lib/woStatus";
 import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
 
 const DONE_STATUSES = ["completed", "closed", "finished", "force_closed"];
-
-type KpiTone = "blue" | "amber" | "green" | "red" | "muted";
-const KPI_TONE: Record<KpiTone, string> = {
-  blue: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  amber: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  green: "bg-green-500/15 text-green-600 dark:text-green-400",
-  red: "bg-red-500/15 text-red-600 dark:text-red-400",
-  muted: "bg-muted text-muted-foreground",
-};
-
-function KpiCard({
-  label,
-  value,
-  icon: Icon,
-  tone,
-  tooltip,
-  footer,
-  highlight,
-}: {
-  label: string;
-  value: string | number;
-  icon: React.ComponentType<{ className?: string }>;
-  tone: KpiTone;
-  tooltip: string;
-  footer?: string;
-  highlight?: boolean;
-}) {
-  return (
-    <Card className={highlight ? "border-destructive" : ""}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <div className="flex items-center gap-1.5">
-          <CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle>
-          <KpiInfoTooltip text={tooltip} />
-        </div>
-        <div className={`flex h-8 w-8 items-center justify-center rounded-md ${KPI_TONE[tone]}`}>
-          <Icon className="h-4 w-4" />
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className={`text-3xl font-bold tabular-nums ${highlight ? "text-destructive" : ""}`}>{value}</div>
-        {footer && <p className="text-xs text-muted-foreground mt-1">{footer}</p>}
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function ManagerDashboard() {
   const { role, loading: authLoading } = useAuth();
@@ -268,22 +223,22 @@ function ManagerDashboardContent() {
             <KpiCard
               label="Open WOs"
               value={openCount}
-              icon={ClipboardList}
-              tone="blue"
+              icon={<ClipboardList className="h-4 w-4" />}
+              accent="blue"
               tooltip="Open Maintenance Orders: orders created that have not yet been accepted by an engineer. Shows the current backlog awaiting response."
             />
             <KpiCard
               label="In Progress"
               value={inProgressCount}
-              icon={LayoutDashboard}
-              tone="amber"
+              icon={<LayoutDashboard className="h-4 w-4" />}
+              accent="amber"
               tooltip="In Progress: orders already accepted by an engineer and being worked on (received, traveling, or under repair)."
             />
             <KpiCard
               label="Low Stock"
               value={lowStockCount}
-              icon={AlertTriangle}
-              tone={lowStockCount > 0 ? "red" : "muted"}
+              icon={<AlertTriangle className="h-4 w-4" />}
+              accent={lowStockCount > 0 ? "red" : "muted"}
               tooltip="Low Stock: number of products whose on-hand quantity is at or below the defined minimum. Restocking required."
               highlight={lowStockCount > 0}
             />
@@ -296,16 +251,16 @@ function ManagerDashboardContent() {
             <KpiCard
               label="Completed Today"
               value={completedToday}
-              icon={ClipboardList}
-              tone="green"
+              icon={<ClipboardList className="h-4 w-4" />}
+              accent="green"
               tooltip="Completed Today: number of orders completed (finished/closed/completed) today. Daily productivity indicator."
             />
             <KpiCard
               label="Parts Used Today"
               value={partsToday ?? 0}
-              icon={Package}
-              tone="muted"
-              footer="total parts consumed today"
+              icon={<Package className="h-4 w-4" />}
+              accent="muted"
+              sublabel="total parts consumed today"
               tooltip="Parts Used Today: total parts/products consumed in repairs during today. Useful for consumption and cost tracking."
             />
           </div>
@@ -328,33 +283,33 @@ function ManagerDashboardContent() {
           <KpiCard
             label="Avg Response Time"
             value={`${kpis.avgResponse} min`}
-            icon={Clock}
-            tone="muted"
-            footer="created → accepted (SLA metric)"
+            icon={<Clock className="h-4 w-4" />}
+            accent="muted"
+            sublabel="created → accepted (SLA metric)"
             tooltip="Avg Response Time: average time from WO creation until it is accepted by the engineer. Key SLA metric — the lower, the better the team's responsiveness."
           />
           <KpiCard
             label="Avg Active Repair"
             value={`${kpis.avgActiveRepair} min`}
-            icon={Wrench}
-            tone="muted"
-            footer="MTTR — pauses excluded"
+            icon={<Wrench className="h-4 w-4" />}
+            accent="muted"
+            sublabel="MTTR — pauses excluded"
             tooltip="Avg Active Repair (MTTR): average effective repair time, from work start to completion, excluding pauses. Measures engineer technical efficiency."
           />
           <KpiCard
             label="Avg Line Downtime"
             value={`${kpis.avgLineDowntime} min`}
-            icon={PowerOff}
-            tone="muted"
-            footer="business impact (line stopped → resumed)"
+            icon={<PowerOff className="h-4 w-4" />}
+            accent="muted"
+            sublabel="business impact (line stopped → resumed)"
             tooltip="Avg Line Downtime: average time a production line was stopped (line stopped → line resumed). Measures real business impact in minutes lost."
           />
           <KpiCard
             label="Total Downtime"
             value={formatMinutes(totalDowntimeMin)}
-            icon={TrendingDown}
-            tone={totalDowntimeMin > 0 ? "red" : "muted"}
-            footer="parallel stoppages counted once"
+            icon={<TrendingDown className="h-4 w-4" />}
+            accent={totalDowntimeMin > 0 ? "red" : "muted"}
+            sublabel="parallel stoppages counted once"
             tooltip="Total Downtime: wall-clock minutes any line was stopped within the selected period. Matches the Downtime page (parallel stoppages counted once)."
           />
           </div>

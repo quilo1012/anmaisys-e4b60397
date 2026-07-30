@@ -218,7 +218,7 @@ function MyProductionContent() {
   const totalTarget = ragQ.target;
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-5xl mx-auto">
+    <div className="space-y-4 max-w-5xl mx-auto">
       {/* Same opening as every other landing screen. This is the operator's landing
           after login, so it gets the greeting and the banner too. */}
       <DashboardWelcome />
@@ -1516,7 +1516,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="h-11 w-11 touch-manipulation text-muted-foreground hover:text-destructive"
+                    className="h-11 w-11 touch-manipulation text-muted-foreground hover:text-destructive-strong"
                     onClick={() => onDelete(e.id)}
                     disabled={deletingId === e.id}
                     aria-label="Delete entry"
@@ -1558,7 +1558,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="h-11 w-11 touch-manipulation text-muted-foreground hover:text-destructive"
+                  className="h-11 w-11 touch-manipulation text-muted-foreground hover:text-destructive-strong"
                   onClick={() => onDeleteItem(it.id)}
                   disabled={deletingId === it.id}
                   aria-label="Delete entry"

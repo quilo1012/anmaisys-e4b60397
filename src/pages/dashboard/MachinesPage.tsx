@@ -373,14 +373,14 @@ export default function MachinesPage() {
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">General Info</p>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Name <span className="text-destructive">*</span></Label>
+            <Label>Name <span className="text-destructive-strong">*</span></Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Blender 5A" />
-            {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+            {errors.name && <p className="text-xs text-destructive-strong">{errors.name}</p>}
           </div>
           <div className="space-y-1.5">
             <Label>Code</Label>
             <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="MCH-001" className="font-mono" />
-            {errors.code && <p className="text-xs text-destructive">{errors.code}</p>}
+            {errors.code && <p className="text-xs text-destructive-strong">{errors.code}</p>}
           </div>
         </div>
       </div>
@@ -390,13 +390,13 @@ export default function MachinesPage() {
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Classification</p>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Machine Type <span className="text-destructive">*</span></Label>
+            <Label>Machine Type <span className="text-destructive-strong">*</span></Label>
             <Input
               value={machineType}
               onChange={(e) => setMachineType(e.target.value)}
               placeholder="Conveyor, Filler, Capper..."
             />
-            {errors.machineType && <p className="text-xs text-destructive">{errors.machineType}</p>}
+            {errors.machineType && <p className="text-xs text-destructive-strong">{errors.machineType}</p>}
           </div>
           <div className="space-y-1.5">
             <Label>Status</Label>
@@ -444,7 +444,7 @@ export default function MachinesPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Side {lineHasSides ? <span className="text-destructive">*</span> : ""}</Label>
+                <Label>Side {lineHasSides ? <span className="text-destructive-strong">*</span> : ""}</Label>
                 {lineHasSides ? (
                   <div className="grid grid-cols-3 gap-1">
                     {(["A", "B", "common"] as MachineSide[]).map((s) => (
@@ -463,7 +463,7 @@ export default function MachinesPage() {
                 ) : (
                   <Input disabled value="Shared (line has no A/B)" className="text-muted-foreground" />
                 )}
-                {errors.side && <p className="text-xs text-destructive">{errors.side}</p>}
+                {errors.side && <p className="text-xs text-destructive-strong">{errors.side}</p>}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 mt-4">
@@ -682,7 +682,7 @@ export default function MachinesPage() {
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  className="text-destructive"
+                                  className="text-destructive-strong"
                                   onClick={() => setDeleteId(m.id)}
                                   aria-label="Delete Machine"
                                 >

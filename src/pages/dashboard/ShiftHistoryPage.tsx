@@ -744,7 +744,7 @@ export default function ShiftHistoryPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-4 md:p-6 space-y-6">
+      <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold">Production Control</h1>
@@ -832,7 +832,7 @@ export default function ShiftHistoryPage() {
           {[
             { label: "Produced", value: Math.round(summary.actual).toLocaleString(), sub: undefined as string | undefined, accent: "text-primary" },
             { label: "Target", value: Math.round(summary.target).toLocaleString(), sub: undefined, accent: "text-foreground" },
-            { label: "Attainment", value: summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—", sub: undefined, accent: summary.pct >= 100 ? "text-emerald-600" : summary.pct >= 90 ? "text-amber-600" : "text-destructive" },
+            { label: "Attainment", value: summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—", sub: undefined, accent: summary.pct >= 100 ? "text-emerald-600" : summary.pct >= 90 ? "text-amber-600" : "text-destructive-strong" },
             { label: viewMode === "monthly" ? "Days produced" : "Days", value: `${summary.days}`, sub: `${summary.lineCount} line${summary.lineCount === 1 ? "" : "s"}`, accent: "text-foreground" },
           ].map((k) => (
             <Card key={k.label} className="border-l-4 border-l-primary/60 shadow-sm">
@@ -1084,7 +1084,7 @@ export default function ShiftHistoryPage() {
                                         <TooltipTrigger asChild>
                                           <Button size="icon" variant="ghost" className="h-8 w-8" disabled={s.locked && !isAdmin}
                                             onClick={() => setDeletingItem({ id: i.id, code: skuMap.get(i.sku_id)?.code ?? i.sku_code_text ?? "this SKU" })}>
-                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                            <Trash2 className="h-4 w-4 text-destructive-strong" />
                                           </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>Delete this SKU row</TooltipContent>
@@ -1153,7 +1153,7 @@ export default function ShiftHistoryPage() {
                               {(i.sku_id || i.sku_code_text) && (
                                 <Button size="icon" variant="ghost" className="h-8 w-8" disabled={s.locked && !isAdmin}
                                   onClick={() => setDeletingItem({ id: i.id, code: skuMap.get(i.sku_id)?.code ?? i.sku_code_text ?? "this SKU" })}>
-                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                  <Trash2 className="h-4 w-4 text-destructive-strong" />
                                 </Button>
                               )}
                             </div>

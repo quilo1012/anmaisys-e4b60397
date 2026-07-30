@@ -698,7 +698,7 @@ export default function AnalyticsPage() {
           <KpiCard accent="indigo" icon={<Timer className="h-4 w-4" />} label="Avg Response" value={fmtMin(kpis.avgResponse)} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
           <KpiCard accent="amber" icon={<Activity className="h-4 w-4" />} label="Avg MTTR" value={fmtMin(kpis.avgMTTR)} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
           <KpiCard accent="purple" icon={<Activity className="h-4 w-4" />} label="Avg MTBF" value={formatMTBF(kpis.avgMTBF / 60)} sublabel={hasNoActivity ? "No activity in selected period" : "Mean Time Between Failures"} />
-          <KpiCard accent={slaCompliance.rate < 80 ? "red" : "green"} icon={<Timer className="h-4 w-4" />} label="SLA Compliance" value={`${slaCompliance.rate}%`} valueClassName={slaCompliance.rate < 80 ? "text-destructive" : "text-green-600"} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
+          <KpiCard accent={slaCompliance.rate < 80 ? "red" : "green"} icon={<Timer className="h-4 w-4" />} label="SLA Compliance" value={`${slaCompliance.rate}%`} valueClassName={slaCompliance.rate < 80 ? "text-destructive-strong" : "text-green-600"} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
         </div>
         {/* Leader Performance — production line leaders aggregated for the range */}
         <Card>

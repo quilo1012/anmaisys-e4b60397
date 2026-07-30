@@ -16,7 +16,7 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   return (
     <DashboardLayout>
-      <div className="space-y-6 p-4 md:p-6">
+      <div className="space-y-6">
         <div>
           <h2 className="flex items-center gap-2 text-2xl font-bold">
             <SettingsIcon className="h-6 w-6" />

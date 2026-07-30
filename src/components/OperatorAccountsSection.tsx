@@ -479,7 +479,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                 variant="outline"
                 size="sm"
                 onClick={() => setResetAllOpen(true)}
-                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                className="border-destructive/40 text-destructive-strong hover:bg-destructive/10 hover:text-destructive-strong"
               >
                 <ShieldAlert className="h-4 w-4 mr-2" />
                 Reset All Passwords
@@ -665,7 +665,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   {cShowPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
-              {cPasswordError && <p className="text-xs text-destructive">{cPasswordError}</p>}
+              {cPasswordError && <p className="text-xs text-destructive-strong">{cPasswordError}</p>}
               <p className="text-xs text-muted-foreground">
                 Avoid common words like line1, tablet5a, operator123 or reused passwords.
               </p>
@@ -728,7 +728,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   placeholder="operator.line1@anmaisys.local"
                   aria-invalid={!!eEmailError}
                 />
-                {eEmailError && <p className="text-xs text-destructive">{eEmailError}</p>}
+                {eEmailError && <p className="text-xs text-destructive-strong">{eEmailError}</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -813,7 +813,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   {rShow ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
-              {rPasswordError && <p className="text-xs text-destructive">{rPasswordError}</p>}
+              {rPasswordError && <p className="text-xs text-destructive-strong">{rPasswordError}</p>}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -848,7 +848,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
       <AlertDialog open={resetAllOpen} onOpenChange={(o) => !o && closeResetAll()}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive-strong">
               <ShieldAlert className="h-5 w-5" /> Reset ALL Operator Passwords
             </AlertDialogTitle>
             <AlertDialogDescription>
@@ -893,7 +893,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   {aShow ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
-              {aPasswordError && <p className="text-xs text-destructive">{aPasswordError}</p>}
+              {aPasswordError && <p className="text-xs text-destructive-strong">{aPasswordError}</p>}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -1004,7 +1004,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                           {r.email}
                         </code>
                         {r.reason && r.status === "failed" && (
-                          <p className="text-xs text-destructive mt-0.5">{r.reason}</p>
+                          <p className="text-xs text-destructive-strong mt-0.5">{r.reason}</p>
                         )}
                       </div>
                       <Badge

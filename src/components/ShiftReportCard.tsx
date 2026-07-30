@@ -178,7 +178,7 @@ $$);`;
                   {s.extra_recipients.map((e) => (
                     <Badge key={e} variant="secondary" className="gap-1.5">
                       {e}
-                      <button onClick={() => removeEmail(e)} className="hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+                      <button onClick={() => removeEmail(e)} className="hover:text-destructive-strong"><Trash2 className="h-3 w-3" /></button>
                     </Badge>
                   ))}
                 </div>
