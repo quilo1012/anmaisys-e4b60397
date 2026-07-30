@@ -575,6 +575,53 @@ export default function ProductionPerformancePage() {
           );
         })()}
 
+        {/* Leaders — the way into each leader's scorecard.
+            It used to open only from the leader filter, so anyone who did not think
+            to filter first never found it. The scorecard is the point of this
+            screen's leader data; it should be one click from the names themselves. */}
+        {leaderboard.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Medal className="h-4 w-4" /> Leaders
+                <span className="text-xs font-normal text-muted-foreground">· click a name for the scorecard</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="divide-y">
+                {leaderboard.map((l, i) => (
+                  <button
+                    key={l.leader}
+                    type="button"
+                    onClick={() => setScorecardFor(l.leader)}
+                    className="flex w-full items-center justify-between gap-3 py-2 text-left text-sm transition-colors hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="w-6 shrink-0 text-xs text-muted-foreground">{medal(i) ?? i + 1}</span>
+                      <span className="truncate font-medium">{l.leader}</span>
+                      <span className="shrink-0 text-2xs text-muted-foreground">{l.sessions} session{l.sessions === 1 ? "" : "s"}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-3 tabular-nums">
+                      <span className="text-muted-foreground">{l.actual.toLocaleString("en-GB")}</span>
+                      {l.target > 0 ? (
+                        <Badge variant="outline" className={l.eff >= 100
+                          ? "border-emerald-500/40 bg-emerald-500/15 text-success-strong"
+                          : l.eff >= 80
+                            ? "border-amber-500/40 bg-amber-500/15 text-warning-strong"
+                            : "border-red-500/40 bg-red-500/15 text-destructive-strong"}>
+                          {l.eff.toFixed(0)}%
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground" title="No RAG plan for this leader's sessions">no plan</Badge>
+                      )}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {sortedByLine.map((l) => {
 
