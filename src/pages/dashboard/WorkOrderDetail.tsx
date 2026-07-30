@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +102,7 @@ function SignedPhoto({ storagePath, alt }: { storagePath: string; alt: string })
 
 export default function WorkOrderDetail() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { role } = useAuth();
   const isAdmin = role === "admin";
@@ -167,6 +168,24 @@ export default function WorkOrderDetail() {
     const totalCost = partsCost + laborCost + overtimeCost;
     return { partsCost, laborCost, overtimeCost, totalCost, repairHours: Math.round(repairHours * 10) / 10 };
   }, [wo, partsWithPrice, engineerProfile, isAdmin]);
+
+  // Opened with ?print=1 — from the printer button on a row in the orders list, so
+  // printing one order is one click instead of open the tab, find the button, print.
+  // Fires once, and only once the order and its photos are on the page.
+  const wantsPrint = searchParams.get("print") === "1";
+  const printedRef = useRef(false);
+  useEffect(() => {
+    if (!wantsPrint || !wo || printedRef.current) return;
+    printedRef.current = true;
+    const el = document.getElementById("wo-print-content");
+    if (!el) return;
+    // One tick so the cards below have laid out before the clone is taken.
+    const t = window.setTimeout(() => {
+      printElementAsDocument(el, `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`)
+        .catch((err) => toast.error(err?.message ?? "Could not open the print dialog."));
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [wantsPrint, wo]);
 
   if (isLoading) {
     return (

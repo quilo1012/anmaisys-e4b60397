@@ -840,8 +840,20 @@ export default function WorkOrdersPage() {
                           {isCol("parts") && <TableCell className="no-print">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>}
                           {isCol("actions") && <TableCell className="no-print">
                             <div className="flex gap-1">
+                              {/* This carried a printer icon but only opened the order in a new
+                                  tab, so clicking the printer on a row printed nothing and the
+                                  order sheet had to be found and printed by hand. It now opens
+                                  the order asking it to print itself. */}
                               {(role === "admin" || (role === "manager" || role === "maintenance_manager")) && (
-                                <Button size="icon" variant="ghost" aria-label="Open maintenance order in new tab" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  aria-label={`Print WO-${String(wo.wo_number).padStart(6, "0")}`}
+                                  title="Print this order"
+                                  onClick={() => window.open(`/dashboard/wo/${wo.id}?print=1`, "_blank")}
+                                >
+                                  <Printer className="h-4 w-4" />
+                                </Button>
                               )}
                               <Button size="icon" variant="ghost" aria-label="Edit maintenance order" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
                               {/* No delete. An order that should not have existed is force-closed,
