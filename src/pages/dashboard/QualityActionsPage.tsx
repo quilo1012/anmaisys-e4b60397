@@ -115,6 +115,10 @@ export function QualityActionsView() {
   const [filterStatus, setFilterStatus] = useState("__all__");
   const [filterDept, setFilterDept] = useState("__all__");
   const [filterSeverity, setFilterSeverity] = useState("__all__");
+  // "__pending__" is not a stored value — it is the question people actually ask of
+  // this board: what is still waiting on Quality? Open and Under investigation both
+  // answer it, and neither is findable by picking a single status.
+  const [filterValidation, setFilterValidation] = useState("__all__");
   const [filterShift, setFilterShift] = useState("__all__");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -189,8 +193,12 @@ export function QualityActionsView() {
       (filterStatus === "__all__" || a.status === filterStatus) &&
       (filterDept === "__all__" || a.department === filterDept) &&
       (filterSeverity === "__all__" || (a.severity ?? "") === filterSeverity) &&
-      (filterShift === "__all__" || a.shift === filterShift)),
-    [actions, filterLine, filterLeader, filterStatus, filterDept, filterSeverity, filterShift]
+      (filterShift === "__all__" || a.shift === filterShift) &&
+      (filterValidation === "__all__" ||
+        (filterValidation === "__pending__"
+          ? !["validated", "rejected"].includes(a.validation_status ?? "open")
+          : (a.validation_status ?? "open") === filterValidation))),
+    [actions, filterLine, filterLeader, filterStatus, filterDept, filterSeverity, filterShift, filterValidation]
   );
 
   const detailAction = useMemo(() => actions.find((a) => a.id === detailId) ?? null, [actions, detailId]);
@@ -209,8 +217,12 @@ export function QualityActionsView() {
       totalPoints: sumSeverityPoints(filtered),
       openSevere: open.filter((x) => x.severity === "high" || x.severity === "critical").length,
       ungraded: filtered.filter((x) => !x.severity).length,
+      // Counted over `actions`, not `filtered`: the moment the filter is set to
+      // "Waiting on Quality" a count taken from the filtered rows would equal the
+      // total and stop being an answer to anything.
+      awaitingVerdict: actions.filter((x) => !["validated", "rejected"].includes(x.validation_status ?? "open")).length,
     };
-  }, [filtered]);
+  }, [filtered, actions]);
 
   const toggleLabel = (l: string) =>
     setForm((f) => ({ ...f, labels: f.labels.includes(l) ? f.labels.filter((x) => x !== l) : [...f.labels, l] }));
@@ -560,7 +572,7 @@ export function QualityActionsView() {
 
         {/* KPIs. The status ones are also the status filter — clicking the active one
             clears it, so the numbers and the filter cannot disagree. */}
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-7">
           <KpiCard
             label="Total actions"
             icon={<ClipboardCheck className="h-3.5 w-3.5" />}
@@ -594,6 +606,14 @@ export function QualityActionsView() {
             className="print:hidden"
           />
           <KpiCard
+            label="Waiting on Quality"
+            icon={<ClipboardCheck className="h-3.5 w-3.5" />}
+            value={kpis.awaitingVerdict} accent="warning" toneValue
+            sublabel="No verdict yet — no score moves"
+            active={filterValidation === "__pending__"}
+            onClick={() => setFilterValidation(filterValidation === "__pending__" ? "__all__" : "__pending__")}
+          />
+          <KpiCard
             label="Open points"
             icon={<ClipboardCheck className="h-3.5 w-3.5" />}
             value={kpis.openPoints} accent="purple"
@@ -622,6 +642,14 @@ export function QualityActionsView() {
           <Select value={filterSeverity} onValueChange={setFilterSeverity}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="__all__">All severity</SelectItem>{QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={filterValidation} onValueChange={setFilterValidation}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All validations</SelectItem>
+              <SelectItem value="__pending__">Waiting on Quality</SelectItem>
+              {VALIDATION_STATES.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+            </SelectContent>
           </Select>
           <Select value={filterLine} onValueChange={setFilterLine}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
@@ -705,14 +733,15 @@ export function QualityActionsView() {
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader><TableRow>
-                  <TableHead>When</TableHead><TableHead>#</TableHead><TableHead>Status</TableHead><TableHead>Severity</TableHead>
+                  <TableHead>When</TableHead><TableHead>#</TableHead><TableHead>Status</TableHead>
+                  <TableHead>Validation</TableHead><TableHead>Severity</TableHead>
                   <TableHead className="text-right">Points</TableHead>
                   <TableHead>Line</TableHead><TableHead>Leader</TableHead>
                   <TableHead>Dept</TableHead><TableHead>Labels</TableHead><TableHead>Notes</TableHead>
                   {canManage && <TableHead className="w-10 text-right">Delete</TableHead>}
                 </TableRow></TableHeader>
                 <TableBody>
-                  {filtered.length === 0 && <TableRow><TableCell colSpan={canManage ? 11 : 10} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
+                  {filtered.length === 0 && <TableRow><TableCell colSpan={canManage ? 12 : 11} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
                   {filtered.map((a) => {
                     const sev = severityMeta(a.severity);
                     return (
@@ -724,6 +753,18 @@ export function QualityActionsView() {
                           <SelectTrigger className={cn("h-7 w-32 border text-xs", statusMeta(a.status).badge)}><SelectValue /></SelectTrigger>
                           <SelectContent>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
                         </Select>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Badge variant="outline" className={cn("text-2xs", validationMeta(a.validation_status).badge)}>
+                            {validationMeta(a.validation_status).label}
+                          </Badge>
+                          {a.closed_at && (
+                            <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/15 text-2xs text-success-strong">
+                              Closed
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       {/* Editable inline, like Status. Severity drives the points
                           score, so re-grading had to be quicker than opening the

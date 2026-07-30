@@ -7,8 +7,22 @@ import { logSystemError } from "@/lib/telemetry";
 // each screen. Pure server-side failures that never reach the client still live
 // only in Supabase's own logs; this covers everything that surfaces here.
 
-/** PostgREST "no rows" from .single() — expected, not an error worth logging. */
-const IGNORED_CODES = new Set(["PGRST116"]);
+/**
+ * Codes that are not faults.
+ *
+ * PGRST116 is PostgREST's "no rows" from .single().
+ *
+ * P0001 is a RAISE EXCEPTION from one of our own triggers — "Attach the evidence
+ * before validating this action", "This action is closed. A manager must reopen it
+ * before the verdict can change". Those are the rules working: the user asked for
+ * something the system is meant to refuse, was told so in a toast, and moved on.
+ * Filing them as system errors fills Root Diagnostics with the rules being enforced,
+ * and a diagnostics page that cries wolf is a diagnostics page nobody reads.
+ *
+ * Constraint violations (23514, 23503, …) are NOT in here. Those mean a screen sent
+ * the database something it should never have sent, which is a fault.
+ */
+const IGNORED_CODES = new Set(["PGRST116", "P0001"]);
 
 function resourceFromPath(path: string): string {
   if (path.includes("/rest/v1/rpc/")) return "rpc:" + path.split("/rest/v1/rpc/")[1];
