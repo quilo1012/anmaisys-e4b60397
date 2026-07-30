@@ -39,6 +39,7 @@ interface QualityAction {
   description: string | null; recorded_at: string; points: number | null;
   severity: string | null; attachments: string[] | null;
   validation_status: string | null; validated_at: string | null; validated_by: string | null;
+  closed_at: string | null; closed_by: string | null;
   sku: string | null; batch: string | null;
 }
 
@@ -333,6 +334,26 @@ export function QualityActionsView() {
       // The leader scorecard reads the verdict, so it has to be told.
       qc.invalidateQueries({ queryKey: ["ls_actions"] });
       toast.success("Validation updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  /**
+   * Closure — the manager's approval to file the matter, separate from Quality's
+   * verdict. The database refuses it from anyone else, refuses it before there is a
+   * verdict, and refuses a verdict change while it stands; those errors surface here.
+   */
+  const setClosure = useMutation({
+    mutationFn: async ({ id, close }: { id: string; close: boolean }) => {
+      const { error } = await supabase.from("quality_actions")
+        .update({ closed_at: close ? new Date().toISOString() : null } as never)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["quality_actions"] });
+      qc.invalidateQueries({ queryKey: ["ls_actions"] });
+      toast.success(v.close ? "Action closed" : "Action reopened");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -744,6 +765,7 @@ export function QualityActionsView() {
           onStatus={(status) => detailAction && setStatus.mutate({ id: detailAction.id, status })}
           onSeverity={(severity) => detailAction && setSeverity.mutate({ id: detailAction.id, severity })}
           onValidation={(validation_status) => detailAction && setValidation.mutate({ id: detailAction.id, validation_status })}
+          onClosure={(close) => detailAction && setClosure.mutate({ id: detailAction.id, close })}
           onDelete={() => { if (detailAction) { deleteAction.mutate(detailAction.id); setDetailId(null); } }}
           onEdit={() => { if (detailAction) openEdit(detailAction); }}
         />
@@ -904,10 +926,11 @@ function PhotoThumb({ path, canDelete, onDelete }: { path: string; canDelete: bo
   );
 }
 
-function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSeverity, onValidation, onDelete, onEdit }: {
+function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSeverity, onValidation, onClosure, onDelete, onEdit }: {
   action: QualityAction | null; canManage: boolean;
   onOpenChange: (open: boolean) => void; onStatus: (status: string) => void; onSeverity: (severity: string | null) => void;
   onValidation: (validation_status: string) => void;
+  onClosure: (close: boolean) => void;
   onDelete: () => void; onEdit: () => void;
 }) {
   const { data: history = [] } = useQualityHistory(action?.id);
@@ -974,6 +997,38 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
                     Attach the evidence first — validating without it is refused.
                   </p>
                 )}
+
+                {/* Closure — the manager's approval, separate from the verdict. */}
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border p-2">
+                  {action.closed_at ? (
+                    <>
+                      <Badge variant="outline" className="bg-emerald-500/15 text-success-strong border-emerald-500/40 text-2xs">
+                        Closed {format(new Date(action.closed_at), "dd/MM/yyyy HH:mm")}
+                      </Badge>
+                      <span className="text-2xs text-muted-foreground">The verdict cannot change until it is reopened.</span>
+                      {canManage && <Button size="sm" variant="outline" className="ml-auto" onClick={() => onClosure(false)}>Reopen</Button>}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-2xs text-muted-foreground">
+                        {["validated", "rejected"].includes(action.validation_status ?? "")
+                          ? "Ready for a manager to approve the closure."
+                          : "Quality has to validate or reject this before it can be closed."}
+                      </span>
+                      {canManage && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="ml-auto"
+                          disabled={!["validated", "rejected"].includes(action.validation_status ?? "")}
+                          onClick={() => onClosure(true)}
+                        >
+                          Approve closure
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">

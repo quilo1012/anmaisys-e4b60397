@@ -113,8 +113,7 @@ export type ValidationStatus =
   | "open"
   | "under_investigation"
   | "validated"
-  | "rejected"
-  | "closed";
+  | "rejected";
 
 export interface ValidationState {
   value: ValidationStatus;
@@ -129,8 +128,19 @@ export const VALIDATION_STATES: ValidationState[] = [
   { value: "under_investigation", label: "Under investigation", badge: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/40", hint: "Being looked into. No effect on any score." },
   { value: "validated", label: "Validated", badge: "bg-red-500/15 text-destructive-strong border-red-500/40", hint: "Confirmed by Quality. This is the only state that affects the leader's score." },
   { value: "rejected", label: "Rejected", badge: "bg-muted text-muted-foreground border-border", hint: "Not a real deviation. No effect on any score." },
-  { value: "closed", label: "Closed", badge: "bg-emerald-500/15 text-success-strong border-emerald-500/40", hint: "Finished and filed. Keeps whatever the verdict was." },
 ];
+
+/**
+ * Closure is not a verdict, so it is not one of the states above.
+ *
+ * It used to be: "closed" was a fifth value of the same field, which meant closing a
+ * validated action overwrote the verdict and the leader's penalty silently vanished
+ * the moment somebody tidied the board. Closure now sits beside the verdict —
+ * closed_at / closed_by — and only a manager may set it.
+ */
+export function isClosed(a: { closed_at?: string | null }): boolean {
+  return !!a.closed_at;
+}
 
 export function validationMeta(value: string | null | undefined): ValidationState {
   return VALIDATION_STATES.find((v) => v.value === value) ?? VALIDATION_STATES[0];
