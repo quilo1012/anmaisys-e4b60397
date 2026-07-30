@@ -518,35 +518,44 @@ export function useCompleteWorkOrder() {
   });
 }
 
+export interface ForceCloseResult {
+  wo_number: number;
+  line_was_stopped: boolean;
+  downtime_events_discarded: number;
+  downtime_minutes_discarded: number;
+}
+
+/**
+ * Force close an order, saying whether the line was really stopped.
+ *
+ * `lineWasStopped: true` closes the open stoppage at this moment — the parada was
+ * real and belongs in the downtime figures. `false` discards it: an order raised
+ * while the line kept running, or a test, should not book the hours between when it
+ * was opened and when someone tidied up the board.
+ *
+ * Both branches run in one database function: discarding needs a DELETE on
+ * downtime_events that no role holds from the browser, and the status change must
+ * not apply without the downtime decision that goes with it.
+ */
 export function useForceCloseWorkOrder() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (woId: string) => {
-      const now = new Date().toISOString();
-      const { data: before } = await supabase.from("work_orders").select("status, line_stopped, line_resumed_at").eq("id", woId).single();
-      // Resume the line on force-close too, otherwise the auto-close triggers
-      // (which key off finished_at / line_resumed_at) never fire and the
-      // downtime_events row stays open forever, inflating downtime without bound.
-      const payload: any = {
-        status: "force_closed",
-        closed_by: user!.id,
-        completed_at: now,
-        finished_at: now,
-      };
-      if (before?.line_stopped && !before?.line_resumed_at) {
-        payload.line_stopped = false;
-        payload.line_resumed_at = now;
-        payload.line_resumed_by = user!.id;
-      }
-      const { error } = await supabase.from("work_orders").update(payload).eq("id", woId);
+    mutationFn: async ({ woId, lineWasStopped, note }: { woId: string; lineWasStopped: boolean; note?: string }) => {
+      const { data, error } = await (supabase as any).rpc("force_close_work_order", {
+        _wo_id: woId,
+        _line_was_stopped: lineWasStopped,
+        _note: note?.trim() || null,
+      });
       if (error) throw error;
-      return { before };
+      return data as ForceCloseResult;
     },
-    onSuccess: (result, woId) => {
+    onSuccess: () => {
+      // The function writes its own audit row — it knows what it discarded, which a
+      // client-side log could only guess at.
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("force_close", "work_order", woId, { before: result.before, after: { status: "force_closed" } });
+      queryClient.invalidateQueries({ queryKey: ["downtime"] });
+      queryClient.invalidateQueries({ queryKey: ["downtime_events"] });
     },
   });
 }

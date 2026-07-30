@@ -14,11 +14,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal } from "lucide-react";
-import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useMoveWorkOrderStage, stageOfStatus, type WOStage, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
+import { useWorkOrders, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useMoveWorkOrderStage, stageOfStatus, type WOStage, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { ComboboxInput } from "@/components/ComboboxInput";
+import { ForceCloseDialog } from "@/components/ForceCloseDialog";
 
 const WAREHOUSE_LOCATIONS = ["AC1", "AC2 - Warehouse", "K53", "Depot RD"];
 
@@ -101,7 +102,6 @@ export default function WorkOrdersPage() {
       ? undefined
       : [statusFilter as WOStatus];
   const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
-  const forceClose = useForceCloseWorkOrder();
   const closeWO = useCloseWorkOrder();
   const createWO = useCreateWorkOrder();
   const updateWO = useUpdateWorkOrder();
@@ -138,6 +138,11 @@ export default function WorkOrdersPage() {
   const [editMachine, setEditMachine] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editNotes, setEditNotes] = useState("");
+
+  // Force close now asks whether the line was really stopped, so it needs a dialog
+  // driven by the selected order rather than one AlertDialog per row.
+  const [forceCloseWO, setForceCloseWO] = useState<WorkOrder | null>(null);
+  const canForceCloseRole = role === "admin" || role === "manager" || role === "maintenance_manager";
 
   const [showClearWOs, setShowClearWOs] = useState(false);
   const [clearPin, setClearPin] = useState("");
@@ -714,24 +719,10 @@ export default function WorkOrdersPage() {
                                 {closeWO.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />} Close
                               </Button>
                             )}
-                            {canForceClose && (role === "admin" || (role === "manager" || role === "maintenance_manager")) && (
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" variant="destructive" className="h-10 flex-1 touch-manipulation" disabled={forceClose.isPending}>
-                                    {forceClose.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />} Force
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Force Close Maintenance Order?</AlertDialogTitle>
-                                    <AlertDialogDescription>This will force-close the maintenance order regardless of its current status. This action will be recorded in the audit log.</AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => forceClose.mutate(wo.id)}>Force Close</AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                            {canForceClose && canForceCloseRole && (
+                              <Button size="sm" variant="destructive" className="h-10 flex-1 touch-manipulation" onClick={() => setForceCloseWO(wo)}>
+                                <XCircle className="h-4 w-4 mr-1" /> Force
+                              </Button>
                             )}
                           </div>
                         </CardContent>
@@ -803,24 +794,10 @@ export default function WorkOrdersPage() {
                                   {closeWO.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle className="h-3 w-3 mr-1" />} Close
                                 </Button>
                               )}
-                              {canForceClose && (role === "admin" || (role === "manager" || role === "maintenance_manager")) && (
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button size="sm" variant="destructive" disabled={forceClose.isPending}>
-                                      {forceClose.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <XCircle className="h-3 w-3 mr-1" />} Force
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Force Close Maintenance Order?</AlertDialogTitle>
-                                      <AlertDialogDescription>This will force-close the maintenance order regardless of its current status. This action will be recorded in the audit log.</AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => forceClose.mutate(wo.id)}>Force Close</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                              {canForceClose && canForceCloseRole && (
+                                <Button size="sm" variant="destructive" onClick={() => setForceCloseWO(wo)}>
+                                  <XCircle className="h-3 w-3 mr-1" /> Force
+                                </Button>
                               )}
                             </div>
                           </TableCell>}
@@ -972,6 +949,8 @@ export default function WorkOrdersPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <ForceCloseDialog wo={forceCloseWO} open={!!forceCloseWO} onOpenChange={(o) => { if (!o) setForceCloseWO(null); }} />
 
         {/* Clear All WOs */}
         <AlertDialog open={showClearWOs} onOpenChange={(o) => { setShowClearWOs(o); if (!o) { setClearPin(""); setClearConfirmText(""); } }}>
