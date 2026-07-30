@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useDeviceType } from "@/hooks/use-device-type";
 
 export type DateRange = { from?: Date; to?: Date };
 
@@ -83,6 +85,7 @@ interface Props {
 
 export function DateRangeFilter({ value, preset, onChange, className, storageKey }: Props) {
   const [open, setOpen] = useState(false);
+  const device = useDeviceType();
 
   // Restore from localStorage on mount
   useEffect(() => {
@@ -135,7 +138,10 @@ export function DateRangeFilter({ value, preset, onChange, className, storageKey
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <div className="flex flex-wrap gap-1">
+      {/* Seven buttons is right on a desktop report and wrong on a line tablet, where
+          they wrapped onto three rows and pushed the actual content off the screen.
+          Below md the same choices are one select. */}
+      <div className="hidden md:flex flex-wrap gap-1">
         {quick.map((p) => (
           <Button
             key={p}
@@ -147,6 +153,23 @@ export function DateRangeFilter({ value, preset, onChange, className, storageKey
           </Button>
         ))}
       </div>
+
+      <Select
+        value={preset === "custom" ? "custom" : preset}
+        onValueChange={(p) => { if (p !== "custom") setPreset(p as DateRangePreset); }}
+      >
+        <SelectTrigger className="h-9 w-[150px] md:hidden" aria-label="Period">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {quick.map((p) => (
+            <SelectItem key={p} value={p}>{PRESET_LABELS[p as Exclude<DateRangePreset, "custom">]}</SelectItem>
+          ))}
+          {/* Present so the trigger has something to show when a custom range is
+              active; picking it is a no-op — the calendar below sets it. */}
+          <SelectItem value="custom">Custom</SelectItem>
+        </SelectContent>
+      </Select>
 
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -161,9 +184,11 @@ export function DateRangeFilter({ value, preset, onChange, className, storageKey
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
+          {/* One month below desktop: two side by side are wider than a phone, so the
+              popover clipped the second and its days could not be tapped. */}
           <Calendar
             mode="range"
-            numberOfMonths={2}
+            numberOfMonths={device === "desktop" ? 2 : 1}
             defaultMonth={value.from ?? new Date()}
             selected={{ from: value.from, to: value.to }}
             onSelect={(r) => {
@@ -178,7 +203,8 @@ export function DateRangeFilter({ value, preset, onChange, className, storageKey
         </PopoverContent>
       </Popover>
 
-      <span className="text-xs text-muted-foreground ml-1">{label}</span>
+      {/* The select and the Custom button already say the period on small screens. */}
+      <span className="hidden md:inline text-xs text-muted-foreground ml-1">{label}</span>
     </div>
   );
 }
