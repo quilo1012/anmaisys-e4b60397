@@ -846,8 +846,13 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
           const isRls = (insErr as { code?: string }).code === "42501"
             || /row-level security/i.test((insErr as { message?: string }).message ?? "");
           if (isRls) {
+            // Says what actually happened and who can help. The earlier wording sent
+            // the operator to a supervisor to "reopen the shift", which stopped being
+            // true the moment the deadline started overriding the lock — unlocking a
+            // closed shift changes nothing now, so that advice only wasted a call.
+            const closedAt = getCurrentFactoryShift().shiftCode === "night" ? "07:00" : "19:00";
             throw new Error(
-              "This shift is locked, so production can't be added to it. Ask a supervisor to reopen it, then log again.",
+              `Logging for this shift closed at ${closedAt}. Ask a manager to record it — they can still enter it for you.`,
             );
           }
           throw insErr;
