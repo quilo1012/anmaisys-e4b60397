@@ -23,6 +23,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { ManagerNavCards } from "@/components/DashboardNavCards";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { AnimatedWelcomeHeader } from "@/components/AnimatedWelcomeHeader";
+import { SiteBannerImages } from "@/components/SiteBannerImages";
+import { useSiteBanner, bannerUrlsForDevice } from "@/hooks/useSiteBanner";
+import { useDeviceType } from "@/hooks/use-device-type";
+import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
 import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
 import { isWoOpen, countOpenWOs } from "@/lib/woStatus";
 import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
@@ -103,7 +108,12 @@ function ManagerDashboardContent() {
   const [kpiRange, setKpiRange] = useState<DateRange>(() => getPresetRange("today"));
   const { data: woMetrics = [] } = useAllWoMetrics({ from: kpiRange.from, to: kpiRange.to });
   const { data: downtimeRecords } = useDowntime();
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
+  const device = useDeviceType();
+  const { data: banner } = useSiteBanner();
+  const heroUrls = bannerUrlsForDevice(banner, device);
+  const { shiftCode } = getCurrentFactoryShift();
+  const todayLabel = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -224,6 +234,23 @@ function ManagerDashboardContent() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* Same opening as the screen you land on after signing in: the greeting, then
+            the banner. The Dashboard is where most managers spend the day, so it gets
+            the same welcome rather than starting cold on a filter bar. */}
+        <AnimatedWelcomeHeader name={profile?.name || "there"} dateLabel={`${todayLabel} · ${SHIFT_LABEL[shiftCode]}`} />
+
+        {heroUrls.length > 0 && (
+          <a
+            href={banner?.url ?? "https://appliednutrition.uk/"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative block aspect-[16/6] overflow-hidden rounded-2xl border shadow-sm transition-shadow hover:shadow-md sm:aspect-[16/5]"
+            aria-label="Applied Nutrition"
+          >
+            <SiteBannerImages urls={heroUrls} />
+          </a>
+        )}
+
         <PageHeader
           title={dashTitle}
           description="Where maintenance stands right now, and how the team performed over the period you choose."
