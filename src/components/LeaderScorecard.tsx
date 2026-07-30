@@ -5,13 +5,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Download, Clock, Factory } from "lucide-react";
+import { Download, Clock, Factory, FileWarning } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { QUALITY_SEVERITIES, severityMeta } from "@/lib/qualityConstants";
+import {
+  QUALITY_SEVERITIES, severityMeta, DOCUMENTATION_LABEL, DOCUMENTATION_PENALTY_PCT,
+  documentationScore, isValidatedPaperwork, validationMeta,
+} from "@/lib/qualityConstants";
+import { useProfileNames } from "@/hooks/useProfileNames";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
-interface LSAction { id: string; status: string; severity: string | null; recorded_at: string; labels: string[] | null; department: string | null; line: string | null }
+interface LSAction {
+  id: string; status: string; severity: string | null; recorded_at: string;
+  labels: string[] | null; department: string | null; line: string | null;
+  /** Fields the documentation demerit has to be able to show in an audit. */
+  action_no: string | null; description: string | null; shift: string | null;
+  validation_status: string | null; validated_at: string | null; validated_by: string | null;
+  attachments: string[] | null;
+}
 interface LSSession { oee_pct: number | null; run_time_min: number | null; down_time_min: number | null; intouch_good_total: number | null; session_date: string | null }
 
 function Kpi({ label, value, sub, tone }: { label: string; value: string | number; sub?: string; tone?: string }) {
@@ -32,7 +43,7 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
     enabled,
     queryFn: async () => {
       const { data, error } = await supabase.from("quality_actions")
-        .select("id, status, severity, recorded_at, labels, department, line")
+        .select("id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments")
         .eq("leader_name", leaderName as string).gte("recorded_at", fromDate).order("recorded_at");
       if (error) throw error;
       return (data ?? []) as unknown as LSAction[];
@@ -106,6 +117,34 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
     return { total, completed, open, pctClosed: total ? Math.round((completed / total) * 100) : 0, sev, avgResolution, topLabels, trend };
   }, [actions, completes]);
 
+  /**
+   * Documentation score: 100 minus 5 for every VALIDATED Paperwork action.
+   *
+   * Validated only. An action counts against a leader when Quality has confirmed it
+   * is a real deviation and signed for that verdict — not when somebody types it,
+   * which is the difference between a scorecard and an accusation.
+   */
+  const docs = useMemo(() => {
+    const penalised = actions.filter(isValidatedPaperwork);
+    const raised = actions.filter((a) => (a.labels ?? []).includes(DOCUMENTATION_LABEL));
+    return {
+      penalised,
+      // Raised but not yet judged — shown so nobody reads a clean score as "nothing
+      // was found", when the truth may be "nothing has been reviewed yet".
+      pending: raised.filter((a) => a.validation_status === "open" || a.validation_status === "under_investigation"),
+      rejected: raised.filter((a) => a.validation_status === "rejected"),
+      score: documentationScore(penalised.length),
+      impactPct: penalised.length * DOCUMENTATION_PENALTY_PCT,
+    };
+  }, [actions]);
+
+  // Who signed each verdict — "Attributable", the first letter of ALCOA+.
+  const { data: profileNames = [] } = useProfileNames();
+  const nameOf = useMemo(() => {
+    const m = new Map(profileNames.map((p) => [p.id, p.name]));
+    return (id: string | null) => (id ? m.get(id) ?? "—" : "—");
+  }, [profileNames]);
+
   const p = useMemo(() => {
     const oees = sessions.map((s) => s.oee_pct).filter((v): v is number => v != null);
     const avgOEE = oees.length ? oees.reduce((a, b) => a + b, 0) / oees.length : null;
@@ -126,6 +165,25 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
       ["QUALITY"],
       ["Total actions", String(q.total)], ["Open", String(q.open)], ["Completed", String(q.completed)], ["% closed", `${q.pctClosed}%`],
       ["Avg resolution (days)", q.avgResolution == null ? "—" : q.avgResolution.toFixed(1)],
+      ["Documentation score", `${docs.score}%`],
+      ["Validated Paperwork actions", String(docs.penalised.length)],
+      ["Documentation impact", `-${docs.impactPct}%`],
+      ["Paperwork under review (not counted)", String(docs.pending.length)],
+      ["Paperwork rejected (not counted)", String(docs.rejected.length)],
+      [],
+      ["VALIDATED DOCUMENTATION ERRORS"],
+      ["Action", "Line", "Shift", "Raised", "Validated", "Validated by", "Evidence files", "Penalty", "Description"],
+      ...docs.penalised.map((a) => [
+        a.action_no || a.id.slice(0, 8),
+        a.line ?? "", a.shift ?? "",
+        format(new Date(a.recorded_at), "dd/MM/yyyy"),
+        a.validated_at ? format(new Date(a.validated_at), "dd/MM/yyyy HH:mm") : "",
+        nameOf(a.validated_by),
+        String(a.attachments?.length ?? 0),
+        `-${DOCUMENTATION_PENALTY_PCT}%`,
+        (a.description ?? "").replace(/"/g, "'"),
+      ]),
+      [],
       ["Critical", String(q.sev.critical)], ["High", String(q.sev.high)], ["Medium", String(q.sev.medium)], ["Low", String(q.sev.low)],
       [],
       ["PRODUCTION"],
@@ -192,6 +250,74 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
               </div>
             </div>
           )}
+
+          {/* Documentation errors — the demerit block.
+              Answers, on its own, the question an audit asks: why did this leader lose
+              points, who decided, when, and where is the evidence. */}
+          <div>
+            <div className="mb-1.5 flex items-center gap-1 text-sm font-semibold">
+              <FileWarning className="h-4 w-4" /> Documentation errors ({DOCUMENTATION_LABEL})
+            </div>
+
+            {docs.penalised.length === 0 ? (
+              <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-3">
+                <p className="text-sm font-semibold text-success-strong">No penalty · 100% compliant</p>
+                <p className="text-2xs text-muted-foreground">
+                  No validated {DOCUMENTATION_LABEL.toLowerCase()} action in this period.
+                  {docs.pending.length > 0 && ` ${docs.pending.length} raised and still under review — a verdict could change this.`}
+                  {docs.rejected.length > 0 && ` ${docs.rejected.length} rejected by Quality.`}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5">
+                <div className="flex items-baseline justify-between gap-2 border-b border-destructive/30 p-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Total impact</p>
+                    <p className="text-2xl font-bold text-destructive-strong tabular-nums">
+                      −{docs.impactPct}% <span className="text-sm font-medium">({docs.penalised.length} validated)</span>
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Documentation score</p>
+                    <p className="text-2xl font-bold tabular-nums">{docs.score}%</p>
+                  </div>
+                </div>
+
+                <ul className="divide-y divide-destructive/20">
+                  {docs.penalised.map((a) => (
+                    <li key={a.id} className="p-3 text-xs">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono font-semibold">{a.action_no || `#${a.id.slice(0, 8)}`}</span>
+                        <Badge variant="outline" className={cn("text-2xs", validationMeta(a.validation_status).badge)}>
+                          {validationMeta(a.validation_status).label}
+                        </Badge>
+                        <span className="font-semibold text-destructive-strong">−{DOCUMENTATION_PENALTY_PCT}%</span>
+                        {(a.attachments?.length ?? 0) > 0 && (
+                          <Badge variant="secondary" className="text-2xs">
+                            {a.attachments!.length} evidence file{a.attachments!.length === 1 ? "" : "s"}
+                          </Badge>
+                        )}
+                      </div>
+                      {a.description && <p className="mt-1">{a.description}</p>}
+                      <p className="mt-1 text-2xs text-muted-foreground">
+                        {[
+                          a.line, a.shift,
+                          `raised ${format(new Date(a.recorded_at), "dd/MM/yyyy")}`,
+                          a.validated_at ? `validated ${format(new Date(a.validated_at), "dd/MM/yyyy HH:mm")} by ${nameOf(a.validated_by)}` : null,
+                        ].filter(Boolean).join(" · ")}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+
+                {(docs.pending.length > 0 || docs.rejected.length > 0) && (
+                  <p className="border-t border-destructive/30 p-2 text-2xs text-muted-foreground">
+                    Not counted: {docs.pending.length} still under review, {docs.rejected.length} rejected by Quality.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Production */}
           <div>

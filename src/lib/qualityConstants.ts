@@ -101,3 +101,63 @@ export function severityPoints(value: string | null | undefined): number {
 export function sumSeverityPoints(actions: Array<{ severity: string | null }>): number {
   return actions.reduce((sum, a) => sum + severityPoints(a.severity), 0);
 }
+
+
+// ── Validation lifecycle ─────────────────────────────────────────────────────
+//
+// Separate from `status`, which is the kanban column (to do / in progress /
+// complete). This is the question an audit asks: is the deviation real, who said so,
+// and on what evidence. Only `validated` ever costs a leader points.
+
+export type ValidationStatus =
+  | "open"
+  | "under_investigation"
+  | "validated"
+  | "rejected"
+  | "closed";
+
+export interface ValidationState {
+  value: ValidationStatus;
+  label: string;
+  badge: string;
+  /** What it means for the scorecard. */
+  hint: string;
+}
+
+export const VALIDATION_STATES: ValidationState[] = [
+  { value: "open", label: "Open", badge: "bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/40", hint: "Raised, not yet investigated. No effect on any score." },
+  { value: "under_investigation", label: "Under investigation", badge: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/40", hint: "Being looked into. No effect on any score." },
+  { value: "validated", label: "Validated", badge: "bg-red-500/15 text-destructive-strong border-red-500/40", hint: "Confirmed by Quality. This is the only state that affects the leader's score." },
+  { value: "rejected", label: "Rejected", badge: "bg-muted text-muted-foreground border-border", hint: "Not a real deviation. No effect on any score." },
+  { value: "closed", label: "Closed", badge: "bg-emerald-500/15 text-success-strong border-emerald-500/40", hint: "Finished and filed. Keeps whatever the verdict was." },
+];
+
+export function validationMeta(value: string | null | undefined): ValidationState {
+  return VALIDATION_STATES.find((v) => v.value === value) ?? VALIDATION_STATES[0];
+}
+
+/**
+ * The label that makes an action a documentation error.
+ *
+ * One label, per the specification: a missing signature, an incomplete form, a record
+ * written outside its window, a wrong stop code. Widening this to Label or Batch code
+ * would change what a leader is scored on, so it is a decision to take openly rather
+ * than a list to grow quietly.
+ */
+export const DOCUMENTATION_LABEL = "Paperwork";
+
+/** Percentage points a leader loses per validated documentation error. */
+export const DOCUMENTATION_PENALTY_PCT = 5;
+
+/** True when an action counts against the leader's documentation score. */
+export function isValidatedPaperwork(a: {
+  labels?: string[] | null;
+  validation_status?: string | null;
+}): boolean {
+  return a.validation_status === "validated" && (a.labels ?? []).includes(DOCUMENTATION_LABEL);
+}
+
+/** 100 minus 5 for each validated documentation error, never below zero. */
+export function documentationScore(validatedPaperworkCount: number): number {
+  return Math.max(0, 100 - validatedPaperworkCount * DOCUMENTATION_PENALTY_PCT);
+}

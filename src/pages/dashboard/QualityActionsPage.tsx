@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_STATUSES, QUALITY_SEVERITIES, statusMeta, severityMeta, severityPoints, sumSeverityPoints } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_STATUSES, QUALITY_SEVERITIES, statusMeta, severityMeta, severityPoints, sumSeverityPoints, VALIDATION_STATES, validationMeta } from "@/lib/qualityConstants";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
 import { useSeverityPointRows, useUpdateSeverityPoints } from "@/hooks/useSeverityPoints";
 import { useRole } from "@/hooks/useRole";
@@ -36,6 +36,7 @@ interface QualityAction {
   leader_name: string | null; department: string | null; status: string; labels: string[] | null;
   description: string | null; recorded_at: string; points: number | null;
   severity: string | null; attachments: string[] | null;
+  validation_status: string | null; validated_at: string | null; validated_by: string | null;
   sku: string | null; batch: string | null;
 }
 
@@ -311,6 +312,26 @@ export function QualityActionsView() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["quality_actions"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  /**
+   * The verdict. Separate from `status` (the kanban column) because they answer
+   * different questions: where the work is, versus whether the deviation is real.
+   * Only "validated" costs a leader points, and the database refuses it from anyone
+   * outside Quality or without evidence attached — the error surfaces here.
+   */
+  const setValidation = useMutation({
+    mutationFn: async ({ id, validation_status }: { id: string; validation_status: string }) => {
+      const { error } = await supabase.from("quality_actions").update({ validation_status } as never).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["quality_actions"] });
+      // The leader scorecard reads the verdict, so it has to be told.
+      qc.invalidateQueries({ queryKey: ["ls_actions"] });
+      toast.success("Validation updated");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -720,6 +741,7 @@ export function QualityActionsView() {
           onOpenChange={(o) => { if (!o) setDetailId(null); }}
           onStatus={(status) => detailAction && setStatus.mutate({ id: detailAction.id, status })}
           onSeverity={(severity) => detailAction && setSeverity.mutate({ id: detailAction.id, severity })}
+          onValidation={(validation_status) => detailAction && setValidation.mutate({ id: detailAction.id, validation_status })}
           onDelete={() => { if (detailAction) { deleteAction.mutate(detailAction.id); setDetailId(null); } }}
           onEdit={() => { if (detailAction) openEdit(detailAction); }}
         />
@@ -879,9 +901,10 @@ function PhotoThumb({ path, canDelete, onDelete }: { path: string; canDelete: bo
   );
 }
 
-function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSeverity, onDelete, onEdit }: {
+function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSeverity, onValidation, onDelete, onEdit }: {
   action: QualityAction | null; canManage: boolean;
   onOpenChange: (open: boolean) => void; onStatus: (status: string) => void; onSeverity: (severity: string | null) => void;
+  onValidation: (validation_status: string) => void;
   onDelete: () => void; onEdit: () => void;
 }) {
   const { data: history = [] } = useQualityHistory(action?.id);
@@ -928,6 +951,26 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              {/* Validation — the audit-facing decision. */}
+              <div>
+                <Label>Validation</Label>
+                <Select value={action.validation_status ?? "open"} onValueChange={onValidation} disabled={!canManage}>
+                  <SelectTrigger className={cn("border", validationMeta(action.validation_status).badge)}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {VALIDATION_STATES.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-2xs text-muted-foreground">
+                  {validationMeta(action.validation_status).hint}
+                  {action.validated_at && ` · validated ${format(new Date(action.validated_at), "dd/MM/yyyy HH:mm")}`}
+                </p>
+                {attachments.length === 0 && action.validation_status !== "validated" && (
+                  <p className="mt-1 text-2xs text-warning-strong">
+                    Attach the evidence first — validating without it is refused.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
