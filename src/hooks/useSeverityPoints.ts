@@ -19,7 +19,7 @@ export function useSeverityPointRows() {
         .from("quality_severity_points" as any)
         .select("severity, points");
       if (error) throw error;
-      const rows = (data ?? []) as SeverityPointRow[];
+      const rows = (data ?? []) as unknown as SeverityPointRow[];
       // Ordered by the severity scale, not by name, so the editor reads low → critical.
       return QUALITY_SEVERITIES.map((s) => ({
         severity: s.value,

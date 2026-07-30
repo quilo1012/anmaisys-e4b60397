@@ -71,7 +71,7 @@ export default function PMIntelligencePage() {
       // Planned work is not a failure. Counting it would drag a machine's MTBF down
       // for being looked after, and recommend a shorter interval because the last
       // recommendation was followed.
-      if (w.wo_type === "preventive") continue;
+      if ((w.wo_type as string) === "preventive") continue;
       if (new Date(w.created_at).getTime() < since) continue;
       const arr = byMachine.get(w.machine) ?? [];
       arr.push(w);

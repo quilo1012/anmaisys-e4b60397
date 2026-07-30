@@ -34,7 +34,7 @@ export function usePredictiveAlerts() {
     // Preventive orders are excluded everywhere in this hook. They are planned work,
     // not failures: counting them would make a machine look worse the more carefully
     // it is maintained, and would feed its own suggestions back in as evidence.
-    const recentWOs = allWOs.filter((w) => w.created_at >= cutoff30 && w.wo_type !== "preventive");
+    const recentWOs = allWOs.filter((w) => w.created_at >= cutoff30 && (w.wo_type as string) !== "preventive");
 
     // Group by machine + problem (store fields directly to avoid unsafe split-on-separator)
     const groups: Record<string, {
@@ -89,7 +89,7 @@ export function usePredictiveAlerts() {
     if (!allWOs) return [];
     const cutoff30 = subDays(new Date(), 30).toISOString();
     const now = new Date();
-    const recentWOs = allWOs.filter((w) => w.created_at >= cutoff30 && w.wo_type !== "preventive");
+    const recentWOs = allWOs.filter((w) => w.created_at >= cutoff30 && (w.wo_type as string) !== "preventive");
 
     // Group by machine
     const machineMap: Record<string, typeof recentWOs> = {};
