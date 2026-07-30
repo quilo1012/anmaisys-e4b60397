@@ -38,6 +38,47 @@ export class ErrorBoundary extends Component<Props, State> {
       stack: error.stack,
       metadata: { componentStack: info.componentStack?.slice(0, 4000) },
     });
+    void this.reloadIfStaleBuild();
+  }
+
+  /**
+   * If a newer build has been published, reload into it.
+   *
+   * A crash we have already fixed keeps happening until the tablet picks up the new
+   * bundle, and a tablet parked on this error card never does: the periodic update
+   * check reloads on the next background or shows a banner, and neither happens
+   * while an operator stares at a broken screen waiting for someone to help. On
+   * 30/07 a shop tablet crashed at 05:41 on a chunk whose fix had shipped hours
+   * earlier, because nothing closed that loop.
+   *
+   * Only fires when the served entry bundle differs from the running one, so a
+   * genuine bug in the current build still shows the card instead of reloading
+   * forever. Once per minute at most, for the same reason.
+   */
+  private async reloadIfStaleBuild() {
+    const KEY = "__crash_reload_at";
+    try {
+      const last = Number(sessionStorage.getItem(KEY) || "0");
+      if (Date.now() - last < 60_000) return;
+
+      const running = Array.from(document.querySelectorAll<HTMLScriptElement>('script[type="module"][src]'))
+        .map((s) => s.src)
+        .find((src) => /\/assets\/.*\.js/.test(src));
+      if (!running) return; // dev server has no hashed entry to compare
+
+      const res = await fetch(`/index.html?_=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const html = await res.text();
+      const served = html.match(/<script[^>]+type="module"[^>]+src="([^"]*\/assets\/[^"]+\.js)"/i)?.[1];
+      if (!served) return;
+
+      if (new URL(served, location.href).pathname !== new URL(running, location.href).pathname) {
+        sessionStorage.setItem(KEY, String(Date.now()));
+        window.location.reload();
+      }
+    } catch {
+      /* offline or blocked — leave the card up so the operator can retry by hand */
+    }
   }
 
   // A deterministic crash (bad data, a stale chunk after deploy) re-throws the
