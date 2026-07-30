@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CriticalAlertProvider } from "@/contexts/CriticalAlertContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -140,6 +140,12 @@ const PageLoader = () => (
 );
 
 
+
+/** Sends /dashboard/work-orders/<id> to the order's real route, preserving history. */
+const LegacyWoLinkRedirect = () => {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/dashboard/wo/${id}`} replace />;
+};
 
 const SessionRedirect = () => {
   const { session, role, loading, authError, retryAuth, signOut } = useAuth();
@@ -305,6 +311,13 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                {/* Old deep link shape. The iTouching functions wrote
+                    action_url: /dashboard/work-orders/<id> into every notification —
+                    190 of them — and that path matches no route, so the push a phone
+                    already holds lands on the catch-all instead of the order. The
+                    functions now write /dashboard/wo/<id>; this keeps every link
+                    already sent working. */}
+                <Route path="/dashboard/work-orders/:id" element={<LegacyWoLinkRedirect />} />
                 <Route
                   path="/dashboard/machines"
                   element={

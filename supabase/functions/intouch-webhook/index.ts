@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
                 title,
                 body,
                 priority: priority === "critical" ? "high" : priority,
-                action_url: `/dashboard/work-orders/${wo.id}`,
+                action_url: `/dashboard/wo/${wo.id}`,
               })),
             );
           }

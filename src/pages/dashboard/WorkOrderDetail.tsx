@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool, Phone, MapPin, Wrench, Lock, Camera, DollarSign, ClipboardCheck, AlertOctagon, CheckSquare, Square, FileText } from "lucide-react";
-import { useWorkOrderById } from "@/hooks/useWorkOrders";
+import { useWorkOrderById, useWorkOrderAccessHint } from "@/hooks/useWorkOrders";
 import { usePartsUsedByWO } from "@/hooks/useStock";
 import { useWOPhotos, getWOPhotoUrl } from "@/hooks/useWOPhotos";
 import { useChecklistResponses, useChecklistsByProblemName } from "@/hooks/useChecklists";
@@ -104,6 +104,8 @@ export default function WorkOrderDetail() {
   const { role } = useAuth();
   const isAdmin = role === "admin";
   const { data: wo, isLoading } = useWorkOrderById(id!);
+  // Asked only when the order failed to load, to tell "not yours" from "not there".
+  const { data: accessHint } = useWorkOrderAccessHint(id!, !isLoading && !wo);
   const { data: partsUsed, isLoading: partsLoading } = usePartsUsedByWO(id!);
   const { data: woPhotos } = useWOPhotos(id!);
   const { data: checklistResponses } = useChecklistResponses(id);
@@ -173,10 +175,32 @@ export default function WorkOrderDetail() {
   }
 
   if (!wo) {
+    // "Not found" was shown for two different situations, and the operator on Line 4
+    // who opened Line 1's WO-607 was told the order did not exist. It does; it is
+    // simply not theirs to open. Say which it is.
+    const onAnotherLine = accessHint?.exists === true;
     return (
       <DashboardLayout>
-        <div className="text-center py-16">
-          <p className="text-muted-foreground">Maintenance order not found.</p>
+        <div className="mx-auto max-w-md py-16 text-center space-y-3">
+          <Lock className="mx-auto h-10 w-10 text-muted-foreground/60" />
+          {onAnotherLine ? (
+            <>
+              <p className="font-medium text-foreground">
+                WO-{String(accessHint?.wo_number ?? "").padStart(6, "0")} is on {accessHint?.line || "another line"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Your login only opens maintenance orders for your own line. Nothing is missing — ask a
+                supervisor or the maintenance manager if you need this one.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-medium text-foreground">This maintenance order does not exist</p>
+              <p className="text-sm text-muted-foreground">
+                The link may be from an old message, or the number may be mistyped.
+              </p>
+            </>
+          )}
           <Button variant="link" onClick={() => navigate(-1)}>Go back</Button>
         </div>
       </DashboardLayout>

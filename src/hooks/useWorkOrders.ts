@@ -735,6 +735,30 @@ export function useDeleteWorkOrder() {
   });
 }
 
+/**
+ * Why an order won't open: it does not exist, or it exists on another line.
+ *
+ * RLS returns "no rows" for both, so the detail page said "Maintenance order not
+ * found" to a Line 4 operator looking at Line 1's WO-607 — which reads like the
+ * order was deleted. This says which of the two it is, and nothing else about the
+ * order: number and line only, never the description, requester or engineer.
+ *
+ * Only queried once the order has failed to load, so it costs nothing in the normal
+ * case.
+ */
+export function useWorkOrderAccessHint(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["work_order_access_hint", id],
+    enabled: enabled && !!id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("work_order_access_hint", { _wo_id: id });
+      if (error) throw error;
+      return data as { exists: boolean; wo_number?: number; line?: string | null };
+    },
+  });
+}
+
 export function useWorkOrderById(id: string) {
   return useQuery({
     queryKey: ["work_orders", id],

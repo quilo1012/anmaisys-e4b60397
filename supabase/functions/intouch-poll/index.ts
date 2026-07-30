@@ -209,7 +209,7 @@ async function notifyEngineersNewWO(opts: {
         title,
         body,
         priority: opts.priority === "critical" ? "high" : opts.priority,
-        action_url: `/dashboard/work-orders/${opts.woId}`,
+        action_url: `/dashboard/wo/${opts.woId}`,
       })),
     );
   } catch (_) { /* best-effort */ }
