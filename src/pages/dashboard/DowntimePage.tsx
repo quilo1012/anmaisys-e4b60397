@@ -32,13 +32,13 @@ import { type RiskLevel } from "@/hooks/usePredictiveAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
-  format, differenceInMinutes, startOfDay, endOfDay,
+  format, differenceInMinutes, startOfDay,
 } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 import { useNavigate } from "react-router-dom";
 import { reconcileMinutes, unionMs, type Interval } from "@/lib/downtimeReconcile";
 import { isNoPlannedShift } from "@/lib/downtimeBuckets";
-import { filterWOsByRange, buildMachineHistory, buildMachineRisks } from "@/lib/downtimeReliability";
+import { buildMachineHistory, buildMachineRisks } from "@/lib/downtimeReliability";
 import { mapWoToStop } from "@/lib/ragDowntime";
 import { formatMinutes } from "@/lib/formatDuration";
 
@@ -558,8 +558,8 @@ export default function DowntimePage() {
   }, [unifiedRecords, filterLine, filterShift]);
 
   const kpis = useMemo(() => {
-    const rangeStartMs = startOfDay(startDate).getTime();
-    const rangeEndMs = Math.min(endOfDay(endDate).getTime(), Date.now());
+    const rangeStartMs = startDate.getTime();
+    const rangeEndMs = Math.min(endDate.getTime(), Date.now());
     const nowMs = Date.now();
 
     // Exclude "No Planned Shift" periods so downtime totals match RAG Weekly.
@@ -596,8 +596,8 @@ export default function DowntimePage() {
   }, [sharedFiltered, startDate, endDate]);
 
   const filteredRecords = useMemo(() => {
-    const from = startOfDay(startDate).getTime();
-    const to = endOfDay(endDate).getTime();
+    const from = startDate.getTime();
+    const to = endDate.getTime();
     return sharedFiltered.filter(r => {
       // Match the heatmap's overlap rule (HeatmapSection): include any stop whose
       // interval overlaps the range, not only those that STARTED inside it —
@@ -622,7 +622,12 @@ export default function DowntimePage() {
 
   // Reliability (WO-based), respecting shared line filter
   const filteredWOs = useMemo(() => {
-    const inRange = filterWOsByRange(allWOs, startDate, endDate);
+    const fromT = startDate.getTime();
+    const toT = endDate.getTime();
+    const inRange = (allWOs ?? []).filter((w: { created_at: string }) => {
+      const t = new Date(w.created_at).getTime();
+      return t >= fromT && t <= toT;
+    });
     return filterLine === "all"
       ? inRange
       : inRange.filter((w: any) => (w.line_at_time || w.line) === filterLine);
@@ -915,8 +920,8 @@ export default function DowntimePage() {
   const printGeneratedAt = format(new Date(), "yyyy-MM-dd HH:mm");
   const printRangeLabel = `${format(startDate, "PP")} — ${format(endDate, "PP")}`;
 
-  const fromMs = startOfDay(startDate).getTime();
-  const toMs = endOfDay(endDate).getTime();
+  const fromMs = startDate.getTime();
+  const toMs = endDate.getTime();
 
   return (
     <DashboardLayout>
@@ -989,8 +994,14 @@ export default function DowntimePage() {
                   onChange={(range, preset) => {
                     setDatePreset(preset);
                     const r = preset === "all" ? getPresetRange("30d") : range;
-                    if (r.from) setStartDate(startOfDay(r.from));
-                    if (r.to) setEndDate(endOfDay(r.to));
+                    // Keep the exact instants. This used to widen them to whole days
+                    // with startOfDay/endOfDay, which quietly destroyed any preset
+                    // with an intra-day boundary: "Current shift" (today 06:00 → now)
+                    // became today 00:00 → 23:59, so a stoppage from the night shift's
+                    // small hours was reported as this shift's downtime. The
+                    // whole-day presets already arrive as start-of-day → now.
+                    if (r.from) setStartDate(r.from);
+                    setEndDate(r.to ?? new Date());
                   }}
                 />
                 <Select value={filterLine} onValueChange={setFilterLine}>

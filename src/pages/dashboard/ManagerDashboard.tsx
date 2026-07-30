@@ -9,7 +9,7 @@ import { useAllWoMetrics } from "@/hooks/useWoMetrics";
 import { useDowntime } from "@/hooks/useDowntime";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { isNoPlannedShift } from "@/lib/downtimeBuckets";
-import { differenceInMinutes, startOfDay, endOfDay } from "date-fns";
+import { differenceInMinutes, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { useNavigate, Navigate } from "react-router-dom";
@@ -125,8 +125,11 @@ function ManagerDashboardContent() {
     const recs = (downtimeRecords || []).filter(
       (r: any) => !isNoPlannedShift(r.reason, r.category),
     );
-    const rangeStartMs = startOfDay(kpiRange.from).getTime();
-    const rangeEndMs = Math.min(endOfDay(kpiRange.to).getTime(), Date.now());
+    // The exact instants the period filter chose. Widening them to whole days here
+    // meant "Current shift" reported from midnight, so the night shift's small hours
+    // counted as the day shift's downtime — the same bug the Downtime page had.
+    const rangeStartMs = (kpiRange.from ?? startOfDay(new Date())).getTime();
+    const rangeEndMs = Math.min((kpiRange.to ?? new Date()).getTime(), Date.now());
     const spans: { start: string; end: string | null }[] = recs.map((r) => ({
       start: r.started_at,
       end: r.ended_at,
