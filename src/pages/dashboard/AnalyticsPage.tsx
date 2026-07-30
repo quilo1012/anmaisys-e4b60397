@@ -30,7 +30,9 @@ import { SLA_TARGETS } from "@/lib/sla";
 import { resolveLine } from "@/lib/resolveLine";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
-import { QUALITY_STATUSES, severityPoints } from "@/lib/qualityConstants";
+import { QUALITY_STATUSES, severityPoints, isValidatedPaperwork } from "@/lib/qualityConstants";
+import { computeLeaderScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { EmptyState } from "@/components/EmptyState";
@@ -41,7 +43,7 @@ const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444
 const truncLabel = (s: string, max = 20) => s.length > max ? s.slice(0, max - 1) + "…" : s;
 
 /** Sortable columns of the Leader Performance table. */
-type LeaderSortKey = "leader" | "sessions" | "lines" | "shifts" | "actual" | "target" | "eff" | "openActions";
+type LeaderSortKey = "leader" | "sessions" | "lines" | "shifts" | "actual" | "target" | "eff" | "openActions" | "score" | "docErrors";
 /** These sort A→Z on first click; the numeric ones sort high→low. */
 const LEADER_TEXT_KEYS: LeaderSortKey[] = ["leader", "shifts"];
 
@@ -111,6 +113,7 @@ const EmptyChart = () => (
 
 export default function AnalyticsPage() {
   const { role } = useAuth();
+  const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights();
   const { toast } = useToast();
   const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
   const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
@@ -236,6 +239,27 @@ export default function AnalyticsPage() {
     },
   });
 
+  // Quality actions raised inside the page's period, per leader — the input to the
+  // Quality and Documentation halves of the leader score. Separate from the open-actions
+  // query above, which is deliberately unbounded because "open" is a statement about
+  // today rather than about the period.
+  const { data: periodActionRows = [] } = useQuery({
+    queryKey: ["analytics-leader-period-actions", startDate.toISOString(), endDate.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quality_actions")
+        .select("leader_name, severity, labels, validation_status, recorded_at, description, shift")
+        .gte("recorded_at", startDate.toISOString())
+        .lte("recorded_at", endDate.toISOString());
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        leader_name: string | null; severity: string | null;
+        labels: string[] | null; validation_status: string | null;
+        description: string | null; shift: string | null;
+      }>;
+    },
+  });
+
   const leaderPerf = useMemo(() => {
     const normLine = (v: string | null | undefined) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
     const key = (date: string, shift: string | null, line: string | null) =>
@@ -274,11 +298,26 @@ export default function AnalyticsPage() {
       openMap.set(leader, cur);
     }
 
+    // Actions in the period, per leader — for the score's Quality and Documentation parts.
+    const periodMap = new Map<string, Array<{ severity: string | null; labels: string[] | null; validation_status: string | null }>>();
+    for (const a of periodActionRows) {
+      const leader = (a.leader_name || "").trim();
+      if (!leader) continue;
+      periodMap.set(leader, [...(periodMap.get(leader) ?? []), a]);
+    }
+
     const rows = Array.from(map.values())
       .map((a) => {
         const oa = openMap.get(a.leader);
+        const acts = periodMap.get(a.leader) ?? [];
+        const score = computeLeaderScore(
+          { actual: a.actual, target: a.target, avgOEE: null, actions: acts },
+          weights,
+        );
         return {
           leader: a.leader, sessions: a.sessions, target: a.target, actual: a.actual,
+          score: score.final,
+          docErrors: acts.filter(isValidatedPaperwork).length,
           // null (not 0) when there's no RAG plan for any of this leader's sessions —
           // "no target" is not the same as "0% efficiency" and must not rank as such.
           eff: a.target > 0 ? (a.actual / a.target) * 100 : null,
@@ -294,7 +333,35 @@ export default function AnalyticsPage() {
       totalOpenActions: rows.reduce((s, r) => s + r.openActions, 0),
       totalOpenPoints: rows.reduce((s, r) => s + r.openPoints, 0),
     };
-  }, [leaderRows, ragTargetRows, openActionRows]);
+  }, [leaderRows, ragTargetRows, openActionRows, periodActionRows, weights]);
+
+  /**
+   * Where the documentation errors are coming from: the five commonest descriptions
+   * and the day/night split, both counting validated paperwork only.
+   *
+   * A leader's score says who lost points; this says what to fix. Counting anything
+   * other than validated actions would make it a list of accusations.
+   */
+  const docErrorSummary = useMemo(() => {
+    const validated = periodActionRows.filter(isValidatedPaperwork);
+    const byText = new Map<string, number>();
+    for (const a of validated) {
+      const k = ((a as { description?: string | null }).description || "Not described").trim().slice(0, 80);
+      byText.set(k, (byText.get(k) ?? 0) + 1);
+    }
+    const top = Array.from(byText.entries())
+      .map(([text, count]) => ({ text, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    const byShift = { DAY: 0, NIGHT: 0, unknown: 0 };
+    for (const a of validated) {
+      const sh = String((a as { shift?: string | null }).shift ?? "").trim().toUpperCase();
+      if (sh === "DAY") byShift.DAY += 1;
+      else if (sh === "NIGHT") byShift.NIGHT += 1;
+      else byShift.unknown += 1;
+    }
+    return { total: validated.length, top, byShift };
+  }, [periodActionRows]);
 
   // Table sort — every column is sortable; Efficiency descending is the default,
   // so the best-performing leader is on top rather than the highest raw output.
@@ -744,7 +811,9 @@ export default function AnalyticsPage() {
                       <tr>
                         <th className="p-2 text-left">#</th>
                         <LeaderTh sortKey="leader" align="left" sort={leaderSort} onSort={toggleLeaderSort}>Leader</LeaderTh>
+                        <LeaderTh sortKey="score" sort={leaderSort} onSort={toggleLeaderSort}>Score</LeaderTh>
                         <LeaderTh sortKey="eff" sort={leaderSort} onSort={toggleLeaderSort}>Efficiency</LeaderTh>
+                        <LeaderTh sortKey="docErrors" sort={leaderSort} onSort={toggleLeaderSort}>Doc errors</LeaderTh>
                         <LeaderTh sortKey="openActions" sort={leaderSort} onSort={toggleLeaderSort}>Open Actions</LeaderTh>
                         <LeaderTh sortKey="sessions" sort={leaderSort} onSort={toggleLeaderSort}>Sessions</LeaderTh>
                         <LeaderTh sortKey="lines" sort={leaderSort} onSort={toggleLeaderSort}>Lines</LeaderTh>
@@ -759,10 +828,35 @@ export default function AnalyticsPage() {
                           <td className="p-2">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</td>
                           <td className="p-2 font-medium">{r.leader}</td>
                           <td className="p-2 text-right">
+                            {r.score === null ? (
+                              <span className="text-muted-foreground" title="Nothing measurable in this period">—</span>
+                            ) : (
+                              <span
+                                className={`font-bold tabular-nums ${r.score >= 90 ? "text-success-strong" : r.score >= 75 ? "text-warning-strong" : "text-destructive-strong"}`}
+                                title={`Production ${weights.production_pct}% · Quality ${weights.quality_pct}% · Documentation ${weights.documentation_pct}% — open the leader for the breakdown`}
+                              >
+                                {r.score.toFixed(0)}%
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2 text-right">
                             {r.eff === null ? (
                               <span className="text-muted-foreground" title="No RAG weekly plan for this leader's sessions in the period">—</span>
                             ) : (
                               <Badge className={`${r.eff >= 100 ? "bg-green-500/15 text-green-600 border-green-500/40" : r.eff >= 80 ? "bg-amber-500/15 text-amber-600 border-amber-500/40" : "bg-red-500/15 text-red-600 border-red-500/40"} border`}>{r.eff.toFixed(1)}%</Badge>
+                            )}
+                          </td>
+                          <td className="p-2 text-right tabular-nums">
+                            {r.docErrors === 0 ? (
+                              <span className="text-muted-foreground" title="No validated paperwork error in this period">0</span>
+                            ) : (
+                              <Link
+                                to="/dashboard/quality"
+                                className="font-semibold text-destructive-strong hover:underline"
+                                title={`${r.docErrors} validated paperwork error${r.docErrors === 1 ? "" : "s"} — −${r.docErrors * 5}% on the documentation score`}
+                              >
+                                {r.docErrors} <span className="text-2xs font-normal">−{r.docErrors * 5}%</span>
+                              </Link>
                             )}
                           </td>
                           <td className="p-2 text-right tabular-nums">
@@ -785,6 +879,39 @@ export default function AnalyticsPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Where the documentation errors come from, and on which shift. */}
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top documentation errors</p>
+                    {docErrorSummary.total === 0 ? (
+                      <p className="mt-1 text-sm text-muted-foreground">No validated paperwork error in this period.</p>
+                    ) : (
+                      <ol className="mt-1.5 space-y-1">
+                        {docErrorSummary.top.map((t, i) => (
+                          <li key={t.text} className="flex items-baseline justify-between gap-3 text-sm">
+                            <span className="min-w-0"><span className="mr-1.5 text-2xs text-muted-foreground">{i + 1}</span>{t.text}</span>
+                            <span className="shrink-0 font-semibold tabular-nums">{t.count}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Validated by shift</p>
+                    <div className="mt-1.5 grid grid-cols-3 gap-2 text-center">
+                      {([["Day", docErrorSummary.byShift.DAY], ["Night", docErrorSummary.byShift.NIGHT], ["No shift", docErrorSummary.byShift.unknown]] as const).map(([label, n]) => (
+                        <div key={label} className="rounded-md border p-2">
+                          <p className="text-2xs uppercase tracking-wide text-muted-foreground">{label}</p>
+                          <p className={`text-xl font-bold tabular-nums ${n > 0 ? "text-destructive-strong" : ""}`}>{n}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-2xs text-muted-foreground">
+                      Validated paperwork errors only — actions still under review are not counted.
+                    </p>
+                  </div>
                 </div>
               </>
             )}
