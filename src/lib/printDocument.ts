@@ -26,7 +26,10 @@ export async function printElementAsDocument(
   // Off-screen but still laid out — `display: none` would give images no chance to
   // load and Safari nothing to paginate.
   iframe.setAttribute("aria-hidden", "true");
-  iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0;";
+  // Laid out at the paper's own width, so a landscape report is measured against
+  // 297mm rather than being composed for a portrait page and then re-flowed by the
+  // print engine.
+  iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${opts.landscape ? "297mm" : "210mm"};height:${opts.landscape ? "210mm" : "297mm"};border:0;`;
   document.body.appendChild(iframe);
 
   const cleanup = () => {

@@ -67,7 +67,9 @@ async function loadLogoDataUrl(): Promise<string | null> {
 // ── PDF ──────────────────────────────────────────────────────────────────────
 export async function generateQualityReportPDF(input: QualityReportInput) {
   const { actions, periodLabel, generatedBy } = input;
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  // Landscape: the detail table carries eleven columns, and portrait squeezed Notes
+  // to a sliver while wrapping Leader and Department onto two lines each.
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const margin = 14;
   const logo = await loadLogoDataUrl();
@@ -98,25 +100,46 @@ export async function generateQualityReportPDF(input: QualityReportInput) {
   doc.text(kpis.join("      "), margin, y);
   y += 6;
 
-  // Breakdown tables (two per row via startY chaining)
-  const breakdown = (title: string, rows: [string, number][]) => {
-    autoTable(doc, {
-      startY: y,
-      head: [[title, "Count"]],
-      body: rows.length ? rows.map(([k, v]) => [k, String(v)]) : [["—", "0"]],
-      styles: { fontSize: 8, cellPadding: 1.5 },
-      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold" },
-      alternateRowStyles: { fillColor: [245, 247, 250] },
-      margin: { left: margin, right: margin },
-      tableWidth: (pageW - margin * 2),
+  // Breakdowns side by side, three to a row.
+  //
+  // These were five full-width tables chained one under the other, so a two-line
+  // summary of statuses took the same width as the detail table and the five of them
+  // consumed most of the first page before a single action appeared. Each is a short
+  // list of labels and counts; they belong beside each other.
+  const GAP = 4;
+  const PER_ROW = 3;
+  const colW = (pageW - margin * 2 - GAP * (PER_ROW - 1)) / PER_ROW;
+
+  const breakdowns: Array<[string, [string, number][]]> = [
+    ["By Status", tally(actions, (a) => statusMeta(a.status).label)],
+    ["By Severity", tally(actions, (a) => sevLabel(a.severity))],
+    ["By Line", tally(actions, (a) => a.line || "—")],
+    ["By Department", tally(actions, (a) => a.department || "—")],
+    ["By Leader", tally(actions, (a) => a.leader_name || "—")],
+  ];
+
+  for (let i = 0; i < breakdowns.length; i += PER_ROW) {
+    const row = breakdowns.slice(i, i + PER_ROW);
+    let rowBottom = y;
+    row.forEach(([title, rows], col) => {
+      const left = margin + col * (colW + GAP);
+      autoTable(doc, {
+        startY: y,
+        head: [[title, "Count"]],
+        body: rows.length ? rows.map(([k, v]) => [k, String(v)]) : [["—", "0"]],
+        styles: { fontSize: 8, cellPadding: 1.5, overflow: "linebreak" },
+        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
+        columnStyles: { 1: { halign: "right", cellWidth: 16 } },
+        // right is what keeps the table inside its column instead of running the
+        // full page width.
+        margin: { left, right: pageW - left - colW },
+        tableWidth: colW,
+      });
+      rowBottom = Math.max(rowBottom, (doc as any).lastAutoTable.finalY);
     });
-    y = (doc as any).lastAutoTable.finalY + 4;
-  };
-  breakdown("By Status", tally(actions, (a) => statusMeta(a.status).label));
-  breakdown("By Severity", tally(actions, (a) => sevLabel(a.severity)));
-  breakdown("By Line", tally(actions, (a) => a.line || "—"));
-  breakdown("By Department", tally(actions, (a) => a.department || "—"));
-  breakdown("By Leader", tally(actions, (a) => a.leader_name || "—"));
+    y = rowBottom + GAP;
+  }
 
   // Full actions table
   autoTable(doc, {

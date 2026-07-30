@@ -934,6 +934,14 @@ export default function DowntimePage() {
           html, body { background: #fff !important; }
           body * { visibility: hidden !important; }
           .downtime-print-root, .downtime-print-root * { visibility: visible !important; }
+          /* The shell is only made INVISIBLE, not removed, so it still occupies its
+             layout — and the layout it occupies is h-screen, a full page of nothing.
+             The report is absolutely positioned on top of it, so the browser prints
+             the report and then the empty page the shell still measures: the orphan
+             blank page. Collapsing every remaining box removes that page. */
+          #root [class*="h-screen"], #root [class*="min-h-screen"], #root main {
+            height: auto !important; min-height: 0 !important; max-height: none !important;
+          }
           .downtime-print-root {
             position: absolute; left: 0; top: 0; width: 100%;
             color: #000 !important;
