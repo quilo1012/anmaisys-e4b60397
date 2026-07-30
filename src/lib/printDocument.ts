@@ -17,7 +17,11 @@
  * An iframe rather than a popup window: popup blockers refuse window.open on many
  * tablets, and that failure is silent too.
  */
-export async function printElementAsDocument(el: HTMLElement, title: string): Promise<void> {
+export async function printElementAsDocument(
+  el: HTMLElement,
+  title: string,
+  opts: { landscape?: boolean } = {},
+): Promise<void> {
   const iframe = document.createElement("iframe");
   // Off-screen but still laid out — `display: none` would give images no chance to
   // load and Safari nothing to paginate.
@@ -45,11 +49,13 @@ export async function printElementAsDocument(el: HTMLElement, title: string): Pr
     doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>${styles}
 <style>
   /* The document IS the page here, so it needs none of the shell overrides. */
-  @page { size: A4 portrait; margin: 12mm; }
+  @page { size: A4 ${opts.landscape ? "landscape" : "portrait"}; margin: 12mm; }
   html, body { margin: 0; padding: 0; background: #fff; color: #000; }
   body { font-size: 9pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  /* Screen-only controls that came along with the clone. */
-  button, [role="button"], .no-print { display: none !important; }
+  /* Screen-only controls that came along with the clone. Only real buttons: KPI
+     cards that double as filters carry role="button", and hiding those would have
+     dropped the whole KPI row out of every printed report. */
+  button, .no-print { display: none !important; }
   /* Print-only blocks must show: the clone is not inside an @media print context
      until the dialog opens, and Safari resolves that late. */
   .hidden.print\\:block { display: block !important; }
@@ -80,6 +86,12 @@ export async function printElementAsDocument(el: HTMLElement, title: string): Pr
   /* The empty-state block a chart shows when it has no data must print — an empty
      bordered box says nothing, "No data available" says the report is complete. */
   .recharts-surface:empty { display: none !important; }
+
+  /* A table given a min-width for horizontal scrolling on screen cannot scroll on
+     paper: it simply loses its right-hand columns off the edge. PM Intelligence's
+     table asks for 900px, wider than A4 portrait. */
+  [class*="min-w-["] { min-width: 0 !important; }
+  th, td { word-break: break-word; }
 </style></head><body></body></html>`);
     doc.close();
 

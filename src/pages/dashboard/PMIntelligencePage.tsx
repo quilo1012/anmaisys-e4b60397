@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { printElementAsDocument } from "@/lib/printDocument";
 
 type RecKind = "reduce" | "no_pm" | "ok" | "increase";
 
@@ -163,7 +164,7 @@ export default function PMIntelligencePage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 print-content">
+      <div id="pm-intelligence-print" className="space-y-6 print-content">
         <ReportPrintHeader
           title="PM Intelligence"
           periodLabel="Last 90 days"
@@ -176,7 +177,16 @@ export default function PMIntelligencePage() {
           description="Compares real MTBF and MTTR per machine against the current PM interval and recommends an adjustment."
           icon={<Brain className="h-5 w-5" />}
           actions={
-            <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={async () => {
+              const el = document.getElementById("pm-intelligence-print");
+              try {
+                // Landscape: nine columns and a machine name per row do not fit A4 portrait,
+                // and on paper a table cannot scroll — it just loses the right-hand columns.
+                if (el) await printElementAsDocument(el, "PM Intelligence", { landscape: true });
+              } catch (err: any) {
+                toast.error(err?.message ?? "Could not open the print dialog.");
+              }
+            }}>
               <Printer className="h-4 w-4" /> Print
             </Button>
           }

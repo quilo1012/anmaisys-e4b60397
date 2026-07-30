@@ -23,6 +23,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { printElementAsDocument } from "@/lib/printDocument";
 import {
   usePmSchedules, usePmTasks, usePmExecutions,
   useCreatePmSchedule, useUpdatePmSchedule, useDeletePmSchedule,
@@ -107,7 +108,7 @@ export default function PreventiveMaintenancePage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 print-content">
+      <div id="preventive-print" className="space-y-4 print-content">
         <ReportPrintHeader
           title="Preventive Maintenance Schedule"
           periodLabel={format(new Date(), "dd/MM/yyyy")}
@@ -124,7 +125,14 @@ export default function PreventiveMaintenancePage() {
           icon={<Wrench className="h-5 w-5" />}
           actions={
             <>
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+              <Button variant="outline" size="sm" className="gap-2" onClick={async () => {
+                const el = document.getElementById("preventive-print");
+                try {
+                  if (el) await printElementAsDocument(el, "Preventive Maintenance Schedule");
+                } catch (e: any) {
+                  toast({ title: "Could not print", description: e?.message ?? "The print dialog did not open.", variant: "destructive" });
+                }
+              }}>
                 <Printer className="h-4 w-4" /> Print
               </Button>
               <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate("/dashboard/pm-intelligence")}>
