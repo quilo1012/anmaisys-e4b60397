@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -369,6 +370,9 @@ export default function ProductionPerformancePage() {
   return (
     <DashboardLayout>
       <div className="p-4 md:p-6 space-y-6">
+        {/* Landing screen for supervisors and the production office — same opening. */}
+        <DashboardWelcome />
+
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <h1 className="text-xl md:text-2xl font-bold">Production Performance</h1>

@@ -32,6 +32,7 @@ import { format, differenceInDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { OperatorNavCards } from "@/components/DashboardNavCards";
+import { DashboardWelcome } from "@/components/DashboardWelcome";
 
 import { countOpenWOs } from "@/lib/woStatus";
 import { getShift, SHIFT_LABEL, getCurrentShiftStart, getCurrentFactoryShift, type ShiftCode } from "@/lib/shifts";
@@ -256,6 +257,8 @@ function OperatorDashboardContent() {
 
   return (
     <div className="space-y-6 max-w-6xl xl:max-w-7xl mx-auto">
+      <DashboardWelcome />
+
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold">Operator Panel</h2>
