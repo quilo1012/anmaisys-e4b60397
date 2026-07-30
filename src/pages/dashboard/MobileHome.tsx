@@ -76,6 +76,20 @@ export default function MobileHome() {
       <div className="mx-auto max-w-6xl space-y-8 py-6">
         <AnimatedWelcomeHeader name={profile?.name || "there"} dateLabel={`${today} · ${SHIFT_LABEL[shiftCode]}`} />
 
+        {/* Banner stays at the top, under the welcome — this is the first screen after
+            signing in and it is where the brand belongs. */}
+        {heroUrls.length > 0 && (
+          <a
+            href={banner?.url ?? "https://appliednutrition.uk/"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative block aspect-[16/6] overflow-hidden rounded-2xl border shadow-sm transition-shadow hover:shadow-md sm:aspect-[16/5]"
+            aria-label="Applied Nutrition"
+          >
+            <SiteBannerImages urls={heroUrls} />
+          </a>
+        )}
+
         {/* What the factory is doing right now, before the shortcuts. A landing page
             that only lists screens makes everyone open three of them to find out
             whether anything needs them. */}
@@ -148,19 +162,6 @@ export default function MobileHome() {
           </section>
         ))}
 
-        {/* Branding last. It was the first thing on the page, above every shortcut and
-            every number — a promotion banner is not why anyone opens this screen. */}
-        {heroUrls.length > 0 && (
-          <a
-            href={banner?.url ?? "https://appliednutrition.uk/"}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group relative block aspect-[16/5] overflow-hidden rounded-2xl border shadow-sm transition-shadow hover:shadow-md sm:aspect-[16/4]"
-            aria-label="Applied Nutrition"
-          >
-            <SiteBannerImages urls={heroUrls} />
-          </a>
-        )}
       </div>
     </DashboardLayout>
   );
