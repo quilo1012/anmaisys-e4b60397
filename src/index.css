@@ -143,6 +143,26 @@ select:-webkit-autofill {
     width: 100% !important;
   }
 
+  /* The responsive safety net below clamps html/body/#root to 100vw with
+     overflow-x hidden, which on screen keeps wide tables from scrolling the whole
+     page. On paper it silently guillotines anything past the page width — the
+     right-hand columns of a wide report simply were not printed, with no scrollbar
+     or clipped edge to hint at it. Paper has no viewport to clamp to. */
+  html,
+  body,
+  #root {
+    max-width: none !important;
+    overflow: visible !important;
+  }
+
+  /* Same reason: a container that scrolls on screen must expand on paper, or only
+     the first screenful of its content is printed. */
+  .overflow-x-auto,
+  .overflow-auto,
+  .overflow-hidden {
+    overflow: visible !important;
+  }
+
   /* Hide all non-document UI */
   nav, aside, header, footer,
   .print\:hidden,
@@ -287,8 +307,28 @@ select:-webkit-autofill {
   /* Print-specific table styling: bordered audit tables */
   .print-content table {
     width: 100% !important;
+    max-width: 100% !important;
     font-size: 8pt;
     border-collapse: collapse !important;
+  }
+
+  /* Text clamped for the screen must print in full. A column set to
+     `truncate max-w-[200px]` looks fine on a monitor, where the reader can widen
+     the window or hover; on paper the sentence just stops, and a problem
+     description cut to "Filler jam on the infeed conve…" is not a record. */
+  .print-content .truncate,
+  .print-content [class*="line-clamp"] {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    display: block !important;
+    -webkit-line-clamp: unset !important;
+    max-width: none !important;
+  }
+
+  .print-content td,
+  .print-content th {
+    overflow-wrap: break-word;
   }
 
   .print-content th,

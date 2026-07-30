@@ -17,9 +17,12 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Wrench, Plus, AlertTriangle, Clock, CheckCircle2, ChevronDown, ChevronRight,
-  Trash2, Loader2, CalendarClock, History,
+  Trash2, Loader2, CalendarClock, History, Printer, Brain, Search,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
+import { useNavigate } from "react-router-dom";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import {
   usePmSchedules, usePmTasks, usePmExecutions,
   useCreatePmSchedule, useUpdatePmSchedule, useDeletePmSchedule,
@@ -42,6 +45,7 @@ import { useConfirm } from "@/hooks/useConfirm";
 
 export default function PreventiveMaintenancePage() {
   const { role } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { confirm, confirmDialog } = useConfirm();
   const canManage = role === "admin" || (role === "manager" || role === "maintenance_manager");
@@ -52,6 +56,7 @@ export default function PreventiveMaintenancePage() {
   const deleteMut = useDeletePmSchedule();
 
   const [filter, setFilter] = useState<PmStatus | "all">("all");
+  const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [executeFor, setExecuteFor] = useState<PmSchedule | null>(null);
@@ -76,9 +81,13 @@ export default function PreventiveMaintenancePage() {
   }, [enriched]);
 
   const filtered = useMemo(() => {
-    if (filter === "all") return enriched;
-    return enriched.filter((s) => s._status === filter);
-  }, [enriched, filter]);
+    const q = search.trim().toLowerCase();
+    return enriched.filter((s) => {
+      if (filter !== "all" && s._status !== filter) return false;
+      if (!q) return true;
+      return `${s.machine ?? ""} ${s.title ?? ""} ${s.description ?? ""}`.toLowerCase().includes(q);
+    });
+  }, [enriched, filter, search]);
 
   const submitCreate = async () => {
     if (!form.machine || !form.title || !form.interval_days) {
@@ -97,21 +106,40 @@ export default function PreventiveMaintenancePage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 p-4 md:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Wrench className="h-6 w-6" /> Preventive Maintenance
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Schedule recurring maintenance per machine with checklists and history.
-            </p>
-          </div>
-          {canManage && (
-            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2"><Plus className="h-4 w-4" /> New Schedule</Button>
-              </DialogTrigger>
+      <div className="space-y-4 p-4 md:p-6 print-content">
+        <ReportPrintHeader
+          title="Preventive Maintenance Schedule"
+          periodLabel={format(new Date(), "dd/MM/yyyy")}
+          filtersLabel={[
+            filter === "all" ? "All statuses" : `Status: ${statusStyle[filter].label}`,
+            search.trim() ? `Search: ${search.trim()}` : null,
+          ].filter(Boolean).join("  ·  ")}
+        />
+
+        <PageHeader
+          className="print:hidden"
+          title="Preventive Maintenance"
+          description="Recurring maintenance per machine, with checklists and a signed history of every execution."
+          icon={<Wrench className="h-5 w-5" />}
+          actions={
+            <>
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+                <Printer className="h-4 w-4" /> Print
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate("/dashboard/pm-intelligence")}>
+                <Brain className="h-4 w-4" /> PM Intelligence
+              </Button>
+              {canManage && (
+                <Button size="sm" className="gap-2" onClick={() => setCreateOpen(true)}>
+                  <Plus className="h-4 w-4" /> New Schedule
+                </Button>
+              )}
+            </>
+          }
+        />
+
+        {canManage && (
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>New PM Schedule</DialogTitle>
@@ -165,15 +193,57 @@ export default function PreventiveMaintenancePage() {
               </DialogContent>
             </Dialog>
           )}
+
+        {/* KPIs double as the status filter — clicking the active one clears it, so the
+            tiles are the only filter control needed for status. */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 print:grid-cols-4 print:gap-2">
+          <KpiTile icon={<AlertTriangle className="h-5 w-5" />} label="Overdue" value={kpis.overdue} hint="Past its due date" tone={kpis.overdue ? "danger" : "ok"} onClick={() => setFilter((f) => (f === "overdue" ? "all" : "overdue"))} active={filter === "overdue"} />
+          <KpiTile icon={<Clock className="h-5 w-5" />} label="Due in 7 days" value={kpis.dueSoon} hint="Plan these into the week" tone={kpis.dueSoon ? "warning" : "ok"} onClick={() => setFilter((f) => (f === "due_soon" ? "all" : "due_soon"))} active={filter === "due_soon"} />
+          <KpiTile icon={<CalendarClock className="h-5 w-5" />} label="Scheduled" value={kpis.scheduled} hint="On plan, nothing to do" tone="info" onClick={() => setFilter((f) => (f === "ok" ? "all" : "ok"))} active={filter === "ok"} />
+          <KpiTile icon={<CheckCircle2 className="h-5 w-5" />} label="All schedules" value={kpis.total} hint="Across every machine" tone="ok" onClick={() => setFilter("all")} active={filter === "all"} />
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KpiTile icon={<AlertTriangle className="h-5 w-5" />} label="Overdue" value={kpis.overdue} tone={kpis.overdue ? "danger" : "ok"} onClick={() => setFilter("overdue")} active={filter === "overdue"} />
-          <KpiTile icon={<Clock className="h-5 w-5" />} label="Due in 7 days" value={kpis.dueSoon} tone={kpis.dueSoon ? "warning" : "ok"} onClick={() => setFilter("due_soon")} active={filter === "due_soon"} />
-          <KpiTile icon={<CalendarClock className="h-5 w-5" />} label="Scheduled" value={kpis.scheduled} tone="info" onClick={() => setFilter("ok")} active={filter === "ok"} />
-          <KpiTile icon={<CheckCircle2 className="h-5 w-5" />} label="Total" value={kpis.total} tone="ok" onClick={() => setFilter("all")} active={filter === "all"} />
+        {/* Search — the same toolbar shape as Maintenance Orders, so the two screens
+            behave alike. */}
+        <div className="relative max-w-md print:hidden">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search machine or schedule…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9 bg-background"
+          />
         </div>
+
+        {/* Printed schedule. The screen list is a stack of expandable cards, which is
+            right for working through but printed as one line per schedule with the
+            checklist hidden inside; on paper it needs to be a table. */}
+        {!isLoading && filtered.length > 0 && (
+          <table className="hidden print:table w-full text-[8pt]">
+            <thead>
+              <tr>
+                <th className="text-left">Machine</th>
+                <th className="text-left">Schedule</th>
+                <th className="text-right">Every</th>
+                <th className="text-left">Last done</th>
+                <th className="text-left">Next due</th>
+                <th className="text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((s) => (
+                <tr key={s.id}>
+                  <td>{s.machine}</td>
+                  <td>{s.title}</td>
+                  <td className="text-right tabular-nums">{s.interval_days}d</td>
+                  <td>{s.last_done_at ? format(new Date(s.last_done_at), "dd/MM/yyyy") : "—"}</td>
+                  <td>{s.next_due_at ? format(new Date(s.next_due_at), "dd/MM/yyyy") : "—"}</td>
+                  <td>{statusStyle[s._status].label}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
 
         {/* List */}
         {isLoading ? (
@@ -181,7 +251,7 @@ export default function PreventiveMaintenancePage() {
         ) : !filtered.length ? (
           <Card><CardContent className="py-12 text-center text-muted-foreground">No schedules match this filter.</CardContent></Card>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 print:hidden">
             {filtered.map((s) => (
               <ScheduleCard
                 key={s.id}
@@ -215,30 +285,49 @@ export default function PreventiveMaintenancePage() {
   );
 }
 
+/** Status tile that also filters the list. Left-border accent + muted label + large
+ *  number is the KpiCard shape used across the reports, so this screen reads as part
+ *  of the same system; it stays a separate component only because KpiCard is not
+ *  clickable. */
 function KpiTile({
-  icon, label, value, tone, onClick, active,
+  icon, label, value, hint, tone, onClick, active,
 }: {
-  icon: React.ReactNode; label: string; value: number;
+  icon: React.ReactNode; label: string; value: number; hint?: string;
   tone: "ok" | "warning" | "danger" | "info";
   onClick?: () => void; active?: boolean;
 }) {
-  const toneStyles: Record<string, string> = {
-    ok: "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300",
-    warning: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-    danger: "border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300",
-    info: "border-blue-500/30 bg-blue-500/5 text-blue-700 dark:text-blue-300",
+  const accent: Record<string, string> = {
+    ok: "border-l-emerald-500",
+    warning: "border-l-amber-500",
+    danger: "border-l-destructive",
+    info: "border-l-blue-500",
+  };
+  const valueTone: Record<string, string> = {
+    ok: "",
+    warning: "text-amber-600 dark:text-amber-400",
+    danger: "text-destructive",
+    info: "",
   };
   return (
     <Card
+      role="button"
+      tabIndex={0}
+      aria-pressed={!!active}
       onClick={onClick}
-      className={cn("cursor-pointer transition-all border", toneStyles[tone], active && "ring-2 ring-primary/50")}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick?.(); } }}
+      className={cn(
+        "cursor-pointer border-l-4 transition-colors hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        accent[tone],
+        active && "bg-muted/60 ring-2 ring-primary/40",
+      )}
     >
-      <CardContent className="p-4 flex items-center gap-3">
-        <div className="opacity-80">{icon}</div>
-        <div>
-          <p className="text-[10px] uppercase tracking-wide opacity-70">{label}</p>
-          <p className="text-2xl font-bold">{value}</p>
+      <CardContent className="pt-4 pb-3">
+        <div className="flex items-center gap-2 text-muted-foreground mb-1">
+          {icon}
+          <span className="text-xs font-medium">{label}</span>
         </div>
+        <p className={cn("text-3xl font-bold leading-tight tabular-nums", value > 0 ? valueTone[tone] : "")}>{value}</p>
+        {hint && <p className="text-[10px] text-muted-foreground mt-1">{hint}</p>}
       </CardContent>
     </Card>
   );

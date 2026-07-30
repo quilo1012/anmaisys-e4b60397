@@ -220,13 +220,19 @@ export default function WorkOrderDetail() {
 
         {/* ═══ PRINT-ONLY: Industrial Document Header ═══ */}
         <div className="hidden print:block mb-4">
-          <div className="border-b-2 border-black pb-3 flex items-center justify-between">
-            <div className="flex-shrink-0">
-              <img src="/appliedlogo.jpeg" alt="Applied Nutrition" crossOrigin="anonymous" className="h-16 w-auto object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
+          <div className="border-b-2 border-black pb-3 flex items-end justify-between gap-4">
+            <div className="flex items-end gap-3">
+              <img src="/appliedlogo.jpeg" alt="Applied Nutrition" crossOrigin="anonymous" className="h-14 w-auto object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
+              {/* The sheet used to carry a logo and nothing else, so a print where the
+                  image failed to load came out of the printer unidentifiable. */}
+              <div>
+                <p className="text-[13pt] font-bold uppercase tracking-wide leading-none">Maintenance Order</p>
+                <p className="text-[8pt] text-gray-600 mt-0.5">Applied Nutrition</p>
+              </div>
             </div>
             <div className="text-right">
               <p className="text-base font-bold font-mono">{woLabel}</p>
-              <p className="text-[8pt] text-gray-600">{format(new Date(wo.created_at), "dd/MM/yyyy HH:mm")}</p>
+              <p className="text-[8pt] text-gray-600">Opened {format(new Date(wo.created_at), "dd/MM/yyyy HH:mm")}</p>
             </div>
           </div>
           {/* Document metadata row */}
@@ -648,6 +654,10 @@ export default function WorkOrderDetail() {
               <div className="border-b-2 border-black w-full" />
               <p className="text-[7pt] mt-1 text-gray-500">Signature</p>
             </div>
+          </div>
+          <div className="mt-3 pt-1 border-t border-gray-400 flex items-center justify-between text-[7pt] text-gray-600">
+            <span>{woLabel} · {wo.machine || (wo as any).warehouse_location || "—"}</span>
+            <span>Applied Nutrition · Confidential · printed {format(new Date(), "dd/MM/yyyy HH:mm")}</span>
           </div>
         </div>
 

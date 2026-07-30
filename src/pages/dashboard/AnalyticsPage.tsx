@@ -648,8 +648,11 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Date Range Filters */}
+        {/* Date Range Filters — off the paper. The period and shift they select are
+            already stated in the report header; the controls themselves printed as
+            empty boxes between the header and the KPIs. */}
         <ReportsFilterBar
+          className="print:hidden"
           dateRange={drRange}
           datePreset={drPreset}
           onDateChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
@@ -676,14 +679,16 @@ export default function AnalyticsPage() {
           </div>
         )}
 
-        {/* KPI cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* KPI cards. The print columns are explicit: the responsive breakpoints are
+            measured against the paper width, so the same report could come out four
+            across or stacked one per row depending on the printer's page size. */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
           <KpiCard accent="blue" icon={<ClipboardList className="h-4 w-4" />} label="Open WOs" value={openCount} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
           <KpiCard accent="indigo" icon={<LayoutDashboard className="h-4 w-4" />} label="In Progress" value={inProgressCount} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
           <KpiCard accent="green" icon={<ClipboardList className="h-4 w-4" />} label="Completed Today" value={completedToday} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
           <KpiCard accent="muted" icon={<Users className="h-4 w-4" />} label="Total Users" value={userCount ?? 0} />
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
           <KpiCard accent="indigo" icon={<Timer className="h-4 w-4" />} label="Avg Response" value={fmtMin(kpis.avgResponse)} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
           <KpiCard accent="amber" icon={<Activity className="h-4 w-4" />} label="Avg MTTR" value={fmtMin(kpis.avgMTTR)} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
           <KpiCard accent="purple" icon={<Activity className="h-4 w-4" />} label="Avg MTBF" value={formatMTBF(kpis.avgMTBF / 60)} sublabel={hasNoActivity ? "No activity in selected period" : "Mean Time Between Failures"} />
@@ -793,7 +798,7 @@ export default function AnalyticsPage() {
 
 
         {/* Charts */}
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 print:grid-cols-2 print:gap-3">
           <Card>
             <CardHeader><CardTitle className="text-base">WOs per Day (Last {Math.min(rangeDays, 30)} Days)</CardTitle></CardHeader>
             <CardContent>
@@ -1094,6 +1099,12 @@ export default function AnalyticsPage() {
               </Card>
             </>
           )}
+        </div>
+
+        {/* Printed footer — same identity line every report carries. */}
+        <div className="hidden print:flex items-center justify-between mt-4 pt-2 border-t border-black text-[8pt]">
+          <span>Analytics Report · {format(startDate, "dd/MM/yyyy")} — {format(endDate, "dd/MM/yyyy")}</span>
+          <span>Applied Nutrition · Confidential · printed {format(new Date(), "dd/MM/yyyy HH:mm")}</span>
         </div>
       </div>
     </DashboardLayout>

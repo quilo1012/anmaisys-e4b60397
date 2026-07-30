@@ -13,14 +13,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Trash2, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal } from "lucide-react";
-import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useDeleteWorkOrder, useMoveWorkOrderStage, stageOfStatus, type WOStage, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
+import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal } from "lucide-react";
+import { useWorkOrders, useForceCloseWorkOrder, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useMoveWorkOrderStage, stageOfStatus, type WOStage, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { ComboboxInput } from "@/components/ComboboxInput";
 
 const WAREHOUSE_LOCATIONS = ["AC1", "AC2 - Warehouse", "K53", "Depot RD"];
+
+// Radix Select has no empty-string value, so "no line chosen" needs a sentinel.
+const ANY_LINE = "__any_line__";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -104,7 +107,6 @@ export default function WorkOrdersPage() {
   const updateWO = useUpdateWorkOrder();
   const moveStage = useMoveWorkOrderStage();
   const [dragOverStage, setDragOverStage] = useState<WOStage | null>(null);
-  const deleteWO = useDeleteWorkOrder();
 
   const { data: machines } = useMachines();
   const { data: lines } = useLines();
@@ -137,7 +139,6 @@ export default function WorkOrdersPage() {
   const [editDesc, setEditDesc] = useState("");
   const [editNotes, setEditNotes] = useState("");
 
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showClearWOs, setShowClearWOs] = useState(false);
   const [clearPin, setClearPin] = useState("");
   const [clearing, setClearing] = useState(false);
@@ -171,6 +172,34 @@ export default function WorkOrdersPage() {
     });
     return map;
   }, [machines]);
+
+  // Machines offered when creating an order.
+  //
+  // The old list matched a machine to the selected line by comparing the line's
+  // name to m.current_line / m.fixed_line — neither column exists on machines, so
+  // it fell through to m.line, a free-text field. Any machine whose text differs
+  // from the line's name was unreachable: the two Gel machines say "Gel Line" while
+  // the line is named "GEL Machine", so that line reported "No machines for this
+  // line". Worse, the select was disabled until a line was chosen, and the sealers,
+  // printers, Tablet Line and warehouse assets belong to no line at all — there was
+  // no way to raise an order against any of them.
+  //
+  // So: match on line_id first (the real relation), fall back to the name for rows
+  // that predate it, and with no line selected offer every machine.
+  const machineOptions = useMemo(() => {
+    const all = (machines || []) as any[];
+    if (!newLineId) return all;
+    const lineName = lines?.find((l: any) => l.id === newLineId)?.name;
+    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
+    const byId = all.filter((m) => m.line_id === newLineId);
+    if (byId.length) return byId;
+    return all.filter((m) => {
+      const base = (m.line || "").toString();
+      if (!base || !lineName) return false;
+      const withSide = m.side === "A" || m.side === "B" ? `${base}${m.side}` : base;
+      return norm(withSide) === norm(lineName) || norm(base) === norm(lineName);
+    });
+  }, [machines, lines, newLineId]);
 
   const distinctLines = useMemo(() => {
     const lineNames = new Set<string>();
@@ -329,12 +358,6 @@ export default function WorkOrdersPage() {
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
 
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    try { await deleteWO.mutateAsync(deleteId); toast({ title: "Maintenance Order Deleted" }); setDeleteId(null); }
-    catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-  };
-
   const KanbanCard = ({ wo, borderColor }: { wo: WorkOrder; borderColor: string }) => {
     const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
     return (
@@ -362,7 +385,7 @@ export default function WorkOrdersPage() {
     );
   };
 
-  const KanbanColumn = ({ title, items, color, borderColor, stage }: { title: string; items: WorkOrder[]; color: string; borderColor: string; stage: WOStage }) => (
+  const KanbanColumn = ({ title, items, color, borderColor, stage, note }: { title: string; items: WorkOrder[]; color: string; borderColor: string; stage: WOStage; note?: string }) => (
     <div
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverStage(stage); }}
       onDragLeave={() => setDragOverStage((c) => (c === stage ? null : c))}
@@ -381,7 +404,10 @@ export default function WorkOrdersPage() {
       }}
       className={`space-y-2 rounded-lg p-2 transition-colors ${dragOverStage === stage ? "bg-primary/5 ring-2 ring-primary" : ""}`}
     >
-      <div className="flex items-center gap-2 mb-3"><div className={`w-3 h-3 rounded-full ${color}`} /><h3 className="font-semibold text-sm">{title} ({items.length})</h3></div>
+      <div className="mb-3">
+        <div className="flex items-center gap-2"><div className={`w-3 h-3 rounded-full ${color}`} /><h3 className="font-semibold text-sm">{title} ({items.length})</h3></div>
+        {note && <p className="mt-0.5 pl-5 text-[11px] text-muted-foreground">{note}</p>}
+      </div>
       {items.map((wo) => <KanbanCard key={wo.id} wo={wo} borderColor={borderColor} />)}
       {!items.length && <p className="text-muted-foreground text-xs text-center py-4">Drop an order here</p>}
     </div>
@@ -391,6 +417,7 @@ export default function WorkOrdersPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader
+          className="print:hidden"
           title="Maintenance Orders"
           description="Manage and track all maintenance orders"
           icon={<ClipboardList className="h-5 w-5" />}
@@ -407,7 +434,10 @@ export default function WorkOrdersPage() {
         />
 
         <Card>
-          <CardHeader className="space-y-4 border-b bg-muted/30">
+          {/* Whole toolbar off the paper: the buttons were already dropped by the print
+              stylesheet, which left the search box and filter selects printing as empty
+              outlines above the report header. */}
+          <CardHeader className="space-y-4 border-b bg-muted/30 print:hidden">
             {/* Row 1 — Search + Status pills */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="relative flex-1 min-w-[240px] max-w-md">
@@ -627,13 +657,16 @@ export default function WorkOrdersPage() {
                 <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-blue-500" borderColor="border-l-blue-500" stage="open" />
                 <KanbanColumn title="Received/Arrived" items={kanbanColumns.received} color="bg-indigo-500" borderColor="border-l-indigo-500" stage="received" />
                 <KanbanColumn title="In Progress" items={kanbanColumns.inProgress} color="bg-amber-500" borderColor="border-l-amber-500" stage="in_progress" />
-                <KanbanColumn title="Finished" items={kanbanColumns.finished} color="bg-teal-500" borderColor="border-l-teal-500" stage="finished" />
+                <KanbanColumn title="Finished" items={kanbanColumns.finished} color="bg-teal-500" borderColor="border-l-teal-500" stage="finished" note="Awaiting sign-off · moves to Done after 24h" />
                 <KanbanColumn title="Done" items={kanbanColumns.done} color="bg-green-500" borderColor="border-l-green-500" stage="closed" />
               </div>
             ) : (
               <div className="print-content">
-                {/* Mobile card list (< md) */}
-                <div className="md:hidden space-y-3">
+                {/* Mobile card list (< md). Explicitly print:hidden — the print media
+                    query is evaluated against the paper width, so on A4 the breakpoint
+                    is a coin toss and a tablet could print the cards, the table, or
+                    neither. The printed document is always the table. */}
+                <div className="md:hidden print:hidden space-y-3">
                   {rowsToShow.map((wo) => {
                     const cfg = getWoStatusConfig(wo.status);
                     const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
@@ -707,8 +740,8 @@ export default function WorkOrdersPage() {
                   })}
                 </div>
 
-                {/* Desktop table (≥ md) */}
-                <Table className="hidden md:table">
+                {/* Desktop table (≥ md), and the printed document at any width */}
+                <Table className="hidden md:table print:table print:w-full">
                   <TableHeader>
                     <TableRow>
                       {isCol("wo") && <TableHead>WO#</TableHead>}
@@ -762,9 +795,9 @@ export default function WorkOrdersPage() {
                                 <Button size="icon" variant="ghost" aria-label="Open maintenance order in new tab" onClick={() => window.open(`/dashboard/wo/${wo.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
                               )}
                               <Button size="icon" variant="ghost" aria-label="Edit maintenance order" onClick={() => openEdit(wo)}><Pencil className="h-4 w-4" /></Button>
-                              {role === "admin" && (
-                                <Button size="icon" variant="ghost" aria-label="Delete maintenance order" className="text-destructive" onClick={() => setDeleteId(wo.id)} disabled={deleteWO.isPending}><Trash2 className="h-4 w-4" /></Button>
-                              )}
+                              {/* No delete. An order that should not have existed is force-closed,
+                                  which keeps its history and leaves an audit trail; deleting it
+                                  took the downtime, parts and timings with it. */}
                               {canClose && (
                                 <Button size="sm" variant="default" onClick={() => closeWO.mutate({ woId: wo.id, signatureName: "Manager/Admin" })} disabled={closeWO.isPending}>
                                   {closeWO.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle className="h-3 w-3 mr-1" />} Close
@@ -796,8 +829,17 @@ export default function WorkOrdersPage() {
                     })}
                   </TableBody>
                 </Table>
+                {/* Printed summary + footer. The on-screen pager is meaningless on paper
+                    (print always renders every filtered row), so it is replaced by the
+                    row count and a signed-off footer line. */}
+                <div className="hidden print:block mt-3 pt-2 border-t border-black text-[8pt]">
+                  <div className="flex items-center justify-between">
+                    <span><b>{filteredWOs.length}</b> maintenance order{filteredWOs.length === 1 ? "" : "s"} in this report</span>
+                    <span>Applied Nutrition · Confidential · {user?.email ?? ""}</span>
+                  </div>
+                </div>
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-4">
+                  <div className="flex items-center justify-between mt-4 print:hidden">
                     <p className="text-sm text-muted-foreground">Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredWOs.length)} of {filteredWOs.length}</p>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}><ChevronLeft className="h-4 w-4 mr-1" /> Previous</Button>
@@ -838,36 +880,37 @@ export default function WorkOrdersPage() {
                 </div>
               ) : (
                 <>
-                  <div className="space-y-2"><Label>Line</Label>
-                    <Select value={newLineId} onValueChange={(v) => { setNewLineId(v); setNewMachine(""); }}>
-                      <SelectTrigger><SelectValue placeholder="Select line..." /></SelectTrigger>
-                      <SelectContent>{lines?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                  <div className="space-y-2"><Label>Line <span className="text-xs font-normal text-muted-foreground">(optional — narrows the machine list)</span></Label>
+                    <Select value={newLineId || ANY_LINE} onValueChange={(v) => { setNewLineId(v === ANY_LINE ? "" : v); setNewMachine(""); }}>
+                      <SelectTrigger><SelectValue placeholder="Any line" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ANY_LINE}>Any line — show all machines</SelectItem>
+                        {lines?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2"><Label>Machine <span className="text-destructive">*</span></Label>
-                    <Select value={newMachine} onValueChange={(v) => { setNewMachine(v); markTouched("machine"); }} disabled={!newLineId}>
-                      <SelectTrigger className={showErr("machine", !newMachine) ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder={newLineId ? "Select machine..." : "Select line first..."} /></SelectTrigger>
+                    <Select value={newMachine} onValueChange={(v) => { setNewMachine(v); markTouched("machine"); }}>
+                      <SelectTrigger className={showErr("machine", !newMachine) ? "border-destructive focus:ring-destructive" : ""}><SelectValue placeholder="Select machine..." /></SelectTrigger>
                       <SelectContent>
-                        {(() => {
-                          const selectedLineName = lines?.find((l: any) => l.id === newLineId)?.name;
-                          const filtered = (machines || []).filter((m: any) => {
-                            if (!selectedLineName) return false;
-                            const base = (m.current_line || m.fixed_line || m.line || "").toString();
-                            if (!base) return false;
-                            const withSide = (m.side === "A" || m.side === "B") ? `${base}${m.side}` : base;
-                            return withSide === selectedLineName || base === selectedLineName;
-                          });
-                          return filtered.length
-                            ? filtered.map((m: any) => {
-                                const isUuid = typeof m.code === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.code);
-                                const showCode = m.code && !isUuid;
-                                return <SelectItem key={m.id} value={m.name}>{m.name}{showCode ? ` (${m.code})` : ""}</SelectItem>;
-                              })
-                            : <SelectItem value="__none__" disabled>No machines for this line</SelectItem>;
-                        })()}
+                        {machineOptions.map((m: any) => {
+                          const isUuid = typeof m.code === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.code);
+                          const showCode = m.code && !isUuid;
+                          return (
+                            <SelectItem key={m.id} value={m.name}>
+                              {m.name}{showCode ? ` (${m.code})` : ""}
+                              {!newLineId && m.line ? <span className="text-muted-foreground"> · {m.line}</span> : null}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     {showErr("machine", !newMachine) && <p className="text-xs text-destructive">Machine is required</p>}
+                    <p className="text-xs text-muted-foreground">
+                      {newLineId
+                        ? `Showing the ${machineOptions.length} machine${machineOptions.length === 1 ? "" : "s"} on this line. Clear the line to see all machines.`
+                        : "Every machine, including sealers, printers and warehouse assets. Pick a line above to narrow the list."}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label>Line Status <span className="text-destructive">*</span></Label>
@@ -929,20 +972,6 @@ export default function WorkOrdersPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        {/* Delete WO */}
-        <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete maintenance order?</AlertDialogTitle>
-              <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
 
         {/* Clear All WOs */}
         <AlertDialog open={showClearWOs} onOpenChange={(o) => { setShowClearWOs(o); if (!o) { setClearPin(""); setClearConfirmText(""); } }}>

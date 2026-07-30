@@ -7,8 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { usePmSchedules, useUpdatePmSchedule } from "@/hooks/usePreventiveMaintenance";
 import { toast } from "sonner";
-import { Brain, CheckCircle2, AlertTriangle, ArrowDown, ArrowUp, ArrowLeft } from "lucide-react";
+import { Brain, CheckCircle2, AlertTriangle, ArrowDown, ArrowUp, ArrowLeft, Printer } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 
 type RecKind = "reduce" | "no_pm" | "ok" | "increase";
 
@@ -49,6 +51,16 @@ const recMeta: Record<RecKind, { label: string; cls: string; icon: any }> = {
   ok: { label: "OK — calibrated", cls: "bg-blue-500/15 text-blue-700 border-blue-500/30 dark:text-blue-300", icon: CheckCircle2 },
   increase: { label: "Can extend", cls: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-300", icon: ArrowUp },
 };
+
+function SummaryTile({ label, value, hint, cls }: { label: string; value: number; hint: string; cls: string }) {
+  return (
+    <div className={`rounded-lg border p-3 ${cls}`}>
+      <p className="text-[10px] uppercase tracking-wide opacity-80">{label}</p>
+      <p className="text-2xl font-bold tabular-nums">{value}</p>
+      <p className="text-[11px] opacity-70 leading-snug">{hint}</p>
+    </div>
+  );
+}
 
 export default function PMIntelligencePage() {
   const navigate = useNavigate();
@@ -151,22 +163,51 @@ export default function PMIntelligencePage() {
     }
   };
 
+  const counts = useMemo(() => ({
+    reduce: stats.filter((s) => s.rec === "reduce").length,
+    no_pm: stats.filter((s) => s.rec === "no_pm").length,
+    ok: stats.filter((s) => s.rec === "ok").length,
+    increase: stats.filter((s) => s.rec === "increase").length,
+  }), [stats]);
+
   return (
     <DashboardLayout>
-      <div className="p-4 md:p-6 space-y-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2 -ml-2">
-          <ArrowLeft className="h-4 w-4" /> Back to menu
-        </Button>
-        <div className="flex items-start gap-3">
-          <Brain className="h-7 w-7 text-primary mt-1" />
-          <div>
-            <h1 className="text-2xl font-bold">PM Intelligence</h1>
-            <p className="text-sm text-muted-foreground">
-              Analyzes the last 90 days of maintenance orders by machine, compares real MTBF/MTTR to the
-              current PM interval, and recommends adjustments.
-            </p>
-          </div>
+      <div className="p-4 md:p-6 space-y-6 print-content">
+        <div className="print:hidden">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard/preventive")} className="gap-2 -ml-2">
+            <ArrowLeft className="h-4 w-4" /> Back to Preventive Maintenance
+          </Button>
         </div>
+
+        <ReportPrintHeader
+          title="PM Intelligence"
+          periodLabel="Last 90 days"
+          filtersLabel="Recommended PM interval ≈ 70% of measured MTBF"
+        />
+
+        <PageHeader
+          className="print:hidden"
+          title="PM Intelligence"
+          description="Compares real MTBF and MTTR per machine against the current PM interval and recommends an adjustment."
+          icon={<Brain className="h-5 w-5" />}
+          actions={
+            <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
+              <Printer className="h-4 w-4" /> Print
+            </Button>
+          }
+        />
+
+        {/* What the table concludes, before the table itself — the reason to open this
+            screen is "does anything need changing", and that was only answerable by
+            reading 30 rows. Each tile is also the count for its badge below. */}
+        {!isLoading && stats.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 print:grid-cols-4 print:gap-2">
+            <SummaryTile label="Service too late" value={counts.reduce} hint="PM falls after the average failure" cls="border-red-500/40 bg-red-500/5 text-red-700 dark:text-red-300" />
+            <SummaryTile label="No PM scheduled" value={counts.no_pm} hint="Failing with nothing planned" cls="border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-300" />
+            <SummaryTile label="Calibrated" value={counts.ok} hint="Interval matches the evidence" cls="border-blue-500/40 bg-blue-500/5 text-blue-700 dark:text-blue-300" />
+            <SummaryTile label="Can extend" value={counts.increase} hint="Serviced more often than needed" cls="border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300" />
+          </div>
+        )}
 
         {isLoading ? (
           <Skeleton className="h-96" />
@@ -190,7 +231,7 @@ export default function PMIntelligencePage() {
                     <th className="p-2 text-right">Recommended</th>
                     <th className="p-2">Status</th>
                     <th className="p-2">Top issues</th>
-                    <th className="p-2 text-right">Action</th>
+                    <th className="p-2 text-right print:hidden">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -241,7 +282,7 @@ export default function PMIntelligencePage() {
                             </ul>
                           )}
                         </td>
-                        <td className="p-2 text-right">
+                        <td className="p-2 text-right print:hidden">
                           {canApply ? (
                             <Button
                               size="sm"
@@ -265,6 +306,11 @@ export default function PMIntelligencePage() {
             </CardContent>
           </Card>
         )}
+
+        <div className="hidden print:flex items-center justify-between mt-4 pt-2 border-t border-black text-[8pt]">
+          <span>{stats.length} machine{stats.length === 1 ? "" : "s"} with maintenance orders in the last 90 days</span>
+          <span>Applied Nutrition · Confidential</span>
+        </div>
       </div>
     </DashboardLayout>
   );
