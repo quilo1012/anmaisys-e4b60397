@@ -292,7 +292,7 @@ export default function PMIntelligencePage() {
           </Card>
         )}
 
-        <div className="hidden print:flex items-center justify-between mt-4 pt-2 border-t border-black text-[8pt]">
+        <div className="print-doc-footer hidden print:flex items-center justify-between mt-4 pt-2 border-t border-black text-[8pt]">
           <span>{stats.length} machine{stats.length === 1 ? "" : "s"} with maintenance orders in the last 90 days</span>
           <span>Applied Nutrition · Confidential</span>
         </div>

@@ -60,10 +60,33 @@ export async function printElementAsDocument(el: HTMLElement, title: string): Pr
   table { width: 100%; border-collapse: collapse; }
   tr, img { break-inside: avoid; }
   thead { display: table-header-group; }
+
+  /* ── One report layout, whichever screen printed it ──────────────────────── */
+
+  /* A card is a unit: split across a page break it reads as two half-cards. */
+  [class*="rounded-lg"], [class*="rounded-xl"], section { break-inside: avoid; }
+
+  /* Charts. The clone is static HTML, so a chart is whatever SVG the screen had —
+     but the wrapper Recharts sizes at runtime measures nothing here, which left
+     empty framed boxes where "WOs per Day" and "Orders by Status" should be. Sizes
+     are stamped onto the clone from the live layout (below) and clamped here so a
+     chart wider than A4 shrinks instead of being cut. */
+  svg { max-width: 100% !important; height: auto; }
+  .recharts-responsive-container, .recharts-wrapper { max-width: 100% !important; }
+  /* Legends are absolutely positioned on screen; on paper they escaped the card
+     and printed as stray words down the right-hand edge ("finish", "activ"). */
+  .recharts-legend-wrapper { position: static !important; margin-top: 4px; }
+
+  /* The empty-state block a chart shows when it has no data must print — an empty
+     bordered box says nothing, "No data available" says the report is complete. */
+  .recharts-surface:empty { display: none !important; }
 </style></head><body></body></html>`);
     doc.close();
 
-    doc.body.appendChild(doc.importNode(el, true));
+    const clone = doc.importNode(el, true) as HTMLElement;
+    stampChartSizes(el, clone);
+    doc.body.appendChild(clone);
+    appendFooter(doc, title);
     // Dark mode is a screen preference; on paper it wastes toner and reads badly.
     doc.documentElement.classList.remove("dark");
 
@@ -76,6 +99,55 @@ export async function printElementAsDocument(el: HTMLElement, title: string): Pr
   } finally {
     cleanup();
   }
+}
+
+/**
+ * Copies the on-screen size of every chart onto the clone.
+ *
+ * Recharts sizes its container at runtime from a ResizeObserver. The clone is static
+ * HTML with no React and no observer, so those containers measured nothing and the
+ * chart cards printed as empty framed boxes — the report looked like it had lost its
+ * data. The SVG itself comes across intact; it only needs to be told how big it was.
+ *
+ * Walks both trees in the same order, which is safe because the clone is a deep copy
+ * of the source and neither is mutated.
+ */
+function stampChartSizes(source: HTMLElement, clone: HTMLElement) {
+  const sel = ".recharts-responsive-container, .recharts-wrapper, svg";
+  const from = source.querySelectorAll<HTMLElement>(sel);
+  const to = clone.querySelectorAll<HTMLElement>(sel);
+  for (let i = 0; i < from.length && i < to.length; i++) {
+    const r = from[i].getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) continue;
+    to[i].style.width = `${Math.round(r.width)}px`;
+    to[i].style.height = `${Math.round(r.height)}px`;
+    if (to[i] instanceof SVGElement || to[i].tagName.toLowerCase() === "svg") {
+      to[i].setAttribute("width", String(Math.round(r.width)));
+      to[i].setAttribute("height", String(Math.round(r.height)));
+    }
+  }
+}
+
+/**
+ * The footer every printed document carries.
+ *
+ * Added here rather than on each screen, so a new report cannot ship without one —
+ * three of them had hand-written footers and the rest had none. Page numbers are
+ * deliberately absent: browsers do not support CSS page counters in print, and the
+ * jsPDF reports that can number their pages already do.
+ */
+function appendFooter(doc: Document, title: string) {
+  if (doc.querySelector(".print-doc-footer")) return;
+  const el = doc.createElement("div");
+  el.className = "print-doc-footer";
+  el.style.cssText =
+    "margin-top:6mm;padding-top:2mm;border-top:1px solid #000;display:flex;" +
+    "justify-content:space-between;font-size:7pt;color:#333;";
+  const printed = new Date().toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" });
+  el.innerHTML =
+    `<span>${escapeHtml(title)}</span>` +
+    `<span>Applied Nutrition &middot; Confidential &middot; printed ${escapeHtml(printed)}</span>`;
+  doc.body.appendChild(el);
 }
 
 function escapeHtml(s: string): string {

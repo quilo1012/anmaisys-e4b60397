@@ -706,7 +706,7 @@ export default function WorkOrderDetail() {
               <p className="text-[7pt] mt-1 text-gray-500">Signature</p>
             </div>
           </div>
-          <div className="mt-3 pt-1 border-t border-gray-400 flex items-center justify-between text-[7pt] text-gray-600">
+          <div className="print-doc-footer mt-3 pt-1 border-t border-gray-400 flex items-center justify-between text-[7pt] text-gray-600">
             <span>{woLabel} · {wo.machine || (wo as any).warehouse_location || "—"}</span>
             <span>Applied Nutrition · Confidential · printed {format(new Date(), "dd/MM/yyyy HH:mm")}</span>
           </div>

@@ -884,7 +884,7 @@ export default function WorkOrdersPage() {
                 {/* Printed summary + footer. The on-screen pager is meaningless on paper
                     (print always renders every filtered row), so it is replaced by the
                     row count and a signed-off footer line. */}
-                <div className="hidden print:block mt-3 pt-2 border-t border-black text-[8pt]">
+                <div className="print-doc-footer hidden print:block mt-3 pt-2 border-t border-black text-[8pt]">
                   <div className="flex items-center justify-between">
                     <span><b>{filteredWOs.length}</b> maintenance order{filteredWOs.length === 1 ? "" : "s"} in this report</span>
                     <span>Applied Nutrition · Confidential · {user?.email ?? ""}</span>

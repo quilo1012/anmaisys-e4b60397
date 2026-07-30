@@ -1111,7 +1111,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Printed footer — same identity line every report carries. */}
-        <div className="hidden print:flex items-center justify-between mt-4 pt-2 border-t border-black text-[8pt]">
+        <div className="print-doc-footer hidden print:flex items-center justify-between mt-4 pt-2 border-t border-black text-[8pt]">
           <span>Analytics Report · {format(startDate, "dd/MM/yyyy")} — {format(endDate, "dd/MM/yyyy")}</span>
           <span>Applied Nutrition · Confidential · printed {format(new Date(), "dd/MM/yyyy HH:mm")}</span>
         </div>
