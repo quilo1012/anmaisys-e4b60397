@@ -14,10 +14,11 @@ import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { useMachines, useDistinctMachineValues } from "@/hooks/useMachines";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Package, Plus, Loader2, Search, ClipboardList, PlayCircle, CheckCircle2, CalendarDays, History } from "lucide-react";
+import { Package, Plus, Loader2, Search, ClipboardList, PlayCircle, CheckCircle2, CalendarDays, History, Warehouse } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
 import { ComboboxInput } from "@/components/ComboboxInput";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { WAREHOUSE_LOCATIONS } from "@/lib/warehouseLocations";
 import { cn } from "@/lib/utils";
 
@@ -163,13 +164,11 @@ export default function WarehouseDashboard() {
       <div className="space-y-6">
         <DashboardWelcome />
 
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">Warehouse Admin</h1>
-            <p className="text-sm text-muted-foreground">
-              Track service requests and warehouse assets. Warehouse orders never count as production-line downtime.
-            </p>
-          </div>
+        <PageHeader
+          title="Warehouse Admin"
+          description="Track service requests and warehouse assets. Warehouse orders never count as production-line downtime."
+          icon={<Warehouse className="h-5 w-5" />}
+          actions={
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
             <DialogTrigger asChild>
               <Button className="gap-2">
@@ -245,7 +244,8 @@ export default function WarehouseDashboard() {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
+          }
+        />
 
         {/* KPIs */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">

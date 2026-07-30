@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { Button } from "@/components/ui/button";
@@ -652,12 +653,11 @@ export default function ManageUsers() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage staff logins, tablet station logins, and engineer PIN identities — all in one place.
-          </p>
-        </div>
+        <PageHeader
+          title="User Management"
+          description="Staff logins, tablet station logins and engineer PIN identities, in one place."
+          icon={<UsersIcon className="h-5 w-5" />}
+        />
 
         <div className="flex flex-wrap gap-2 border-b border-border pb-2">
           <Button

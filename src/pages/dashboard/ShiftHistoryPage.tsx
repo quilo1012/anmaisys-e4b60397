@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Check, Download, Lock, Unlock, Trash2, Upload, Plus, ChevronLeft, ChevronRight, CalendarDays, CalendarRange, ChevronsUpDown, Search } from "lucide-react";
+import { Check, Download, Lock, Unlock, Trash2, Upload, Plus, ChevronLeft, ChevronRight, CalendarDays, CalendarRange, ChevronsUpDown, Search, History } from "lucide-react";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { InlineActualInput } from "@/components/InlineActualInput";
@@ -745,17 +746,17 @@ export default function ShiftHistoryPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">Production Control</h1>
-            <p className="text-sm text-muted-foreground">
-              {viewMode === "monthly"
-                ? `Monthly view · ${format(monthAnchor, "MMMM yyyy")}`
-                : from === to
-                  ? `Daily view · ${from}`
-                  : `${from} → ${to}`}
-            </p>
-          </div>
+        <PageHeader
+          title="Production Control"
+          description={
+            viewMode === "monthly"
+              ? `Monthly view · ${format(monthAnchor, "MMMM yyyy")}`
+              : from === to
+                ? `Daily view · ${from}`
+                : `${from} → ${to}`
+          }
+          icon={<History className="h-5 w-5" />}
+          actions={
           <div className="flex items-center gap-2 flex-wrap">
             {isAdmin && (
               <Button variant="outline" size="sm" onClick={async () => {
@@ -785,7 +786,8 @@ export default function ShiftHistoryPage() {
             )}
             <Button variant="outline" onClick={exportExcel}><Download className="h-4 w-4 mr-1" />Export Excel</Button>
           </div>
-        </div>
+          }
+        />
 
         <ImportProductionDialog
           open={importOpen}

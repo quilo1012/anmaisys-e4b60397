@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useNavigate } from "react-router-dom";
 import { format, subDays } from "date-fns";
 import { Brain, TrendingUp, TrendingDown, AlertCircle, CheckCircle2, Target, Sparkles, ArrowLeft } from "lucide-react";
@@ -118,16 +119,17 @@ export default function WeeklyProductionReportPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Brain className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-semibold">Weekly Production Report</h1>
-          <Badge variant="secondary" className="ml-2">Continuous learning</Badge>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Back to menu
-        </Button>
-      </div>
+      <PageHeader
+        title="Weekly Production Report"
+        description="What the week produced, and what the system learned from it."
+        icon={<Brain className="h-5 w-5" />}
+        badge={<Badge variant="secondary">Continuous learning</Badge>}
+        actions={
+          <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Back to menu
+          </Button>
+        }
+      />
 
 
       {/* KPIs */}

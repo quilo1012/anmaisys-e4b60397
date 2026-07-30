@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -295,10 +296,11 @@ export default function DirectMessagesPage() {
   return (
     <DashboardLayout>
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">{title}</h1>
-        </div>
+        <PageHeader
+          title={title}
+          description="Direct messages between people in the system."
+          icon={<MessageCircle className="h-5 w-5" />}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4">
           {/* Users sidebar */}

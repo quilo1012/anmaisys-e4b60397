@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,15 +65,11 @@ export default function RootDiagnosticsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold">
-              <ShieldAlert className="h-6 w-6 text-red-500" /> Root Diagnostics
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Errors captured across the app (React crashes, JS errors, rejected promises, and logged RLS/API failures). Admin only.
-            </p>
-          </div>
+        <PageHeader
+          title="Root Diagnostics"
+          description="Errors captured across the app — React crashes, JS errors, rejected promises and logged RLS/API failures. Admin only."
+          icon={<ShieldAlert className="h-5 w-5 text-destructive-strong" />}
+          actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching}>
               <RefreshCw className={`h-4 w-4 mr-1 ${isRefetching ? "animate-spin" : ""}`} /> Refresh
@@ -84,7 +81,8 @@ export default function RootDiagnosticsPage() {
               <Trash2 className="h-4 w-4 mr-1" /> Clear
             </Button>
           </div>
-        </div>
+          }
+        />
 
         {types.length > 0 && (
           <div className="flex flex-wrap gap-2">

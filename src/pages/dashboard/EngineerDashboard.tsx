@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff } from "lucide-react";
+import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff, Wrench } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { Lock } from "lucide-react";
@@ -803,11 +804,11 @@ function EngineerDashboardContent() {
           </Alert>
         )}
 
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <h2 className="text-xl md:text-2xl font-bold">Engineer Console</h2>
-            <p className="text-muted-foreground text-sm">Open, in-progress and recently finished work</p>
-          </div>
+        <PageHeader
+          title="Engineer Console"
+          description="Open, in-progress and recently finished work"
+          icon={<Wrench className="h-5 w-5" />}
+          actions={
           <div className="flex items-center gap-2 flex-wrap">
             <EngineerAlertLineFilter />
             <Button variant={focusMode ? "default" : "outline"} size="sm" onClick={() => setFocusMode(!focusMode)} className="gap-1">
@@ -817,7 +818,8 @@ function EngineerDashboardContent() {
               <Lock className="h-4 w-4" /> Change PIN
             </Button>
           </div>
-        </div>
+          }
+        />
 
         {(() => {
           const activeCount = activeWOs?.length ?? 0;

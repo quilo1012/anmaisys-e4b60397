@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useConfirm } from "@/hooks/useConfirm";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser, Undo2 } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser, Undo2, Boxes } from "lucide-react";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
 
@@ -301,14 +302,11 @@ export default function SKUProductsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-start justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">SKU Products</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Upload Excel (.xlsx) — required columns: <code>SKU</code> (or product_code) and <code>Description</code> (or name).
-              Optional: <code>Category</code>, <code>TargetPerHour</code>, <code>Weight</code>. Legacy <code>.csv</code> is still accepted.
-            </p>
-          </div>
+        <PageHeader
+          title="SKU Products"
+          description="Upload Excel (.xlsx) with SKU (or product_code) and Description (or name); Category, TargetPerHour and Weight are optional. Legacy .csv is still accepted."
+          icon={<Boxes className="h-5 w-5" />}
+          actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={cleanupBatchSkus} disabled={cleaning}>
               <Eraser className="h-4 w-4 mr-1" />{cleaning ? "Cleaning..." : "Remove batch SKUs"}
@@ -347,7 +345,8 @@ export default function SKUProductsPage() {
               </DialogContent>
             </Dialog>
           </div>
-        </div>
+          }
+        />
 
         <Card>
           <CardHeader>

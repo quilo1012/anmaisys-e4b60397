@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -631,11 +632,12 @@ export default function AnalyticsPage() {
         </div>
 
 
-        <div className="flex items-center justify-between flex-wrap gap-2 print:hidden">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="h-6 w-6" /> Analytics</h2>
-            <p className="text-muted-foreground">KPIs, charts, and performance metrics</p>
-          </div>
+        <PageHeader
+          className="print:hidden"
+          title="Analytics"
+          description="KPIs, charts and performance metrics for the selected period and shift."
+          icon={<BarChart3 className="h-5 w-5" />}
+          actions={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={async () => {
               if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
@@ -652,7 +654,8 @@ export default function AnalyticsPage() {
               <Printer className="h-4 w-4 mr-1" /> Print
             </Button>
           </div>
-        </div>
+          }
+        />
 
         {/* Date Range Filters — off the paper. The period and shift they select are
             already stated in the report header; the controls themselves printed as

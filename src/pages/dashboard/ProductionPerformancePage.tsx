@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -374,10 +375,12 @@ export default function ProductionPerformancePage() {
         <DashboardWelcome />
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <h1 className="text-xl md:text-2xl font-bold">Production Performance</h1>
-            <Button variant="outline" size="sm" onClick={printReport}><Printer className="h-4 w-4 mr-1" />Print report</Button>
-          </div>
+          <PageHeader
+            title="Production Performance"
+            description="Output against target by line, leader and shift."
+            icon={<BarChart3 className="h-5 w-5" />}
+            actions={<Button variant="outline" size="sm" onClick={printReport}><Printer className="h-4 w-4 mr-1" />Print report</Button>}
+          />
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" className="shrink-0" onClick={() => {

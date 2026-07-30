@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getWoStatusConfig } from "@/lib/woStatusConfig";
@@ -70,13 +71,11 @@ export default function MachineHistoryPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard/machines")} className="gap-2">
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Button>
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2"><Wrench className="h-6 w-6" /> {machineName}</h2>
-            <p className="text-muted-foreground">Machine history, location & reliability</p>
-          </div>
+          <PageHeader
+            title={machineName}
+            description="Machine history, location and reliability"
+            icon={<Wrench className="h-5 w-5" />}
+          />
         </div>
 
         {/* Overview cards */}

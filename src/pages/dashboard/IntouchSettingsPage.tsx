@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -337,19 +338,18 @@ export default function IntouchSettingsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-5xl">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold">iTouching Integration</h1>
-            <p className="text-sm text-muted-foreground">
-              Setup, test and monitor the iTouching i4 connection.
-            </p>
-          </div>
-          <Button variant="outline" asChild>
-            <Link to="/dashboard/intouch-machines">
-              <Plug className="h-4 w-4 mr-1" />Open Machine Map
-            </Link>
-          </Button>
-        </div>
+        <PageHeader
+          title="iTouching Integration"
+          description="Set up, test and monitor the iTouching i4 connection."
+          icon={<Plug className="h-5 w-5" />}
+          actions={
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/dashboard/intouch-machines">
+                <Plug className="h-4 w-4 mr-1" />Open Machine Map
+              </Link>
+            </Button>
+          }
+        />
 
         {unmappedLines.length > 0 && (
           <Card className="border-amber-500/40 bg-amber-500/5">
