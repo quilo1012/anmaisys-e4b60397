@@ -89,6 +89,11 @@ export default function WorkOrdersPage() {
   // #12 Default period filter is "Today" for every role — no longer forced to "All"
   // for admin/manager (that override was hiding today's WOs on first load).
   const [lineStoppedFilter, setLineStoppedFilter] = useState<"all" | "stopped" | "running">("all");
+  // Corrective is not a stored value: it is everything that is neither warehouse
+  // service nor planned preventive work. Naming it that way keeps the filter honest
+  // about the 300+ orders raised before the type existed, which are production rows
+  // with no third value to distinguish them.
+  const [typeFilter, setTypeFilter] = useState<"all" | "corrective" | "preventive" | "warehouse_service">("all");
 
   const ALL_COLUMNS = [
     { key: "wo", label: "WO#" },
@@ -250,6 +255,12 @@ export default function WorkOrdersPage() {
     if (problemFilter !== "all") filtered = filtered.filter((w) => w.description === problemFilter);
     if (machineFilter !== "all") filtered = filtered.filter((w) => w.machine === machineFilter);
     if (lineFilter !== "all") filtered = filtered.filter((w) => getWoLine(w) === lineFilter);
+    if (typeFilter !== "all") {
+      filtered = filtered.filter((w: any) => {
+        const t = w.wo_type ?? "production";
+        return typeFilter === "corrective" ? t === "production" : t === typeFilter;
+      });
+    }
     if (lineStoppedFilter === "stopped") {
       filtered = filtered.filter((w: any) => w.line_stopped === true && !w.line_resumed_at);
     } else if (lineStoppedFilter === "running") {
@@ -293,7 +304,16 @@ export default function WorkOrdersPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return filtered;
-  }, [workOrders, drRange, problemFilter, machineFilter, lineFilter, lineStoppedFilter, searchTerm, lineNameMap, machineLineMap, shiftFilter, statusFilter]);
+  }, [workOrders, drRange, problemFilter, machineFilter, lineFilter, lineStoppedFilter, typeFilter, searchTerm, lineNameMap, machineLineMap, shiftFilter, statusFilter]);
+
+  const typeCounts = useMemo(() => {
+    const rows = (workOrders ?? []) as any[];
+    return {
+      corrective: rows.filter((w) => (w.wo_type ?? "production") === "production").length,
+      preventive: rows.filter((w) => w.wo_type === "preventive").length,
+      warehouse: rows.filter((w) => w.wo_type === "warehouse_service").length,
+    };
+  }, [workOrders]);
 
   const stoppedCount = useMemo(
     () => (workOrders ?? []).filter((w: any) => w.line_stopped === true && !w.line_resumed_at).length,
@@ -312,7 +332,7 @@ export default function WorkOrdersPage() {
   // Rows the printable table renders: all filtered rows while printing, else the current page.
   const rowsToShow = printMode ? filteredWOs : paginatedWOs;
 
-  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, lineFilter, searchTerm, drRange]);
+  useMemo(() => { setCurrentPage(1); }, [statusFilter, problemFilter, machineFilter, lineFilter, typeFilter, searchTerm, drRange]);
 
   // Keep URL in sync with status filter so deep-links from dashboards work
   useEffect(() => {
@@ -651,6 +671,20 @@ export default function WorkOrdersPage() {
                 </SelectContent>
               </Select>
               <div className="flex flex-col gap-1">
+                <Label className="text-2xs uppercase tracking-wider text-muted-foreground font-medium">Type</Label>
+                <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)} aria-label="Order type">
+                  <SelectTrigger className="w-full md:w-[180px] h-9 bg-background">
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All types</SelectItem>
+                    <SelectItem value="corrective">Corrective ({typeCounts.corrective})</SelectItem>
+                    <SelectItem value="preventive">Preventive ({typeCounts.preventive})</SelectItem>
+                    <SelectItem value="warehouse_service">Warehouse ({typeCounts.warehouse})</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1">
                 <Label className="text-2xs uppercase tracking-wider text-muted-foreground font-medium">Line Status</Label>
                 <Select
                   value={lineStoppedFilter}
@@ -815,7 +849,24 @@ export default function WorkOrdersPage() {
                               </div>
                             </TableCell>
                           )}
-                          {isCol("line") && <TableCell className="text-sm font-medium">{(wo as any).wo_type === "warehouse_service" ? <Badge variant="outline" className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 text-2xs" title="Warehouse service — not counted as line downtime">Warehouse</Badge> : woLine}</TableCell>}
+                          {isCol("line") && (
+                            <TableCell className="text-sm font-medium">
+                              {(wo as any).wo_type === "warehouse_service" ? (
+                                <Badge variant="outline" className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 text-2xs" title="Warehouse service — not counted as line downtime">Warehouse</Badge>
+                              ) : (
+                                <span className="flex flex-wrap items-center gap-1">
+                                  {woLine}
+                                  {(wo as any).wo_type === "preventive" && (
+                                    // A preventive order sits in the same list as the
+                                    // breakdowns; without this it reads as one.
+                                    <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/15 text-2xs text-success-strong" title="Planned preventive work — books no downtime">
+                                      Preventive
+                                    </Badge>
+                                  )}
+                                </span>
+                              )}
+                            </TableCell>
+                          )}
                           {isCol("machine") && <TableCell className={(wo as any).wo_type === "warehouse_service" ? "text-sm text-muted-foreground" : "cursor-pointer hover:underline"} onClick={(wo as any).wo_type === "warehouse_service" ? undefined : () => navigate(`/dashboard/machines/${encodeURIComponent(wo.machine)}/history`)}>{(wo as any).wo_type === "warehouse_service" ? ((wo as any).warehouse_location || "—") : wo.machine}</TableCell>}
                           {isCol("problem") && <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>}
                           {isCol("status") && <TableCell>
