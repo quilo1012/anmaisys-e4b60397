@@ -180,11 +180,13 @@ const MATRIX: Record<Action, Role[]> = {
  * SessionRedirect (App.tsx) and ProtectedRoute access-denied fallback.
  */
 export const roleDashMap: Record<Role, string> = {
-  // Management lands on the live Control Center after login.
-  admin: "/dashboard/control-center",
-  manager: "/dashboard/control-center",
-  maintenance_manager: "/dashboard/control-center",
-  planner: "/dashboard/control-center",
+  // Management lands on the Dashboard: the welcome, the live status strip, the KPIs
+  // and every shortcut, on one screen. It used to be two — a welcome page and a
+  // dashboard — and they drifted apart with every change.
+  admin: "/dashboard/manager",
+  manager: "/dashboard/manager",
+  maintenance_manager: "/dashboard/manager",
+  planner: "/dashboard/manager",
   supervisor: "/dashboard/production-performance",
   engineer: "/dashboard/engineer",
   co_engineer: "/dashboard/engineer",

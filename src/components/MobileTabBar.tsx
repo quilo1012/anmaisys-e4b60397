@@ -3,12 +3,16 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { Home, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/components/DashboardLayout";
+import { useAuth } from "@/contexts/AuthContext";
+import { dashboardPathFor, type Role } from "@/lib/permissions";
 
 /** Bottom tab bar for mobile: Home + the role's top screens + a Menu that opens the full drawer. */
 export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { setOpenMobile } = useSidebar();
+  const { role } = useAuth();
+  const home = dashboardPathFor(role as Role | null);
 
   const Tab = ({ active, icon: Icon, label, onClick }: {
     active: boolean; icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void;
@@ -32,7 +36,8 @@ export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Primary"
     >
-      <Tab active={pathname === "/dashboard/home"} icon={Home} label="Home" onClick={() => navigate("/dashboard/home")} />
+      {/* Straight to the role's dashboard — /dashboard/home only redirects there now. */}
+      <Tab active={pathname === home} icon={Home} label="Home" onClick={() => navigate(home)} />
       {tabs.map((t) => (
         <Tab key={t.url} active={pathname === t.url.split("?")[0]} icon={t.icon} label={t.title} onClick={() => navigate(t.url)} />
       ))}

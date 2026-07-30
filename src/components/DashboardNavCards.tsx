@@ -106,73 +106,9 @@ function NavCardGrid({ cards }: Props) {
   );
 }
 
-interface AdminCardsProps {
-  openWOs?: number;
-  machinesCount?: number;
-  usersCount?: number;
-}
-
 // Category accents — consistent across roles.
 // Operations = blue, Assets = amber, Reports = purple, Admin = red.
-const OPS = "bg-blue-500/15 text-blue-600 dark:text-blue-400";
 const ASSETS = "bg-amber-500/15 text-amber-600 dark:text-amber-400";
-const REPORTS = "bg-purple-500/15 text-purple-600 dark:text-purple-400";
-const ADMIN = "bg-red-500/15 text-red-600 dark:text-red-400";
-
-export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCardsProps) {
-  const { role } = useAuth();
-  const cards: NavCard[] = [
-    { title: "Maintenance Orders", description: "Manage all maintenance maintenance orders", url: "/dashboard/work-orders", icon: ClipboardList, badge: openWOs, accent: OPS, category: "Operations" },
-    { title: "Production Planner", description: "Daily shift planning by line", url: "/dashboard/planner", icon: CalendarRange, accent: OPS, category: "Production" },
-    { title: "Production OEE", description: "Performance, RAG and leaderboard", url: "/dashboard/production-performance", icon: Gauge, accent: REPORTS, category: "Production" },
-    { title: "Quality Actions", description: "Log and track quality issues", url: "/dashboard/quality", icon: CheckSquare, accent: OPS, category: "Production" },
-    
-    { title: "Production Control", description: "Browse production by date, line and SKU", url: "/dashboard/shift-history", icon: History, accent: REPORTS, category: "Production" },
-    
-    { title: "SKU Products", description: "Catalog and CSV import", url: "/dashboard/sku-products", icon: Boxes, accent: ASSETS, category: "Production" },
-    { title: "Machines", description: "View and manage equipment", url: "/dashboard/machines", icon: Cog, badge: machinesCount, accent: ASSETS, category: "Assets" },
-    { title: "Downtime", description: "Track production line stoppages", url: "/dashboard/downtime", icon: Clock, accent: OPS, category: "Operations" },
-    
-    { title: "Preventive Maintenance", description: "Recurring schedules and checklists", url: "/dashboard/preventive", icon: Wrench, accent: ASSETS, category: "Operations" },
-    { title: "Control Center", description: "Live operations display", url: "/dashboard/control-center", icon: Monitor, accent: OPS, category: "Operations" },
-    { title: "Analytics", description: "Performance metrics and trends", url: "/dashboard/analytics", icon: BarChart3, accent: REPORTS, category: "Reports" },
-    { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package, accent: ASSETS, category: "Assets" },
-    { title: "Suppliers", description: "Vendors and purchase orders", url: "/dashboard/suppliers", icon: Truck, accent: ASSETS, category: "Assets" },
-    { title: "Problems", description: "Catalog of standard issues", url: "/dashboard/problems", icon: AlertCircle, accent: ASSETS, category: "Assets" },
-  ];
-
-  // Maintenance Manager: no access to production/quality modules
-  const productionOnlyUrls = new Set([
-    "/dashboard/planner",
-    "/dashboard/production-performance",
-    "/dashboard/quality",
-    
-    "/dashboard/shift-history",
-    
-    "/dashboard/sku-products",
-  ]);
-  let visible = role === "maintenance_manager"
-    ? cards.filter((c) => !productionOnlyUrls.has(c.url))
-    : cards;
-
-  if (role === "admin") {
-    visible = visible.concat([
-      { title: "Executive", description: "Executive KPI dashboard", url: "/dashboard/executive", icon: Briefcase, accent: REPORTS, comingSoon: true, category: "Reports" },
-      { title: "Financial", description: "Cost and financial overview", url: "/dashboard/financial", icon: DollarSign, accent: REPORTS, comingSoon: true, category: "Reports" },
-      
-      { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN, category: "Administration" },
-      { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield, accent: ADMIN, category: "Administration" },
-      { title: "iTouching Settings", description: "Integration and Sync now", url: "/dashboard/intouch-settings", icon: Radar, accent: ADMIN, category: "Administration" },
-      { title: "iTouching Machines", description: "Map iTouching machines to lines", url: "/dashboard/intouch-machines", icon: Radio, accent: ADMIN, category: "Administration" },
-      { title: "iTouching Stop Codes", description: "Map stop codes to WO type, priority, line", url: "/dashboard/intouch-stop-codes", icon: Radar, accent: ADMIN, category: "Administration" },
-    ]);
-  } else if (role === "manager" || role === "maintenance_manager") {
-    visible = visible.concat([
-      { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN, category: "Administration" },
-    ]);
-  }
-  return <DashboardNavCards cards={visible} />;
-}
 
 export function OperatorNavCards({ myOpenWOs }: { myOpenWOs?: number }) {
   const cards: NavCard[] = [

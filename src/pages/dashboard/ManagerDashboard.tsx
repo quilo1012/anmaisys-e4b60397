@@ -20,9 +20,10 @@ import { Label } from "@/components/ui/label";
 import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ManagerNavCards } from "@/components/DashboardNavCards";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { FactoryStatusStrip } from "@/components/FactoryStatusStrip";
+import { RoleShortcutGrid } from "@/components/RoleShortcutGrid";
 import { AnimatedWelcomeHeader } from "@/components/AnimatedWelcomeHeader";
 import { SiteBannerImages } from "@/components/SiteBannerImages";
 import { useSiteBanner, bannerUrlsForDevice } from "@/hooks/useSiteBanner";
@@ -251,6 +252,10 @@ function ManagerDashboardContent() {
           </a>
         )}
 
+        {/* The four things that need a person right now — same strip, same numbers,
+            wherever you land. */}
+        <FactoryStatusStrip />
+
         <PageHeader
           title={dashTitle}
           description="Where maintenance stands right now, and how the team performed over the period you choose."
@@ -379,9 +384,8 @@ function ManagerDashboardContent() {
           </div>
         </section>
 
-        {/* Shortcuts grouped by category, the same way the welcome screen and the
-            sidebar group them. */}
-        <ManagerNavCards openWOs={openCount} />
+        {/* Every screen this role can open, grouped as the sidebar groups them. */}
+        <RoleShortcutGrid />
 
         <Dialog open={showChangePin} onOpenChange={(o) => { setShowChangePin(o); if (!o) { setNewPin(""); setConfirmPin(""); } }}>
           <DialogContent>

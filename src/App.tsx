@@ -53,7 +53,6 @@ const ManagerDashboard = lazyWithReload(() => import("./pages/dashboard/ManagerD
 
 const MachineHistoryPage = lazyWithReload(() => import("./pages/dashboard/MachineHistoryPage"));
 const ControlCenterPage = lazyWithReload(() => import("./pages/dashboard/ControlCenterPage"));
-const MobileHome = lazyWithReload(() => import("./pages/dashboard/MobileHome"));
 const AnalyticsPage = lazyWithReload(() => import("./pages/dashboard/AnalyticsPage"));
 const WorkOrdersPage = lazyWithReload(() => import("./pages/dashboard/WorkOrdersPage"));
 const MachinesPage = lazyWithReload(() => import("./pages/dashboard/MachinesPage"));
@@ -342,15 +341,10 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                {/* Mobile welcome home — available to any signed-in user (mobile shell landing). */}
-                <Route
-                  path="/dashboard/home"
-                  element={
-                    <ProtectedRoute>
-                      <MobileHome />
-                    </ProtectedRoute>
-                  }
-                />
+                {/* There is one landing screen per role now. The separate welcome page
+                    it used to serve was merged into the Dashboard; this keeps every
+                    link, bookmark and the mobile Home tab working. */}
+                <Route path="/dashboard/home" element={<SessionRedirect />} />
                 <Route
                   path="/dashboard/machines/:name/history"
                   element={

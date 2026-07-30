@@ -9,6 +9,7 @@ import { usePublicTabletAccounts } from "@/hooks/useOperatorAccounts";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { useLines } from "@/hooks/useMachines";
 import { useLoginBranding } from "@/hooks/useLoginBranding";
+import { dashboardPathFor, type Role } from "@/lib/permissions";
 import { AuthShell } from "@/components/auth/AuthShell";
 import {
   clearLoginLockout,
@@ -76,8 +77,9 @@ function envMismatch(role: string | null | undefined, env: Env): string | null {
 
 export default function Login() {
   const navigate = useNavigate();
-  // Every login lands on the welcome home (site banner + quick links), on any device.
-  const landAfterLogin = (_role: string | null | undefined) => "/dashboard/home";
+  // Login lands on the role's own dashboard. It used to always land on a separate
+  // welcome page, which meant two landing screens to keep in step.
+  const landAfterLogin = (r: string | null | undefined) => dashboardPathFor(r as Role | null);
   const [searchParams] = useSearchParams();
   // Consent flow (and other deep-links) preserve where to send the user
   // after sign-in. Only same-origin relative paths are honored.
