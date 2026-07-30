@@ -457,7 +457,7 @@ export default function ControlCenterPage() {
             <AlertTitle className={tvMode ? "text-xs" : "text-sm font-bold"}>
               {predictiveAlerts.length} Predictive Alert(s)
             </AlertTitle>
-            <AlertDescription className={tvMode ? "text-[10px]" : "text-xs"}>
+            <AlertDescription className={tvMode ? "text-2xs" : "text-xs"}>
               {predictiveAlerts.slice(0, 3).map((a, i) => {
                 const cleanProblem = (a.problem ?? "").replace(/\|{2,}/g, "|").replace(/^[\s|¦]+|[\s|¦]+$/g, "").trim();
                 return (
@@ -566,7 +566,7 @@ export default function ControlCenterPage() {
                           <div className="flex items-center gap-3">
                             <span className={cn("inline-block h-3 w-3 rounded-full", sty.dot)} aria-hidden />
                             <CardTitle className={tvMode ? "text-sm font-bold" : "text-lg"}>{zone}</CardTitle>
-                            <Badge variant="outline" className={cn("text-[10px]", sty.chip)}>
+                            <Badge variant="outline" className={cn("text-2xs", sty.chip)}>
                               {sty.label}
                             </Badge>
                           </div>
@@ -587,7 +587,7 @@ export default function ControlCenterPage() {
                           if (!ls || (!ls.leader && ls.plan === 0 && ls.actions === 0)) return null;
                           const attain = ls.plan > 0 ? Math.round((ls.actual / ls.plan) * 100) : null;
                           return (
-                            <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5", tvMode ? "text-[10px]" : "text-xs")}>
+                            <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5", tvMode ? "text-2xs" : "text-xs")}>
                               {ls.leader && (
                                 <span className="inline-flex items-center gap-1 text-muted-foreground" title="Shift leader">
                                   <User className="h-3 w-3" /> {ls.leader}
@@ -638,14 +638,14 @@ export default function ControlCenterPage() {
                                       draggedMachine === m.id && "opacity-50 scale-95",
                                     )}
                                   >
-                                    <p className={cn("font-medium truncate", tvMode ? "text-[10px]" : "text-xs")}>{m.name}</p>
+                                    <p className={cn("font-medium truncate", tvMode ? "text-2xs" : "text-xs")}>{m.name}</p>
                                     <div className="flex items-center justify-between mt-1">
                                       {ms.woCount > 0 ? (
-                                        <span className="text-[10px] font-mono">{ms.woCount} WO</span>
+                                        <span className="text-2xs font-mono">{ms.woCount} WO</span>
                                       ) : (
-                                        <span className="text-[10px] opacity-70">OK</span>
+                                        <span className="text-2xs opacity-70">OK</span>
                                       )}
-                                      <span className={cn("rounded px-1 font-mono font-bold flex items-center gap-0.5", getHealthColor(hs), tvMode ? "text-[8px]" : "text-[10px]")}>
+                                      <span className={cn("rounded px-1 font-mono font-bold flex items-center gap-0.5", getHealthColor(hs), tvMode ? "text-[8px]" : "text-2xs")}>
                                         <Heart className="h-2.5 w-2.5" /> {hs}
                                       </span>
                                     </div>
@@ -683,17 +683,17 @@ export default function ControlCenterPage() {
                                   onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
                                   className="w-full flex items-center gap-2 text-left p-2 rounded-md bg-muted/40 hover:bg-muted transition-colors text-xs"
                                 >
-                                  <span className="font-mono font-bold text-[11px] shrink-0">
+                                  <span className="font-mono font-bold text-2xs shrink-0">
                                     {formatWONumber(wo.wo_number, wo.created_at)}
                                   </span>
-                                  <StatusBadge status={wo.status} label={sc.label} size="sm" className="shrink-0 text-[10px]" />
+                                  <StatusBadge status={wo.status} label={sc.label} size="sm" className="shrink-0 text-2xs" />
                                   <span className="flex-1 truncate text-muted-foreground">
                                     {wo.machine} · {wo.description}
                                   </span>
-                                  <span className="text-[11px] text-muted-foreground shrink-0">
+                                  <span className="text-2xs text-muted-foreground shrink-0">
                                     {wo.engineer_name || "—"}
                                   </span>
-                                  <span className="font-mono text-[11px] shrink-0">
+                                  <span className="font-mono text-2xs shrink-0">
                                     {formatDowntime(downMin)}
                                   </span>
                                 </button>
@@ -733,18 +733,18 @@ export default function ControlCenterPage() {
                               className="w-full text-left p-2 rounded-md hover:bg-muted transition-colors border border-border/50"
                             >
                               <div className="flex items-center justify-between gap-1">
-                                <span className="font-mono text-[10px] font-bold">
+                                <span className="font-mono text-2xs font-bold">
                                   {formatWONumber(wo.wo_number, wo.created_at)}
                                 </span>
                                 <StatusBadge status={wo.status} label={sc.label} size="sm" className="text-[9px] py-0 px-1.5" />
                               </div>
-                              <p className={cn("truncate font-medium mt-0.5", tvMode ? "text-[10px]" : "text-xs")}>
+                              <p className={cn("truncate font-medium mt-0.5", tvMode ? "text-2xs" : "text-xs")}>
                                 {wo.machine || "—"}
                               </p>
-                              <p className="text-[10px] text-muted-foreground truncate">
+                              <p className="text-2xs text-muted-foreground truncate">
                                 {wo.description}
                               </p>
-                              <div className="flex items-center justify-between mt-0.5 text-[10px] text-muted-foreground">
+                              <div className="flex items-center justify-between mt-0.5 text-2xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   <Circle className="h-1.5 w-1.5 fill-current" />
                                   {formatDistanceToNow(new Date(wo.created_at), { addSuffix: true })}
@@ -780,7 +780,7 @@ export default function ControlCenterPage() {
                         <div key={eng.id} className="flex items-center gap-2 rounded-md bg-muted/40 p-1.5">
                           <span className="font-bold text-sm w-5 text-center">{i + 1}</span>
                           <p className="flex-1 truncate text-xs font-medium">{eng.engineer_name}</p>
-                          <Badge variant={eng.score >= 0 ? "default" : "destructive"} className="text-[10px] px-1.5 py-0">
+                          <Badge variant={eng.score >= 0 ? "default" : "destructive"} className="text-2xs px-1.5 py-0">
                             {eng.score}
                           </Badge>
                         </div>
@@ -838,7 +838,7 @@ function KpiTile({
       <CardContent className={cn("flex items-center gap-3", tvMode ? "p-2" : "p-4")}>
         <div className="shrink-0 opacity-80">{icon}</div>
         <div className="min-w-0">
-          <p className={cn("uppercase tracking-wide opacity-70", tvMode ? "text-[9px]" : "text-[10px]")}>{label}</p>
+          <p className={cn("uppercase tracking-wide opacity-70", tvMode ? "text-[9px]" : "text-2xs")}>{label}</p>
           <p className={cn("font-bold", tvMode ? "text-lg" : "text-2xl")}>{value}</p>
         </div>
       </CardContent>

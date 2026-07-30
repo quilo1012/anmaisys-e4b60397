@@ -114,7 +114,7 @@ function RolePermissionsSummary() {
                   <span className="font-medium text-foreground">{allowedCount}</span> / {total} allowed
                 </span>
                 {overrideCount > 0 && (
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge variant="secondary" className="text-2xs">
                     {overrideCount} override{overrideCount === 1 ? "" : "s"}
                   </Badge>
                 )}

@@ -714,10 +714,10 @@ export default function AnalyticsPage() {
             ) : (
               <>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="rounded-lg border p-3"><div className="text-[11px] text-muted-foreground uppercase tracking-wider">Avg Efficiency</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.avgEff >= 100 ? "text-green-600" : leaderPerf.avgEff >= 80 ? "text-amber-600" : "text-red-600"}`}>{leaderPerf.avgEff.toFixed(1)}%</div></div>
-                  <div className="rounded-lg border p-3"><div className="text-[11px] text-muted-foreground uppercase tracking-wider">Open Actions</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.totalOpenActions > 0 ? "text-amber-600" : ""}`}>{leaderPerf.totalOpenActions.toLocaleString("en-US")}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{leaderPerf.totalOpenPoints.toLocaleString("en-US")} pts</span></div></div>
-                  <div className="rounded-lg border p-3"><div className="text-[11px] text-muted-foreground uppercase tracking-wider">Total Output</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalActual.toLocaleString("en-US")}</div></div>
-                  <div className="rounded-lg border p-3"><div className="text-[11px] text-muted-foreground uppercase tracking-wider">Total Target</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalTarget.toLocaleString("en-US")}</div></div>
+                  <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Avg Efficiency</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.avgEff >= 100 ? "text-green-600" : leaderPerf.avgEff >= 80 ? "text-amber-600" : "text-red-600"}`}>{leaderPerf.avgEff.toFixed(1)}%</div></div>
+                  <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Open Actions</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.totalOpenActions > 0 ? "text-amber-600" : ""}`}>{leaderPerf.totalOpenActions.toLocaleString("en-US")}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{leaderPerf.totalOpenPoints.toLocaleString("en-US")} pts</span></div></div>
+                  <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Total Output</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalActual.toLocaleString("en-US")}</div></div>
+                  <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Total Target</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalTarget.toLocaleString("en-US")}</div></div>
                 </div>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
@@ -730,7 +730,7 @@ export default function AnalyticsPage() {
                         {leaderTopByEff.map((r) => (
                           <Cell key={r.name} fill={r.value >= 100 ? "#22c55e" : r.value >= 80 ? "#f59e0b" : "#ef4444"} />
                         ))}
-                        <LabelList dataKey="value" position="right" className="text-[10px]" formatter={(v: number) => `${v.toFixed(1)}%`} />
+                        <LabelList dataKey="value" position="right" className="text-2xs" formatter={(v: number) => `${v.toFixed(1)}%`} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -768,8 +768,8 @@ export default function AnalyticsPage() {
                             ) : (
                               <Link to="/dashboard/quality" className="font-semibold text-amber-600 hover:underline dark:text-amber-400">
                                 {r.openActions}
-                                <span className="ml-1 text-[10px] font-normal text-muted-foreground" title="Open points (Low 1 · Medium 2 · High 3 · Critical 4)">{r.openPoints}p</span>
-                                {r.openCritical > 0 && <span className="ml-1 text-[10px] font-bold text-red-600 dark:text-red-400" title={`${r.openCritical} high/critical`}>⚠{r.openCritical}</span>}
+                                <span className="ml-1 text-2xs font-normal text-muted-foreground" title="Open points (Low 1 · Medium 2 · High 3 · Critical 4)">{r.openPoints}p</span>
+                                {r.openCritical > 0 && <span className="ml-1 text-2xs font-bold text-red-600 dark:text-red-400" title={`${r.openCritical} high/critical`}>⚠{r.openCritical}</span>}
                               </Link>
                             )}
                           </td>

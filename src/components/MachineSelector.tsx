@@ -119,7 +119,7 @@ export function MachineSelector({ lineId, side, machineName, onChange }: Props) 
                       <SelectItem key={m.id} value={m.name}>
                         <span className="inline-flex items-center gap-2">
                           {label}
-                          <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", sideBadgeClass(m.side))}>
+                          <Badge variant="outline" className={cn("text-2xs px-1.5 py-0", sideBadgeClass(m.side))}>
                             {m.side === "common" ? "Shared" : m.side}
                           </Badge>
                         </span>
@@ -139,7 +139,7 @@ export function MachineSelector({ lineId, side, machineName, onChange }: Props) 
 export function SideBadge({ side, className }: { side: MachineSide | string; className?: string }) {
   if (!side) return null;
   return (
-    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", sideBadgeClass(side), className)}>
+    <Badge variant="outline" className={cn("text-2xs px-1.5 py-0", sideBadgeClass(side), className)}>
       {side === "common" ? "Shared" : `Side ${side}`}
     </Badge>
   );

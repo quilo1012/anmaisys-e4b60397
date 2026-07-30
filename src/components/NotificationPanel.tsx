@@ -208,7 +208,7 @@ export function NotificationPanel() {
           <Bell className={cn("h-5 w-5", criticalCount > 0 && "animate-pulse text-destructive-strong")} />
           {unreadCount > 0 && (
             <span className={cn(
-              "absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full text-[10px] flex items-center justify-center font-bold",
+              "absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full text-2xs flex items-center justify-center font-bold",
               criticalCount > 0 ? "bg-destructive text-destructive-foreground animate-pulse" : "bg-primary text-primary-foreground"
             )}>
               {unreadCount > 9 ? "9+" : unreadCount}
@@ -221,7 +221,7 @@ export function NotificationPanel() {
           <div>
             <h4 className="font-semibold text-sm">Notifications</h4>
             {criticalCount > 0 && (
-              <p className="text-[11px] text-destructive-strong font-medium">{criticalCount} urgent</p>
+              <p className="text-2xs text-destructive-strong font-medium">{criticalCount} urgent</p>
             )}
           </div>
           {unreadCount > 0 && (
@@ -258,7 +258,7 @@ export function NotificationPanel() {
                           </span>
                         </div>
                         <p className="text-muted-foreground text-xs mt-1 break-words">{n.message}</p>
-                        <p className="text-muted-foreground text-[10px] mt-1">
+                        <p className="text-muted-foreground text-2xs mt-1">
                           {formatDistanceToNow(n.timestamp, { addSuffix: true })}
                         </p>
                       </div>

@@ -501,9 +501,9 @@ function FailureHeatmap({ workOrders }: { workOrders: Array<{ machine: string; c
             <div className="inline-grid gap-1" style={{ gridTemplateColumns: `minmax(140px,1fr) repeat(7, 44px) 60px` }}>
               <div />
               {WEEKDAYS.map((d) => (
-                <div key={d} className="text-[11px] font-medium text-center text-muted-foreground">{d}</div>
+                <div key={d} className="text-2xs font-medium text-center text-muted-foreground">{d}</div>
               ))}
-              <div className="text-[11px] font-medium text-center text-muted-foreground">Total</div>
+              <div className="text-2xs font-medium text-center text-muted-foreground">Total</div>
               {rows.map((r) => (
                 <Fragment key={r.machine}>
                   <div className="text-xs font-medium truncate pr-2 self-center" title={r.machine}>{r.machine}</div>
@@ -520,7 +520,7 @@ function FailureHeatmap({ workOrders }: { workOrders: Array<{ machine: string; c
                 </Fragment>
               ))}
             </div>
-            <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
+            <div className="mt-3 flex items-center gap-3 text-2xs text-muted-foreground">
               <span>Legend:</span>
               <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-muted/40 border" />0</span>
               <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-500/70" />Low</span>

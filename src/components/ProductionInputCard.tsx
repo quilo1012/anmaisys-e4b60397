@@ -158,7 +158,7 @@ export function ProductionInputCard({
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="font-mono text-sm font-semibold">{it.code}</div>
                     {it.is_manual && (
-                      <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600">
+                      <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-amber-600">
                         Manual
                       </span>
                     )}
@@ -166,7 +166,7 @@ export function ProductionInputCard({
                   <div className="text-xs text-muted-foreground">{it.name}</div>
                   <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div className="rounded-md border bg-background/60 px-3 py-2">
-                      <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                      <div className="flex items-center gap-1 text-2xs uppercase tracking-wider text-muted-foreground">
                         <Clock className="h-3 w-3" /> Standard Fill Time
                       </div>
                       <div className="mt-1 text-base font-bold tabular-nums">
@@ -174,7 +174,7 @@ export function ProductionInputCard({
                       </div>
                     </div>
                     <div className="rounded-md border bg-background/60 px-3 py-2">
-                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Completion</div>
+                      <div className="text-2xs uppercase tracking-wider text-muted-foreground">Completion</div>
                       <div className={cn("mt-1 text-base font-bold tabular-nums", ragText(pct))}>{pct.toFixed(0)}%</div>
                     </div>
                   </div>

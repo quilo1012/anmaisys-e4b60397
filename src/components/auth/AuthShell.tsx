@@ -73,7 +73,7 @@ export function AuthShell({
 
         {/* Slim footer */}
         <div className="border-t border-white/40 px-8 py-4 text-center">
-          <p className="text-[11px] font-medium tracking-wide text-slate-600">
+          <p className="text-2xs font-medium tracking-wide text-slate-600">
             Encrypted connection · Audited access · © {year} Applied Nutrition
           </p>
         </div>

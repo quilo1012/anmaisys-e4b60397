@@ -349,13 +349,13 @@ export default function DirectMessagesPage() {
                         <div className="flex-1 min-w-0">
                           <p className={cn("text-sm truncate", unread > 0 ? "font-bold text-foreground" : "font-medium")}>{p.name}</p>
                           {p.line_labels && (
-                            <p className="text-[11px] text-muted-foreground truncate">
+                            <p className="text-2xs text-muted-foreground truncate">
                               {p.line_labels}
                             </p>
                           )}
                         </div>
                         {unread > 0 && (
-                          <span className="ml-1 shrink-0 rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">
+                          <span className="ml-1 shrink-0 rounded-full bg-primary px-2 py-0.5 text-2xs font-semibold text-primary-foreground">
                             {unread}
                           </span>
                         )}
@@ -415,7 +415,7 @@ export default function DirectMessagesPage() {
                                 )}
                               >
                                 {!isOwn && (
-                                  <p className="text-[10px] font-semibold opacity-70 mb-0.5">
+                                  <p className="text-2xs font-semibold opacity-70 mb-0.5">
                                     {m.sender_name}
                                   </p>
                                 )}
@@ -439,7 +439,7 @@ export default function DirectMessagesPage() {
                                 })()}
                               </div>
                               <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[10px] text-muted-foreground">
+                                <span className="text-2xs text-muted-foreground">
                                   {format(new Date(m.created_at), "dd/MM HH:mm")}
                                   {isOwn && m.read_at && " · Read"}
                                 </span>
@@ -454,7 +454,7 @@ export default function DirectMessagesPage() {
                                     return (
                                       <button
                                         onClick={() => handleTranslate(m.id, m.message)}
-                                        className="text-[10px] text-destructive-strong hover:underline"
+                                        className="text-2xs text-destructive-strong hover:underline"
                                       >
                                         Translation failed · Retry
                                       </button>
@@ -468,7 +468,7 @@ export default function DirectMessagesPage() {
                                   return (
                                     <button
                                       onClick={() => handleTranslate(m.id, m.message)}
-                                      className="text-[10px] text-muted-foreground hover:text-foreground hover:underline"
+                                      className="text-2xs text-muted-foreground hover:text-foreground hover:underline"
                                     >
                                       {label}
                                     </button>
@@ -476,10 +476,10 @@ export default function DirectMessagesPage() {
                                 })()}
                                 {m.audio_url && (() => {
                                   const tr = transcriptions[m.id];
-                                  if (tr?.loading) return <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Converting…</span>;
-                                  if (tr?.error) return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} title={tr.error} className="text-[10px] text-destructive-strong hover:underline max-w-[220px] truncate">Failed: {tr.error} · Retry</button>;
+                                  if (tr?.loading) return <span className="flex items-center gap-1 text-2xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Converting…</span>;
+                                  if (tr?.error) return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} title={tr.error} className="text-2xs text-destructive-strong hover:underline max-w-[220px] truncate">Failed: {tr.error} · Retry</button>;
                                   if (tr?.text) return null;
-                                  return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} className="text-[10px] text-muted-foreground hover:text-foreground hover:underline">Convert to text</button>;
+                                  return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} className="text-2xs text-muted-foreground hover:text-foreground hover:underline">Convert to text</button>;
                                 })()}
                               </div>
                             </div>

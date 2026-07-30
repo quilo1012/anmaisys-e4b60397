@@ -63,14 +63,14 @@ export function WOChat({ workOrderId }: { workOrderId: string }) {
                 return (
                   <div key={msg.id} className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
                     <div className={`max-w-[80%] rounded-lg px-3 py-2 ${isOwn ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                      {!isOwn && <p className="text-[10px] font-semibold opacity-70 mb-0.5">{msg.user_name}</p>}
+                      {!isOwn && <p className="text-2xs font-semibold opacity-70 mb-0.5">{msg.user_name}</p>}
                       {msg.image_url && (
                         <img src={msg.image_url} alt="Attachment" className="rounded max-h-32 mb-1 cursor-pointer" onClick={() => window.open(msg.image_url!, "_blank")} />
                       )}
                       {msg.message && msg.message !== "📷 Image" && <p className="text-sm">{msg.message}</p>}
                       {msg.message === "📷 Image" && !msg.image_url && <p className="text-sm">📷 Image</p>}
                     </div>
-                    <span className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(msg.created_at), "HH:mm")}</span>
+                    <span className="text-2xs text-muted-foreground mt-0.5">{format(new Date(msg.created_at), "HH:mm")}</span>
                   </div>
                 );
               })

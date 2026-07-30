@@ -89,7 +89,7 @@ function NavCardGrid({ cards }: Props) {
                   <Icon className="h-5 w-5" />
                 </div>
                 {c.comingSoon ? (
-                  <Badge variant="outline" className="text-[10px] uppercase tracking-wide">Coming soon</Badge>
+                  <Badge variant="outline" className="text-2xs uppercase tracking-wide">Coming soon</Badge>
                 ) : c.badge !== undefined && c.badge !== 0 ? (
                   <Badge variant="secondary" className="text-xs">{c.badge}</Badge>
                 ) : null}

@@ -743,7 +743,7 @@ function EngineerDashboardContent() {
                   <div className="col-span-2 text-xs text-muted-foreground flex flex-wrap gap-1 items-center">
                     <span className="font-semibold">With:</span>
                     {(wo as any).collaborator_names.map((n: string) => (
-                      <Badge key={n} variant="secondary" className="text-[10px]">{n}</Badge>
+                      <Badge key={n} variant="secondary" className="text-2xs">{n}</Badge>
                     ))}
                   </div>
                 )}
@@ -997,7 +997,7 @@ function EngineerDashboardContent() {
                                       <div className="w-full text-xs text-muted-foreground flex flex-wrap gap-1 items-center">
                                         <span className="font-semibold">With:</span>
                                         {(wo as any).collaborator_names.map((n: string) => (
-                                          <Badge key={n} variant="secondary" className="text-[10px]">{n}</Badge>
+                                          <Badge key={n} variant="secondary" className="text-2xs">{n}</Badge>
                                         ))}
                                       </div>
                                     )}

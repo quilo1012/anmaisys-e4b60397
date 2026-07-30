@@ -226,7 +226,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
               <button
                 type="button"
                 onClick={() => setOpenGroup((prev) => (prev === group.label ? null : group.label))}
-                className="flex w-full items-center justify-between px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
+                className="flex w-full items-center justify-between px-2 py-1.5 text-2xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
                 aria-expanded={isOpen}
               >
                 <span>{group.label}</span>
@@ -263,13 +263,13 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                             <item.icon className="h-4 w-4 shrink-0 group-data-[collapsible=icon]:h-[18px] group-data-[collapsible=icon]:w-[18px]" />
                             <span className="text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
                             {item.title === "Permissions" && permissionOverrideCount > 0 && (
-                              <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-0 text-[10px] font-medium text-primary group-data-[collapsible=icon]:hidden">
+                              <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-0 text-2xs font-medium text-primary group-data-[collapsible=icon]:hidden">
                                 {permissionOverrideCount} custom
                               </span>
                             )}
                             {item.title === "Messages" && dmUnread > 0 && (
                               <>
-                                <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-[10px] font-semibold text-white min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
+                                <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-2xs font-semibold text-white min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
                                   {dmUnread > 9 ? "9+" : dmUnread}
                                 </span>
                                 <span
@@ -280,7 +280,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                             )}
                             {item.title === "Root Diagnostics" && crashCount > 0 && (
                               <>
-                                <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-[10px] font-semibold text-white min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
+                                <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-2xs font-semibold text-white min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
                                   {crashCount > 9 ? "9+" : crashCount}
                                 </span>
                                 <span
@@ -512,7 +512,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   <div className="truncate text-sm font-medium text-sidebar-foreground">
                     {profile?.name}
                   </div>
-                  <div className="truncate text-[11px] uppercase tracking-wider text-sidebar-foreground/50">
+                  <div className="truncate text-2xs uppercase tracking-wider text-sidebar-foreground/50">
                     {role ? roleTitle[role] : ""}
                   </div>
                 </div>
@@ -600,7 +600,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 </Button>
                 {role && (
                   <span
-                    className={`hidden sm:inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${roleBadgeClass[role] ?? "bg-muted text-muted-foreground"}`}
+                    className={`hidden sm:inline-flex items-center rounded-full border px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide ${roleBadgeClass[role] ?? "bg-muted text-muted-foreground"}`}
                     aria-label={`Current role: ${roleTitle[role]}`}
                   >
                     {roleTitle[role]}

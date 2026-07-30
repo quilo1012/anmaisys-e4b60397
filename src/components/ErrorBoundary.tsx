@@ -103,7 +103,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   {error?.message || "Unexpected error"}
                 </p>
                 {detail && (
-                  <p className="mt-2 font-mono text-[11px] leading-snug text-muted-foreground/70 break-words">
+                  <p className="mt-2 font-mono text-2xs leading-snug text-muted-foreground/70 break-words">
                     {error?.name ? `${error.name} · ` : ""}{detail}
                   </p>
                 )}

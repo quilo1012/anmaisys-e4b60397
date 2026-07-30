@@ -21,7 +21,7 @@ export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
       type="button"
       onClick={onClick}
       className={cn(
-        "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] transition-colors",
+        "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-2xs transition-colors",
         active ? "text-primary" : "text-muted-foreground hover:text-foreground",
       )}
     >

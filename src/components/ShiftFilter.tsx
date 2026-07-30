@@ -42,7 +42,7 @@ export function ShiftFilter({ value, onChange, className }: ShiftFilterProps) {
           >
             <span className="text-base leading-none">{opt.emoji}</span>
             <span className="hidden sm:inline">{opt.label}</span>
-            <span className={cn("hidden md:inline text-[10px] opacity-70", active && "opacity-90")}>
+            <span className={cn("hidden md:inline text-2xs opacity-70", active && "opacity-90")}>
               {opt.hint !== opt.label ? opt.hint : ""}
             </span>
           </button>

@@ -238,9 +238,9 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
                       </TableCell>
                       <TableCell>
                         {e.is_recurrence ? (
-                          <Badge variant="destructive" className="text-[10px]">Recurrence</Badge>
+                          <Badge variant="destructive" className="text-2xs">Recurrence</Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[10px]">First</Badge>
+                          <Badge variant="outline" className="text-2xs">First</Badge>
                         )}
                       </TableCell>
                     </TableRow>

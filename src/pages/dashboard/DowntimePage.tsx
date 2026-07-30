@@ -279,7 +279,7 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
                 stops on different lines counted once — so they match the Overview. Europe/London time.
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="flex items-center gap-2 text-2xs uppercase tracking-wider text-muted-foreground">
               <span>Less</span>
               <span className="h-3 w-5 rounded-sm bg-emerald-500/15 ring-1 ring-inset ring-border" />
               <span className="h-3 w-5 rounded-sm bg-amber-400/25" />
@@ -297,12 +297,12 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
                 {DAYS.map((d, di) => (
                   <th key={d} colSpan={visibleShifts.length} className="text-center px-1 pt-1 pb-0 border-b border-border/60">
                     <div className="font-semibold text-foreground">{d}</div>
-                    <div className="text-[10px] font-normal text-muted-foreground tabular-nums h-3">{dayDates[di] ?? ""}</div>
+                    <div className="text-2xs font-normal text-muted-foreground tabular-nums h-3">{dayDates[di] ?? ""}</div>
                   </th>
                 ))}
                 <th className="text-right p-2">Total</th>
               </tr>
-              <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <tr className="text-2xs uppercase tracking-wider text-muted-foreground">
                 <th className="sticky left-0 bg-card z-10" />
                 {DAYS.flatMap((d) => visibleShifts.map((s) => (
                   <th key={`${d}-${s}`} className="font-medium pb-1">{s[0]}</th>
@@ -340,7 +340,7 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
                               <div className="font-semibold tabular-nums">
                                 {hasData ? formatMinutes(c.minutes) : <span className="text-muted-foreground/40">—</span>}
                               </div>
-                              {c.count > 0 && <div className="text-[10px] opacity-80 tabular-nums">{c.count}×</div>}
+                              {c.count > 0 && <div className="text-2xs opacity-80 tabular-nums">{c.count}×</div>}
                             </div>
                           </td>
                         );

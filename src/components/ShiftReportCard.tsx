@@ -136,7 +136,7 @@ $$);`;
                   <Sun className="h-4 w-4 text-amber-500" />
                   <div>
                     <div className="font-medium text-sm">Day Shift (06:00–18:00)</div>
-                    {s.last_sent_day_at && <div className="text-[11px] text-muted-foreground">Last sent: {new Date(s.last_sent_day_at).toLocaleString("en-GB")}</div>}
+                    {s.last_sent_day_at && <div className="text-2xs text-muted-foreground">Last sent: {new Date(s.last_sent_day_at).toLocaleString("en-GB")}</div>}
                   </div>
                 </div>
                 <Switch checked={s.day_enabled} onCheckedChange={(v) => setS((p) => ({ ...p, day_enabled: v }))} />
@@ -146,7 +146,7 @@ $$);`;
                   <Moon className="h-4 w-4 text-indigo-400" />
                   <div>
                     <div className="font-medium text-sm">Night Shift (18:00–06:00)</div>
-                    {s.last_sent_night_at && <div className="text-[11px] text-muted-foreground">Last sent: {new Date(s.last_sent_night_at).toLocaleString("en-GB")}</div>}
+                    {s.last_sent_night_at && <div className="text-2xs text-muted-foreground">Last sent: {new Date(s.last_sent_night_at).toLocaleString("en-GB")}</div>}
                   </div>
                 </div>
                 <Switch checked={s.night_enabled} onCheckedChange={(v) => setS((p) => ({ ...p, night_enabled: v }))} />
@@ -207,7 +207,7 @@ $$);`;
 
             <details className="rounded-lg border bg-muted/30 p-3">
               <summary className="cursor-pointer text-xs uppercase tracking-wide text-muted-foreground">Schedule automatically (pg_cron)</summary>
-              <pre className="mt-2 rounded-md border bg-background p-3 text-[11px] overflow-x-auto whitespace-pre">{cronSql}</pre>
+              <pre className="mt-2 rounded-md border bg-background p-3 text-2xs overflow-x-auto whitespace-pre">{cronSql}</pre>
               <p className="text-xs text-muted-foreground mt-2">
                 Run once in the database SQL editor. Replace <code>&lt;YOUR_ANON_KEY&gt;</code> with your public anon key. Times are UTC.
               </p>

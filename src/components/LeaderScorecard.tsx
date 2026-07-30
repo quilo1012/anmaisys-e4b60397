@@ -19,7 +19,7 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string | numbe
     <Card><CardContent className="p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={cn("text-xl font-bold", tone)}>{value}</div>
-      {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
+      {sub && <div className="text-2xs text-muted-foreground">{sub}</div>}
     </CardContent></Card>
   );
 }
@@ -162,7 +162,7 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {QUALITY_SEVERITIES.slice().reverse().map((s) => (
-                <Badge key={s.value} variant="outline" className={cn("text-[10px]", severityMeta(s.value)?.badge)}>{s.label}: {q.sev[s.value] ?? 0}</Badge>
+                <Badge key={s.value} variant="outline" className={cn("text-2xs", severityMeta(s.value)?.badge)}>{s.label}: {q.sev[s.value] ?? 0}</Badge>
               ))}
             </div>
           </div>
@@ -188,7 +188,7 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
             <div>
               <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Top labels</div>
               <div className="flex flex-wrap gap-1.5">
-                {q.topLabels.map((l) => <Badge key={l.label} variant="secondary" className="text-[10px]">{l.label} · {l.count}</Badge>)}
+                {q.topLabels.map((l) => <Badge key={l.label} variant="secondary" className="text-2xs">{l.label} · {l.count}</Badge>)}
               </div>
             </div>
           )}

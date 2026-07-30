@@ -110,7 +110,7 @@ export default function RootDiagnosticsPage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span className="flex items-center gap-2">
-                      <Badge className={`${TYPE_COLOR[l.error_type] ?? "bg-muted"} border font-mono text-[10px]`}>{l.error_type}</Badge>
+                      <Badge className={`${TYPE_COLOR[l.error_type] ?? "bg-muted"} border font-mono text-2xs`}>{l.error_type}</Badge>
                       <span className="font-normal text-muted-foreground text-xs tabular-nums">{format(new Date(l.created_at), "dd/MM HH:mm:ss")}</span>
                     </span>
                     <span className="text-xs font-normal text-muted-foreground">{l.route_path} · {l.user_role ?? "?"}{l.user_id ? ` · ${l.user_id.slice(0, 8)}` : ""}</span>
@@ -119,7 +119,7 @@ export default function RootDiagnosticsPage() {
                 <CardContent className="pt-0 space-y-2">
                   <p className="font-medium break-words">{l.message}</p>
                   {l.stack_trace && (
-                    <pre className="max-h-48 overflow-auto rounded bg-muted p-2 text-[10px] leading-relaxed text-muted-foreground">{l.stack_trace}</pre>
+                    <pre className="max-h-48 overflow-auto rounded bg-muted p-2 text-2xs leading-relaxed text-muted-foreground">{l.stack_trace}</pre>
                   )}
                 </CardContent>
               </Card>

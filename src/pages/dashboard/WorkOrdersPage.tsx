@@ -399,12 +399,12 @@ export default function WorkOrdersPage() {
               WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} compact />
             </span>
-            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${pri.className}`}>{pri.label}</Badge>
+            <Badge variant="outline" className={`text-2xs px-1.5 py-0 ${pri.className}`}>{pri.label}</Badge>
           </div>
           <p className="text-sm font-medium">{wo.machine}</p>
           <p className="text-xs text-muted-foreground truncate">{wo.description}</p>
           {unacceptedMinutes(wo) !== null && (
-            <p className="text-[11px] font-semibold text-red-600 dark:text-red-400">
+            <p className="text-2xs font-semibold text-red-600 dark:text-red-400">
               Not accepted · {formatWait(unacceptedMinutes(wo)!)}
             </p>
           )}
@@ -438,7 +438,7 @@ export default function WorkOrdersPage() {
     >
       <div className="mb-3">
         <div className="flex items-center gap-2"><div className={`w-3 h-3 rounded-full ${color}`} /><h3 className="font-semibold text-sm">{title} ({items.length})</h3></div>
-        {note && <p className="mt-0.5 pl-5 text-[11px] text-muted-foreground">{note}</p>}
+        {note && <p className="mt-0.5 pl-5 text-2xs text-muted-foreground">{note}</p>}
       </div>
       {items.map((wo) => <KanbanCard key={wo.id} wo={wo} borderColor={borderColor} />)}
       {!items.length && <p className="text-muted-foreground text-xs text-center py-4">Drop an order here</p>}
@@ -651,7 +651,7 @@ export default function WorkOrdersPage() {
                 </SelectContent>
               </Select>
               <div className="flex flex-col gap-1">
-                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Line Status</Label>
+                <Label className="text-2xs uppercase tracking-wider text-muted-foreground font-medium">Line Status</Label>
                 <Select
                   value={lineStoppedFilter}
                   onValueChange={(v) => setLineStoppedFilter(v as "all" | "stopped" | "running")}
@@ -729,14 +729,14 @@ export default function WorkOrdersPage() {
                             </span>
                             <div className="flex items-center gap-1">
                               {(wo as any).wo_type === "warehouse_service" && (
-                                <Badge variant="outline" className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 text-[10px]" title="Warehouse service — not counted as line downtime">Warehouse</Badge>
+                                <Badge variant="outline" className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 text-2xs" title="Warehouse service — not counted as line downtime">Warehouse</Badge>
                               )}
                               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
                               {isStale && (
-                                <Badge variant="outline" className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-[10px]" title="In progress > 3 days">Stale</Badge>
+                                <Badge variant="outline" className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-2xs" title="In progress > 3 days">Stale</Badge>
                               )}
                               {unacceptedMinutes(wo) !== null && (
-                                <Badge variant="outline" className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30 text-[10px]" title="No engineer has accepted this order yet">
+                                <Badge variant="outline" className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30 text-2xs" title="No engineer has accepted this order yet">
                                   Not accepted · {formatWait(unacceptedMinutes(wo)!)}
                                 </Badge>
                               )}
@@ -751,7 +751,7 @@ export default function WorkOrdersPage() {
                           <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground flex-wrap">
                             <span>{wo.requester_name} → {wo.engineer?.name || "—"}</span>
                             <div className="flex items-center gap-2">
-                              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${pri.className}`}>{pri.label}</Badge>
+                              <Badge variant="outline" className={`text-2xs px-1.5 py-0 ${pri.className}`}>{pri.label}</Badge>
                               <span>{format(new Date(wo.created_at), "dd/MM HH:mm")}</span>
                             </div>
                           </div>
@@ -815,20 +815,20 @@ export default function WorkOrdersPage() {
                               </div>
                             </TableCell>
                           )}
-                          {isCol("line") && <TableCell className="text-sm font-medium">{(wo as any).wo_type === "warehouse_service" ? <Badge variant="outline" className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 text-[10px]" title="Warehouse service — not counted as line downtime">Warehouse</Badge> : woLine}</TableCell>}
+                          {isCol("line") && <TableCell className="text-sm font-medium">{(wo as any).wo_type === "warehouse_service" ? <Badge variant="outline" className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 text-2xs" title="Warehouse service — not counted as line downtime">Warehouse</Badge> : woLine}</TableCell>}
                           {isCol("machine") && <TableCell className={(wo as any).wo_type === "warehouse_service" ? "text-sm text-muted-foreground" : "cursor-pointer hover:underline"} onClick={(wo as any).wo_type === "warehouse_service" ? undefined : () => navigate(`/dashboard/machines/${encodeURIComponent(wo.machine)}/history`)}>{(wo as any).wo_type === "warehouse_service" ? ((wo as any).warehouse_location || "—") : wo.machine}</TableCell>}
                           {isCol("problem") && <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">{wo.description}</TableCell>}
                           {isCol("status") && <TableCell>
                             <div className="flex items-center gap-1">
                               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
                               {wo.status === "in_progress" && wo.started_at && differenceInMinutes(new Date(), new Date(wo.started_at)) > 4320 && (
-                                <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-[10px]" variant="outline" title="This maintenance order has been in progress for more than 3 days. Consider reviewing or closing it.">Stale</Badge>
+                                <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-2xs" variant="outline" title="This maintenance order has been in progress for more than 3 days. Consider reviewing or closing it.">Stale</Badge>
                               )}
                               {/* An open order with no received_at has not been accepted by anyone.
                                   Nothing on the board said so, which is how WO-605 waited from
                                   29/07 13:04 to the next morning without anyone noticing. */}
                               {unacceptedMinutes(wo) !== null && (
-                                <Badge variant="outline" className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30 text-[10px]" title="No engineer has accepted this order yet">
+                                <Badge variant="outline" className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30 text-2xs" title="No engineer has accepted this order yet">
                                   Not accepted · {formatWait(unacceptedMinutes(wo)!)}
                                 </Badge>
                               )}

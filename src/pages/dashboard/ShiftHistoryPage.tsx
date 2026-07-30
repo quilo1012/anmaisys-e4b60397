@@ -337,7 +337,7 @@ function InlineUnitQtyInput({
   };
   return (
     <div className="flex items-center gap-1">
-      <span className="text-[10px] uppercase text-muted-foreground w-8">{unit === "tubs" ? "Tubs" : "Bags"}</span>
+      <span className="text-2xs uppercase text-muted-foreground w-8">{unit === "tubs" ? "Tubs" : "Bags"}</span>
       <Input
         type="number" inputMode="numeric" disabled={disabled || saving} value={val}
         placeholder="0"
@@ -837,9 +837,9 @@ export default function ShiftHistoryPage() {
           ].map((k) => (
             <Card key={k.label} className="border-l-4 border-l-primary/60 shadow-sm">
               <CardContent className="p-3">
-                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{k.label}</div>
+                <div className="text-2xs uppercase tracking-wide text-muted-foreground">{k.label}</div>
                 <div className={cn("text-2xl font-bold tabular-nums", k.accent)}>{k.value}</div>
-                {k.sub && <div className="text-[11px] text-muted-foreground">{k.sub}</div>}
+                {k.sub && <div className="text-2xs text-muted-foreground">{k.sub}</div>}
               </CardContent>
             </Card>
           ))}
@@ -902,7 +902,7 @@ export default function ShiftHistoryPage() {
                 {/* Desktop / tablet — full editable table */}
                 <div className="hidden md:block max-h-[70vh] overflow-auto">
                   <table className="w-full text-sm border-separate border-spacing-0">
-                    <thead className="sticky top-0 z-10 bg-muted text-[11px] uppercase tracking-wide">
+                    <thead className="sticky top-0 z-10 bg-muted text-2xs uppercase tracking-wide">
                       <tr>
                         <th className="text-left px-3 py-2 border-b">Date</th>
                         <th className="text-left px-3 py-2 border-b">Shift</th>
@@ -931,7 +931,7 @@ export default function ShiftHistoryPage() {
                           if (s.line !== prevLine) {
                             out.push(
                               <tr key={`sep-${s.id}-${s.line}`} className="bg-primary/5">
-                                <td colSpan={13} className="px-3 py-1.5 text-[11px] uppercase font-semibold tracking-wider text-primary border-b border-primary/20">
+                                <td colSpan={13} className="px-3 py-1.5 text-2xs uppercase font-semibold tracking-wider text-primary border-b border-primary/20">
                                   {lineLabel(s.line)}
                                 </td>
                               </tr>
@@ -969,7 +969,7 @@ export default function ShiftHistoryPage() {
                                   <Badge
                                     variant="outline"
                                     className={cn(
-                                      "text-[10px] font-semibold px-1.5 py-0",
+                                      "text-2xs font-semibold px-1.5 py-0",
                                       s.shift === "DAY"
                                         ? "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300"
                                         : "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300",
@@ -1032,7 +1032,7 @@ export default function ShiftHistoryPage() {
                                     <span className="text-xs font-mono">{i.batch_code || "—"}</span>
                                   )}
                                   {(i.manufacture_month || i.expiry_month) && (
-                                    <div className="mt-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
+                                    <div className="mt-0.5 text-2xs text-muted-foreground whitespace-nowrap">
                                       {i.manufacture_month && <span title="Manufactured">M {monthMMYY(i.manufacture_month)}</span>}
                                       {i.manufacture_month && i.expiry_month && " · "}
                                       {i.expiry_month && <span title="Expiry">E {monthMMYY(i.expiry_month)}</span>}
@@ -1135,7 +1135,7 @@ export default function ShiftHistoryPage() {
                               <Badge
                                 variant="outline"
                                 className={cn(
-                                  "text-[10px] font-semibold px-1.5 py-0",
+                                  "text-2xs font-semibold px-1.5 py-0",
                                   s.shift === "DAY"
                                     ? "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300"
                                     : "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300",
@@ -1305,7 +1305,7 @@ export default function ShiftHistoryPage() {
                 <SkuCombobox skus={skus} value={addSkuId} onChange={setAddSkuId} />
               </div>
               <div><Label className="text-xs">Produced (actual)</Label><Input type="number" inputMode="numeric" value={addActual} onChange={(e) => setAddActual(e.target.value)} placeholder="0" autoFocus /></div>
-              <p className="text-[11px] text-muted-foreground">Adds this SKU to the shift. If it's already there, the produced quantity is added on top. The target comes from the RAG Weekly plan.</p>
+              <p className="text-2xs text-muted-foreground">Adds this SKU to the shift. If it's already there, the produced quantity is added on top. The target comes from the RAG Weekly plan.</p>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>

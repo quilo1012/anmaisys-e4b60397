@@ -413,7 +413,7 @@ export default function PermissionsMatrixPage() {
               <Card key={group.key} className="overflow-hidden">
                 <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2">
                   <div className="text-sm font-semibold">{group.label}</div>
-                  <Badge variant="outline" className="text-[10px]">{group.actions.length}</Badge>
+                  <Badge variant="outline" className="text-2xs">{group.actions.length}</Badge>
                 </div>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
@@ -453,11 +453,11 @@ export default function PermissionsMatrixPage() {
                                 )}
                               </div>
                               {ACTION_DESCRIPTIONS[a] && (
-                                <div className="mt-0.5 text-[11px] leading-tight text-muted-foreground line-clamp-2">
+                                <div className="mt-0.5 text-2xs leading-tight text-muted-foreground line-clamp-2">
                                   {ACTION_DESCRIPTIONS[a]}
                                 </div>
                               )}
-                              <div className="font-mono text-[10px] text-muted-foreground/70">{a}</div>
+                              <div className="font-mono text-2xs text-muted-foreground/70">{a}</div>
                             </td>
                             {rolesToShow.map((r) => {
                               const k = keyOf(r, a);
@@ -516,7 +516,7 @@ export default function PermissionsMatrixPage() {
                                         type="button"
                                         title="Reset to default"
                                         onClick={() => resetCell(r, a)}
-                                        className="absolute -right-3 -top-1 rounded-full bg-background text-[10px] text-muted-foreground hover:text-foreground"
+                                        className="absolute -right-3 -top-1 rounded-full bg-background text-2xs text-muted-foreground hover:text-foreground"
                                       >
                                         ↺
                                       </button>
@@ -563,15 +563,15 @@ export default function PermissionsMatrixPage() {
                 {pendingChanges.map((c) => (
                   <tr key={c.key} className="border-t">
                     <td className="p-2">
-                      <Badge variant="outline" className="text-[10px]">{ROLE_LABELS[c.role]}</Badge>
+                      <Badge variant="outline" className="text-2xs">{ROLE_LABELS[c.role]}</Badge>
                     </td>
                     <td className="p-2">
                       <div className="font-medium">{ACTION_LABELS[c.action] ?? c.action}</div>
                       {ACTION_DESCRIPTIONS[c.action] && (
-                        <div className="text-[11px] text-muted-foreground">{ACTION_DESCRIPTIONS[c.action]}</div>
+                        <div className="text-2xs text-muted-foreground">{ACTION_DESCRIPTIONS[c.action]}</div>
                       )}
                       {c.isReset && (
-                        <Badge variant="secondary" className="mt-1 text-[10px]">Reset to default</Badge>
+                        <Badge variant="secondary" className="mt-1 text-2xs">Reset to default</Badge>
                       )}
                     </td>
                     <td className="p-2 text-center">

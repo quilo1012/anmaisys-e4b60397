@@ -1116,7 +1116,7 @@ function InlineCell({
     });
   };
 
-  const inputCls = "h-6 w-14 px-1 text-center text-[11px] bg-background/60 border rounded";
+  const inputCls = "h-6 w-14 px-1 text-center text-2xs bg-background/60 border rounded";
 
   return (
     <div className="flex flex-col items-center gap-0.5">
@@ -1157,7 +1157,7 @@ function InlineCell({
       <button
         type="button"
         onClick={onOpenFull}
-        className="text-[10px] text-muted-foreground hover:text-foreground underline"
+        className="text-2xs text-muted-foreground hover:text-foreground underline"
       >
         more…
       </button>
@@ -1780,7 +1780,7 @@ function DayNightTotalSummary({
                     return (
                       <span className="inline-flex items-center gap-1" title={`Plan ${plan} ≠ sum of SKU targets ${itemSum} (Δ${diff})`}>
                         {cellEl}
-                        <span className="text-warning-strong text-[10px] leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
+                        <span className="text-warning-strong text-2xs leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
                       </span>
                     );
                   };
@@ -1788,7 +1788,7 @@ function DayNightTotalSummary({
                     isDt ? wrapDt(ds, shift, cellEl) : isPlan ? wrapPlan(ds, shift, cellEl) : cellEl;
                   return (
                     <tr key={row.key} className="border-b hover:bg-muted/20">
-                      <td className="p-1.5 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-[11px] tracking-wide text-muted-foreground">{row.label}</td>
+                      <td className="p-1.5 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-2xs tracking-wide text-muted-foreground">{row.label}</td>
                       {weekDates.map((d, i) => {
                         const ds = format(d, "yyyy-MM-dd");
                         const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-muted/60 text-muted-foreground" : "";
@@ -1834,7 +1834,7 @@ function DayNightTotalSummary({
         )}
         {!isCollapsed && label !== "All Lines" && (
           <div className="mt-2 border rounded-md bg-muted/10 p-3">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Daily Comments</div>
+            <div className="text-2xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">Daily Comments</div>
             <div className="grid gap-2 md:grid-cols-7">
               {weekDates.map((d) => {
                 const ds = format(d, "yyyy-MM-dd");
@@ -1943,8 +1943,8 @@ function LineCommentBox({
   return (
     <div className="border rounded-md bg-card p-2">
       <div className="flex items-center justify-between mb-1">
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{dayLabel}</div>
-        {saving && <div className="text-[10px] text-muted-foreground">…</div>}
+        <div className="text-2xs uppercase tracking-wider text-muted-foreground font-semibold">{dayLabel}</div>
+        {saving && <div className="text-2xs text-muted-foreground">…</div>}
       </div>
       <Textarea
         value={value}
@@ -2044,7 +2044,7 @@ function DowntimeBreakdownPopover({
           </div>
           <Link
             to={`/dashboard/engineer?line=${encodeURIComponent(line)}&date=${encodeURIComponent(dateStr)}`}
-            className="text-[11px] text-primary hover:underline"
+            className="text-2xs text-primary hover:underline"
           >
             Open Maintenance Orders →
           </Link>
@@ -2069,23 +2069,23 @@ function DowntimeBreakdownPopover({
                     {s.source === "WO" && s.ref ? (
                       <a
                         href={`/dashboard/work-orders?wo=${encodeURIComponent(s.ref)}`}
-                        className="font-mono text-[11px] text-primary hover:underline"
+                        className="font-mono text-2xs text-primary hover:underline"
                       >
                         {woLabel}
                       </a>
                     ) : (
-                      <div className="font-mono text-[11px]">{woLabel}</div>
+                      <div className="font-mono text-2xs">{woLabel}</div>
                     )}
                     {statusBadge(s.status)}
                     {(s.machine || s.reason) && (
-                      <div className="text-[10px] text-muted-foreground truncate max-w-[180px]" title={s.reason ?? ""}>
+                      <div className="text-2xs text-muted-foreground truncate max-w-[180px]" title={s.reason ?? ""}>
                         {[s.machine, s.reason].filter(Boolean).join(" — ")}
                       </div>
                     )}
                   </td>
 
-                  <td className="px-2 py-1.5 font-mono text-[11px]">{fmtTs(s.clampedStart)}</td>
-                  <td className="px-2 py-1.5 font-mono text-[11px]">
+                  <td className="px-2 py-1.5 font-mono text-2xs">{fmtTs(s.clampedStart)}</td>
+                  <td className="px-2 py-1.5 font-mono text-2xs">
                     {s.ongoing ? <span className="text-destructive-strong font-semibold">ongoing</span> : fmtTs(s.clampedEnd)}
                   </td>
                   <td className="px-2 py-1.5 text-right font-semibold">{s.minutes}</td>

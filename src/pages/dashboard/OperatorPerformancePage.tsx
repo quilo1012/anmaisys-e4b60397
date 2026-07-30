@@ -260,7 +260,7 @@ function OperatorPerformanceContent() {
                   </div>
                 )}
                 {unlockedBy && (
-                  <div className="text-[11px] text-muted-foreground">Unlocked by {unlockedBy}</div>
+                  <div className="text-2xs text-muted-foreground">Unlocked by {unlockedBy}</div>
                 )}
               </>
             )}

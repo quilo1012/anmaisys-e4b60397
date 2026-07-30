@@ -73,7 +73,7 @@ export function PermissionAuditLog({ limit = 30 }: { limit?: number }) {
                       </TableCell>
                       <TableCell className="text-sm">{row.user_name}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-[10px] uppercase">{d.role ?? "-"}</Badge>
+                        <Badge variant="outline" className="text-2xs uppercase">{d.role ?? "-"}</Badge>
                       </TableCell>
                       <TableCell className="font-mono text-xs">{d.action ?? row.entity_id}</TableCell>
                       <TableCell>
@@ -92,7 +92,7 @@ export function PermissionAuditLog({ limit = 30 }: { limit?: number }) {
                             {to || "—"}
                           </Badge>
                           {d.reset_to_default && (
-                            <Badge variant="secondary" className="ml-1 text-[10px]">reset</Badge>
+                            <Badge variant="secondary" className="ml-1 text-2xs">reset</Badge>
                           )}
                         </div>
                       </TableCell>

@@ -457,7 +457,7 @@ export function QualityActionsView() {
                       </Select>
                     </div>
                   </div>
-                  <p className="-mt-1 text-[11px] text-muted-foreground">Pick line, date &amp; shift — leader, SKU and batch fill in automatically. Correct anything that's wrong.</p>
+                  <p className="-mt-1 text-2xs text-muted-foreground">Pick line, date &amp; shift — leader, SKU and batch fill in automatically. Correct anything that's wrong.</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Leader</Label>
                       <Select value={form.leader_id} onValueChange={(v) => setForm({ ...form, leader_id: v })}>
@@ -605,7 +605,7 @@ export function QualityActionsView() {
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-sm font-semibold">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
                       <div className="flex items-center gap-1">
-                        <Badge variant="outline" className={cn("text-[10px]", st.badge)}>{st.label}</Badge>
+                        <Badge variant="outline" className={cn("text-2xs", st.badge)}>{st.label}</Badge>
                         {canManage && (
                           <span onClick={(e) => e.stopPropagation()}>
                             <RowDeleteButton actionNo={a.action_no} onConfirm={() => deleteAction.mutate(a.id)} />
@@ -614,7 +614,7 @@ export function QualityActionsView() {
                       </div>
                     </div>
                     {a.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{a.description}</p>}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
                       <span className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</span>
                       {a.line && <span className="truncate">· {a.line}{a.leader_name ? ` · ${a.leader_name}` : ""}</span>}
                       {canManage ? (
@@ -623,7 +623,7 @@ export function QualityActionsView() {
                             value={a.severity || "__none__"}
                             onValueChange={(v) => setSeverity.mutate({ id: a.id, severity: v === "__none__" ? null : v })}
                           >
-                            <SelectTrigger className={cn("h-7 w-28 border text-[10px]", sev?.badge)}><SelectValue placeholder="Severity" /></SelectTrigger>
+                            <SelectTrigger className={cn("h-7 w-28 border text-2xs", sev?.badge)}><SelectValue placeholder="Severity" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__none__">—</SelectItem>
                               {QUALITY_SEVERITIES.map((x) => (
@@ -633,7 +633,7 @@ export function QualityActionsView() {
                           </Select>
                         </span>
                       ) : sev ? (
-                        <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label} · {sev.points}p</Badge>
+                        <Badge variant="outline" className={cn("text-2xs", sev.badge)}>{sev.label} · {sev.points}p</Badge>
                       ) : null}
                     </div>
                   </div>
@@ -685,7 +685,7 @@ export function QualityActionsView() {
                             </SelectContent>
                           </Select>
                         ) : sev ? (
-                          <Badge variant="outline" className={cn("text-[10px]", sev.badge)}>{sev.label}</Badge>
+                          <Badge variant="outline" className={cn("text-2xs", sev.badge)}>{sev.label}</Badge>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
@@ -696,7 +696,7 @@ export function QualityActionsView() {
                       <TableCell>{a.department ?? "—"}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {(a.labels ?? []).map((l) => <Badge key={l} variant="secondary" className="text-[10px]">{l}</Badge>)}
+                          {(a.labels ?? []).map((l) => <Badge key={l} variant="secondary" className="text-2xs">{l}</Badge>)}
                         </div>
                       </TableCell>
                       <TableCell className="max-w-xs truncate">{a.description ?? "—"}</TableCell>
@@ -775,7 +775,7 @@ function IssueKanban({ actions, canManage, onOpen, onMove }: {
                 {col.label}
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <Badge variant="outline" className="tabular-nums text-[10px] font-semibold" title="Total points in this column">
+                <Badge variant="outline" className="tabular-nums text-2xs font-semibold" title="Total points in this column">
                   {sumSeverityPoints(items)} pts
                 </Badge>
                 <Badge variant="secondary">{items.length}</Badge>
@@ -807,24 +807,24 @@ function IssueCard({ a, canManage, onOpen, onMove }: {
       <div className="flex items-center justify-between gap-2">
         <span className="font-mono text-xs font-semibold text-foreground">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
         {sev && (
-          <Badge variant="outline" className={cn("text-[10px]", sev.badge)} title={`${sev.label} — ${sev.points} point${sev.points === 1 ? "" : "s"}`}>
+          <Badge variant="outline" className={cn("text-2xs", sev.badge)} title={`${sev.label} — ${sev.points} point${sev.points === 1 ? "" : "s"}`}>
             {sev.label} · {sev.points}p
           </Badge>
         )}
       </div>
       {a.description && <p className="mt-1 line-clamp-2 text-xs">{a.description}</p>}
       {(a.sku || a.batch) && (
-        <div className="mt-1.5 flex flex-wrap gap-1 text-[10px]">
+        <div className="mt-1.5 flex flex-wrap gap-1 text-2xs">
           {a.sku && <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">SKU {a.sku}</span>}
           {a.batch && <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">Batch {a.batch}</span>}
         </div>
       )}
       {(a.labels?.length ?? 0) > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1">
-          {(a.labels ?? []).slice(0, 4).map((l) => <Badge key={l} variant="secondary" className="text-[10px]">{l}</Badge>)}
+          {(a.labels ?? []).slice(0, 4).map((l) => <Badge key={l} variant="secondary" className="text-2xs">{l}</Badge>)}
         </div>
       )}
-      <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+      <div className="mt-1.5 flex items-center justify-between text-2xs text-muted-foreground">
         <span className="truncate">{a.line ?? "—"}{a.leader_name ? ` · ${a.leader_name}` : ""}</span>
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
           {nPhotos > 0 && <span className="inline-flex items-center gap-0.5"><Camera className="h-3 w-3" />{nPhotos}</span>}
@@ -939,7 +939,7 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
               </div>
 
               {(action.labels?.length ?? 0) > 0 && (
-                <div className="flex flex-wrap gap-1">{(action.labels ?? []).map((l) => <Badge key={l} variant="secondary" className="text-[10px]">{l}</Badge>)}</div>
+                <div className="flex flex-wrap gap-1">{(action.labels ?? []).map((l) => <Badge key={l} variant="secondary" className="text-2xs">{l}</Badge>)}</div>
               )}
               {action.description && <p className="whitespace-pre-wrap rounded border bg-muted/30 p-2 text-sm">{action.description}</p>}
 
@@ -1068,7 +1068,7 @@ function SeverityPointsEditor() {
             return (
               <div key={r.severity} className="space-y-1">
                 <Label className="flex items-center gap-1.5 text-xs">
-                  <Badge variant="outline" className={cn("px-1.5 py-0 text-[10px]", meta?.badge)}>{meta?.label ?? r.severity}</Badge>
+                  <Badge variant="outline" className={cn("px-1.5 py-0 text-2xs", meta?.badge)}>{meta?.label ?? r.severity}</Badge>
                 </Label>
                 <Input
                   type="number"
@@ -1290,7 +1290,7 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
                   <Bar dataKey="points" name="Points" fill="hsl(0 72% 51%)" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-              <p className="mt-2 mb-1 text-[11px] text-muted-foreground">Click a leader to open the scorecard.</p>
+              <p className="mt-2 mb-1 text-2xs text-muted-foreground">Click a leader to open the scorecard.</p>
               <div>
                 {filteredLeaders.map((l, i) => (
                   <button key={l.label} type="button" onClick={() => l.label !== "—" && setSelectedLeader(l.label)}
@@ -1298,8 +1298,8 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
                     disabled={l.label === "—"}>
                     <span className="truncate"><span className="mr-2 text-xs text-muted-foreground">#{i + 1}</span>{l.label}</span>
                     <span className="flex items-center gap-2 whitespace-nowrap">
-                      {l.critical > 0 && <Badge variant="outline" className={cn("text-[10px]", severityMeta("critical")?.badge)}>{l.critical} critical</Badge>}
-                      {l.high > 0 && <Badge variant="outline" className={cn("text-[10px]", severityMeta("high")?.badge)}>{l.high} high</Badge>}
+                      {l.critical > 0 && <Badge variant="outline" className={cn("text-2xs", severityMeta("critical")?.badge)}>{l.critical} critical</Badge>}
+                      {l.high > 0 && <Badge variant="outline" className={cn("text-2xs", severityMeta("high")?.badge)}>{l.high} high</Badge>}
                       <span className="text-xs text-muted-foreground tabular-nums" title={`${l.count} action${l.count === 1 ? "" : "s"}`}>{l.count}×</span>
                       <span className="font-semibold tabular-nums" title="Total points">{l.points} pts</span>
                     </span>

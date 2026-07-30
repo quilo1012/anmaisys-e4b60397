@@ -185,7 +185,7 @@ export function QualityImportDialog({
                   ))}
                 </tbody>
               </table>
-              {rows.length > 20 && <p className="px-2 py-1 text-[11px] text-muted-foreground">Showing first 20 of {rows.length}.</p>}
+              {rows.length > 20 && <p className="px-2 py-1 text-2xs text-muted-foreground">Showing first 20 of {rows.length}.</p>}
             </div>
           )}
         </div>

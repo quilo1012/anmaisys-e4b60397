@@ -262,7 +262,7 @@ export function LineChatButton() {
           <MessageSquare className="h-6 w-6" />
           <span className="hidden sm:inline font-semibold">Message</span>
           {totalUnread > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1">
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-2xs font-bold flex items-center justify-center px-1">
               {totalUnread > 99 ? "99+" : totalUnread}
             </span>
           )}
@@ -287,7 +287,7 @@ export function LineChatButton() {
                   >
                     {l.name}
                     {u > 0 && !active && (
-                      <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">{u}</span>
+                      <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-2xs font-bold">{u}</span>
                     )}
                   </button>
                 );
@@ -316,7 +316,7 @@ export function LineChatButton() {
               <div className="flex items-center gap-2 min-w-0">
                 <Target className="h-4 w-4 text-primary shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Shift Target</p>
+                  <p className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Shift Target</p>
                   <p className="text-sm font-semibold truncate">
                     {shiftTarget?.plan_qty != null ? (
                       <>
@@ -333,7 +333,7 @@ export function LineChatButton() {
               </div>
               <button
                 onClick={() => setShowAllShifts((v) => !v)}
-                className="shrink-0 inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border hover:bg-accent"
+                className="shrink-0 inline-flex items-center gap-1 text-2xs px-2 py-1 rounded-md border hover:bg-accent"
                 title={showAllShifts ? "Show only current shift" : "Show all shifts"}
               >
                 <History className="h-3 w-3" />
@@ -354,14 +354,14 @@ export function LineChatButton() {
                     <div key={m.id} className={`flex flex-col ${own ? "items-end" : "items-start"}`}>
                       <div className={`max-w-[85%] rounded-lg px-3 py-2 ${own ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
                         {!own && (
-                          <p className="text-[10px] font-semibold opacity-70 mb-0.5 flex items-center gap-1">
+                          <p className="text-2xs font-semibold opacity-70 mb-0.5 flex items-center gap-1">
                             {onlineIds.has(m.user_id) && <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />}
                             {m.user_name}
                           </p>
                         )}
                         <p className="text-sm whitespace-pre-wrap break-words">{m.message}</p>
                       </div>
-                      <span className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(m.created_at), "HH:mm")}</span>
+                      <span className="text-2xs text-muted-foreground mt-0.5">{format(new Date(m.created_at), "HH:mm")}</span>
                     </div>
                   );
                 })

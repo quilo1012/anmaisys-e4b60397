@@ -97,7 +97,7 @@ function ShiftPanel({ shift, events, windowStart, windowEnd }: ShiftPanelProps) 
                 <span className="truncate flex items-center gap-1">
                   {r.label}
                   {r.ongoing && (
-                    <Badge variant="outline" className="text-[10px] border-red-500 text-red-600 ml-1">
+                    <Badge variant="outline" className="text-2xs border-red-500 text-red-600 ml-1">
                       LIVE
                     </Badge>
                   )}

@@ -52,16 +52,16 @@ export function OnlineEngineersPanel() {
                       <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{e.name}</p>
-                        <p className="text-[10px] text-muted-foreground truncate" title={SHIFT_LABEL[shift]}>
+                        <p className="text-2xs text-muted-foreground truncate" title={SHIFT_LABEL[shift]}>
                           {SHIFT_LABEL[shift]}
                         </p>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                      <Badge variant={shift === "day" ? "secondary" : "outline"} className="text-[10px] px-1.5 py-0">
+                      <Badge variant={shift === "day" ? "secondary" : "outline"} className="text-2xs px-1.5 py-0">
                         {shift === "day" ? "Day" : "Night"}
                       </Badge>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-2xs text-muted-foreground">
                         since {format(new Date(e.last_seen_at), "HH:mm")}
                       </span>
                     </div>

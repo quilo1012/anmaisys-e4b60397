@@ -23,13 +23,13 @@ function ChipRow({ label, tone, obj }: { label?: string; tone?: "before" | "afte
   return (
     <div className="flex flex-wrap items-center gap-1">
       {label && (
-        <span className={cn("text-[10px] font-semibold uppercase",
+        <span className={cn("text-2xs font-semibold uppercase",
           tone === "before" ? "text-destructive-strong" : tone === "after" ? "text-green-600 dark:text-green-400" : "text-muted-foreground")}>
           {label}
         </span>
       )}
       {entries.map(([k, v]) => (
-        <span key={k} className="inline-flex max-w-[220px] items-center gap-1 rounded border bg-muted/40 px-1.5 py-0.5 text-[11px]">
+        <span key={k} className="inline-flex max-w-[220px] items-center gap-1 rounded border bg-muted/40 px-1.5 py-0.5 text-2xs">
           <span className="text-muted-foreground">{k}:</span>
           <span className="truncate font-medium" title={fmtVal(v)}>{fmtVal(v)}</span>
         </span>

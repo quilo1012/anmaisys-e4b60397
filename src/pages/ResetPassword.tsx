@@ -81,7 +81,7 @@ export default function ResetPassword() {
   }
 
   const recoveryBadge = (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200 sm:gap-1.5">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-2xs font-medium uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200 sm:gap-1.5">
       <KeyRound className="h-3 w-3" /> Recovery
     </span>
   );
@@ -116,7 +116,7 @@ export default function ResetPassword() {
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <p className="pl-1 text-[11px] text-slate-500">Minimum 6 characters.</p>
+            <p className="pl-1 text-2xs text-slate-500">Minimum 6 characters.</p>
           </div>
 
           <button type="submit" disabled={loading} className={primaryBtn}>
@@ -169,7 +169,7 @@ export default function ResetPassword() {
           <button
             type="button"
             onClick={() => navigate("/login", { replace: true })}
-            className="flex w-full items-center justify-center gap-2 text-[12px] text-slate-500 transition-colors hover:text-slate-800"
+            className="flex w-full items-center justify-center gap-2 text-xs text-slate-500 transition-colors hover:text-slate-800"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Back to sign in
           </button>

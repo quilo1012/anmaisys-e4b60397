@@ -675,7 +675,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                       </td>
                       <td className="px-2 py-1">
                         <div className="font-medium">{p.intouch_name}</div>
-                        <div className="font-mono text-[10px] text-muted-foreground">{p.guid}</div>
+                        <div className="font-mono text-2xs text-muted-foreground">{p.guid}</div>
                       </td>
                       <td className="px-2 py-1">
                         <Select
@@ -708,11 +708,11 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                       </td>
                       <td className="px-2 py-1">
                         {p.line_id ? (
-                          <Badge variant="outline" className="text-[10px] gap-1">
+                          <Badge variant="outline" className="text-2xs gap-1">
                             <Check className="h-3 w-3" />{p.reason}
                           </Badge>
                         ) : (
-                          <Badge variant="destructive" className="text-[10px] gap-1">
+                          <Badge variant="destructive" className="text-2xs gap-1">
                             <X className="h-3 w-3" />{p.reason}
                           </Badge>
                         )}
@@ -881,9 +881,9 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                                     <td className="px-3 py-1.5 text-xs text-muted-foreground tabular-nums">{idx + 1}</td>
                                     <td className="px-3 py-1.5">
                                       {running ? (
-                                        <Badge className="text-[10px] bg-green-600 hover:bg-green-600">RUNNING</Badge>
+                                        <Badge className="text-2xs bg-green-600 hover:bg-green-600">RUNNING</Badge>
                                       ) : (
-                                        <Badge variant="outline" className="text-[10px]">Scheduled</Badge>
+                                        <Badge variant="outline" className="text-2xs">Scheduled</Badge>
                                       )}
                                     </td>
                                     <td className="px-3 py-1.5 font-mono text-xs">

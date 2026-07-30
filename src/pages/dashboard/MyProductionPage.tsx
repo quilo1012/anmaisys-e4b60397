@@ -362,7 +362,7 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
               )}
             </div>
           </div>
-          {leader && <div className="text-[11px] text-muted-foreground mt-2">Unlocked by {leader.name}</div>}
+          {leader && <div className="text-2xs text-muted-foreground mt-2">Unlocked by {leader.name}</div>}
           <Button
             variant="secondary"
             size="sm"
@@ -451,7 +451,7 @@ function TargetMeta({ target, produced }: { target: number; produced: number }) 
     return (
       <>
         <button type="button" onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+          className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-2xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Lock className="h-3 w-3" /> View target
         </button>
         <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setPin(""); }}>
@@ -480,7 +480,7 @@ function TargetMeta({ target, produced }: { target: number; produced: number }) 
 
   return (
     <div className="w-full max-w-[230px]">
-      <div className="text-right text-[11px] text-muted-foreground">
+      <div className="text-right text-2xs text-muted-foreground">
         Produced <b className="tabular-nums text-foreground">{produced.toLocaleString()}</b> of{" "}
         <b className="tabular-nums text-foreground">{target.toLocaleString()}</b> —{" "}
         <b className="tabular-nums text-foreground">{remaining.toLocaleString()}</b> left
@@ -1033,7 +1033,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
                 ].map((section) =>
                   section.rows.length === 0 ? null : (
                     <div key={section.key} className={section.box}>
-                      <div className={`px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider ${section.head}`}>
+                      <div className={`px-3 pt-2 pb-1 text-2xs font-semibold uppercase tracking-wider ${section.head}`}>
                         {section.label}
                       </div>
                       <ul className="divide-y">
@@ -1074,7 +1074,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
                 ) : (
                   <ul className="divide-y">
                     {hasSuggestions && (
-                      <li className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <li className="px-3 pt-2 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Catalog
                       </li>
                     )}
@@ -1088,7 +1088,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
                           <div className="flex items-center gap-2">
                             <span className="truncate font-mono text-sm font-bold">{s.code}</span>
                             {marketOf(s.name, s.code) && (
-                              <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                              <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-2xs font-semibold text-primary">
                                 {marketOf(s.name, s.code)}
                               </span>
                             )}
@@ -1117,7 +1117,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
 
           <button
             type="button"
-            className="text-[11px] text-muted-foreground underline underline-offset-2"
+            className="text-2xs text-muted-foreground underline underline-offset-2"
             onClick={() => {
               const goManual = skuChoice !== MANUAL_SKU;
               setSkuChoice(goManual ? MANUAL_SKU : "");
@@ -1130,7 +1130,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
           </button>
 
           {!selectedSku && skuQuery.trim() && (
-            <div className="text-[11px] text-amber-600 dark:text-amber-400">
+            <div className="text-2xs text-amber-600 dark:text-amber-400">
               Not linked to the catalog — will be logged exactly as typed. Admin reconciles it later.
             </div>
           )}
@@ -1172,7 +1172,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
             className="h-11"
             autoComplete="off"
           />
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-2xs text-muted-foreground">
             Example: <span className="font-mono">B26188 07/2026 07/2028</span> — batch, then Manufactured (07/2026) and Expiry (07/2028). Type the batch on its own if you don't have the dates.
           </div>
         </div>
@@ -1309,7 +1309,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
           >
             <Repeat className="h-5 w-5 mr-2" /> Save &amp; next blender
           </Button>
-          <div className="text-center text-[11px] text-muted-foreground">
+          <div className="text-center text-2xs text-muted-foreground">
             Keeps the product, batch and assembly — you only enter the blender and quantity.
           </div>
         </div>
@@ -1469,24 +1469,24 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                       <span className="font-mono text-sm font-semibold truncate">{sku?.code ?? e.production_items?.sku_code_text ?? "—"}</span>
                       <span className="text-xs text-muted-foreground truncate">{productLabel(sku?.name)}</span>
                       {batchCode && (
-                        <span className="font-mono text-[11px] text-foreground/80">{batchCode}{(mfg || exp) ? `  ${mfg || "—"} → ${exp || "—"}` : ""}</span>
+                        <span className="font-mono text-2xs text-foreground/80">{batchCode}{(mfg || exp) ? `  ${mfg || "—"} → ${exp || "—"}` : ""}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="inline-flex items-center rounded bg-secondary text-secondary-foreground px-1.5 py-0.5 text-[10px] font-medium">
+                      <span className="inline-flex items-center rounded bg-secondary text-secondary-foreground px-1.5 py-0.5 text-2xs font-medium">
                         Blender {e.blender_label ?? e.blender_number}
                       </span>
                       {assembly && (
-                        <span className="text-[10px] text-muted-foreground">Assembly {assembly}</span>
+                        <span className="text-2xs text-muted-foreground">Assembly {assembly}</span>
                       )}
                       {dest && (
-                        <span className="inline-flex items-center rounded bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300 px-1.5 py-0.5 text-[10px] font-medium">→ {dest}</span>
+                        <span className="inline-flex items-center rounded bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300 px-1.5 py-0.5 text-2xs font-medium">→ {dest}</span>
                       )}
                       {nfe && (
-                        <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 px-1.5 py-0.5 text-[10px] font-medium">Not for EU</span>
+                        <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 px-1.5 py-0.5 text-2xs font-medium">Not for EU</span>
                       )}
                       {(e.started_at || e.finished_at) && (
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-2xs text-muted-foreground">
                           {e.started_at ? format(new Date(e.started_at), "HH:mm") : "—"}
                           {" → "}
                           {e.finished_at ? format(new Date(e.finished_at), "HH:mm") : "—"}
@@ -1534,10 +1534,10 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                     <span className="text-xs text-muted-foreground truncate">{productLabel(it.sku?.name)}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium">No blender</span>
-                    {it.blender_ref && <span className="text-[10px] text-muted-foreground">Assembly {it.blender_ref}</span>}
+                    <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 text-2xs font-medium">No blender</span>
+                    {it.blender_ref && <span className="text-2xs text-muted-foreground">Assembly {it.blender_ref}</span>}
                     {it.batch_code && (
-                      <span className="font-mono text-[11px] text-foreground/80 truncate">
+                      <span className="font-mono text-2xs text-foreground/80 truncate">
                         {it.batch_code}
                         {(it.manufacture_month || it.expiry_month)
                           ? `  ${it.manufacture_month ? `${String(it.manufacture_month).slice(5, 7)}/${String(it.manufacture_month).slice(2, 4)}` : "—"} → ${it.expiry_month ? `${String(it.expiry_month).slice(5, 7)}/${String(it.expiry_month).slice(2, 4)}` : "—"}`
@@ -1545,10 +1545,10 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                       </span>
                     )}
                     {it.destination && (
-                      <span className="inline-flex items-center rounded bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300 px-1.5 py-0.5 text-[10px] font-medium">→ {it.destination}</span>
+                      <span className="inline-flex items-center rounded bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300 px-1.5 py-0.5 text-2xs font-medium">→ {it.destination}</span>
                     )}
                     {it.not_for_eu && (
-                      <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 px-1.5 py-0.5 text-[10px] font-medium">Not for EU</span>
+                      <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 px-1.5 py-0.5 text-2xs font-medium">Not for EU</span>
                     )}
                   </div>
 

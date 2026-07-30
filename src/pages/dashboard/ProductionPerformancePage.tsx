@@ -495,7 +495,7 @@ export default function ProductionPerformancePage() {
               <AlertTriangle className="h-4 w-4 text-amber-500" />
               Open Quality Actions
               <Badge variant="outline" className="ml-1">{openActions.length}</Badge>
-              <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="ml-auto inline-flex items-center gap-1.5 text-2xs font-medium text-emerald-600 dark:text-emerald-400">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
@@ -515,7 +515,7 @@ export default function ProductionPerformancePage() {
                     <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">{a.action_no ?? "—"}</span>
                     <span className="text-xs text-muted-foreground w-16 shrink-0">{format(new Date(a.recorded_at), "dd/MM")}{a.shift ? ` · ${a.shift === "DAY" ? "D" : "N"}` : ""}</span>
                     <span className="text-xs w-20 shrink-0 truncate">{a.line ?? "—"}</span>
-                    {a.severity && <Badge variant="outline" className="text-[10px] shrink-0">{a.severity}</Badge>}
+                    {a.severity && <Badge variant="outline" className="text-2xs shrink-0">{a.severity}</Badge>}
                     <span className="text-sm truncate flex-1">{a.description ?? "—"}</span>
                   </button>
                 ))}
@@ -594,11 +594,11 @@ export default function ProductionPerformancePage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-xl font-black uppercase tracking-wide text-foreground truncate">{l.line}</div>
-                  <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${chip} ${l.eff < 80 ? "animate-pulse" : ""}`}>● {status}</span>
+                  <span className={`shrink-0 rounded-full border px-2.5 py-1 text-2xs font-bold uppercase tracking-wider ${chip} ${l.eff < 80 ? "animate-pulse" : ""}`}>● {status}</span>
                 </div>
                 {l.notLogged && (
                   <div
-                    className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400"
+                    className="mt-1 flex items-center gap-1.5 text-2xs font-semibold text-amber-700 dark:text-amber-400"
                     title="This line was planned to run but nothing was logged on My Production, so it reads 0%."
                   >
                     <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Not logged on the line
@@ -671,12 +671,12 @@ export default function ProductionPerformancePage() {
                   </div>
                 <div className="mt-4 flex items-end justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Actual</div>
+                    <div className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">Actual</div>
                     <div className="font-mono text-4xl font-bold leading-none text-foreground tabular-nums">{l.actual.toLocaleString("en-US")}</div>
                     <div className="mt-1 text-xs text-muted-foreground tabular-nums">/ {l.target.toLocaleString("en-US")} target</div>
                   </div>
                   <div className={`text-right ${effColor}`}>
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Perf</div>
+                    <div className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">Perf</div>
                     <div className="font-mono text-3xl font-bold leading-none tabular-nums">{Math.round(l.eff)}%</div>
                   </div>
                 </div>

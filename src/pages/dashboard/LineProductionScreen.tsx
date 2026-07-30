@@ -714,7 +714,7 @@ export default function LineProductionScreen() {
               isSyncing={itemsQ.isFetching || ragPlanQ.isFetching || sessionQ.isFetching || updateActual.isPending}
               error={updateActual.error || itemsQ.error || ragPlanQ.error}
               label={isOperator ? "" : "Sync"}
-              className={isOperator ? "px-1.5 py-0.5 text-[10px] [&_span]:hidden" : ""}
+              className={isOperator ? "px-1.5 py-0.5 text-2xs [&_span]:hidden" : ""}
             />
 
             <Button
@@ -1174,7 +1174,7 @@ const SkuCard = memo(function SkuCard({
             <div className="font-mono font-bold text-base flex items-center gap-2">
               {item.code}
               {!hideTarget && item.target_qty === 0 && effTarget === 0 && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                <Badge variant="secondary" className="text-2xs px-1.5 py-0">
                   Intouch
                 </Badge>
               )}

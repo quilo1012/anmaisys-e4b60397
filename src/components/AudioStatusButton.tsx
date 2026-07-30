@@ -49,7 +49,7 @@ export function AudioStatusButton() {
           )}
         >
           <Icon className="h-4 w-4" />
-          <span className="hidden sm:inline text-[11px]">{label}</span>
+          <span className="hidden sm:inline text-2xs">{label}</span>
           <span
             className={cn(
               "h-2 w-2 rounded-full",

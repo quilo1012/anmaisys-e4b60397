@@ -37,7 +37,7 @@ export function showDMToast(opts: {
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+            <span className="text-2xs font-semibold uppercase tracking-wider text-primary">
               {t.tag}
             </span>
             <button

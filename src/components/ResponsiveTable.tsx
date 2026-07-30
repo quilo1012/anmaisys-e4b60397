@@ -105,14 +105,14 @@ export function TableCardField({ label, value, className, block }: TableCardFiel
   if (block) {
     return (
       <div className={cn("space-y-0.5", className)}>
-        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="text-2xs uppercase tracking-wide text-muted-foreground">{label}</div>
         <div className="text-sm break-words">{value}</div>
       </div>
     );
   }
   return (
     <div className={cn("flex items-start justify-between gap-3", className)}>
-      <span className="text-[11px] uppercase tracking-wide text-muted-foreground shrink-0 pt-0.5">
+      <span className="text-2xs uppercase tracking-wide text-muted-foreground shrink-0 pt-0.5">
         {label}
       </span>
       <span className="text-sm text-right break-words min-w-0 flex-1">{value}</span>

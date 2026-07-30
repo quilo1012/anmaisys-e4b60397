@@ -357,7 +357,7 @@ export default function Login() {
                 <Icon className="h-5 w-5" />
               </span>
               <span className="text-xs font-bold uppercase tracking-wide" style={{ color: active ? env.color : undefined }}>{env.label}</span>
-              <span className="text-[10px] leading-tight text-slate-500">{env.tagline}</span>
+              <span className="text-2xs leading-tight text-slate-500">{env.tagline}</span>
             </button>
           );
         })}
@@ -400,7 +400,7 @@ export default function Login() {
                 }`}
               >
                 <span className="block text-sm font-medium">{opt.label}</span>
-                <span className="block text-[11px] text-slate-400">{opt.hint}</span>
+                <span className="block text-2xs text-slate-400">{opt.hint}</span>
               </button>
             ))}
           </div>
@@ -523,7 +523,7 @@ export default function Login() {
 
         {/* Remaining-attempts hint */}
         {lockedMsLeft === 0 && remaining < 5 && (
-          <p className="pt-1 text-center text-[11px] text-amber-600">
+          <p className="pt-1 text-center text-2xs text-amber-600">
             {remaining} attempt{remaining === 1 ? "" : "s"} remaining before lockout
           </p>
         )}
@@ -537,7 +537,7 @@ export default function Login() {
         </p>
       )}
 
-      <p className="mt-5 border-t border-white/50 pt-3 text-center text-[11px] leading-relaxed text-slate-500">
+      <p className="mt-5 border-t border-white/50 pt-3 text-center text-2xs leading-relaxed text-slate-500">
         🔒 Secure connection · 🛡 Role-based access control · 📋 All actions are audited
       </p>
     </AuthShell>
