@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DashboardWelcome } from "@/components/DashboardWelcome";
+import { LeaderScorecard } from "@/components/LeaderScorecard";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -49,6 +50,7 @@ export default function ProductionPerformancePage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const previewFrame = useRef<HTMLIFrameElement>(null);
   const [newLeaderName, setNewLeaderName] = useState("");
+  const [scorecardFor, setScorecardFor] = useState<string | null>(null);
 
   const addNewLeader = async (lineName: string, hasSession: boolean) => {
     const name = newLeaderName.trim();
@@ -374,6 +376,8 @@ export default function ProductionPerformancePage() {
         {/* Landing screen for supervisors and the production office — same opening. */}
         <DashboardWelcome />
 
+        <LeaderScorecard leaderName={scorecardFor} fromDate={range.from} onClose={() => setScorecardFor(null)} />
+
         <div className="space-y-3">
           <PageHeader
             title="Production Performance"
@@ -452,6 +456,14 @@ export default function ProductionPerformancePage() {
                   {leaders.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {/* The scorecard belongs here: production runs the leaders, and this is
+                  the screen where their lines, shifts and output already are. It used
+                  to open from Quality, which only ever saw one third of the score. */}
+              {leaderFilter !== "__all__" && (
+                <Button variant="outline" size="sm" className="gap-1" onClick={() => setScorecardFor(leaderFilter)}>
+                  <Medal className="h-4 w-4" /> Scorecard
+                </Button>
+              )}
             </div>
             <span className="text-xs text-muted-foreground whitespace-nowrap sm:ml-auto">
               {range.from === range.to ? format(parseISO(range.from), "dd MMM yyyy") : `${format(parseISO(range.from), "dd MMM")} → ${format(parseISO(range.to), "dd MMM yyyy")}`}

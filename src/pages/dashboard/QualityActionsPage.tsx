@@ -29,7 +29,6 @@ import { useLeaderScoreWeights, useUpdateLeaderScoreWeights } from "@/hooks/useL
 import { DEFAULT_WEIGHTS, type LeaderScoreWeights } from "@/lib/leaderScore";
 import { useRole } from "@/hooks/useRole";
 import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
-import { LeaderScorecard } from "@/components/LeaderScorecard";
 import { KpiCard } from "@/components/reports/KpiCard";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
@@ -1364,7 +1363,6 @@ function QualityListsManager() {
 // Analytics
 // ============================================================
 function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: string }) {
-  const [selectedLeader, setSelectedLeader] = useState<string | null>(null);
   const byDay = useMemo(() => {
     const m = new Map<string, { key: string; label: string; todo: number; in_progress: number; complete: number }>();
     for (const a of actions) {
@@ -1459,12 +1457,14 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
                   <Bar dataKey="points" name="Points" fill="hsl(0 72% 51%)" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-              <p className="mt-2 mb-1 text-2xs text-muted-foreground">Click a leader to open the scorecard.</p>
+              <p className="mt-2 mb-1 text-2xs text-muted-foreground">
+                Quality actions only. The full leader scorecard — production, quality and documentation — lives on
+                Production Performance, which is where leaders are managed.
+              </p>
               <div>
                 {filteredLeaders.map((l, i) => (
-                  <button key={l.label} type="button" onClick={() => l.label !== "—" && setSelectedLeader(l.label)}
-                    className="flex w-full items-center justify-between border-b py-1 text-left text-sm transition-colors last:border-0 hover:bg-accent/50 disabled:cursor-default disabled:hover:bg-transparent"
-                    disabled={l.label === "—"}>
+                  <div key={l.label}
+                    className="flex w-full items-center justify-between border-b py-1 text-left text-sm last:border-0">
                     <span className="truncate"><span className="mr-2 text-xs text-muted-foreground">#{i + 1}</span>{l.label}</span>
                     <span className="flex items-center gap-2 whitespace-nowrap">
                       {l.critical > 0 && <Badge variant="outline" className={cn("text-2xs", severityMeta("critical")?.badge)}>{l.critical} critical</Badge>}
@@ -1472,7 +1472,7 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
                       <span className="text-xs text-muted-foreground tabular-nums" title={`${l.count} action${l.count === 1 ? "" : "s"}`}>{l.count}×</span>
                       <span className="font-semibold tabular-nums" title="Total points">{l.points} pts</span>
                     </span>
-                  </button>
+                  </div>
                 ))}
               </div>
             </>
@@ -1485,7 +1485,6 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
         <ChartCard title="Actions by department" data={byDept} color="hsl(262 83% 58%)" />
       </div>
 
-      <LeaderScorecard leaderName={selectedLeader} fromDate={from} onClose={() => setSelectedLeader(null)} />
     </div>
   );
 }
