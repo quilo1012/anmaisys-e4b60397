@@ -560,6 +560,42 @@ export function useForceCloseWorkOrder() {
   });
 }
 
+export function useEngineerList() {
+  return useQuery({
+    queryKey: ["engineers_assignable"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("list_engineers");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Hand an unaccepted order to an engineer.
+ *
+ * Accepting was the engineer's move alone, so an order nobody picked up had no way
+ * out but waiting — WO-605 sat open from 29/07 13:04 until the next morning. This is
+ * not acceptance: the order stays open and the engineer still accepts it. What
+ * changes is that it belongs to someone, it rings in their alerts, and the delay
+ * stops being nobody's fault.
+ */
+export function useAssignWorkOrderEngineer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ woId, engineerId }: { woId: string; engineerId: string }) => {
+      const { data, error } = await (supabase as any).rpc("assign_work_order_engineer", {
+        _wo_id: woId,
+        _engineer_id: engineerId,
+      });
+      if (error) throw error;
+      return data as { wo_number: number; engineer_name: string };
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["work_orders"] }),
+  });
+}
+
 export function useUpdateWorkOrder() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -13,13 +13,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal } from "lucide-react";
+import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Search, UserPlus, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { useWorkOrders, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useMoveWorkOrderStage, stageOfStatus, type WOStage, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { ComboboxInput } from "@/components/ComboboxInput";
 import { ForceCloseDialog } from "@/components/ForceCloseDialog";
+import { AssignEngineerDialog } from "@/components/AssignEngineerDialog";
 
 const WAREHOUSE_LOCATIONS = ["AC1", "AC2 - Warehouse", "K53", "Depot RD"];
 
@@ -57,8 +58,16 @@ const priorityConfig: Record<string, { label: string; className: string }> = {
 
 const ITEMS_PER_PAGE = 20;
 
+/** Waiting time in the shortest form that still reads correctly on a badge. */
+function formatWait(min: number): string {
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+
 export default function WorkOrdersPage() {
-  const { user, role } = useAuth();
+  const { user, role, profile } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -142,7 +151,19 @@ export default function WorkOrdersPage() {
   // Force close now asks whether the line was really stopped, so it needs a dialog
   // driven by the selected order rather than one AlertDialog per row.
   const [forceCloseWO, setForceCloseWO] = useState<WorkOrder | null>(null);
-  const canForceCloseRole = role === "admin" || role === "manager" || role === "maintenance_manager";
+  const [assignWO, setAssignWO] = useState<WorkOrder | null>(null);
+
+  // Closing an order — signing off that the work is done, and deciding whether the
+  // stoppage counted — belongs to the maintenance manager. Production managers raise
+  // and chase orders; engineers finish them but do not sign off their own work. The
+  // database enforces the same rule, so hiding the button is only the courtesy of not
+  // offering something that would be refused.
+  const canSignOff = role === "admin" || role === "maintenance_manager";
+  const canAssign = canSignOff || role === "manager";
+
+  /** Minutes an open order has gone without an engineer accepting it. */
+  const unacceptedMinutes = (wo: WorkOrder) =>
+    wo.status === "open" && !wo.received_at ? differenceInMinutes(new Date(), new Date(wo.created_at)) : null;
 
   const [showClearWOs, setShowClearWOs] = useState(false);
   const [clearPin, setClearPin] = useState("");
@@ -381,6 +402,11 @@ export default function WorkOrdersPage() {
           </div>
           <p className="text-sm font-medium">{wo.machine}</p>
           <p className="text-xs text-muted-foreground truncate">{wo.description}</p>
+          {unacceptedMinutes(wo) !== null && (
+            <p className="text-[11px] font-semibold text-red-600 dark:text-red-400">
+              Not accepted · {formatWait(unacceptedMinutes(wo)!)}
+            </p>
+          )}
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{wo.requester_name}</span>
             <span>{wo.engineer?.name || "—"}</span>
@@ -662,7 +688,7 @@ export default function WorkOrdersPage() {
                 <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-blue-500" borderColor="border-l-blue-500" stage="open" />
                 <KanbanColumn title="Received/Arrived" items={kanbanColumns.received} color="bg-indigo-500" borderColor="border-l-indigo-500" stage="received" />
                 <KanbanColumn title="In Progress" items={kanbanColumns.inProgress} color="bg-amber-500" borderColor="border-l-amber-500" stage="in_progress" />
-                <KanbanColumn title="Finished" items={kanbanColumns.finished} color="bg-teal-500" borderColor="border-l-teal-500" stage="finished" note="Awaiting sign-off · moves to Done after 24h" />
+                <KanbanColumn title="Finished" items={kanbanColumns.finished} color="bg-teal-500" borderColor="border-l-teal-500" stage="finished" note="Waiting for the maintenance manager to sign off" />
                 <KanbanColumn title="Done" items={kanbanColumns.done} color="bg-green-500" borderColor="border-l-green-500" stage="closed" />
               </div>
             ) : (
@@ -695,6 +721,11 @@ export default function WorkOrdersPage() {
                               {isStale && (
                                 <Badge variant="outline" className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-[10px]" title="In progress > 3 days">Stale</Badge>
                               )}
+                              {unacceptedMinutes(wo) !== null && (
+                                <Badge variant="outline" className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30 text-[10px]" title="No engineer has accepted this order yet">
+                                  Not accepted · {formatWait(unacceptedMinutes(wo)!)}
+                                </Badge>
+                              )}
                             </div>
                           </div>
                           <div className="text-sm font-medium">
@@ -714,12 +745,17 @@ export default function WorkOrdersPage() {
                             <Button size="sm" variant="outline" className="h-10 flex-1 touch-manipulation" onClick={() => openEdit(wo)}>
                               <Pencil className="h-4 w-4 mr-1" /> Edit
                             </Button>
-                            {canClose && (
-                              <Button size="sm" variant="default" className="h-10 flex-1 touch-manipulation" onClick={() => closeWO.mutate({ woId: wo.id, signatureName: "Manager/Admin" })} disabled={closeWO.isPending}>
-                                {closeWO.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />} Close
+                            {unacceptedMinutes(wo) !== null && canAssign && (
+                              <Button size="sm" variant="outline" className="h-10 flex-1 touch-manipulation" onClick={() => setAssignWO(wo)}>
+                                <UserPlus className="h-4 w-4 mr-1" /> Assign
                               </Button>
                             )}
-                            {canForceClose && canForceCloseRole && (
+                            {canClose && canSignOff && (
+                              <Button size="sm" variant="default" className="h-10 flex-1 touch-manipulation" onClick={() => closeWO.mutate({ woId: wo.id, signatureName: profile?.name || "Maintenance Manager" })} disabled={closeWO.isPending}>
+                                {closeWO.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />} Sign off
+                              </Button>
+                            )}
+                            {canForceClose && canSignOff && (
                               <Button size="sm" variant="destructive" className="h-10 flex-1 touch-manipulation" onClick={() => setForceCloseWO(wo)}>
                                 <XCircle className="h-4 w-4 mr-1" /> Force
                               </Button>
@@ -774,6 +810,14 @@ export default function WorkOrdersPage() {
                               {wo.status === "in_progress" && wo.started_at && differenceInMinutes(new Date(), new Date(wo.started_at)) > 4320 && (
                                 <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-[10px]" variant="outline" title="This maintenance order has been in progress for more than 3 days. Consider reviewing or closing it.">Stale</Badge>
                               )}
+                              {/* An open order with no received_at has not been accepted by anyone.
+                                  Nothing on the board said so, which is how WO-605 waited from
+                                  29/07 13:04 to the next morning without anyone noticing. */}
+                              {unacceptedMinutes(wo) !== null && (
+                                <Badge variant="outline" className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30 text-[10px]" title="No engineer has accepted this order yet">
+                                  Not accepted · {formatWait(unacceptedMinutes(wo)!)}
+                                </Badge>
+                              )}
                             </div>
                           </TableCell>}
                           {isCol("requester") && <TableCell className="text-sm">{wo.requester_name}</TableCell>}
@@ -789,12 +833,17 @@ export default function WorkOrdersPage() {
                               {/* No delete. An order that should not have existed is force-closed,
                                   which keeps its history and leaves an audit trail; deleting it
                                   took the downtime, parts and timings with it. */}
-                              {canClose && (
-                                <Button size="sm" variant="default" onClick={() => closeWO.mutate({ woId: wo.id, signatureName: "Manager/Admin" })} disabled={closeWO.isPending}>
-                                  {closeWO.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle className="h-3 w-3 mr-1" />} Close
+                              {unacceptedMinutes(wo) !== null && canAssign && (
+                                <Button size="sm" variant="outline" onClick={() => setAssignWO(wo)}>
+                                  <UserPlus className="h-3 w-3 mr-1" /> Assign
                                 </Button>
                               )}
-                              {canForceClose && canForceCloseRole && (
+                              {canClose && canSignOff && (
+                                <Button size="sm" variant="default" onClick={() => closeWO.mutate({ woId: wo.id, signatureName: profile?.name || "Maintenance Manager" })} disabled={closeWO.isPending}>
+                                  {closeWO.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle className="h-3 w-3 mr-1" />} Sign off
+                                </Button>
+                              )}
+                              {canForceClose && canSignOff && (
                                 <Button size="sm" variant="destructive" onClick={() => setForceCloseWO(wo)}>
                                   <XCircle className="h-3 w-3 mr-1" /> Force
                                 </Button>
@@ -951,6 +1000,7 @@ export default function WorkOrdersPage() {
         </Dialog>
 
         <ForceCloseDialog wo={forceCloseWO} open={!!forceCloseWO} onOpenChange={(o) => { if (!o) setForceCloseWO(null); }} />
+        <AssignEngineerDialog wo={assignWO} open={!!assignWO} onOpenChange={(o) => { if (!o) setAssignWO(null); }} />
 
         {/* Clear All WOs */}
         <AlertDialog open={showClearWOs} onOpenChange={(o) => { setShowClearWOs(o); if (!o) { setClearPin(""); setClearConfirmText(""); } }}>

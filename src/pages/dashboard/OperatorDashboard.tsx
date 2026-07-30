@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon, CheckCircle, Zap, StopCircle, AlertCircle, Factory, Printer } from "lucide-react";
-import { useWorkOrders, useCreateWorkOrder, useCloseWorkOrder } from "@/hooks/useWorkOrders";
+import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePartsCountByWOs } from "@/hooks/useStock";
@@ -117,21 +117,10 @@ function OperatorDashboardContent() {
   const { data: problemDescriptions } = useActiveProblemsForLine(lineId);
   
   const createWO = useCreateWorkOrder();
-  const closeWO = useCloseWorkOrder();
   const { toast } = useToast();
   const qcRef = useQueryClient();
   const navigate = useNavigate();
 
-  // Operator close — no signature dialog; uses requester or operator profile name as signature
-  const handleQuickClose = async (woId: string, fallbackRequester: string | null) => {
-    const sig = (fallbackRequester?.trim() || "Operator").slice(0, 100);
-    try {
-      await closeWO.mutateAsync({ woId, signatureName: sig });
-      toast({ title: "Maintenance Order Closed", description: "The maintenance order has been closed." });
-    } catch {
-      toast({ title: "Error", description: "Failed to close maintenance order", variant: "destructive" });
-    }
-  };
 
   // Detect Sealer/Printer line by name to pre-select the asset sub-picker mode.
   const lineIsSealerPrinter = useMemo(
@@ -762,17 +751,11 @@ function OperatorDashboardContent() {
                           )}
                          </TableCell>
                          <TableCell onClick={(e) => e.stopPropagation()}>
+                           {/* The operator used to close finished orders from here. Sign-off is
+                               the maintenance manager's now — enforced in the database — so a
+                               button here would only ever return a permission error. */}
                            {wo.status === "finished" && (
-                              <Button
-                                size="sm"
-                                variant="default"
-                                className="h-11 min-w-11 px-3 touch-manipulation"
-                                disabled={closeWO.isPending}
-                                onClick={() => handleQuickClose(wo.id, wo.requester_name ?? null)}
-                                aria-label="Close maintenance order"
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1.5" aria-hidden="true" /> Close
-                              </Button>
+                              <span className="text-xs text-muted-foreground">Waiting for maintenance sign-off</span>
                            )}
                          </TableCell>
                        </TableRow>
