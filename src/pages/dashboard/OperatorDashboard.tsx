@@ -297,6 +297,14 @@ function OperatorDashboardContent() {
           <AlertCircle className="h-4 w-4" /> Running
         </button>
       </div>
+      {/* What the choice does. It decides whether this order books downtime, and
+          nothing on screen said so — half the orders raised on the floor in the last
+          week said "Running", which is now taken at its word. */}
+      <p className="text-xs text-muted-foreground max-w-md">
+        {lineStopped
+          ? "Downtime is counted from now until an engineer resumes the line."
+          : "No downtime is counted. If the line does stop, the engineer records it on the order."}
+      </p>
 
 
 
