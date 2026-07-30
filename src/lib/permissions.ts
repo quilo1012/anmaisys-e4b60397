@@ -55,6 +55,8 @@ export type Action =
   // Quality
   | "quality.view"
   | "quality.manage"
+  | "quality.validate"
+  | "quality.close"
   // Preventive Maintenance
   | "pm.view"
   | "pm.manage"
@@ -143,6 +145,13 @@ const MATRIX: Record<Action, Role[]> = {
 
   "quality.view": ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer", "production_office_admin"],
   "quality.manage": ["admin", "manager", "supervisor", "quality_supervisor", "production_office_admin"],
+  // The verdict and the closure are two different jobs, held by two different
+  // people, and the database enforces exactly this split (enforce_quality_validation).
+  // They are listed here so the screen offers what the database will accept: a
+  // supervisor used to be shown the Validation control and got a raw Postgres
+  // exception when they used it.
+  "quality.validate": ["admin", "quality_supervisor"],
+  "quality.close": ["admin", "manager", "maintenance_manager"],
 
   "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"],
   "pm.manage": ["admin", "manager", "maintenance_manager", "production_office_admin"],
@@ -307,7 +316,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "planner", label: "Planner & SKU", actions: ["planner.view", "sku.view", "sku.manage"] },
   { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
   { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
-  { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage"] },
+  { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage", "quality.validate", "quality.close"] },
   { key: "pm", label: "Preventive Maint.", actions: ["pm.view", "pm.manage"] },
   { key: "eng", label: "Engineers & Leaders", actions: ["engineers.view", "engineers.manage", "leaders.view", "leaders.manage"] },
   { key: "chat", label: "Chat & Messages", actions: ["chat.line", "chat.dm"] },
@@ -355,7 +364,9 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "rag.comment": "Add comments on RAG weekly entries.",
   "smarttarget.view": "Access the Smart Target analytics page.",
   "quality.view": "See quality actions and issues.",
-  "quality.manage": "Create and close quality actions.",
+  "quality.manage": "Create and edit quality actions.",
+  "quality.validate": "Validate or reject a quality action — the audit verdict, evidence required.",
+  "quality.close": "Approve the closure of a quality action once Quality has ruled on it.",
   "pm.view": "See preventive maintenance schedules.",
   "pm.manage": "Create schedules and register executions.",
   "engineers.view": "See the engineers list.",

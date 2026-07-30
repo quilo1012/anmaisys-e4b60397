@@ -92,6 +92,11 @@ function RowDeleteButton({ actionNo, onConfirm }: { actionNo?: string | number |
 export function QualityActionsView() {
   const { can } = useRole();
   const canManage = can("quality.manage");
+  // Two capabilities, not one, because the database holds two: Quality rules on the
+  // deviation, a manager approves filing it. Showing a supervisor a control the
+  // trigger will refuse is worse than not showing it.
+  const canValidate = can("quality.validate");
+  const canClose = can("quality.close");
   const qc = useQueryClient();
 
   const { data: qOpts } = useQualityOptions();
@@ -773,6 +778,8 @@ export function QualityActionsView() {
           onOpenChange={(o) => { if (!o) setDetailId(null); }}
           onStatus={(status) => detailAction && setStatus.mutate({ id: detailAction.id, status })}
           onSeverity={(severity) => detailAction && setSeverity.mutate({ id: detailAction.id, severity })}
+          canValidate={canValidate}
+          canClose={canClose}
           onValidation={(validation_status) => detailAction && setValidation.mutate({ id: detailAction.id, validation_status })}
           onClosure={(close) => detailAction && setClosure.mutate({ id: detailAction.id, close })}
           onDelete={() => { if (detailAction) { deleteAction.mutate(detailAction.id); setDetailId(null); } }}
@@ -935,9 +942,11 @@ function PhotoThumb({ path, canDelete, onDelete }: { path: string; canDelete: bo
   );
 }
 
-function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSeverity, onValidation, onClosure, onDelete, onEdit }: {
+function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenChange, onStatus, onSeverity, onValidation, onClosure, onDelete, onEdit }: {
   action: QualityAction | null; canManage: boolean;
   onOpenChange: (open: boolean) => void; onStatus: (status: string) => void; onSeverity: (severity: string | null) => void;
+  canValidate: boolean;
+  canClose: boolean;
   onValidation: (validation_status: string) => void;
   onClosure: (close: boolean) => void;
   onDelete: () => void; onEdit: () => void;
@@ -991,17 +1000,19 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
               {/* Validation — the audit-facing decision. */}
               <div>
                 <Label>Validation</Label>
-                <Select value={action.validation_status ?? "open"} onValueChange={onValidation} disabled={!canManage}>
+                <Select value={action.validation_status ?? "open"} onValueChange={onValidation} disabled={!canValidate}>
                   <SelectTrigger className={cn("border", validationMeta(action.validation_status).badge)}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {VALIDATION_STATES.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <p className="mt-1 text-2xs text-muted-foreground">
-                  {validationMeta(action.validation_status).hint}
+                  {canValidate
+                    ? validationMeta(action.validation_status).hint
+                    : "Only Quality or an admin rules on a deviation. " + validationMeta(action.validation_status).hint}
                   {action.validated_at && ` · validated ${format(new Date(action.validated_at), "dd/MM/yyyy HH:mm")}`}
                 </p>
-                {attachments.length === 0 && action.validation_status !== "validated" && (
+                {canValidate && attachments.length === 0 && action.validation_status !== "validated" && (
                   <p className="mt-1 text-2xs text-warning-strong">
                     Attach the evidence first — validating without it is refused.
                   </p>
@@ -1015,7 +1026,7 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
                         Closed {format(new Date(action.closed_at), "dd/MM/yyyy HH:mm")}
                       </Badge>
                       <span className="text-2xs text-muted-foreground">The verdict cannot change until it is reopened.</span>
-                      {canManage && <Button size="sm" variant="outline" className="ml-auto" onClick={() => onClosure(false)}>Reopen</Button>}
+                      {canClose && <Button size="sm" variant="outline" className="ml-auto" onClick={() => onClosure(false)}>Reopen</Button>}
                     </>
                   ) : (
                     <>
@@ -1024,7 +1035,7 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
                           ? "Ready for a manager to approve the closure."
                           : "Quality has to validate or reject this before it can be closed."}
                       </span>
-                      {canManage && (
+                      {canClose && (
                         <Button
                           size="sm"
                           variant="outline"
