@@ -97,18 +97,21 @@ export const navItems: NavItem[] = [
   // Communication
   { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "operator"], group: "Communication", action: "chat.dm" },
 
-  // Administration
+  // Administration — who can do what. Everything that configures the system itself
+  // (the audit trail, the iTouching integration) lives under System.
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Administration", action: "users.manage" },
-  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "Administration", action: "audit.view" },
-  // The three iTouching screens existed as routes and as cards on the home
-  // dashboard, but never in this sidebar — so the only way to reach Stop Codes
-  // was to know its URL. Stop Codes decides which iTouching stops open a
-  // maintenance order, so it has to be findable.
-  { title: "iTouching Sync", url: "/dashboard/intouch-settings", icon: Radar, roles: ["admin"], group: "Administration", action: "intouch.manage" },
-  { title: "iTouching Machines", url: "/dashboard/intouch-machines", icon: Radio, roles: ["admin"], group: "Administration", action: "intouch.manage" },
-  { title: "iTouching Stop Codes", url: "/dashboard/intouch-stop-codes", icon: Radar, roles: ["admin"], group: "Administration", action: "intouch.manage" },
 
-  // System — Permissions is reached from inside Settings (avoids the duplicate entry).
+  // System — the audit trail and the iTouching integration.
+  //
+  // Stop Codes decides which iTouching stops open a maintenance order, so it has to
+  // be findable; it existed as a route and a home-screen card but was missing from
+  // this sidebar entirely.
+  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "System", action: "audit.view" },
+  { title: "iTouching Sync", url: "/dashboard/intouch-settings", icon: Radar, roles: ["admin"], group: "System", action: "intouch.manage" },
+  { title: "iTouching Machines", url: "/dashboard/intouch-machines", icon: Radio, roles: ["admin"], group: "System", action: "intouch.manage" },
+  { title: "iTouching Stop Codes", url: "/dashboard/intouch-stop-codes", icon: Radar, roles: ["admin"], group: "System", action: "intouch.manage" },
+
+  // Permissions is reached from inside Settings (avoids the duplicate entry).
   { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "System", action: "system.settings" },
   { title: "Root Diagnostics", url: "/dashboard/root-diagnostics", icon: Radar, roles: ["admin"], group: "System" },
 ];
