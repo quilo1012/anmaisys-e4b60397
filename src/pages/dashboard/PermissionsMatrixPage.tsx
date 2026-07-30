@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Check, X, ShieldCheck, Info, Save, RotateCcw, Loader2, Search, Filter, Eye, ArrowLeft, Smartphone, Monitor, Tablet } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Check, X, ShieldCheck, Info, Save, RotateCcw, Loader2, Search, Filter, Eye, Smartphone, Monitor, Tablet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,7 +58,6 @@ const keyOf = (r: Role, a: Action) => `${r}:${a}`;
 
 export default function PermissionsMatrixPage() {
   const { role } = useRole();
-  const navigate = useNavigate();
   const isAdmin = role === "admin";
 
   const [draft, setDraft] = useState<Record<string, boolean>>({});
@@ -274,20 +273,19 @@ export default function PermissionsMatrixPage() {
       {/* Sticky header */}
       <div className="sticky top-0 z-20 -mx-4 md:-mx-6 border-b bg-background/95 px-4 py-3 backdrop-blur md:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/settings")} className="gap-1">
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Button>
-            <ShieldCheck className="h-6 w-6 text-primary" />
-            <div>
-              <h1 className="text-xl font-bold leading-tight">Permissions Matrix</h1>
-              <p className="text-xs text-muted-foreground">
-                {!isAdmin ? "Read-only view."
-                  : mode === "access" ? "Click any cell to toggle access. Changes apply live after save."
-                  : `Toggle which screens each role sees on ${mode}. ${mode === "mobile" ? "📱" : "🖥"} = shown, ✕ = hidden on ${mode}. Only cells with access can be toggled. Desktop always shows everything the role can access.`}
-              </p>
-            </div>
-          </div>
+          {/* Inside the sticky bar, so it scrolls with the mode switch it belongs to.
+              mb-0 because the bar provides the spacing here. The page-level Back is
+              gone — the shell header has one on every screen. */}
+          <PageHeader
+            className="mb-0"
+            title="Permissions Matrix"
+            description={
+              !isAdmin ? "Read-only view."
+                : mode === "access" ? "Click any cell to toggle access. Changes apply live after save."
+                : `Which screens each role sees on ${mode}. ${mode === "mobile" ? "📱" : "🖥"} = shown, ✕ = hidden on ${mode}. Only cells with access can be toggled; desktop always shows everything the role can access.`
+            }
+            icon={<ShieldCheck className="h-5 w-5" />}
+          />
           <div className="flex flex-wrap items-center gap-2">
             {/* Mode switch: Access · Tablet · Mobile visibility */}
             <div className="inline-flex rounded-md border p-0.5">

@@ -1,4 +1,5 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,16 +70,11 @@ export default function OperatorChatSettingsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6 max-w-2xl">
-        <div>
-          <h2 className="flex items-center gap-2 text-2xl font-bold">
-            <MessageCircle className="h-6 w-6" /> Operator Chat
-          </h2>
-          <p className="text-muted-foreground">
-            Choose which admins operators can message, by shift and by day of week. An operator only sees
-            an admin when the current shift (Day 06:00–18:00, else Night) <b>and</b> the current day are
-            enabled for them. Supervisors are always available.
-          </p>
-        </div>
+        <PageHeader
+          title="Operator Chat"
+          description="Which admins operators can message, by shift and by day. An operator sees an admin only when the current shift (Day 06:00–18:00, else Night) and the current day are both enabled for them; supervisors are always available."
+          icon={<MessageCircle className="h-5 w-5" />}
+        />
 
         <Card>
           <CardHeader><CardTitle>Reachable admins</CardTitle></CardHeader>
