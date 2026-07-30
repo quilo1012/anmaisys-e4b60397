@@ -21,6 +21,8 @@ import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ManagerNavCards } from "@/components/DashboardNavCards";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
 import { isWoOpen, countOpenWOs } from "@/lib/woStatus";
 import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
@@ -222,56 +224,99 @@ function ManagerDashboardContent() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-end">
-          {role === "admin" && (
-            <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
-              <Lock className="h-4 w-4 mr-2" /> Change PIN
-            </Button>
-          )}
-        </div>
+        <PageHeader
+          title={dashTitle}
+          description="Where maintenance stands right now, and how the team performed over the period you choose."
+          icon={<LayoutDashboard className="h-5 w-5" />}
+          actions={
+            <>
+              <Button size="sm" onClick={() => navigate("/dashboard/work-orders", { state: { openCreate: true } })}>
+                <Plus className="h-4 w-4 mr-2" /> New Order
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/work-orders?status=open")}>
+                <ExternalLink className="h-4 w-4 mr-2" /> Open WOs
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/control-center")}>
+                <Monitor className="h-4 w-4 mr-2" /> Control Center
+              </Button>
+              {role === "admin" && (
+                <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
+                  <Lock className="h-4 w-4 mr-2" /> Change PIN
+                </Button>
+              )}
+            </>
+          }
+        />
 
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
-          <span className="text-sm font-medium text-muted-foreground">KPI period filter</span>
-          <DateRangeFilter
-            value={kpiRange}
-            preset={kpiPreset}
-            onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
-            storageKey="manager-dashboard"
-          />
-        </div>
+        {/* Split by what the numbers actually measure.
+            One grid of nine cards under a single "KPI period filter" read as though
+            the filter governed all of them. It never did: the backlog, the low-stock
+            count and today's totals ignore it entirely — so the screen could show
+            "Yesterday" selected above "Completed Today 158". Each section now says
+            which period it covers, and the filter sits on the only one it changes. */}
+        <section aria-label="Right now" className="space-y-3">
+          <SectionHeading>Right now</SectionHeading>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 auto-rows-fr">
+            <KpiCard
+              label="Open WOs"
+              value={openCount}
+              icon={ClipboardList}
+              tone="blue"
+              tooltip="Open Maintenance Orders: orders created that have not yet been accepted by an engineer. Shows the current backlog awaiting response."
+            />
+            <KpiCard
+              label="In Progress"
+              value={inProgressCount}
+              icon={LayoutDashboard}
+              tone="amber"
+              tooltip="In Progress: orders already accepted by an engineer and being worked on (received, traveling, or under repair)."
+            />
+            <KpiCard
+              label="Low Stock"
+              value={lowStockCount}
+              icon={AlertTriangle}
+              tone={lowStockCount > 0 ? "red" : "muted"}
+              tooltip="Low Stock: number of products whose on-hand quantity is at or below the defined minimum. Restocking required."
+              highlight={lowStockCount > 0}
+            />
+          </div>
+        </section>
 
-        {/* Unified KPI grid: 8 cards in 2 rows of 4. Tablet (md) already shows 4 cols. */}
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4 auto-rows-fr">
-          <KpiCard
-            label="Open WOs"
-            value={openCount}
-            icon={ClipboardList}
-            tone="blue"
-            tooltip="Open Maintenance Orders: orders created that have not yet been accepted by an engineer. Shows the current backlog awaiting response."
-          />
-          <KpiCard
-            label="In Progress"
-            value={inProgressCount}
-            icon={LayoutDashboard}
-            tone="amber"
-            tooltip="In Progress: orders already accepted by an engineer and being worked on (received, traveling, or under repair)."
-          />
-          <KpiCard
-            label="Completed Today"
-            value={completedToday}
-            icon={ClipboardList}
-            tone="green"
-            tooltip="Completed Today: number of orders completed (finished/closed/completed) today. Daily productivity indicator."
-          />
-          <KpiCard
-            label="Low Stock"
-            value={lowStockCount}
-            icon={AlertTriangle}
-            tone={lowStockCount > 0 ? "red" : "muted"}
-            tooltip="Low Stock: number of products whose on-hand quantity is at or below the defined minimum. Restocking required."
-            highlight={lowStockCount > 0}
-          />
+        <section aria-label="Today" className="space-y-3">
+          <SectionHeading>Today</SectionHeading>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 auto-rows-fr">
+            <KpiCard
+              label="Completed Today"
+              value={completedToday}
+              icon={ClipboardList}
+              tone="green"
+              tooltip="Completed Today: number of orders completed (finished/closed/completed) today. Daily productivity indicator."
+            />
+            <KpiCard
+              label="Parts Used Today"
+              value={partsToday ?? 0}
+              icon={Package}
+              tone="muted"
+              footer="total parts consumed today"
+              tooltip="Parts Used Today: total parts/products consumed in repairs during today. Useful for consumption and cost tracking."
+            />
+          </div>
+        </section>
 
+        <section aria-label="Selected period" className="space-y-3">
+          <SectionHeading
+            aside={
+              <DateRangeFilter
+                value={kpiRange}
+                preset={kpiPreset}
+                onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
+                storageKey="manager-dashboard"
+              />
+            }
+          >
+            Response &amp; repair
+          </SectionHeading>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4 auto-rows-fr">
           <KpiCard
             label="Avg Response Time"
             value={`${kpis.avgResponse} min`}
@@ -297,40 +342,19 @@ function ManagerDashboardContent() {
             tooltip="Avg Line Downtime: average time a production line was stopped (line stopped → line resumed). Measures real business impact in minutes lost."
           />
           <KpiCard
-            label="Parts Used Today"
-            value={partsToday ?? 0}
-            icon={Package}
-            tone="muted"
-            footer="total parts consumed today"
-            tooltip="Parts Used Today: total parts/products consumed in repairs during today. Useful for consumption and cost tracking."
-          />
-          <KpiCard
-            label="Total Downtime (Selected Range)"
+            label="Total Downtime"
             value={formatMinutes(totalDowntimeMin)}
             icon={TrendingDown}
             tone={totalDowntimeMin > 0 ? "red" : "muted"}
             footer="parallel stoppages counted once"
             tooltip="Total Downtime: wall-clock minutes any line was stopped within the selected period. Matches the Downtime page (parallel stoppages counted once)."
           />
-        </div>
+          </div>
+        </section>
 
-        {/* Quick Actions */}
-        <div className="flex gap-3 flex-wrap">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => navigate("/dashboard/work-orders", { state: { openCreate: true } })}>
-            <Plus className="h-4 w-4 mr-2" /> New Maintenance Order
-          </Button>
-          <Button variant="outline" onClick={() => navigate("/dashboard/work-orders?status=open")}>
-            <ExternalLink className="h-4 w-4 mr-2" /> View Open WOs
-          </Button>
-          <Button variant="outline" onClick={() => navigate("/dashboard/control-center")}>
-            <Monitor className="h-4 w-4 mr-2" /> Control Center
-          </Button>
-        </div>
-
-        <div>
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Quick Navigation</h3>
-          <ManagerNavCards openWOs={openCount} />
-        </div>
+        {/* Shortcuts grouped by category, the same way the welcome screen and the
+            sidebar group them. */}
+        <ManagerNavCards openWOs={openCount} />
 
         <Dialog open={showChangePin} onOpenChange={(o) => { setShowChangePin(o); if (!o) { setNewPin(""); setConfirmPin(""); } }}>
           <DialogContent>

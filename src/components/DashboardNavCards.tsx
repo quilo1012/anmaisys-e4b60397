@@ -9,6 +9,7 @@ import {
   History, FileBarChart, Trophy, Radar, Factory,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 
 interface NavCard {
   title: string;
@@ -18,20 +19,55 @@ interface NavCard {
   badge?: string | number;
   accent?: string;
   comingSoon?: boolean;
+  /** Section this card belongs to. When set, cards are grouped under a heading. */
+  category?: string;
 }
 
 interface Props {
   cards: NavCard[];
 }
 
+/** Section order for grouped grids — operations first, admin last. */
+const CATEGORY_ORDER = ["Operations", "Production", "Assets", "Reports", "Administration"];
+
 /**
  * Visual navigation grid for dashboard home pages.
  * Each card links to a section the current role can access.
+ *
+ * Cards carrying a `category` are grouped under headings. Eighteen identical cards
+ * in one grid gave Audit Logs the same weight as Maintenance Orders and made
+ * finding anything a matter of reading every tile.
  */
 export function DashboardNavCards({ cards }: Props) {
-  const navigate = useNavigate();
   if (!cards.length) return null;
 
+  const grouped = cards.some((c) => c.category);
+  if (!grouped) return <NavCardGrid cards={cards} />;
+
+  const byCategory = new Map<string, NavCard[]>();
+  for (const c of cards) {
+    const key = c.category ?? "Other";
+    byCategory.set(key, [...(byCategory.get(key) ?? []), c]);
+  }
+  const sections = [
+    ...CATEGORY_ORDER.filter((k) => byCategory.has(k)),
+    ...Array.from(byCategory.keys()).filter((k) => !CATEGORY_ORDER.includes(k)),
+  ];
+
+  return (
+    <div className="space-y-6">
+      {sections.map((name) => (
+        <section key={name} aria-label={name} className="space-y-3">
+          <SectionHeading>{name}</SectionHeading>
+          <NavCardGrid cards={byCategory.get(name)!} />
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function NavCardGrid({ cards }: Props) {
+  const navigate = useNavigate();
   return (
     <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       {cards.map((c) => {
@@ -86,23 +122,23 @@ const ADMIN = "bg-red-500/15 text-red-600 dark:text-red-400";
 export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCardsProps) {
   const { role } = useAuth();
   const cards: NavCard[] = [
-    { title: "Maintenance Orders", description: "Manage all maintenance maintenance orders", url: "/dashboard/work-orders", icon: ClipboardList, badge: openWOs, accent: OPS },
-    { title: "Production Planner", description: "Daily shift planning by line", url: "/dashboard/planner", icon: CalendarRange, accent: OPS },
-    { title: "Production OEE", description: "Performance, RAG and leaderboard", url: "/dashboard/production-performance", icon: Gauge, accent: REPORTS },
-    { title: "Quality Actions", description: "Log and track quality issues", url: "/dashboard/quality", icon: CheckSquare, accent: OPS },
+    { title: "Maintenance Orders", description: "Manage all maintenance maintenance orders", url: "/dashboard/work-orders", icon: ClipboardList, badge: openWOs, accent: OPS, category: "Operations" },
+    { title: "Production Planner", description: "Daily shift planning by line", url: "/dashboard/planner", icon: CalendarRange, accent: OPS, category: "Production" },
+    { title: "Production OEE", description: "Performance, RAG and leaderboard", url: "/dashboard/production-performance", icon: Gauge, accent: REPORTS, category: "Production" },
+    { title: "Quality Actions", description: "Log and track quality issues", url: "/dashboard/quality", icon: CheckSquare, accent: OPS, category: "Production" },
     
-    { title: "Production Control", description: "Browse production by date, line and SKU", url: "/dashboard/shift-history", icon: History, accent: REPORTS },
+    { title: "Production Control", description: "Browse production by date, line and SKU", url: "/dashboard/shift-history", icon: History, accent: REPORTS, category: "Production" },
     
-    { title: "SKU Products", description: "Catalog and CSV import", url: "/dashboard/sku-products", icon: Boxes, accent: ASSETS },
-    { title: "Machines", description: "View and manage equipment", url: "/dashboard/machines", icon: Cog, badge: machinesCount, accent: ASSETS },
-    { title: "Downtime", description: "Track production line stoppages", url: "/dashboard/downtime", icon: Clock, accent: OPS },
+    { title: "SKU Products", description: "Catalog and CSV import", url: "/dashboard/sku-products", icon: Boxes, accent: ASSETS, category: "Production" },
+    { title: "Machines", description: "View and manage equipment", url: "/dashboard/machines", icon: Cog, badge: machinesCount, accent: ASSETS, category: "Assets" },
+    { title: "Downtime", description: "Track production line stoppages", url: "/dashboard/downtime", icon: Clock, accent: OPS, category: "Operations" },
     
-    { title: "Preventive Maintenance", description: "Recurring schedules and checklists", url: "/dashboard/preventive", icon: Wrench, accent: ASSETS },
-    { title: "Control Center", description: "Live operations display", url: "/dashboard/control-center", icon: Monitor, accent: OPS },
-    { title: "Analytics", description: "Performance metrics and trends", url: "/dashboard/analytics", icon: BarChart3, accent: REPORTS },
-    { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package, accent: ASSETS },
-    { title: "Suppliers", description: "Vendors and purchase orders", url: "/dashboard/suppliers", icon: Truck, accent: ASSETS },
-    { title: "Problems", description: "Catalog of standard issues", url: "/dashboard/problems", icon: AlertCircle, accent: ASSETS },
+    { title: "Preventive Maintenance", description: "Recurring schedules and checklists", url: "/dashboard/preventive", icon: Wrench, accent: ASSETS, category: "Operations" },
+    { title: "Control Center", description: "Live operations display", url: "/dashboard/control-center", icon: Monitor, accent: OPS, category: "Operations" },
+    { title: "Analytics", description: "Performance metrics and trends", url: "/dashboard/analytics", icon: BarChart3, accent: REPORTS, category: "Reports" },
+    { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package, accent: ASSETS, category: "Assets" },
+    { title: "Suppliers", description: "Vendors and purchase orders", url: "/dashboard/suppliers", icon: Truck, accent: ASSETS, category: "Assets" },
+    { title: "Problems", description: "Catalog of standard issues", url: "/dashboard/problems", icon: AlertCircle, accent: ASSETS, category: "Assets" },
   ];
 
   // Maintenance Manager: no access to production/quality modules
@@ -121,18 +157,18 @@ export function ManagerNavCards({ openWOs, machinesCount, usersCount }: AdminCar
 
   if (role === "admin") {
     visible = visible.concat([
-      { title: "Executive", description: "Executive KPI dashboard", url: "/dashboard/executive", icon: Briefcase, accent: REPORTS, comingSoon: true },
-      { title: "Financial", description: "Cost and financial overview", url: "/dashboard/financial", icon: DollarSign, accent: REPORTS, comingSoon: true },
+      { title: "Executive", description: "Executive KPI dashboard", url: "/dashboard/executive", icon: Briefcase, accent: REPORTS, comingSoon: true, category: "Reports" },
+      { title: "Financial", description: "Cost and financial overview", url: "/dashboard/financial", icon: DollarSign, accent: REPORTS, comingSoon: true, category: "Reports" },
       
-      { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN },
-      { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield, accent: ADMIN },
-      { title: "iTouching Settings", description: "Integration and Sync now", url: "/dashboard/intouch-settings", icon: Radar, accent: ADMIN },
-      { title: "iTouching Machines", description: "Map iTouching machines to lines", url: "/dashboard/intouch-machines", icon: Radio, accent: ADMIN },
-      { title: "iTouching Stop Codes", description: "Map stop codes to WO type, priority, line", url: "/dashboard/intouch-stop-codes", icon: Radar, accent: ADMIN },
+      { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN, category: "Administration" },
+      { title: "Audit Logs", description: "System activity and changes", url: "/dashboard/audit-logs", icon: Shield, accent: ADMIN, category: "Administration" },
+      { title: "iTouching Settings", description: "Integration and Sync now", url: "/dashboard/intouch-settings", icon: Radar, accent: ADMIN, category: "Administration" },
+      { title: "iTouching Machines", description: "Map iTouching machines to lines", url: "/dashboard/intouch-machines", icon: Radio, accent: ADMIN, category: "Administration" },
+      { title: "iTouching Stop Codes", description: "Map stop codes to WO type, priority, line", url: "/dashboard/intouch-stop-codes", icon: Radar, accent: ADMIN, category: "Administration" },
     ]);
   } else if (role === "manager" || role === "maintenance_manager") {
     visible = visible.concat([
-      { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN },
+      { title: "Users", description: "Manage team accounts and roles", url: "/users/manage", icon: Users, badge: usersCount, accent: ADMIN, category: "Administration" },
     ]);
   }
   return <DashboardNavCards cards={visible} />;
@@ -150,7 +186,7 @@ export function OperatorNavCards({ myOpenWOs }: { myOpenWOs?: number }) {
 export function EngineerNavCards({ assignedCount, stockLow }: { assignedCount?: number; stockLow?: number }) {
   const cards: NavCard[] = [
     { title: "My Tasks", description: "View assigned maintenance orders", url: "/dashboard/engineer", icon: Wrench, badge: assignedCount, accent: "bg-blue-500/15 text-blue-600" },
-    { title: "Preventive Maintenance", description: "Recurring schedules and checklists", url: "/dashboard/preventive", icon: Wrench, accent: ASSETS },
+    { title: "Preventive Maintenance", description: "Recurring schedules and checklists", url: "/dashboard/preventive", icon: Wrench, accent: ASSETS, category: "Operations" },
     { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package, badge: stockLow, accent: "bg-amber-500/15 text-amber-600" },
   ];
   return <DashboardNavCards cards={cards} />;
