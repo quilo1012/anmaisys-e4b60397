@@ -31,6 +31,7 @@ import { DEFAULT_WEIGHTS, type LeaderScoreWeights } from "@/lib/leaderScore";
 import { useRole } from "@/hooks/useRole";
 import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
 import { KpiCard } from "@/components/reports/KpiCard";
+import { QualityTrackingByLeader } from "@/components/quality/QualityTrackingByLeader";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
 interface QualityAction {
@@ -401,6 +402,7 @@ export function QualityActionsView() {
       recorded_at: a.recorded_at, action_no: a.action_no, status: a.status, severity: a.severity,
       line: a.line, shift: a.shift, leader_name: a.leader_name, department: a.department,
       sku: a.sku, batch: a.batch, labels: a.labels, description: a.description,
+      validation_status: a.validation_status,
     })),
     periodLabel,
     generatedBy: profile?.name || "—",
@@ -568,6 +570,7 @@ export function QualityActionsView() {
             value={kpis.todo} accent="warning" toneValue
             active={filterStatus === "todo"}
             onClick={() => setFilterStatus(filterStatus === "todo" ? "__all__" : "todo")}
+            className="print:hidden"
           />
           <KpiCard
             label="In progress"
@@ -575,6 +578,7 @@ export function QualityActionsView() {
             value={kpis.in_progress} accent="info" toneValue
             active={filterStatus === "in_progress"}
             onClick={() => setFilterStatus(filterStatus === "in_progress" ? "__all__" : "in_progress")}
+            className="print:hidden"
           />
           <KpiCard
             label="Complete"
@@ -582,6 +586,7 @@ export function QualityActionsView() {
             value={kpis.complete} accent="ok" toneValue
             active={filterStatus === "complete"}
             onClick={() => setFilterStatus(filterStatus === "complete" ? "__all__" : "complete")}
+            className="print:hidden"
           />
           <KpiCard
             label="Open points"
@@ -599,6 +604,8 @@ export function QualityActionsView() {
             onClick={() => setFilterSeverity(filterSeverity === "critical" ? "__all__" : "critical")}
           />
         </div>
+
+        <QualityTrackingByLeader actions={filtered} periodLabel={periodLabel} />
 
         {/* Filters, in a toolbar card like the Maintenance Orders screen. */}
         <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/30 p-3">

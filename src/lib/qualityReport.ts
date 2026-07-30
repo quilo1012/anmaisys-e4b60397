@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- jsPDF autoTable + xlsx-js-style cells are loosely typed */
 // Professional Quality report exports for the Quality Actions data:
-//   - PDF (jsPDF + autoTable): printable report with logo header, KPIs, breakdowns, full list.
+//   - PDF (jsPDF + autoTable): printable report with logo header, KPIs, per-leader tracking, full list.
 //   - Excel (xlsx-js-style): styled workbook with a Summary sheet + an Actions sheet.
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import XLSX from "xlsx-js-style";
 import logoUrl from "@/assets/appliedlogo.jpeg";
 import { statusMeta, severityMeta } from "@/lib/qualityConstants";
+import { leaderTracking, scoreImpactLabel } from "@/lib/leaderTracking";
 
 export interface QualityReportAction {
   recorded_at: string;
@@ -21,6 +22,8 @@ export interface QualityReportAction {
   batch: string | null;
   labels: string[] | null;
   description: string | null;
+  /** Quality's verdict — a rejected action costs the leader nothing. */
+  validation_status?: string | null;
 }
 
 export interface QualityReportInput {
@@ -87,59 +90,69 @@ export async function generateQualityReportPDF(input: QualityReportInput) {
   const s = summarize(actions);
   drawHeader();
 
-  // KPIs
+  // KPIs. Deliberately NOT the To do / In progress / Complete counts: those are the
+  // team's working board, they change through the shift, and on a report dated last
+  // Tuesday they mean nothing. What survives on paper is what was raised, how severe
+  // it was, and how much of it was paperwork.
   let y = 32;
+  const tracking = leaderTracking(actions);
   doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(20, 30, 60);
   doc.text("Summary", margin, y);
   y += 5;
   doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(0);
+  const validatedPaperwork = tracking.reduce((n, r) => n + r.paperwork, 0);
   const kpis = [
-    `Total actions: ${s.total}`, `To do: ${s.todo}`, `In progress: ${s.in_progress}`,
-    `Complete: ${s.complete}`, `High / Critical: ${s.highCritical}`,
+    `Total actions: ${s.total}`,
+    `High / Critical: ${s.highCritical}`,
+    `Validated paperwork errors: ${validatedPaperwork}`,
+    `Leaders involved: ${tracking.length}`,
   ];
   doc.text(kpis.join("      "), margin, y);
   y += 6;
 
-  // Breakdowns side by side, three to a row.
-  //
-  // These were five full-width tables chained one under the other, so a two-line
-  // summary of statuses took the same width as the detail table and the five of them
-  // consumed most of the first page before a single action appeared. Each is a short
-  // list of labels and counts; they belong beside each other.
-  const GAP = 4;
-  const PER_ROW = 3;
-  const colW = (pageW - margin * 2 - GAP * (PER_ROW - 1)) / PER_ROW;
-
-  const breakdowns: Array<[string, [string, number][]]> = [
-    ["By Status", tally(actions, (a) => statusMeta(a.status).label)],
-    ["By Severity", tally(actions, (a) => sevLabel(a.severity))],
-    ["By Line", tally(actions, (a) => a.line || "—")],
-    ["By Department", tally(actions, (a) => a.department || "—")],
-    ["By Leader", tally(actions, (a) => a.leader_name || "—")],
-  ];
-
-  for (let i = 0; i < breakdowns.length; i += PER_ROW) {
-    const row = breakdowns.slice(i, i + PER_ROW);
-    let rowBottom = y;
-    row.forEach(([title, rows], col) => {
-      const left = margin + col * (colW + GAP);
-      autoTable(doc, {
-        startY: y,
-        head: [[title, "Count"]],
-        body: rows.length ? rows.map(([k, v]) => [k, String(v)]) : [["—", "0"]],
-        styles: { fontSize: 8, cellPadding: 1.5, overflow: "linebreak" },
-        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold" },
-        alternateRowStyles: { fillColor: [245, 247, 250] },
-        columnStyles: { 1: { halign: "right", cellWidth: 16 } },
-        // right is what keeps the table inside its column instead of running the
-        // full page width.
-        margin: { left, right: pageW - left - colW },
-        tableWidth: colW,
-      });
-      rowBottom = Math.max(rowBottom, (doc as any).lastAutoTable.finalY);
-    });
-    y = rowBottom + GAP;
-  }
+  // Quality tracking by leader — the accountability view.
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(20, 30, 60);
+  doc.text("Quality tracking by leader", margin, y);
+  y += 2;
+  autoTable(doc, {
+    startY: y + 1,
+    head: [["Leader", "Shift", "Actions", "Paperwork (validated)", "High / Critical", "Severity points", "Score impact"]],
+    body: tracking.length
+      ? tracking.map((r) => [
+          r.leader,
+          r.shifts,
+          String(r.total),
+          r.paperworkPending ? `${r.paperwork}  (+${r.paperworkPending} pending)` : String(r.paperwork),
+          String(r.highCritical),
+          String(r.points),
+          scoreImpactLabel(r),
+        ])
+      : [["—", "—", "0", "0", "0", "0", "Compliant"]],
+    styles: { fontSize: 8, cellPadding: 1.8, overflow: "linebreak" },
+    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    columnStyles: {
+      2: { halign: "center", cellWidth: 18 },
+      3: { halign: "center", cellWidth: 34 },
+      4: { halign: "center", cellWidth: 24 },
+      5: { halign: "center", cellWidth: 26 },
+      6: { halign: "right", cellWidth: 46 },
+    },
+    // A leader with nothing standing against them is not a warning; one with a
+    // High or Critical is. The colour says which without anyone reading the row.
+    didParseCell: (data: any) => {
+      if (data.section !== "body") return;
+      const r = tracking[data.row.index];
+      if (!r) return;
+      if (data.column.index === 4 && r.highCritical > 0) { data.cell.styles.textColor = [190, 18, 60]; data.cell.styles.fontStyle = "bold"; }
+      if (data.column.index === 6) {
+        data.cell.styles.fontStyle = "bold";
+        data.cell.styles.textColor = r.clean && !r.documentationPenaltyPct ? [4, 120, 87] : [190, 18, 60];
+      }
+    },
+    margin: { left: margin, right: margin },
+  });
+  y = (doc as any).lastAutoTable.finalY + 6;
 
   // Full actions table
   autoTable(doc, {
