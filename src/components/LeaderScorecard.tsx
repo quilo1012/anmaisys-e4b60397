@@ -327,7 +327,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
           </DialogTitle>
         </DialogHeader>
 
-        <div id="leader-scorecard-print" className="space-y-4 print-content">
+        <div id="leader-scorecard-print" className="space-y-4 print-content [&>div]:break-inside-avoid">
           <ReportPrintHeader
             title={`Leader Scorecard — ${leaderName ?? ""}`}
             periodLabel={periodLabel}
@@ -431,8 +431,11 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
             </div>
           )}
 
+          {/* Hidden in print when there is a single day: a line chart with one dot
+              says nothing a table above it has not already said, and it costs a
+              third of the page. */}
           {q.trend.length > 0 && (
-            <Card>
+            <Card className={q.trend.length < 2 ? "print:hidden" : undefined}>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Actions over time</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={180}>
