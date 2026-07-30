@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Download, Clock, Factory, FileWarning, Printer } from "lucide-react";
+import { Download, Clock, Factory, FileWarning, Printer, Wrench } from "lucide-react";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import {
 import { useProfileNames } from "@/hooks/useProfileNames";
 import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
 import { computeLeaderScore, displayScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { getShift } from "@/lib/shifts";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface LSAction {
@@ -27,6 +28,10 @@ interface LSAction {
   action_no: string | null; description: string | null; shift: string | null;
   validation_status: string | null; validated_at: string | null; validated_by: string | null;
   attachments: string[] | null; closed_at: string | null;
+}
+interface LSWorkOrder {
+  id: string; wo_number: number | null; created_at: string; status: string | null;
+  line_at_time: string | null; line_stopped: boolean | null; description: string | null;
 }
 interface LSSession { oee_pct: number | null; run_time_min: number | null; down_time_min: number | null; intouch_good_total: number | null; session_date: string | null; line: string | null; shift: string | null }
 
@@ -197,6 +202,35 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
   }, [actions]);
 
   // Who signed each verdict — "Attributable", the first letter of ALCOA+.
+  /**
+   * Maintenance the leader called for in the period.
+   *
+   * requester_name is free text typed on the request form — "murilo", "Filipi
+   * (Line 2)", "FILIPE" — so the match is a case-insensitive prefix on the leader's
+   * name rather than an equality that would find none of them. It is the only link
+   * the work order carries back to a line leader; there is no user id on a request
+   * raised from the floor tablet.
+   */
+  const { data: woRequests = [] } = useQuery({
+    queryKey: ["ls_wos", leaderName, from, to, shift],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("work_orders")
+        .select("id, wo_number, created_at, status, line_at_time, line_stopped, description")
+        .ilike("requester_name", `${leaderName}%`)
+        .gte("created_at", `${from}T00:00:00`).lte("created_at", untilTs)
+        .order("created_at");
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as LSWorkOrder[];
+      // A work order has no shift column — the shift is where its timestamp falls,
+      // the same rule the rest of the factory uses.
+      return shift === "all"
+        ? rows
+        : rows.filter((w) => getShift(w.created_at) === (shift === "DAY" ? "day" : "night"));
+    },
+  });
+
   const { data: profileNames = [] } = useProfileNames();
   const nameOf = useMemo(() => {
     const m = new Map(profileNames.map((p) => [p.id, p.name]));
@@ -244,6 +278,8 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
     };
   }, [sessions, items, ragRows]);
 
+  const woStopped = useMemo(() => woRequests.filter((w) => w.line_stopped).length, [woRequests]);
+
   const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights();
 
   const score = useMemo(
@@ -290,9 +326,26 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
       ["Critical", String(q.sev.critical)], ["High", String(q.sev.high)], ["Medium", String(q.sev.medium)], ["Low", String(q.sev.low)],
       [],
       ["PRODUCTION"],
-      ["Sessions", String(p.sessions)], ["Avg OEE", p.avgOEE == null ? "—" : `${p.avgOEE.toFixed(1)}%`],
+      ["Sessions", String(p.sessions)],
       ["Output (good)", String(p.output)], ["Attainment", p.attainment == null ? "—" : `${p.attainment}%`],
-      ["Downtime (h)", p.downtimeH.toFixed(1)], ["Run time (h)", p.runtimeH.toFixed(1)],
+      // These are number | null — strictNullChecks is off in this project, so
+      // `.toFixed()` on the null typechecked fine and threw at runtime instead. No
+      // session this month reports down_time_min, so the export crashed for
+      // every leader.
+      ["Run time (h)", p.runtimeH == null ? "—" : p.runtimeH.toFixed(1)],
+      [],
+      ["MAINTENANCE CALLED BY THIS LEADER"],
+      ["WO", "Raised", "Line", "Status", "Line stopped", "Description"],
+      ...(woRequests.length
+        ? woRequests.map((w) => [
+            w.wo_number ? `WO-${new Date(w.created_at).getFullYear()}-${String(w.wo_number).padStart(6, "0")}` : "—",
+            format(new Date(w.created_at), "dd/MM/yyyy HH:mm"),
+            w.line_at_time ?? "",
+            (w.status ?? "").replace(/_/g, " "),
+            w.line_stopped ? "Yes" : "No",
+            (w.description ?? "").replace(/"/g, "'"),
+          ])
+        : [["—", "", "", "", "", "No work order raised in this period"]]),
     ];
     const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -536,29 +589,56 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
           <div>
             <div className="mb-1.5 flex items-center gap-1 text-sm font-semibold"><Factory className="h-4 w-4" /> Production <span className="text-xs font-normal text-muted-foreground">({p.sessions} sessions)</span></div>
             {p.sessions === 0 ? (
-              <p className="text-xs text-muted-foreground">No production sessions for this leader in the period.</p>
+              <p className="text-xs text-muted-foreground">
+                No production sessions for this leader in the period.
+                {woRequests.length > 0 && ` ${woRequests.length} work order${woRequests.length === 1 ? "" : "s"} were still raised in their name — listed below.`}
+              </p>
             ) : (
               <>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <Kpi
-                  label="Avg OEE"
-                  value={p.avgOEE == null ? "n/a" : `${p.avgOEE.toFixed(1)}%`}
-                  sub={p.avgOEE == null ? "not reported by the lines" : undefined}
-                  tone={p.avgOEE == null ? "text-muted-foreground" : "text-blue-600 dark:text-blue-400"}
-                />
                 <Kpi
                   label="Attainment"
                   value={p.attainment == null ? "n/a" : `${p.attainment}%`}
                   sub={p.attainment == null ? "no RAG plan for these sessions" : `${p.actualQty.toLocaleString()} of ${p.targetQty.toLocaleString()} planned`}
                 />
                 <Kpi label="Output" value={p.output.toLocaleString()} sub="logged on My Production" />
+                {/* Was "Downtime", which read n/a on every card: 0 of 216 sessions this
+                    month carry down_time_min. This is the number the leader actually
+                    generates — the maintenance they called for. */}
                 <Kpi
-                  label="Downtime"
-                  value={p.downtimeH == null ? "n/a" : `${p.downtimeH.toFixed(1)}h`}
-                  sub={p.downtimeH == null ? "not recorded on the session" : undefined}
-                  tone={p.downtimeH == null ? "text-muted-foreground" : "text-destructive-strong"}
+                  label="Maintenance called"
+                  value={String(woRequests.length)}
+                  sub={
+                    woRequests.length === 0
+                      ? "no work order raised in this period"
+                      : `${woStopped} stopped the line`
+                  }
+                  tone={woStopped > 0 ? "text-destructive-strong" : undefined}
                 />
               </div>
+              {woRequests.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <div className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Work orders raised by this leader ({woRequests.length})
+                  </div>
+                  {woRequests.map((w) => (
+                    <div key={w.id} className="flex items-start gap-2 rounded border p-1.5 text-xs break-inside-avoid">
+                      <span className="font-mono font-semibold">
+                        {w.wo_number ? `WO-${new Date(w.created_at).getFullYear()}-${String(w.wo_number).padStart(6, "0")}` : "—"}
+                      </span>
+                      <span className="whitespace-nowrap text-muted-foreground">{format(new Date(w.created_at), "dd/MM HH:mm")}</span>
+                      {w.line_at_time && <span className="text-muted-foreground">{w.line_at_time}</span>}
+                      <Badge variant="outline" className="text-2xs capitalize">{(w.status ?? "—").replace(/_/g, " ")}</Badge>
+                      {w.line_stopped && (
+                        <Badge variant="outline" className="border-destructive/40 bg-destructive/10 text-2xs text-destructive-strong">
+                          Line stopped
+                        </Badge>
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-muted-foreground">{w.description ?? ""}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {p.sessionsWithPlan < p.plannedSessions && (
                 <p className="mt-1 text-2xs text-muted-foreground">
                   {p.plannedSessions - p.sessionsWithPlan} of {p.plannedSessions} line-shifts have no RAG plan, so they add
