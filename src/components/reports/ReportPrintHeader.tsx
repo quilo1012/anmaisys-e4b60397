@@ -40,12 +40,26 @@ export function ReportPrintHeader({
       aria-label="Report header"
     >
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold uppercase tracking-wide">{title}</h1>
-          <p className="text-xs text-muted-foreground print:text-gray-700">{brand}</p>
-          {filtersLabel && (
-            <p className="mt-1 text-xs print:text-gray-700">{filtersLabel}</p>
-          )}
+        <div className="flex items-start gap-3">
+          {/* The logo the order sheet has always printed. Reports carried the brand as
+              text only, so an order and a report coming off the same printer did not
+              look like they came from the same system. Absolute URL from /public so it
+              resolves inside the isolated print document too; if it fails to load it
+              removes itself and the wordmark below carries the identity. */}
+          <img
+            src="/appliedlogo.jpeg"
+            alt=""
+            crossOrigin="anonymous"
+            className="h-12 w-auto object-contain"
+            onError={(e) => { e.currentTarget.style.display = "none"; }}
+          />
+          <div>
+            <h1 className="text-xl font-bold uppercase tracking-wide">{title}</h1>
+            <p className="text-xs text-muted-foreground print:text-gray-700">{brand}</p>
+            {filtersLabel && (
+              <p className="mt-1 text-xs print:text-gray-700">{filtersLabel}</p>
+            )}
+          </div>
         </div>
         <div className="text-right text-xs">
           <p>
