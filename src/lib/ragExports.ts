@@ -253,7 +253,7 @@ export async function exportRagPdf(input: RagExportInput) {
   totRow.push(
     { content: weekTotals.plan || "", styles: { fontStyle: "bold" } },
     { content: weekTotals.actual || "", styles: { fontStyle: "bold" } },
-    { content: wp === null ? "" : `${wp.toFixed(0)}%`, styles: { fillColor: pctColorRgb(wp), fontStyle: "bold", halign: "center" } },
+    { content: wp === null ? "" : `${wp.toFixed(0)}%`, styles: { fillColor: pctColorRgb(wp), fontStyle: "bold", halign: "center" as const } },
   );
   body.push(totRow);
 
@@ -437,7 +437,7 @@ export async function exportRagPdf(input: RagExportInput) {
       line,
       p || "—",
       a || "—",
-      { content: pct === null ? "—" : `${pct.toFixed(0)}%`, styles: { fillColor: pctColorRgb(pct), halign: "center" } },
+      { content: pct === null ? "—" : `${pct.toFixed(0)}%`, styles: { fillColor: pctColorRgb(pct), halign: "center" as const } },
       avg(agg.tSum, agg.tN),
       avg(agg.aSum, agg.aN),
       dtTotal ? `${dtTotal} min` : "—",

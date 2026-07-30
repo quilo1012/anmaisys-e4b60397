@@ -42,6 +42,8 @@ const EXPECTED: Record<Action, Role[]> = {
   "smarttarget.view": ["production_office_admin"],
   "quality.view": ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer"],
   "quality.manage": ["admin", "manager", "supervisor", "quality_supervisor"],
+  "quality.validate": ["admin", "quality_supervisor"],
+  "quality.close": ["admin", "manager", "maintenance_manager"],
   "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
   "pm.manage": ["admin", "manager", "maintenance_manager"],
   "engineers.view": ["admin", "manager", "supervisor", "maintenance_manager"],
