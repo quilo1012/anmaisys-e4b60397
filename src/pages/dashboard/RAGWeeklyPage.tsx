@@ -158,9 +158,9 @@ const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 function ragColor(actual: number, plan: number): string {
   if (!plan) return "";
   // Strict: green only when meeting/exceeding the plan (delta >= 0).
-  if (actual >= plan) return "bg-success/20 text-success font-medium";
+  if (actual >= plan) return "bg-success/20 text-success-strong font-medium";
   const pct = (actual / plan) * 100;
-  if (pct >= 90) return "bg-warning/20 text-warning font-medium";
+  if (pct >= 90) return "bg-warning/20 text-warning-strong font-medium";
   return "bg-destructive/20 text-destructive font-medium";
 }
 
@@ -944,7 +944,7 @@ export default function RAGWeeklyPage() {
         {inconsistencies.length > 0 && (
           <Card className="border-warning/50 bg-warning/5">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-warning text-base">
+              <CardTitle className="flex items-center gap-2 text-warning-strong text-base">
                 <AlertOctagon className="h-4 w-4" />
                 Downtime consistency check — {inconsistencies.length} WO(s) span multiple shifts
               </CardTitle>
@@ -1422,9 +1422,9 @@ function DayNightTotalSummary({
     const actual = Number(a) || 0;
     if (plan <= 0) return "text-muted-foreground";
     if (actual <= 0) return "bg-destructive/10 text-destructive font-semibold rounded px-1.5";
-    if (actual >= plan) return "bg-success/15 text-success font-semibold rounded px-1.5";
+    if (actual >= plan) return "bg-success/15 text-success-strong font-semibold rounded px-1.5";
     const r = (actual / plan) * 100;
-    if (r >= 90) return "bg-warning/15 text-warning font-semibold rounded px-1.5";
+    if (r >= 90) return "bg-warning/15 text-warning-strong font-semibold rounded px-1.5";
     return "bg-destructive/10 text-destructive font-semibold rounded px-1.5";
   };
 
@@ -1561,9 +1561,9 @@ function DayNightTotalSummary({
       b === "MAINT"
         ? "text-destructive"
         : b === "WO Request"
-        ? "text-warning"
+        ? "text-warning-strong"
         : b === "Quality"
-        ? "text-warning"
+        ? "text-warning-strong"
         : b === "Break"
         ? "text-primary"
         : b === "Cleaning"
@@ -1656,7 +1656,7 @@ function DayNightTotalSummary({
                             type="button"
                             onClick={() => toggleDate(label, ds)}
                             title={excluded ? "Include in week total" : "Exclude from week total"}
-                            className={`text-[9px] px-1.5 py-0.5 rounded border font-bold leading-none ${excluded ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success border-success/40"}`}
+                            className={`text-[9px] px-1.5 py-0.5 rounded border font-bold leading-none ${excluded ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success-strong border-success/40"}`}
                           >
                             {excluded ? "OFF" : "ON"}
                           </button>
@@ -1682,14 +1682,14 @@ function DayNightTotalSummary({
                         type="button"
                         onClick={onClick}
                         title={off ? "Include shift" : "Exclude shift"}
-                        className={`ml-1 text-[8px] px-1 py-0 rounded border font-bold leading-none align-middle ${off ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success border-success/40"}`}
+                        className={`ml-1 text-[8px] px-1 py-0 rounded border font-bold leading-none align-middle ${off ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success-strong border-success/40"}`}
                       >
                         {off ? "off" : "on"}
                       </button>
                     );
                     return (
                       <Fragment key={i}>
-                        <th className={`text-right p-1 border-l font-medium min-w-[60px] ${dayOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-warning"}`}>
+                        <th className={`text-right p-1 border-l font-medium min-w-[60px] ${dayOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-warning-strong"}`}>
                           Day<Btn off={dayOff} onClick={() => toggleShift(label, ds, "DAY")} />
                         </th>
                         <th className={`text-right p-1 font-medium min-w-[60px] ${nightOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-primary"}`}>
@@ -1699,7 +1699,7 @@ function DayNightTotalSummary({
                       </Fragment>
                     );
                   })}
-                  <th className="text-right p-1 border-l text-warning font-medium bg-primary/10 min-w-[64px]">Day</th>
+                  <th className="text-right p-1 border-l text-warning-strong font-medium bg-primary/10 min-w-[64px]">Day</th>
                   <th className="text-right p-1 text-primary font-medium bg-primary/10 min-w-[64px]">Night</th>
                   <th className="text-right p-1 font-bold bg-primary/15 min-w-[64px]">Total</th>
                 </tr>
@@ -1780,7 +1780,7 @@ function DayNightTotalSummary({
                     return (
                       <span className="inline-flex items-center gap-1" title={`Plan ${plan} ≠ sum of SKU targets ${itemSum} (Δ${diff})`}>
                         {cellEl}
-                        <span className="text-warning text-[10px] leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
+                        <span className="text-warning-strong text-[10px] leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
                       </span>
                     );
                   };
@@ -2022,7 +2022,7 @@ function DowntimeBreakdownPopover({
     if (!st) return null;
     const s = String(st).toLowerCase();
     const tone =
-      ["finished","closed","completed","force_closed"].includes(s) ? "bg-success/15 text-success" :
+      ["finished","closed","completed","force_closed"].includes(s) ? "bg-success/15 text-success-strong" :
       ["in_progress","arrived","received"].includes(s) ? "bg-primary/15 text-primary" :
       s === "open" ? "bg-destructive/15 text-destructive" :
       "bg-muted text-muted-foreground";
@@ -2040,7 +2040,7 @@ function DowntimeBreakdownPopover({
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{line} · {shift} · {dateStr}</div>
           <div className="flex items-center justify-between gap-2">
             <div className="text-sm font-semibold">{stops.length} stop{stops.length === 1 ? "" : "s"} · {totalMin}m total</div>
-            {totalScrap > 0 && <div className="text-xs text-warning font-medium">Scrap: {totalScrap.toLocaleString()}</div>}
+            {totalScrap > 0 && <div className="text-xs text-warning-strong font-medium">Scrap: {totalScrap.toLocaleString()}</div>}
           </div>
           <Link
             to={`/dashboard/engineer?line=${encodeURIComponent(line)}&date=${encodeURIComponent(dateStr)}`}

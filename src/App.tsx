@@ -168,7 +168,7 @@ const SessionRedirect = () => {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <div className="w-full max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">
-          <WifiOff className="mx-auto h-10 w-10 text-warning" />
+          <WifiOff className="mx-auto h-10 w-10 text-warning-strong" />
           <h1 className="mt-4 text-xl font-semibold text-foreground">Backend connection is slow</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Your session is active, but the system could not load your dashboard permissions yet.

@@ -13,7 +13,9 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 211 78% 50%;
+    /* 46% not 50%: white on 50% lightness is 4.16:1, below the 4.5:1 AA needs for
+       normal text, and every primary button in the app is white on this colour. */
+    --primary: 211 78% 46%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 214 20% 92%;
@@ -25,12 +27,15 @@
     --accent: 210 40% 98.0392%;
     --accent-foreground: 222 47% 11%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    /* 50% not 60%: at 60% both white-on-red (3.61:1) and red-on-white (3.78:1) failed
+       AA, and `text-destructive` is used in 157 places. */
+    --destructive: 0 84% 50%;
+    /* Pure white, not 98%: the 2% tint dropped white-on-red to 4.33:1, just under AA. */
+    --destructive-foreground: 0 0% 100%;
 
     --border: 214 24% 88%;
     --input: 214 24% 88%;
-    --ring: 211 78% 50%;
+    --ring: 211 78% 46%;
 
     --radius: 0.5rem;
 
@@ -47,6 +52,14 @@
     --success-foreground: 210 40% 98%;
     --warning: 43 96% 56%;
     --warning-foreground: 222 47% 11%;
+
+    /* Text-safe variants of the two status colours. The brand green and amber are
+       fills: as text on a white card they measure 2.30:1 and 1.69:1, both far below
+       AA — which is why every screen had reached for `text-emerald-700` and
+       `text-amber-600` by hand instead of using the tokens. These are the same hues,
+       dark enough to read: 5.07:1 and 5.09:1. */
+    --success-strong: 142 72% 29%;
+    --warning-strong: 32 90% 34%;
   }
 
   .dark {
@@ -77,6 +90,10 @@
     --border: 220 20% 18%;
     --input: 220 20% 18%;
     --ring: 211 78% 55%;
+
+    /* On a dark card the fills are too dark to read, so these go the other way. */
+    --success-strong: 142 60% 62%;
+    --warning-strong: 43 90% 62%;
 
     --sidebar-background: 211 64% 28%;
     --sidebar-foreground: 0 0% 100%;

@@ -49,11 +49,14 @@ export default {
   			},
   			success: {
   				DEFAULT: 'hsl(var(--success))',
-  				foreground: 'hsl(var(--success-foreground))'
+  				foreground: 'hsl(var(--success-foreground))',
+  				// Use for TEXT. The DEFAULT is a fill and fails AA as text on a card.
+  				strong: 'hsl(var(--success-strong))'
   			},
   			warning: {
   				DEFAULT: 'hsl(var(--warning))',
-  				foreground: 'hsl(var(--warning-foreground))'
+  				foreground: 'hsl(var(--warning-foreground))',
+  				strong: 'hsl(var(--warning-strong))'
   			},
   			popover: {
   				DEFAULT: 'hsl(var(--popover))',

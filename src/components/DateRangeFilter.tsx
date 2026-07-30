@@ -1,16 +1,7 @@
 import { useEffect, useState } from "react";
-import {
-  format,
-  startOfDay,
-  endOfDay,
-  subDays,
-  startOfMonth,
-  endOfMonth,
-  setHours,
-  setMinutes,
-  setSeconds,
-} from "date-fns";
+import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { CalendarIcon, Check } from "lucide-react";
+import { getCurrentFactoryShift, londonWallToUtc } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -39,17 +30,22 @@ const PRESET_LABELS: Record<Exclude<DateRangePreset, "custom">, string> = {
 };
 
 function currentShiftRange(now = new Date()): DateRange {
-  // London-shift heuristic using local hour: DAY 06-18, NIGHT 18-06
-  const h = now.getHours();
-  if (h >= 6 && h < 18) {
-    return { from: setSeconds(setMinutes(setHours(now, 6), 0), 0), to: now };
-  }
-  if (h >= 18) {
-    return { from: setSeconds(setMinutes(setHours(now, 18), 0), 0), to: now };
-  }
-  // 00:00–05:59 → night shift started yesterday 18:00
-  const y = subDays(now, 1);
-  return { from: setSeconds(setMinutes(setHours(y, 18), 0), 0), to: now };
+  // DAY 06–18, NIGHT 18–06, on London time from end to end.
+  //
+  // This used the browser's local hour AND built the boundary with setHours, so on a
+  // device in another timezone both the branch and the 06:00/18:00 edge were wrong,
+  // silently: at 15:00 local on a device two hours ahead, "Current shift" meant the
+  // night one and started at the wrong instant. Every other shift calculation in the
+  // system — getCurrentFactoryShift, session_write_deadline, the shift filters — is
+  // London-based, so this one disagreed with all of them.
+  //
+  // getCurrentFactoryShift decides which shift is running and londonWallToUtc turns
+  // a London wall-clock hour into a real instant, both already used by the rest of
+  // the system.
+  const { sessionDate, shiftCode } = getCurrentFactoryShift(now);
+  const [y, mo, d] = sessionDate.split("-").map(Number);
+  const from = new Date(londonWallToUtc(y, mo, d, shiftCode === "night" ? 18 : 6));
+  return { from, to: now };
 }
 
 export function getPresetRange(preset: DateRangePreset): DateRange {
