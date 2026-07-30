@@ -817,6 +817,33 @@ export type Database = {
         }
         Relationships: []
       }
+      leader_score_weights: {
+        Row: {
+          documentation_pct: number
+          id: boolean
+          production_pct: number
+          quality_pct: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          documentation_pct?: number
+          id?: boolean
+          production_pct?: number
+          quality_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          documentation_pct?: number
+          id?: boolean
+          production_pct?: number
+          quality_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       line_chat_messages: {
         Row: {
           created_at: string
@@ -2561,6 +2588,8 @@ export type Database = {
           action_type_id: string | null
           attachments: string[]
           batch: string | null
+          closed_at: string | null
+          closed_by: string | null
           created_at: string
           department: string | null
           description: string | null
@@ -2578,12 +2607,17 @@ export type Database = {
           sku: string | null
           status: string
           updated_at: string
+          validated_at: string | null
+          validated_by: string | null
+          validation_status: string
         }
         Insert: {
           action_no?: string | null
           action_type_id?: string | null
           attachments?: string[]
           batch?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           department?: string | null
           description?: string | null
@@ -2601,12 +2635,17 @@ export type Database = {
           sku?: string | null
           status?: string
           updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+          validation_status?: string
         }
         Update: {
           action_no?: string | null
           action_type_id?: string | null
           attachments?: string[]
           batch?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           department?: string | null
           description?: string | null
@@ -2624,6 +2663,9 @@ export type Database = {
           sku?: string | null
           status?: string
           updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+          validation_status?: string
         }
         Relationships: [
           {
@@ -2776,6 +2818,27 @@ export type Database = {
           kind?: string
           sort?: number
           value?: string
+        }
+        Relationships: []
+      }
+      quality_severity_points: {
+        Row: {
+          points: number
+          severity: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          points: number
+          severity: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          points?: number
+          severity?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -3174,6 +3237,45 @@ export type Database = {
           images?: Json
           title?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      sku_batch_dupes_20260729: {
+        Row: {
+          active: boolean
+          category: string | null
+          code: string
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          target_per_hour: number
+          updated_at: string
+          weight: number | null
+        }
+        Insert: {
+          active?: boolean
+          category?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          target_per_hour?: number
+          updated_at?: string
+          weight?: number | null
+        }
+        Update: {
+          active?: boolean
+          category?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          target_per_hour?: number
+          updated_at?: string
+          weight?: number | null
         }
         Relationships: []
       }
@@ -4163,6 +4265,14 @@ export type Database = {
         Args: { _new_email: string; _user_id: string }
         Returns: undefined
       }
+      assign_work_order_engineer: {
+        Args: { _engineer_id: string; _wo_id: string }
+        Returns: Json
+      }
+      auto_close_finished_work_orders: {
+        Args: { _grace_hours?: number }
+        Returns: number
+      }
       check_invite_code: { Args: { code: string }; Returns: boolean }
       cleanup_batch_skus: {
         Args: never
@@ -4179,6 +4289,7 @@ export type Database = {
         }[]
       }
       close_shift_downtime: { Args: never; Returns: undefined }
+      close_stale_production_downtimes: { Args: never; Returns: number }
       compute_smart_target: {
         Args: { _entry_date: string; _line: string; _shift: string }
         Returns: Json
@@ -4201,6 +4312,10 @@ export type Database = {
       delete_leader: { Args: { _id: string }; Returns: undefined }
       finish_wo_with_pin: {
         Args: { _pin: string; _signed_by_name?: string; _wo_id: string }
+        Returns: Json
+      }
+      force_close_work_order: {
+        Args: { _line_was_stopped: boolean; _note?: string; _wo_id: string }
         Returns: Json
       }
       get_device_line: { Args: { _token: string }; Returns: string }
@@ -4287,6 +4402,13 @@ export type Database = {
           name: string
         }[]
       }
+      list_engineers: {
+        Args: never
+        Returns: {
+          id: string
+          name: string
+        }[]
+      }
       list_leaders: {
         Args: never
         Returns: {
@@ -4347,6 +4469,14 @@ export type Database = {
         Args: { _label?: string; _line_ids: string[]; _token: string }
         Returns: undefined
       }
+      production_downtime_shift_end: {
+        Args: { _occurred_date: string; _shift: string }
+        Returns: string
+      }
+      rag_actual_from_floor: {
+        Args: { _date: string; _line: string; _shift: string }
+        Returns: number
+      }
       receive_purchase_order: { Args: { _po_id: string }; Returns: Json }
       refresh_site_banner: { Args: never; Returns: undefined }
       reject_wo: { Args: { _reason: string; _wo_id: string }; Returns: Json }
@@ -4369,6 +4499,10 @@ export type Database = {
         Args: { _notes: string; _session_id: string }
         Returns: undefined
       }
+      session_write_deadline: {
+        Args: { _session_date: string; _shift: string }
+        Returns: string
+      }
       set_admin_pin: { Args: { _new_pin: string }; Returns: undefined }
       set_engineer_pin: {
         Args: { _new_pin: string; _user_id: string }
@@ -4378,6 +4512,11 @@ export type Database = {
         Args: { _engineer_id: string; _new_pin: string }
         Returns: undefined
       }
+      set_intouch_sync_enabled: {
+        Args: { _enabled: boolean; _pin: string }
+        Returns: boolean
+      }
+      set_own_engineer_pin: { Args: { _new_pin: string }; Returns: undefined }
       set_shift_password: {
         Args: { _password: string; _shift_code: string }
         Returns: undefined
@@ -4425,6 +4564,7 @@ export type Database = {
       }
       verify_target_pin: { Args: { _pin: string }; Returns: boolean }
       wo_total_pause_seconds: { Args: { _wo_id: string }; Returns: number }
+      work_order_access_hint: { Args: { _wo_id: string }; Returns: Json }
     }
     Enums: {
       app_role:
