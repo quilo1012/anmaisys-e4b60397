@@ -7,7 +7,7 @@ import autoTable from "jspdf-autotable";
 import XLSX from "xlsx-js-style";
 import logoUrl from "@/assets/appliedlogo.jpeg";
 import { statusMeta, severityMeta } from "@/lib/qualityConstants";
-import { leaderTracking, scoreImpactLabel } from "@/lib/leaderTracking";
+import { leaderTracking, pointsLabel } from "@/lib/leaderTracking";
 
 export interface QualityReportAction {
   recorded_at: string;
@@ -103,6 +103,7 @@ export async function generateQualityReportPDF(input: QualityReportInput) {
   const validatedPaperwork = tracking.reduce((n, r) => n + r.paperwork, 0);
   const kpis = [
     `Total actions: ${s.total}`,
+    `Still open: ${tracking.reduce((n, r) => n + r.open, 0)}`,
     `High / Critical: ${s.highCritical}`,
     `Validated paperwork errors: ${validatedPaperwork}`,
     `Leaders involved: ${tracking.length}`,
@@ -116,39 +117,37 @@ export async function generateQualityReportPDF(input: QualityReportInput) {
   y += 2;
   autoTable(doc, {
     startY: y + 1,
-    head: [["Leader", "Shift", "Actions", "Paperwork (validated)", "High / Critical", "Severity points", "Score impact"]],
+    head: [["Leader", "Shift", "Actions", "Open", "Paperwork (validated)", "High / Critical", "Points in period"]],
     body: tracking.length
       ? tracking.map((r) => [
           r.leader,
           r.shifts,
           String(r.total),
+          String(r.open),
           r.paperworkPending ? `${r.paperwork}  (+${r.paperworkPending} pending)` : String(r.paperwork),
           String(r.highCritical),
-          String(r.points),
-          scoreImpactLabel(r),
+          pointsLabel(r),
         ])
-      : [["—", "—", "0", "0", "0", "0", "Compliant"]],
+      : [["—", "—", "0", "0", "0", "0", "0 pts"]],
     styles: { fontSize: 8, cellPadding: 1.8, overflow: "linebreak" },
     headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [245, 247, 250] },
     columnStyles: {
       2: { halign: "center", cellWidth: 18 },
-      3: { halign: "center", cellWidth: 34 },
-      4: { halign: "center", cellWidth: 24 },
-      5: { halign: "center", cellWidth: 26 },
-      6: { halign: "right", cellWidth: 46 },
+      3: { halign: "center", cellWidth: 16 },
+      4: { halign: "center", cellWidth: 34 },
+      5: { halign: "center", cellWidth: 24 },
+      6: { halign: "right", cellWidth: 34 },
     },
-    // A leader with nothing standing against them is not a warning; one with a
-    // High or Critical is. The colour says which without anyone reading the row.
+    // A High or Critical is worth seeing from across the room; the points total is
+    // left in plain black, because it is a record of what was raised and not a fine.
     didParseCell: (data: any) => {
       if (data.section !== "body") return;
       const r = tracking[data.row.index];
       if (!r) return;
-      if (data.column.index === 4 && r.highCritical > 0) { data.cell.styles.textColor = [190, 18, 60]; data.cell.styles.fontStyle = "bold"; }
-      if (data.column.index === 6) {
-        data.cell.styles.fontStyle = "bold";
-        data.cell.styles.textColor = r.clean && !r.documentationPenaltyPct ? [4, 120, 87] : [190, 18, 60];
-      }
+      if (data.column.index === 3 && r.open > 0) { data.cell.styles.textColor = [180, 83, 9]; data.cell.styles.fontStyle = "bold"; }
+      if (data.column.index === 5 && r.highCritical > 0) { data.cell.styles.textColor = [190, 18, 60]; data.cell.styles.fontStyle = "bold"; }
+      if (data.column.index === 6) data.cell.styles.fontStyle = "bold";
     },
     margin: { left: margin, right: margin },
   });

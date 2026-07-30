@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users } from "lucide-react";
-import { leaderTracking, scoreImpactLabel, type TrackedAction } from "@/lib/leaderTracking";
+import { leaderTracking, pointsLabel, type TrackedAction } from "@/lib/leaderTracking";
 
 export interface QualityTrackingByLeaderProps {
   actions: TrackedAction[];
@@ -15,8 +15,11 @@ export interface QualityTrackingByLeaderProps {
  *
  * The status counts (To do / In progress / Complete) stay where they belong — on the
  * board above, where they double as the filter. They answer "what is left to do
- * today". This answers the question a review asks instead: which leader, how severe,
- * how much of it was paperwork, and what comes off the scorecard for it.
+ * today". This answers the question a review asks instead: in whose name are actions
+ * still open, and how many points have they picked up over the period.
+ *
+ * The points column ACCUMULATES. It is not written as a penalty and carries no minus
+ * sign: the table records what was raised, and leaves what it costs to the scorecard.
  */
 export function QualityTrackingByLeader({ actions, periodLabel, onSelectLeader }: QualityTrackingByLeaderProps) {
   const rows = leaderTracking(actions);
@@ -43,10 +46,10 @@ export function QualityTrackingByLeader({ actions, periodLabel, onSelectLeader }
                   <th className="py-2 pr-2">Leader</th>
                   <th className="py-2 px-2">Shift</th>
                   <th className="py-2 px-2 text-center">Actions</th>
+                  <th className="py-2 px-2 text-center">Open</th>
                   <th className="py-2 px-2 text-center">Paperwork</th>
                   <th className="py-2 px-2 text-center">High / Critical</th>
-                  <th className="py-2 px-2 text-center">Points</th>
-                  <th className="py-2 pl-2 text-right">Score impact</th>
+                  <th className="py-2 pl-2 text-right">Points in period</th>
                 </tr>
               </thead>
               <tbody className="divide-y font-medium">
@@ -59,6 +62,9 @@ export function QualityTrackingByLeader({ actions, periodLabel, onSelectLeader }
                     <td className="py-2.5 pr-2 font-semibold">{r.leader}</td>
                     <td className="py-2.5 px-2 text-muted-foreground">{r.shifts}</td>
                     <td className="py-2.5 px-2 text-center font-mono font-bold">{r.total}</td>
+                    <td className={`py-2.5 px-2 text-center font-mono ${r.open ? "font-bold text-warning-strong" : "text-muted-foreground"}`}>
+                      {r.open}
+                    </td>
                     <td className="py-2.5 px-2 text-center">
                       <span
                         className={
@@ -80,13 +86,9 @@ export function QualityTrackingByLeader({ actions, periodLabel, onSelectLeader }
                     >
                       {r.highCritical}
                     </td>
-                    <td className="py-2.5 px-2 text-center font-mono">{r.points}</td>
-                    <td
-                      className={`py-2.5 pl-2 text-right font-mono font-bold ${
-                        r.clean && !r.documentationPenaltyPct ? "text-success-strong" : "text-destructive"
-                      }`}
-                    >
-                      {scoreImpactLabel(r)}
+                    {/* Neutral, not red: these are points on the record, not a fine. */}
+                    <td className="py-2.5 pl-2 text-right font-mono font-bold tabular-nums">
+                      {pointsLabel(r)}
                     </td>
                   </tr>
                 ))}

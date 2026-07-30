@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { leaderTracking, scoreImpactLabel } from "./leaderTracking";
+import { leaderTracking, pointsLabel } from "./leaderTracking";
 
 const a = (o: Partial<Parameters<typeof leaderTracking>[0][number]> = {}) => ({
-  leader_name: "Gill", shift: "DAY", severity: "low", labels: [], validation_status: "open", ...o,
+  leader_name: "Gill", shift: "DAY", severity: "low", status: "todo", labels: [], validation_status: "open", ...o,
 });
 
 describe("leaderTracking", () => {
@@ -16,21 +16,34 @@ describe("leaderTracking", () => {
     expect(row.highCritical).toBe(1); // still visible as raised
   });
 
-  it("only counts paperwork as a demerit once Quality has validated it", () => {
+  it("accumulates points and says how many are still open", () => {
+    const [row] = leaderTracking([
+      a({ severity: "critical", status: "todo" }),   // 4 points, open
+      a({ severity: "low", status: "complete" }),    // 1 point, closed out
+    ]);
+    expect(row.points).toBe(5);
+    expect(row.open).toBe(1);
+    expect(row.openPoints).toBe(4);
+    // Written as an accumulation — no minus sign anywhere.
+    expect(pointsLabel(row)).toBe("5 pts (4 open)");
+    expect(pointsLabel(row)).not.toContain("−");
+  });
+
+  it("only counts paperwork as validated once Quality has validated it", () => {
     const [row] = leaderTracking([
       a({ labels: ["Paperwork"], validation_status: "validated" }),
       a({ labels: ["Paperwork"], validation_status: "open" }),
     ]);
     expect(row.paperwork).toBe(1);
     expect(row.paperworkPending).toBe(1);
-    expect(row.documentationPenaltyPct).toBe(5);
-    expect(scoreImpactLabel(row)).toContain("−5% doc");
+    expect(row.paperwork + row.paperworkPending).toBe(2);
   });
 
-  it("reads Compliant only when nothing stands against the leader", () => {
+  it("reads clean, and zero points, when nothing stands against the leader", () => {
     const [row] = leaderTracking([a({ severity: "critical", validation_status: "rejected" })]);
     expect(row.clean).toBe(true);
-    expect(scoreImpactLabel(row)).toBe("Compliant");
+    expect(row.points).toBe(0);
+    expect(pointsLabel(row)).toBe("0 pts");
   });
 
   it("puts the leader carrying the most severity first", () => {

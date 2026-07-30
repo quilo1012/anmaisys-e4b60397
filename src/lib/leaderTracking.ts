@@ -1,19 +1,26 @@
-import { severityPoints, isValidatedPaperwork, DOCUMENTATION_PENALTY_PCT } from "@/lib/qualityConstants";
+import { severityPoints, isValidatedPaperwork } from "@/lib/qualityConstants";
 
 /**
  * Quality actions rolled up per leader.
  *
  * A board does not ask how many actions are To do — that is the team's working
  * board, and it changes twice an hour. It asks who is accumulating deviations, how
- * many of them were paperwork, and what it costs them on the scorecard. This is that
- * question, answered from the same numbers the scorecard uses so the two screens
- * cannot disagree.
+ * many are still open in their name, and how many points they have picked up over
+ * the period.
+ *
+ * Points here ACCUMULATE. They are not a deduction: this table is a tally of what
+ * was raised against a leader, in the same severity weights Quality configures, so
+ * three Lows and one Critical are comparable across leaders and across months. What
+ * a leader's score does with that number is the scorecard's business, not this
+ * table's.
  */
 
 export interface TrackedAction {
   leader_name: string | null;
   shift: string | null;
   severity: string | null;
+  /** Board status: todo / in_progress / complete. */
+  status?: string | null;
   labels?: string[] | null;
   validation_status?: string | null;
 }
@@ -23,15 +30,17 @@ export interface LeaderTrackingRow {
   /** Every shift the leader's actions were raised on, e.g. "DAY" or "DAY, NIGHT". */
   shifts: string;
   total: number;
-  /** Paperwork errors Quality has validated — the ones that carry the demerit. */
+  /** Still on the board in this leader's name — anything not Complete. */
+  open: number;
+  /** Paperwork errors Quality has validated. */
   paperwork: number;
   /** Paperwork raised but not yet validated, so not yet counted against them. */
   paperworkPending: number;
   highCritical: number;
-  /** Severity points of every action Quality has not rejected. */
+  /** Severity points picked up in the period, over every action Quality has not rejected. */
   points: number;
-  /** Percentage points off documentation: 5 per validated paperwork error. */
-  documentationPenaltyPct: number;
+  /** The share of those points still sitting on open actions. */
+  openPoints: number;
   /** Nothing standing against them in the period. */
   clean: boolean;
 }
@@ -57,15 +66,17 @@ export function leaderTracking(actions: TrackedAction[]): LeaderTrackingRow[] {
     ).length;
     const shifts = Array.from(new Set(list.map((a) => (a.shift || "").toUpperCase()).filter(Boolean))).sort();
     const points = standing.reduce((sum, a) => sum + severityPoints(a.severity), 0);
+    const stillOpen = standing.filter((a) => (a.status ?? "todo") !== "complete");
     rows.push({
       leader,
       shifts: shifts.join(", ") || "—",
       total: list.length,
+      open: stillOpen.length,
       paperwork,
       paperworkPending,
       highCritical: list.filter((a) => a.severity === "high" || a.severity === "critical").length,
       points,
-      documentationPenaltyPct: paperwork * DOCUMENTATION_PENALTY_PCT,
+      openPoints: stillOpen.reduce((sum, a) => sum + severityPoints(a.severity), 0),
       clean: standing.length === 0,
     });
   }
@@ -76,11 +87,13 @@ export function leaderTracking(actions: TrackedAction[]): LeaderTrackingRow[] {
   );
 }
 
-/** One cell summarising what the period costs the leader, e.g. "−7 pts · −10% doc". */
-export function scoreImpactLabel(r: LeaderTrackingRow): string {
-  if (!r.points && !r.documentationPenaltyPct) return "Compliant";
-  const parts: string[] = [];
-  if (r.points) parts.push(`−${r.points} pts quality`);
-  if (r.documentationPenaltyPct) parts.push(`−${r.documentationPenaltyPct}% doc`);
-  return parts.join(" · ");
+/**
+ * The points line, e.g. "7 pts (3 open)".
+ *
+ * Written as an accumulation, never as a minus: the number says what was raised
+ * against the leader over the period, not what was taken off them.
+ */
+export function pointsLabel(r: LeaderTrackingRow): string {
+  if (!r.points) return "0 pts";
+  return r.openPoints ? `${r.points} pts (${r.openPoints} open)` : `${r.points} pts`;
 }
