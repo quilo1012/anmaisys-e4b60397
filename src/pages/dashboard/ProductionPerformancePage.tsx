@@ -516,6 +516,13 @@ export default function ProductionPerformancePage() {
               <AlertTriangle className="h-4 w-4 text-amber-500" />
               Open Quality Actions
               <Badge variant="outline" className="ml-1">{openActions.length}</Badge>
+              {/* Named, because a filtered count reads as a total: 28/07 has four
+                  actions, one on days and three on nights, and the panel showing "1"
+                  looked like the whole day. */}
+              <span className="text-2xs font-normal text-muted-foreground">
+                {shift === "all" ? "all shifts" : shift === "DAY" ? "day shift" : "night shift"}
+                {lineFilter !== "__all__" ? ` · ${lineFilter}` : ""}
+              </span>
               <span className="ml-auto inline-flex items-center gap-1.5 text-2xs font-medium text-emerald-600 dark:text-emerald-400">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />

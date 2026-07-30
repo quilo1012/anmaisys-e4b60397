@@ -63,11 +63,15 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
     queryKey: ["ls_actions", leaderName, from, to, shift],
     enabled,
     queryFn: async () => {
-      const { data, error } = await supabase.from("quality_actions")
+      // Shift-filtered like every other query on this card. Without it a leader's
+      // night actions appeared on a card the screen had filtered to the day shift —
+      // the page listed one action for 28/07 and the card listed three others.
+      let qy = supabase.from("quality_actions")
         .select("id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at")
         .eq("leader_name", leaderName as string)
-        .gte("recorded_at", from).lte("recorded_at", untilTs)
-        .order("recorded_at");
+        .gte("recorded_at", from).lte("recorded_at", untilTs);
+      if (shift !== "all") qy = qy.eq("shift", shift);
+      const { data, error } = await qy.order("recorded_at");
       if (error) throw error;
       return (data ?? []) as unknown as LSAction[];
     },
