@@ -43,6 +43,7 @@ import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useOfflineDetection } from "@/hooks/useOfflineQueue";
 import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
+import { BackButton } from "@/components/BackButton";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDMUnreadCount, unlockDMAudio } from "@/hooks/useDirectMessages";
 import { useTelemetryCrashCount } from "@/hooks/useTelemetryBadge";
@@ -551,6 +552,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
             <header className="min-h-14 border-b bg-card flex flex-wrap items-center px-2 sm:px-4 py-1.5 gap-2 sm:gap-3 print:hidden">
               <SidebarTrigger aria-label="Toggle menu" className="shrink-0 h-11 w-11" />
+              {/* Back lives in the shell so every screen has it in the same place —
+                  most screens had none at all, and a kiosk tablet has no browser
+                  button to fall back on. */}
+              <BackButton />
               {isMobile && (
                 <div className="flex items-center gap-1.5">
                   <img src={appliedLogo} alt="AN" className="h-7 w-7 rounded-md object-cover" />

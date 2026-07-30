@@ -291,10 +291,8 @@ export default function WorkOrderDetail() {
         </div>
 
         {/* Screen-only navigation */}
-        <div className="flex items-center justify-between print:hidden">
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-2">
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Button>
+        {/* Back moved to the shell header, where every screen has it. */}
+        <div className="flex items-center justify-end print:hidden">
           <div className="flex gap-2">
             {(role === "admin" || (role === "manager" || role === "maintenance_manager")) && (
               <>

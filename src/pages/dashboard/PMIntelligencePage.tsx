@@ -173,12 +173,6 @@ export default function PMIntelligencePage() {
   return (
     <DashboardLayout>
       <div className="p-4 md:p-6 space-y-6 print-content">
-        <div className="print:hidden">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard/preventive")} className="gap-2 -ml-2">
-            <ArrowLeft className="h-4 w-4" /> Back to Preventive Maintenance
-          </Button>
-        </div>
-
         <ReportPrintHeader
           title="PM Intelligence"
           periodLabel="Last 90 days"
