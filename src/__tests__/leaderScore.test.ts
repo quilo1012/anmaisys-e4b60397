@@ -17,17 +17,24 @@ describe("computeLeaderScore", () => {
     expect(r.production.basis).toMatch(/no target/i);
   });
 
-  it("only validated actions cost quality points", () => {
-    const actions = [
-      { severity: "critical", validation_status: "open" },
-      { severity: "critical", validation_status: "under_investigation" },
-      { severity: "critical", validation_status: "rejected" },
-    ];
-    expect(computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions }).quality.value).toBe(100);
+  it("every action that stands costs quality points, whatever its verdict so far", () => {
+    // An action raised against the shift is a quality event while it is open. A
+    // leader with an open action reading 100% is the number nobody believes twice.
+    const open = [{ severity: "critical", validation_status: "open" }];
+    expect(computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: open }).quality.value).toBe(96);
+
+    const investigating = [{ severity: "high", validation_status: "under_investigation" }];
+    expect(computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: investigating }).quality.value).toBe(97);
 
     const validated = [{ severity: "critical", validation_status: "validated" }];
-    // Critical is 4 severity points by default.
     expect(computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: validated }).quality.value).toBe(96);
+  });
+
+  it("a rejected action is void — Quality looked and said it was not real", () => {
+    const rejected = [{ severity: "critical", validation_status: "rejected" }];
+    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: rejected });
+    expect(r.quality.value).toBe(100);
+    expect(r.quality.basis).toMatch(/rejected/i);
   });
 
   it("documentation loses 5 per validated paperwork action, and nothing for the rest", () => {
@@ -42,7 +49,8 @@ describe("computeLeaderScore", () => {
   });
 
   it("weights the three components", () => {
-    // 100 production, 100 quality, 90 documentation at 40/30/30 → 97
+    // Severity null → 0 quality points, so quality stays 100 and only documentation
+    // moves: 100 production, 100 quality, 90 documentation at 40/30/30 → 97
     const actions = [
       { severity: null, labels: ["Paperwork"], validation_status: "validated" },
       { severity: null, labels: ["Paperwork"], validation_status: "validated" },

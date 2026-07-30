@@ -332,7 +332,6 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
             title={`Leader Scorecard — ${leaderName ?? ""}`}
             periodLabel={periodLabel}
             shift={shiftLabel}
-            filtersLabel={`Weights — production ${weights.production_pct}% · quality ${weights.quality_pct}% · documentation ${weights.documentation_pct}%`}
           />
 
           {/* Final score — the one number, with the three it is made of and how each
@@ -366,10 +365,11 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
                 <li><b>Quality:</b> {score.quality.basis}</li>
                 <li><b>Documentation:</b> {score.documentation.basis}</li>
               </ul>
-              {q.open > 0 && (
+              {docs.pending.length > 0 && (
                 <p className="mt-1 text-2xs text-warning-strong">
-                  {q.open} action{q.open === 1 ? "" : "s"} still awaiting a verdict from Quality — none of them affects this
-                  score yet, and validating any of them will lower it.
+                  {docs.pending.length} paperwork action{docs.pending.length === 1 ? "" : "s"} awaiting a verdict from
+                  Quality — already counted in the quality score, but the −5% documentation penalty only applies once
+                  validated.
                 </p>
               )}
               {(score.production.value === null || score.quality.value === null || score.documentation.value === null) && (

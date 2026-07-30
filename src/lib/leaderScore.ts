@@ -71,21 +71,35 @@ function productionScore(input: LeaderScoreInput): LeaderScoreComponent {
 }
 
 /**
- * Quality: 100 less the severity points of validated actions.
+ * Quality: 100 less the severity points of every action that stands.
  *
- * Uses the same severity weights Quality configures for the board, so one number
- * cannot say a Critical is worth 4 while another says it is worth 1. Actions still
- * under review do not count — the same rule as the documentation demerit.
+ * "Stands" means anything Quality has not rejected — open, under investigation or
+ * validated. An action that was raised against a leader's shift is a quality event
+ * whether or not the paperwork has caught up with it, and a leader with an action
+ * open reading 100% is the kind of number nobody believes twice.
+ *
+ * Only a rejected action is void: Quality looked and said it was not a real
+ * deviation, so it should not follow the leader around.
+ *
+ * This is deliberately NOT the documentation rule. The −5% paperwork demerit still
+ * waits for a validated verdict, because that one is a formal penalty with a name
+ * against it; this is a performance indicator that moves while the case is open.
+ *
+ * Uses the severity weights Quality configures for the board, so one screen cannot
+ * say a Critical is worth 4 while another says 1.
  */
 function qualityScore(input: LeaderScoreInput): LeaderScoreComponent {
-  const validated = input.actions.filter((a) => a.validation_status === "validated");
   if (input.actions.length === 0) {
     return { value: 100, basis: "No quality actions raised in this period" };
   }
-  const points = validated.reduce((sum, a) => sum + severityPoints(a.severity), 0);
+  const standing = input.actions.filter((a) => a.validation_status !== "rejected");
+  const rejected = input.actions.length - standing.length;
+  const points = standing.reduce((sum, a) => sum + severityPoints(a.severity), 0);
   return {
     value: Math.max(0, 100 - points),
-    basis: `100 less ${points} severity point${points === 1 ? "" : "s"} from ${validated.length} validated action${validated.length === 1 ? "" : "s"}`,
+    basis:
+      `100 less ${points} severity point${points === 1 ? "" : "s"} from ${standing.length} action${standing.length === 1 ? "" : "s"}` +
+      (rejected ? ` · ${rejected} rejected by Quality and not counted` : ""),
   };
 }
 
