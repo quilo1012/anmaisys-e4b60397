@@ -376,7 +376,13 @@ export default function ProductionPerformancePage() {
         {/* Landing screen for supervisors and the production office — same opening. */}
         <DashboardWelcome />
 
-        <LeaderScorecard leaderName={scorecardFor} fromDate={range.from} onClose={() => setScorecardFor(null)} />
+        <LeaderScorecard
+          leaderName={scorecardFor}
+          from={range.from}
+          to={range.to}
+          shift={shift}
+          onClose={() => setScorecardFor(null)}
+        />
 
         <div className="space-y-3">
           <PageHeader

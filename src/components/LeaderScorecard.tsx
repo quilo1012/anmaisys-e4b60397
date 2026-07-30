@@ -23,7 +23,7 @@ interface LSAction {
   /** Fields the documentation demerit has to be able to show in an audit. */
   action_no: string | null; description: string | null; shift: string | null;
   validation_status: string | null; validated_at: string | null; validated_by: string | null;
-  attachments: string[] | null;
+  attachments: string[] | null; closed_at: string | null;
 }
 interface LSSession { oee_pct: number | null; run_time_min: number | null; down_time_min: number | null; intouch_good_total: number | null; session_date: string | null; line: string | null; shift: string | null }
 
@@ -37,16 +37,30 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string | numbe
   );
 }
 
-export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName: string | null; fromDate: string; onClose: () => void }) {
+/**
+ * @param from  first day of the period, as the screen filters it
+ * @param to    last day, inclusive — every query is bounded by it
+ * @param shift "all", "DAY" or "NIGHT", matching the screen's shift filter
+ *
+ * The window used to be open-ended: only `from` was passed and every query used
+ * gte(). Filtering a single day therefore showed that day's actions AND everything
+ * after it — the card disagreed with the list right behind it.
+ */
+export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }: {
+  leaderName: string | null; from: string; to: string; shift?: "all" | "DAY" | "NIGHT"; onClose: () => void;
+}) {
+  const untilTs = `${to}T23:59:59.999`;
   const enabled = !!leaderName;
 
   const { data: actions = [] } = useQuery({
-    queryKey: ["ls_actions", leaderName, fromDate],
+    queryKey: ["ls_actions", leaderName, from, to, shift],
     enabled,
     queryFn: async () => {
       const { data, error } = await supabase.from("quality_actions")
-        .select("id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments")
-        .eq("leader_name", leaderName as string).gte("recorded_at", fromDate).order("recorded_at");
+        .select("id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at")
+        .eq("leader_name", leaderName as string)
+        .gte("recorded_at", from).lte("recorded_at", untilTs)
+        .order("recorded_at");
       if (error) throw error;
       return (data ?? []) as unknown as LSAction[];
     },
@@ -54,7 +68,7 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
 
   const actionIds = useMemo(() => actions.map((a) => a.id), [actions]);
   const { data: completes = [] } = useQuery({
-    queryKey: ["ls_hist", leaderName, fromDate, actionIds.length],
+    queryKey: ["ls_hist", leaderName, from, to, actionIds.length],
     enabled: enabled && actionIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -68,12 +82,15 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
   });
 
   const { data: sessions = [] } = useQuery({
-    queryKey: ["ls_prod", leaderName, fromDate],
+    queryKey: ["ls_prod", leaderName, from, to, shift],
     enabled,
     queryFn: async () => {
-      const { data, error } = await supabase.from("production_sessions")
+      let qy = supabase.from("production_sessions")
         .select("oee_pct, run_time_min, down_time_min, intouch_good_total, session_date, line, shift")
-        .eq("leader_name", leaderName as string).gte("session_date", fromDate);
+        .eq("leader_name", leaderName as string)
+        .gte("session_date", from).lte("session_date", to);
+      if (shift !== "all") qy = qy.eq("shift", shift);
+      const { data, error } = await qy;
       if (error) throw error;
       return (data ?? []) as unknown as LSSession[];
     },
@@ -89,26 +106,31 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
    * screens if they use different denominators.
    */
   const { data: ragRows = [] } = useQuery({
-    queryKey: ["ls_rag", leaderName, fromDate],
+    queryKey: ["ls_rag", leaderName, from, to, shift],
     enabled,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let qy = supabase
         .from("rag_weekly_entries")
         .select("entry_date, line, shift, plan_qty")
-        .gte("entry_date", fromDate);
+        .gte("entry_date", from).lte("entry_date", to);
+      if (shift !== "all") qy = qy.eq("shift", shift);
+      const { data, error } = await qy;
       if (error) throw error;
       return (data ?? []) as unknown as Array<{ entry_date: string; line: string; shift: string; plan_qty: number }>;
     },
   });
 
   const { data: items = [] } = useQuery({
-    queryKey: ["ls_items", leaderName, fromDate],
+    queryKey: ["ls_items", leaderName, from, to, shift],
     enabled,
     queryFn: async () => {
-      const { data, error } = await supabase.from("production_items")
-        .select("actual_qty, target_qty, production_sessions!inner(leader_name, session_date)")
+      let qy = supabase.from("production_items")
+        .select("actual_qty, target_qty, production_sessions!inner(leader_name, session_date, shift)")
         .eq("production_sessions.leader_name", leaderName as string)
-        .gte("production_sessions.session_date", fromDate);
+        .gte("production_sessions.session_date", from)
+        .lte("production_sessions.session_date", to);
+      if (shift !== "all") qy = qy.eq("production_sessions.shift", shift);
+      const { data, error } = await qy;
       if (error) return [] as { actual_qty: number | null; target_qty: number | null }[];
       return (data ?? []) as unknown as { actual_qty: number | null; target_qty: number | null }[];
     },
@@ -117,6 +139,7 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
   const q = useMemo(() => {
     const total = actions.length;
     const completed = actions.filter((a) => a.status === "complete").length;
+    const filed = actions.filter((a) => !!a.closed_at).length;
     const open = total - completed;
     const sev = { critical: 0, high: 0, medium: 0, low: 0 } as Record<string, number>;
     for (const a of actions) if (a.severity && sev[a.severity] !== undefined) sev[a.severity] += 1;
@@ -138,7 +161,7 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
     const dayMap = new Map<string, number>();
     for (const a of actions) { const k = format(new Date(a.recorded_at), "yyyy-MM-dd"); dayMap.set(k, (dayMap.get(k) ?? 0) + 1); }
     const trend = Array.from(dayMap.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([k, count]) => ({ day: format(new Date(k + "T00:00:00"), "dd/MM"), count }));
-    return { total, completed, open, pctClosed: total ? Math.round((completed / total) * 100) : 0, sev, avgResolution, topLabels, trend };
+    return { total, completed, filed, open, pctClosed: total ? Math.round((completed / total) * 100) : 0, sev, avgResolution, topLabels, trend };
   }, [actions, completes]);
 
   /**
@@ -223,7 +246,8 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
   const exportCSV = () => {
     const rows: string[][] = [
       ["Leader", leaderName ?? ""],
-      ["Period from", fromDate],
+      ["Period", `${from} → ${to}`],
+      ["Shift", shift === "all" ? "All shifts" : shift],
       [],
       ["QUALITY"],
       ["Total actions", String(q.total)], ["Open", String(q.open)], ["Completed", String(q.completed)], ["% closed", `${q.pctClosed}%`],
@@ -271,7 +295,17 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between gap-2 pr-6">
-            <span>{leaderName}</span>
+            <span className="flex flex-col">
+              <span>{leaderName}</span>
+              {/* Stated, because every figure below is bounded by it — and because
+                  the card used to report from this date onward, with no end. */}
+              <span className="text-xs font-normal text-muted-foreground">
+                {from === to
+                  ? format(new Date(`${from}T00:00:00`), "dd MMM yyyy")
+                  : `${format(new Date(`${from}T00:00:00`), "dd MMM")} → ${format(new Date(`${to}T00:00:00`), "dd MMM yyyy")}`}
+                {shift !== "all" && ` · ${shift === "DAY" ? "Day" : "Night"} shift`}
+              </span>
+            </span>
             <Button size="sm" variant="outline" onClick={exportCSV}><Download className="mr-1 h-4 w-4" />Export</Button>
           </DialogTitle>
         </DialogHeader>
@@ -337,6 +371,41 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
               ))}
             </div>
           </div>
+
+          {/* Every action in the period, whatever its state.
+              A closed action is still part of the leader's history — filing it away
+              must not remove it from the record anyone reviews. */}
+          {actions.length > 0 && (
+            <div>
+              <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                Actions in this period ({actions.length})
+                {q.filed > 0 && <span className="ml-1 font-normal normal-case">· {q.filed} closed, still listed</span>}
+              </div>
+              <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
+                {actions.slice().reverse().map((a) => (
+                  <div key={a.id} className="flex flex-wrap items-center gap-2 px-2 py-1.5 text-xs">
+                    <span className="font-mono">{a.action_no || a.id.slice(0, 8)}</span>
+                    <span className="text-muted-foreground">{format(new Date(a.recorded_at), "dd/MM")}</span>
+                    {a.line && <span className="text-muted-foreground">{a.line}</span>}
+                    {a.severity && (
+                      <Badge variant="outline" className={cn("text-2xs", severityMeta(a.severity)?.badge)}>
+                        {severityMeta(a.severity)?.label}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className={cn("text-2xs", validationMeta(a.validation_status).badge)}>
+                      {validationMeta(a.validation_status).label}
+                    </Badge>
+                    {a.closed_at && (
+                      <Badge variant="outline" className="text-2xs bg-emerald-500/15 text-success-strong border-emerald-500/40">
+                        closed {format(new Date(a.closed_at), "dd/MM")}
+                      </Badge>
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground">{a.description}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {q.trend.length > 0 && (
             <Card>
