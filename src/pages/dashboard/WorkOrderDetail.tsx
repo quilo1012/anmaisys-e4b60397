@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool, Phone, MapPin, Wrench, Lock, Camera, DollarSign, ClipboardCheck, AlertOctagon, CheckSquare, Square, FileText } from "lucide-react";
 import { useWorkOrderById, useWorkOrderAccessHint } from "@/hooks/useWorkOrders";
+import { toast } from "sonner";
+import { printElementAsDocument } from "@/lib/printDocument";
 import { usePartsUsedByWO } from "@/hooks/useStock";
 import { useWOPhotos, getWOPhotoUrl } from "@/hooks/useWOPhotos";
 import { useChecklistResponses, useChecklistsByProblemName } from "@/hooks/useChecklists";
@@ -277,7 +279,15 @@ export default function WorkOrderDetail() {
           <div className="flex gap-2">
             {(role === "admin" || (role === "manager" || role === "maintenance_manager")) && (
               <>
-                <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
+                <Button variant="outline" size="sm" onClick={async () => {
+                  const el = document.getElementById("wo-print-content");
+                  if (!el) { toast.error("Nothing to print yet — the order is still loading."); return; }
+                  try {
+                    await printElementAsDocument(el, woLabel);
+                  } catch (err: any) {
+                    toast.error(err?.message ?? "Could not open the print dialog.");
+                  }
+                }} className="gap-2">
                   <Printer className="h-4 w-4" /> Print
                 </Button>
                 <Button variant="outline" size="sm" onClick={async () => {

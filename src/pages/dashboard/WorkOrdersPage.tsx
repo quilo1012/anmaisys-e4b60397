@@ -20,6 +20,7 @@ import { useMachines, useLines } from "@/hooks/useMachines";
 import { useActiveProblemDescriptions } from "@/hooks/useProblemDescriptions";
 import { ComboboxInput } from "@/components/ComboboxInput";
 import { ForceCloseDialog } from "@/components/ForceCloseDialog";
+import { printElementAsDocument } from "@/lib/printDocument";
 import { AssignEngineerDialog } from "@/components/AssignEngineerDialog";
 
 const WAREHOUSE_LOCATIONS = ["AC1", "AC2 - Warehouse", "K53", "Depot RD"];
@@ -573,11 +574,24 @@ export default function WorkOrdersPage() {
                     toast({ title: "Cannot print", description: "You don't have permission to print reports.", variant: "destructive" });
                     return;
                   }
-                  // Render the full filtered list, then print, then restore pagination.
+                  if (viewMode === "board") {
+                    toast({ title: "Switch to the list view to print", description: "The printed report is the table — the board has no printable form." });
+                    return;
+                  }
+                  // Render the full filtered list, then print it as its own document,
+                  // then restore pagination. Printing the page itself meant fighting
+                  // the dashboard shell (sidebar, sticky header, two nested
+                  // overflow-hidden flex containers) with !important rules.
                   setPrintMode(true);
-                  setTimeout(() => {
-                    window.print();
-                    setPrintMode(false);
+                  setTimeout(async () => {
+                    const el = document.getElementById("wo-list-print");
+                    try {
+                      if (el) await printElementAsDocument(el, "Maintenance Orders");
+                    } catch (err: any) {
+                      toast({ title: "Could not print", description: err?.message ?? "The print dialog did not open.", variant: "destructive" });
+                    } finally {
+                      setPrintMode(false);
+                    }
                   }, 120);
                 }}>
                   <Printer className="h-3.5 w-3.5 mr-1" /> Print
@@ -656,7 +670,7 @@ export default function WorkOrdersPage() {
             </div>
 
           </CardHeader>
-          <CardContent>
+          <CardContent id="wo-list-print">
             {/* The shared report header, instead of the hand-rolled one this page used
                 to carry: inline point sizes and #666/#999 greys with no brand, which
                 printed nothing like the rest of the system's reports. It also carries

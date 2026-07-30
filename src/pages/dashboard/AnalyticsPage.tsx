@@ -31,6 +31,7 @@ import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { QUALITY_STATUSES, severityPoints } from "@/lib/qualityConstants";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { printElementAsDocument } from "@/lib/printDocument";
 import { EmptyState } from "@/components/EmptyState";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
@@ -607,7 +608,7 @@ export default function AnalyticsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 print-content">
+      <div className="space-y-6 print-content" id="analytics-print">
         {/* Print Header — visible only when printing/exported */}
         {/* The header already accepted a shift label and never received one, so a
             printed day-shift report was indistinguishable from a night one. */}
@@ -636,12 +637,17 @@ export default function AnalyticsPage() {
             <p className="text-muted-foreground">KPIs, charts, and performance metrics</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => {
+            <Button variant="outline" size="sm" onClick={async () => {
               if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
                 toast({ title: "Cannot print", description: "You don't have permission to print reports.", variant: "destructive" });
                 return;
               }
-              window.print();
+              const el = document.getElementById("analytics-print");
+              try {
+                if (el) await printElementAsDocument(el, "Analytics Report");
+              } catch (err: any) {
+                toast({ title: "Could not print", description: err?.message ?? "The print dialog did not open.", variant: "destructive" });
+              }
             }}>
               <Printer className="h-4 w-4 mr-1" /> Print
             </Button>
