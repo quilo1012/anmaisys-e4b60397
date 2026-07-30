@@ -39,14 +39,23 @@ export async function printElementAsDocument(
     const win = iframe.contentWindow;
     if (!doc || !win) throw new Error("Could not open a print document");
 
+    // Stylesheets are copied with ABSOLUTE hrefs. The iframe's own document is
+    // about:blank, so a relative "/assets/index-x.css" has no base to resolve
+    // against — the sheet 404s and the report prints as unstyled text. `node.href`
+    // is the DOM's already-resolved absolute URL.
     const styles = Array.from(
       document.querySelectorAll<HTMLElement>('link[rel="stylesheet"], style'),
     )
-      .map((node) => node.outerHTML)
+      .map((node) => {
+        if (node instanceof HTMLLinkElement) {
+          return `<link rel="stylesheet" href="${node.href}">`;
+        }
+        return node.outerHTML;
+      })
       .join("\n");
 
     doc.open();
-    doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>${styles}
+    doc.write(`<!doctype html><html><head><meta charset="utf-8"><base href="${location.origin}/"><title>${escapeHtml(title)}</title>${styles}
 <style>
   /* The document IS the page here, so it needs none of the shell overrides. */
   /* Zero page margin, and our own padding inside the body instead.
@@ -110,8 +119,17 @@ export async function printElementAsDocument(
     // Dark mode is a screen preference; on paper it wastes toner and reads badly.
     doc.documentElement.classList.remove("dark");
 
+    // Wait for the STYLESHEETS before anything else.
+    //
+    // This is what made the leader scorecard print as a column of unstyled text: the
+    // link elements load asynchronously, and print() was being called before the CSS
+    // arrived, so the browser snapshotted a document with no styles at all. Images
+    // were waited for and stylesheets were not, which is why a report with a slow
+    // logo happened to come out fine and one without did not.
+    await waitForStylesheets(doc);
     await waitForImages(doc);
-    // One frame for layout to settle before the dialog snapshots the document.
+    // Two frames for layout to settle after the styles apply.
+    await new Promise((r) => window.requestAnimationFrame(() => r(null)));
     await new Promise((r) => window.requestAnimationFrame(() => r(null)));
 
     win.focus();
@@ -172,6 +190,33 @@ function appendFooter(doc: Document, title: string) {
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+}
+
+/**
+ * Resolves once every copied stylesheet has loaded or failed.
+ *
+ * Without this the print dialog can open on a document whose CSS has not arrived —
+ * every card, grid and colour gone, the whole report a vertical list of words.
+ * Capped, because a print must never hang on a stalled asset: unstyled output beats
+ * a dialog that never opens.
+ */
+function waitForStylesheets(doc: Document): Promise<void> {
+  const links = Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'));
+  if (!links.length) return Promise.resolve();
+  return new Promise((resolve) => {
+    let left = links.length;
+    const done = () => { if (--left <= 0) { window.clearTimeout(timer); resolve(); } };
+    const timer = window.setTimeout(resolve, 4000);
+    links.forEach((l) => {
+      // sheet is populated once the CSSOM has it — the reliable "already loaded" test.
+      let loaded = false;
+      try { loaded = !!l.sheet; } catch { loaded = true; /* cross-origin, treat as ready */ }
+      if (loaded) return done();
+      l.addEventListener("load", done, { once: true });
+      l.addEventListener("error", done, { once: true });
+    });
+    if (left <= 0) { window.clearTimeout(timer); resolve(); }
+  });
 }
 
 /** Resolves once every image has loaded or failed — a print that races the logo prints a gap. */
