@@ -5,7 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Download, Clock, Factory, FileWarning } from "lucide-react";
+import { Download, Clock, Factory, FileWarning, Printer } from "lucide-react";
+import { printElementAsDocument } from "@/lib/printDocument";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
@@ -50,6 +53,10 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
   leaderName: string | null; from: string; to: string; shift?: "all" | "DAY" | "NIGHT"; onClose: () => void;
 }) {
   const untilTs = `${to}T23:59:59.999`;
+  const periodLabel = from === to
+    ? format(new Date(`${from}T00:00:00`), "dd/MM/yyyy")
+    : `${format(new Date(`${from}T00:00:00`), "dd/MM/yyyy")} — ${format(new Date(`${to}T00:00:00`), "dd/MM/yyyy")}`;
+  const shiftLabel = shift === "all" ? "All shifts" : shift === "DAY" ? "Day (06–18)" : "Night (18–06)";
   const enabled = !!leaderName;
 
   const { data: actions = [] } = useQuery({
@@ -306,11 +313,28 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
                 {shift !== "all" && ` · ${shift === "DAY" ? "Day" : "Night"} shift`}
               </span>
             </span>
-            <Button size="sm" variant="outline" onClick={exportCSV}><Download className="mr-1 h-4 w-4" />Export</Button>
+            <span className="flex shrink-0 gap-2">
+              <Button size="sm" variant="outline" onClick={async () => {
+                const el = document.getElementById("leader-scorecard-print");
+                try {
+                  if (el) await printElementAsDocument(el, `Leader Scorecard — ${leaderName ?? ""}`);
+                } catch (e: any) {
+                  toast.error(e?.message ?? "Could not open the print dialog.");
+                }
+              }}><Printer className="mr-1 h-4 w-4" />Print</Button>
+              <Button size="sm" variant="outline" onClick={exportCSV}><Download className="mr-1 h-4 w-4" />Export</Button>
+            </span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div id="leader-scorecard-print" className="space-y-4 print-content">
+          <ReportPrintHeader
+            title={`Leader Scorecard — ${leaderName ?? ""}`}
+            periodLabel={periodLabel}
+            shift={shiftLabel}
+            filtersLabel={`Weights — production ${weights.production_pct}% · quality ${weights.quality_pct}% · documentation ${weights.documentation_pct}%`}
+          />
+
           {/* Final score — the one number, with the three it is made of and how each
               was worked out. Printed rather than hidden behind a tooltip: the leader
               this is about has to be able to check it. */}
@@ -381,7 +405,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
                 Actions in this period ({actions.length})
                 {q.filed > 0 && <span className="ml-1 font-normal normal-case">· {q.filed} closed, still listed</span>}
               </div>
-              <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
+              <div className="max-h-56 overflow-y-auto rounded-md border divide-y print:max-h-none print:overflow-visible">
                 {actions.slice().reverse().map((a) => (
                   <div key={a.id} className="flex flex-wrap items-center gap-2 px-2 py-1.5 text-xs">
                     <span className="font-mono">{a.action_no || a.id.slice(0, 8)}</span>
