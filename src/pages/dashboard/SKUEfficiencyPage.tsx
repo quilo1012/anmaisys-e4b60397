@@ -2,13 +2,14 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trophy, AlertTriangle, Download, Search } from "lucide-react";
+import { Trophy, AlertTriangle, Download, Search, Gauge } from "lucide-react";
 
 type Row = {
   sku_id: string;
@@ -172,11 +173,12 @@ export default function SKUEfficiencyPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">SKU Efficiency Ranking</h1>
-            <p className="text-sm text-muted-foreground">Actual vs target by SKU and line over the selected window.</p>
-          </div>
+        <PageHeader
+          title="SKU Efficiency Ranking"
+          description="Actual against target by SKU and line, over the selected window."
+          icon={<Gauge className="h-5 w-5" />}
+        />
+        <div className="flex flex-wrap items-end justify-end gap-3">
           <div className="flex flex-wrap gap-2">
             <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
               <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>

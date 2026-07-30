@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import {
   useSuppliers,
   useSupplierMutations,
@@ -65,12 +66,11 @@ export default function SuppliersPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Truck className="h-6 w-6" /> Suppliers & Purchasing
-          </h2>
-          <p className="text-muted-foreground">Manage vendors and purchase orders.</p>
-        </div>
+        <PageHeader
+          title="Suppliers & Purchasing"
+          description="Manage vendors and purchase orders."
+          icon={<Truck className="h-5 w-5" />}
+        />
 
         <Tabs defaultValue="orders">
           <TabsList>

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -103,11 +104,11 @@ export default function AuditLogsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2"><Shield className="h-6 w-6" /> Audit Logs</h2>
-            <p className="text-muted-foreground">Complete activity log for compliance and security.</p>
-          </div>
+        <PageHeader
+          title="Audit Logs"
+          description="Complete activity log for compliance and security."
+          icon={<Shield className="h-5 w-5" />}
+          actions={<>
           {role === "admin" && (
             <Button
               variant="destructive"
@@ -117,7 +118,8 @@ export default function AuditLogsPage() {
               <Trash2 className="h-4 w-4 mr-2" /> Clear Audit Logs
             </Button>
           )}
-        </div>
+          </>}
+        />
 
         <Card>
           <CardHeader>

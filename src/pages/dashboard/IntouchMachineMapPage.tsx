@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, PlayCircle } from "lucide-react";
+import { Loader2, RefreshCw, PlayCircle, Radio } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 interface MapRow {
   intouch_machine_id: string;
@@ -117,13 +118,12 @@ export default function IntouchMachineMapPage() {
   return (
     <DashboardLayout>
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold">iTouching Machine Mapping</h1>
-          <p className="text-sm text-muted-foreground">
-            Link iTouching machines to internal machines/lines. Required before the poller can open WOs.
-          </p>
-        </div>
+      <PageHeader
+        title="iTouching Machine Mapping"
+        description="Link iTouching machines to internal machines and lines. Required before the poller can open orders."
+        icon={<Radio className="h-5 w-5" />}
+      />
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => syncFromIntouch.mutate()} disabled={syncFromIntouch.isPending}>
             {syncFromIntouch.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}

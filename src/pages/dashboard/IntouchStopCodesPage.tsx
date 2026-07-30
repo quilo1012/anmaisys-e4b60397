@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useConfirm } from "@/hooks/useConfirm";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Loader2, Save } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Plus, Trash2, Loader2, Save, Radar } from "lucide-react";
 
 type Row = {
   id: string;
@@ -32,7 +32,6 @@ const CATEGORIES = ["Mechanical", "Electrical", "Machine", "Maintenance", "Fille
 export default function IntouchStopCodesPage() {
   const { confirm, confirmDialog } = useConfirm();
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const [draft, setDraft] = useState<Record<string, Partial<Row>>>({});
   const [q, setQ] = useState("");
 
@@ -114,12 +113,11 @@ export default function IntouchStopCodesPage() {
   return (
     <DashboardLayout>
     <div className="container mx-auto space-y-4">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-          <ArrowLeft className="w-4 h-4 mr-1" /> Back
-        </Button>
-        <h1 className="text-2xl font-bold">iTouching Stop Codes Mapping</h1>
-      </div>
+      <PageHeader
+        title="iTouching Stop Codes Mapping"
+        description="Which stop codes open a maintenance order, at what priority, and on which line."
+        icon={<Radar className="h-5 w-5" />}
+      />
 
       <Card>
         <CardHeader><CardTitle className="text-base">Add new mapping</CardTitle></CardHeader>

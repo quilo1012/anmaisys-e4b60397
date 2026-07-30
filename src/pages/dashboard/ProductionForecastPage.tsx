@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -189,10 +190,11 @@ export default function ProductionForecastPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Production Forecast</h1>
-          <p className="text-sm text-muted-foreground">Estimate how long a production run will take based on historical UPM and Time & Motion standards.</p>
-        </div>
+        <PageHeader
+          title="Production Forecast"
+          description="Estimate how long a production run will take, from historical UPM and Time & Motion standards."
+          icon={<Calculator className="h-5 w-5" />}
+        />
 
         <Card>
           <CardHeader className="pb-2">

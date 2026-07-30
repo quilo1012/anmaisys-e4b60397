@@ -1,4 +1,5 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Settings as SettingsIcon, Users, ShieldCheck, Plug, ArrowRight, MessageCircle, KeyRound, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,13 +18,11 @@ export default function SettingsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="flex items-center gap-2 text-2xl font-bold">
-            <SettingsIcon className="h-6 w-6" />
-            Settings
-          </h2>
-          <p className="text-muted-foreground">System configuration lives in its own dedicated screens — jump to one below.</p>
-        </div>
+        <PageHeader
+          title="Settings"
+          description="System configuration lives in its own dedicated screens — jump to one below."
+          icon={<SettingsIcon className="h-5 w-5" />}
+        />
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {LINKS.map((l) => (

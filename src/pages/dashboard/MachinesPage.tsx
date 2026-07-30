@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -503,13 +504,11 @@ export default function MachinesPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <Cog className="h-6 w-6" /> Machines
-            </h2>
-            <p className="text-muted-foreground">Manage machines, lines, sides and types</p>
-          </div>
+        <PageHeader
+          title="Machines"
+          description="Manage machines, lines, sides and types"
+          icon={<Cog className="h-5 w-5" />}
+          actions={
           <Button
             onClick={() => {
               resetForm();
@@ -519,7 +518,8 @@ export default function MachinesPage() {
           >
             <Plus className="h-4 w-4 mr-2" /> Add Machine
           </Button>
-        </div>
+          }
+        />
 
         <div className="relative max-w-md">
           <Input

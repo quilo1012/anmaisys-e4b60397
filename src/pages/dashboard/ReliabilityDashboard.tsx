@@ -1,5 +1,6 @@
 import { useState, useMemo, Fragment } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -203,14 +204,12 @@ export default function ReliabilityDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <Activity className="h-6 w-6" />
-              Reliability Dashboard
-            </h2>
-            <p className="text-muted-foreground">Machine health, risk analysis & failure intelligence</p>
-          </div>
+        <PageHeader
+          title="Reliability Dashboard"
+          description="Machine health, risk analysis and failure intelligence"
+          icon={<Activity className="h-5 w-5" />}
+        />
+        <div className="flex flex-col md:flex-row md:items-center md:justify-end gap-4">
           {/* Filters */}
           <div className="flex flex-wrap gap-2 items-center">
             <Select value={filterLine} onValueChange={(v) => { setFilterLine(v === "all" ? "" : v); setFilterMachine(""); }}>

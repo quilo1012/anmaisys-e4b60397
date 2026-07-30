@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -86,13 +87,11 @@ export default function ShiftPasswordSettingsPage() {
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-3xl space-y-6">
-        <div>
-          <h2 className="flex items-center gap-2 text-2xl font-bold"><KeyRound className="h-6 w-6" /> Shift Passwords</h2>
-          <p className="text-muted-foreground">
-            Set a separate password for each shift. To view a shift's production, users type that shift's password.
-            A shift with no password stays open.
-          </p>
-        </div>
+        <PageHeader
+          title="Shift Passwords"
+          description="A separate password per shift. To view a shift's production, users type that shift's password; a shift with no password stays open."
+          icon={<KeyRound className="h-5 w-5" />}
+        />
         {isLoading || !setMap ? (
           <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : (
