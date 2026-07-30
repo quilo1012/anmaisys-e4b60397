@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { LineChatButton } from "@/components/LineChatButton";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
-import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
+import { getCurrentFactoryShift, shiftLoggingDeadline, SHIFT_LABEL } from "@/lib/shifts";
 import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -937,6 +937,34 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
   return (
     <Card>
       <CardContent className="p-4 md:p-6 space-y-4">
+        {/* Warn before the window shuts. The database decides — its
+            session_write_deadline() is the authority — so this never disables the
+            form: a tablet with a wrong clock must not be able to block a shift from
+            being recorded. It only makes the deadline visible, which is what was
+            missing when the Line 4 night operator discovered it by failing. */}
+        {(() => {
+          const { sessionDate: sd, shiftCode: sc } = getCurrentFactoryShift();
+          const sh: Shift = sc === "night" ? "NIGHT" : "DAY";
+          const deadline = shiftLoggingDeadline(sd, sh);
+          const msLeft = deadline.getTime() - Date.now();
+          const closedAt = sh === "NIGHT" ? "07:00" : "19:00";
+          if (msLeft <= 0) {
+            return (
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+                <b>Logging closed for this shift at {closedAt}.</b> Ask a manager to record it — they can still enter it for you.
+              </div>
+            );
+          }
+          if (msLeft <= 30 * 60_000) {
+            return (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                <b>Logging closes at {closedAt}</b> — {Math.ceil(msLeft / 60_000)} min left. Enter what the line made before then.
+              </div>
+            );
+          }
+          return null;
+        })()}
+
         <div className="flex items-center justify-between">
           <div>
             <div className="text-base font-semibold">Log Production</div>

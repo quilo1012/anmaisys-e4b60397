@@ -56,9 +56,24 @@ function londonOffsetMs(atUtcMs: number): number {
 }
 
 /** UTC instant for a Europe/London wall-clock time (offset resolved at the boundary). */
-function londonWallToUtc(y: number, mo: number, d: number, h: number): number {
+export function londonWallToUtc(y: number, mo: number, d: number, h: number): number {
   const naive = Date.UTC(y, mo - 1, d, h, 0, 0);
   return naive - londonOffsetMs(naive);
+}
+
+/**
+ * When production logging closes for a shift: 19:00 for DAY, 07:00 the next
+ * morning for NIGHT, Europe/London — one hour after the shift ends.
+ *
+ * Mirrors session_write_deadline() in the database, which is the authority. This
+ * exists so the UI can warn before the door shuts instead of letting an operator
+ * discover it by having a save refused.
+ */
+export function shiftLoggingDeadline(sessionDate: string, shift: "DAY" | "NIGHT"): Date {
+  const [y, mo, d] = sessionDate.split("-").map(Number);
+  return shift === "NIGHT"
+    ? new Date(londonWallToUtc(y, mo, d + 1, 7))
+    : new Date(londonWallToUtc(y, mo, d, 19));
 }
 
 /**
