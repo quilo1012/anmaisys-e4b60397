@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateRangeFilter, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ const riskBadge: Record<RiskLevel, { label: string; className: string }> = {
 };
 
 export default function ReliabilityDashboard() {
+  const [preset, setPreset] = useState<DateRangePreset>("30d");
   const [startDate, setStartDate] = useState<Date>(subDays(new Date(), 30));
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [filterMachine, setFilterMachine] = useState("");
@@ -227,17 +229,20 @@ export default function ReliabilityDashboard() {
                 ))}
               </SelectContent>
             </Select>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1">
-                  <CalendarIcon className="h-4 w-4" />
-                  {format(startDate, "dd/MM")} – {format(endDate, "dd/MM")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar mode="range" selected={{ from: startDate, to: endDate }} onSelect={(range) => { if (range?.from) setStartDate(range.from); if (range?.to) setEndDate(range.to); }} numberOfMonths={2} />
-              </PopoverContent>
-            </Popover>
+            {/* The system's period filter, not a bare calendar. Every other report
+                offers Today / Yesterday / Current shift / 7 days / 30 days / This
+                month / All / Custom, and this screen offered only a custom range —
+                so "the last 7 days" here meant picking two dates by hand. */}
+            <DateRangeFilter
+              value={{ from: startDate, to: endDate }}
+              preset={preset}
+              onChange={(r, p) => {
+                setPreset(p);
+                if (r.from) setStartDate(r.from);
+                setEndDate(r.to ?? new Date());
+              }}
+              storageKey="reliability"
+            />
           </div>
         </div>
 

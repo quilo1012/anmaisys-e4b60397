@@ -40,7 +40,7 @@ export interface QualitySeverity {
   badge: string;
   /** Left-border accent class for Kanban cards. */
   accent: string;
-  /** Weight used to score an action. Derived from severity — never stored. */
+  /** Default weight, used until the configured weights load. */
   points: number;
 }
 
@@ -52,13 +52,46 @@ export const QUALITY_SEVERITIES: QualitySeverity[] = [
 ];
 
 export function severityMeta(value: string | null | undefined): QualitySeverity | null {
-  return QUALITY_SEVERITIES.find((s) => s.value === value) ?? null;
+  const meta = QUALITY_SEVERITIES.find((s) => s.value === value);
+  if (!meta) return null;
+  // Reflect the configured weight, so a badge and the score beside it can never
+  // disagree about what the severity is worth.
+  return CONFIGURED[meta.value] === undefined ? meta : { ...meta, points: CONFIGURED[meta.value] };
 }
 
 /**
- * Points for one action, derived from its severity. Points are NOT a stored
- * column: severity is the single source of truth, so re-grading an action can
- * never leave a stale score behind. An action with no severity scores 0.
+ * Weights configured in `quality_severity_points`, pushed in once on load by
+ * `useSeverityPointsSync`.
+ *
+ * Held module-level, mirroring how permission overrides work, so the ~20 places that
+ * already call `severityPoints()` pick up the configured value without each one
+ * having to become a hook. Empty until loaded — the constants above are the fallback,
+ * which also keeps points working offline and in tests.
+ */
+let CONFIGURED: Record<string, number> = {};
+const listeners = new Set<() => void>();
+
+export function setSeverityPoints(map: Record<string, number>) {
+  CONFIGURED = map ?? {};
+  listeners.forEach((l) => l());
+}
+
+export function subscribeSeverityPoints(fn: () => void) {
+  listeners.add(fn);
+  return () => { listeners.delete(fn); };
+}
+
+/** The weight in force for each severity — configured value, else the default. */
+export function severityPointsMap(): Record<string, number> {
+  return Object.fromEntries(QUALITY_SEVERITIES.map((s) => [s.value, CONFIGURED[s.value] ?? s.points]));
+}
+
+/**
+ * Points for one action, derived from its severity and the configured weight.
+ *
+ * Points are NOT a stored column: severity is the single source of truth, so
+ * re-grading an action can never leave a stale score behind, and changing a weight
+ * re-scores the history consistently. An action with no severity scores 0.
  */
 export function severityPoints(value: string | null | undefined): number {
   return severityMeta(value)?.points ?? 0;

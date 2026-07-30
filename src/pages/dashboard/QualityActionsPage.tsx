@@ -24,6 +24,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { cn } from "@/lib/utils";
 import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_STATUSES, QUALITY_SEVERITIES, statusMeta, severityMeta, severityPoints, sumSeverityPoints } from "@/lib/qualityConstants";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
+import { useSeverityPointRows, useUpdateSeverityPoints } from "@/hooks/useSeverityPoints";
 import { useRole } from "@/hooks/useRole";
 import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
 import { LeaderScorecard } from "@/components/LeaderScorecard";
@@ -184,12 +185,21 @@ export function QualityActionsView() {
   const detailAction = useMemo(() => actions.find((a) => a.id === detailId) ?? null, [actions, detailId]);
 
 
-  const kpis = useMemo(() => ({
-    total: filtered.length,
-    todo: filtered.filter((x) => x.status === "todo").length,
-    in_progress: filtered.filter((x) => x.status === "in_progress").length,
-    complete: filtered.filter((x) => x.status === "complete").length,
-  }), [filtered]);
+  const kpis = useMemo(() => {
+    const open = filtered.filter((x) => x.status !== "complete");
+    return {
+      total: filtered.length,
+      todo: filtered.filter((x) => x.status === "todo").length,
+      in_progress: filtered.filter((x) => x.status === "in_progress").length,
+      complete: filtered.filter((x) => x.status === "complete").length,
+      // Weighted, not counted: ten Low actions and one Critical are not the same
+      // problem, and the counts alone said they were.
+      openPoints: sumSeverityPoints(open),
+      totalPoints: sumSeverityPoints(filtered),
+      openSevere: open.filter((x) => x.severity === "high" || x.severity === "critical").length,
+      ungraded: filtered.filter((x) => !x.severity).length,
+    };
+  }, [filtered]);
 
   const toggleLabel = (l: string) =>
     setForm((f) => ({ ...f, labels: f.labels.includes(l) ? f.labels.filter((x) => x !== l) : [...f.labels, l] }));
@@ -496,16 +506,51 @@ export function QualityActionsView() {
           </div>
         </div>
 
-        {/* KPIs */}
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-          <Card className="border-l-4 border-l-primary/40"><CardContent className="p-4"><div className="flex items-center gap-1.5 text-xs text-muted-foreground"><ClipboardCheck className="h-3.5 w-3.5" /> Total actions</div><div className="mt-1 text-2xl font-bold">{kpis.total}</div></CardContent></Card>
-          <Card className="border-l-4 border-l-amber-500"><CardContent className="p-4"><div className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-amber-500" /> To do</div><div className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{kpis.todo}</div></CardContent></Card>
-          <Card className="border-l-4 border-l-blue-500"><CardContent className="p-4"><div className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-blue-500" /> In progress</div><div className="mt-1 text-2xl font-bold text-blue-600 dark:text-blue-400">{kpis.in_progress}</div></CardContent></Card>
-          <Card className="border-l-4 border-l-green-500"><CardContent className="p-4"><div className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-green-500" /> Complete</div><div className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400">{kpis.complete}</div></CardContent></Card>
+        {/* KPIs. The status ones are also the status filter — clicking the active one
+            clears it, so the numbers and the filter cannot disagree. */}
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+          <QualityKpi
+            label="Total actions" icon={<ClipboardCheck className="h-3.5 w-3.5" />}
+            value={kpis.total} accent="border-l-primary/40"
+            hint={`${kpis.totalPoints} points in range`}
+            active={filterStatus === "__all__"}
+            onClick={() => setFilterStatus("__all__")}
+          />
+          <QualityKpi
+            label="To do" icon={<span className="h-2 w-2 rounded-full bg-amber-500" />}
+            value={kpis.todo} accent="border-l-amber-500" tone="text-amber-600 dark:text-amber-400"
+            active={filterStatus === "todo"}
+            onClick={() => setFilterStatus(filterStatus === "todo" ? "__all__" : "todo")}
+          />
+          <QualityKpi
+            label="In progress" icon={<span className="h-2 w-2 rounded-full bg-blue-500" />}
+            value={kpis.in_progress} accent="border-l-blue-500" tone="text-blue-600 dark:text-blue-400"
+            active={filterStatus === "in_progress"}
+            onClick={() => setFilterStatus(filterStatus === "in_progress" ? "__all__" : "in_progress")}
+          />
+          <QualityKpi
+            label="Complete" icon={<span className="h-2 w-2 rounded-full bg-green-500" />}
+            value={kpis.complete} accent="border-l-green-500" tone="text-green-600 dark:text-green-400"
+            active={filterStatus === "complete"}
+            onClick={() => setFilterStatus(filterStatus === "complete" ? "__all__" : "complete")}
+          />
+          <QualityKpi
+            label="Open points" icon={<ClipboardCheck className="h-3.5 w-3.5" />}
+            value={kpis.openPoints} accent="border-l-purple-500"
+            hint="Weight still outstanding"
+          />
+          <QualityKpi
+            label="High / Critical open" icon={<span className="h-2 w-2 rounded-full bg-red-500" />}
+            value={kpis.openSevere} accent="border-l-destructive"
+            tone={kpis.openSevere > 0 ? "text-destructive" : undefined}
+            hint={kpis.ungraded ? `${kpis.ungraded} action${kpis.ungraded === 1 ? "" : "s"} with no severity` : "Every action graded"}
+            active={filterSeverity === "high" || filterSeverity === "critical"}
+            onClick={() => setFilterSeverity(filterSeverity === "critical" ? "__all__" : "critical")}
+          />
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-2">
+        {/* Filters, in a toolbar card like the Maintenance Orders screen. */}
+        <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/30 p-3">
           <DateRangeFilter value={drRange} preset={drPreset} onChange={(r, p) => { setDrRange(r); setDrPreset(p); }} storageKey="quality-period" />
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
@@ -675,7 +720,8 @@ export function QualityActionsView() {
         {canManage && (
           <Dialog open={listsOpen} onOpenChange={setListsOpen}>
             <DialogContent className="max-h-[90vh] overflow-y-auto">
-              <DialogHeader><DialogTitle>Manage labels &amp; departments</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Lists &amp; scoring</DialogTitle></DialogHeader>
+              <SeverityPointsEditor />
               <QualityListsManager />
             </DialogContent>
           </Dialog>
@@ -963,6 +1009,123 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
   );
 }
 
+
+/** One KPI tile on the Quality panel; clickable ones double as the status filter. */
+function QualityKpi({
+  label, value, icon, accent, tone, hint, active, onClick,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+  accent: string;
+  tone?: string;
+  hint?: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  const clickable = !!onClick;
+  return (
+    <Card
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      aria-pressed={clickable ? !!active : undefined}
+      onClick={onClick}
+      onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick!(); } } : undefined}
+      className={cn(
+        "border-l-4", accent,
+        clickable && "cursor-pointer transition-colors hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active && clickable && "bg-muted/60 ring-2 ring-primary/40",
+      )}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon} {label}</div>
+        <div className={cn("mt-1 text-2xl font-bold tabular-nums", value > 0 ? tone : undefined)}>{value}</div>
+        {hint && <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * What each severity is worth.
+ *
+ * The weights were constants in the source — Low 1, Medium 2, High 3, Critical 4 —
+ * so changing how quality is scored needed a developer and a deploy. Quality owns
+ * that judgement.
+ *
+ * Changing a weight re-scores the whole history, because points are derived from
+ * severity rather than stored on the action. That is stated on screen: it is the
+ * behaviour people need to know before they change a number.
+ */
+function SeverityPointsEditor() {
+  const { data: rows, isLoading } = useSeverityPointRows();
+  const save = useUpdateSeverityPoints();
+  const [draft, setDraft] = useState<Record<string, string>>({});
+
+  const value = (sev: string, current: number) => draft[sev] ?? String(current);
+  const dirty = !!rows?.some((r) => draft[r.severity] !== undefined && Number(draft[r.severity]) !== r.points);
+
+  const commit = () => {
+    if (!rows) return;
+    const next = rows.map((r) => {
+      const raw = draft[r.severity];
+      const n = raw === undefined ? r.points : Math.max(0, Math.min(1000, Math.round(Number(raw) || 0)));
+      return { severity: r.severity, points: n };
+    });
+    save.mutate(next, {
+      onSuccess: () => { setDraft({}); toast.success("Severity points updated"); },
+      onError: (e: any) => toast.error(e?.message ?? "Could not save the points"),
+    });
+  };
+
+  return (
+    <div className="space-y-3 border-b pb-4">
+      <div>
+        <h3 className="text-sm font-semibold">Severity points</h3>
+        <p className="text-xs text-muted-foreground">
+          Used for column totals, the leader scorecard and Analytics. Changing a weight re-scores
+          past actions too — the score always follows the severity on the card.
+        </p>
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {(rows ?? []).map((r) => {
+            const meta = severityMeta(r.severity);
+            return (
+              <div key={r.severity} className="space-y-1">
+                <Label className="flex items-center gap-1.5 text-xs">
+                  <Badge variant="outline" className={cn("px-1.5 py-0 text-[10px]", meta?.badge)}>{meta?.label ?? r.severity}</Badge>
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={1000}
+                  inputMode="numeric"
+                  value={value(r.severity, r.points)}
+                  onChange={(e) => setDraft((d) => ({ ...d, [r.severity]: e.target.value }))}
+                  className="tabular-nums"
+                  aria-label={`Points for ${meta?.label ?? r.severity}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <Button size="sm" onClick={commit} disabled={!dirty || save.isPending}>
+          {save.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Save points
+        </Button>
+        {dirty && (
+          <Button size="sm" variant="ghost" onClick={() => setDraft({})} disabled={save.isPending}>Reset</Button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function QualityListsManager() {
   const qc = useQueryClient();

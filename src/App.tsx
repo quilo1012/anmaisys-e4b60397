@@ -21,9 +21,16 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { roleDashMap } from "@/lib/permissions";
 import { usePermissionOverridesSync } from "@/hooks/usePermissionOverrides";
+import { useSeverityPointsSync } from "@/hooks/useSeverityPoints";
 
 function PermissionOverridesSync() {
   usePermissionOverridesSync();
+  return null;
+}
+
+/** Loads the configured quality severity weights so scores match what Quality set. */
+function SeverityPointsSync() {
+  useSeverityPointsSync();
   return null;
 }
 
@@ -232,6 +239,7 @@ const App = () => (
             <ErrorBoundary>
             <AppUpdater />
             <PermissionOverridesSync />
+            <SeverityPointsSync />
             <TelemetryInit />
             <Suspense fallback={<PageLoader />}>
               <Routes>
