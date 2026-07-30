@@ -25,7 +25,7 @@ interface LSAction {
   validation_status: string | null; validated_at: string | null; validated_by: string | null;
   attachments: string[] | null;
 }
-interface LSSession { oee_pct: number | null; run_time_min: number | null; down_time_min: number | null; intouch_good_total: number | null; session_date: string | null }
+interface LSSession { oee_pct: number | null; run_time_min: number | null; down_time_min: number | null; intouch_good_total: number | null; session_date: string | null; line: string | null; shift: string | null }
 
 function Kpi({ label, value, sub, tone }: { label: string; value: string | number; sub?: string; tone?: string }) {
   return (
@@ -72,10 +72,32 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
     enabled,
     queryFn: async () => {
       const { data, error } = await supabase.from("production_sessions")
-        .select("oee_pct, run_time_min, down_time_min, intouch_good_total, session_date")
+        .select("oee_pct, run_time_min, down_time_min, intouch_good_total, session_date, line, shift")
         .eq("leader_name", leaderName as string).gte("session_date", fromDate);
       if (error) throw error;
       return (data ?? []) as unknown as LSSession[];
+    },
+  });
+
+  /**
+   * The plan for this leader's sessions, from RAG weekly.
+   *
+   * production_items.target_qty is not it: only 22 of the 118 items this month carry
+   * one, so dividing the full output by that fraction produced an attainment of 225%
+   * on screen. RAG is the plan the rest of the system reports against — Analytics'
+   * Leader Performance already reads it — and one number cannot be right on two
+   * screens if they use different denominators.
+   */
+  const { data: ragRows = [] } = useQuery({
+    queryKey: ["ls_rag", leaderName, fromDate],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rag_weekly_entries")
+        .select("entry_date, line, shift, plan_qty")
+        .gte("entry_date", fromDate);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{ entry_date: string; line: string; shift: string; plan_qty: number }>;
     },
   });
 
@@ -148,16 +170,45 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
   }, [profileNames]);
 
   const p = useMemo(() => {
+    // Only count what the lines actually report. A metric no line fills in is not
+    // zero — "0.0h downtime" read as a perfect week when the truth was that nothing
+    // was recorded: 0 of 216 sessions this month carry down_time_min, and none carry
+    // oee_pct at all.
     const oees = sessions.map((s) => s.oee_pct).filter((v): v is number => v != null);
     const avgOEE = oees.length ? oees.reduce((a, b) => a + b, 0) / oees.length : null;
-    const downtimeH = sessions.reduce((s, x) => s + (x.down_time_min ?? 0), 0) / 60;
-    const runtimeH = sessions.reduce((s, x) => s + (x.run_time_min ?? 0), 0) / 60;
-    const output = sessions.reduce((s, x) => s + (x.intouch_good_total ?? 0), 0);
+    const dtReported = sessions.filter((s) => s.down_time_min != null);
+    const downtimeH = dtReported.length ? dtReported.reduce((s, x) => s + (x.down_time_min ?? 0), 0) / 60 : null;
+    const runtimeReported = sessions.filter((s) => s.run_time_min != null);
+    const runtimeH = runtimeReported.length ? runtimeReported.reduce((s, x) => s + (x.run_time_min ?? 0), 0) / 60 : null;
+
+    // Output is what the floor logged, the same figure My Production and RAG use.
+    // intouch_good_total is only on 89 of 216 sessions, so it under-reports whoever
+    // works a line iTouching does not cover.
     const actual = items.reduce((s, x) => s + (x.actual_qty ?? 0), 0);
-    const target = items.reduce((s, x) => s + (x.target_qty ?? 0), 0);
+
+    // Target from the RAG plan, matched on date + shift + line like everywhere else.
+    const norm = (v: string | null | undefined) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
+    const planMap = new Map<string, number>();
+    for (const r of ragRows) {
+      const k = `${r.entry_date}|${String(r.shift ?? "").trim().toUpperCase()}|${norm(r.line)}`;
+      planMap.set(k, (planMap.get(k) ?? 0) + Number(r.plan_qty ?? 0));
+    }
+    let target = 0;
+    const seen = new Set<string>();
+    for (const s of sessions) {
+      const k = `${s.session_date}|${String(s.shift ?? "").trim().toUpperCase()}|${norm(s.line)}`;
+      if (seen.has(k)) continue;   // one plan per line+shift+day, not per session row
+      seen.add(k);
+      target += planMap.get(k) ?? 0;
+    }
     const attainment = target > 0 ? Math.round((actual / target) * 100) : null;
-    return { sessions: sessions.length, avgOEE, downtimeH, runtimeH, output, attainment, actualQty: actual, targetQty: target };
-  }, [sessions, items]);
+
+    return {
+      sessions: sessions.length, avgOEE, downtimeH, runtimeH,
+      output: actual, attainment, actualQty: actual, targetQty: target,
+      plannedSessions: seen.size, sessionsWithPlan: Array.from(seen).filter((k) => (planMap.get(k) ?? 0) > 0).length,
+    };
+  }, [sessions, items, ragRows]);
 
   const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights();
 
@@ -257,6 +308,12 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
                 <li><b>Quality:</b> {score.quality.basis}</li>
                 <li><b>Documentation:</b> {score.documentation.basis}</li>
               </ul>
+              {q.open > 0 && (
+                <p className="mt-1 text-2xs text-warning-strong">
+                  {q.open} action{q.open === 1 ? "" : "s"} still awaiting a verdict from Quality — none of them affects this
+                  score yet, and validating any of them will lower it.
+                </p>
+              )}
               {(score.production.value === null || score.quality.value === null || score.documentation.value === null) && (
                 <p className="mt-1 text-2xs text-warning-strong">
                   A component with no data is left out and its weight shared between the others, rather than counted as zero.
@@ -381,12 +438,34 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
             {p.sessions === 0 ? (
               <p className="text-xs text-muted-foreground">No production sessions for this leader in the period.</p>
             ) : (
+              <>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <Kpi label="Avg OEE" value={p.avgOEE == null ? "—" : `${p.avgOEE.toFixed(1)}%`} tone="text-blue-600 dark:text-blue-400" />
-                <Kpi label="Attainment" value={p.attainment == null ? "—" : `${p.attainment}%`} sub="actual vs target" />
-                <Kpi label="Output (good)" value={p.output.toLocaleString()} />
-                <Kpi label="Downtime" value={`${p.downtimeH.toFixed(1)}h`} tone="text-red-600 dark:text-red-400" />
+                <Kpi
+                  label="Avg OEE"
+                  value={p.avgOEE == null ? "n/a" : `${p.avgOEE.toFixed(1)}%`}
+                  sub={p.avgOEE == null ? "not reported by the lines" : undefined}
+                  tone={p.avgOEE == null ? "text-muted-foreground" : "text-blue-600 dark:text-blue-400"}
+                />
+                <Kpi
+                  label="Attainment"
+                  value={p.attainment == null ? "n/a" : `${p.attainment}%`}
+                  sub={p.attainment == null ? "no RAG plan for these sessions" : `${p.actualQty.toLocaleString()} of ${p.targetQty.toLocaleString()} planned`}
+                />
+                <Kpi label="Output" value={p.output.toLocaleString()} sub="logged on My Production" />
+                <Kpi
+                  label="Downtime"
+                  value={p.downtimeH == null ? "n/a" : `${p.downtimeH.toFixed(1)}h`}
+                  sub={p.downtimeH == null ? "not recorded on the session" : undefined}
+                  tone={p.downtimeH == null ? "text-muted-foreground" : "text-destructive-strong"}
+                />
               </div>
+              {p.sessionsWithPlan < p.plannedSessions && (
+                <p className="mt-1 text-2xs text-muted-foreground">
+                  {p.plannedSessions - p.sessionsWithPlan} of {p.plannedSessions} line-shifts have no RAG plan, so they add
+                  output without adding target — attainment reads higher than it is.
+                </p>
+              )}
+              </>
             )}
           </div>
         </div>
