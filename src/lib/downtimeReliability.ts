@@ -1,4 +1,3 @@
-import { endOfDay } from "date-fns";
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
@@ -27,24 +26,6 @@ export interface MachineRiskRow {
   recentRepairAlert: boolean;
   recurringProblems: string[];
   lastFailure: string | null;
-}
-
-/**
- * Filter WOs to only those whose created_at falls within [startDate, endOfDay(endDate)].
- * Used by Downtime page to keep all reliability widgets in sync with the top date filter.
- */
-export function filterWOsByRange<T extends { created_at: string }>(
-  wos: T[] | null | undefined,
-  startDate: Date,
-  endDate: Date,
-): T[] {
-  if (!wos) return [];
-  const end = endOfDay(endDate).getTime();
-  const start = startDate.getTime();
-  return wos.filter((wo) => {
-    const t = new Date(wo.created_at).getTime();
-    return t >= start && t <= end;
-  });
 }
 
 export function buildMachineHistory(filteredWOs: ReliabilityWO[]): MachineHistoryRow[] {

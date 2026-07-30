@@ -11,8 +11,11 @@ describe("dashboardPathFor", () => {
   it("engineer → engineer dashboard", () => {
     expect(dashboardPathFor("engineer")).toBe("/dashboard/engineer");
   });
-  it("operator → operator dashboard", () => {
-    expect(dashboardPathFor("operator")).toBe("/dashboard/operator");
+  it("operator → My Production, not the operator panel", () => {
+    // Changed deliberately on 18/07: an operator signing in wants the screen they
+    // log the shift on, not a panel they have to navigate out of. The test asserted
+    // the old landing page and had been failing ever since.
+    expect(dashboardPathFor("operator")).toBe("/dashboard/operator/my-production");
   });
   it("null role → /login", () => {
     expect(dashboardPathFor(null)).toBe("/login");

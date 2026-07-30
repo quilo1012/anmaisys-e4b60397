@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  filterWOsByRange,
   buildMachineHistory,
   buildMachineRisks,
   type ReliabilityWO,
@@ -15,44 +14,11 @@ function wo(partial: Partial<ReliabilityWO> & { machine: string; created_at: str
   };
 }
 
-// ── filterWOsByRange ─────────────────────────────────────────────────────────
-describe("filterWOsByRange", () => {
-  const sample: ReliabilityWO[] = [
-    wo({ machine: "M1", created_at: iso("2026-06-20T10:00:00Z") }),
-    wo({ machine: "M2", created_at: iso("2026-06-24T08:00:00Z") }),
-    wo({ machine: "M3", created_at: iso("2026-06-24T23:30:00Z") }),
-    wo({ machine: "M4", created_at: iso("2026-06-25T09:00:00Z") }),
-  ];
-
-  it("returns [] when input is null/undefined", () => {
-    expect(filterWOsByRange(null, new Date(), new Date())).toEqual([]);
-    expect(filterWOsByRange(undefined, new Date(), new Date())).toEqual([]);
-  });
-
-  it("includes WOs whose created_at falls on the same day as endDate (uses endOfDay)", () => {
-    const start = new Date("2026-06-24T00:00:00Z");
-    const end = new Date("2026-06-24T00:00:00Z");
-    const out = filterWOsByRange(sample, start, end).map((w) => w.machine);
-    expect(out).toContain("M2");
-    expect(out).toContain("M3"); // 23:30 same day — must NOT be dropped
-    expect(out).not.toContain("M1");
-    expect(out).not.toContain("M4");
-  });
-
-  it("includes WOs at the exact start boundary", () => {
-    const start = new Date("2026-06-24T08:00:00Z");
-    const end = new Date("2026-06-24T00:00:00Z");
-    const out = filterWOsByRange(sample, start, end).map((w) => w.machine);
-    expect(out).toContain("M2");
-  });
-
-  it("spans multi-day ranges", () => {
-    const start = new Date("2026-06-20T00:00:00Z");
-    const end = new Date("2026-06-25T00:00:00Z");
-    const out = filterWOsByRange(sample, start, end).map((w) => w.machine);
-    expect(out.sort()).toEqual(["M1", "M2", "M3", "M4"]);
-  });
-});
+// filterWOsByRange used to live here. It widened a range to whole local days, which
+// is what made "Current shift" on the Downtime page report 35 minutes that belonged
+// to the night shift. The page now filters on the exact instants, the helper had no
+// callers left, and its tests were failing on the widening they were written to
+// protect — so the function is gone rather than left as a trap for the next caller.
 
 // ── buildMachineHistory ──────────────────────────────────────────────────────
 describe("buildMachineHistory", () => {
