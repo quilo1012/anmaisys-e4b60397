@@ -13,6 +13,8 @@ import {
   documentationScore, isValidatedPaperwork, validationMeta,
 } from "@/lib/qualityConstants";
 import { useProfileNames } from "@/hooks/useProfileNames";
+import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
+import { computeLeaderScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface LSAction {
@@ -154,8 +156,18 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
     const actual = items.reduce((s, x) => s + (x.actual_qty ?? 0), 0);
     const target = items.reduce((s, x) => s + (x.target_qty ?? 0), 0);
     const attainment = target > 0 ? Math.round((actual / target) * 100) : null;
-    return { sessions: sessions.length, avgOEE, downtimeH, runtimeH, output, attainment };
+    return { sessions: sessions.length, avgOEE, downtimeH, runtimeH, output, attainment, actualQty: actual, targetQty: target };
   }, [sessions, items]);
+
+  const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights();
+
+  const score = useMemo(
+    () => computeLeaderScore(
+      { actual: p.actualQty, target: p.targetQty, avgOEE: p.avgOEE, actions },
+      weights,
+    ),
+    [p, actions, weights],
+  );
 
   const exportCSV = () => {
     const rows: string[][] = [
@@ -165,6 +177,11 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
       ["QUALITY"],
       ["Total actions", String(q.total)], ["Open", String(q.open)], ["Completed", String(q.completed)], ["% closed", `${q.pctClosed}%`],
       ["Avg resolution (days)", q.avgResolution == null ? "—" : q.avgResolution.toFixed(1)],
+      ["Final score", score.final === null ? "—" : `${score.final.toFixed(0)}%`],
+      ["  Production component", score.production.value === null ? "—" : `${score.production.value.toFixed(0)}% (weight ${score.applied.production_pct}%) — ${score.production.basis}`],
+      ["  Quality component", score.quality.value === null ? "—" : `${score.quality.value.toFixed(0)}% (weight ${score.applied.quality_pct}%) — ${score.quality.basis}`],
+      ["  Documentation component", `${score.documentation.value}% (weight ${score.applied.documentation_pct}%) — ${score.documentation.basis}`],
+      [],
       ["Documentation score", `${docs.score}%`],
       ["Validated Paperwork actions", String(docs.penalised.length)],
       ["Documentation impact", `-${docs.impactPct}%`],
@@ -209,6 +226,45 @@ export function LeaderScorecard({ leaderName, fromDate, onClose }: { leaderName:
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Final score — the one number, with the three it is made of and how each
+              was worked out. Printed rather than hidden behind a tooltip: the leader
+              this is about has to be able to check it. */}
+          <Card className="border-l-4 border-l-primary">
+            <CardContent className="p-3">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Final score</p>
+                  <p className="text-4xl font-bold tabular-nums">
+                    {score.final === null ? "—" : `${score.final.toFixed(0)}%`}
+                  </p>
+                </div>
+                <div className="grid flex-1 grid-cols-3 gap-2 text-center">
+                  {([
+                    ["Production", score.production, score.applied.production_pct],
+                    ["Quality", score.quality, score.applied.quality_pct],
+                    ["Documentation", score.documentation, score.applied.documentation_pct],
+                  ] as const).map(([label, c, w]) => (
+                    <div key={label} className="rounded-md border p-2">
+                      <p className="text-2xs uppercase tracking-wide text-muted-foreground">{label}</p>
+                      <p className="text-lg font-bold tabular-nums">{c.value === null ? "—" : `${c.value.toFixed(0)}%`}</p>
+                      <p className="text-2xs text-muted-foreground">weight {w}%</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <ul className="mt-2 space-y-0.5 text-2xs text-muted-foreground">
+                <li><b>Production:</b> {score.production.basis}</li>
+                <li><b>Quality:</b> {score.quality.basis}</li>
+                <li><b>Documentation:</b> {score.documentation.basis}</li>
+              </ul>
+              {(score.production.value === null || score.quality.value === null || score.documentation.value === null) && (
+                <p className="mt-1 text-2xs text-warning-strong">
+                  A component with no data is left out and its weight shared between the others, rather than counted as zero.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Quality */}
           <div>
             <div className="mb-1.5 flex items-center gap-1 text-sm font-semibold"><Clock className="h-4 w-4" /> Quality</div>

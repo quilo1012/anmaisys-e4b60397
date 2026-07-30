@@ -25,6 +25,8 @@ import { cn } from "@/lib/utils";
 import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_STATUSES, QUALITY_SEVERITIES, statusMeta, severityMeta, severityPoints, sumSeverityPoints, VALIDATION_STATES, validationMeta } from "@/lib/qualityConstants";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
 import { useSeverityPointRows, useUpdateSeverityPoints } from "@/hooks/useSeverityPoints";
+import { useLeaderScoreWeights, useUpdateLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
+import { DEFAULT_WEIGHTS, type LeaderScoreWeights } from "@/lib/leaderScore";
 import { useRole } from "@/hooks/useRole";
 import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
 import { LeaderScorecard } from "@/components/LeaderScorecard";
@@ -751,6 +753,7 @@ export function QualityActionsView() {
             <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Lists &amp; scoring</DialogTitle></DialogHeader>
               <SeverityPointsEditor />
+              <LeaderScoreWeightsEditor />
               <QualityListsManager />
             </DialogContent>
           </Dialog>
@@ -1059,6 +1062,74 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onStatus, onSever
   );
 }
 
+
+/**
+ * How the leader's final score is weighted.
+ *
+ * A management judgement, not a technical constant — the same reason severity points
+ * live in the database. The three must total 100, and the database refuses anything
+ * else, so a half-finished edit cannot leave every leader's score quietly rescaled.
+ */
+function LeaderScoreWeightsEditor() {
+  const { data: weights } = useLeaderScoreWeights();
+  const save = useUpdateLeaderScoreWeights();
+  const [draft, setDraft] = useState<LeaderScoreWeights | null>(null);
+  const current = draft ?? weights ?? DEFAULT_WEIGHTS;
+  const total = current.production_pct + current.quality_pct + current.documentation_pct;
+  const dirty = !!draft && !!weights && (
+    draft.production_pct !== weights.production_pct ||
+    draft.quality_pct !== weights.quality_pct ||
+    draft.documentation_pct !== weights.documentation_pct
+  );
+
+  const set = (k: keyof LeaderScoreWeights, v: string) =>
+    setDraft({ ...current, [k]: Math.max(0, Math.min(100, Math.round(Number(v) || 0))) });
+
+  return (
+    <div className="space-y-3 border-b pb-4">
+      <div>
+        <h3 className="text-sm font-semibold">Leader score weights</h3>
+        <p className="text-xs text-muted-foreground">
+          How production, quality and documentation combine into the leader's final score. The three must add up to 100.
+        </p>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        {([
+          ["production_pct", "Production"],
+          ["quality_pct", "Quality"],
+          ["documentation_pct", "Documentation"],
+        ] as const).map(([key, label]) => (
+          <div key={key} className="space-y-1">
+            <Label className="text-xs">{label}</Label>
+            <Input
+              type="number" min={0} max={100} inputMode="numeric"
+              className="tabular-nums"
+              value={String(current[key])}
+              onChange={(e) => set(key, e.target.value)}
+              aria-label={`${label} weight`}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          disabled={!dirty || total !== 100 || save.isPending}
+          onClick={() => save.mutate(current, {
+            onSuccess: () => { setDraft(null); toast.success("Weights updated"); },
+            onError: (e: any) => toast.error(e?.message ?? "Could not save the weights"),
+          })}
+        >
+          {save.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Save weights
+        </Button>
+        <span className={cn("text-xs", total === 100 ? "text-muted-foreground" : "text-destructive-strong")}>
+          Total {total}%{total !== 100 ? " — must be 100" : ""}
+        </span>
+        {dirty && <Button size="sm" variant="ghost" onClick={() => setDraft(null)} disabled={save.isPending}>Reset</Button>}
+      </div>
+    </div>
+  );
+}
 
 /**
  * What each severity is worth.
