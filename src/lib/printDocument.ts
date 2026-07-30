@@ -49,8 +49,16 @@ export async function printElementAsDocument(
     doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>${styles}
 <style>
   /* The document IS the page here, so it needs none of the shell overrides. */
-  @page { size: A4 ${opts.landscape ? "landscape" : "portrait"}; margin: 12mm; }
+  /* Zero page margin, and our own padding inside the body instead.
+     The browser prints its own header and footer — the date, the document title and
+     the page URL — into the page margin box. With no margin there is nowhere for
+     them to go, so the "https://lovable.dev/projects/…" line stops appearing on
+     every report. The margin comes back as body padding, so the layout is unchanged.
+     Note: this is the only lever a page has. Whoever prints can still switch
+     "Headers and footers" back on in the print dialog; that setting is theirs. */
+  @page { size: A4 ${opts.landscape ? "landscape" : "portrait"}; margin: 0; }
   html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+  body { padding: 12mm; }
   body { font-size: 9pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   /* Screen-only controls that came along with the clone. Only real buttons: KPI
      cards that double as filters carry role="button", and hiding those would have

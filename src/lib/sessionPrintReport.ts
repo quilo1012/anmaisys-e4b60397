@@ -50,9 +50,11 @@ export function printSessionReport(s: PrintSessionData) {
   const html = `<!doctype html><html><head><meta charset="utf-8" />
 <title>Shift Report — ${escapeHtml(s.session_date)} ${escapeHtml(s.shift)} ${escapeHtml(s.line)}</title>
 <style>
-  @page { size: A4; margin: 14mm; }
+  /* margin 0 + body padding: the browser's header/footer (with the page URL) lives
+     in the page margin box, so removing the margin removes them. */
+  @page { size: A4; margin: 0; }
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, system-ui, Segoe UI, Roboto, sans-serif; color: #111; margin: 0; padding: 20px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: -apple-system, system-ui, Segoe UI, Roboto, sans-serif; color: #111; margin: 0; padding: 14mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   h1 { margin: 0 0 4px 0; font-size: 20px; }
   .sub { color: #555; font-size: 12px; margin-bottom: 16px; }
   .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0 16px; }

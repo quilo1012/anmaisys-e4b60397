@@ -927,7 +927,10 @@ export default function DowntimePage() {
     <DashboardLayout>
       <style>{`
         @media print {
-          @page { size: A4 landscape; margin: 12mm; }
+          /* margin 0 so the browser cannot print its own header/footer (which
+             includes the page URL); the space comes back as padding below. */
+          @page { size: A4 landscape; margin: 0; }
+          .downtime-print-root { padding: 12mm !important; }
           html, body { background: #fff !important; }
           body * { visibility: hidden !important; }
           .downtime-print-root, .downtime-print-root * { visibility: visible !important; }

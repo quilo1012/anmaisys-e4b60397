@@ -146,16 +146,16 @@ select:-webkit-autofill {
 /* ─── Print Styles ─── */
 
 @page {
-  /* A real, non-!important margin so page-specific overrides (e.g. Downtime's
-     landscape 12mm) win, and content never bleeds to the paper edge / clips
-     the footer in the printer's non-printable area. */
-  margin: 10mm;
+  /* No margin, so the browser has nowhere to print its own header and footer — the
+     date, the document title and the page URL. The spacing comes back as padding on
+     .print-content and on the body, below, so nothing bleeds to the paper edge. */
+  margin: 0;
   size: A4 portrait;
 }
 
 @media print {
   body {
-    padding: 0 !important;
+    padding: 10mm !important;
     background: white !important;
     color: black !important;
     font-size: 9pt;
