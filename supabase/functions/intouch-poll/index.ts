@@ -400,11 +400,23 @@ Deno.serve(async (req) => {
     // when the current poll surfaces an unknown UUID.
     const { data: codeMap } = await admin
       .from("intouch_stop_code_map")
-      .select("stop_code, label, default_priority, requires_wo")
-      .eq("active", true);
+      .select("stop_code, label, default_priority, requires_wo, active");
+
+    // Behaviour — which stops open a WO, which are tracked as production downtime —
+    // is decided by ACTIVE codes only, as before.
     const codeLookup = new Map(
-      (codeMap ?? []).map((c) => [normalizeStopCode(c.stop_code), c]),
+      (codeMap ?? []).filter((c) => c.active === true)
+        .map((c) => [normalizeStopCode(c.stop_code), c]),
     );
+
+    // Naming is a different question, and it reads EVERY code, active or not.
+    //
+    // These two used to be the same map: an inactive code had no entry, so the label
+    // fell back to the raw UUID and rows landed in production_downtimes with
+    // "648BC304-8254-4A0F-B6D8-E19D2B8C59F1" as their reason. That is not just ugly —
+    // "No Planned Shift" is excluded from downtime by matching its NAME, so 421
+    // minutes of unscheduled time were counted as real stoppage on Line 4, and the
+    // Breaks rows likewise. Deactivating a code must not change what a stop is called.
     const uuidToName = new Map<string, string>(
       (codeMap ?? []).map((c) => [normalizeStopCode(c.stop_code), c.label ?? ""]),
     );
@@ -508,7 +520,13 @@ Deno.serve(async (req) => {
           ? new Date(londonStart.getTime() - 86400000)
           : londonStart).toISOString().slice(0, 10);
         const shift = (h >= 6 && h < 18) ? "DAY" : "NIGHT";
-        const reasonLbl = prevMappedCode?.label ?? m.prod_dt_code ?? "iTouching stop";
+        // Name it from the full map, never from the UUID: an unnamed stop is invisible
+        // to every rule that classifies downtime by its reason.
+        const prevKey = m.prod_dt_code ? normalizeStopCode(m.prod_dt_code) : "";
+        const reasonLbl =
+          prevMappedCode?.label ||
+          (prevKey ? uuidToName.get(prevKey) : "") ||
+          (m.prod_dt_code ? `Unmapped stop code (${m.prod_dt_code})` : "iTouching stop");
         await admin.from("production_downtimes").insert({
           occurred_date,
           shift,

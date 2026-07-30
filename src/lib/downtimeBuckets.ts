@@ -12,6 +12,9 @@
 
 const NO_PLANNED_SHIFT_RE = /no[\s_-]*planned[\s_-]*shift/i;
 
+/** A reason that is only a bare UUID — a stop code that was never given its name. */
+const BARE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function isNoPlannedShift(
   reason?: string | null,
   category?: string | null,
@@ -30,6 +33,12 @@ export function bucketFromReason(
   category?: string | null,
 ): string | null {
   if (isNoPlannedShift(reason, category)) return null;
+
+  // A stop stored as its raw UUID has no name for any of the rules below to match,
+  // so it would quietly land in OTHER and be counted as a real stoppage — which is
+  // exactly what happened to 421 minutes of No Planned Shift on Line 4. Give it its
+  // own bucket so it is visible and gets mapped, rather than blended into the total.
+  if (BARE_UUID_RE.test((reason ?? "").trim())) return "Unmapped stop code";
 
   const text = `${reason ?? ""} ${category ?? ""}`.toLowerCase().trim();
   if (!text) return "OTHER";
