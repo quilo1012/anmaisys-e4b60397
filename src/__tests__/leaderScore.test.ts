@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeLeaderScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { computeLeaderScore, displayScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
 
 const noActions: never[] = [];
 
@@ -67,5 +67,21 @@ describe("computeLeaderScore", () => {
     expect(r.final).toBe(100);
     expect(r.applied.production_pct).toBe(0);
     expect(r.applied.quality_pct + r.applied.documentation_pct).toBe(100);
+  });
+});
+
+describe("displayScore", () => {
+  it("rounds down, so a deduction can never round back to full marks", () => {
+    // One Low action: quality 99, the other two 100 → 99.7 weighted. Shown as 100%
+    // it read as a clean period with an action open on the board.
+    const actions = [{ severity: "low", validation_status: "open" }];
+    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions });
+    expect(r.final).toBeCloseTo(99.7, 1);
+    expect(displayScore(r.final)).toBe(99);
+  });
+
+  it("leaves a genuine 100 alone", () => {
+    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: [] });
+    expect(displayScore(r.final)).toBe(100);
   });
 });

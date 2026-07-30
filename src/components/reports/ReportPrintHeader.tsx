@@ -1,4 +1,10 @@
 import { format } from "date-fns";
+// The plain Applied Nutrition mark. NOT /appliedlogo.jpeg from public/ — that file
+// has the same name but is the "Applied Nutrition MAINTENANCE" lockup, with the gear
+// and spanners, which has no business at the top of a production or quality report.
+// The PDF generators already import this one, so browser prints and PDFs finally
+// carry the same logo.
+import logoUrl from "@/assets/appliedlogo.jpeg";
 
 export interface ReportPrintHeaderProps {
   /** Report title, e.g. "Analytics Report". */
@@ -41,16 +47,13 @@ export function ReportPrintHeader({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          {/* The logo the order sheet has always printed. Reports carried the brand as
-              text only, so an order and a report coming off the same printer did not
-              look like they came from the same system. Absolute URL from /public so it
-              resolves inside the isolated print document too; if it fails to load it
-              removes itself and the wordmark below carries the identity. */}
+          {/* Reports used to carry the brand as text only, so an order and a report off
+              the same printer did not look like the same system. If the image fails to
+              load it removes itself and the wordmark below carries the identity. */}
           <img
-            src="/appliedlogo.jpeg"
+            src={logoUrl}
             alt=""
-            crossOrigin="anonymous"
-            className="h-12 w-auto object-contain"
+            className="h-10 w-auto object-contain"
             onError={(e) => { e.currentTarget.style.display = "none"; }}
           />
           <div>

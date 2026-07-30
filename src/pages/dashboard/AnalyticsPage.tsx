@@ -31,7 +31,7 @@ import { resolveLine } from "@/lib/resolveLine";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { QUALITY_STATUSES, severityPoints, isValidatedPaperwork } from "@/lib/qualityConstants";
-import { computeLeaderScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { computeLeaderScore, displayScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
 import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { printElementAsDocument } from "@/lib/printDocument";
@@ -835,7 +835,7 @@ export default function AnalyticsPage() {
                                 className={`font-bold tabular-nums ${r.score >= 90 ? "text-success-strong" : r.score >= 75 ? "text-warning-strong" : "text-destructive-strong"}`}
                                 title={`Production ${weights.production_pct}% · Quality ${weights.quality_pct}% · Documentation ${weights.documentation_pct}% — open the leader for the breakdown`}
                               >
-                                {r.score.toFixed(0)}%
+                                {displayScore(r.score)}%
                               </span>
                             )}
                           </td>

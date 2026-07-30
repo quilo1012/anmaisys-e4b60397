@@ -39,6 +39,17 @@ export interface LeaderScoreComponent {
   basis: string;
 }
 
+/**
+ * Percentages are rounded DOWN, never to nearest.
+ *
+ * A leader with one Low action scored 99 on quality and 100 on the other two, which
+ * weighted out at 99.7 and printed as "100%" — a deduction that rounded itself away.
+ * A score that hides a penalty is worse than no score, so 99.7 reads 99.
+ */
+export function displayScore(v: number | null | undefined): number | null {
+  return v === null || v === undefined ? null : Math.floor(v);
+}
+
 export interface LeaderScoreResult {
   production: LeaderScoreComponent;
   quality: LeaderScoreComponent;

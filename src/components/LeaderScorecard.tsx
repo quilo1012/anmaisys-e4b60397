@@ -17,7 +17,7 @@ import {
 } from "@/lib/qualityConstants";
 import { useProfileNames } from "@/hooks/useProfileNames";
 import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
-import { computeLeaderScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { computeLeaderScore, displayScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface LSAction {
@@ -259,10 +259,10 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
       ["QUALITY"],
       ["Total actions", String(q.total)], ["Open", String(q.open)], ["Completed", String(q.completed)], ["% closed", `${q.pctClosed}%`],
       ["Avg resolution (days)", q.avgResolution == null ? "—" : q.avgResolution.toFixed(1)],
-      ["Final score", score.final === null ? "—" : `${score.final.toFixed(0)}%`],
-      ["  Production component", score.production.value === null ? "—" : `${score.production.value.toFixed(0)}% (weight ${score.applied.production_pct}%) — ${score.production.basis}`],
-      ["  Quality component", score.quality.value === null ? "—" : `${score.quality.value.toFixed(0)}% (weight ${score.applied.quality_pct}%) — ${score.quality.basis}`],
-      ["  Documentation component", `${score.documentation.value}% (weight ${score.applied.documentation_pct}%) — ${score.documentation.basis}`],
+      ["Final score", score.final === null ? "—" : `${displayScore(score.final)}%`],
+      ["  Production component", score.production.value === null ? "—" : `${displayScore(score.production.value)}% (weight ${score.applied.production_pct}%) — ${score.production.basis}`],
+      ["  Quality component", score.quality.value === null ? "—" : `${displayScore(score.quality.value)}% (weight ${score.applied.quality_pct}%) — ${score.quality.basis}`],
+      ["  Documentation component", `${displayScore(score.documentation.value)}% (weight ${score.applied.documentation_pct}%) — ${score.documentation.basis}`],
       [],
       ["Documentation score", `${docs.score}%`],
       ["Validated Paperwork actions", String(docs.penalised.length)],
@@ -343,7 +343,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Final score</p>
                   <p className="text-4xl font-bold tabular-nums">
-                    {score.final === null ? "—" : `${score.final.toFixed(0)}%`}
+                    {score.final === null ? "—" : `${displayScore(score.final)}%`}
                   </p>
                 </div>
                 <div className="grid flex-1 grid-cols-3 gap-2 text-center">
@@ -354,7 +354,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
                   ] as const).map(([label, c, w]) => (
                     <div key={label} className="rounded-md border p-2">
                       <p className="text-2xs uppercase tracking-wide text-muted-foreground">{label}</p>
-                      <p className="text-lg font-bold tabular-nums">{c.value === null ? "—" : `${c.value.toFixed(0)}%`}</p>
+                      <p className="text-lg font-bold tabular-nums">{c.value === null ? "—" : `${displayScore(c.value)}%`}</p>
                       <p className="text-2xs text-muted-foreground">weight {w}%</p>
                     </div>
                   ))}
