@@ -163,7 +163,7 @@ export function useCreateWorkOrder() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (wo: { requester_name: string; machine?: string; description: string; notes?: string; priority?: string; created_at?: string; line_stopped?: boolean; line_id?: string | null; mobile_asset_id?: string | null; physical_line_id?: string | null; wo_type?: "production" | "warehouse_service"; warehouse_location?: string | null }) => {
+    mutationFn: async (wo: { requester_name: string; machine?: string; description: string; notes?: string; priority?: string; created_at?: string; line_stopped?: boolean; line_id?: string | null; mobile_asset_id?: string | null; physical_line_id?: string | null; wo_type?: "production" | "warehouse_service" | "preventive"; warehouse_location?: string | null }) => {
       const effectiveCreatedAt = wo.created_at || new Date().toISOString();
       const isWarehouse = wo.wo_type === "warehouse_service";
       const insertPayload: any = { ...wo, operator_id: user!.id, priority: wo.priority || "medium", created_at: effectiveCreatedAt, wo_type: wo.wo_type || "production" };
@@ -179,6 +179,15 @@ export function useCreateWorkOrder() {
         delete insertPayload.line_id;
         delete insertPayload.physical_line_id;
         // machine (legacy) may hold an optional warehouse asset name — keep as passed
+        insertPayload.line_stopped = false;
+        insertPayload.line_stopped_at = null;
+        insertPayload.line_stopped_by = null;
+        insertPayload.line_resumed_at = null;
+        insertPayload.line_resumed_by = null;
+      } else if (wo.wo_type === "preventive") {
+        // Planned work in a window where the line is not running. It must never book
+        // downtime — a leader who plans the job would otherwise show a worse day than
+        // one who waited for the breakdown. The database enforces this too.
         insertPayload.line_stopped = false;
         insertPayload.line_stopped_at = null;
         insertPayload.line_stopped_by = null;

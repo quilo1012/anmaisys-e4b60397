@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { printElementAsDocument } from "@/lib/printDocument";
+import { PreventiveOpportunities } from "@/components/PreventiveOpportunities";
 
 type RecKind = "reduce" | "no_pm" | "ok" | "increase";
 
@@ -67,6 +68,10 @@ export default function PMIntelligencePage() {
     const byMachine = new Map<string, typeof wos>();
     for (const w of wos) {
       if (!w.machine) continue;
+      // Planned work is not a failure. Counting it would drag a machine's MTBF down
+      // for being looked after, and recommend a shorter interval because the last
+      // recommendation was followed.
+      if (w.wo_type === "preventive") continue;
       if (new Date(w.created_at).getTime() < since) continue;
       const arr = byMachine.get(w.machine) ?? [];
       arr.push(w);
@@ -203,6 +208,8 @@ export default function PMIntelligencePage() {
             <KpiCard label="Can extend" value={counts.increase} sublabel="Serviced more often than needed" toneValue accent="ok" />
           </div>
         )}
+
+        {isLoading ? <Skeleton className="h-40" /> : <PreventiveOpportunities workOrders={wos} />}
 
         {isLoading ? (
           <Skeleton className="h-96" />
