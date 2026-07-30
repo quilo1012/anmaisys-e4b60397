@@ -837,7 +837,21 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
           })
           .select("id")
           .maybeSingle();
-        if (insErr) throw insErr;
+        // RLS refuses this insert when the shift has been locked, and the raw
+        // message ("new row violates row-level security policy for table
+        // production_items") tells an operator nothing about what to do. On 30/07
+        // the Line 4 night operator hit it seven times between 05:18 and 05:23 and
+        // gave up; the shift's output was never recorded.
+        if (insErr) {
+          const isRls = (insErr as { code?: string }).code === "42501"
+            || /row-level security/i.test((insErr as { message?: string }).message ?? "");
+          if (isRls) {
+            throw new Error(
+              "This shift is locked, so production can't be added to it. Ask a supervisor to reopen it, then log again.",
+            );
+          }
+          throw insErr;
+        }
         itemId = created?.id ?? null;
       } else {
         // Existing batch item — record/refresh the production times and batch code
