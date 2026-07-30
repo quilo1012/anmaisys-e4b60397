@@ -62,8 +62,8 @@ export function londonWallToUtc(y: number, mo: number, d: number, h: number): nu
 }
 
 /**
- * When production logging closes for a shift: 19:00 for DAY, 07:00 the next
- * morning for NIGHT, Europe/London — one hour after the shift ends.
+ * When production logging closes for a shift: 18:15 for DAY, 06:15 the next
+ * morning for NIGHT, Europe/London — 15 minutes after the shift ends.
  *
  * Mirrors session_write_deadline() in the database, which is the authority. This
  * exists so the UI can warn before the door shuts instead of letting an operator
@@ -71,9 +71,9 @@ export function londonWallToUtc(y: number, mo: number, d: number, h: number): nu
  */
 export function shiftLoggingDeadline(sessionDate: string, shift: "DAY" | "NIGHT"): Date {
   const [y, mo, d] = sessionDate.split("-").map(Number);
-  return shift === "NIGHT"
-    ? new Date(londonWallToUtc(y, mo, d + 1, 7))
-    : new Date(londonWallToUtc(y, mo, d, 19));
+  const at = (day: number, h: number, min: number) =>
+    new Date(londonWallToUtc(y, mo, day, h) + min * 60_000);
+  return shift === "NIGHT" ? at(d + 1, 6, 15) : at(d, 18, 15);
 }
 
 /**

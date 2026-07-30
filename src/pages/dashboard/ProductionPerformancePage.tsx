@@ -280,12 +280,14 @@ export default function ProductionPerformancePage() {
 
     return Array.from(map.values()).map((x) => {
       const actual = x.ragActual > 0 ? x.ragActual : x.sessionActual;
-      // A line whose figure comes only from the RAG plan produced but never logged
-      // on the floor. Preferring ragActual keeps this panel looking healthy while the
-      // shift record is empty — which is how Line 1 read 96% and 99% on 29/07 with
-      // zero entries on either shift, found only by comparing two screens the next
-      // day. Flag it here so it shows the same day.
-      const notLogged = x.ragActual > 0 && x.sessionActual === 0;
+      // A line that was planned to run but has nothing logged on the floor.
+      //
+      // This used to look for a RAG figure with no matching shift record — the way
+      // Line 1 read 96% and 99% on 29/07 with zero entries on either shift. RAG
+      // actual is now derived from the same entries, so the two can no longer
+      // disagree and that test can never fire. What still needs flagging the same
+      // day is the case it was really catching: a planned line nobody logged.
+      const notLogged = x.target > 0 && actual === 0;
       return { line: x.line, target: x.target, actual, leader: x.leader, hasSession: x.hasSession, notLogged, eff: x.target > 0 ? (actual / x.target) * 100 : 0 };
     })
       // Hide empty placeholder lines: no RAG target AND no production (e.g. a session
@@ -546,9 +548,9 @@ export default function ProductionPerformancePage() {
             <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
-                <b>{missing.length} {missing.length === 1 ? "line has" : "lines have"} no production logged for this shift.</b>{" "}
-                The figures shown for {missing.map((l) => l.line).join(", ")} come from the RAG plan, not from the floor.
-                Until someone logs the shift there is no record of what was actually made.
+                <b>{missing.length} {missing.length === 1 ? "line has" : "lines have"} a plan but no production logged for this shift.</b>{" "}
+                {missing.map((l) => l.line).join(", ")} {missing.length === 1 ? "reads" : "read"} 0% because nothing was
+                entered on My Production, not necessarily because nothing was made.
               </div>
             </div>
           );
@@ -593,7 +595,7 @@ export default function ProductionPerformancePage() {
                 {l.notLogged && (
                   <div
                     className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400"
-                    title="This figure comes from the RAG plan. The shift itself has no production logged, so the number is planned, not recorded."
+                    title="This line was planned to run but nothing was logged on My Production, so it reads 0%."
                   >
                     <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Not logged on the line
                   </div>

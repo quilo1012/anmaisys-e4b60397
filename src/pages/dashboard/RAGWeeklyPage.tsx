@@ -1095,6 +1095,7 @@ function InlineCell({
 
   const commit = (next: { plan?: string; actual?: string; dt?: string }) => {
     const p = Number(next.plan ?? plan) || 0;
+    // Sent for shape only; the database overwrites it from the floor's own logging.
     const a = Number(next.actual ?? actual) || 0;
     const d = Number(next.dt ?? dt) || 0;
     if (
@@ -1119,16 +1120,19 @@ function InlineCell({
 
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <input
-        className={`${inputCls} font-semibold`}
-        type="number"
-        value={actual}
-        placeholder="Act"
-        onFocus={() => { focusedRef.current = "actual"; }}
-        onChange={(e) => setActual(e.target.value)}
-        onBlur={() => { focusedRef.current = null; commit({ actual }); }}
-        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-      />
+      {/* Actual is not typed here. It is the sum of what operators logged for this
+          line and shift, and the database derives it on write — a value sent from
+          this screen is discarded. Two thirds of the output on file (534,624 units
+          across 120 rows) exists only in RAG and was never logged on the floor;
+          that is the gap this closes going forward. Read-only so the number and its
+          source can never disagree. */}
+      <div
+        className={`${inputCls} flex items-center justify-center font-semibold tabular-nums bg-muted/60 cursor-default`}
+        title="Comes from what the operator logged on My Production — not editable here"
+        aria-label="Actual, from operator logging"
+      >
+        {actual === "" ? "—" : Number(actual).toLocaleString("en-GB")}
+      </div>
       <input
         className={`${inputCls} opacity-80`}
         type="number"
@@ -1170,7 +1174,7 @@ function EditDialog({
   saving: boolean;
 }) {
   const [plan, setPlan] = useState(editing.entry?.plan_qty ?? 0);
-  const [actual, setActual] = useState(editing.entry?.actual_qty ?? 0);
+  const [actual] = useState(editing.entry?.actual_qty ?? 0);
   const [upmT, setUpmT] = useState(editing.entry?.upm_target ?? 0);
   const [upmA, setUpmA] = useState(editing.entry?.upm_actual ?? 0);
   const [dt, setDt] = useState(editing.entry?.downtime_min ?? 0);
@@ -1196,7 +1200,17 @@ function EditDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Plan</Label><Input type="number" value={plan} onChange={(e) => setPlan(Number(e.target.value))} /></div>
-            <div><Label>Actual <span className="text-xs text-muted-foreground">(auto from tablet, admin can override)</span></Label><Input type="number" value={actual} onChange={(e) => setActual(Number(e.target.value) || 0)} /></div>
+            <div>
+              <Label>Actual <span className="text-xs text-muted-foreground">(from My Production)</span></Label>
+              {/* Not editable: the database derives this from what operators logged for
+                  this line and shift, so anything typed here would be discarded on save. */}
+              <div
+                className="flex h-10 items-center rounded-md border border-input bg-muted/60 px-3 text-sm font-semibold tabular-nums"
+                title="Comes from what the operator logged on My Production — not editable here"
+              >
+                {actual ? actual.toLocaleString("en-GB") : "—"}
+              </div>
+            </div>
             <div><Label>UPM Target</Label><Input type="number" value={upmT} onChange={(e) => setUpmT(Number(e.target.value))} /></div>
             <div><Label>UPM Actual</Label><Input type="number" value={upmA} onChange={(e) => setUpmA(Number(e.target.value))} /></div>
             <div className="col-span-2"><Label>Downtime (min)</Label><Input type="number" value={dt} onChange={(e) => setDt(Number(e.target.value))} /></div>
@@ -1697,14 +1711,15 @@ function DayNightTotalSummary({
                   const wtNight = weekTotal("NIGHT");
                   const wtTot = weekTotal("TOTAL");
                   const cls = `p-1.5 text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
-                  const editable = canEditEntries && lineFilter.length === 1 && ["plan", "actual"].includes(row.key);
+                  // Plan is typed here; actual is not. Actual is the sum of what
+                  // operators logged for the line and shift, derived on write, so an
+                  // inline editor would silently discard whatever was entered.
+                  const editable = canEditEntries && lineFilter.length === 1 && row.key === "plan";
                   const lineName = lineFilter[0];
                   const commitValue = async (ds: string, shift: Shift, v: number) => {
                     const existing = entryMap.get(`${ds}|${lineName}|${shift}`);
                     const patch: Partial<Entry> =
-                      row.key === "plan" ? { plan_qty: v }
-                      : row.key === "actual" ? { actual_qty: v }
-                      : { downtime_min: v };
+                      row.key === "plan" ? { plan_qty: v } : { downtime_min: v };
                     if (existing?.id) {
                       // Patch ONLY the edited field so we never clobber
                       // sibling values (actual, downtime, notes, etc.).
@@ -1721,7 +1736,7 @@ function DayNightTotalSummary({
                         line: lineName,
                         shift,
                         plan_qty: row.key === "plan" ? v : 0,
-                        actual_qty: row.key === "actual" ? v : 0,
+                        actual_qty: 0, // derived server-side from operator logging
                         upm_target: 0,
                         upm_actual: 0,
                         downtime_min: row.key === "dt" ? v : 0,
@@ -1732,9 +1747,7 @@ function DayNightTotalSummary({
                   const renderEdit = (ds: string, shift: Shift) => {
                     const existing = entryMap.get(`${ds}|${lineName}|${shift}`);
                     const current =
-                      row.key === "plan" ? (existing?.plan_qty ?? 0)
-                      : row.key === "actual" ? (existing?.actual_qty ?? 0)
-                      : (existing?.downtime_min ?? 0);
+                      row.key === "plan" ? (existing?.plan_qty ?? 0) : (existing?.downtime_min ?? 0);
                     return (
                       <SummaryInlineInput
                         value={current}

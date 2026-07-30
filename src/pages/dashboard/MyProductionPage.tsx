@@ -850,7 +850,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
             // the operator to a supervisor to "reopen the shift", which stopped being
             // true the moment the deadline started overriding the lock — unlocking a
             // closed shift changes nothing now, so that advice only wasted a call.
-            const closedAt = getCurrentFactoryShift().shiftCode === "night" ? "07:00" : "19:00";
+            const closedAt = getCurrentFactoryShift().shiftCode === "night" ? "06:15" : "18:15";
             throw new Error(
               `Logging for this shift closed at ${closedAt}. Ask a manager to record it — they can still enter it for you.`,
             );
@@ -947,7 +947,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
           const sh: Shift = sc === "night" ? "NIGHT" : "DAY";
           const deadline = shiftLoggingDeadline(sd, sh);
           const msLeft = deadline.getTime() - Date.now();
-          const closedAt = sh === "NIGHT" ? "07:00" : "19:00";
+          const closedAt = sh === "NIGHT" ? "06:15" : "18:15";
           if (msLeft <= 0) {
             return (
               <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
