@@ -48,6 +48,9 @@ export interface RagExportEntry {
   plan_qty: number;
   actual_qty: number;
   downtime_min: number;
+  /** Units per minute. On the screen since the beginning; the PDF never showed them. */
+  upm_target?: number | null;
+  upm_actual?: number | null;
 }
 
 export interface RagExportInput {
@@ -353,13 +356,30 @@ export async function exportRagPdf(input: RagExportInput) {
     legX += w;
   });
 
-  // Downtime summary
+  // Downtime summary.
+  //
+  // This printed four fixed columns — WO Request, MAINT, Break, Cleaning — so any
+  // other bucket in the data was silently dropped and the sheet under-reported the
+  // week's stoppages with nothing to show it had. The columns are now whatever
+  // buckets the week actually has: the four known ones first, so the report keeps its
+  // familiar shape, then anything else, and a Total to check the row against.
   const dtStartY = legY + 8;
-  const dtCategories = ["WO Request", "MAINT", "Break", "Cleaning"];
-  const dtHead = [["Line", "WO Requests", "Maint Downtime (iTouching)", "Break", "Cleaning"]];
+  const KNOWN = ["WO Request", "MAINT", "Break", "Cleaning"];
+  const KNOWN_LABEL: Record<string, string> = {
+    "WO Request": "WO Requests",
+    MAINT: "Maint Downtime (iTouching)",
+    Break: "Break",
+    Cleaning: "Cleaning",
+  };
+  const extraBuckets = Array.from(autoDtBucketMap.keys())
+    .filter((b) => !KNOWN.some((k) => (BUCKET_MATCHERS[k] ?? ((x: string) => x === k))(b)))
+    .sort();
+  const dtCategories = [...KNOWN, ...extraBuckets];
+  const dtHead = [["Line", ...dtCategories.map((c) => KNOWN_LABEL[c] ?? c), "Total"]];
   const dtBody = lines.map((line) => {
     const cells = dtCategories.map((bucket) => sumBucket(autoDtBucketMap, bucket, line, dates));
-    return [line, ...cells.map((v) => (v ? `${v} min` : "—"))];
+    const total = cells.reduce((a, b) => a + b, 0);
+    return [line, ...cells.map((v) => (v ? `${v} min` : "—")), total ? `${total} min` : "—"];
   });
 
   // The old guard reserved a flat 40mm regardless of how many lines there were,
@@ -375,6 +395,66 @@ export async function exportRagPdf(input: RagExportInput) {
     theme: "grid",
     styles: { fontSize: 7, cellPadding: 1.5 },
     headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: "bold" },
+    margin: { left: margin, right: margin, bottom: BOTTOM_MARGIN },
+    rowPageBreak: "avoid",
+  });
+
+  // Per-line weekly summary.
+  //
+  // The grid above answers "did each day hit its target"; this answers "how did the
+  // line run" — the UPM the screen has always shown and the PDF never did, beside the
+  // week's plan, actual and stoppage minutes. Without it the sheet could not be
+  // reconciled against what the operator sees on the line.
+  const upmByLine = new Map<string, { tSum: number; tN: number; aSum: number; aN: number }>();
+  for (const l of lines) upmByLine.set(l, { tSum: 0, tN: 0, aSum: 0, aN: 0 });
+  for (const e of entries) {
+    const agg = upmByLine.get(e.line);
+    if (!agg) continue;
+    const t = Number(e.upm_target ?? 0);
+    const a = Number(e.upm_actual ?? 0);
+    if (t > 0) { agg.tSum += t; agg.tN++; }
+    if (a > 0) { agg.aSum += a; agg.aN++; }
+  }
+
+  const sumStartY = (doc as any).lastAutoTable.finalY + 6;
+  const sumBody = lines.map((line) => {
+    const m = byLine.get(line)!;
+    let p = 0, a = 0;
+    for (const d of dates) {
+      const t = m.get(d)!;
+      p += t.day.plan + t.night.plan;
+      a += t.day.actual + t.night.actual;
+    }
+    const agg = upmByLine.get(line)!;
+    // Downtime from the same buckets the table above prints, not from
+    // rag_weekly_entries.downtime_min: that column is not being filled (every row of
+    // this week is 0), so reading it would have printed "—" beside a bucket table
+    // showing real minutes.
+    const dtTotal = dtCategories.reduce((sum, b) => sum + sumBucket(autoDtBucketMap, b, line, dates), 0);
+    const pct = p ? (a / p) * 100 : null;
+    const avg = (sum: number, n: number) => (n ? (sum / n).toFixed(1) : "—");
+    return [
+      line,
+      p || "—",
+      a || "—",
+      { content: pct === null ? "—" : `${pct.toFixed(0)}%`, styles: { fillColor: pctColorRgb(pct), halign: "center" } },
+      avg(agg.tSum, agg.tN),
+      avg(agg.aSum, agg.aN),
+      dtTotal ? `${dtTotal} min` : "—",
+      (comments?.get(line) ?? "").trim() || "—",
+    ];
+  });
+  const sumNeeded = 10 + sumBody.length * 6;
+  const sumFits = sumStartY + sumNeeded <= pageH - BOTTOM_MARGIN;
+  if (!sumFits) doc.addPage();
+  autoTable(doc, {
+    startY: sumFits ? sumStartY : 24,
+    head: [["Line", "Plan", "Actual", "%", "UPM target", "UPM actual", "Downtime", "Comments"]],
+    body: sumBody,
+    theme: "grid",
+    styles: { fontSize: 7, cellPadding: 1.5, overflow: "linebreak" },
+    headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: "bold" },
+    columnStyles: { 0: { fontStyle: "bold" }, 7: { cellWidth: 70 } },
     margin: { left: margin, right: margin, bottom: BOTTOM_MARGIN },
     rowPageBreak: "avoid",
   });
