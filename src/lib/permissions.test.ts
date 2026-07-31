@@ -65,6 +65,8 @@ const EXPECTED: Record<Action, Role[]> = {
   "reliability.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "suppliers.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "permissions.manage": ["admin"],
+  "workforce.view": ["admin"],
+  "workforce.manage": ["admin"],
 };
 
 describe("permissions.can — full role × action matrix", () => {

@@ -34,7 +34,7 @@ export function BackButton({ className }: { className?: string } = {}) {
       variant="ghost"
       size="sm"
       aria-label="Go back"
-      className="h-9 shrink-0 gap-1.5 px-2 text-muted-foreground hover:text-foreground"
+      className={`h-9 shrink-0 gap-1.5 px-2 text-muted-foreground hover:text-foreground ${className ?? ""}`}
       onClick={() => (hasHistory ? navigate(-1) : navigate(home))}
     >
       <ArrowLeft className="h-4 w-4" />
