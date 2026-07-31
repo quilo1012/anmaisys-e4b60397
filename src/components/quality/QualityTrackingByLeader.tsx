@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users } from "lucide-react";
 import { leaderTracking, pointsLabel, type TrackedAction } from "@/lib/leaderTracking";
+import { useLabelAttribution, excludedLabelSet } from "@/hooks/useLabelAttribution";
 
 export interface QualityTrackingByLeaderProps {
   actions: TrackedAction[];
@@ -25,7 +27,9 @@ export interface QualityTrackingByLeaderProps {
  * sign: the table records what was raised, and leaves what it costs to the scorecard.
  */
 export function QualityTrackingByLeader({ actions, periodLabel, onSelectLeader }: QualityTrackingByLeaderProps) {
-  const rows = leaderTracking(actions);
+  const { data: attribution } = useLabelAttribution();
+  const excluded = useMemo(() => excludedLabelSet(attribution), [attribution]);
+  const rows = useMemo(() => leaderTracking(actions, excluded), [actions, excluded]);
 
   return (
     <Card className="break-inside-avoid">

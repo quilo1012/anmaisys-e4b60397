@@ -45,7 +45,19 @@ export interface LeaderTrackingRow {
   clean: boolean;
 }
 
-export function leaderTracking(actions: TrackedAction[]): LeaderTrackingRow[] {
+function attributable(a: TrackedAction, excluded: Set<string>): boolean {
+  const labels = (a.labels ?? []).map((l) => l.trim().toLowerCase()).filter(Boolean);
+  // No labels still counts: otherwise leaving them blank quietly removes a deviation
+  // from somebody's score, which is a gap people find by accident and then use.
+  if (labels.length === 0) return true;
+  return labels.some((l) => !excluded.has(l));
+}
+
+export function leaderTracking(
+  actions: TrackedAction[],
+  /** Labels that are not the leader's to answer for — see useLabelAttribution. */
+  excludedLabels: Set<string> = new Set(),
+): LeaderTrackingRow[] {
   const byLeader = new Map<string, TrackedAction[]>();
   for (const a of actions) {
     const key = a.leader_name?.trim() || "Unassigned";
@@ -59,7 +71,13 @@ export function leaderTracking(actions: TrackedAction[]): LeaderTrackingRow[] {
     // Rejected means Quality looked and said it was not a deviation. It stays in the
     // count of what was raised, but it costs the leader nothing — same rule as the
     // scorecard, deliberately.
-    const standing = list.filter((a) => a.validation_status !== "rejected");
+    //
+    // Attribution is the second filter: a machine failure or a GMP finding is raised
+    // on the line, not against the person running it. Those stay visible in the total
+    // and carry no points.
+    const standing = list
+      .filter((a) => a.validation_status !== "rejected")
+      .filter((a) => attributable(a, excludedLabels));
     const paperwork = list.filter(isValidatedPaperwork).length;
     const paperworkPending = list.filter(
       (a) => (a.labels ?? []).includes("Paperwork") && a.validation_status !== "validated" && a.validation_status !== "rejected",

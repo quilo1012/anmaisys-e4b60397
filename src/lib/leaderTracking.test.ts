@@ -66,3 +66,33 @@ describe("leaderTracking", () => {
     expect(row.shifts).toBe("DAY, NIGHT");
   });
 });
+
+describe("what is the leader's to answer for", () => {
+  const excluded = new Set(["maintenance", "gmp"]);
+
+  it("leaves a machine failure out of the leader's points", () => {
+    const [row] = leaderTracking(
+      [a({ severity: "critical", labels: ["Maintenance"] }), a({ severity: "low", labels: ["CCP"] })],
+      excluded,
+    );
+    // Both were raised on the line; only one is the leader's.
+    expect(row.total).toBe(2);
+    expect(row.points).toBe(1);
+  });
+
+  it("counts an action that carries one attributable label among several", () => {
+    const [row] = leaderTracking([a({ severity: "high", labels: ["Maintenance", "Paperwork"] })], excluded);
+    expect(row.points).toBe(3);
+  });
+
+  it("counts an action with no labels at all", () => {
+    // Otherwise leaving the labels blank quietly removes a deviation from a score.
+    const [row] = leaderTracking([a({ severity: "high", labels: [] })], excluded);
+    expect(row.points).toBe(3);
+  });
+
+  it("charges everything when nothing is excluded", () => {
+    const [row] = leaderTracking([a({ severity: "critical", labels: ["Maintenance"] })], new Set());
+    expect(row.points).toBe(4);
+  });
+});
