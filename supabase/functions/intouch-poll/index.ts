@@ -632,27 +632,38 @@ Deno.serve(async (req) => {
       const activeStatuses = ["open", "received", "arrived", "in_progress"];
       const machineNames = Array.from(new Set([m.machine_name, m.intouch_machine_name].filter(Boolean))) as string[];
 
-      let { data: existing } = await admin
+      // Every order still live on this machine, not just the newest one.
+      //
+      // The order that matters is the one raised for THIS problem. A machine can be
+      // down for a capper jam while an engineer is still finishing a labeller fault:
+      // two problems, two repairs, two orders. Taking only the most recent order and
+      // rewriting its stop code merged them into one, and whichever fault was fixed
+      // second inherited the first one's history.
+      let { data: activeWOs } = await admin
         .from("work_orders")
         .select("id, wo_number, intouch_downtime_code, notes")
         .eq("intouch_machine_id", s.MachineID)
         .in("status", activeStatuses)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order("created_at", { ascending: false });
 
-      if (!existing && machineNames.length) {
+      if ((!activeWOs || activeWOs.length === 0) && machineNames.length) {
         const legacy = await admin
           .from("work_orders")
           .select("id, wo_number, intouch_downtime_code, notes")
           .in("machine", machineNames)
           .in("status", activeStatuses)
           .gte("created_at", recentCutoff)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        existing = legacy.data;
+          .order("created_at", { ascending: false });
+        activeWOs = legacy.data ?? [];
       }
+
+      // Same problem → the same order picks the clock back up. Matching on the code
+      // rather than on "the newest order" also survives a stop code that flaps: the
+      // order for that code is found again instead of a third one being raised.
+      const existing = (activeWOs ?? []).find(
+        (w) => normalizeStopCode(w.intouch_downtime_code) === codeKey,
+      ) ?? null;
+      const otherActiveWOs = (activeWOs ?? []).filter((w) => w.id !== existing?.id);
 
       if (existing) {
         // The poll resumed this order when the machine recovered; it has now failed
@@ -691,17 +702,7 @@ Deno.serve(async (req) => {
           results.errors.push(`wo re-stop ${m.intouch_machine_name}: ${(e as Error).message}`);
         }
 
-        if (normalizeStopCode(existing.intouch_downtime_code) !== codeKey) {
-          await admin.from("work_orders").update({
-            intouch_downtime_code: s.DowntimeCode,
-            description: label,
-            priority,
-            notes: `${existing.notes ?? ""}\n[Updated from iTouching @ ${now}] Stop code changed → ${codeName} (${s.DowntimeCode})`,
-          }).eq("id", existing.id);
-          results.opened_wos.push({ machine: m.machine_name ?? m.intouch_machine_name ?? "?", wo: `${existing.wo_number} updated → ${label}` });
-        } else {
-          results.skipped.push(`${m.intouch_machine_name} (WO ${existing.wo_number} already open)`);
-        }
+        results.skipped.push(`${m.intouch_machine_name} (WO ${existing.wo_number} already open for ${codeName})`);
         continue;
       }
 
@@ -718,7 +719,13 @@ Deno.serve(async (req) => {
       // previous iTouching status was running/healthy with no active stop code,
       // current status is stopped. This prevents delete → recreate loops when
       // the line remains stopped or when a bad reset left a stale stop code.
-      if (!cameFromHealthy && !changedMaintenanceCode) {
+      // A machine already has an order open, but for a DIFFERENT code: this is a new
+      // fault on a machine somebody is still repairing, and it gets its own order.
+      // The baseline guard below is about not re-raising an order for a stop that was
+      // already there — it does not apply to a problem nobody has an order for.
+      const anotherProblemInProgress = otherActiveWOs.length > 0;
+
+      if (!cameFromHealthy && !changedMaintenanceCode && !anotherProblemInProgress) {
         results.skipped.push(`${m.intouch_machine_name} (${codeName} baseline/no new stop)`);
         continue;
       }
