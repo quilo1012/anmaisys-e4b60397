@@ -15,8 +15,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, KeyRound, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -170,30 +169,9 @@ function readSavedSidebarPreference(): boolean | null {
   return null;
 }
 
-function SidebarFooterToggle() {
-  const { state, toggleSidebar, isMobile } = useSidebar();
-  if (isMobile) return null;
-  const collapsed = state === "collapsed";
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      title={collapsed ? "Expand menu" : "Collapse menu"}
-      aria-label={collapsed ? "Expand menu" : "Collapse menu"}
-      className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 mb-1"
-      onClick={toggleSidebar}
-    >
-      {collapsed ? (
-        <PanelLeftOpen className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
-      ) : (
-        <PanelLeftClose className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
-      )}
-      <span className="group-data-[collapsible=icon]:hidden">
-        {collapsed ? "Expand menu" : "Collapse menu"}
-      </span>
-    </Button>
-  );
-}
+// SidebarFooterToggle lived here. The sidebar still collapses — the rail on its edge
+// and the panel button in the header both do it — so a third control spending a row
+// of the menu to say so was one too many.
 
 function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCount }: { filteredItems: NavItem[]; permissionOverrideCount: number; dmUnread: number; crashCount: number }) {
   const location = useLocation();
@@ -392,7 +370,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { language, toggle: toggleLanguage } = useLanguage();
   const { data: dmUnread = 0 } = useDMUnreadCount();
   const { data: crashCount = 0 } = useTelemetryCrashCount(role === "admin");
-  const [changePwdOpen, setChangePwdOpen] = useState(false);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const [permissionVersion, setPermissionVersion] = useState(0);
 
@@ -531,19 +508,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   </div>
                 </div>
               </div>
-              <SidebarFooterToggle />
-              {role !== "operator" && role !== "viewer" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  title="Change Password"
-                  className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 mb-1"
-                  onClick={() => setChangePwdOpen(true)}
-                >
-                  <KeyRound className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
-                  <span className="group-data-[collapsible=icon]:hidden">Change Password</span>
-                </Button>
-              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -635,7 +599,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             {isMobile && <MobileTabBar tabs={filteredItems.slice(0, 3)} />}
           </main>
         </div>
-        <ChangePasswordDialog open={changePwdOpen} onOpenChange={setChangePwdOpen} />
         <AlertDialog open={signOutConfirmOpen} onOpenChange={setSignOutConfirmOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
