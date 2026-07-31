@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { FactoryStatusStrip } from "@/components/FactoryStatusStrip";
+import { ControlCentreHome } from "@/components/ControlCentreHome";
 import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { RoleShortcutGrid } from "@/components/RoleShortcutGrid";
 import { KpiCard } from "@/components/reports/KpiCard";
@@ -191,6 +192,11 @@ function ManagerDashboardContent() {
             wherever you land. */}
         <SectionErrorBoundary title="Live status">
           <FactoryStatusStrip />
+        </SectionErrorBoundary>
+
+        {/* The factory in one screen, in the space the banner used to hold. */}
+        <SectionErrorBoundary title="Control centre">
+          <ControlCentreHome />
         </SectionErrorBoundary>
 
         <PageHeader
