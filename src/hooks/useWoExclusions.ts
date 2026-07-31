@@ -19,6 +19,10 @@ export interface WoExclusion {
   ended_by: string | null;
   note: string | null;
   created_at: string;
+  /** 'manual' when a person recorded it, 'intouch' when the poll did. */
+  source?: string | null;
+  /** The production_downtimes row an automatic exclusion came from. */
+  downtime_id?: string | null;
 }
 
 /** Team-activity exclusions for a single maintenance order, oldest → newest. */

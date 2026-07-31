@@ -15,12 +15,20 @@
 import type { Interval, RawStop } from "@/lib/downtimeReconcile";
 
 export const EXCLUSION_ACTIVITIES = ["break", "filling_blender", "brushing_cleaning"] as const;
+
+/**
+ * Recorded automatically when iTouching reports a planned stop nobody has classified
+ * as one of the three above. Not offered as a button: a person pressing it should say
+ * which activity it was.
+ */
+export const AUTOMATIC_ACTIVITY = "planned_stop";
 export type ExclusionActivity = (typeof EXCLUSION_ACTIVITIES)[number];
 
 export const ACTIVITY_LABELS: Record<string, string> = {
   break: "Break",
   filling_blender: "Filling blender",
   brushing_cleaning: "Brushing & cleaning",
+  planned_stop: "Planned stop",
 };
 
 export function activityLabel(activity: string | null | undefined): string {

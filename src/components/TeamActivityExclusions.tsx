@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { differenceInMinutes, format } from "date-fns";
-import { Coffee, Beaker, Brush, ArrowLeftRight, Timer } from "lucide-react";
+import { Coffee, Beaker, Brush, ArrowLeftRight, Timer, Radar } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -82,6 +83,13 @@ export function TeamActivityExclusions({ workOrderId, lineStopped }: Props) {
             {differenceInMinutes(new Date(), new Date(open.started_at))}m
             {open.started_by_name ? ` · ${open.started_by_name}` : ""}
           </p>
+          {open.source === "intouch" && (
+            /* Said on the row: iTouching reported this, nobody pressed the button.
+               A reading and a person's record should not look the same. */
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Radar className="h-3 w-3" /> Reported by iTouching — ends when the line comes back.
+            </p>
+          )}
           <Button
             size="lg"
             className="w-full h-12 text-base font-bold"
@@ -113,9 +121,14 @@ export function TeamActivityExclusions({ workOrderId, lineStopped }: Props) {
             const mins = differenceInMinutes(new Date(e.ended_at!), new Date(e.started_at));
             return (
               <div key={e.id} className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span className="truncate">
+                <span className="flex min-w-0 items-center gap-1 truncate">
                   {activityLabel(e.activity)} · {format(new Date(e.started_at), "HH:mm")}–
                   {format(new Date(e.ended_at!), "HH:mm")}
+                  {e.source === "intouch" && (
+                    <Badge variant="outline" className="shrink-0 text-[9px] leading-4" title="Recorded automatically from an iTouching planned stop code">
+                      iTouching
+                    </Badge>
+                  )}
                 </span>
                 <span className="font-mono shrink-0">{mins}m</span>
               </div>

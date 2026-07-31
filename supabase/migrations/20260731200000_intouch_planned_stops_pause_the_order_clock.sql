@@ -40,9 +40,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS wo_downtime_exclusions_intouch_uniq
  */
 CREATE TABLE IF NOT EXISTS public.intouch_exclusion_map (
   stop_code_name text PRIMARY KEY,
-  activity text NOT NULL CHECK (activity IN ('break', 'filling_blender', 'brushing_cleaning')),
+  activity text NOT NULL,
   active boolean NOT NULL DEFAULT true
 );
+
+-- 'planned_stop' joins the three named activities: a code an admin switches on here
+-- that nobody has classified is recorded as what it is, rather than being squeezed
+-- into "break" so the order reads a story that did not happen.
+ALTER TABLE public.wo_downtime_exclusions DROP CONSTRAINT IF EXISTS wo_downtime_exclusions_activity_check;
+ALTER TABLE public.wo_downtime_exclusions ADD CONSTRAINT wo_downtime_exclusions_activity_check
+  CHECK (activity = ANY (ARRAY['break','filling_blender','brushing_cleaning','planned_stop']));
+ALTER TABLE public.intouch_exclusion_map DROP CONSTRAINT IF EXISTS intouch_exclusion_map_activity_check;
+ALTER TABLE public.intouch_exclusion_map ADD CONSTRAINT intouch_exclusion_map_activity_check
+  CHECK (activity = ANY (ARRAY['break','filling_blender','brushing_cleaning','planned_stop']));
 
 INSERT INTO public.intouch_exclusion_map (stop_code_name, activity) VALUES
   ('Breaks', 'break'),

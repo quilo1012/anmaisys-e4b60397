@@ -12,6 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PlannedStopExclusions } from "@/components/intouch/PlannedStopExclusions";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Save, Radar } from "lucide-react";
 
@@ -165,6 +166,8 @@ export default function IntouchStopCodesPage() {
           </div>
         </CardContent>
       </Card>
+
+      <PlannedStopExclusions />
 
       <Card>
         <CardHeader className="space-y-3">
