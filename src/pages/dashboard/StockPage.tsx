@@ -15,6 +15,7 @@ import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2, Tags } from "luc
 import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
 import { useCategories, useAddCategory, useDeleteCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/hooks/useRole";
 import { useToast } from "@/hooks/use-toast";
 import { logAuditEvent, useStockAdjustmentHistory } from "@/hooks/useAuditLogs";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,6 +24,7 @@ import { History } from "lucide-react";
 
 export default function StockPage() {
   const { role } = useAuth();
+  const { can } = useRole();
   const { data: products, isLoading } = useProducts();
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const addProduct = useAddProduct();
@@ -32,8 +34,13 @@ export default function StockPage() {
   const addCategory = useAddCategory();
   const deleteCategory = useDeleteCategory();
   const { toast } = useToast();
-  // Mirrors the stock.manage matrix / products write RLS (incl. supervisor).
-  const isManager = role === "admin" || role === "manager" || role === "maintenance_manager" || role === "supervisor";
+  // Reads the permission matrix, not a list of roles written here.
+  //
+  // This screen used to hardcode admin/manager/maintenance_manager/supervisor, which
+  // meant two things: production_office_admin held stock.manage in the matrix and got
+  // nothing here, and an admin toggling stock.manage in Permissions changed nothing on
+  // this page. A rule stated in two places is a rule that disagrees with itself.
+  const isManager = can("stock.manage");
   // Deleting a product is admin-only in RLS — don't offer it to the others.
   const isAdmin = role === "admin";
   const queryClient = useQueryClient();
