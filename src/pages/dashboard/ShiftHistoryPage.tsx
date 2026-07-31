@@ -338,12 +338,13 @@ function InlineUnitQtyInput({
     onSaved();
   };
   return (
-    // Number first, unit after it.
+    // Just the number.
     //
-    // The unit used to sit in front — "BAGS 1059" under a column headed Qty — so the
-    // quantity column did not read as a column of quantities, and the eye had to step
-    // over a word to reach every figure. A unit is a suffix in every other document
-    // this factory produces.
+    // The unit was printed beside every figure — first as "BAGS 1059", then as a
+    // suffix — and on a screen where the people reading it already know what the line
+    // packs, it was a word repeated on every row for nothing. The unit is still
+    // stored, and still set by the Tubs/Bags toggle; it just no longer crowds the
+    // column.
     <div className="flex items-center justify-end gap-1.5">
       <Input
         type="number" inputMode="numeric" disabled={disabled || saving} value={val}
@@ -353,9 +354,8 @@ function InlineUnitQtyInput({
           if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
           if (e.key === "Escape") { setVal(initial); (e.target as HTMLInputElement).blur(); }
         }}
-        className="h-8 w-20 text-right px-2 tabular-nums text-xs"
+        className="h-8 w-24 text-right px-2 tabular-nums text-sm"
       />
-      <span className="w-8 text-left text-2xs text-muted-foreground">{unit === "tubs" ? "tubs" : "bags"}</span>
       <span className="w-3">{saved && <Check className="h-3 w-3 text-emerald-500" />}</span>
     </div>
   );
@@ -1229,7 +1229,7 @@ export default function ShiftHistoryPage() {
                             <TableCardField label="Finish" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
                           )}
                           <TableCardField
-                            label={blenders.length > 0 && !isAdmin ? "Qty (from blenders)" : `Qty (${effUnit})`}
+                            label={blenders.length > 0 && !isAdmin ? "Qty (from blenders)" : "Qty"}
                             value={blenders.length > 0 && !isAdmin ? (
                               <span className="tabular-nums">{Number(i.actual_qty ?? 0).toLocaleString()}</span>
                             ) : i.id && (i.sku_id || i.sku_code_text) ? (
