@@ -21,6 +21,8 @@ export interface DowntimeEvent {
   duration_minutes: number | null;
   created_at: string;
   is_recurrence?: boolean;
+  /** Merged team-activity exclusion intervals for this event's work order. */
+  exclusions?: [number, number][];
 }
 
 export interface DowntimeTotal {

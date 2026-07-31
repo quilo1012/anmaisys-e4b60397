@@ -11,6 +11,7 @@ import {
 } from "@/hooks/useShiftDowntime";
 import type { DowntimeEvent } from "@/hooks/useDowntimeEvents";
 import { reconcileMinutes, reconcileByKey } from "@/lib/downtimeReconcile";
+import { splitRangeByExclusions } from "@/lib/downtimeExclusions";
 
 function toLondonISODate(d: Date): string {
   // YYYY-MM-DD in London local time
@@ -39,14 +40,13 @@ function ShiftPanel({ shift, events, windowStart, windowEnd }: ShiftPanelProps) 
   // Aggregate per asset/line. Do not use stopped_reason as the row label: it is
   // the problem text (e.g. "Again"), not the machine/line that is down.
   const rows = useMemo(() => {
-    const stops = events.map((e) => {
+    const stops = events.flatMap((e) => {
       const machine = (e.machine ?? "").toString().trim();
       const line = (e.line_name ?? e.line_at_time ?? "").toString().trim();
-      return {
-        start: e.stopped_at,
-        end: e.resumed_at,
-        _key: machine || line || "Unassigned machine",
-      };
+      const _key = machine || line || "Unassigned machine";
+      // Team-activity time is carved out before the stop is counted.
+      return splitRangeByExclusions(e.stopped_at, e.resumed_at, e.exclusions ?? [])
+        .map((piece) => ({ start: piece.start, end: piece.end, _key }));
     });
     return reconcileByKey(
       stops,
@@ -60,7 +60,9 @@ function ShiftPanel({ shift, events, windowStart, windowEnd }: ShiftPanelProps) 
   const total = useMemo(
     () =>
       reconcileMinutes(
-        events.map((e) => ({ start: e.stopped_at, end: e.resumed_at })),
+        events.flatMap((e) =>
+          splitRangeByExclusions(e.stopped_at, e.resumed_at, e.exclusions ?? []),
+        ),
         windowStart.getTime(),
         windowEnd.getTime(),
       ),
