@@ -24,6 +24,8 @@ export interface QualityReportAction {
   description: string | null;
   /** Quality's verdict — a rejected action costs the leader nothing. */
   validation_status?: string | null;
+  /** Filed by a manager; until then the action is still standing. */
+  closed_at?: string | null;
 }
 
 export interface QualityReportInput {

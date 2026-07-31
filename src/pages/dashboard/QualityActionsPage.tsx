@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_STATUSES, QUALITY_SEVERITIES, statusMeta, severityMeta, severityPoints, sumSeverityPoints, VALIDATION_STATES, validationMeta } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, statusMeta, severityMeta, severityPoints, sumSeverityPoints, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
 import { useSeverityPointRows, useUpdateSeverityPoints } from "@/hooks/useSeverityPoints";
 import { useLeaderScoreWeights, useUpdateLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
@@ -116,7 +116,6 @@ export function QualityActionsView() {
   const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
   const [filterLine, setFilterLine] = useState("__all__");
   const [filterLeader, setFilterLeader] = useState("__all__");
-  const [filterStatus, setFilterStatus] = useState("__all__");
   const [filterDept, setFilterDept] = useState("__all__");
   const [filterSeverity, setFilterSeverity] = useState("__all__");
   // "__pending__" is not a stored value — it is the question people actually ask of
@@ -194,7 +193,6 @@ export function QualityActionsView() {
     actions.filter((a) =>
       (filterLine === "__all__" || a.line === filterLine) &&
       (filterLeader === "__all__" || a.leader_name === filterLeader) &&
-      (filterStatus === "__all__" || a.status === filterStatus) &&
       (filterDept === "__all__" || a.department === filterDept) &&
       (filterSeverity === "__all__" || (a.severity ?? "") === filterSeverity) &&
       (filterShift === "__all__" || a.shift === filterShift) &&
@@ -202,14 +200,17 @@ export function QualityActionsView() {
         (filterValidation === "__pending__"
           ? !["validated", "rejected"].includes(a.validation_status ?? "open")
           : (a.validation_status ?? "open") === filterValidation))),
-    [actions, filterLine, filterLeader, filterStatus, filterDept, filterSeverity, filterShift, filterValidation]
+    [actions, filterLine, filterLeader, filterDept, filterSeverity, filterShift, filterValidation]
   );
 
   const detailAction = useMemo(() => actions.find((a) => a.id === detailId) ?? null, [actions, detailId]);
 
 
   const kpis = useMemo(() => {
-    const open = filtered.filter((x) => x.status !== "complete");
+    // "Open" now means Quality has not filed it. The To do / In progress / Complete
+    // board is gone; what remains is the lifecycle that carries a signature —
+    // raised → validated or rejected → closed by a manager.
+    const open = filtered.filter((x) => !isClosed(x));
     return {
       total: filtered.length,
       // Weighted, not counted: ten Low actions and one Critical are not the same
@@ -420,7 +421,7 @@ export function QualityActionsView() {
       recorded_at: a.recorded_at, action_no: a.action_no, status: a.status, severity: a.severity,
       line: a.line, shift: a.shift, leader_name: a.leader_name, department: a.department,
       sku: a.sku, batch: a.batch, labels: a.labels, description: a.description,
-      validation_status: a.validation_status,
+      validation_status: a.validation_status, closed_at: a.closed_at,
     })),
     periodLabel,
     generatedBy: profile?.name || "—",
@@ -484,12 +485,6 @@ export function QualityActionsView() {
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Action #</Label>
                       <Input placeholder="e.g. AC-6114" value={form.action_no} onChange={(e) => setForm({ ...form, action_no: e.target.value })} />
-                    </div>
-                    <div><Label>Status</Label>
-                      <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-                      </Select>
                     </div>
                   </div>
                   <div><Label>Severity</Label>
@@ -578,8 +573,6 @@ export function QualityActionsView() {
             icon={<ClipboardCheck className="h-3.5 w-3.5" />}
             value={kpis.total} accent="blue"
             sublabel={`${kpis.totalPoints} points in range`}
-            active={filterStatus === "__all__"}
-            onClick={() => setFilterStatus("__all__")}
           />
           <KpiCard
             label="Waiting on Quality"
@@ -613,10 +606,6 @@ export function QualityActionsView() {
         {/* Filters, in a toolbar card like the Maintenance Orders screen. */}
         <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/30 p-3">
           <DateRangeFilter value={drRange} preset={drPreset} onChange={(r, p) => { setDrRange(r); setDrPreset(p); }} storageKey="quality-period" />
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All Statuses</SelectItem>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-          </Select>
           <Select value={filterSeverity} onValueChange={setFilterSeverity}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="__all__">All severity</SelectItem>{QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
@@ -658,7 +647,6 @@ export function QualityActionsView() {
               {filtered.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No actions</p>}
               {filtered.map((a) => {
                 const sev = severityMeta(a.severity);
-                const st = statusMeta(a.status);
                 return (
                   <div key={a.id} role="button" tabIndex={0}
                     onClick={() => setDetailId(a.id)}
@@ -667,7 +655,12 @@ export function QualityActionsView() {
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-sm font-semibold">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
                       <div className="flex items-center gap-1">
-                        <Badge variant="outline" className={cn("text-2xs", st.badge)}>{st.label}</Badge>
+                        <Badge variant="outline" className={cn("text-2xs", validationMeta(a.validation_status).badge)}>
+                          {validationMeta(a.validation_status).label}
+                        </Badge>
+                        {isClosed(a) && (
+                          <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/15 text-2xs text-success-strong">Closed</Badge>
+                        )}
                         {canManage && (
                           <span onClick={(e) => e.stopPropagation()}>
                             <RowDeleteButton actionNo={a.action_no} onConfirm={() => deleteAction.mutate(a.id)} />
@@ -709,7 +702,7 @@ export function QualityActionsView() {
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader><TableRow>
-                  <TableHead>When</TableHead><TableHead>#</TableHead><TableHead>Status</TableHead>
+                  <TableHead>When</TableHead><TableHead>#</TableHead>
                   <TableHead>Validation</TableHead><TableHead>Severity</TableHead>
                   <TableHead className="text-right">Points</TableHead>
                   <TableHead>Line</TableHead><TableHead>Leader</TableHead>
@@ -717,19 +710,13 @@ export function QualityActionsView() {
                   {canManage && <TableHead className="w-10 text-right">Delete</TableHead>}
                 </TableRow></TableHeader>
                 <TableBody>
-                  {filtered.length === 0 && <TableRow><TableCell colSpan={canManage ? 12 : 11} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
+                  {filtered.length === 0 && <TableRow><TableCell colSpan={canManage ? 11 : 10} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
                   {filtered.map((a) => {
                     const sev = severityMeta(a.severity);
                     return (
                     <TableRow key={a.id} className="cursor-pointer" onClick={() => setDetailId(a.id)}>
                       <TableCell className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</TableCell>
                       <TableCell className="font-mono text-xs">{a.action_no ?? "—"}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Select value={a.status} onValueChange={(v) => setStatus.mutate({ id: a.id, status: v })}>
-                          <SelectTrigger className={cn("h-7 w-32 border text-xs", statusMeta(a.status).badge)}><SelectValue /></SelectTrigger>
-                          <SelectContent>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Badge variant="outline" className={cn("text-2xs", validationMeta(a.validation_status).badge)}>
@@ -866,14 +853,6 @@ function IssueCard({ a, canManage, onOpen, onMove }: {
           {format(new Date(a.recorded_at), "dd/MM")}
         </span>
       </div>
-      {canManage && (
-        <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-          <Select value={a.status} onValueChange={(v) => onMove(a.id, v)}>
-            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>Move to {s.label}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-      )}
     </div>
   );
 }
@@ -952,12 +931,6 @@ function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenCh
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Status</Label>
-                  <Select value={action.status} onValueChange={onStatus} disabled={!canManage}>
-                    <SelectTrigger className={cn("border", statusMeta(action.status).badge)}><SelectValue /></SelectTrigger>
-                    <SelectContent>{QUALITY_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
                 <div><Label>Severity</Label>
                   <Select value={action.severity || "__none__"} onValueChange={(v) => onSeverity(v === "__none__" ? null : v)} disabled={!canManage}>
                     <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>

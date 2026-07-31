@@ -19,8 +19,8 @@ export interface TrackedAction {
   leader_name: string | null;
   shift: string | null;
   severity: string | null;
-  /** Board status: todo / in_progress / complete. */
-  status?: string | null;
+  /** Filed by a manager. An action without this is still standing. */
+  closed_at?: string | null;
   labels?: string[] | null;
   validation_status?: string | null;
 }
@@ -30,7 +30,7 @@ export interface LeaderTrackingRow {
   /** Every shift the leader's actions were raised on, e.g. "DAY" or "DAY, NIGHT". */
   shifts: string;
   total: number;
-  /** Still on the board in this leader's name — anything not Complete. */
+  /** Still standing in this leader's name — not yet closed by a manager. */
   open: number;
   /** Paperwork errors Quality has validated. */
   paperwork: number;
@@ -66,7 +66,10 @@ export function leaderTracking(actions: TrackedAction[]): LeaderTrackingRow[] {
     ).length;
     const shifts = Array.from(new Set(list.map((a) => (a.shift || "").toUpperCase()).filter(Boolean))).sort();
     const points = standing.reduce((sum, a) => sum + severityPoints(a.severity), 0);
-    const stillOpen = standing.filter((a) => (a.status ?? "todo") !== "complete");
+    // Open means Quality has not filed it. The To do / In progress / Complete board
+    // is gone from this module; the lifecycle that carries a signature is the one
+    // that counts — raised, then validated or rejected, then closed by a manager.
+    const stillOpen = standing.filter((a) => !a.closed_at);
     rows.push({
       leader,
       shifts: shifts.join(", ") || "—",

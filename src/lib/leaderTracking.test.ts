@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { leaderTracking, pointsLabel } from "./leaderTracking";
 
 const a = (o: Partial<Parameters<typeof leaderTracking>[0][number]> = {}) => ({
-  leader_name: "Gill", shift: "DAY", severity: "low", status: "todo", labels: [], validation_status: "open", ...o,
+  leader_name: "Gill", shift: "DAY", severity: "low", closed_at: null, labels: [], validation_status: "open", ...o,
 });
 
 describe("leaderTracking", () => {
@@ -18,8 +18,8 @@ describe("leaderTracking", () => {
 
   it("accumulates points and says how many are still open", () => {
     const [row] = leaderTracking([
-      a({ severity: "critical", status: "todo" }),   // 4 points, open
-      a({ severity: "low", status: "complete" }),    // 1 point, closed out
+      a({ severity: "critical", closed_at: null }),                      // 4 points, standing
+      a({ severity: "low", closed_at: "2026-07-30T10:00:00Z" }),         // 1 point, filed
     ]);
     expect(row.points).toBe(5);
     expect(row.open).toBe(1);

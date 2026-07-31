@@ -13,10 +13,13 @@ export interface QualityTrackingByLeaderProps {
 /**
  * Who is accumulating deviations, and what it costs them.
  *
- * The status counts (To do / In progress / Complete) stay where they belong — on the
- * board above, where they double as the filter. They answer "what is left to do
- * today". This answers the question a review asks instead: in whose name are actions
- * still open, and how many points have they picked up over the period.
+ * This is the whole of the Quality module's tracking now. The To do / In progress /
+ * Complete board is gone: it answered "what is left to do today", which changes twice
+ * an hour and means nothing on a report. What is left is the question a review asks —
+ * in whose name are actions still standing, and how many points have they picked up.
+ *
+ * "Open" means not yet closed by a manager. That is the lifecycle that carries a
+ * signature: raised, then validated or rejected by Quality, then filed.
  *
  * The points column ACCUMULATES. It is not written as a penalty and carries no minus
  * sign: the table records what was raised, and leaves what it costs to the scorecard.
