@@ -23,6 +23,7 @@ import { LineDowntimeControl } from "@/components/LineDowntimeControl";
 import { TeamActivityExclusions } from "@/components/TeamActivityExclusions";
 import { useWoExclusions } from "@/hooks/useWoExclusions";
 import { activityLabel, subtractExclusionMinutes, toExclusionIntervals } from "@/lib/downtimeExclusions";
+import { splitWoNotes } from "@/lib/woNotes";
 import { DowntimeHistorySection } from "@/components/DowntimeHistorySection";
 import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
@@ -415,22 +416,44 @@ export default function WorkOrderDetail() {
           <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Problem Description</CardTitle></CardHeader>
           <CardContent className="print:pb-2">
             <p className="print:text-[9pt]">{wo.description}</p>
-            {wo.notes && (
+            {/* Only what a person wrote. iTouching's own bookkeeping — machine name,
+                detection time, stop-code GUIDs — is already on the screen in its own
+                fields, and printed here it buried the engineer's actual note. */}
+            {splitWoNotes(wo.notes).human && (
               <div className="mt-2 pt-2 border-t print:mt-1 print:pt-1">
                 <p className="text-sm font-medium print:text-[8pt] print:font-bold">Observations:</p>
-                <p className="print:text-[9pt]">{wo.notes}</p>
+                <p className="whitespace-pre-line print:text-[9pt]">{splitWoNotes(wo.notes).human}</p>
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* Screen-only notes card */}
-        {wo.notes && (
-          <Card className="print:hidden">
-            <CardHeader><CardTitle className="text-base">Observations</CardTitle></CardHeader>
-            <CardContent><p>{wo.notes}</p></CardContent>
-          </Card>
-        )}
+        {(() => {
+          const { human, machine } = splitWoNotes(wo.notes);
+          if (!human && !machine) return null;
+          return (
+            <Card className="print:hidden">
+              <CardHeader><CardTitle className="text-base">Observations</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {human ? (
+                  <p className="whitespace-pre-line">{human}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Nothing written by hand on this order.</p>
+                )}
+                {machine && (
+                  /* Kept, not deleted: it is the automatic trail of how the order came
+                     to exist. Folded away because every fact in it is already shown
+                     somewhere a person can read. */
+                  <details className="text-xs text-muted-foreground">
+                    <summary className="cursor-pointer select-none">Automatic log from iTouching</summary>
+                    <p className="mt-1 whitespace-pre-line">{machine}</p>
+                  </details>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Asset strip — same 5-field layout as the print header (screen only). */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 print:hidden">
