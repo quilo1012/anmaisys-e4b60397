@@ -43,13 +43,15 @@ BEGIN
              line_resumed_at = COALESCE(NEW.last_seen_at, now())
        WHERE id = _wo.id;
 
-      -- An event left open makes the order un-closable: closing refuses while any
-      -- downtime_events row has no resumed_at.
+      -- Attribution, not closure. wo_auto_close_downtime_event already closes the
+      -- event the instant the order is resumed — it just leaves resumed_by_name empty,
+      -- and "line back to running by — —" is the entry an auditor circles. So this
+      -- claims it for iTouching afterwards, instead of looking for an event that is
+      -- no longer open by the time it runs.
       UPDATE public.downtime_events
-         SET resumed_at = COALESCE(NEW.last_seen_at, now()),
-             resumed_by_name = 'iTouching',
-             resumed_note = 'Machine reported running by iTouching'
-       WHERE work_order_id = _wo.id AND resumed_at IS NULL;
+         SET resumed_by_name = COALESCE(resumed_by_name, 'iTouching'),
+             resumed_note = COALESCE(resumed_note, 'Machine reported running by iTouching')
+       WHERE work_order_id = _wo.id AND resumed_by_name IS NULL AND resumed_at IS NOT NULL;
 
     ELSIF _stopped_again AND NOT _wo.line_stopped THEN
       -- The machine failed again before anybody closed the order. A second stoppage,
