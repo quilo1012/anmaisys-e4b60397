@@ -21,7 +21,8 @@ import { TableCard, TableCardField } from "@/components/ResponsiveTable";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { baseSkuCode } from "@/lib/skuDisplay";
-import { format, subDays, startOfMonth, endOfMonth, addMonths } from "date-fns";
+import { format, subDays, startOfMonth, endOfMonth, addMonths, parseISO } from "date-fns";
+import { DateRangeFilter, type DateRangePreset } from "@/components/DateRangeFilter";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
@@ -411,6 +412,7 @@ export default function ShiftHistoryPage() {
 
   // Open on today. Daily ops fill in the current day, so a 14-day default just
   // meant clearing it every time. From/To still take any range by hand.
+  const [drPreset, setDrPreset] = useState<DateRangePreset>("today");
   const [from, setFrom] = useState(format(new Date(), "yyyy-MM-dd"));
   const [to, setTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const [fLine, setFLine] = useState("__all__");
@@ -425,6 +427,9 @@ export default function ShiftHistoryPage() {
     if (viewMode !== "monthly") return;
     setFrom(format(startOfMonth(monthAnchor), "yyyy-MM-dd"));
     setTo(format(endOfMonth(monthAnchor), "yyyy-MM-dd"));
+    // The monthly view drives the dates itself; the control must not still claim
+    // "Today" while showing a month.
+    setDrPreset("custom");
   }, [viewMode, monthAnchor]);
 
   // Per-row delete targets the SINGLE SKU item — NOT the whole session. A trash
@@ -802,7 +807,7 @@ export default function ShiftHistoryPage() {
               size="sm"
               variant={viewMode === "daily" ? "default" : "ghost"}
               className="gap-1.5"
-              onClick={() => { setViewMode("daily"); const t = format(new Date(), "yyyy-MM-dd"); setFrom(t); setTo(t); }}
+              onClick={() => { setViewMode("daily"); const t = format(new Date(), "yyyy-MM-dd"); setFrom(t); setTo(t); setDrPreset("today"); }}
             >
               <CalendarDays className="h-4 w-4" /> Daily
             </Button>
@@ -850,16 +855,26 @@ export default function ShiftHistoryPage() {
 
         <Card>
           <CardContent className="p-3 sm:p-4 grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-6">
-            <div className="md:col-span-1">
-              <Label className="text-xs">Date (single)</Label>
-              <Input
-                type="date"
-                value={from === to ? from : ""}
-                onChange={(e) => { setFrom(e.target.value); setTo(e.target.value); }}
+            {/* The same period control as Maintenance Orders, Quality and Downtime.
+                Three raw date inputs — single, from, to — asked the reader to work out
+                which of them was in charge, and "single" quietly wrote both. */}
+            <div className="col-span-2 sm:col-span-3 md:col-span-3">
+              <Label className="text-xs">Period</Label>
+              <DateRangeFilter
+                className="w-full"
+                value={{ from: parseISO(from), to: parseISO(to) }}
+                preset={drPreset}
+                storageKey="shift-history-period"
+                onChange={(r, p) => {
+                  setDrPreset(p);
+                  // This page speaks yyyy-MM-dd end to end — the queries, the exports
+                  // and the month anchor all do — so the range is flattened here
+                  // rather than threaded through as Date objects.
+                  if (r.from) setFrom(format(r.from, "yyyy-MM-dd"));
+                  if (r.to) setTo(format(r.to, "yyyy-MM-dd"));
+                }}
               />
             </div>
-            <div><Label className="text-xs">From</Label><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
-            <div><Label className="text-xs">To</Label><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
             <div><Label className="text-xs">Shift</Label>
               <Select value={fShift} onValueChange={setFShift}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -883,10 +898,10 @@ export default function ShiftHistoryPage() {
             </div>
             <div className="col-span-2 sm:col-span-3 md:col-span-1 flex items-end gap-2">
               <Button variant="outline" size="sm" className="flex-1" onClick={() => {
-                const t = format(new Date(), "yyyy-MM-dd"); setFrom(t); setTo(t); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
+                const t = format(new Date(), "yyyy-MM-dd"); setFrom(t); setTo(t); setDrPreset("today"); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
               }}>Today</Button>
               <Button variant="ghost" size="sm" className="flex-1" onClick={() => {
-                setFrom(format(subDays(new Date(), 14), "yyyy-MM-dd")); setTo(format(new Date(), "yyyy-MM-dd")); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
+                setFrom(format(subDays(new Date(), 14), "yyyy-MM-dd")); setTo(format(new Date(), "yyyy-MM-dd")); setDrPreset("custom"); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
               }}>Last 14 days</Button>
             </div>
 
