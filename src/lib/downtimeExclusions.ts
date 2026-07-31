@@ -165,3 +165,31 @@ export function exclusionsFor(map: ExclusionMap | undefined, woId: string | null
   if (!map || !woId) return [];
   return map[woId] ?? [];
 }
+
+/**
+ * Generic range splitter for records that use their own field names.
+ * Returns the sub-ranges of [start, end] that remain after removing the
+ * merged exclusion intervals. An open range stays open on its last piece.
+ */
+export function splitRangeByExclusions(
+  start: string | Date | null | undefined,
+  end: string | Date | null | undefined,
+  merged: Interval[],
+  nowMs: number = Date.now(),
+): Array<{ start: string; end: string | null }> {
+  if (!start) return [];
+  const s = new Date(start).getTime();
+  const isOpen = !end;
+  const e = end ? new Date(end).getTime() : nowMs;
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) {
+    return [{ start: new Date(s).toISOString(), end: end ? new Date(e).toISOString() : null }];
+  }
+  if (merged.length === 0) {
+    return [{ start: new Date(s).toISOString(), end: end ? new Date(e).toISOString() : null }];
+  }
+  const pieces = subtractIntervals([s, e], merged);
+  return pieces.map((p, i) => ({
+    start: new Date(p[0]).toISOString(),
+    end: isOpen && i === pieces.length - 1 && p[1] >= e ? null : new Date(p[1]).toISOString(),
+  }));
+}
