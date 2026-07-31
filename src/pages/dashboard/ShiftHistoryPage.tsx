@@ -338,8 +338,13 @@ function InlineUnitQtyInput({
     onSaved();
   };
   return (
-    <div className="flex items-center gap-1">
-      <span className="text-2xs uppercase text-muted-foreground w-8">{unit === "tubs" ? "Tubs" : "Bags"}</span>
+    // Number first, unit after it.
+    //
+    // The unit used to sit in front — "BAGS 1059" under a column headed Qty — so the
+    // quantity column did not read as a column of quantities, and the eye had to step
+    // over a word to reach every figure. A unit is a suffix in every other document
+    // this factory produces.
+    <div className="flex items-center justify-end gap-1.5">
       <Input
         type="number" inputMode="numeric" disabled={disabled || saving} value={val}
         placeholder="0"
@@ -348,9 +353,10 @@ function InlineUnitQtyInput({
           if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
           if (e.key === "Escape") { setVal(initial); (e.target as HTMLInputElement).blur(); }
         }}
-        className="h-8 w-16 text-right px-1 tabular-nums text-xs"
+        className="h-8 w-20 text-right px-2 tabular-nums text-xs"
       />
-      {saved && <Check className="h-3 w-3 text-emerald-500" />}
+      <span className="w-8 text-left text-2xs text-muted-foreground">{unit === "tubs" ? "tubs" : "bags"}</span>
+      <span className="w-3">{saved && <Check className="h-3 w-3 text-emerald-500" />}</span>
     </div>
   );
 }
@@ -927,11 +933,11 @@ export default function ShiftHistoryPage() {
                         <th className="text-left px-3 py-2 border-b">Line</th>
                         <th className="text-left px-3 py-2 border-b">Leader</th>
                         <th className="text-left px-3 py-2 border-b">SKU</th>
-                        <th className="text-left px-3 py-2 border-b">Description</th>
+                        <th className="text-left px-3 py-2 border-b max-w-[22rem]">Description</th>
                         <th className="text-left px-3 py-2 border-b">Batch code</th>
-                        <th className="text-left px-3 py-2 border-b">Blender</th>
-                        <th className="text-right px-3 py-2 border-b">Qty</th>
-                        <th className="text-right px-3 py-2 border-b">Weight (g)</th>
+                        <th className="text-right px-3 py-2 border-b w-20">Blender</th>
+                        <th className="text-right px-3 py-2 border-b w-36">Qty</th>
+                        <th className="text-right px-3 py-2 border-b w-24">Weight (g)</th>
                         <th className="text-left px-3 py-2 border-b">Start</th>
                         <th className="text-left px-3 py-2 border-b">Finish</th>
                         <th className="text-right px-3 py-2 border-b w-24">Actions</th>
@@ -1057,10 +1063,13 @@ export default function ShiftHistoryPage() {
                                     </div>
                                   )}
                                 </td>
-                                <td className="px-3 py-2 text-xs tabular-nums whitespace-nowrap">
-                                  {blenders.length ? blenders.join(", ") : "—"}
+                                <td className="px-3 py-2 text-right text-xs tabular-nums whitespace-nowrap">
+                                  {blenders.length ? blenders.join(", ") : <span className="text-muted-foreground">—</span>}
                                 </td>
-                                <td className="px-3 py-2">
+                                {/* Right-aligned like the header above it: a quantity
+                                    column that reads down the digits is worth more than
+                                    one that reads down the labels. */}
+                                <td className="px-3 py-2 text-right">
                                   {blenders.length > 0 && !isAdmin ? (
                                     <UITooltip>
                                       <TooltipTrigger asChild>
