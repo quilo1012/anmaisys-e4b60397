@@ -6,6 +6,7 @@ import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { LeaderScorecard } from "@/components/LeaderScorecard";
+import { LineIndicators } from "@/components/production/LineIndicators";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -596,6 +597,15 @@ export default function ProductionPerformancePage() {
             </div>
           );
         })()}
+
+        {/* Everything measured per line, and — just as important for a director
+            asking whether the data exists — everything that is not. */}
+        <LineIndicators
+          lines={sortedByLine.map((l) => ({ line: l.line, target: l.target, actual: l.actual, eff: l.eff }))}
+          from={range.from}
+          to={range.to}
+          shift={shift === "all" ? "ALL" : shift}
+        />
 
         {/* Leaders — the way into each leader's scorecard.
             It used to open only from the leader filter, so anyone who did not think

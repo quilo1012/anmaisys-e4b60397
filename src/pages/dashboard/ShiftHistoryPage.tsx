@@ -546,19 +546,20 @@ export default function ShiftHistoryPage() {
 
   const lineRank = (name: string) => {
     const n = (name ?? "").toLowerCase().trim();
-    // Capsules & Tablets (displayed as "Tablet") always sorts first when present.
+    // The capsule and tablet lines sort before the numbered fillers.
     if (n.includes("capsule") || n.includes("tablet")) return -1;
     const m = n.match(/line\s*(\d+)/);
     if (m) return parseInt(m[1], 10);
     return 200;
   };
-  // Display label for a line in this screen: rename Capsules & Tablets to
-  // "Tablet" and drop the legacy "filler" token. Display-only — the stored line
-  // name (the session key / filter value) is never changed.
-  const lineLabel = (name: string) => {
-    const cleaned = (name ?? "").replace(/\s*filler\s*/i, " ").replace(/\s+/g, " ").trim();
-    return /capsule|tablet/i.test(cleaned) ? "Tablet" : cleaned;
-  };
+  // The line's own name, unaltered.
+  //
+  // This used to fold anything matching "capsule" or "tablet" into the single word
+  // "Tablet", so Capsules Machine 1, Capsules Machine 2 and the Tablet Line all showed
+  // as the same entry — three identical options in the filter, and a row that could not
+  // be told from another. The names in the database are now consistent, so the display
+  // has nothing left to paper over.
+  const lineLabel = (name: string) => (name ?? "").trim();
   const sortedLines = useMemo(
     () => [...lines].sort((a, b) => lineRank(a.name) - lineRank(b.name) || a.name.localeCompare(b.name)),
     [lines]
