@@ -2,9 +2,12 @@ import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWoMetrics } from "@/hooks/useWoMetrics";
 import { formatDuration } from "@/lib/formatDuration";
-import { Clock, XCircle, Users, HelpCircle } from "lucide-react";
+import { Clock, XCircle, Users, HelpCircle, Coffee, PowerOff } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useWoExclusions } from "@/hooks/useWoExclusions";
+import { useDowntimeEvents } from "@/hooks/useDowntimeEvents";
+import { activityLabel } from "@/lib/downtimeExclusions";
 
 interface Props {
   workOrderId: string;
@@ -15,6 +18,9 @@ interface Step {
   ts: string | null;
   metricLabel?: string;
   metricSec?: number | null;
+  /** Milestones are the spine of the order; events happened along the way. */
+  kind?: "milestone" | "pause" | "stop";
+  detail?: string;
 }
 
 interface LogEvent {
@@ -26,6 +32,8 @@ interface LogEvent {
 
 export function WoTimeline({ workOrderId }: Props) {
   const { data: m, isLoading } = useWoMetrics(workOrderId);
+  const { data: exclusions = [] } = useWoExclusions(workOrderId);
+  const { data: stoppages = [] } = useDowntimeEvents(workOrderId);
 
   // All operational events from work_order_logs (no whitelist filter)
   const { data: logEvents = [] } = useQuery({
@@ -63,6 +71,43 @@ export function WoTimeline({ workOrderId }: Props) {
     { label: "WO closed", ts: m.closed_at, metricLabel: "Paperwork Delay", metricSec: m.paperwork_delay_sec },
   ];
 
+  // What happened between the milestones: the line going down again, and the team
+  // stepping away to a break, the blender or the cleaning. The order used to jump
+  // from "WO created" to "Line resumed" with no account of the hours in between.
+  const events: Step[] = [];
+  for (const x of exclusions) {
+    events.push({
+      label: `Line team on ${activityLabel(x.activity).toLowerCase()}`,
+      ts: x.started_at,
+      kind: "pause",
+      detail: `${x.source === "intouch" ? "reported by iTouching" : `by ${x.started_by_name || "—"}`} · not counted as downtime`,
+    });
+    if (x.ended_at) {
+      events.push({ label: "Back to the stoppage", ts: x.ended_at, kind: "pause", detail: activityLabel(x.activity) });
+    }
+  }
+  // The first stoppage is already the "Line stopped" milestone; only the repeats are
+  // news, and they are what a reader cannot otherwise see.
+  for (const d of stoppages) {
+    if (!d.is_recurrence) continue;
+    events.push({
+      label: "Line stopped again",
+      ts: d.stopped_at,
+      kind: "stop",
+      detail: `${d.stopped_reason || "no reason recorded"}${d.stopped_by_name ? ` · ${d.stopped_by_name}` : ""}`,
+    });
+  }
+
+  // Placed by time against the spine, so an event lands after the last milestone that
+  // had already happened rather than at the end of the list.
+  const timeline: Step[] = [...steps];
+  for (const e of events.sort((a, b) => new Date(a.ts!).getTime() - new Date(b.ts!).getTime())) {
+    const at = new Date(e.ts!).getTime();
+    let idx = 0;
+    timeline.forEach((s, i) => { if (s.ts && new Date(s.ts).getTime() <= at) idx = i + 1; });
+    timeline.splice(idx, 0, e);
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -73,23 +118,31 @@ export function WoTimeline({ workOrderId }: Props) {
       </CardHeader>
       <CardContent>
         <ol className="relative border-l border-border ml-3 space-y-4">
-          {steps.map((s, i) => {
+          {timeline.map((s, i) => {
             const filled = !!s.ts;
             return (
               <li key={i} className="ml-4">
+                {/* Events are marked apart from the milestones: amber for the team
+                    stepping away, red for the line going down again. A reader should
+                    not have to work out which entries are the order's own spine. */}
                 <span
                   className={`absolute -left-1.5 flex h-3 w-3 items-center justify-center rounded-full ${
-                    filled ? "bg-primary" : "bg-muted"
+                    s.kind === "pause" ? "bg-amber-500"
+                      : s.kind === "stop" ? "bg-destructive"
+                      : filled ? "bg-primary" : "bg-muted"
                   }`}
                 />
                 <div className="flex items-baseline justify-between gap-3">
                   <p className={`text-sm font-medium ${filled ? "" : "text-muted-foreground"}`}>
+                    {s.kind === "pause" && <Coffee className="mr-1 inline h-3 w-3 text-amber-600" />}
+                    {s.kind === "stop" && <PowerOff className="mr-1 inline h-3 w-3 text-destructive" />}
                     {s.label}
                   </p>
                   <span className="text-xs font-mono text-muted-foreground">
                     {filled ? format(new Date(s.ts!), "dd/MM HH:mm:ss") : "— not yet"}
                   </span>
                 </div>
+                {s.detail && <p className="mt-0.5 text-xs text-muted-foreground">{s.detail}</p>}
                 {s.metricLabel && s.metricSec !== null && s.metricSec !== undefined && filled && (
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {s.metricLabel}: <span className="font-medium text-foreground">{formatDuration(s.metricSec)}</span>
