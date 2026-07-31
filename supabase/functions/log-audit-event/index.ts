@@ -13,7 +13,8 @@ const ALLOWED_ACTIONS = [
   "accept_and_start", "adjust_stock", "arrive", "close", "complete", "create",
   "delete", "finish", "force_close", "line_resumed", "line_stopped", "login",
   "machine_back_to_work", "move", "pause", "permission.change", "pin_changed",
-  "receive", "resume", "start", "update", "user_created", "user_deleted",
+  "receive", "resume", "start", "team_activity_started", "team_activity_ended",
+  "update", "user_created", "user_deleted",
   "user_role_changed", "wo_recurrence_reopened", "work_orders_cleared",
 ] as const;
 

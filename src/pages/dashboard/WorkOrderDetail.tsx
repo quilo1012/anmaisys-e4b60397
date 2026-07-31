@@ -20,6 +20,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineDowntimeControl } from "@/components/LineDowntimeControl";
+import { TeamActivityExclusions } from "@/components/TeamActivityExclusions";
+import { useWoExclusions } from "@/hooks/useWoExclusions";
+import { subtractExclusionMinutes, toExclusionIntervals } from "@/lib/downtimeExclusions";
 import { DowntimeHistorySection } from "@/components/DowntimeHistorySection";
 import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
@@ -114,6 +117,7 @@ export default function WorkOrderDetail() {
   const { data: checklistResponses } = useChecklistResponses(id);
   const { data: checklistItems } = useChecklistsByProblemName(wo?.description);
   const { data: downtimeEvents = [] } = useDowntimeEvents(id);
+  const { data: woExclusions = [] } = useWoExclusions(id);
   const { data: woMetrics } = useWoMetrics(id);
 
   const { data: woLogs } = useQuery({
@@ -386,6 +390,15 @@ export default function WorkOrderDetail() {
               lineId={(wo as any).line_id}
               requesterName={wo.requester_name}
             />
+            <div className="mt-2">
+              <TeamActivityExclusions
+                workOrderId={wo.id}
+                lineStopped={
+                  !!((wo as any).line_stopped && !(wo as any).line_resumed_at) ||
+                  downtimeEvents.some((e) => !e.resumed_at)
+                }
+              />
+            </div>
           </div>
         )}
 
@@ -469,7 +482,18 @@ export default function WorkOrderDetail() {
           }, 0);
 
           const stopCount = downtimeEvents.length + (hasOperatorStop ? 1 : 0);
-          const totalDowntimeSec = operatorDowntimeSec + engineerDowntimeSec;
+          // Team-activity exclusions (break / filling blender / brushing & cleaning)
+          // are subtracted from the order's downtime; the raw records stay intact.
+          const exclusionIvs = toExclusionIntervals(woExclusions);
+          let excludedMin = 0;
+          if (hasOperatorStop) {
+            excludedMin += subtractExclusionMinutes(operatorStopStart, operatorStopEnd, exclusionIvs);
+          }
+          downtimeEvents.forEach((e) => {
+            excludedMin += subtractExclusionMinutes(e.stopped_at, e.resumed_at, exclusionIvs);
+          });
+          const grossDowntimeSec = operatorDowntimeSec + engineerDowntimeSec;
+          const totalDowntimeSec = Math.max(0, grossDowntimeSec - excludedMin * 60);
           const lineOperating = !((wo as any).line_stopped && !(wo as any).line_resumed_at);
           return (
             <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
@@ -484,7 +508,7 @@ export default function WorkOrderDetail() {
                     </p>
                   </div>
                   <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Stoppages</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">recorded</p><p className="text-3xl font-bold print:text-base">{stopCount}</p></div>
-                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Downtime</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">stoppage time</p><p className="text-3xl font-bold print:text-base">{stopCount === 0 ? "—" : formatShortDuration(totalDowntimeSec)}</p></div>
+                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Downtime</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">stoppage time</p><p className="text-3xl font-bold print:text-base">{stopCount === 0 ? "—" : formatShortDuration(totalDowntimeSec)}</p>{excludedMin > 0 && (<p className="text-[9pt] text-muted-foreground mt-1 print:text-[6pt]">{excludedMin} min excluded — team activity</p>)}</div>
                 </div>
               </CardContent>
             </Card>
