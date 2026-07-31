@@ -14,6 +14,7 @@ import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/compon
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChatButton } from "@/components/LineChatButton";
+import { ShiftScrapCard } from "@/components/production/ShiftScrapCard";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, shiftLoggingDeadline, SHIFT_LABEL } from "@/lib/shifts";
@@ -136,7 +137,7 @@ function MyProductionContent() {
     queryFn: async () => {
       const { data: existing, error } = await (supabase as any)
         .from("production_sessions")
-        .select("id, session_date, line, shift")
+        .select("id, session_date, line, shift, locked")
         .eq("session_date", today)
         .eq("line", line)
         .eq("shift", shift)
@@ -271,12 +272,18 @@ function MyProductionContent() {
            each blender, and see "Logged this shift". The old per-item card and
            the separate "Add SKU" panel duplicated it and showed confusing
            fields (Completion 0%, Standard fill time —), so they're gone. */
-        <LogProductionCard
-          sessionId={sessionId}
-          target={totalTarget}
-          produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)}
-          plannedSkus={plannedSkus}
-        />
+        <>
+          <LogProductionCard
+            sessionId={sessionId}
+            target={totalTarget}
+            produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)}
+            plannedSkus={plannedSkus}
+          />
+          {/* Under the log, not inside it: scrap is counted after the run, often at
+              the end of the shift, and it should not sit in the middle of the flow
+              somebody uses twenty times an hour. */}
+          <ShiftScrapCard sessionId={sessionId} locked={!!sessionQ.data?.locked} />
+        </>
       )}
     </div>
   );
