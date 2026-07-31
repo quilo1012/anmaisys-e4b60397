@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
-type NotifType = "new_wo" | "assigned" | "status_change" | "overdue" | "low_stock";
+type NotifType = "new_wo" | "assigned" | "status_change" | "overdue" | "low_stock" | "system_error";
 type Priority = "critical" | "high" | "medium" | "low";
 
 interface Notification {
@@ -22,6 +22,8 @@ interface Notification {
   type: NotifType;
   priority: Priority;
   woId?: string;
+  /** Where clicking it should go, when it is not about a work order. */
+  href?: string;
 }
 
 const PRIORITY_FROM_WO: Record<string, Priority> = {
@@ -80,6 +82,7 @@ const typeIcon: Record<NotifType, React.ComponentType<{ className?: string }>> =
   status_change: Activity,
   overdue: AlertTriangle,
   low_stock: Package,
+  system_error: AlertTriangle,
 };
 
 const priorityStyles: Record<Priority, { ring: string; dot: string; label: string; badge: string }> = {
@@ -192,13 +195,56 @@ export function NotificationPanel() {
     return () => { supabase.removeChannel(channel); };
   }, [user, role, addNotification]);
 
+  /**
+   * Root Diagnostics, in the header.
+   *
+   * Until now a crash or a refused request landed in system_telemetry_logs and stayed
+   * there until somebody thought to open the page. The people who can act on it are
+   * the ones who never look. So it rings the same bell as everything else.
+   *
+   * Admin only, because Root Diagnostics is admin only — and realtime honours the same
+   * row-level security, so nobody else would receive these rows anyway.
+   */
+  useEffect(() => {
+    if (!user || role !== "admin") return;
+
+    const channel = supabase
+      .channel(`telemetry_panel_${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "system_telemetry_logs" },
+        (payload) => {
+          const row = payload.new as { error_type?: string; message?: string; route_path?: string };
+          // The backfill guard the work-order listener uses, for the same reason: a
+          // reconnect must not replay this morning's crashes as if they just happened.
+          if (Date.now() - mountedAt.current < 1500) return;
+          const type = row.error_type ?? "ERROR";
+          addNotification({
+            type: "system_error",
+            // A crash and a refused permission are different jobs for the reader, so
+            // they are not flattened into one word.
+            title: type === "REACT_CRASH" ? "A screen crashed"
+              : type === "RLS_ERROR" ? "A request was refused"
+              : "System error",
+            message: `${row.message ?? "No message"}${row.route_path ? ` · ${row.route_path}` : ""}`,
+            priority: type === "REACT_CRASH" ? "high" : "medium",
+            href: "/dashboard/root-diagnostics",
+          });
+        },
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user, role, addNotification]);
+
   const unreadCount = notifications.filter((n) => !n.read).length;
   const criticalCount = notifications.filter((n) => !n.read && (n.priority === "critical" || n.priority === "high")).length;
 
   const markAllRead = () => setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   const handleClick = (n: Notification) => {
     setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
-    if (n.woId) { setOpen(false); navigate(`/dashboard/wo/${n.woId}`); }
+    if (n.woId) { setOpen(false); navigate(`/dashboard/wo/${n.woId}`); return; }
+    if (n.href) { setOpen(false); navigate(n.href); }
   };
 
   return (

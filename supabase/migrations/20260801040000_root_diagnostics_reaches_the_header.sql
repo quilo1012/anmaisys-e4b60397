@@ -1,0 +1,14 @@
+-- Root Diagnostics rings the bell.
+--
+-- A crash or a refused request lands in system_telemetry_logs and stays there until
+-- somebody thinks to open the page. The people who can act on it are exactly the ones
+-- who never look — so the header's notification panel now subscribes to the table.
+--
+-- The subscription cannot work until the table is in the realtime publication, which
+-- it was not: postgres_changes would have been silent forever, with nothing on screen
+-- to explain why.
+--
+-- Row-level security is unchanged and does the gatekeeping: "telemetry admin read"
+-- already restricts SELECT to admins, and realtime honours it, so no other role
+-- receives these rows even though the panel subscribes for everyone it renders for.
+ALTER PUBLICATION supabase_realtime ADD TABLE public.system_telemetry_logs;
