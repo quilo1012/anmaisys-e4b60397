@@ -1,10 +1,12 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { PowerOff, ClipboardList, PenTool, CalendarClock } from "lucide-react";
+import { PowerOff, ClipboardList, PenTool, CalendarClock, Users } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
 import { usePmSchedules, pmStatus } from "@/hooks/usePreventiveMaintenance";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/hooks/useRole";
+import { useAttendance, useEmployees, useShiftPatterns, worksOn } from "@/hooks/useWorkforce";
 import { KpiCard } from "@/components/reports/KpiCard";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -31,6 +33,33 @@ export function FactoryStatusStrip() {
   const { data: stoppedLines } = useStoppedLinesCount();
   const { data: pmSchedules } = usePmSchedules();
 
+  // Headcount only for those who can actually read the tables. Row-level security
+  // returns nothing rather than an error to everyone else, and a tile reading "0
+  // people" because of a policy is exactly the kind of confident wrong number this
+  // strip exists to avoid.
+  const { can } = useRole();
+  const showPeople = can("workforce.view");
+  const { data: employees } = useEmployees();
+  const { data: patterns } = useShiftPatterns();
+  const today = new Date();
+  const { data: attendance } = useAttendance(today.toISOString().slice(0, 10));
+
+  const people = useMemo(() => {
+    if (!showPeople) return null;
+    const byPattern = new Map((patterns ?? []).map((p) => [p.id, p]));
+    const due = (employees ?? []).filter((e) => {
+      if (!e.active) return false;
+      const pat = e.shift_pattern_id ? byPattern.get(e.shift_pattern_id) : null;
+      // No pattern means unrecorded, not off. Counting them as "not due" would
+      // shrink the headcount for a reason nobody chose.
+      return !pat || worksOn(pat.days, today);
+    });
+    const byId = new Map((attendance ?? []).map((a) => [a.employee_id, a.status]));
+    const away = due.filter((e) => ["absent", "sick"].includes(byId.get(e.id) ?? "")).length;
+    return { due: due.length, away };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- today is derived per render on purpose
+  }, [showPeople, employees, patterns, attendance]);
+
   const pmOverdue = useMemo(
     () => (pmSchedules ?? []).filter((s) => pmStatus(s) === "overdue").length,
     [pmSchedules],
@@ -45,7 +74,7 @@ export function FactoryStatusStrip() {
   const awaiting = finishedWOs?.length ?? 0;
 
   return (
-    <section aria-label="Live status" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <section aria-label="Live status" className={`grid grid-cols-2 gap-3 ${people ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
       <KpiCard
         label="Lines stopped"
         value={stoppedLines ?? 0}
@@ -82,6 +111,16 @@ export function FactoryStatusStrip() {
         toneValue
         onClick={() => navigate("/dashboard/preventive")}
       />
+      {people && (
+        <KpiCard
+          label="On shift today"
+          value={people.due - people.away}
+          sublabel={people.away ? `${people.away} away of ${people.due} due in` : `${people.due} due in, nobody away`}
+          icon={<Users className="h-4 w-4" />}
+          accent={people.away ? "warning" : "info"}
+          onClick={() => navigate("/dashboard/workforce")}
+        />
+      )}
     </section>
   );
 }

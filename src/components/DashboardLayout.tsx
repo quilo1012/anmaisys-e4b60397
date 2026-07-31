@@ -89,6 +89,8 @@ export const navItems: NavItem[] = [
   { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "production.performance.view" },
 
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "sku.manage" },
+  // Sits in Production because that is where the work is; the access stays admin-only.
+  { title: "Headcount & Overtime", url: "/dashboard/workforce", icon: Users, roles: ["admin"], group: "Production", action: "workforce.view" },
   { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor", "production_office_admin"], group: "Production", action: "quality.view" },
 
   // Reports
@@ -106,7 +108,6 @@ export const navItems: NavItem[] = [
   // Stop Codes decides which iTouching stops open a maintenance order, so it has to
   // be findable; it existed as a route and a home-screen card but was missing from
   // this sidebar entirely.
-  { title: "Workforce", url: "/dashboard/workforce", icon: Users, roles: ["admin"], group: "Administration", action: "workforce.view" },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "System", action: "audit.view" },
   { title: "iTouching Sync", url: "/dashboard/intouch-settings", icon: Radar, roles: ["admin"], group: "System", action: "intouch.manage" },
   { title: "iTouching Machines", url: "/dashboard/intouch-machines", icon: Radio, roles: ["admin"], group: "System", action: "intouch.manage" },
