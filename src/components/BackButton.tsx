@@ -17,7 +17,7 @@ import { dashboardPathFor, type Role } from "@/lib/permissions";
  *   back to their own dashboard.
  * - On that dashboard it renders nothing, because there is nowhere above it.
  */
-export function BackButton() {
+export function BackButton({ className }: { className?: string } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { role } = useAuth();
