@@ -47,7 +47,9 @@ describe("sidebar", () => {
   });
 
   it("puts every item in a group the sidebar actually renders", () => {
-    const rendered = ["Overview", "Maintenance", "Assets", "Production", "Planning", "Reports", "Communication", "Administration", "System"];
+    // Assets was folded into Maintenance — an item left behind in a group the sidebar
+    // no longer renders would simply vanish from the menu.
+    const rendered = ["Overview", "Maintenance", "Production", "Planning", "Reports", "Communication", "Administration", "System"];
     for (const item of navItems) {
       expect(rendered, `"${item.title}" is in group "${item.group}", which is never rendered`).toContain(item.group);
     }

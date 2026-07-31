@@ -13,7 +13,7 @@ type AppRole = Database["public"]["Enums"]["app_role"];
 
 /** Sidebar order, so the landing screen and the menu agree on where things live. */
 const GROUP_ORDER = [
-  "Overview", "Maintenance", "Assets", "Production",
+  "Overview", "Maintenance", "Production",
   "Reports", "Communication", "Administration", "System",
 ];
 
