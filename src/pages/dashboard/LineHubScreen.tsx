@@ -15,11 +15,12 @@ export default function LineHubScreen() {
     queryKey: ["profile-hub", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("name, production_line")
         .eq("id", user!.id)
         .maybeSingle();
+      if (error) throw error;
       return data;
     },
   });

@@ -5,7 +5,8 @@ import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
+import { reportQueryError } from "@/lib/queryErrors";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CriticalAlertProvider } from "@/contexts/CriticalAlertContext";
@@ -109,6 +110,18 @@ const PermissionsMatrixPage = lazyWithReload(() => import("./pages/dashboard/Per
 const RootDiagnosticsPage = lazyWithReload(() => import("./pages/dashboard/RootDiagnosticsPage"));
 
 const queryClient = new QueryClient({
+  // Until now a denied or failed request died quietly: the fetch wrapper logged it,
+  // React Query put the screen into an error state, and most screens render nothing
+  // for that state. A policy that says no, a dropped connection and an empty table
+  // all looked identical.
+  queryCache: new QueryCache({ onError: reportQueryError }),
+  mutationCache: new MutationCache({
+    onError: (error, _vars, _ctx, mutation) => {
+      // A mutation with its own onError is already telling the user in its own words.
+      if (mutation.options.onError) return;
+      reportQueryError(error);
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 30 * 1000,

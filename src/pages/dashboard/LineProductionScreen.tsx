@@ -204,11 +204,12 @@ export default function LineProductionScreen() {
     queryFn: async () => {
       const uid = user?.id;
       if (!uid) return null;
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("operator_line_accounts")
         .select("line_ids, label")
         .eq("user_id", uid)
         .maybeSingle();
+      if (error) throw error;
       return data as { line_ids: string[]; label: string } | null;
     },
   });
@@ -1247,7 +1248,8 @@ function RequestOrderDialog({
     enabled: open && !!line,
     queryKey: ["lps-req-line-id", line],
     queryFn: async () => {
-      const { data } = await (supabase as any).from("lines").select("id").eq("name", line).maybeSingle();
+      const { data, error } = await (supabase as any).from("lines").select("id").eq("name", line).maybeSingle();
+      if (error) throw error;
       return data?.id as string | null;
     },
   });
@@ -1257,10 +1259,11 @@ function RequestOrderDialog({
     enabled: open && !!lineQ.data,
     queryKey: ["lps-req-machines", lineQ.data],
     queryFn: async () => {
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("machines")
         .select("id, name, fixed_line, current_line, line")
         .or(`fixed_line.eq.${line},current_line.eq.${line},line.eq.${line}`);
+      if (error) throw error;
       return (data || []) as { id: string; name: string }[];
     },
   });

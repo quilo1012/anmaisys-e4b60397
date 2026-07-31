@@ -199,9 +199,10 @@ export default function PermissionsMatrixPage() {
           .eq("action", d.action);
         if (error) throw error;
       }
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("role_permission_overrides")
         .select("role, action, allowed");
+      if (error) throw error;
       const map: Record<string, boolean> = {};
       for (const r of (data ?? []) as Array<{ role: string; action: string; allowed: boolean }>) {
         map[`${r.role}:${r.action}`] = r.allowed;

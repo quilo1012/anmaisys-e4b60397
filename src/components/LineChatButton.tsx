@@ -52,7 +52,8 @@ export function LineChatButton() {
     queryKey: ["chat_lines"],
     enabled: !!user && canUse,
     queryFn: async () => {
-      const { data } = await supabase.from("lines").select("id,name,active,display_order").eq("active", true).order("display_order");
+      const { data, error } = await supabase.from("lines").select("id,name,active,display_order").eq("active", true).order("display_order");
+      if (error) throw error;
       return (data ?? []) as (Line & { active: boolean; display_order: number })[];
     },
   });
@@ -111,13 +112,14 @@ export function LineChatButton() {
     enabled: !!activeLineName,
     staleTime: 30_000,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("rag_weekly_entries")
         .select("plan_qty,actual_qty")
         .eq("entry_date", sessionDate)
         .eq("line", activeLineName!)
         .eq("shift", shiftCode.toUpperCase())
         .maybeSingle();
+      if (error) throw error;
       return (data ?? null) as { plan_qty: number | null; actual_qty: number | null } | null;
     },
   });

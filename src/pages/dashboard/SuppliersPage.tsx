@@ -84,7 +84,13 @@ export default function SuppliersPage() {
                 suppliers={suppliersQ.data ?? []}
                 products={productsQ.data ?? []}
                 onCreate={(payload) =>
-                  poM.create.mutateAsync(payload).then(() => toast.success("Purchase order created"))
+                  // .catch, not just .then: without it a refused insert was an
+                  // unhandled rejection — no toast, no dialog state, nothing but a
+                  // console line the person placing the order never sees.
+                  poM.create
+                    .mutateAsync(payload)
+                    .then(() => toast.success("Purchase order created"))
+                    .catch((e: unknown) => toast.error((e as Error)?.message || "Could not create the purchase order"))
                 }
               />
               <Button
