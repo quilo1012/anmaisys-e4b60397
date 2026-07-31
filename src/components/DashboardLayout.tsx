@@ -106,6 +106,7 @@ export const navItems: NavItem[] = [
   // Stop Codes decides which iTouching stops open a maintenance order, so it has to
   // be findable; it existed as a route and a home-screen card but was missing from
   // this sidebar entirely.
+  { title: "Workforce", url: "/dashboard/workforce", icon: Users, roles: ["admin"], group: "Administration", action: "workforce.view" },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "System", action: "audit.view" },
   { title: "iTouching Sync", url: "/dashboard/intouch-settings", icon: Radar, roles: ["admin"], group: "System", action: "intouch.manage" },
   { title: "iTouching Machines", url: "/dashboard/intouch-machines", icon: Radio, roles: ["admin"], group: "System", action: "intouch.manage" },
@@ -364,6 +365,7 @@ const routeTitles: Record<string, string> = {
   "/dashboard/messages": "Messages",
   "/users/manage": "Users",
   "/dashboard/permissions": "Permissions",
+  "/dashboard/workforce": "Workforce",
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",
   "/dashboard/intouch-settings": "iTouching Sync",

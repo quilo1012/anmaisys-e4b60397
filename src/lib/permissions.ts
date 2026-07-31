@@ -55,6 +55,7 @@ export type Action =
   // Quality
   | "quality.view"
   | "quality.manage"
+  | "workforce.view"
   | "quality.validate"
   | "quality.close"
   // Preventive Maintenance
@@ -150,6 +151,9 @@ const MATRIX: Record<Action, Role[]> = {
   // They are listed here so the screen offers what the database will accept: a
   // supervisor used to be shown the Validation control and got a raw Postgres
   // exception when they used it.
+  // Names, emails and hours that feed pay. Admin only until someone decides
+  // otherwise, deliberately — the same care labor_rate gets.
+  "workforce.view": ["admin"],
   "quality.validate": ["admin", "quality_supervisor"],
   "quality.close": ["admin", "manager", "maintenance_manager"],
 
@@ -316,6 +320,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "planner", label: "Planner & SKU", actions: ["planner.view", "sku.view", "sku.manage"] },
   { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
   { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
+  { key: "workforce", label: "Workforce", actions: ["workforce.view"] },
   { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage", "quality.validate", "quality.close"] },
   { key: "pm", label: "Preventive Maint.", actions: ["pm.view", "pm.manage"] },
   { key: "eng", label: "Engineers & Leaders", actions: ["engineers.view", "engineers.manage", "leaders.view", "leaders.manage"] },
@@ -365,6 +370,7 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "smarttarget.view": "Access the Smart Target analytics page.",
   "quality.view": "See quality actions and issues.",
   "quality.manage": "Create and edit quality actions.",
+  "workforce.view": "See the workforce list, shift patterns and overtime balances.",
   "quality.validate": "Validate or reject a quality action — the audit verdict, evidence required.",
   "quality.close": "Approve the closure of a quality action once Quality has ruled on it.",
   "pm.view": "See preventive maintenance schedules.",
