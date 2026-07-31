@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from "date-fns";
-import { CalendarIcon, Check } from "lucide-react";
+import { CalendarIcon, Check, ChevronDown } from "lucide-react";
 import { getCurrentFactoryShift, londonWallToUtc } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDeviceType } from "@/hooks/use-device-type";
 
 export type DateRange = { from?: Date; to?: Date };
@@ -25,10 +24,12 @@ const PRESET_LABELS: Record<Exclude<DateRangePreset, "custom">, string> = {
   today: "Today",
   yesterday: "Yesterday",
   shift: "Current shift",
-  "7d": "7 days",
-  "30d": "30 days",
+  // "Last" rather than a bare number: "7 days" reads as a duration, and somebody
+  // choosing it wants the week behind them, not any seven days.
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
   month: "This month",
-  all: "All",
+  all: "All time",
 };
 
 function currentShiftRange(now = new Date()): DateRange {
@@ -85,9 +86,6 @@ interface Props {
 
 export function DateRangeFilter({ value, preset, onChange, className, storageKey }: Props) {
   const [open, setOpen] = useState(false);
-  // The desktop segmented control and the tablet select each own a calendar, so they
-  // need their own open state — one shared flag opened both at once.
-  const [openMobile, setOpenMobile] = useState(false);
   const device = useDeviceType();
 
   // Restore from localStorage on mount
@@ -138,63 +136,60 @@ export function DateRangeFilter({ value, preset, onChange, className, storageKey
         : `${value.from ? format(value.from, "dd/MM/yy") : "…"} – ${value.to ? format(value.to, "dd/MM/yy") : "…"}`;
 
   const quick: DateRangePreset[] = ["today", "yesterday", "shift", "7d", "30d", "month", "all"];
+  const presetLabel = preset === "custom"
+    ? "Custom"
+    : PRESET_LABELS[preset as Exclude<DateRangePreset, "custom">];
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      {/* One segmented control, not seven loose buttons.
-          The shift filter beside it is already a segmented group — border, muted
-          well, padded pills — and two controls doing the same job in two visual
-          languages is what made this toolbar look unfinished. Same container, same
-          height, so they read as a pair. */}
-      <div
-        role="group"
-        aria-label="Period"
-        className="hidden md:inline-flex items-center gap-1 rounded-lg border bg-muted/40 p-1 shadow-sm"
-      >
-        {quick.map((p) => {
-          const active = preset === p;
-          return (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPreset(p)}
-              aria-pressed={active}
-              className={cn(
-                "inline-flex h-9 items-center rounded-md px-3 text-sm font-medium transition-all",
-                active
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "text-muted-foreground hover:bg-background/80 hover:text-foreground",
-              )}
-            >
-              {PRESET_LABELS[p as Exclude<DateRangePreset, "custom">]}
-            </button>
-          );
-        })}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        {/* One control, not eight.
+            Today, Yesterday, Current shift, 7 days, 30 days, This month, All and
+            Custom were eight things to read before choosing one, and the row wrapped
+            on anything narrower than a desktop. The button says what is selected; the
+            choosing happens when somebody asks for it. */}
+        <Button
+          variant="outline"
+          className={cn("h-9 justify-start gap-2 font-normal", className)}
+          aria-label="Period"
+        >
+          <CalendarIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="font-medium">{presetLabel}</span>
+          <span className="hidden text-xs tabular-nums text-muted-foreground sm:inline">{label}</span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+        </Button>
+      </PopoverTrigger>
 
-        {/* Custom sits inside the same well, behind a divider: it is one of the
-            choices, not a separate control that happens to be next to them. */}
-        <span aria-hidden className="mx-0.5 h-5 w-px bg-border" />
+      <PopoverContent className="w-auto p-0" align="start">
+        <div className="flex flex-col sm:flex-row">
+          {/* The presets read as a list, in the order somebody actually reaches for
+              them: today's work first, then the periods a report covers. */}
+          <div className="flex min-w-[11rem] flex-col gap-0.5 border-b p-2 sm:border-b-0 sm:border-r">
+            {quick.map((p) => {
+              const active = preset === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => { setPreset(p); setOpen(false); }}
+                  className={cn(
+                    "flex h-9 items-center justify-between rounded-md px-2.5 text-sm transition-colors",
+                    active
+                      ? "bg-primary/10 font-medium text-primary"
+                      : "text-foreground hover:bg-muted",
+                  )}
+                >
+                  {PRESET_LABELS[p as Exclude<DateRangePreset, "custom">]}
+                  {active && <Check className="h-3.5 w-3.5" />}
+                </button>
+              );
+            })}
+          </div>
 
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              aria-pressed={preset === "custom"}
-              className={cn(
-                "inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-all",
-                preset === "custom"
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "text-muted-foreground hover:bg-background/80 hover:text-foreground",
-              )}
-            >
-              <CalendarIcon className="h-4 w-4" />
-              {preset === "custom" ? label : "Custom"}
-              {preset === "custom" && <Check className="h-3 w-3 opacity-80" />}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            {/* One month below desktop: two side by side are wider than a phone, so the
-                popover clipped the second and its days could not be tapped. */}
+          <div className="p-2">
+            <p className="px-1 pb-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+              Custom range
+            </p>
             <Calendar
               mode="range"
               numberOfMonths={device === "desktop" ? 2 : 1}
@@ -204,64 +199,16 @@ export function DateRangeFilter({ value, preset, onChange, className, storageKey
                 const from = r?.from ? startOfDay(r.from) : undefined;
                 const to = r?.to ? endOfDay(r.to) : r?.from ? endOfDay(r.from) : undefined;
                 onChange({ from, to }, "custom");
+                // Only close once both ends are chosen — closing on the first click
+                // made picking a range impossible.
                 if (from && to) setOpen(false);
               }}
               initialFocus
-              className={cn("p-3 pointer-events-auto")}
+              className="pointer-events-auto p-0"
             />
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      {/* Below md the same choices are one select: seven buttons wrapped onto three
-          rows on a line tablet and pushed the actual content off the screen. */}
-      <div className="flex items-center gap-2 md:hidden">
-        <Select
-          value={preset === "custom" ? "custom" : preset}
-          onValueChange={(p) => { if (p !== "custom") setPreset(p as DateRangePreset); }}
-        >
-          <SelectTrigger className="h-9 w-[150px]" aria-label="Period">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {quick.map((p) => (
-              <SelectItem key={p} value={p}>{PRESET_LABELS[p as Exclude<DateRangePreset, "custom">]}</SelectItem>
-            ))}
-            {/* Present so the trigger has something to show when a custom range is
-                active; picking it is a no-op — the calendar sets it. */}
-            <SelectItem value="custom">Custom</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Popover open={openMobile} onOpenChange={setOpenMobile}>
-          <PopoverTrigger asChild>
-            <Button variant={preset === "custom" ? "default" : "outline"} size="sm" className="h-9 gap-1.5">
-              <CalendarIcon className="h-4 w-4" />
-              {preset === "custom" ? label : "Custom"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="range"
-              numberOfMonths={1}
-              defaultMonth={value.from ?? new Date()}
-              selected={{ from: value.from, to: value.to }}
-              onSelect={(r) => {
-                const from = r?.from ? startOfDay(r.from) : undefined;
-                const to = r?.to ? endOfDay(r.to) : r?.from ? endOfDay(r.from) : undefined;
-                onChange({ from, to }, "custom");
-                if (from && to) setOpenMobile(false);
-              }}
-              initialFocus
-              className={cn("p-3 pointer-events-auto")}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      {/* The resolved dates, once, quietly. The buttons say which preset; this says
-          what it actually resolved to — and on a report that distinction matters. */}
-      <span className="hidden md:inline text-xs tabular-nums text-muted-foreground">{label}</span>
-    </div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
