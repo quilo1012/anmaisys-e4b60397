@@ -56,6 +56,7 @@ export type Action =
   | "quality.view"
   | "quality.manage"
   | "workforce.view"
+  | "workforce.manage"
   | "quality.validate"
   | "quality.close"
   // Preventive Maintenance
@@ -154,6 +155,9 @@ const MATRIX: Record<Action, Role[]> = {
   // Names, emails and hours that feed pay. Admin only until someone decides
   // otherwise, deliberately — the same care labor_rate gets.
   "workforce.view": ["admin"],
+  // Moving someone between lines and marking who turned up. Separate from viewing,
+  // so a read-only account can be given later without also handing over the board.
+  "workforce.manage": ["admin"],
   "quality.validate": ["admin", "quality_supervisor"],
   "quality.close": ["admin", "manager", "maintenance_manager"],
 
@@ -320,7 +324,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "planner", label: "Planner & SKU", actions: ["planner.view", "sku.view", "sku.manage"] },
   { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
   { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
-  { key: "workforce", label: "Workforce", actions: ["workforce.view"] },
+  { key: "workforce", label: "Workforce", actions: ["workforce.view", "workforce.manage"] },
   { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage", "quality.validate", "quality.close"] },
   { key: "pm", label: "Preventive Maint.", actions: ["pm.view", "pm.manage"] },
   { key: "eng", label: "Engineers & Leaders", actions: ["engineers.view", "engineers.manage", "leaders.view", "leaders.manage"] },
@@ -371,6 +375,7 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "quality.view": "See quality actions and issues.",
   "quality.manage": "Create and edit quality actions.",
   "workforce.view": "See the workforce list, shift patterns and overtime balances.",
+  "workforce.manage": "Move people between lines and record who is in today.",
   "quality.validate": "Validate or reject a quality action — the audit verdict, evidence required.",
   "quality.close": "Approve the closure of a quality action once Quality has ruled on it.",
   "pm.view": "See preventive maintenance schedules.",

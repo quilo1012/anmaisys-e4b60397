@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -29,6 +29,17 @@ export interface Employee {
   left_on: string | null;
   source: string;
   notes: string | null;
+  current_line_id: string | null;
+}
+
+export type AttendanceStatus = "present" | "absent" | "sick" | "holiday" | "training";
+
+export interface Attendance {
+  id: string;
+  employee_id: string;
+  on_date: string;
+  status: AttendanceStatus;
+  note: string | null;
 }
 
 export interface OvertimePeriod {
@@ -105,6 +116,89 @@ export function useOvertimeEntries(periodId: string | null) {
     enabled: !!periodId,
     queryFn: async (): Promise<OvertimeEntry[]> => {
       const { data, error } = await db.from("overtime_entries").select("*").eq("period_id", periodId);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useAttendance(onDate: string) {
+  return useQuery({
+    queryKey: ["employee_attendance", onDate],
+    queryFn: async (): Promise<Attendance[]> => {
+      const { data, error } = await db.from("employee_attendance").select("*").eq("on_date", onDate);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useSetAttendance(onDate: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ employeeId, status }: { employeeId: string; status: AttendanceStatus }) => {
+      const { error } = await db
+        .from("employee_attendance")
+        .upsert({ employee_id: employeeId, on_date: onDate, status }, { onConflict: "employee_id,on_date" });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["employee_attendance", onDate] }),
+  });
+}
+
+/**
+ * Move someone to a line, and say so on the record.
+ *
+ * The column holds where they are now; the movement row holds that they were moved,
+ * by whom and from where. Writing only the column would make the board unanswerable
+ * a week later.
+ */
+export function useMoveEmployee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      employee, toLineId, fromLineName, toLineName, movedBy,
+    }: {
+      employee: Employee; toLineId: string | null;
+      fromLineName: string | null; toLineName: string | null; movedBy?: string | null;
+    }) => {
+      const { error } = await db.from("employees").update({ current_line_id: toLineId }).eq("id", employee.id);
+      if (error) throw error;
+      const { error: histError } = await db.from("employee_movements").insert({
+        employee_id: employee.id,
+        from_line: fromLineName,
+        to_line: toLineName,
+        from_department: employee.department,
+        to_department: employee.department,
+        moved_by: movedBy ?? null,
+      });
+      // The move itself succeeded. A failed history write is worth knowing about but
+      // must not roll the board back under the user.
+      if (histError) console.error("[workforce] movement not recorded:", histError);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["employees"] }),
+  });
+}
+
+export function useMovements(employeeId: string | null) {
+  return useQuery({
+    queryKey: ["employee_movements", employeeId],
+    enabled: !!employeeId,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("employee_movements").select("*")
+        .eq("employee_id", employeeId).order("moved_at", { ascending: false }).limit(20);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; from_line: string | null; to_line: string | null; moved_at: string; reason: string | null }>;
+    },
+  });
+}
+
+export function useLines() {
+  return useQuery({
+    queryKey: ["lines_min"],
+    queryFn: async (): Promise<Array<{ id: string; name: string }>> => {
+      const { data, error } = await db.from("lines").select("id, name").order("name");
       if (error) throw error;
       return data ?? [];
     },

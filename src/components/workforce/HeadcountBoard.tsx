@@ -1,0 +1,295 @@
+import { useMemo, useState } from "react";
+import {
+  DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors,
+  useDraggable, useDroppable, type DragEndEvent, type DragStartEvent,
+} from "@dnd-kit/core";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { GripVertical, UserCheck, UserX } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  useLines, useMoveEmployee, useSetAttendance, describeDays, worksOn,
+  type Attendance, type AttendanceStatus, type Employee, type ShiftPattern,
+} from "@/hooks/useWorkforce";
+
+const UNASSIGNED = "__unassigned__";
+
+const STATUS_META: Record<AttendanceStatus, { label: string; cls: string }> = {
+  present:  { label: "In",       cls: "border-emerald-500/40 bg-emerald-500/15 text-success-strong" },
+  absent:   { label: "Absent",   cls: "border-red-500/40 bg-red-500/15 text-destructive-strong" },
+  sick:     { label: "Sick",     cls: "border-amber-500/40 bg-amber-500/15 text-warning-strong" },
+  holiday:  { label: "Holiday",  cls: "border-blue-500/40 bg-blue-500/15 text-blue-700 dark:text-blue-300" },
+  training: { label: "Training", cls: "border-purple-500/40 bg-purple-500/15 text-purple-700 dark:text-purple-300" },
+};
+
+export interface BoardEmployee extends Employee {
+  pattern: ShiftPattern | null;
+  overtimeHours: number | null;
+}
+
+function EmployeeCard({
+  employee, attendance, onCycle, canEdit, dragging,
+}: {
+  employee: BoardEmployee;
+  attendance: Attendance | undefined;
+  onCycle: () => void;
+  canEdit: boolean;
+  dragging?: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: employee.id, disabled: !canEdit,
+  });
+  const status = attendance?.status;
+  const ot = employee.overtimeHours;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "rounded-lg border bg-card p-2 text-left shadow-sm",
+        (isDragging || dragging) && "opacity-50",
+        status === "absent" && "border-destructive/40",
+      )}
+    >
+      <div className="flex items-start gap-1">
+        {canEdit && (
+          <button
+            type="button"
+            className="mt-0.5 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing no-print"
+            aria-label={`Move ${employee.full_name}`}
+            {...listeners}
+            {...attributes}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-semibold">{employee.full_name}</div>
+          <div className="truncate text-2xs text-muted-foreground">
+            {employee.department ?? "Department to confirm"}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <Badge variant="outline" className="text-2xs">
+              {employee.pattern ? describeDays(employee.pattern.days) : "No pattern"}
+            </Badge>
+            {ot != null && (
+              <Badge
+                variant="outline"
+                className={cn("font-mono text-2xs", ot < 0 && "border-red-500/40 bg-red-500/10 text-destructive-strong")}
+              >
+                {ot > 0 ? "+" : ""}{ot}h
+              </Badge>
+            )}
+            {status && (
+              <button
+                type="button"
+                onClick={canEdit ? onCycle : undefined}
+                className={cn("rounded border px-1.5 py-0.5 text-2xs font-semibold", STATUS_META[status].cls, canEdit && "cursor-pointer")}
+              >
+                {STATUS_META[status].label}
+              </button>
+            )}
+            {!status && canEdit && (
+              <button
+                type="button"
+                onClick={onCycle}
+                className="rounded border border-dashed px-1.5 py-0.5 text-2xs text-muted-foreground hover:text-foreground no-print"
+              >
+                Mark
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LineColumn({
+  id, title, subtitle, children, count,
+}: {
+  id: string; title: string; subtitle?: string; children: React.ReactNode; count: number;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex min-h-[8rem] flex-col rounded-lg border bg-muted/30 p-2 transition-colors break-inside-avoid",
+        isOver && "border-primary bg-primary/5",
+      )}
+    >
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <span className="truncate text-xs font-bold uppercase tracking-wide">{title}</span>
+        <span className="shrink-0 font-mono text-xs text-muted-foreground">{count}</span>
+      </div>
+      {subtitle && <div className="mb-1 text-2xs text-muted-foreground">{subtitle}</div>}
+      <div className="space-y-2">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Who is on which line today.
+ *
+ * The board shows the people whose shift pattern covers the chosen day, because a
+ * board that lists everyone on the payroll is a list, not a plan for the shift. The
+ * ones with no pattern yet are shown too — they are not "off", they are unrecorded,
+ * and hiding them would quietly shrink the headcount.
+ */
+export function HeadcountBoard({
+  employees, attendance, onDate, canEdit, userId,
+}: {
+  employees: BoardEmployee[];
+  attendance: Attendance[];
+  onDate: Date;
+  canEdit: boolean;
+  userId?: string | null;
+}) {
+  const { data: lines } = useLines();
+  const move = useMoveEmployee();
+  const setAttendance = useSetAttendance(onDate.toISOString().slice(0, 10));
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  const sensors = useSensors(
+    // A small distance so a tap on the card's buttons is not read as a drag on a
+    // tablet, which is where this board will actually be used.
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  const attendanceByEmployee = useMemo(
+    () => new Map(attendance.map((a) => [a.employee_id, a])),
+    [attendance],
+  );
+
+  const scheduled = useMemo(
+    () => employees.filter((e) => e.active && (showAll || !e.pattern || worksOn(e.pattern.days, onDate))),
+    [employees, onDate, showAll],
+  );
+
+  const columns = useMemo(() => {
+    const byLine = new Map<string, BoardEmployee[]>();
+    byLine.set(UNASSIGNED, []);
+    for (const l of lines ?? []) byLine.set(l.id, []);
+    for (const e of scheduled) {
+      const key = e.current_line_id && byLine.has(e.current_line_id) ? e.current_line_id : UNASSIGNED;
+      byLine.get(key)!.push(e);
+    }
+    return byLine;
+  }, [scheduled, lines]);
+
+  const cycleStatus = (employeeId: string) => {
+    const order: AttendanceStatus[] = ["present", "absent", "sick", "holiday", "training"];
+    const current = attendanceByEmployee.get(employeeId)?.status;
+    const next = order[(current ? order.indexOf(current) + 1 : 0) % order.length];
+    setAttendance.mutate({ employeeId, status: next }, {
+      onError: (e) => toast.error((e as Error).message || "Could not save attendance"),
+    });
+  };
+
+  const onDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
+    const employeeId = String(event.active.id);
+    const target = event.over ? String(event.over.id) : null;
+    if (!target) return;
+    const employee = employees.find((e) => e.id === employeeId);
+    if (!employee) return;
+    const toLineId = target === UNASSIGNED ? null : target;
+    if ((employee.current_line_id ?? null) === toLineId) return;
+    const nameOf = (id: string | null) => (id ? lines?.find((l) => l.id === id)?.name ?? null : null);
+    move.mutate(
+      {
+        employee,
+        toLineId,
+        fromLineName: nameOf(employee.current_line_id),
+        toLineName: nameOf(toLineId),
+        movedBy: userId ?? null,
+      },
+      {
+        onSuccess: () => toast.success(`${employee.full_name} → ${nameOf(toLineId) ?? "Unassigned"}`),
+        onError: (e) => toast.error((e as Error).message || "Could not move"),
+      },
+    );
+  };
+
+  const active = activeId ? employees.find((e) => e.id === activeId) : null;
+  const unassignedCount = columns.get(UNASSIGNED)?.length ?? 0;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-base">Headcount by line</CardTitle>
+            <CardDescription>
+              {showAll
+                ? "Everyone active, whatever their pattern says about today."
+                : "People whose shift pattern covers this day, plus anyone with no pattern yet."}
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" className="no-print" onClick={() => setShowAll((v) => !v)}>
+            {showAll ? <UserCheck className="mr-1 h-4 w-4" /> : <UserX className="mr-1 h-4 w-4" />}
+            {showAll ? "Only today's shift" : "Show everyone"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <DndContext
+          sensors={sensors}
+          onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
+          onDragEnd={onDragEnd}
+          onDragCancel={() => setActiveId(null)}
+        >
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <LineColumn
+              id={UNASSIGNED}
+              title="Unassigned"
+              count={unassignedCount}
+              subtitle={unassignedCount ? "Drag onto a line to place them" : undefined}
+            >
+              {(columns.get(UNASSIGNED) ?? []).map((e) => (
+                <EmployeeCard
+                  key={e.id}
+                  employee={e}
+                  attendance={attendanceByEmployee.get(e.id)}
+                  onCycle={() => cycleStatus(e.id)}
+                  canEdit={canEdit}
+                  dragging={activeId === e.id}
+                />
+              ))}
+            </LineColumn>
+
+            {(lines ?? []).map((l) => (
+              <LineColumn key={l.id} id={l.id} title={l.name} count={columns.get(l.id)?.length ?? 0}>
+                {(columns.get(l.id) ?? []).map((e) => (
+                  <EmployeeCard
+                    key={e.id}
+                    employee={e}
+                    attendance={attendanceByEmployee.get(e.id)}
+                    onCycle={() => cycleStatus(e.id)}
+                    canEdit={canEdit}
+                    dragging={activeId === e.id}
+                  />
+                ))}
+              </LineColumn>
+            ))}
+          </div>
+
+          <DragOverlay>
+            {active && (
+              <div className="rounded-lg border bg-card p-2 text-xs font-semibold shadow-lg">
+                {active.full_name}
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default HeadcountBoard;

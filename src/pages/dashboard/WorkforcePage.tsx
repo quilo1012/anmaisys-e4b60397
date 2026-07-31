@@ -12,11 +12,15 @@ import { KpiCard } from "@/components/reports/KpiCard";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { BackButton } from "@/components/BackButton";
-import { Users, Printer, Clock, CalendarDays, TrendingDown } from "lucide-react";
+import { Users, Printer, Clock, CalendarDays, TrendingDown, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import {
   useEmployees, useOvertimeEntries, useOvertimePeriods, useShiftPatterns, describeDays,
+  useAttendance, worksOn,
 } from "@/hooks/useWorkforce";
+import { HeadcountBoard, type BoardEmployee } from "@/components/workforce/HeadcountBoard";
+import { useRole } from "@/hooks/useRole";
+import { useAuth } from "@/contexts/AuthContext";
 
 const fmtHours = (h: number) => `${h > 0 ? "" : ""}${h.toFixed(2).replace(/\.00$/, "")}h`;
 
@@ -28,6 +32,12 @@ export default function WorkforcePage() {
   const activePeriod = periods?.find((p) => p.id === periodId) ?? periods?.[0] ?? null;
   const { data: entries, isLoading: loadingOT } = useOvertimeEntries(activePeriod?.id ?? null);
   const [search, setSearch] = useState("");
+  const [boardDate, setBoardDate] = useState(() => new Date());
+  const boardDateKey = boardDate.toISOString().slice(0, 10);
+  const { data: attendance } = useAttendance(boardDateKey);
+  const { can } = useRole();
+  const { user } = useAuth();
+  const canEdit = can("workforce.manage");
   const [dept, setDept] = useState("__all__");
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +83,29 @@ export default function WorkforcePage() {
     () => rows.filter((r) => r.overtime).sort((a, b) => Number(b.overtime!.hours) - Number(a.overtime!.hours)).slice(0, 5),
     [rows],
   );
+
+  const boardEmployees = useMemo<BoardEmployee[]>(
+    () => rows.map((r) => ({ ...r, overtimeHours: r.overtime ? Number(r.overtime.hours) : null })),
+    [rows],
+  );
+
+  /**
+   * Alerts, and only ones the data can actually support.
+   *
+   * No "over the overtime cap": there is no cap in this data, and inventing 60h
+   * would put a red badge against people for crossing a line nobody set.
+   */
+  const alerts = useMemo(() => {
+    const scheduledToday = boardEmployees.filter((e) => e.active && e.pattern && worksOn(e.pattern.days, boardDate));
+    const byId = new Map((attendance ?? []).map((a) => [a.employee_id, a]));
+    return {
+      awayToday: scheduledToday.filter((e) => ["absent", "sick"].includes(byId.get(e.id)?.status ?? "")).length,
+      unmarked: scheduledToday.filter((e) => !byId.has(e.id)).length,
+      scheduledToday: scheduledToday.length,
+      negative: boardEmployees.filter((e) => (e.overtimeHours ?? 0) < 0),
+      noPattern: boardEmployees.filter((e) => e.active && !e.pattern),
+    };
+  }, [boardEmployees, attendance, boardDate]);
 
   const isLoading = loadingEmp || loadingPer || loadingOT;
   const periodLabel = activePeriod
@@ -122,6 +155,83 @@ export default function WorkforcePage() {
           <KpiCard label="Shift assigned" icon={<CalendarDays className="h-3.5 w-3.5" />} value={kpis.headcount - kpis.unassigned} accent="ok" sublabel={kpis.unassigned ? `${kpis.unassigned} still without a pattern` : "Everyone has a pattern"} />
           <KpiCard label="Departments" icon={<Users className="h-3.5 w-3.5" />} value={departments.length} accent="info" sublabel="On the employee list" />
         </div>
+
+        <Card className="break-inside-avoid">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Today on the floor</CardTitle>
+                <CardDescription>{format(boardDate, "EEEE, dd/MM/yyyy")}</CardDescription>
+              </div>
+              <Input
+                type="date"
+                value={boardDateKey}
+                onChange={(e) => e.target.value && setBoardDate(new Date(`${e.target.value}T12:00:00`))}
+                className="h-9 w-44 no-print"
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-2 sm:grid-cols-4">
+            <div className="rounded-lg border p-2">
+              <div className="text-2xs uppercase text-muted-foreground">Scheduled</div>
+              <div className="font-mono text-xl font-bold">{alerts.scheduledToday}</div>
+              <div className="text-2xs text-muted-foreground">Pattern covers this day</div>
+            </div>
+            <div className="rounded-lg border p-2">
+              <div className="text-2xs uppercase text-muted-foreground">Away</div>
+              <div className={`font-mono text-xl font-bold ${alerts.awayToday ? "text-destructive-strong" : ""}`}>{alerts.awayToday}</div>
+              <div className="text-2xs text-muted-foreground">Marked absent or sick</div>
+            </div>
+            <div className="rounded-lg border p-2">
+              <div className="text-2xs uppercase text-muted-foreground">Not marked</div>
+              <div className={`font-mono text-xl font-bold ${alerts.unmarked ? "text-warning-strong" : ""}`}>{alerts.unmarked}</div>
+              <div className="text-2xs text-muted-foreground">Nobody has said yet</div>
+            </div>
+            <div className="rounded-lg border p-2">
+              <div className="text-2xs uppercase text-muted-foreground">No shift pattern</div>
+              <div className={`font-mono text-xl font-bold ${alerts.noPattern.length ? "text-warning-strong" : ""}`}>{alerts.noPattern.length}</div>
+              <div className="text-2xs text-muted-foreground">Days of work unrecorded</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {isLoading ? (
+          <Skeleton className="h-64" />
+        ) : (
+          <HeadcountBoard
+            employees={boardEmployees}
+            attendance={attendance ?? []}
+            onDate={boardDate}
+            canEdit={canEdit}
+            userId={user?.id}
+          />
+        )}
+
+        {(alerts.negative.length > 0 || alerts.noPattern.length > 0) && (
+          <Card className="break-inside-avoid border-amber-500/40">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <AlertTriangle className="h-4 w-4 text-warning-strong" /> Worth a look
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-xs">
+              {alerts.negative.length > 0 && (
+                <p>
+                  <b>{alerts.negative.length}</b> in overtime deficit —{" "}
+                  {alerts.negative.map((e) => `${e.full_name} (${e.overtimeHours}h)`).join(", ")}. Sickness
+                  written off against banked hours, not hours owed to the factory.
+                </p>
+              )}
+              {alerts.noPattern.length > 0 && (
+                <p>
+                  <b>{alerts.noPattern.length}</b> without a shift pattern, so the board cannot say whether
+                  they are due in: {alerts.noPattern.slice(0, 8).map((e) => e.full_name).join(", ")}
+                  {alerts.noPattern.length > 8 ? "…" : ""}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="break-inside-avoid">
           <CardHeader className="pb-3">

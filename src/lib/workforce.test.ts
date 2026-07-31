@@ -30,3 +30,29 @@ describe("shift patterns", () => {
     expect(worksOn([1], new Date("2026-08-02T09:00:00"))).toBe(false);
   });
 });
+
+describe("who the board shows on a given day", () => {
+  // The rule the board runs on: a pattern that covers the day means "due in".
+  // Someone with no pattern is not "off" — they are unrecorded, and must still
+  // appear, or the headcount quietly shrinks.
+  const monThu = [1, 2, 3, 4];
+  const friMon = [5, 6, 7, 1];
+  const saturday = new Date("2026-08-01T12:00:00");
+  const tuesday = new Date("2026-08-04T12:00:00");
+
+  it("puts the weekend pattern in on Saturday and the weekday one out", () => {
+    expect(worksOn(friMon, saturday)).toBe(true);
+    expect(worksOn(monThu, saturday)).toBe(false);
+  });
+
+  it("swaps them round on a Tuesday", () => {
+    expect(worksOn(monThu, tuesday)).toBe(true);
+    expect(worksOn(friMon, tuesday)).toBe(false);
+  });
+
+  it("counts Monday as worked by both patterns that include it", () => {
+    const monday = new Date("2026-08-03T12:00:00");
+    expect(worksOn(monThu, monday)).toBe(true);
+    expect(worksOn(friMon, monday)).toBe(true);
+  });
+});
