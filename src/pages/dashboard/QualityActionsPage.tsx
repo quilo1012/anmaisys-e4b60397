@@ -16,7 +16,7 @@ import { generateQualityReportPDF, generateQualityReportExcel } from "@/lib/qual
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Columns3, Camera, Clock, X, Loader2, ClipboardCheck, Printer, Pencil } from "lucide-react";
+import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Camera, Clock, X, Loader2, ClipboardCheck, Printer, Pencil } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { toast } from "sonner";
@@ -103,7 +103,11 @@ export function QualityActionsView() {
   const LABELS = qOpts?.labels ?? [...QUALITY_LABELS];
   const DEPTS = qOpts?.departments ?? [...QUALITY_DEPARTMENTS];
 
-  const [view, setView] = useState<"list" | "kanban" | "analytics">("list");
+  // Kanban is gone. A To do / In progress / Complete board is the working view of
+  // whoever moves the cards; this screen is read by supervisors and managers, and the
+  // board took the height that the numbers they come for now use. The statuses are
+  // still on every row, still filterable, still editable inline in the Log.
+  const [view, setView] = useState<"list" | "analytics">("list");
   const { profile } = useAuth();
   const isMobile = useIsMobile();
   const [listsOpen, setListsOpen] = useState(false);
@@ -458,9 +462,6 @@ export function QualityActionsView() {
               <button type="button" onClick={() => setView("list")} className={cn("inline-flex items-center gap-1 rounded px-3 py-1 text-sm font-medium transition-colors", view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
                 <List className="h-4 w-4" /> List
               </button>
-              <button type="button" onClick={() => setView("kanban")} className={cn("inline-flex items-center gap-1 rounded px-3 py-1 text-sm font-medium transition-colors", view === "kanban" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
-                <Columns3 className="h-4 w-4" /> Kanban
-              </button>
               <button type="button" onClick={() => setView("analytics")} className={cn("inline-flex items-center gap-1 rounded px-3 py-1 text-sm font-medium transition-colors", view === "analytics" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
                 <BarChart3 className="h-4 w-4" /> Analytics
               </button>
@@ -632,6 +633,8 @@ export function QualityActionsView() {
 
         <QualityTrackingByLeader actions={filtered} periodLabel={periodLabel} />
 
+        <TopRecurringIssues actions={filtered} />
+
         {/* Filters, in a toolbar card like the Maintenance Orders screen. */}
         <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/30 p-3">
           <DateRangeFilter value={drRange} preset={drPreset} onChange={(r, p) => { setDrRange(r); setDrPreset(p); }} storageKey="quality-period" />
@@ -673,8 +676,6 @@ export function QualityActionsView() {
           <SectionErrorBoundary title="Quality analytics">
             <QualityAnalytics actions={filtered} from={from} />
           </SectionErrorBoundary>
-        ) : view === "kanban" ? (
-          <IssueKanban actions={filtered} canManage={canManage} onOpen={setDetailId} onMove={(id, status) => setStatus.mutate({ id, status })} />
         ) : isMobile ? (
           <Card>
             <CardHeader><CardTitle>Log ({filtered.length})</CardTitle></CardHeader>
@@ -850,51 +851,6 @@ export function QualityActionsView() {
   );
 }
 
-// ============================================================
-// Kanban board
-// ============================================================
-function IssueKanban({ actions, canManage, onOpen, onMove }: {
-  actions: QualityAction[]; canManage: boolean;
-  onOpen: (id: string) => void; onMove: (id: string, status: string) => void;
-}) {
-  const [dragOver, setDragOver] = useState<string | null>(null);
-  return (
-    <div className="grid gap-4 md:grid-cols-3">
-      {QUALITY_STATUSES.map((col) => {
-        const items = actions.filter((a) => a.status === col.value);
-        return (
-          <div key={col.value}
-            onDragOver={(e) => { if (canManage) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOver(col.value); } }}
-            onDragLeave={() => setDragOver((c) => (c === col.value ? null : c))}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(null);
-              const id = e.dataTransfer.getData("text/plain");
-              if (id && canManage) onMove(id, col.value);
-            }}
-            className={cn("rounded-lg border bg-muted/20 transition-colors", dragOver === col.value && "ring-2 ring-primary bg-primary/5")}>
-            <div className="flex items-center justify-between border-b px-3 py-2">
-              <span className="inline-flex items-center gap-2 text-sm font-semibold">
-                <span className={cn("h-2.5 w-2.5 rounded-full")} style={{ backgroundColor: col.color }} />
-                {col.label}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Badge variant="outline" className="tabular-nums text-2xs font-semibold" title="Total points in this column">
-                  {sumSeverityPoints(items)} pts
-                </Badge>
-                <Badge variant="secondary">{items.length}</Badge>
-              </span>
-            </div>
-            <div className="min-h-[80px] space-y-2 p-2">
-              {items.length === 0 && <p className="px-2 py-4 text-center text-xs text-muted-foreground">Empty</p>}
-              {items.map((a) => <IssueCard key={a.id} a={a} canManage={canManage} onOpen={onOpen} onMove={onMove} />)}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function IssueCard({ a, canManage, onOpen, onMove }: {
   a: QualityAction; canManage: boolean;
@@ -1418,6 +1374,63 @@ function QualityListsManager() {
         </div>
       ))}
     </div>
+  );
+}
+
+
+/**
+ * What keeps coming back.
+ *
+ * Grouped on the description as typed, which is why near-duplicates ("metal on
+ * magnet" and "Metal found on magnet check") count separately — the alternative is
+ * guessing that two sentences mean the same thing, and a board that silently merges
+ * two problems is worse than one that lists them twice.
+ *
+ * Severity points, not just a count: ten Low actions and one Critical are not the
+ * same problem, and the count alone said they were.
+ */
+function TopRecurringIssues({ actions }: { actions: QualityAction[] }) {
+  const rows = useMemo(() => {
+    const m = new Map<string, { text: string; count: number; points: number; lines: Set<string> }>();
+    for (const a of actions) {
+      const text = (a.description ?? "").trim();
+      if (!text) continue;
+      const key = text.toLowerCase().slice(0, 80);
+      const e = m.get(key) ?? { text, count: 0, points: 0, lines: new Set<string>() };
+      e.count += 1;
+      e.points += severityPoints(a.severity);
+      if (a.line) e.lines.add(a.line);
+      m.set(key, e);
+    }
+    return Array.from(m.values())
+      .filter((r) => r.count >= 2)
+      .sort((a, b) => b.count - a.count || b.points - a.points)
+      .slice(0, 5);
+  }, [actions]);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <Card className="break-inside-avoid">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold uppercase tracking-wide">Top recurring issues</CardTitle>
+        <CardDescription>Raised more than once in this period. One occurrence is an incident, not a pattern.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-1.5">
+        {rows.map((r) => (
+          <div key={r.text} className="flex items-center gap-3 rounded border p-2 text-xs">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{r.text}</span>
+              <span className="block truncate text-2xs text-muted-foreground">
+                {r.lines.size ? Array.from(r.lines).join(", ") : "No line recorded"}
+              </span>
+            </span>
+            <span className="shrink-0 font-mono font-bold">{r.count}×</span>
+            <span className="shrink-0 font-mono text-2xs text-muted-foreground">{r.points} pts</span>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
