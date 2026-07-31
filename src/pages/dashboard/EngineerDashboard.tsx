@@ -233,7 +233,11 @@ function EngineerDashboardContent() {
   // Server-side history scoped to the logged-in engineer (primary OR collaborator).
   // Avoids the 200-row global cap and works regardless of how old the WOs are.
   const { data: engineerHistory } = useQuery({
-    queryKey: ["engineer-history", user?.id],
+    // Prefixed with "work_orders" on purpose. Every mutation in useWorkOrders
+    // invalidates ["work_orders"], and React Query matches keys by prefix — so this
+    // list refreshes with them. Under its own key it never did: an engineer finished
+    // an order and it simply did not appear until they reloaded the page.
+    queryKey: ["work_orders", "engineer-history", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
       // Engineer accounts are shared (workshop@/maintenance@) and the real engineer
@@ -243,7 +247,10 @@ function EngineerDashboardContent() {
       const { data, error } = await supabase
         .from("work_orders")
         .select(cols)
-        .in("status", ["finished", "closed", "completed"] as any)
+        // force_closed belongs here too. A manager closing an order the engineer
+        // could not finish is still the end of that job, and leaving it out erased
+        // 93 orders from the history of the people who worked them.
+        .in("status", ["finished", "closed", "completed", "force_closed"] as any)
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
