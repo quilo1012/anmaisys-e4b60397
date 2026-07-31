@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { usePmSchedules, useUpdatePmSchedule } from "@/hooks/usePreventiveMaintenance";
 import { toast } from "sonner";
@@ -27,6 +29,8 @@ interface MachineStats {
   recommended: number | null; // recommended interval_days
   rec: RecKind;
   topIssues: { description: string; count: number }[];
+  /** The row is a production line, not a machine — see the note in `stats`. */
+  isLine: boolean;
 }
 
 function classifyRecommendation(
@@ -57,14 +61,40 @@ const recMeta: Record<RecKind, { label: string; cls: string; icon: any }> = {
 
 export default function PMIntelligencePage() {
   const navigate = useNavigate();
-  const { data: wos, isLoading: woLoading } = useWorkOrders();
+  // Ranged, not the default query.
+  //
+  // useWorkOrders() with no range returns the 200 most recent orders — right for a
+  // worklist, wrong for this page. There are 317 orders in the last 90 days, so the
+  // page was computing MTBF, MTTR and every interval recommendation from 200 of them
+  // and silently dropping 117 — the OLDEST ones, which is precisely what a mean time
+  // BETWEEN failures is measured from. The header said "Last 90 days" and meant about
+  // seven weeks.
+  const range = useMemo(() => {
+    const to = new Date();
+    return { from: new Date(to.getTime() - 90 * 24 * 3600 * 1000), to };
+  }, []);
+  const { data: wos, isLoading: woLoading } = useWorkOrders(range);
   const { data: schedules, isLoading: pmLoading } = usePmSchedules();
+
+  // Most orders record the LINE in the machine field — "Line 4", "Line 6A" — so this
+  // page was grouping lines and calling them machines. A line fails every 0.7 days
+  // because it is twelve machines; 70% of that is negative, the clamp lifts it to the
+  // 7-day floor, and every row printed the same recommendation. Knowing which keys are
+  // lines is what lets the table stop pretending.
+  const { data: lineNames } = useQuery({
+    queryKey: ["pm_line_names"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("lines").select("name");
+      if (error) throw error;
+      return new Set((data ?? []).map((l: { name: string }) => l.name.trim().toLowerCase()));
+    },
+  });
   const updatePm = useUpdatePmSchedule();
   const [applyingId, setApplyingId] = useState<string | null>(null);
 
   const stats = useMemo<MachineStats[]>(() => {
     if (!wos) return [];
-    const since = Date.now() - 90 * 24 * 3600 * 1000;
+    const since = range.from.getTime();
     const byMachine = new Map<string, typeof wos>();
     for (const w of wos) {
       if (!w.machine) continue;
@@ -127,6 +157,7 @@ export default function PMIntelligencePage() {
 
       out.push({
         machine,
+        isLine: !!lineNames?.has(machine.trim().toLowerCase()),
         failures,
         mtbfDays,
         mttrHours,
@@ -143,7 +174,22 @@ export default function PMIntelligencePage() {
       if (order[a.rec] !== order[b.rec]) return order[a.rec] - order[b.rec];
       return b.failures - a.failures;
     });
-  }, [wos, schedules]);
+  }, [wos, schedules, range, lineNames]);
+
+  /**
+   * What the numbers are made of, said out loud.
+   *
+   * Roughly half the orders in this window carry no machine, and this page groups by
+   * machine — so they are skipped. That is fine; pretending it did not happen is not.
+   * An interval recommendation drawn from a third of the evidence should say so.
+   */
+  const coverage = useMemo(() => {
+    const rows = wos ?? [];
+    const inRange = rows.filter((w) => new Date(w.created_at).getTime() >= range.from.getTime());
+    const named = inRange.filter((w) => !!w.machine);
+    const timed = named.filter((w) => w.started_at && w.finished_at);
+    return { total: inRange.length, named: named.length, timed: timed.length };
+  }, [wos, range]);
 
   const isLoading = woLoading || pmLoading;
 
@@ -209,6 +255,15 @@ export default function PMIntelligencePage() {
           </div>
         )}
 
+        {!isLoading && coverage.total > 0 && (
+          <p className="text-2xs text-muted-foreground">
+            Read from {coverage.named} of {coverage.total} orders in the last 90 days — the rest name no
+            machine, and this page groups by machine. Repair times come from the {coverage.timed} that
+            carry both a start and a finish. Rows marked <b>line</b> were recorded against a production
+            line rather than a machine, so no service interval is derived from them.
+          </p>
+        )}
+
         {isLoading ? <Skeleton className="h-40" /> : <PreventiveOpportunities workOrders={wos} />}
 
         {isLoading ? (
@@ -247,10 +302,17 @@ export default function PMIntelligencePage() {
                   {stats.map((s) => {
                     const meta = recMeta[s.rec];
                     const Icon = meta.icon;
-                    const canApply = !!s.scheduleId && !!s.recommended && s.recommended !== s.currentInterval;
+                    const canApply = !s.isLine && !!s.scheduleId && !!s.recommended && s.recommended !== s.currentInterval;
                     return (
                       <tr key={s.machine} className="border-b last:border-0 align-top">
-                        <td className="p-2 font-medium">{s.machine}</td>
+                        <td className="p-2 font-medium">
+                          {s.machine}
+                          {s.isLine && (
+                            <Badge variant="outline" className="ml-1.5 text-[9px] leading-4 text-muted-foreground">
+                              line
+                            </Badge>
+                          )}
+                        </td>
                         <td className="p-2 text-right tabular-nums">{s.failures}</td>
                         <td className="p-2 text-right tabular-nums">
                           {s.mtbfDays !== null ? `${s.mtbfDays.toFixed(1)}d` : "—"}
@@ -261,8 +323,14 @@ export default function PMIntelligencePage() {
                         <td className="p-2 text-right tabular-nums">
                           {s.currentInterval !== null ? `${s.currentInterval}d` : <span className="text-muted-foreground">none</span>}
                         </td>
+                        {/* A line is not a machine. Its orders are the sum of a dozen
+                            machines, so the interval between them says nothing about
+                            when any one of them should be serviced — and the clamp
+                            turned every one of those rows into the same "7d". */}
                         <td className="p-2 text-right tabular-nums font-semibold">
-                          {s.recommended !== null ? `${s.recommended}d` : "—"}
+                          {s.isLine
+                            ? <span className="font-normal text-muted-foreground" title="Recorded against a line, not a machine">n/a</span>
+                            : s.recommended !== null ? `${s.recommended}d` : "—"}
                         </td>
                         <td className="p-2">
                           <Badge variant="outline" className={`gap-1 ${meta.cls}`}>

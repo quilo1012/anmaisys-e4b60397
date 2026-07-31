@@ -25,7 +25,15 @@ export interface MachineRisk {
 }
 
 export function usePredictiveAlerts() {
-  const { data: allWOs } = useWorkOrders();
+  // Ranged for the same reason PM Intelligence is: the default query returns the 200
+  // most recent orders, which at the current rate reaches back about seven weeks. A
+  // 30-day window fits inside that today and would not the moment the factory gets
+  // busier — and it would fail by quietly analysing less, not by breaking.
+  const range = useMemo(() => {
+    const to = new Date();
+    return { from: subDays(to, 30), to };
+  }, []);
+  const { data: allWOs } = useWorkOrders(range);
 
   const alerts = useMemo(() => {
     if (!allWOs) return [];
