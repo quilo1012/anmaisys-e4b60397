@@ -50,7 +50,8 @@ BEGIN
       -- no longer open by the time it runs.
       UPDATE public.downtime_events
          SET resumed_by_name = COALESCE(resumed_by_name, 'iTouching'),
-             resumed_note = COALESCE(resumed_note, 'Machine reported running by iTouching')
+             resumed_note = COALESCE(resumed_note,
+               'iTouching stopped reporting a fault on this machine. It does not distinguish a repaired machine from one whose team has gone on break — the repair may still be outstanding.')
        WHERE work_order_id = _wo.id AND resumed_by_name IS NULL AND resumed_at IS NOT NULL;
 
     ELSIF _stopped_again AND NOT _wo.line_stopped THEN
@@ -85,3 +86,18 @@ DROP TRIGGER IF EXISTS trg_intouch_machine_state_moves_the_order ON public.intou
 CREATE TRIGGER trg_intouch_machine_state_moves_the_order
   AFTER UPDATE OF last_downtime_code ON public.intouch_machine_map
   FOR EACH ROW EXECUTE FUNCTION public.intouch_machine_state_moves_the_order();
+
+-- On the wording of that note.
+--
+-- iTouching reports a machine on Breaks as RUNNING with no stop code — measured on
+-- Filler Line 2 and Filler Line 4 while both screens showed "Breaks". The reason is
+-- discarded inside intouch-poll before anything is stored, so from the database a line
+-- on break and a line producing are the same row.
+--
+-- That is why the order resumes during a break, and why the timeline used to claim
+-- "Machine reported running". It was repeating what iTouching said, and iTouching
+-- cannot tell the two apart. The note now says only what is actually known.
+--
+-- The real fix — keeping the stop reason even when the machine reads healthy, so the
+-- order can say "team on break" instead of "line running" — is in the edge function,
+-- and needs a Lovable rebuild.
