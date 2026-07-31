@@ -540,6 +540,49 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Resume (healthy) → stop the clock on this machine's open auto order.
+      //
+      // The poll used to walk away here: it closed its own production-downtime
+      // tracking and left the work order with line_stopped = true and no
+      // line_resumed_at, so the order kept accruing downtime until a person noticed.
+      // That is the same shape as the 233,710 phantom minutes we had to cap by hand —
+      // a clock nobody stopped, not a line that stayed down.
+      //
+      // The ORDER is not closed. iTouching knows the machine is running again; it does
+      // not know whether the repair is finished, and closing is the maintenance
+      // manager's signature to give.
+      if (!isDown) {
+        try {
+          const { data: resumedWOs } = await admin
+            .from("work_orders")
+            .update({
+              line_stopped: false,
+              line_resumed_at: now,
+            })
+            .eq("intouch_machine_id", s.MachineID)
+            .in("status", ["open", "received", "arrived", "in_progress"])
+            .eq("line_stopped", true)
+            .is("line_resumed_at", null)
+            .select("id, wo_number");
+          for (const w of resumedWOs ?? []) {
+            // The order's own stoppage ledger closes with it. An event left open
+            // keeps the order un-closable — useCloseWorkOrder refuses while any
+            // downtime_events row has no resumed_at.
+            await admin
+              .from("downtime_events")
+              .update({ resumed_at: now, resumed_by_name: "iTouching", resumed_note: "Machine reported running by iTouching" })
+              .eq("work_order_id", w.id)
+              .is("resumed_at", null);
+            results.opened_wos.push({
+              machine: m.machine_name ?? m.intouch_machine_name ?? "?",
+              wo: `${w.wo_number} line resumed (iTouching reports the machine running)`,
+            });
+          }
+        } catch (e) {
+          results.errors.push(`wo resume ${m.intouch_machine_name}: ${(e as Error).message}`);
+        }
+      }
+
       // Resume (healthy) → close any open production downtime
       if (!isDown && wasTrackingProd) {
         try { await closeProdDowntime(now); } catch (e) { results.errors.push(`prod-dt close ${m.intouch_machine_name}: ${(e as Error).message}`); }
@@ -612,6 +655,42 @@ Deno.serve(async (req) => {
       }
 
       if (existing) {
+        // The poll resumed this order when the machine recovered; it has now failed
+        // again before anybody closed the order. That is a second stoppage, not a
+        // continuation — recorded as its own episode so the order does not silently
+        // absorb it, and so the minutes between the two failures are not counted as
+        // downtime.
+        try {
+          const { data: woNow } = await admin
+            .from("work_orders")
+            .select("line_stopped, line_resumed_at")
+            .eq("id", existing.id)
+            .maybeSingle();
+          if (woNow && !woNow.line_stopped) {
+            const { count: episodes } = await admin
+              .from("downtime_events")
+              .select("id", { count: "exact", head: true })
+              .eq("work_order_id", existing.id);
+            await admin.from("downtime_events").insert({
+              work_order_id: existing.id,
+              stopped_at: now,
+              stopped_by_name: "iTouching",
+              stopped_reason: codeName,
+              is_recurrence: true,
+              episode_number: (episodes ?? 0) + 1,
+            });
+            await admin.from("work_orders")
+              .update({ line_stopped: true, line_resumed_at: null })
+              .eq("id", existing.id);
+            results.opened_wos.push({
+              machine: m.machine_name ?? m.intouch_machine_name ?? "?",
+              wo: `${existing.wo_number} stopped again (${codeName})`,
+            });
+          }
+        } catch (e) {
+          results.errors.push(`wo re-stop ${m.intouch_machine_name}: ${(e as Error).message}`);
+        }
+
         if (normalizeStopCode(existing.intouch_downtime_code) !== codeKey) {
           await admin.from("work_orders").update({
             intouch_downtime_code: s.DowntimeCode,
