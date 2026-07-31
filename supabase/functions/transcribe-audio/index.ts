@@ -11,15 +11,46 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { path } = await req.json().catch(() => ({}));
-    if (!path || typeof path !== "string") return json({ error: "path is required" }, 400);
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) return json({ error: "unauthorized" }, 401);
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const authClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(
+      authHeader.replace("Bearer ", ""),
+    );
+    const userId = claimsData?.claims?.sub as string | undefined;
+    if (claimsErr || !userId) return json({ error: "unauthorized" }, 401);
+
+    const { path } = await req.json().catch(() => ({}));
+    if (!path || typeof path !== "string" || path.length > 512) {
+      return json({ error: "path is required" }, 400);
+    }
+
     const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_KEY) return json({ error: "LOVABLE_API_KEY missing" }, 500);
 
     const admin = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
+
+    // Ownership check: the caller must be sender or recipient of a message
+    // whose audio_url references this storage path.
+    const { data: msgs, error: msgErr } = await admin
+      .from("direct_messages")
+      .select("id, sender_id, recipient_id, audio_url")
+      .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
+      .not("audio_url", "is", null)
+      .limit(2000);
+    if (msgErr) return json({ error: "lookup failed" }, 500);
+
+    const owns = (msgs ?? []).some((m: any) =>
+      typeof m.audio_url === "string" && (m.audio_url === path || m.audio_url.includes(path)),
+    );
+    if (!owns) return json({ error: "forbidden" }, 403);
+
     const { data: blob, error: dlErr } = await admin.storage.from("dm-audio").download(path);
     if (dlErr || !blob) return json({ error: "audio not found" }, 404);
 
