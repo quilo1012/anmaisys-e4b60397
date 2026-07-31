@@ -22,6 +22,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { LineDowntimeControl } from "@/components/LineDowntimeControl";
 import { TeamActivityExclusions } from "@/components/TeamActivityExclusions";
 import { useWoExclusions } from "@/hooks/useWoExclusions";
+import { activityLabel } from "@/lib/downtimeExclusions";
+import { useWoExclusions } from "@/hooks/useWoExclusions";
 import { subtractExclusionMinutes, toExclusionIntervals } from "@/lib/downtimeExclusions";
 import { DowntimeHistorySection } from "@/components/DowntimeHistorySection";
 import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
@@ -520,7 +522,7 @@ export default function WorkOrderDetail() {
           <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Timeline</CardTitle></CardHeader>
           <CardContent>
             {(() => {
-              type Ev = { ts: string; icon: "open" | "stop" | "resume" | "done" | "force"; title: string; sub?: string; delta?: string };
+              type Ev = { ts: string; icon: "open" | "stop" | "resume" | "done" | "force" | "pause"; title: string; sub?: string; delta?: string };
               const evs: Ev[] = [];
               const created = new Date(wo.created_at);
               evs.push({ ts: wo.created_at, icon: "open", title: "Order created", sub: `by ${wo.requester_name} (operator)` });
@@ -538,12 +540,35 @@ export default function WorkOrderDetail() {
                   evs.push({ ts: d.resumed_at, icon: "resume", title: "Line back to running", sub: `by ${d.resumed_by_name || "—"} — stoppage: ${dur}` });
                 }
               });
+              // Team activity — break, blending, cleaning — belongs on the record of
+              // the order, not only in the arithmetic that subtracts it. Whoever reads
+              // the printed order should see why the stoppage was shorter than the gap
+              // between the two timestamps around it.
+              woExclusions.forEach((x) => {
+                const who = x.source === "intouch" ? "reported by iTouching" : `by ${x.started_by_name || "—"}`;
+                evs.push({
+                  ts: x.started_at,
+                  icon: "pause",
+                  title: `Line team on ${activityLabel(x.activity).toLowerCase()}`,
+                  sub: `${who} — not counted as downtime`,
+                });
+                if (x.ended_at) {
+                  const mins = differenceInMinutes(new Date(x.ended_at), new Date(x.started_at));
+                  evs.push({
+                    ts: x.ended_at,
+                    icon: "resume",
+                    title: "Back to the stoppage",
+                    sub: `${activityLabel(x.activity)} — ${mins}min excluded`,
+                  });
+                }
+              });
               if (wo.finished_at) evs.push({ ts: wo.finished_at, icon: "done", title: "Finished (PIN ✓)", sub: `by ${wo.engineer_name || "—"}` });
               if (wo.closed_at) evs.push({ ts: wo.closed_at, icon: "done", title: "Closed", sub: wo.closer?.name ? `by ${wo.closer.name}` : undefined });
               if (wo.status === "force_closed" && wo.completed_at) evs.push({ ts: wo.completed_at, icon: "force", title: "Force closed", sub: wo.closer?.name ? `by ${wo.closer.name}` : undefined });
               evs.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
               const iconFor = (i: Ev["icon"]) => {
                 if (i === "stop") return <span className="text-destructive-strong">🛑</span>;
+                if (i === "pause") return <span className="text-amber-600">⏸</span>;
                 if (i === "resume") return <span className="text-emerald-600">✓</span>;
                 if (i === "force") return <span className="text-muted-foreground">✕</span>;
                 return <span className="text-primary">●</span>;
