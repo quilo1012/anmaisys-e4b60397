@@ -212,9 +212,6 @@ export function QualityActionsView() {
     const open = filtered.filter((x) => x.status !== "complete");
     return {
       total: filtered.length,
-      todo: filtered.filter((x) => x.status === "todo").length,
-      in_progress: filtered.filter((x) => x.status === "in_progress").length,
-      complete: filtered.filter((x) => x.status === "complete").length,
       // Weighted, not counted: ten Low actions and one Critical are not the same
       // problem, and the counts alone said they were.
       openPoints: sumSeverityPoints(open),
@@ -571,9 +568,11 @@ export function QualityActionsView() {
           </div>
         </div>
 
-        {/* KPIs. The status ones are also the status filter — clicking the active one
-            clears it, so the numbers and the filter cannot disagree. */}
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-7">
+        {/* KPIs. The To do / In progress / Complete counters are gone: they are the
+            state of a working board, they change through the shift, and this screen is
+            read by people asking what stands against whom. Status is still on every row
+            in the Log, still editable there, and still in the filter bar. */}
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
           <KpiCard
             label="Total actions"
             icon={<ClipboardCheck className="h-3.5 w-3.5" />}
@@ -581,30 +580,6 @@ export function QualityActionsView() {
             sublabel={`${kpis.totalPoints} points in range`}
             active={filterStatus === "__all__"}
             onClick={() => setFilterStatus("__all__")}
-          />
-          <KpiCard
-            label="To do"
-            icon={<span className="h-2 w-2 rounded-full bg-amber-500" />}
-            value={kpis.todo} accent="warning" toneValue
-            active={filterStatus === "todo"}
-            onClick={() => setFilterStatus(filterStatus === "todo" ? "__all__" : "todo")}
-            className="print:hidden"
-          />
-          <KpiCard
-            label="In progress"
-            icon={<span className="h-2 w-2 rounded-full bg-blue-500" />}
-            value={kpis.in_progress} accent="info" toneValue
-            active={filterStatus === "in_progress"}
-            onClick={() => setFilterStatus(filterStatus === "in_progress" ? "__all__" : "in_progress")}
-            className="print:hidden"
-          />
-          <KpiCard
-            label="Complete"
-            icon={<span className="h-2 w-2 rounded-full bg-green-500" />}
-            value={kpis.complete} accent="ok" toneValue
-            active={filterStatus === "complete"}
-            onClick={() => setFilterStatus(filterStatus === "complete" ? "__all__" : "complete")}
-            className="print:hidden"
           />
           <KpiCard
             label="Waiting on Quality"
