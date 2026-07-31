@@ -89,8 +89,11 @@ export const navItems: NavItem[] = [
   { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "production.performance.view" },
 
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "sku.manage" },
-  // Sits in Production because that is where the work is; the access stays admin-only.
-  { title: "Headcount & Overtime", url: "/dashboard/workforce", icon: Users, roles: ["admin"], group: "Production", action: "workforce.view" },
+  // Headcount & Overtime is OFF the menu while the module is unfinished: seventeen
+  // people have no shift pattern and fourteen no department, so the board would be
+  // read as the rota when it is still an import. The route, the screen, the hooks and
+  // the data all remain — /dashboard/workforce still opens for an admin who types it —
+  // so putting it back is this one line.
   { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor", "production_office_admin"], group: "Production", action: "quality.view" },
 
   // Reports
