@@ -30,11 +30,12 @@ export interface BoardEmployee extends Employee {
 }
 
 function EmployeeCard({
-  employee, attendance, onCycle, canEdit, dragging,
+  employee, attendance, onCycle, onSelect, canEdit, dragging,
 }: {
   employee: BoardEmployee;
   attendance: Attendance | undefined;
   onCycle: () => void;
+  onSelect?: () => void;
   canEdit: boolean;
   dragging?: boolean;
 }) {
@@ -66,7 +67,15 @@ function EmployeeCard({
           </button>
         )}
         <div className="min-w-0 flex-1">
-          <div className="truncate text-xs font-semibold">{employee.full_name}</div>
+          {/* The name opens the detail panel; the grip drags. Two targets, so a tap
+              on a tablet never has to guess which one was meant. */}
+          <button
+            type="button"
+            onClick={onSelect}
+            className="block w-full truncate text-left text-xs font-semibold hover:underline"
+          >
+            {employee.full_name}
+          </button>
           <div className="truncate text-2xs text-muted-foreground">
             {employee.department ?? "Department to confirm"}
           </div>
@@ -140,13 +149,14 @@ function LineColumn({
  * and hiding them would quietly shrink the headcount.
  */
 export function HeadcountBoard({
-  employees, attendance, onDate, canEdit, userId,
+  employees, attendance, onDate, canEdit, userId, onSelect,
 }: {
   employees: BoardEmployee[];
   attendance: Attendance[];
   onDate: Date;
   canEdit: boolean;
   userId?: string | null;
+  onSelect?: (employeeId: string) => void;
 }) {
   const { data: lines } = useLines();
   const move = useMoveEmployee();
@@ -257,6 +267,7 @@ export function HeadcountBoard({
                   employee={e}
                   attendance={attendanceByEmployee.get(e.id)}
                   onCycle={() => cycleStatus(e.id)}
+                  onSelect={() => onSelect?.(e.id)}
                   canEdit={canEdit}
                   dragging={activeId === e.id}
                 />
@@ -271,6 +282,7 @@ export function HeadcountBoard({
                     employee={e}
                     attendance={attendanceByEmployee.get(e.id)}
                     onCycle={() => cycleStatus(e.id)}
+                    onSelect={() => onSelect?.(e.id)}
                     canEdit={canEdit}
                     dragging={activeId === e.id}
                   />

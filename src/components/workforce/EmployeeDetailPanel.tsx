@@ -1,0 +1,217 @@
+import { useEffect, useState } from "react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { ArrowRight, Save } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  describeDays, useEmployeeOvertime, useLines, useMovements, useShiftPatterns, useUpdateEmployee,
+  type Employee,
+} from "@/hooks/useWorkforce";
+
+/**
+ * One person, in three answers: who they are, where they have been, what they carry.
+ *
+ * The Details tab is editable because the import left real gaps — fourteen people
+ * with no department and seventeen with no shift pattern — and the person who can
+ * close those gaps is whoever has this panel open, not whoever next edits a
+ * spreadsheet.
+ */
+export function EmployeeDetailPanel({
+  employee, open, onOpenChange, canEdit,
+}: {
+  employee: Employee | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  canEdit: boolean;
+}) {
+  const { data: patterns } = useShiftPatterns();
+  const { data: lines } = useLines();
+  const { data: movements, isLoading: loadingMoves } = useMovements(employee?.id ?? null);
+  const { data: overtime, isLoading: loadingOT } = useEmployeeOvertime(employee?.id ?? null);
+  const update = useUpdateEmployee();
+
+  const [department, setDepartment] = useState("");
+  const [patternId, setPatternId] = useState<string>("__none__");
+  const [ref, setRef] = useState("");
+
+  // Reset when a different person is opened, so the form never shows the last one's
+  // values against this one's name.
+  useEffect(() => {
+    setDepartment(employee?.department ?? "");
+    setPatternId(employee?.shift_pattern_id ?? "__none__");
+    setRef(employee?.employee_ref ?? "");
+  }, [employee?.id, employee?.department, employee?.shift_pattern_id, employee?.employee_ref]);
+
+  if (!employee) return null;
+
+  const dirty =
+    department !== (employee.department ?? "") ||
+    patternId !== (employee.shift_pattern_id ?? "__none__") ||
+    ref !== (employee.employee_ref ?? "");
+
+  const save = () => {
+    update.mutate(
+      {
+        id: employee.id,
+        patch: {
+          department: department.trim() || null,
+          shift_pattern_id: patternId === "__none__" ? null : patternId,
+          employee_ref: ref.trim() || null,
+        },
+      },
+      {
+        onSuccess: () => toast.success("Saved"),
+        onError: (e) => toast.error((e as Error).message || "Could not save"),
+      },
+    );
+  };
+
+  const lineName = employee.current_line_id
+    ? lines?.find((l) => l.id === employee.current_line_id)?.name ?? "—"
+    : "Unassigned";
+  const total = (overtime ?? []).reduce((s, o) => s + Number(o.hours), 0);
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>{employee.full_name}</SheetTitle>
+          <SheetDescription className="flex flex-wrap items-center gap-1">
+            <Badge variant="outline" className="text-2xs">{lineName}</Badge>
+            {employee.source === "import_overtime" && (
+              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-2xs text-warning-strong">
+                From overtime sheet
+              </Badge>
+            )}
+            {!employee.active && <Badge variant="outline" className="text-2xs">Left</Badge>}
+          </SheetDescription>
+        </SheetHeader>
+
+        <Tabs defaultValue="details" className="mt-4">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+            <TabsTrigger value="overtime">Overtime</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="details" className="space-y-3 pt-3">
+            <div>
+              <Label className="text-xs">Email</Label>
+              <p className="text-sm text-muted-foreground">{employee.email || "—"}</p>
+            </div>
+            <div>
+              <Label className="text-xs" htmlFor="wf-dept">Department</Label>
+              <Input
+                id="wf-dept"
+                value={department}
+                disabled={!canEdit}
+                placeholder="To confirm"
+                onChange={(e) => setDepartment(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Shift pattern</Label>
+              <Select value={patternId} onValueChange={setPatternId} disabled={!canEdit}>
+                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— none —</SelectItem>
+                  {(patterns ?? []).map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name} · {describeDays(p.days)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs" htmlFor="wf-ref">Payroll number</Label>
+              <Input
+                id="wf-ref"
+                value={ref}
+                disabled={!canEdit}
+                placeholder="Not set"
+                onChange={(e) => setRef(e.target.value)}
+                className="font-mono text-sm"
+              />
+              {/* Said plainly, because the import deliberately left this blank rather
+                  than inventing a key that matches nothing in payroll. */}
+              <p className="mt-1 text-2xs text-muted-foreground">
+                Blank on every imported row — the source files carry no employee number.
+              </p>
+            </div>
+            {employee.notes && (
+              <p className="rounded border bg-muted/30 p-2 text-xs text-muted-foreground">{employee.notes}</p>
+            )}
+            {canEdit && (
+              <Button size="sm" onClick={save} disabled={!dirty || update.isPending}>
+                <Save className="mr-1 h-4 w-4" /> {update.isPending ? "Saving…" : "Save"}
+              </Button>
+            )}
+          </TabsContent>
+
+          <TabsContent value="history" className="space-y-2 pt-3">
+            {loadingMoves ? (
+              <Skeleton className="h-24" />
+            ) : (movements ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No moves recorded yet. History starts the first time someone is moved on the board.
+              </p>
+            ) : (
+              (movements ?? []).map((m) => (
+                <div key={m.id} className="flex items-center gap-2 rounded border p-2 text-xs">
+                  <span className="whitespace-nowrap text-muted-foreground">
+                    {format(new Date(m.moved_at), "dd/MM HH:mm")}
+                  </span>
+                  <span className="truncate">{m.from_line ?? "Unassigned"}</span>
+                  <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="truncate font-medium">{m.to_line ?? "Unassigned"}</span>
+                </div>
+              ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="overtime" className="space-y-2 pt-3">
+            {loadingOT ? (
+              <Skeleton className="h-24" />
+            ) : (overtime ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No overtime recorded for this person.</p>
+            ) : (
+              <>
+                <div className="rounded border p-2">
+                  <div className="text-2xs uppercase text-muted-foreground">Across all periods</div>
+                  <div className={cn("font-mono text-2xl font-bold", total < 0 && "text-destructive-strong")}>
+                    {total}h
+                  </div>
+                </div>
+                {(overtime ?? []).map((o) => (
+                  <div key={o.id} className="flex items-center justify-between gap-2 rounded border p-2 text-xs">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium">{o.period?.label ?? "—"}</div>
+                      {o.note && <div className="truncate text-2xs text-muted-foreground">{o.note}</div>}
+                    </div>
+                    <span className={cn("shrink-0 font-mono font-bold", Number(o.hours) < 0 && "text-destructive-strong")}>
+                      {Number(o.hours)}h
+                    </span>
+                  </div>
+                ))}
+                <p className="text-2xs text-muted-foreground">
+                  A balance, not hours worked: sickness is written off against banked hours, so a negative
+                  figure is real.
+                </p>
+              </>
+            )}
+          </TabsContent>
+        </Tabs>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+export default EmployeeDetailPanel;

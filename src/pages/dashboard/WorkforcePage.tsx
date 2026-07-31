@@ -19,6 +19,7 @@ import {
   useAttendance, worksOn,
 } from "@/hooks/useWorkforce";
 import { HeadcountBoard, type BoardEmployee } from "@/components/workforce/HeadcountBoard";
+import { EmployeeDetailPanel } from "@/components/workforce/EmployeeDetailPanel";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -38,6 +39,7 @@ export default function WorkforcePage() {
   const { can } = useRole();
   const { user } = useAuth();
   const canEdit = can("workforce.manage");
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [dept, setDept] = useState("__all__");
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -204,6 +206,7 @@ export default function WorkforcePage() {
             onDate={boardDate}
             canEdit={canEdit}
             userId={user?.id}
+            onSelect={setDetailId}
           />
         )}
 
@@ -292,7 +295,7 @@ export default function WorkforcePage() {
                   {rows.map((r) => {
                     const h = r.overtime ? Number(r.overtime.hours) : null;
                     return (
-                      <TableRow key={r.id}>
+                      <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetailId(r.id)}>
                         <TableCell className="font-medium">{r.full_name}</TableCell>
                         <TableCell className={r.department ? "" : "text-muted-foreground"}>
                           {r.department ?? "to confirm"}
@@ -326,6 +329,13 @@ export default function WorkforcePage() {
           </CardContent>
         </Card>
       </div>
+
+      <EmployeeDetailPanel
+        employee={(employees ?? []).find((e) => e.id === detailId) ?? null}
+        open={!!detailId}
+        onOpenChange={(v) => !v && setDetailId(null)}
+        canEdit={canEdit}
+      />
     </DashboardLayout>
   );
 }

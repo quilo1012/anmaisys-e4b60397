@@ -204,3 +204,32 @@ export function useLines() {
     },
   });
 }
+
+/** Every period this person has a balance for, newest first. */
+export function useEmployeeOvertime(employeeId: string | null) {
+  return useQuery({
+    queryKey: ["employee_overtime", employeeId],
+    enabled: !!employeeId,
+    queryFn: async (): Promise<Array<OvertimeEntry & { period: OvertimePeriod }>> => {
+      const { data, error } = await db
+        .from("overtime_entries")
+        .select("*, period:overtime_periods(*)")
+        .eq("employee_id", employeeId);
+      if (error) throw error;
+      return (data ?? []).sort(
+        (a: any, b: any) => String(b.period?.starts_on ?? "").localeCompare(String(a.period?.starts_on ?? "")),
+      );
+    },
+  });
+}
+
+export function useUpdateEmployee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: Partial<Employee> }) => {
+      const { error } = await db.from("employees").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["employees"] }),
+  });
+}
