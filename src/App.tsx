@@ -114,7 +114,7 @@ const queryClient = new QueryClient({
   // React Query put the screen into an error state, and most screens render nothing
   // for that state. A policy that says no, a dropped connection and an empty table
   // all looked identical.
-  queryCache: new QueryCache({ onError: reportQueryError }),
+  queryCache: new QueryCache({ onError: (error) => { reportQueryError(error); } }),
   mutationCache: new MutationCache({
     onError: (error, _vars, _ctx, mutation) => {
       // A mutation with its own onError is already telling the user in its own words.

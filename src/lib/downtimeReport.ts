@@ -33,7 +33,7 @@ export interface DowntimeReportInput {
   rangeLabel: string;
   filtersLabel: string;
   kpis: { totalDowntime: string; active: number; avgMTTR: string; avgMTBF: string; wos: number; highRisk: number };
-  records: { line: string; machine: string; category: string; reason: string; started: string; duration: string; status: string }[];
+  records: { line: string; machine: string; category: string; reason: string; started: string; duration: string; excluded?: string; status: string }[];
   risks: { machine: string; failures: number; mtbf: string; risk: string; lastFailure: string }[];
   topProblems: { rank: number; machine: string; failures: number; topProblem: string }[];
   insights?: string[];
@@ -160,15 +160,16 @@ export async function generateDowntimeReportPDF(input: DowntimeReportInput, opts
   autoTable(doc, {
     ...commonTable,
     startY: y,
-    head: [["Line", "Machine", "Category", "Reason", "Started", "Duration", "Status"]],
+    head: [["Line", "Machine", "Category", "Reason", "Started", "Duration", "Excluded (team activity)", "Status"]],
     body: records.length
       ? records.map((r) => [
           r.line, r.machine, r.category, r.reason, r.started,
           { content: r.duration, styles: { halign: "right" as const } },
+          { content: r.excluded ?? "—", styles: { halign: "right" as const, textColor: SUBTLE } },
           { content: r.status, styles: { ...statusChip(r.status), fontStyle: "bold" as const, halign: "center" as const } },
         ])
-      : [[{ content: "No downtime recorded in the selected range.", colSpan: 7, styles: { halign: "center" as const, textColor: SUBTLE, fontStyle: "italic" as const } }]],
-    columnStyles: { 5: { halign: "right" }, 6: { halign: "center" } },
+      : [[{ content: "No downtime recorded in the selected range.", colSpan: 8, styles: { halign: "center" as const, textColor: SUBTLE, fontStyle: "italic" as const } }]],
+    columnStyles: { 5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "center" } },
   });
   y = (doc as any).lastAutoTable.finalY + 8;
 

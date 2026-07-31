@@ -17,7 +17,7 @@ import { dashboardPathFor, type Role } from "@/lib/permissions";
  *   back to their own dashboard.
  * - On that dashboard it renders nothing, because there is nowhere above it.
  */
-export function BackButton() {
+export function BackButton({ className }: { className?: string } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { role } = useAuth();
@@ -34,7 +34,7 @@ export function BackButton() {
       variant="ghost"
       size="sm"
       aria-label="Go back"
-      className="h-9 shrink-0 gap-1.5 px-2 text-muted-foreground hover:text-foreground"
+      className={`h-9 shrink-0 gap-1.5 px-2 text-muted-foreground hover:text-foreground ${className ?? ""}`}
       onClick={() => (hasHistory ? navigate(-1) : navigate(home))}
     >
       <ArrowLeft className="h-4 w-4" />

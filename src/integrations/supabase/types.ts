@@ -542,6 +542,157 @@ export type Database = {
           },
         ]
       }
+      employee_attendance: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          note: string | null
+          on_date: string
+          recorded_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          note?: string | null
+          on_date: string
+          recorded_by?: string | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          note?: string | null
+          on_date?: string
+          recorded_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_attendance_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_movements: {
+        Row: {
+          employee_id: string
+          from_department: string | null
+          from_line: string | null
+          id: string
+          moved_at: string
+          moved_by: string | null
+          reason: string | null
+          to_department: string | null
+          to_line: string | null
+        }
+        Insert: {
+          employee_id: string
+          from_department?: string | null
+          from_line?: string | null
+          id?: string
+          moved_at?: string
+          moved_by?: string | null
+          reason?: string | null
+          to_department?: string | null
+          to_line?: string | null
+        }
+        Update: {
+          employee_id?: string
+          from_department?: string | null
+          from_line?: string | null
+          id?: string
+          moved_at?: string
+          moved_by?: string | null
+          reason?: string | null
+          to_department?: string | null
+          to_line?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_movements_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employees: {
+        Row: {
+          active: boolean
+          created_at: string
+          current_line_id: string | null
+          department: string | null
+          email: string | null
+          employee_ref: string | null
+          full_name: string
+          id: string
+          left_on: string | null
+          notes: string | null
+          shift_pattern_id: string | null
+          source: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          current_line_id?: string | null
+          department?: string | null
+          email?: string | null
+          employee_ref?: string | null
+          full_name: string
+          id?: string
+          left_on?: string | null
+          notes?: string | null
+          shift_pattern_id?: string | null
+          source?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          current_line_id?: string | null
+          department?: string | null
+          email?: string | null
+          employee_ref?: string | null
+          full_name?: string
+          id?: string
+          left_on?: string | null
+          notes?: string | null
+          shift_pattern_id?: string | null
+          source?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_current_line_id_fkey"
+            columns: ["current_line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_shift_pattern_id_fkey"
+            columns: ["shift_pattern_id"]
+            isOneToOne: false
+            referencedRelation: "shift_patterns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       engineer_scores: {
         Row: {
           engineer_id: string
@@ -1438,6 +1589,78 @@ export type Database = {
           line_ids?: string[]
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      overtime_entries: {
+        Row: {
+          created_at: string
+          employee_id: string
+          hours: number
+          id: string
+          note: string | null
+          period_id: string
+          recorded_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          hours: number
+          id?: string
+          note?: string | null
+          period_id: string
+          recorded_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          hours?: number
+          id?: string
+          note?: string | null
+          period_id?: string
+          recorded_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "overtime_entries_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "overtime_entries_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "overtime_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      overtime_periods: {
+        Row: {
+          created_at: string
+          ends_on: string
+          id: string
+          label: string
+          starts_on: string
+        }
+        Insert: {
+          created_at?: string
+          ends_on: string
+          id?: string
+          label: string
+          starts_on: string
+        }
+        Update: {
+          created_at?: string
+          ends_on?: string
+          id?: string
+          label?: string
+          starts_on?: string
         }
         Relationships: []
       }
@@ -3159,6 +3382,36 @@ export type Database = {
         }
         Relationships: []
       }
+      shift_patterns: {
+        Row: {
+          active: boolean
+          created_at: string
+          days: number[]
+          ends_at: string | null
+          id: string
+          name: string
+          starts_at: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          days: number[]
+          ends_at?: string | null
+          id?: string
+          name: string
+          starts_at?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          days?: number[]
+          ends_at?: string | null
+          id?: string
+          name?: string
+          starts_at?: string | null
+        }
+        Relationships: []
+      }
       shift_report_settings: {
         Row: {
           day_enabled: boolean
@@ -3611,6 +3864,60 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      wo_downtime_exclusions: {
+        Row: {
+          activity: string
+          created_at: string
+          ended_at: string | null
+          ended_by: string | null
+          id: string
+          note: string | null
+          started_at: string
+          started_by: string | null
+          started_by_name: string | null
+          work_order_id: string
+        }
+        Insert: {
+          activity: string
+          created_at?: string
+          ended_at?: string | null
+          ended_by?: string | null
+          id?: string
+          note?: string | null
+          started_at?: string
+          started_by?: string | null
+          started_by_name?: string | null
+          work_order_id: string
+        }
+        Update: {
+          activity?: string
+          created_at?: string
+          ended_at?: string | null
+          ended_by?: string | null
+          id?: string
+          note?: string | null
+          started_at?: string
+          started_by?: string | null
+          started_by_name?: string | null
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wo_downtime_exclusions_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_wo_metrics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wo_downtime_exclusions_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wo_episodes: {
         Row: {
@@ -4082,6 +4389,309 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      workforce_attendance: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          line_id: string | null
+          overtime_hours: number
+          shift: string | null
+          status: string
+          updated_at: string
+          work_date: string
+          worked_hours: number
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          line_id?: string | null
+          overtime_hours?: number
+          shift?: string | null
+          status?: string
+          updated_at?: string
+          work_date?: string
+          worked_hours?: number
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          line_id?: string | null
+          overtime_hours?: number
+          shift?: string | null
+          status?: string
+          updated_at?: string
+          work_date?: string
+          worked_hours?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workforce_attendance_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "workforce_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workforce_attendance_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workforce_employees: {
+        Row: {
+          active: boolean
+          created_at: string
+          current_line_id: string | null
+          deleted_at: string | null
+          department: string
+          employee_code: string
+          first_name: string
+          id: string
+          last_name: string | null
+          leader_id: string | null
+          leaving_date: string | null
+          notes: string | null
+          role_title: string | null
+          shift: string | null
+          start_date: string | null
+          status: string
+          supervisor_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          current_line_id?: string | null
+          deleted_at?: string | null
+          department?: string
+          employee_code: string
+          first_name: string
+          id?: string
+          last_name?: string | null
+          leader_id?: string | null
+          leaving_date?: string | null
+          notes?: string | null
+          role_title?: string | null
+          shift?: string | null
+          start_date?: string | null
+          status?: string
+          supervisor_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          current_line_id?: string | null
+          deleted_at?: string | null
+          department?: string
+          employee_code?: string
+          first_name?: string
+          id?: string
+          last_name?: string | null
+          leader_id?: string | null
+          leaving_date?: string | null
+          notes?: string | null
+          role_title?: string | null
+          shift?: string | null
+          start_date?: string | null
+          status?: string
+          supervisor_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workforce_employees_current_line_id_fkey"
+            columns: ["current_line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workforce_employees_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "workforce_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workforce_employees_supervisor_id_fkey"
+            columns: ["supervisor_id"]
+            isOneToOne: false
+            referencedRelation: "workforce_employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workforce_movement_history: {
+        Row: {
+          employee_id: string
+          from_line_id: string | null
+          from_status: string | null
+          id: string
+          moved_at: string
+          moved_by: string | null
+          note: string | null
+          to_line_id: string | null
+          to_status: string | null
+        }
+        Insert: {
+          employee_id: string
+          from_line_id?: string | null
+          from_status?: string | null
+          id?: string
+          moved_at?: string
+          moved_by?: string | null
+          note?: string | null
+          to_line_id?: string | null
+          to_status?: string | null
+        }
+        Update: {
+          employee_id?: string
+          from_line_id?: string | null
+          from_status?: string | null
+          id?: string
+          moved_at?: string
+          moved_by?: string | null
+          note?: string | null
+          to_line_id?: string | null
+          to_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workforce_movement_history_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "workforce_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workforce_movement_history_from_line_id_fkey"
+            columns: ["from_line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workforce_movement_history_to_line_id_fkey"
+            columns: ["to_line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workforce_overtime: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          id: string
+          line_id: string | null
+          notes: string | null
+          overtime_hours: number
+          period_id: string | null
+          period_month: string | null
+          reason: string | null
+          scheduled_hours: number | null
+          shift: string | null
+          updated_at: string
+          work_date: string | null
+          worked_hours: number | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          id?: string
+          line_id?: string | null
+          notes?: string | null
+          overtime_hours?: number
+          period_id?: string | null
+          period_month?: string | null
+          reason?: string | null
+          scheduled_hours?: number | null
+          shift?: string | null
+          updated_at?: string
+          work_date?: string | null
+          worked_hours?: number | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          id?: string
+          line_id?: string | null
+          notes?: string | null
+          overtime_hours?: number
+          period_id?: string | null
+          period_month?: string | null
+          reason?: string | null
+          scheduled_hours?: number | null
+          shift?: string | null
+          updated_at?: string
+          work_date?: string | null
+          worked_hours?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workforce_overtime_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "workforce_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workforce_overtime_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workforce_overtime_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "workforce_payroll_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workforce_payroll_periods: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          name: string
+          start_date: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          name: string
+          start_date: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          name?: string
+          start_date?: string
+        }
+        Relationships: []
       }
     }
     Views: {

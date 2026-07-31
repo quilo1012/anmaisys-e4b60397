@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { DowntimeEvent } from "@/hooks/useDowntimeEvents";
 import { isNoPlannedShift } from "@/lib/downtimeBuckets";
+import { toExclusionIntervals, exclusionOverlapMs, type ExclusionMap } from "@/lib/downtimeExclusions";
 
 /**
  * Returns Day/Night shift downtime events for a given local (Europe/London) date.
@@ -145,7 +146,27 @@ export function useShiftDowntime(dateISO: string) {
           line_name: w.line?.name || null,
         } as any));
 
-      return splitByShift([...events, ...synthetic, ...manualEvents], dateISO);
+      // 3) Team-activity exclusions overlay (break / filling blender / cleaning).
+      const all = [...events, ...synthetic, ...manualEvents];
+      const woIds = Array.from(
+        new Set(all.map((e) => e.work_order_id).filter((id) => id && !String(id).startsWith("manual-"))),
+      );
+      if (woIds.length) {
+        const { data: exRows } = await (supabase as any)
+          .from("wo_downtime_exclusions")
+          .select("work_order_id, started_at, ended_at")
+          .in("work_order_id", woIds);
+        const grouped: Record<string, any[]> = {};
+        for (const row of (exRows ?? []) as any[]) (grouped[row.work_order_id] ||= []).push(row);
+        const map: ExclusionMap = {};
+        for (const [k, v] of Object.entries(grouped)) map[k] = toExclusionIntervals(v);
+        all.forEach((e) => {
+          const merged = map[e.work_order_id];
+          if (merged?.length) (e as any).exclusions = merged;
+        });
+      }
+
+      return splitByShift(all, dateISO);
     },
     refetchInterval: 30_000,
   });
@@ -173,5 +194,10 @@ export function overlap(aStart: number, aEnd: number, bStart: number, bEnd: numb
 export function eventMinutesInWindow(e: DowntimeEvent, winStart: Date, winEnd: Date): number {
   const start = new Date(e.stopped_at).getTime();
   const end = e.resumed_at ? new Date(e.resumed_at).getTime() : Date.now();
-  return Math.round(overlap(start, end, winStart.getTime(), winEnd.getTime()) / 60_000);
+  const ws = Math.max(start, winStart.getTime());
+  const we = Math.min(end, winEnd.getTime());
+  const gross = Math.max(0, we - ws);
+  // Team activity inside the window is not downtime.
+  const excluded = gross > 0 ? exclusionOverlapMs(ws, we, e.exclusions ?? []) : 0;
+  return Math.round(Math.max(0, gross - excluded) / 60_000);
 }
