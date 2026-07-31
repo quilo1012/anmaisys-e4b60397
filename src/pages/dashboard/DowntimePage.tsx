@@ -37,6 +37,8 @@ import {
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 import { useNavigate } from "react-router-dom";
 import { reconcileMinutes, unionMs, type Interval } from "@/lib/downtimeReconcile";
+import { useAllWoExclusions } from "@/hooks/useWoExclusions";
+import { exclusionsFor, splitRangeByExclusions, subtractExclusionMinutes } from "@/lib/downtimeExclusions";
 import { isNoPlannedShift } from "@/lib/downtimeBuckets";
 import { buildMachineHistory, buildMachineRisks } from "@/lib/downtimeReliability";
 import { mapWoToStop } from "@/lib/ragDowntime";
@@ -410,6 +412,7 @@ export default function DowntimePage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: records, isLoading } = useDowntime();
+  const { data: exclusionMap } = useAllWoExclusions();
   const { data: workOrders } = useWorkOrders({ statusIn: ["open", "in_progress", "received", "arrived"] as any });
   const { data: allWOs } = useWorkOrders();
   const { data: machines } = useMachines();
@@ -535,11 +538,28 @@ export default function DowntimePage() {
     return [...base, ...extras];
   }, [records, woStops]);
 
+  /**
+   * Team-activity exclusions are an overlay: the stored record is untouched,
+   * but every minute the line team spent on break / filling / cleaning is
+   * carved out of the interval before it is counted anywhere.
+   */
+  const excludedMinutesFor = (r: any): number =>
+    subtractExclusionMinutes(r.started_at, r.ended_at, exclusionsFor(exclusionMap, r.work_order_id));
+
+  const netStopsOf = (r: any): { start: string; end: string | null }[] =>
+    splitRangeByExclusions(r.started_at, r.ended_at, exclusionsFor(exclusionMap, r.work_order_id));
+
+  const netRecordsOf = (r: any): any[] =>
+    netStopsOf(r).map((piece, i) => ({ ...r, id: `${r.id}#${i}`, started_at: piece.start, ended_at: piece.end }));
+
   // The heatmap uses the SAME source as the Overview KPIs (work-order stops
   // included, "No Planned Shift" periods excluded) so their totals reconcile.
   const heatmapRecords = useMemo(
-    () => unifiedRecords.filter((r) => !isNoPlannedShift(r.reason, r.category)),
-    [unifiedRecords],
+    () => unifiedRecords
+      .filter((r) => !isNoPlannedShift(r.reason, r.category))
+      .flatMap((r) => netRecordsOf(r)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [unifiedRecords, exclusionMap],
   );
 
   // Apply shared page filters (line + shift) to unifiedRecords
@@ -568,7 +588,7 @@ export default function DowntimePage() {
     );
 
     const totalRange = reconcileMinutes(
-      eligible.map((r) => ({ start: r.started_at, end: r.ended_at })),
+      eligible.flatMap((r) => netStopsOf(r)),
       rangeStartMs,
       rangeEndMs,
       nowMs,
@@ -593,7 +613,8 @@ export default function DowntimePage() {
     const mostAffected = Object.entries(lineCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
 
     return { totalRange, active, avgDuration, mostAffected };
-  }, [sharedFiltered, startDate, endDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sharedFiltered, startDate, endDate, exclusionMap]);
 
   const filteredRecords = useMemo(() => {
     const from = startDate.getTime();
@@ -615,7 +636,7 @@ export default function DowntimePage() {
 
   const getDuration = (r: DowntimeRecord) => {
     const end = r.ended_at ? new Date(r.ended_at) : new Date();
-    const mins = differenceInMinutes(end, new Date(r.started_at));
+    const mins = Math.max(0, differenceInMinutes(end, new Date(r.started_at)) - excludedMinutesFor(r));
     if (mins < 60) return `${mins}min`;
     return `${Math.floor(mins / 60)}h ${mins % 60}m`;
   };
@@ -772,6 +793,7 @@ export default function DowntimePage() {
       Start: r.started_at ? format(new Date(r.started_at), "yyyy-MM-dd HH:mm") : "",
       End: r.ended_at ? format(new Date(r.ended_at), "yyyy-MM-dd HH:mm") : "Ongoing",
       Duration: getDuration(r),
+      "Excluded (team activity, min)": excludedMinutesFor(r),
       Notes: r.notes || "",
     }));
 
@@ -817,6 +839,7 @@ export default function DowntimePage() {
       reason: r.reason || "—",
       started: format(new Date(r.started_at), "dd/MM HH:mm"),
       duration: getDuration(r),
+      excluded: excludedMinutesFor(r) > 0 ? `${excludedMinutesFor(r)}m` : "—",
       status: r.ended_at ? "resolved" : "active",
     })),
     risks: filteredRisks.map((r: any) => ({
