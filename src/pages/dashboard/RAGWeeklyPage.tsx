@@ -34,6 +34,7 @@ import { useIsFetching } from "@tanstack/react-query";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { mapWoToStop } from "@/lib/ragDowntime";
+import { splitRangeByExclusions, toExclusionIntervals } from "@/lib/downtimeExclusions";
 import { bucketFromReason } from "@/lib/downtimeBuckets";
 
 /** Display-only label mapping for line names. Keeps DB identity untouched. */
@@ -289,7 +290,7 @@ export default function RAGWeeklyPage() {
       // inflated downtime — excluded here so RAG reflects operator-reported stops.
       const [woRes, manRes] = await Promise.all([
         supabase.from("work_orders")
-          .select("wo_number, status, machine, description, line_at_time, line_stopped_at, line_resumed_at, created_at, finished_at, closed_at, operator_id, intouch_stop_code, engineer_id")
+          .select("id, wo_number, status, machine, description, line_at_time, line_stopped_at, line_resumed_at, created_at, finished_at, closed_at, operator_id, intouch_stop_code, engineer_id")
           .not("line_stopped_at", "is", null)
           .gte("line_stopped_at", padStartIso)
           .lte("line_stopped_at", padEndIso),
@@ -300,9 +301,23 @@ export default function RAGWeeklyPage() {
       if (woRes.error) throw woRes.error;
       if ((manRes as any).error) throw (manRes as any).error;
 
-      const wo: StopDetail[] = ((woRes.data ?? []) as any[]).map((r) => {
+      // Team-activity exclusions (break / filling blender / brushing & cleaning)
+      // are carved out of each WO stop before it becomes downtime.
+      const woIds = ((woRes.data ?? []) as any[]).map((r) => r.id).filter(Boolean);
+      const exclByWo: Record<string, ReturnType<typeof toExclusionIntervals>> = {};
+      if (woIds.length) {
+        const { data: exRows } = await (supabase as any)
+          .from("wo_downtime_exclusions")
+          .select("work_order_id, started_at, ended_at")
+          .in("work_order_id", woIds);
+        const grouped: Record<string, any[]> = {};
+        for (const row of (exRows ?? []) as any[]) (grouped[row.work_order_id] ||= []).push(row);
+        for (const [k, v] of Object.entries(grouped)) exclByWo[k] = toExclusionIntervals(v);
+      }
+
+      const wo: StopDetail[] = ((woRes.data ?? []) as any[]).flatMap((r) => {
         const mapped = mapWoToStop(r);
-        return {
+        const base = {
           line: mapped?.line ?? (r.line_at_time as string | null),
           start: (mapped?.start ?? r.line_stopped_at) as string,
           end: (mapped?.end ?? null) as string | null,
@@ -314,6 +329,10 @@ export default function RAGWeeklyPage() {
           kind: "WO Request",
           category: "WO Request",
         };
+        const merged = exclByWo[r.id] ?? [];
+        if (merged.length === 0) return [base];
+        return splitRangeByExclusions(base.start, base.end, merged)
+          .map((piece) => ({ ...base, start: piece.start, end: piece.end }));
       });
 
 
