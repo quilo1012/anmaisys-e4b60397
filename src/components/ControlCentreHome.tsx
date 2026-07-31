@@ -36,6 +36,15 @@ export function ControlCentreHome() {
   const navigate = useNavigate();
   const { can } = useRole();
 
+  // A tile is a door. Showing one to somebody the door will not open for is worse
+  // than showing nothing: they click, get refused, and learn to distrust the screen.
+  // The maintenance manager has pm.view and downtime.view but not quality.view, and
+  // the Quality tile was being offered to them anyway.
+  const showProduction = can("downtime.view");
+  const showWorkOrders = can("wo.view");
+  const showQuality = can("quality.view");
+  const showPm = can("pm.view");
+
   // Reuses the same hook the rest of the app reads work orders through, so the home
   // cannot disagree with the list a click away.
   const { data: workOrders, isLoading: loadingWOs } = useWorkOrders();
@@ -116,29 +125,29 @@ export function ControlCentreHome() {
   const criticalAlerts = useMemo(() => {
     const out: Array<{ key: string; label: string; detail: string; tone: "danger" | "warning"; to: string }> = [];
     const stoppedLines = lineState.filter((l) => l.stopped > 0);
-    if (stoppedLines.length) {
+    if (stoppedLines.length && showWorkOrders) {
       out.push({
         key: "down", tone: "danger", label: `${stoppedLines.length} line${stoppedLines.length === 1 ? "" : "s"} down`,
         detail: stoppedLines.map((l) => l.name).join(", "), to: "/dashboard/work-orders?status=open",
       });
     }
-    if (wo.notAccepted) {
+    if (wo.notAccepted && showWorkOrders) {
       out.push({ key: "unaccepted", tone: "danger", label: `${wo.notAccepted} order${wo.notAccepted === 1 ? "" : "s"} nobody has accepted`, detail: "No engineer has taken these", to: "/dashboard/work-orders?status=open" });
     }
-    if (quality.severe) {
+    if (quality.severe && showQuality) {
       out.push({ key: "sev", tone: "danger", label: `${quality.severe} High / Critical quality action${quality.severe === 1 ? "" : "s"} open`, detail: "Raised in the last 30 days", to: "/dashboard/quality" });
     }
-    if (wo.awaiting) {
+    if (wo.awaiting && showWorkOrders) {
       out.push({ key: "signoff", tone: "warning", label: `${wo.awaiting} waiting for sign-off`, detail: "Finished, waiting for the maintenance manager", to: "/dashboard/work-orders?status=finished" });
     }
-    if (pmOverdue) {
+    if (pmOverdue && showPm) {
       out.push({ key: "pm", tone: "warning", label: `${pmOverdue} preventive job${pmOverdue === 1 ? "" : "s"} overdue`, detail: "Past the scheduled date", to: "/dashboard/preventive" });
     }
-    if (quality.awaitingVerdict) {
+    if (quality.awaitingVerdict && showQuality) {
       out.push({ key: "verdict", tone: "warning", label: `${quality.awaitingVerdict} quality action${quality.awaitingVerdict === 1 ? "" : "s"} waiting on Quality`, detail: "No verdict yet, so no score has moved", to: "/dashboard/quality" });
     }
     return out;
-  }, [lineState, wo, quality, pmOverdue]);
+  }, [lineState, wo, quality, pmOverdue, showQuality, showPm, showWorkOrders]);
 
   if (loadingWOs) return <Skeleton className="h-64" />;
 
@@ -147,6 +156,7 @@ export function ControlCentreHome() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {showProduction && (
         <Tile
           title="Production"
           icon={<Factory className="h-4 w-4" />}
@@ -157,6 +167,8 @@ export function ControlCentreHome() {
             { label: "Lines on file", value: lines?.length ?? 0 },
           ]}
         />
+        )}
+        {showWorkOrders && (
         <Tile
           title="Work orders"
           icon={<ClipboardList className="h-4 w-4" />}
@@ -167,6 +179,8 @@ export function ControlCentreHome() {
             { label: "Awaiting sign-off", value: wo.awaiting, tone: wo.awaiting ? "warning" : "muted" },
           ]}
         />
+        )}
+        {showQuality && (
         <Tile
           title="Quality"
           icon={<ShieldCheck className="h-4 w-4" />}
@@ -178,6 +192,8 @@ export function ControlCentreHome() {
           ]}
           footer={`${quality.points} severity points in 30 days · ${quality.paperwork} validated paperwork`}
         />
+        )}
+        {showPm && (
         <Tile
           title="PM intelligence"
           icon={<Wrench className="h-4 w-4" />}
@@ -188,6 +204,7 @@ export function ControlCentreHome() {
             { label: "Predictive alerts", value: alerts.length, tone: "muted" },
           ]}
         />
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -226,6 +243,7 @@ export function ControlCentreHome() {
           </CardContent>
         </Card>
 
+        {showProduction && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Line status</CardTitle>
@@ -248,9 +266,10 @@ export function ControlCentreHome() {
             ))}
           </CardContent>
         </Card>
+        )}
       </div>
 
-      {opportunities.length > 0 && (
+      {showPm && opportunities.length > 0 && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
