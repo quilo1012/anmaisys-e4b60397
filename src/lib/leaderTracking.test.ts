@@ -80,8 +80,16 @@ describe("what is the leader's to answer for", () => {
     expect(row.points).toBe(1);
   });
 
-  it("counts an action that carries one attributable label among several", () => {
-    const [row] = leaderTracking([a({ severity: "high", labels: ["Maintenance", "Paperwork"] })], excluded);
+  it("lets an excluded label decide, even alongside an attributable one", () => {
+    // AC-6183: "CCP · Maintenance — metal found on magnet check". Metal on a magnet is
+    // the machine or the material; the check catching it is the system working.
+    const [row] = leaderTracking([a({ severity: "high", labels: ["CCP", "Maintenance"] })], excluded);
+    expect(row.total).toBe(1);
+    expect(row.points).toBe(0);
+  });
+
+  it("still counts an action whose labels are all attributable", () => {
+    const [row] = leaderTracking([a({ severity: "high", labels: ["CCP", "Paperwork"] })], excluded);
     expect(row.points).toBe(3);
   });
 

@@ -45,12 +45,30 @@ export interface LeaderTrackingRow {
   clean: boolean;
 }
 
+/**
+ * An excluded label decides the matter.
+ *
+ * AC-6183 read "CCP · Maintenance — metal found on magnet check" and charged three
+ * points to the shift leader. Metal on a magnet is the machine or the raw material;
+ * the magnet check catching it is the system working. Under the first rule the action
+ * still counted, because CCP was attributable and one attributable label was enough.
+ *
+ * So a label Quality has marked as not-the-leader's now wins over the others. Quality
+ * curates that list, and "Maintenance" on an action means somebody classified the
+ * cause as maintenance — that classification should not be overridden by whatever else
+ * was ticked alongside it.
+ *
+ * The trade-off, stated plainly: adding Maintenance to a genuine paperwork error would
+ * take the penalty off. That is visible in the action's own history, and it is a
+ * smaller risk than charging leaders for machine faults, which teaches them to stop
+ * raising actions at all.
+ */
 function attributable(a: TrackedAction, excluded: Set<string>): boolean {
   const labels = (a.labels ?? []).map((l) => l.trim().toLowerCase()).filter(Boolean);
   // No labels still counts: otherwise leaving them blank quietly removes a deviation
   // from somebody's score, which is a gap people find by accident and then use.
   if (labels.length === 0) return true;
-  return labels.some((l) => !excluded.has(l));
+  return !labels.some((l) => excluded.has(l));
 }
 
 export function leaderTracking(
