@@ -524,8 +524,11 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
           line: m.matched_line,
           leader_id: m.leader?.id ?? null,
           leader_name: m.leader?.name?.trim() || null,
-          staff_planned: 0,
-          staff_actual: 0,
+          // Not zero. The import knows nothing about who was on the line, and writing
+          // 0 asserts that nobody was — which is how 231 sessions came to claim an
+          // empty factory. Left null for a person to fill in.
+          staff_planned: null,
+          staff_actual: null,
           notes: null,
         });
         okSessions++;

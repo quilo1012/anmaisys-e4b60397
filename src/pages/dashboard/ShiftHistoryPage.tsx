@@ -201,7 +201,7 @@ function InlineLeaderCell({
 function InlineSessionNumberCell({
   sessionId, field, value, disabled, onSaved, placeholder,
 }: {
-  sessionId: string; field: "tickets";
+  sessionId: string; field: "tickets" | "staff_actual" | "staff_planned";
   value: number | null; disabled?: boolean; onSaved: () => void; placeholder?: string;
 }) {
   const initial = value == null ? "" : String(value);
@@ -932,6 +932,7 @@ export default function ShiftHistoryPage() {
                         <th className="text-left px-3 py-2 border-b">Shift</th>
                         <th className="text-left px-3 py-2 border-b">Line</th>
                         <th className="text-left px-3 py-2 border-b">Leader</th>
+                        <th className="text-right px-3 py-2 border-b w-28">Team<div className="text-2xs font-normal normal-case text-muted-foreground">on the line</div></th>
                         <th className="text-left px-3 py-2 border-b">SKU</th>
                         <th className="text-left px-3 py-2 border-b max-w-[22rem]">Description</th>
                         <th className="text-left px-3 py-2 border-b">Batch code</th>
@@ -955,7 +956,7 @@ export default function ShiftHistoryPage() {
                           if (s.line !== prevLine) {
                             out.push(
                               <tr key={`sep-${s.id}-${s.line}`} className="bg-primary/5">
-                                <td colSpan={13} className="px-3 py-1.5 text-2xs uppercase font-semibold tracking-wider text-primary border-b border-primary/20">
+                                <td colSpan={14} className="px-3 py-1.5 text-2xs uppercase font-semibold tracking-wider text-primary border-b border-primary/20">
                                   {lineLabel(s.line)}
                                 </td>
                               </tr>
@@ -1012,6 +1013,22 @@ export default function ShiftHistoryPage() {
                                       leaderId={s.leader_id}
                                       leaderName={s.leader_name}
                                       leaders={leaders}
+                                      disabled={s.locked && !isAdmin}
+                                      onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
+                                    />
+                                  ) : null}
+                                </td>
+                                {/* Headcount belongs to the shift, not to each product
+                                    it made — so it is written once, on the session's
+                                    first row, the way a merged cell works in the sheet
+                                    this replaces. */}
+                                <td className="px-3 py-2 text-right">
+                                  {idx === 0 ? (
+                                    <InlineSessionNumberCell
+                                      sessionId={s.id}
+                                      field="staff_actual"
+                                      value={s.staff_actual}
+                                      placeholder="—"
                                       disabled={s.locked && !isAdmin}
                                       onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
                                     />
