@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { GripVertical, UserCheck, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  useLines, useMoveEmployee, useSetAttendance, describeDays, worksOn,
+  useHeadcountAreas, useMoveEmployee, useSetAttendance, describeDays, worksOn,
   type Attendance, type AttendanceStatus, type Employee, type ShiftPattern,
 } from "@/hooks/useWorkforce";
 
@@ -205,7 +205,7 @@ export function HeadcountBoard({
   userId?: string | null;
   onSelect?: (employeeId: string) => void;
 }) {
-  const { data: lines } = useLines();
+  const { data: areas } = useHeadcountAreas();
   const move = useMoveEmployee();
   const setAttendance = useSetAttendance(onDate.toISOString().slice(0, 10));
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -245,13 +245,13 @@ export function HeadcountBoard({
   const columns = useMemo(() => {
     const byLine = new Map<string, BoardEmployee[]>();
     byLine.set(UNPLACED, []);
-    for (const l of lines ?? []) byLine.set(l.id, []);
+    for (const a of areas ?? []) byLine.set(a.id, []);
     for (const e of scheduled) {
-      const key = e.current_line_id && byLine.has(e.current_line_id) ? e.current_line_id : UNPLACED;
+      const key = e.headcount_area_id && byLine.has(e.headcount_area_id) ? e.headcount_area_id : UNPLACED;
       byLine.get(key)!.push(e);
     }
     return byLine;
-  }, [scheduled, lines]);
+  }, [scheduled, areas]);
 
   const cycleStatus = (employeeId: string) => {
     const order: AttendanceStatus[] = ["present", "absent", "sick", "holiday", "unpaid", "training"];
@@ -270,13 +270,13 @@ export function HeadcountBoard({
     const employee = employees.find((e) => e.id === employeeId);
     if (!employee) return;
     const toLineId = target === UNPLACED ? null : target;
-    if ((employee.current_line_id ?? null) === toLineId) return;
-    const nameOf = (id: string | null) => (id ? lines?.find((l) => l.id === id)?.name ?? null : null);
+    if ((employee.headcount_area_id ?? null) === toLineId) return;
+    const nameOf = (id: string | null) => (id ? areas?.find((a) => a.id === id)?.name ?? null : null);
     move.mutate(
       {
         employee,
         toLineId,
-        fromLineName: nameOf(employee.current_line_id),
+        fromLineName: nameOf(employee.headcount_area_id),
         toLineName: nameOf(toLineId),
         movedBy: userId ?? null,
       },
@@ -364,7 +364,7 @@ export function HeadcountBoard({
           </UnplacedTray>}
 
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {(lines ?? []).map((l) => (
+            {(areas ?? []).map((l) => (
               <LineColumn key={l.id} id={l.id} title={l.name} count={columns.get(l.id)?.length ?? 0}>
                 {(columns.get(l.id) ?? []).map((e) => (
                   <EmployeeCard

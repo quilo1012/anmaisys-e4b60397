@@ -32,6 +32,8 @@ export interface Employee {
    * somebody works. A person has both: Night, and Mon–Thu.
    */
   shift_group: string | null;
+  /** Where the headcount board places them. See headcount_areas. */
+  headcount_area_id: string | null;
   started_on: string | null;
   left_on: string | null;
   source: string;
@@ -194,7 +196,9 @@ export function useMoveEmployee() {
       employee: Employee; toLineId: string | null;
       fromLineName: string | null; toLineName: string | null; movedBy?: string | null;
     }) => {
-      const { error } = await db.from("employees").update({ current_line_id: toLineId }).eq("id", employee.id);
+      // headcount_area_id, not current_line_id: the board places people into areas,
+      // which include Office and WH Team — things `lines` deliberately does not hold.
+      const { error } = await db.from("employees").update({ headcount_area_id: toLineId }).eq("id", employee.id);
       if (error) throw error;
       const { error: histError } = await db.from("employee_movements").insert({
         employee_id: employee.id,
@@ -231,6 +235,37 @@ export function useLines() {
     queryKey: ["lines_min"],
     queryFn: async (): Promise<Array<{ id: string; name: string }>> => {
       const { data, error } = await db.from("lines").select("id, name").order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export interface HeadcountArea {
+  id: string;
+  name: string;
+  kind: "production" | "support";
+  sort_order: number;
+}
+
+/**
+ * The columns of the headcount board.
+ *
+ * Ten production areas mirroring `lines`, plus the sectors the spreadsheet has and
+ * `lines` deliberately does not: Office, WH Team, Hygiene, Quality, Lab and the rest.
+ * Kept out of `lines` so that "Office" never becomes offerable as the location of a
+ * machine breakdown.
+ */
+export function useHeadcountAreas() {
+  return useQuery({
+    queryKey: ["headcount_areas"],
+    queryFn: async (): Promise<HeadcountArea[]> => {
+      const { data, error } = await db
+        .from("headcount_areas")
+        .select("id, name, kind, sort_order")
+        .eq("active", true)
+        .order("sort_order")
+        .order("name");
       if (error) throw error;
       return data ?? [];
     },
