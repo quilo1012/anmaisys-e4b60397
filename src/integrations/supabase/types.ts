@@ -741,6 +741,24 @@ export type Database = {
         }
         Relationships: []
       }
+      intouch_exclusion_map: {
+        Row: {
+          active: boolean
+          activity: string
+          stop_code_name: string
+        }
+        Insert: {
+          active?: boolean
+          activity: string
+          stop_code_name: string
+        }
+        Update: {
+          active?: boolean
+          activity?: string
+          stop_code_name?: string
+        }
+        Relationships: []
+      }
       intouch_machine_map: {
         Row: {
           active: boolean
@@ -814,6 +832,41 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      intouch_stop_code_catalog: {
+        Row: {
+          active: boolean
+          code_id: number
+          name: string
+          parent_id: number | null
+          planned: boolean
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code_id: number
+          name: string
+          parent_id?: number | null
+          planned?: boolean
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code_id?: number
+          name?: string
+          parent_id?: number | null
+          planned?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intouch_stop_code_catalog_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "intouch_stop_code_catalog"
+            referencedColumns: ["code_id"]
+          },
+        ]
       }
       intouch_stop_code_map: {
         Row: {
@@ -3017,6 +3070,27 @@ export type Database = {
         }
         Relationships: []
       }
+      quality_label_attribution: {
+        Row: {
+          counts_against_leader: boolean
+          label: string
+          note: string | null
+          updated_at: string
+        }
+        Insert: {
+          counts_against_leader?: boolean
+          label: string
+          note?: string | null
+          updated_at?: string
+        }
+        Update: {
+          counts_against_leader?: boolean
+          label?: string
+          note?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       quality_options: {
         Row: {
           active: boolean
@@ -3869,10 +3943,12 @@ export type Database = {
         Row: {
           activity: string
           created_at: string
+          downtime_id: string | null
           ended_at: string | null
           ended_by: string | null
           id: string
           note: string | null
+          source: string
           started_at: string
           started_by: string | null
           started_by_name: string | null
@@ -3881,10 +3957,12 @@ export type Database = {
         Insert: {
           activity: string
           created_at?: string
+          downtime_id?: string | null
           ended_at?: string | null
           ended_by?: string | null
           id?: string
           note?: string | null
+          source?: string
           started_at?: string
           started_by?: string | null
           started_by_name?: string | null
@@ -3893,10 +3971,12 @@ export type Database = {
         Update: {
           activity?: string
           created_at?: string
+          downtime_id?: string | null
           ended_at?: string | null
           ended_by?: string | null
           id?: string
           note?: string | null
+          source?: string
           started_at?: string
           started_by?: string | null
           started_by_name?: string | null
@@ -4920,6 +5000,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       delete_leader: { Args: { _id: string }; Returns: undefined }
+      factory_shift_key: { Args: { _ts: string }; Returns: string }
       finish_wo_with_pin: {
         Args: { _pin: string; _signed_by_name?: string; _wo_id: string }
         Returns: Json
@@ -4960,6 +5041,7 @@ export type Database = {
         Args: { p_delta: number; p_product_id: string }
         Returns: undefined
       }
+      intouch_is_fault_code: { Args: { _code: string }; Returns: boolean }
       is_operator_chat_admin: { Args: { uid: string }; Returns: boolean }
       is_operator_chat_admin_now: { Args: { uid: string }; Returns: boolean }
       is_session_locked: { Args: { _session_id: string }; Returns: boolean }

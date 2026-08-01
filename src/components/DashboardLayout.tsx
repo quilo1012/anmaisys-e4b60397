@@ -15,7 +15,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -106,6 +106,7 @@ export const navItems: NavItem[] = [
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Administration", action: "users.manage" },
+  { title: "Workforce", url: "/dashboard/workforce", icon: UsersRound, roles: ["admin", "manager"], group: "Administration", action: "workforce.view" },
 
   // System — the audit trail and the iTouching integration.
   //
