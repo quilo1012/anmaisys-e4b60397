@@ -1,7 +1,7 @@
 import { useState, useMemo, Fragment } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,7 +35,18 @@ export default function ReliabilityDashboard() {
   const [filterLine, setFilterLine] = useState("");
   const [historyPeriod, setHistoryPeriod] = useState<"today" | "week" | "month">("today");
 
-  const { data: allWOs } = useWorkOrders();
+  // Ranged, and always at least 90 days.
+  //
+  // The default query returns the 200 most recent orders, which at this factory's rate
+  // reaches back about seven weeks — so a 90-day view was analysing a fortnight it
+  // could not see, and said nothing about it. Risk is also computed over a fixed
+  // window below, which needs more history than whatever the filter happens to show.
+  const woRange = useMemo(() => {
+    const to = endOfDay(endDate);
+    const ninety = subDays(new Date(), 90);
+    return { from: startDate < ninety ? startDate : ninety, to };
+  }, [startDate, endDate]);
+  const { data: allWOs } = useWorkOrders(woRange);
   const { data: machines } = useMachines();
   const { data: machineEvents } = useRecentMachineEvents();
 
@@ -95,56 +106,6 @@ export default function ReliabilityDashboard() {
       .filter((m) => m[historyPeriod] > 0);
   }, [allWOs, historyPeriod]);
 
-  // Compute risks locally from filteredWOs so date range applies
-  const filteredRisks = useMemo(() => {
-    if (!filteredWOs.length) return [];
-    const now = new Date();
-    const machineMap: Record<string, typeof filteredWOs> = {};
-    filteredWOs.forEach((wo) => {
-      if (!machineMap[wo.machine]) machineMap[wo.machine] = [];
-      machineMap[wo.machine].push(wo);
-    });
-
-    return Object.entries(machineMap).map(([machine, wos]) => {
-      const failures = wos.length;
-      const sorted = [...wos].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      
-      let mtbfHours: number | null = null;
-      if (sorted.length >= 2) {
-        const gaps: number[] = [];
-        for (let i = 1; i < sorted.length; i++) {
-          gaps.push((new Date(sorted[i].created_at).getTime() - new Date(sorted[i - 1].created_at).getTime()) / 3600000);
-        }
-        mtbfHours = Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
-      }
-
-      const lastFailureDate = sorted[sorted.length - 1]?.created_at;
-      const hoursSinceLast = lastFailureDate ? (now.getTime() - new Date(lastFailureDate).getTime()) / 3600000 : null;
-      const mtbfWarning = mtbfHours !== null && hoursSinceLast !== null && hoursSinceLast >= mtbfHours * 0.8;
-
-      const recentRepairAlert = lastFailureDate ? (now.getTime() - new Date(lastFailureDate).getTime()) / 86400000 < 5 : false;
-
-      const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
-      const recentWOs = wos.filter((w) => new Date(w.created_at) >= sevenDaysAgo);
-      const problemCounts: Record<string, number> = {};
-      recentWOs.forEach((w) => { problemCounts[w.description] = (problemCounts[w.description] || 0) + 1; });
-      const recurringProblems = Object.entries(problemCounts).filter(([, c]) => c >= 3).map(([p]) => p);
-
-      let risk: RiskLevel = "LOW";
-      if (recurringProblems.length > 0 || (recentRepairAlert && failures >= 3) || mtbfWarning) risk = "HIGH";
-      else if (failures >= 2 || recentRepairAlert) risk = "MEDIUM";
-
-      return {
-        machine, risk, failures30d: failures, mtbfHours, mtbfWarning, recentRepairAlert, recurringProblems,
-        lastFailure: lastFailureDate || null,
-      };
-    }).sort((a, b) => {
-      const order: Record<RiskLevel, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
-      return (order[a.risk] - order[b.risk]) || (b.failures30d - a.failures30d);
-    });
-  }, [filteredWOs]);
-
-  // KPIs
   const totalMachines = machines?.length || 0;
   const totalWOs = filteredWOs.length;
 
@@ -154,6 +115,92 @@ export default function ReliabilityDashboard() {
     const total = finished.reduce((sum, w) => sum + differenceInMinutes(new Date(w.finished_at!), new Date(w.started_at!)), 0);
     return Math.round(total / finished.length);
   }, [filteredWOs]);
+
+  /**
+   * Risk is a property of the machine, not of the window you happen to be looking at.
+   *
+   * This used to be computed from filteredWOs — the orders inside the date filter — so
+   * selecting "Today" measured mean time between failures across a single day, found
+   * gaps of minutes, and flagged every machine HIGH. The risk answer changed depending
+   * on what you were looking at, which is the definition of a number nobody can trust.
+   *
+   * It now reads a fixed 90 days. The date filter still drives the failure COUNT shown
+   * beside it, which is what the filter is for.
+   */
+  const filteredRisks = useMemo(() => {
+    if (!allWOs?.length) return [];
+    const now = new Date();
+    const since = subDays(now, 90).getTime();
+    const inRange = (d: string) => {
+      const t = new Date(d).getTime();
+      return t >= startDate.getTime() && t <= endOfDay(endDate).getTime();
+    };
+
+    const machineMap: Record<string, typeof allWOs> = {};
+    for (const wo of allWOs) {
+      // A blank machine is not a machine. These used to form a bucket keyed "" and
+      // appear as an unnamed row at the top of the risk table.
+      const name = (wo.machine ?? "").trim();
+      if (!name) continue;
+      // Planned work is not a failure: counting it makes a machine look worse the more
+      // carefully it is maintained.
+      if ((wo as any).wo_type === "preventive" || (wo as any).wo_type === "warehouse_service") continue;
+      if (new Date(wo.created_at).getTime() < since) continue;
+      if (filterMachine && name !== filterMachine) continue;
+      if (filterLine && machines) {
+        const m = machines.find((mac) => mac.name === name);
+        if (!m || m.line !== filterLine) continue;
+      }
+      (machineMap[name] ||= []).push(wo);
+    }
+
+    return Object.entries(machineMap).map(([machine, wos]) => {
+      const sorted = [...wos].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      const failures90 = sorted.length;
+      const failures = sorted.filter((w) => inRange(w.created_at)).length;
+
+      let mtbfHours: number | null = null;
+      if (sorted.length >= 2) {
+        const gaps: number[] = [];
+        for (let i = 1; i < sorted.length; i++) {
+          gaps.push((new Date(sorted[i].created_at).getTime() - new Date(sorted[i - 1].created_at).getTime()) / 3600000);
+        }
+        mtbfHours = Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
+      }
+
+      const lastFailureDate = sorted[sorted.length - 1]?.created_at ?? null;
+      const hoursSinceLast = lastFailureDate ? (now.getTime() - new Date(lastFailureDate).getTime()) / 3600000 : null;
+      const mtbfWarning = mtbfHours !== null && hoursSinceLast !== null && hoursSinceLast >= mtbfHours * 0.8;
+      const recentRepairAlert = lastFailureDate ? (now.getTime() - new Date(lastFailureDate).getTime()) / 86400000 < 5 : false;
+
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
+      const problemCounts: Record<string, number> = {};
+      for (const w of sorted.filter((w) => new Date(w.created_at) >= sevenDaysAgo)) {
+        const d = (w.description ?? "").trim();
+        if (d) problemCounts[d] = (problemCounts[d] || 0) + 1;
+      }
+      const recurringProblems = Object.entries(problemCounts).filter(([, c]) => c >= 3).map(([p]) => p);
+
+      let risk: RiskLevel = "LOW";
+      if (recurringProblems.length > 0 || (recentRepairAlert && failures90 >= 3) || mtbfWarning) risk = "HIGH";
+      else if (failures90 >= 2 || recentRepairAlert) risk = "MEDIUM";
+
+      return {
+        machine,
+        failures,
+        failures90,
+        mtbfHours,
+        mtbfWarning,
+        recentRepairAlert,
+        recurringProblems,
+        lastFailure: lastFailureDate,
+        risk,
+      };
+    }).sort((a, b) => {
+      const order: Record<RiskLevel, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+      return order[a.risk] - order[b.risk] || b.failures90 - a.failures90;
+    });
+  }, [allWOs, startDate, endDate, filterMachine, filterLine, machines]);
 
   const avgMTBF = useMemo(() => {
     const vals = filteredRisks.filter((r) => r.mtbfHours !== null).map((r) => r.mtbfHours!);
@@ -328,7 +375,13 @@ export default function ReliabilityDashboard() {
 
         {/* Machine Risk Table */}
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><Cog className="h-5 w-5" />Machine Risk Assessment</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Cog className="h-5 w-5" />Machine Risk Assessment</CardTitle>
+            <CardDescription>
+              Risk is judged over a fixed 90 days, so it does not change with the date filter. Planned
+              preventive work and warehouse jobs are left out — they are not failures.
+            </CardDescription>
+          </CardHeader>
           <CardContent>
             {filteredRisks.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">No data for selected period</p>
@@ -337,7 +390,7 @@ export default function ReliabilityDashboard() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Machine</TableHead>
-                    <TableHead>Failures</TableHead>
+                    <TableHead className="text-right">Failures<div className="text-2xs font-normal normal-case text-muted-foreground">in range · 90 days</div></TableHead>
                     <TableHead>MTBF</TableHead>
                     <TableHead>Risk</TableHead>
                     <TableHead>Last Failure</TableHead>
@@ -351,7 +404,13 @@ export default function ReliabilityDashboard() {
                       <>
                         <TableRow>
                           <TableCell className="font-medium">{r.machine}</TableCell>
-                          <TableCell>{r.failures30d}</TableCell>
+                          {/* Both, because they answer different questions: what
+                              happened in the window you chose, and what the risk verdict
+                              was actually computed from. */}
+                          <TableCell className="text-right tabular-nums">
+                            {r.failures}
+                            <span className="text-muted-foreground"> · {r.failures90}</span>
+                          </TableCell>
                           <TableCell>{formatMTBF(r.mtbfHours)}</TableCell>
                           <TableCell><Badge variant="outline" className={riskBadge[r.risk].className}>{riskBadge[r.risk].label}</Badge></TableCell>
                           <TableCell className="text-sm text-muted-foreground">{r.lastFailure ? format(new Date(r.lastFailure), "dd/MM HH:mm") : "—"}</TableCell>
