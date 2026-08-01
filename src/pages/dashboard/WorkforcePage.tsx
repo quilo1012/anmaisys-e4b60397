@@ -13,7 +13,7 @@ import { KpiCard } from "@/components/reports/KpiCard";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { BackButton } from "@/components/BackButton";
-import { Users, Printer, Clock, CalendarDays, TrendingDown, AlertTriangle } from "lucide-react";
+import { Users, Printer, CalendarDays, TrendingDown, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import {
   useEmployees, useOvertimeEntries, useOvertimePeriods, useShiftPatterns, describeDays,
@@ -22,10 +22,9 @@ import {
 import { HeadcountBoard, type BoardEmployee } from "@/components/workforce/HeadcountBoard";
 import { EmployeeDetailPanel } from "@/components/workforce/EmployeeDetailPanel";
 import { MonthlySummary } from "@/components/workforce/MonthlySummary";
+import { OvertimePanel } from "@/components/workforce/OvertimePanel";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
-
-const fmtHours = (h: number) => `${h > 0 ? "" : ""}${h.toFixed(2).replace(/\.00$/, "")}h`;
 
 export default function WorkforcePage() {
   const { data: employees, isLoading: loadingEmp } = useEmployees();
@@ -62,37 +61,26 @@ export default function WorkforcePage() {
       .filter((e) => (search.trim() ? e.full_name.toLowerCase().includes(search.trim().toLowerCase()) : true));
   }, [employees, entries, patternById, dept, search]);
 
-  const kpis = useMemo(() => {
-    const withOT = rows.filter((r) => r.overtime);
-    const total = withOT.reduce((s, r) => s + Number(r.overtime!.hours), 0);
-    const negative = withOT.filter((r) => Number(r.overtime!.hours) < 0);
-    return {
+  // Headcount only. The overtime figures moved to OvertimePanel, which owns the
+  // period they belong to.
+  const kpis = useMemo(
+    () => ({
       headcount: rows.filter((r) => r.active).length,
-      withOT: withOT.length,
-      total,
-      // Named separately because it is not "less overtime" — it is sickness written
-      // off against banked hours, and averaging it into the total hides both.
-      negative: negative.length,
-      negativeHours: negative.reduce((s, r) => s + Number(r.overtime!.hours), 0),
-      unassigned: rows.filter((r) => !r.pattern).length,
-    };
-  }, [rows]);
+      unassigned: rows.filter((r) => r.active && !r.pattern).length,
+    }),
+    [rows],
+  );
 
   const departments = useMemo(
     () => Array.from(new Set((employees ?? []).map((e) => e.department).filter(Boolean))).sort() as string[],
     [employees],
   );
 
-  const top = useMemo(
-    () => rows.filter((r) => r.overtime).sort((a, b) => Number(b.overtime!.hours) - Number(a.overtime!.hours)).slice(0, 5),
-    [rows],
-  );
-
   // Leavers drop off the board, and stay everywhere that looks backwards: the people
   // table below still lists them behind a "Left" badge, and the monthly summary still
   // counts the days they worked. Someone who left in July worked in July.
   const boardEmployees = useMemo<BoardEmployee[]>(
-    () => rows.filter((r) => r.active).map((r) => ({ ...r, overtimeHours: r.overtime ? Number(r.overtime.hours) : null })),
+    () => rows.filter((r) => r.active),
     [rows],
   );
 
@@ -109,7 +97,6 @@ export default function WorkforcePage() {
       awayToday: scheduledToday.filter((e) => ["absent", "sick"].includes(byId.get(e.id)?.status ?? "")).length,
       unmarked: scheduledToday.filter((e) => !byId.has(e.id)).length,
       scheduledToday: scheduledToday.length,
-      negative: boardEmployees.filter((e) => (e.overtimeHours ?? 0) < 0),
       noPattern: boardEmployees.filter((e) => e.active && !e.pattern),
     };
   }, [boardEmployees, attendance, boardDate]);
@@ -131,12 +118,9 @@ export default function WorkforcePage() {
           icon={<Users className="h-5 w-5" />}
           actions={
             <div className="flex flex-wrap items-center gap-2 no-print">
-              <Select value={activePeriod?.id ?? ""} onValueChange={setPeriodId}>
-                <SelectTrigger className="w-56"><SelectValue placeholder="Period" /></SelectTrigger>
-                <SelectContent>
-                  {(periods ?? []).map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {/* The payroll-period selector moved to the Overtime tab, where it is the
+                  only thing it changes. On the header it looked like it filtered the
+                  daily board, which reads a date and not a period at all. */}
               <Button
                 variant="outline"
                 size="sm"
@@ -148,28 +132,21 @@ export default function WorkforcePage() {
           }
         />
 
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
-          <KpiCard label="Headcount" icon={<Users className="h-3.5 w-3.5" />} value={kpis.headcount} accent="blue" sublabel="Active people on file" />
-          <KpiCard label="Overtime in period" icon={<Clock className="h-3.5 w-3.5" />} value={fmtHours(kpis.total)} accent="purple" sublabel={`${kpis.withOT} with a balance`} />
-          <KpiCard
-            label="Negative balances"
-            icon={<TrendingDown className="h-3.5 w-3.5" />}
-            value={kpis.negative}
-            accent="warning"
-            toneValue
-            sublabel={kpis.negative ? `${fmtHours(kpis.negativeHours)} written off to sickness` : "Nobody in deficit"}
-          />
-          <KpiCard label="Shift assigned" icon={<CalendarDays className="h-3.5 w-3.5" />} value={kpis.headcount - kpis.unassigned} accent="ok" sublabel={kpis.unassigned ? `${kpis.unassigned} still without a pattern` : "Everyone has a pattern"} />
-          <KpiCard label="Departments" icon={<Users className="h-3.5 w-3.5" />} value={departments.length} accent="info" sublabel="On the employee list" />
-        </div>
-
         <Tabs defaultValue="board" className="space-y-4">
           <TabsList className="no-print">
             <TabsTrigger value="board">Daily board</TabsTrigger>
-            <TabsTrigger value="monthly">Monthly summary</TabsTrigger>
+            <TabsTrigger value="monthly">Attendance by month</TabsTrigger>
+            <TabsTrigger value="overtime">Overtime</TabsTrigger>
           </TabsList>
 
           <TabsContent value="board" className="space-y-4">
+            <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+              <KpiCard label="Headcount" icon={<Users className="h-3.5 w-3.5" />} value={kpis.headcount} accent="blue" sublabel="Active people on file" />
+              <KpiCard label="Shift assigned" icon={<CalendarDays className="h-3.5 w-3.5" />} value={kpis.headcount - kpis.unassigned} accent="ok" sublabel={kpis.unassigned ? `${kpis.unassigned} still without a pattern` : "Everyone has a pattern"} />
+              <KpiCard label="Away today" icon={<TrendingDown className="h-3.5 w-3.5" />} value={alerts.awayToday} accent="warning" toneValue sublabel="Marked absent or sick" />
+              <KpiCard label="Departments" icon={<Users className="h-3.5 w-3.5" />} value={departments.length} accent="info" sublabel="On the employee list" />
+            </div>
+
             <Card className="break-inside-avoid">
               <CardHeader className="pb-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -222,7 +199,7 @@ export default function WorkforcePage() {
               />
             )}
 
-            {(alerts.negative.length > 0 || alerts.noPattern.length > 0) && (
+            {alerts.noPattern.length > 0 && (
               <Card className="break-inside-avoid border-amber-500/40">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
@@ -230,44 +207,14 @@ export default function WorkforcePage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1 text-xs">
-                  {alerts.negative.length > 0 && (
-                    <p>
-                      <b>{alerts.negative.length}</b> in overtime deficit —{" "}
-                      {alerts.negative.map((e) => `${e.full_name} (${e.overtimeHours}h)`).join(", ")}. Sickness
-                      written off against banked hours, not hours owed to the factory.
-                    </p>
-                  )}
-                  {alerts.noPattern.length > 0 && (
-                    <p>
-                      <b>{alerts.noPattern.length}</b> without a shift pattern, so the board cannot say whether
-                      they are due in: {alerts.noPattern.slice(0, 8).map((e) => e.full_name).join(", ")}
-                      {alerts.noPattern.length > 8 ? "…" : ""}
-                    </p>
-                  )}
+                  <p>
+                    <b>{alerts.noPattern.length}</b> without a shift pattern, so the board cannot say whether
+                    they are due in: {alerts.noPattern.slice(0, 8).map((e) => e.full_name).join(", ")}
+                    {alerts.noPattern.length > 8 ? "…" : ""}
+                  </p>
                 </CardContent>
               </Card>
             )}
-
-            <Card className="break-inside-avoid">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Top overtime balances</CardTitle>
-                <CardDescription>
-                  A balance, not hours worked: sickness is written off against banked hours, so a negative figure is real.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-2 sm:grid-cols-5">
-                {top.map((r) => (
-                  <div key={r.id} className="rounded-lg border p-2">
-                    <div className="truncate text-xs font-semibold">{r.full_name}</div>
-                    <div className={`font-mono text-lg font-bold ${Number(r.overtime!.hours) < 0 ? "text-destructive-strong" : ""}`}>
-                      {fmtHours(Number(r.overtime!.hours))}
-                    </div>
-                    <div className="truncate text-2xs text-muted-foreground">{r.department ?? "Department to confirm"}</div>
-                  </div>
-                ))}
-                {top.length === 0 && <p className="text-sm text-muted-foreground">No overtime recorded for this period.</p>}
-              </CardContent>
-            </Card>
 
             <Card>
               <CardHeader className="pb-3">
@@ -295,46 +242,41 @@ export default function WorkforcePage() {
                         <TableHead>Name</TableHead>
                         <TableHead>Department</TableHead>
                         <TableHead>Works</TableHead>
-                        <TableHead className="text-right">Overtime</TableHead>
-                        <TableHead>Note</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead>Source</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {rows.length === 0 && (
-                        <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Nobody matches these filters</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Nobody matches these filters</TableCell></TableRow>
                       )}
-                      {rows.map((r) => {
-                        const h = r.overtime ? Number(r.overtime.hours) : null;
-                        return (
-                          <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetailId(r.id)}>
-                            <TableCell className="font-medium">{r.full_name}</TableCell>
-                            <TableCell className={r.department ? "" : "text-muted-foreground"}>
-                              {r.department ?? "to confirm"}
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              {r.pattern ? (
-                                <span title={r.pattern.name}>{describeDays(r.pattern.days)}</span>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell className={`text-right font-mono tabular-nums ${h != null && h < 0 ? "font-bold text-destructive-strong" : ""}`}>
-                              {h == null ? <span className="font-sans text-muted-foreground">—</span> : fmtHours(h)}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{r.overtime?.note ?? ""}</TableCell>
-                            <TableCell>
-                              {r.source === "import_overtime" && (
-                                // Provenance on the row, so an imported guess is never
-                                // mistaken for something HR confirmed.
-                                <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-2xs text-warning-strong">
-                                  From overtime sheet
-                                </Badge>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
+                      {rows.map((r) => (
+                        <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetailId(r.id)}>
+                          <TableCell className="font-medium">{r.full_name}</TableCell>
+                          <TableCell className={r.department ? "" : "text-muted-foreground"}>
+                            {r.department ?? "to confirm"}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {r.pattern ? (
+                              <span title={r.pattern.name}>{describeDays(r.pattern.days)}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {!r.active && <Badge variant="outline" className="text-2xs">Left</Badge>}
+                          </TableCell>
+                          <TableCell>
+                            {r.source === "import_overtime" && (
+                              // Provenance on the row, so an imported guess is never
+                              // mistaken for something HR confirmed.
+                              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-2xs text-warning-strong">
+                                From overtime sheet
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 )}
@@ -343,10 +285,16 @@ export default function WorkforcePage() {
           </TabsContent>
 
           <TabsContent value="monthly">
-            <MonthlySummary
+            <MonthlySummary employees={employees ?? []} />
+          </TabsContent>
+
+          <TabsContent value="overtime">
+            <OvertimePanel
               employees={employees ?? []}
-              overtimeEntries={entries ?? []}
-              overtimePeriod={activePeriod}
+              entries={entries ?? []}
+              periods={periods ?? []}
+              activePeriod={activePeriod}
+              onPeriodChange={setPeriodId}
             />
           </TabsContent>
         </Tabs>

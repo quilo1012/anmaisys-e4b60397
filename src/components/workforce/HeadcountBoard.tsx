@@ -24,9 +24,11 @@ const STATUS_META: Record<AttendanceStatus, { label: string; cls: string }> = {
   training: { label: "Training", cls: "border-purple-500/40 bg-purple-500/15 text-purple-700 dark:text-purple-300" },
 };
 
+// No overtime here on purpose. The board answers who is in today; overtime is a
+// balance imported from payroll over a period that is not this day, and carrying it
+// on the same card is what made the two look like one number.
 export interface BoardEmployee extends Employee {
   pattern: ShiftPattern | null;
-  overtimeHours: number | null;
 }
 
 function EmployeeCard({
@@ -43,7 +45,6 @@ function EmployeeCard({
     id: employee.id, disabled: !canEdit,
   });
   const status = attendance?.status;
-  const ot = employee.overtimeHours;
 
   return (
     <div
@@ -83,14 +84,6 @@ function EmployeeCard({
             <Badge variant="outline" className="text-2xs">
               {employee.pattern ? describeDays(employee.pattern.days) : "No pattern"}
             </Badge>
-            {ot != null && (
-              <Badge
-                variant="outline"
-                className={cn("font-mono text-2xs", ot < 0 && "border-red-500/40 bg-red-500/10 text-destructive-strong")}
-              >
-                {ot > 0 ? "+" : ""}{ot}h
-              </Badge>
-            )}
             {status && (
               <button
                 type="button"
