@@ -27,7 +27,13 @@ export default function MachineHistoryPage() {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
   const machineName = decodeURIComponent(name || "");
-  const { data: allWOs, isLoading } = useWorkOrders();
+  // A year, not the default 200 most recent orders across the whole factory.
+  //
+  // Unranged, this page showed a machine's "full history" from whatever fell inside
+  // the 200 newest orders — about seven weeks. A machine that had not failed recently
+  // showed an empty history and looked healthy for the worst possible reason.
+  const woRange = useMemo(() => ({ from: new Date(Date.now() - 365 * 86_400_000), to: new Date() }), []);
+  const { data: allWOs, isLoading } = useWorkOrders(woRange);
   const { data: machines } = useMachines();
 
   const machine = useMemo(() => machines?.find(m => m.name === machineName), [machines, machineName]);

@@ -4,6 +4,8 @@ export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 export interface ReliabilityWO {
   id?: string;
   machine: string;
+  /** production | preventive | warehouse_service. Only the first is a failure. */
+  wo_type?: string | null;
   description?: string | null;
   created_at: string;
   started_at?: string | null;
@@ -28,9 +30,21 @@ export interface MachineRiskRow {
   lastFailure: string | null;
 }
 
+/**
+ * Planned work is not a failure.
+ *
+ * A preventive job and a warehouse request both live in work_orders, and counting
+ * them made a machine look worse the more carefully it was looked after — and put
+ * warehouse errands in a machine reliability table.
+ */
+export function isFailure(wo: ReliabilityWO): boolean {
+  const t = wo.wo_type ?? "production";
+  return t !== "preventive" && t !== "warehouse_service";
+}
+
 export function buildMachineHistory(filteredWOs: ReliabilityWO[]): MachineHistoryRow[] {
   const machineMap: Record<string, { count: number; problems: Record<string, number> }> = {};
-  filteredWOs.forEach((wo) => {
+  filteredWOs.filter(isFailure).forEach((wo) => {
     if (!wo.machine) return;
     if (!machineMap[wo.machine]) machineMap[wo.machine] = { count: 0, problems: {} };
     const entry = machineMap[wo.machine];
@@ -56,9 +70,10 @@ export function buildMachineRisks(
   filteredWOs: ReliabilityWO[],
   now: Date = new Date(),
 ): MachineRiskRow[] {
-  if (!filteredWOs.length) return [];
+  const failures = filteredWOs.filter(isFailure);
+  if (!failures.length) return [];
   const machineMap: Record<string, ReliabilityWO[]> = {};
-  filteredWOs.forEach((wo) => {
+  failures.forEach((wo) => {
     if (!wo.machine) return;
     if (!machineMap[wo.machine]) machineMap[wo.machine] = [];
     machineMap[wo.machine].push(wo);

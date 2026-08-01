@@ -414,7 +414,7 @@ export default function DowntimePage() {
   const { data: records, isLoading } = useDowntime();
   const { data: exclusionMap } = useAllWoExclusions();
   const { data: workOrders } = useWorkOrders({ statusIn: ["open", "in_progress", "received", "arrived"] as any });
-  const { data: allWOs } = useWorkOrders();
+
   const { data: machines } = useMachines();
   const { data: linesData } = useLines();
   const { data: machineEvents } = useRecentMachineEvents();
@@ -432,6 +432,16 @@ export default function DowntimePage() {
   const [filterShift, setFilterShift] = useState<ShiftFilter>("all");
   const [startDate, setStartDate] = useState<Date>(startOfDay(new Date()));
   const [endDate, setEndDate] = useState<Date>(new Date());
+
+  // Ranged, and never less than the 90 days the risk rule needs.
+  //
+  // Unranged this returns the 200 most recent orders — about seven weeks here — so a
+  // 90-day view was judging a fortnight it could not see.
+  const woRange = useMemo(() => {
+    const ninety = new Date(Date.now() - 90 * 86_400_000);
+    return { from: startDate < ninety ? startDate : ninety, to: endDate };
+  }, [startDate, endDate]);
+  const { data: allWOs } = useWorkOrders(woRange);
   const [datePreset, setDatePreset] = useState<DateRangePreset>("today");
 
   // Records-tab-specific sub-filters
@@ -655,7 +665,17 @@ export default function DowntimePage() {
   }, [allWOs, startDate, endDate, filterLine]);
 
   const machineHistory = useMemo(() => buildMachineHistory(filteredWOs), [filteredWOs]);
-  const filteredRisks = useMemo(() => buildMachineRisks(filteredWOs), [filteredWOs]);
+  // Risk over a fixed 90 days, not over the chosen window. Computed from the filtered
+  // set it changed with the date picker — pick "today" and every machine reads HIGH,
+  // because the only gaps between failures it can see are hours long.
+  const riskWOs = useMemo(() => {
+    const since = Date.now() - 90 * 86_400_000;
+    return (allWOs ?? []).filter((w: any) => {
+      if (new Date(w.created_at).getTime() < since) return false;
+      return filterLine === "all" || (w.line_at_time || w.line) === filterLine;
+    });
+  }, [allWOs, filterLine]);
+  const filteredRisks = useMemo(() => buildMachineRisks(riskWOs), [riskWOs]);
 
   const avgMTTR = useMemo(() => {
     const finished = filteredWOs.filter((w) => w.started_at && w.finished_at);
