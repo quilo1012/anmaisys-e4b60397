@@ -15,6 +15,10 @@ import {
 } from "@/hooks/useWorkforce";
 
 const UNASSIGNED = "__unassigned__";
+const ALL_SHIFTS = "__all__";
+
+// The order the factory says them in, not alphabetical.
+const SHIFT_GROUPS = ["Day", "Night", "Weekend", "Warehouse Day", "Warehouse Weekend"] as const;
 
 const STATUS_META: Record<AttendanceStatus, { label: string; cls: string }> = {
   present:  { label: "In",       cls: "border-emerald-500/40 bg-emerald-500/15 text-success-strong" },
@@ -158,6 +162,7 @@ export function HeadcountBoard({
   const setAttendance = useSetAttendance(onDate.toISOString().slice(0, 10));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [shift, setShift] = useState<string>(ALL_SHIFTS);
 
   const sensors = useSensors(
     // A small distance so a tap on the card's buttons is not read as a drag on a
@@ -172,9 +177,25 @@ export function HeadcountBoard({
   );
 
   const scheduled = useMemo(
-    () => employees.filter((e) => e.active && (showAll || !e.pattern || worksOn(e.pattern.days, onDate))),
-    [employees, onDate, showAll],
+    () =>
+      employees.filter(
+        (e) =>
+          e.active &&
+          (shift === ALL_SHIFTS || e.shift_group === shift) &&
+          (showAll || !e.pattern || worksOn(e.pattern.days, onDate)),
+      ),
+    [employees, onDate, showAll, shift],
   );
+
+  // Counted before the shift filter, so the tabs keep their numbers when one is
+  // selected — a tab that reads 0 because you are standing on another one is a lie.
+  const shiftCounts = useMemo(() => {
+    const base = employees.filter((e) => e.active && (showAll || !e.pattern || worksOn(e.pattern.days, onDate)));
+    const counts = new Map<string, number>([[ALL_SHIFTS, base.length]]);
+    for (const g of SHIFT_GROUPS) counts.set(g, base.filter((e) => e.shift_group === g).length);
+    counts.set("__none__", base.filter((e) => !e.shift_group).length);
+    return counts;
+  }, [employees, onDate, showAll]);
 
   const columns = useMemo(() => {
     const byLine = new Map<string, BoardEmployee[]>();
@@ -240,6 +261,35 @@ export function HeadcountBoard({
             {showAll ? <UserCheck className="mr-1 h-4 w-4" /> : <UserX className="mr-1 h-4 w-4" />}
             {showAll ? "Only today's shift" : "Show everyone"}
           </Button>
+        </div>
+        {/* Day and Night are two different headcounts that happen to share a factory.
+            Shown side by side they read as one number twice the size. */}
+        <div className="mt-3 flex flex-wrap gap-1 no-print">
+          {[ALL_SHIFTS, ...SHIFT_GROUPS].map((g) => {
+            const n = shiftCounts.get(g) ?? 0;
+            return (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setShift(g)}
+                className={cn(
+                  "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                  shift === g
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "bg-background hover:bg-muted",
+                  n === 0 && shift !== g && "text-muted-foreground",
+                )}
+              >
+                {g === ALL_SHIFTS ? "All shifts" : g}
+                <span className="ml-1.5 font-mono opacity-70">{n}</span>
+              </button>
+            );
+          })}
+          {(shiftCounts.get("__none__") ?? 0) > 0 && (
+            <span className="self-center pl-1 text-2xs text-muted-foreground">
+              {shiftCounts.get("__none__")} with no shift recorded
+            </span>
+          )}
         </div>
       </CardHeader>
       <CardContent>
