@@ -20,6 +20,7 @@ import {
 } from "@/hooks/useWorkforce";
 import { HeadcountBoard, type BoardEmployee } from "@/components/workforce/HeadcountBoard";
 import { EmployeeDetailPanel } from "@/components/workforce/EmployeeDetailPanel";
+import { MonthlySummary } from "@/components/workforce/MonthlySummary";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -235,6 +236,12 @@ export default function WorkforcePage() {
             </CardContent>
           </Card>
         )}
+
+        <MonthlySummary
+          employees={employees ?? []}
+          overtimeEntries={entries ?? []}
+          overtimePeriod={activePeriod}
+        />
 
         <Card className="break-inside-avoid">
           <CardHeader className="pb-3">

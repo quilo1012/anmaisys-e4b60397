@@ -136,6 +136,28 @@ export function useAttendance(onDate: string) {
   });
 }
 
+/**
+ * Attendance over a closed date range, for the monthly summary.
+ *
+ * A month is a real question to ask of this table — it carries one row per person
+ * per day. Overtime cannot be asked the same way: its rows are one total per person
+ * per period, so they are read by period and never sliced into months.
+ */
+export function useAttendanceRange(fromDate: string, toDate: string) {
+  return useQuery({
+    queryKey: ["employee_attendance_range", fromDate, toDate],
+    queryFn: async (): Promise<Attendance[]> => {
+      const { data, error } = await db
+        .from("employee_attendance")
+        .select("*")
+        .gte("on_date", fromDate)
+        .lte("on_date", toDate);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 export function useSetAttendance(onDate: string) {
   const qc = useQueryClient();
   return useMutation({

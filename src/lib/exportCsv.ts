@@ -18,10 +18,28 @@ interface WOForExport {
 // Quote every cell and neutralise CSV formula injection. Without this, any field
 // with a comma/quote/newline shifts the columns, and a leading =,+,-,@ executes as
 // a formula in Excel/Sheets.
-function csvCell(v: unknown): string {
+export function csvCell(v: unknown): string {
   let s = String(v ?? "");
   if (/^[=+\-@]/.test(s)) s = "'" + s;
   return `"${s.replace(/"/g, '""')}"`;
+}
+
+/**
+ * Rows already ordered to match the headers, quoted and handed to the browser.
+ *
+ * Kept separate from the work-order export so a second report does not have to
+ * copy the formula-injection guard to get a download — copying it is how one of
+ * the two ends up without it.
+ */
+export function downloadCsv(filename: string, headers: string[], rows: unknown[][]) {
+  const csv = [headers.map(csvCell).join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_orders.csv", partsCounts?: Record<string, number>) {
@@ -44,14 +62,7 @@ export function exportWorkOrdersCsv(workOrders: WOForExport[], filename = "work_
       responseTime,
       totalTime,
       wo.id && partsCounts?.[wo.id] ? partsCounts[wo.id] : "",
-    ].map(csvCell).join(",");
+    ];
   });
-  const csv = [headers.join(","), ...rows].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadCsv(filename, headers, rows);
 }
