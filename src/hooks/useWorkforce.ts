@@ -55,6 +55,9 @@ export interface OvertimeEntry {
   period_id: string;
   hours: number;
   note: string | null;
+  /** Where the figure came from, and when. It is not calculated here. */
+  source_note?: string | null;
+  imported_at?: string | null;
 }
 
 export const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

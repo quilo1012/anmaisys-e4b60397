@@ -205,6 +205,17 @@ export function EmployeeDetailPanel({
                   A balance, not hours worked: sickness is written off against banked hours, so a negative
                   figure is real.
                 </p>
+                {/* Said on the screen, not only in a migration: this is a copy, and the
+                    factory pays from the sheet it was copied from. */}
+                {(overtime ?? [])[0]?.imported_at && (
+                  <p className="rounded border bg-muted/40 p-2 text-2xs text-muted-foreground">
+                    Imported from the payroll spreadsheet
+                    {(overtime ?? [])[0]?.source_note ? ` — ${(overtime ?? [])[0]!.source_note}` : ""}
+                    {" · "}
+                    {format(new Date((overtime ?? [])[0]!.imported_at as string), "dd/MM/yyyy HH:mm")}.
+                    Not calculated here, and not editable here.
+                  </p>
+                )}
               </>
             )}
           </TabsContent>
