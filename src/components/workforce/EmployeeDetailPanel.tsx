@@ -12,8 +12,8 @@ import { format } from "date-fns";
 import { ArrowRight, RotateCcw, Save, UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  describeDays, useEmployeeOvertime, useLines, useMovements, useShiftPatterns, useUpdateEmployee,
-  type Employee,
+  describeDays, useEmployeeOvertime, useHeadcountAreas, useMovements, useShiftPatterns,
+  useUpdateEmployee, type Employee,
 } from "@/hooks/useWorkforce";
 
 /**
@@ -33,7 +33,7 @@ export function EmployeeDetailPanel({
   canEdit: boolean;
 }) {
   const { data: patterns } = useShiftPatterns();
-  const { data: lines } = useLines();
+  const { data: areas } = useHeadcountAreas();
   const { data: movements, isLoading: loadingMoves } = useMovements(employee?.id ?? null);
   const { data: overtime, isLoading: loadingOT } = useEmployeeOvertime(employee?.id ?? null);
   const update = useUpdateEmployee();
@@ -114,8 +114,8 @@ export function EmployeeDetailPanel({
     );
   };
 
-  const lineName = employee.current_line_id
-    ? lines?.find((l) => l.id === employee.current_line_id)?.name ?? "—"
+  const lineName = employee.headcount_area_id
+    ? areas?.find((a) => a.id === employee.headcount_area_id)?.name ?? "—"
     : "Unassigned";
   const total = (overtime ?? []).reduce((s, o) => s + Number(o.hours), 0);
 
@@ -178,6 +178,41 @@ export function EmployeeDetailPanel({
                 onChange={(e) => setDepartment(e.target.value)}
                 className="text-sm"
               />
+            </div>
+            <div>
+              {/* Assigning by dropdown as well as by drag: placing 180 people once,
+                  on a tablet, is not a drag-and-drop job. It saves on change rather
+                  than waiting for the Save button, because it is one field. */}
+              <Label className="text-xs">Headcount area</Label>
+              <Select
+                value={employee.headcount_area_id ?? "__none__"}
+                disabled={!canEdit}
+                onValueChange={(v) =>
+                  update.mutate(
+                    { id: employee.id, patch: { headcount_area_id: v === "__none__" ? null : v } },
+                    {
+                      onSuccess: () =>
+                        toast.success(
+                          v === "__none__"
+                            ? `${employee.full_name} taken off the board`
+                            : `${employee.full_name} → ${areas?.find((a) => a.id === v)?.name}`,
+                        ),
+                      onError: (e) => toast.error((e as Error).message || "Could not save"),
+                    },
+                  )
+                }
+              >
+                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— not on the board —</SelectItem>
+                  {(areas ?? []).map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                      {a.kind === "support" ? " · support" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label className="text-xs">Shift pattern</Label>
