@@ -378,7 +378,7 @@ const App = () => (
                 <Route
                   path="/dashboard/workforce"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="workforce.view">
+                    <ProtectedRoute requiredAction="workforce.view">
                       <WorkforcePage />
                     </ProtectedRoute>
                   }
