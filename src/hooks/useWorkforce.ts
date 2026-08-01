@@ -26,6 +26,13 @@ export interface Employee {
   shift_pattern_id: string | null;
   employee_ref: string | null;
   active: boolean;
+  /**
+   * Day, Night, Weekend, Warehouse Day or Warehouse Weekend — the shift the factory
+   * thinks in. Not the same as shift_pattern_id, which says which days of the week
+   * somebody works. A person has both: Night, and Mon–Thu.
+   */
+  shift_group: string | null;
+  started_on: string | null;
   left_on: string | null;
   source: string;
   notes: string | null;

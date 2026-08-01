@@ -41,6 +41,7 @@ export function EmployeeDetailPanel({
   const [department, setDepartment] = useState("");
   const [patternId, setPatternId] = useState<string>("__none__");
   const [ref, setRef] = useState("");
+  const [startedOn, setStartedOn] = useState("");
   const [leftOn, setLeftOn] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Reset when a different person is opened, so the form never shows the last one's
@@ -49,15 +50,23 @@ export function EmployeeDetailPanel({
     setDepartment(employee?.department ?? "");
     setPatternId(employee?.shift_pattern_id ?? "__none__");
     setRef(employee?.employee_ref ?? "");
+    setStartedOn(employee?.started_on ?? "");
     setLeftOn(employee?.left_on ?? new Date().toISOString().slice(0, 10));
-  }, [employee?.id, employee?.department, employee?.shift_pattern_id, employee?.employee_ref, employee?.left_on]);
+  }, [
+    employee?.id, employee?.department, employee?.shift_pattern_id,
+    employee?.employee_ref, employee?.started_on, employee?.left_on,
+  ]);
 
   if (!employee) return null;
 
   const dirty =
     department !== (employee.department ?? "") ||
     patternId !== (employee.shift_pattern_id ?? "__none__") ||
-    ref !== (employee.employee_ref ?? "");
+    ref !== (employee.employee_ref ?? "") ||
+    startedOn !== (employee.started_on ?? "");
+
+  const startsAfterLeaving =
+    startedOn !== "" && employee.left_on !== null && startedOn > employee.left_on;
 
   const save = () => {
     update.mutate(
@@ -67,6 +76,9 @@ export function EmployeeDetailPanel({
           department: department.trim() || null,
           shift_pattern_id: patternId === "__none__" ? null : patternId,
           employee_ref: ref.trim() || null,
+          // Empty clears it back to null. A blank start date means nobody recorded
+          // one, which is the truth for the fifty imported rows.
+          started_on: startedOn || null,
         },
       },
       {
@@ -136,6 +148,27 @@ export function EmployeeDetailPanel({
               <p className="text-sm text-muted-foreground">{employee.email || "—"}</p>
             </div>
             <div>
+              <Label className="text-xs" htmlFor="wf-started">Start date</Label>
+              <Input
+                id="wf-started"
+                type="date"
+                value={startedOn}
+                disabled={!canEdit}
+                onChange={(e) => setStartedOn(e.target.value)}
+                className="text-sm"
+              />
+              {startedOn === "" && (
+                <p className="mt-1 text-2xs text-muted-foreground">
+                  Not recorded — the imported list carried no start dates.
+                </p>
+              )}
+              {startsAfterLeaving && (
+                <p className="mt-1 text-2xs text-destructive-strong">
+                  This is after the leaving date ({format(new Date(`${employee.left_on}T12:00:00`), "dd/MM/yyyy")}).
+                </p>
+              )}
+            </div>
+            <div>
               <Label className="text-xs" htmlFor="wf-dept">Department</Label>
               <Input
                 id="wf-dept"
@@ -178,7 +211,7 @@ export function EmployeeDetailPanel({
               <p className="rounded border bg-muted/30 p-2 text-xs text-muted-foreground">{employee.notes}</p>
             )}
             {canEdit && (
-              <Button size="sm" onClick={save} disabled={!dirty || update.isPending}>
+              <Button size="sm" onClick={save} disabled={!dirty || startsAfterLeaving || update.isPending}>
                 <Save className="mr-1 h-4 w-4" /> {update.isPending ? "Saving…" : "Save"}
               </Button>
             )}
@@ -217,13 +250,36 @@ export function EmployeeDetailPanel({
                   </>
                 ) : (
                   <>
-                    <p className="text-xs">
-                      Left{" "}
-                      {employee.left_on
-                        ? `on ${format(new Date(`${employee.left_on}T12:00:00`), "dd/MM/yyyy")}`
-                        : "— no date recorded"}
-                      .
-                    </p>
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <Label className="text-2xs" htmlFor="wf-left-on-edit">Leaving date</Label>
+                        <Input
+                          id="wf-left-on-edit"
+                          type="date"
+                          value={leftOn}
+                          onChange={(e) => e.target.value && setLeftOn(e.target.value)}
+                          className="h-9 text-sm"
+                        />
+                      </div>
+                      {/* Correcting the date is not the same as bringing them back, so
+                          it saves on its own without touching the active flag. */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={update.isPending || leftOn === (employee.left_on ?? "")}
+                        onClick={() =>
+                          update.mutate(
+                            { id: employee.id, patch: { left_on: leftOn } },
+                            {
+                              onSuccess: () => toast.success("Leaving date updated"),
+                              onError: (e) => toast.error((e as Error).message || "Could not save"),
+                            },
+                          )
+                        }
+                      >
+                        <Save className="mr-1 h-3.5 w-3.5" /> Save date
+                      </Button>
+                    </div>
                     <Button size="sm" variant="outline" onClick={() => setLeaver(false)} disabled={update.isPending}>
                       <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reinstate
                     </Button>
