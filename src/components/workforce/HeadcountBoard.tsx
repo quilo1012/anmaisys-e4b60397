@@ -246,6 +246,28 @@ export function HeadcountBoard({
     return counts;
   }, [employees, onDate, showAll]);
 
+  /**
+   * The selected shift, counted on its own.
+   *
+   * The KPI row above the tabs counts the whole factory; this counts the shift you
+   * are standing on, which is the number a supervisor is actually asked for at
+   * handover. Unmarked is named rather than folded into anything: nobody having said
+   * yet is not the same as somebody being in, and it is not an absence either.
+   */
+  const shiftTotals = useMemo(() => {
+    const byId = new Map((attendance ?? []).map((a) => [a.employee_id, a.status]));
+    const n = (...want: AttendanceStatus[]) =>
+      scheduled.filter((e) => want.includes(byId.get(e.id) as AttendanceStatus)).length;
+    return {
+      onShift: scheduled.length,
+      present: n("present"),
+      away: n("absent", "sick", "unpaid"),
+      holiday: n("holiday"),
+      unmarked: scheduled.filter((e) => !byId.has(e.id)).length,
+      placed: scheduled.filter((e) => e.headcount_area_id).length,
+    };
+  }, [scheduled, attendance]);
+
   const columns = useMemo(() => {
     const byLine = new Map<string, BoardEmployee[]>();
     byLine.set(UNPLACED, []);
@@ -340,6 +362,22 @@ export function HeadcountBoard({
             </span>
           )}
         </div>
+        <div className="mt-3 grid grid-cols-3 gap-px overflow-hidden rounded-md border bg-border sm:grid-cols-6">
+          {[
+            { k: "On shift", v: shiftTotals.onShift, s: shift },
+            { k: "In", v: shiftTotals.present, s: "Marked present" },
+            { k: "Away", v: shiftTotals.away, s: "Absent, sick, unpaid", tone: shiftTotals.away ? "text-warning-strong" : "" },
+            { k: "Holiday", v: shiftTotals.holiday, s: "Booked leave" },
+            { k: "Not marked", v: shiftTotals.unmarked, s: "Nobody has said", tone: shiftTotals.unmarked ? "text-destructive-strong" : "" },
+            { k: "Placed", v: `${shiftTotals.placed}/${shiftTotals.onShift}`, s: "Have an area" },
+          ].map((t) => (
+            <div key={t.k} className="bg-card px-2 py-1.5">
+              <div className="truncate text-2xs uppercase tracking-wide text-muted-foreground">{t.k}</div>
+              <div className={cn("font-mono text-lg font-bold tabular-nums leading-tight", t.tone)}>{t.v}</div>
+              <div className="truncate text-2xs text-muted-foreground">{t.s}</div>
+            </div>
+          ))}
+        </div>
       </CardHeader>
       <CardContent>
         <DndContext
@@ -367,23 +405,38 @@ export function HeadcountBoard({
             ))}
           </UnplacedTray>}
 
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {(areas ?? []).map((l) => (
-              <LineColumn key={l.id} id={l.id} title={l.name} count={columns.get(l.id)?.length ?? 0}>
-                {(columns.get(l.id) ?? []).map((e) => (
-                  <EmployeeCard
-                    key={e.id}
-                    employee={e}
-                    attendance={attendanceByEmployee.get(e.id)}
-                    onCycle={() => cycleStatus(e.id)}
-                    onSelect={() => onSelect?.(e.id)}
-                    canEdit={canEdit}
-                    dragging={activeId === e.id}
-                  />
-                ))}
-              </LineColumn>
-            ))}
-          </div>
+          {/* Production and support are read differently — one is the line running,
+              the other is who keeps it running — and mixing them in one grid made
+              Office sit between Line 3 and Line 4 as though it were the next line. */}
+          {(["production", "support"] as const).map((kind) => {
+            const group = (areas ?? []).filter((a) => a.kind === kind);
+            if (group.length === 0) return null;
+            return (
+              <div key={kind}>
+                <div className="mb-2 mt-3 flex items-center gap-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground first:mt-0">
+                  {kind === "production" ? "Production" : "Support"}
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {group.map((l) => (
+                    <LineColumn key={l.id} id={l.id} title={l.name} count={columns.get(l.id)?.length ?? 0}>
+                      {(columns.get(l.id) ?? []).map((e) => (
+                        <EmployeeCard
+                          key={e.id}
+                          employee={e}
+                          attendance={attendanceByEmployee.get(e.id)}
+                          onCycle={() => cycleStatus(e.id)}
+                          onSelect={() => onSelect?.(e.id)}
+                          canEdit={canEdit}
+                          dragging={activeId === e.id}
+                        />
+                      ))}
+                    </LineColumn>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
 
           <DragOverlay>
             {active && (
