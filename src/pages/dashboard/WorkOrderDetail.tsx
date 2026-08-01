@@ -479,7 +479,13 @@ export default function WorkOrderDetail() {
             <div className="grid grid-cols-3 gap-4 print:gap-0">
               <div className="text-center print:border print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Response</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">opened → accepted</p><p className="text-3xl font-bold print:text-base">{formatDuration(responseMin)}</p></div>
               <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Execution</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">start → finish</p><p className="text-3xl font-bold print:text-base">{formatDuration(executionMin)}</p></div>
-              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Time</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">opened → finished</p><p className="text-3xl font-bold print:text-base">{formatDuration(totalMin)}</p></div>
+              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Time</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">{
+                  /* An order nobody accepted and nobody started was not "finished" —
+                     it was closed by a manager. Reading "opened → finished" against a
+                     figure that is mostly the order sitting there is how 2h10 gets
+                     mistaken for two hours of repair. */
+                  wo.status === "force_closed" ? "opened → force closed" : "opened → finished"
+                }</p><p className="text-3xl font-bold print:text-base">{formatDuration(totalMin)}</p></div>
             </div>
           </CardContent>
         </Card>
