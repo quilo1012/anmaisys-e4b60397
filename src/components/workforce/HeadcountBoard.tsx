@@ -4,7 +4,6 @@ import {
   useDraggable, useDroppable, type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { GripVertical, UserCheck, UserX } from "lucide-react";
@@ -61,60 +60,59 @@ function EmployeeCard({
     <div
       ref={setNodeRef}
       className={cn(
-        "rounded-lg border bg-card p-2 text-left shadow-sm",
+        "rounded-md border bg-card px-1.5 py-1 text-left",
         (isDragging || dragging) && "opacity-50",
         status === "absent" && "border-destructive/40",
       )}
     >
-      <div className="flex items-start gap-1">
+      {/* One line per person. Department and shift pattern moved to the tooltip and
+          the detail panel: on a board of 68 cards, "Department to confirm" repeated
+          138 times is not information, it is noise with a scrollbar. */}
+      <div className="flex items-center gap-1">
         {canEdit && (
           <button
             type="button"
-            className="mt-0.5 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing no-print"
+            className="shrink-0 cursor-grab touch-none text-muted-foreground/60 hover:text-foreground active:cursor-grabbing no-print"
             aria-label={`Move ${employee.full_name}`}
             {...listeners}
             {...attributes}
           >
-            <GripVertical className="h-4 w-4" />
+            <GripVertical className="h-3.5 w-3.5" />
           </button>
         )}
-        <div className="min-w-0 flex-1">
-          {/* The name opens the detail panel; the grip drags. Two targets, so a tap
-              on a tablet never has to guess which one was meant. */}
+        {/* The name opens the detail panel; the grip drags. Two targets, so a tap on
+            a tablet never has to guess which one was meant. */}
+        <button
+          type="button"
+          onClick={onSelect}
+          title={[employee.full_name, employee.department, employee.pattern ? describeDays(employee.pattern.days) : "No shift pattern"]
+            .filter(Boolean)
+            .join(" · ")}
+          className="min-w-0 flex-1 truncate text-left text-xs font-medium hover:underline"
+        >
+          {employee.full_name}
+        </button>
+        {status ? (
           <button
             type="button"
-            onClick={onSelect}
-            className="block w-full truncate text-left text-xs font-semibold hover:underline"
+            onClick={canEdit ? onCycle : undefined}
+            className={cn(
+              "shrink-0 rounded border px-1.5 py-0.5 text-2xs font-semibold",
+              STATUS_META[status].cls,
+              canEdit && "cursor-pointer",
+            )}
           >
-            {employee.full_name}
+            {STATUS_META[status].label}
           </button>
-          <div className="truncate text-2xs text-muted-foreground">
-            {employee.department ?? "Department to confirm"}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-1">
-            <Badge variant="outline" className="text-2xs">
-              {employee.pattern ? describeDays(employee.pattern.days) : "No pattern"}
-            </Badge>
-            {status && (
-              <button
-                type="button"
-                onClick={canEdit ? onCycle : undefined}
-                className={cn("rounded border px-1.5 py-0.5 text-2xs font-semibold", STATUS_META[status].cls, canEdit && "cursor-pointer")}
-              >
-                {STATUS_META[status].label}
-              </button>
-            )}
-            {!status && canEdit && (
-              <button
-                type="button"
-                onClick={onCycle}
-                className="rounded border border-dashed px-1.5 py-0.5 text-2xs text-muted-foreground hover:text-foreground no-print"
-              >
-                Mark
-              </button>
-            )}
-          </div>
-        </div>
+        ) : canEdit ? (
+          <button
+            type="button"
+            onClick={onCycle}
+            className="shrink-0 rounded border border-dashed px-1.5 py-0.5 text-2xs text-muted-foreground hover:text-foreground no-print"
+          >
+            Mark
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -134,12 +132,19 @@ function LineColumn({
         isOver && "border-primary bg-primary/5",
       )}
     >
-      <div className="mb-2 flex items-baseline justify-between gap-2">
+      <div className="mb-1.5 flex items-baseline justify-between gap-2 border-b pb-1">
         <span className="truncate text-xs font-bold uppercase tracking-wide">{title}</span>
-        <span className="shrink-0 font-mono text-xs text-muted-foreground">{count}</span>
+        <span
+          className={cn(
+            "shrink-0 rounded px-1.5 font-mono text-xs font-bold",
+            count > 0 ? "bg-primary/10 text-primary" : "text-muted-foreground/50",
+          )}
+        >
+          {count}
+        </span>
       </div>
       {subtitle && <div className="mb-1 text-2xs text-muted-foreground">{subtitle}</div>}
-      <div className="space-y-2">{children}</div>
+      <div className="space-y-1">{children}</div>
     </div>
   );
 }
