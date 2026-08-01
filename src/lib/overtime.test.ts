@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   calculatePeriodOvertime,
+  hoursOnSite,
+  weeklyTargetForPattern,
   workedHoursForDay,
   DEFAULT_RULES,
   type WorkedDay,
@@ -19,6 +21,55 @@ function week(monday: string, hoursPerDay: number, scheduled = true): WorkedDay[
     day(new Date(start + i * 86_400_000).toISOString().slice(0, 10), hoursPerDay, scheduled),
   );
 }
+
+describe("hoursOnSite — a night shift crosses midnight", () => {
+  it("measures a day shift", () => {
+    expect(hoursOnSite("06:00", "18:00")).toBe(12);
+  });
+
+  it("measures nights as twelve hours, not minus twelve", () => {
+    expect(hoursOnSite("18:00", "06:00")).toBe(12);
+  });
+
+  it("handles half hours", () => {
+    expect(hoursOnSite("08:30", "17:00")).toBe(8.5);
+  });
+
+  it("treats an identical start and end as a full day, not zero", () => {
+    expect(hoursOnSite("06:00", "06:00")).toBe(24);
+  });
+
+  it("rejects something that is not a time", () => {
+    expect(() => hoursOnSite("morning", "18:00")).toThrow(/Not a time/);
+  });
+});
+
+describe("weeklyTargetForPattern — the week comes from the rota, not from 44", () => {
+  const P = (days: number[], s: string, e: string) => ({ days, starts_at: s, ends_at: e });
+
+  it("derives exactly 44 from every twelve-hour rota", () => {
+    // 4 × (12 − 1). The contractual week falls out of the times and the break,
+    // which is the strongest evidence the break rule is right.
+    expect(weeklyTargetForPattern(P([1, 2, 3, 4], "06:00", "18:00"))).toBe(44);
+    expect(weeklyTargetForPattern(P([2, 3, 4, 5], "06:00", "18:00"))).toBe(44);
+    expect(weeklyTargetForPattern(P([5, 6, 7, 1], "06:00", "18:00"))).toBe(44);
+    expect(weeklyTargetForPattern(P([1, 2, 3, 4], "18:00", "06:00"))).toBe(44);
+  });
+
+  it("keeps the shorter contracts short instead of calling them a deficit", () => {
+    expect(weeklyTargetForPattern(P([1, 2, 3, 4, 5], "09:00", "15:00"))).toBe(25);
+    expect(weeklyTargetForPattern(P([1, 2, 3, 4, 5], "09:00", "17:00"))).toBe(35);
+    expect(weeklyTargetForPattern(P([1, 2, 3, 4, 5], "08:00", "17:00"))).toBe(40);
+    expect(weeklyTargetForPattern(P([7], "08:00", "16:00"))).toBe(7);
+  });
+
+  it("returns null when the rota has no hours recorded", () => {
+    // Null, not 44: not knowing somebody's contract is different from knowing it is
+    // the standard one, and a default here would invent a deficit.
+    expect(weeklyTargetForPattern({ days: [1, 2, 3, 4], starts_at: null, ends_at: null })).toBeNull();
+    expect(weeklyTargetForPattern(P([], "06:00", "18:00"))).toBeNull();
+  });
+});
 
 describe("workedHoursForDay — the break comes off a scheduled day only", () => {
   it("takes an hour off a scheduled day", () => {

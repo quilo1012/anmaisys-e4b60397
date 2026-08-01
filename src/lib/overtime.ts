@@ -82,6 +82,41 @@ export function workedHoursForDay(day: WorkedDay, rules: OvertimeRules = DEFAULT
   return Math.max(0, raw - rules.breakHours);
 }
 
+/**
+ * Hours between two clock times, counting a shift that runs past midnight.
+ *
+ * `18:00` to `06:00` is twelve hours on nights, not minus twelve. The modulo is the
+ * whole reason this is a function rather than a subtraction at the call site.
+ */
+export function hoursOnSite(startsAt: string, endsAt: string): number {
+  const parse = (t: string) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(t);
+    if (!m) throw new Error(`Not a time: ${t}`);
+    return Number(m[1]) + Number(m[2]) / 60;
+  };
+  const diff = (parse(endsAt) - parse(startsAt)) % 24;
+  return diff <= 0 ? diff + 24 : diff;
+}
+
+/**
+ * What a full week of this rota is contracted to be.
+ *
+ * NOT a flat 44 for everybody. Every twelve-hour rota is four days long and
+ * 4 × (12 − 1) is exactly 44, which is where the contractual week comes from — but
+ * four of the nine rotas are shorter by design: 09:00–15:00 is a 25-hour week,
+ * 09:00–17:00 a 35-hour one, 08:00–17:00 forty, and a Sunday rota seven. Measuring
+ * those against 44 would report somebody nine hours in deficit every week for as long
+ * as they work here, and call a part-time contract a debt.
+ */
+export function weeklyTargetForPattern(
+  pattern: { days: number[]; starts_at: string | null; ends_at: string | null },
+  rules: OvertimeRules = DEFAULT_RULES,
+): number | null {
+  if (!pattern.starts_at || !pattern.ends_at || pattern.days.length === 0) return null;
+  const perDay = Math.max(0, hoursOnSite(pattern.starts_at, pattern.ends_at) - rules.breakHours);
+  return round2(perDay * pattern.days.length);
+}
+
 /** Whole days from start to end, both ends included. */
 function daysInclusive(startDate: string, endDate: string): number {
   const start = Date.parse(`${startDate}T00:00:00Z`);
