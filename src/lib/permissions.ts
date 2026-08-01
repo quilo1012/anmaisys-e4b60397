@@ -152,9 +152,11 @@ const MATRIX: Record<Action, Role[]> = {
   // They are listed here so the screen offers what the database will accept: a
   // supervisor used to be shown the Validation control and got a raw Postgres
   // exception when they used it.
-  // Headcount, attendance and overtime. Manager can read the board; editing
-  // records (and the pay-relevant fields) stays with admin.
-  "workforce.view": ["admin", "manager"],
+  // Headcount, attendance and overtime. Admin only, viewing included: the module is
+  // still paused and off the menu, and the route stays live, so anyone holding this
+  // reaches the board by URL. Manager held it briefly and the matrix test caught the
+  // gap; widen it again when the module is deliberately unpaused, not before.
+  "workforce.view": ["admin"],
   // Moving someone between lines and marking who turned up. Separate from viewing,
   // so a read-only account can be given later without also handing over the board.
   "workforce.manage": ["admin"],

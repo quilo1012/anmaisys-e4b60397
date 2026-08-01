@@ -32,7 +32,7 @@ export interface Employee {
   current_line_id: string | null;
 }
 
-export type AttendanceStatus = "present" | "absent" | "sick" | "holiday" | "training";
+export type AttendanceStatus = "present" | "absent" | "sick" | "holiday" | "training" | "unpaid";
 
 export interface Attendance {
   id: string;
@@ -130,6 +130,28 @@ export function useAttendance(onDate: string) {
     queryKey: ["employee_attendance", onDate],
     queryFn: async (): Promise<Attendance[]> => {
       const { data, error } = await db.from("employee_attendance").select("*").eq("on_date", onDate);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/**
+ * Attendance over a closed date range, for the monthly summary.
+ *
+ * A month is a real question to ask of this table — it carries one row per person
+ * per day. Overtime cannot be asked the same way: its rows are one total per person
+ * per period, so they are read by period and never sliced into months.
+ */
+export function useAttendanceRange(fromDate: string, toDate: string) {
+  return useQuery({
+    queryKey: ["employee_attendance_range", fromDate, toDate],
+    queryFn: async (): Promise<Attendance[]> => {
+      const { data, error } = await db
+        .from("employee_attendance")
+        .select("*")
+        .gte("on_date", fromDate)
+        .lte("on_date", toDate);
       if (error) throw error;
       return data ?? [];
     },

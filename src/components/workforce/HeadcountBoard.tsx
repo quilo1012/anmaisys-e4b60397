@@ -22,11 +22,15 @@ const STATUS_META: Record<AttendanceStatus, { label: string; cls: string }> = {
   sick:     { label: "Sick",     cls: "border-amber-500/40 bg-amber-500/15 text-warning-strong" },
   holiday:  { label: "Holiday",  cls: "border-blue-500/40 bg-blue-500/15 text-blue-700 dark:text-blue-300" },
   training: { label: "Training", cls: "border-purple-500/40 bg-purple-500/15 text-purple-700 dark:text-purple-300" },
+  // Agreed and unpaid, which is not the same as an absence nobody agreed to.
+  unpaid:   { label: "Unpaid",   cls: "border-slate-500/40 bg-slate-500/15 text-muted-foreground" },
 };
 
+// No overtime here on purpose. The board answers who is in today; overtime is a
+// balance imported from payroll over a period that is not this day, and carrying it
+// on the same card is what made the two look like one number.
 export interface BoardEmployee extends Employee {
   pattern: ShiftPattern | null;
-  overtimeHours: number | null;
 }
 
 function EmployeeCard({
@@ -43,7 +47,6 @@ function EmployeeCard({
     id: employee.id, disabled: !canEdit,
   });
   const status = attendance?.status;
-  const ot = employee.overtimeHours;
 
   return (
     <div
@@ -83,14 +86,6 @@ function EmployeeCard({
             <Badge variant="outline" className="text-2xs">
               {employee.pattern ? describeDays(employee.pattern.days) : "No pattern"}
             </Badge>
-            {ot != null && (
-              <Badge
-                variant="outline"
-                className={cn("font-mono text-2xs", ot < 0 && "border-red-500/40 bg-red-500/10 text-destructive-strong")}
-              >
-                {ot > 0 ? "+" : ""}{ot}h
-              </Badge>
-            )}
             {status && (
               <button
                 type="button"
@@ -193,7 +188,7 @@ export function HeadcountBoard({
   }, [scheduled, lines]);
 
   const cycleStatus = (employeeId: string) => {
-    const order: AttendanceStatus[] = ["present", "absent", "sick", "holiday", "training"];
+    const order: AttendanceStatus[] = ["present", "absent", "sick", "holiday", "unpaid", "training"];
     const current = attendanceByEmployee.get(employeeId)?.status;
     const next = order[(current ? order.indexOf(current) + 1 : 0) % order.length];
     setAttendance.mutate({ employeeId, status: next }, {
