@@ -152,9 +152,9 @@ const MATRIX: Record<Action, Role[]> = {
   // They are listed here so the screen offers what the database will accept: a
   // supervisor used to be shown the Validation control and got a raw Postgres
   // exception when they used it.
-  // Names, emails and hours that feed pay. Admin only until someone decides
-  // otherwise, deliberately — the same care labor_rate gets.
-  "workforce.view": ["admin"],
+  // Headcount, attendance and overtime. Manager can read the board; editing
+  // records (and the pay-relevant fields) stays with admin.
+  "workforce.view": ["admin", "manager"],
   // Moving someone between lines and marking who turned up. Separate from viewing,
   // so a read-only account can be given later without also handing over the board.
   "workforce.manage": ["admin"],
