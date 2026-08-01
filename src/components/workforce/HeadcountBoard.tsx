@@ -144,7 +144,11 @@ function LineColumn({
         </span>
       </div>
       {subtitle && <div className="mb-1 text-2xs text-muted-foreground">{subtitle}</div>}
-      <div className="space-y-1">{children}</div>
+      {/* Capped and scrolled inside, so one crowded line does not stretch the row it
+          sits in and leave nine short columns padded out beside it. */}
+      <div className="max-h-80 space-y-1 overflow-y-auto print:max-h-none print:overflow-visible">
+        {children}
+      </div>
     </div>
   );
 }
