@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ArrowRight, Save } from "lucide-react";
+import { ArrowRight, RotateCcw, Save, UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   describeDays, useEmployeeOvertime, useLines, useMovements, useShiftPatterns, useUpdateEmployee,
@@ -41,6 +41,7 @@ export function EmployeeDetailPanel({
   const [department, setDepartment] = useState("");
   const [patternId, setPatternId] = useState<string>("__none__");
   const [ref, setRef] = useState("");
+  const [leftOn, setLeftOn] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Reset when a different person is opened, so the form never shows the last one's
   // values against this one's name.
@@ -48,7 +49,8 @@ export function EmployeeDetailPanel({
     setDepartment(employee?.department ?? "");
     setPatternId(employee?.shift_pattern_id ?? "__none__");
     setRef(employee?.employee_ref ?? "");
-  }, [employee?.id, employee?.department, employee?.shift_pattern_id, employee?.employee_ref]);
+    setLeftOn(employee?.left_on ?? new Date().toISOString().slice(0, 10));
+  }, [employee?.id, employee?.department, employee?.shift_pattern_id, employee?.employee_ref, employee?.left_on]);
 
   if (!employee) return null;
 
@@ -69,6 +71,32 @@ export function EmployeeDetailPanel({
       },
       {
         onSuccess: () => toast.success("Saved"),
+        onError: (e) => toast.error((e as Error).message || "Could not save"),
+      },
+    );
+  };
+
+  /**
+   * Leaving is a soft change, and both fields move together.
+   *
+   * The row stays: employee_attendance and overtime_entries cascade on delete, so
+   * removing someone would take their attendance and their payroll hours with them.
+   * active and left_on are set in one patch because either one alone is half a
+   * story — a date with the flag still true reads as someone who never left.
+   */
+  const setLeaver = (hasLeft: boolean) => {
+    update.mutate(
+      {
+        id: employee.id,
+        patch: hasLeft ? { active: false, left_on: leftOn } : { active: true, left_on: null },
+      },
+      {
+        onSuccess: () =>
+          toast.success(
+            hasLeft
+              ? `${employee.full_name} marked as left. History and overtime are kept.`
+              : `${employee.full_name} is back on the active list.`,
+          ),
         onError: (e) => toast.error((e as Error).message || "Could not save"),
       },
     );
@@ -153,6 +181,55 @@ export function EmployeeDetailPanel({
               <Button size="sm" onClick={save} disabled={!dirty || update.isPending}>
                 <Save className="mr-1 h-4 w-4" /> {update.isPending ? "Saving…" : "Save"}
               </Button>
+            )}
+
+            {canEdit && (
+              <div className="mt-2 space-y-2 rounded-lg border border-dashed p-3">
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  <UserMinus className="h-3.5 w-3.5" /> Leaving the company
+                </div>
+                {employee.active ? (
+                  <>
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <Label className="text-2xs" htmlFor="wf-left-on">Last day</Label>
+                        <Input
+                          id="wf-left-on"
+                          type="date"
+                          value={leftOn}
+                          onChange={(e) => e.target.value && setLeftOn(e.target.value)}
+                          className="h-9 text-sm"
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setLeaver(true)}
+                        disabled={update.isPending}
+                      >
+                        Mark as left
+                      </Button>
+                    </div>
+                    <p className="text-2xs text-muted-foreground">
+                      They come off the daily board and the headcount from then on, and stay in the
+                      records they are already in — a month they worked keeps the days they worked.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs">
+                      Left{" "}
+                      {employee.left_on
+                        ? `on ${format(new Date(`${employee.left_on}T12:00:00`), "dd/MM/yyyy")}`
+                        : "— no date recorded"}
+                      .
+                    </p>
+                    <Button size="sm" variant="outline" onClick={() => setLeaver(false)} disabled={update.isPending}>
+                      <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reinstate
+                    </Button>
+                  </>
+                )}
+              </div>
             )}
           </TabsContent>
 
