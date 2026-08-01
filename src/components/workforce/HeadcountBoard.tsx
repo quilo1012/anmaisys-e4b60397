@@ -14,11 +14,16 @@ import {
   type Attendance, type AttendanceStatus, type Employee, type ShiftPattern,
 } from "@/hooks/useWorkforce";
 
-const UNASSIGNED = "__unassigned__";
-const ALL_SHIFTS = "__all__";
+const UNPLACED = "__unplaced__";
 
-// The order the factory says them in, not alphabetical.
-const SHIFT_GROUPS = ["Day", "Night", "Weekend", "Warehouse Day", "Warehouse Weekend"] as const;
+/**
+ * The shifts this board plans for, in the order the factory says them.
+ *
+ * Weekend and Warehouse Weekend are recorded on people and counted everywhere else —
+ * 46 of the 193 — but they are not planned here. They are left out of the board, not
+ * out of the database.
+ */
+const BOARD_SHIFTS = ["Day", "Night", "Warehouse Day"] as const;
 
 const STATUS_META: Record<AttendanceStatus, { label: string; cls: string }> = {
   present:  { label: "In",       cls: "border-emerald-500/40 bg-emerald-500/15 text-success-strong" },
@@ -140,6 +145,44 @@ function LineColumn({
 }
 
 /**
+ * People this shift who are not on a line yet.
+ *
+ * Horizontal and dense, so forty of them do not push the lines off the screen, and
+ * droppable so somebody can be sent back here after being placed by mistake.
+ */
+function UnplacedTray({
+  count, canEdit, children,
+}: {
+  count: number; canEdit: boolean; children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: UNPLACED });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "mb-3 rounded-lg border border-dashed bg-muted/20 p-2 transition-colors",
+        isOver && "border-primary bg-primary/5",
+      )}
+    >
+      <div className="mb-2 flex items-baseline gap-2">
+        <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Not on a line
+        </span>
+        <span className="font-mono text-xs text-muted-foreground">{count}</span>
+        {canEdit && (
+          <span className="text-2xs text-muted-foreground no-print">
+            Drag onto a line below to place them
+          </span>
+        )}
+      </div>
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Who is on which line today.
  *
  * The board shows the people whose shift pattern covers the chosen day, because a
@@ -162,7 +205,7 @@ export function HeadcountBoard({
   const setAttendance = useSetAttendance(onDate.toISOString().slice(0, 10));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [shift, setShift] = useState<string>(ALL_SHIFTS);
+  const [shift, setShift] = useState<string>("Day");
 
   const sensors = useSensors(
     // A small distance so a tap on the card's buttons is not read as a drag on a
@@ -179,10 +222,7 @@ export function HeadcountBoard({
   const scheduled = useMemo(
     () =>
       employees.filter(
-        (e) =>
-          e.active &&
-          (shift === ALL_SHIFTS || e.shift_group === shift) &&
-          (showAll || !e.pattern || worksOn(e.pattern.days, onDate)),
+        (e) => e.active && e.shift_group === shift && (showAll || !e.pattern || worksOn(e.pattern.days, onDate)),
       ),
     [employees, onDate, showAll, shift],
   );
@@ -191,18 +231,18 @@ export function HeadcountBoard({
   // selected — a tab that reads 0 because you are standing on another one is a lie.
   const shiftCounts = useMemo(() => {
     const base = employees.filter((e) => e.active && (showAll || !e.pattern || worksOn(e.pattern.days, onDate)));
-    const counts = new Map<string, number>([[ALL_SHIFTS, base.length]]);
-    for (const g of SHIFT_GROUPS) counts.set(g, base.filter((e) => e.shift_group === g).length);
+    const counts = new Map<string, number>();
+    for (const g of BOARD_SHIFTS) counts.set(g, base.filter((e) => e.shift_group === g).length);
     counts.set("__none__", base.filter((e) => !e.shift_group).length);
     return counts;
   }, [employees, onDate, showAll]);
 
   const columns = useMemo(() => {
     const byLine = new Map<string, BoardEmployee[]>();
-    byLine.set(UNASSIGNED, []);
+    byLine.set(UNPLACED, []);
     for (const l of lines ?? []) byLine.set(l.id, []);
     for (const e of scheduled) {
-      const key = e.current_line_id && byLine.has(e.current_line_id) ? e.current_line_id : UNASSIGNED;
+      const key = e.current_line_id && byLine.has(e.current_line_id) ? e.current_line_id : UNPLACED;
       byLine.get(key)!.push(e);
     }
     return byLine;
@@ -224,7 +264,7 @@ export function HeadcountBoard({
     if (!target) return;
     const employee = employees.find((e) => e.id === employeeId);
     if (!employee) return;
-    const toLineId = target === UNASSIGNED ? null : target;
+    const toLineId = target === UNPLACED ? null : target;
     if ((employee.current_line_id ?? null) === toLineId) return;
     const nameOf = (id: string | null) => (id ? lines?.find((l) => l.id === id)?.name ?? null : null);
     move.mutate(
@@ -243,7 +283,7 @@ export function HeadcountBoard({
   };
 
   const active = activeId ? employees.find((e) => e.id === activeId) : null;
-  const unassignedCount = columns.get(UNASSIGNED)?.length ?? 0;
+  const unplacedCount = columns.get(UNPLACED)?.length ?? 0;
 
   return (
     <Card>
@@ -265,7 +305,7 @@ export function HeadcountBoard({
         {/* Day and Night are two different headcounts that happen to share a factory.
             Shown side by side they read as one number twice the size. */}
         <div className="mt-3 flex flex-wrap gap-1 no-print">
-          {[ALL_SHIFTS, ...SHIFT_GROUPS].map((g) => {
+          {BOARD_SHIFTS.map((g) => {
             const n = shiftCounts.get(g) ?? 0;
             return (
               <button
@@ -280,7 +320,7 @@ export function HeadcountBoard({
                   n === 0 && shift !== g && "text-muted-foreground",
                 )}
               >
-                {g === ALL_SHIFTS ? "All shifts" : g}
+                {g}
                 <span className="ml-1.5 font-mono opacity-70">{n}</span>
               </button>
             );
@@ -299,26 +339,26 @@ export function HeadcountBoard({
           onDragEnd={onDragEnd}
           onDragCancel={() => setActiveId(null)}
         >
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <LineColumn
-              id={UNASSIGNED}
-              title="Unassigned"
-              count={unassignedCount}
-              subtitle={unassignedCount ? "Drag onto a line to place them" : undefined}
-            >
-              {(columns.get(UNASSIGNED) ?? []).map((e) => (
-                <EmployeeCard
-                  key={e.id}
-                  employee={e}
-                  attendance={attendanceByEmployee.get(e.id)}
-                  onCycle={() => cycleStatus(e.id)}
-                  onSelect={() => onSelect?.(e.id)}
-                  canEdit={canEdit}
-                  dragging={activeId === e.id}
-                />
-              ))}
-            </LineColumn>
+          {/* Not a column any more: a staging tray across the top, which is what it
+              always was. As a peer of Line 1 it implied "Unassigned" was a place
+              people work, and while nobody has an allocation it was also the only
+              column with anybody in it. It disappears entirely once the shift is
+              placed, which is the point. */}
+          {unplacedCount > 0 && <UnplacedTray count={unplacedCount} canEdit={canEdit}>
+            {(columns.get(UNPLACED) ?? []).map((e) => (
+              <EmployeeCard
+                key={e.id}
+                employee={e}
+                attendance={attendanceByEmployee.get(e.id)}
+                onCycle={() => cycleStatus(e.id)}
+                onSelect={() => onSelect?.(e.id)}
+                canEdit={canEdit}
+                dragging={activeId === e.id}
+              />
+            ))}
+          </UnplacedTray>}
 
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {(lines ?? []).map((l) => (
               <LineColumn key={l.id} id={l.id} title={l.name} count={columns.get(l.id)?.length ?? 0}>
                 {(columns.get(l.id) ?? []).map((e) => (
