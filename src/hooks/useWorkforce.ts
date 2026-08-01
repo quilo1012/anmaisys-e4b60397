@@ -26,6 +26,7 @@ export interface Employee {
   shift_pattern_id: string | null;
   employee_ref: string | null;
   active: boolean;
+  started_on: string | null;
   left_on: string | null;
   source: string;
   notes: string | null;
