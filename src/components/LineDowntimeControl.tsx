@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { differenceInMinutes, format } from "date-fns";
 import { CheckCircle2, PowerOff, AlertTriangle, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,30 @@ interface LineDowntimeControlProps {
  * Only the assigned engineer, the operator who opened the WO, managers and
  * admins may interact with the buttons.
  */
+/**
+ * The reasons a line actually stops here, in the factory's own words.
+ *
+ * Taken from the iTouching stop codes the operators already pick from, so an order and
+ * a stop-code report describe the same event the same way.
+ */
+const STOP_REASONS = [
+  "Mechanical stop",
+  "Electrical stop",
+  "Leak",
+  "Blender fault",
+  "Filler fault",
+  "Capper fault",
+  "Labeller issue",
+  "Metal detector",
+  "Waiting for parts",
+  "Break",
+  "Filling blender",
+  "Brushing and cleaning",
+];
+
+/** The three that belong to the team, not to the repair. */
+const TEAM_ACTIVITY_REASONS = ["Break", "Filling blender", "Brushing and cleaning"];
+
 export function LineDowntimeControl({
   workOrderId,
   workOrderStatus,
@@ -326,16 +351,57 @@ function StopDialog({
             This will start a downtime counter for this maintenance order. You can resume the line whenever the machine is back to work.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="stop-reason">Reason (optional)</Label>
-          <Textarea
-            id="stop-reason"
-            placeholder="e.g. leak returned, pressure dropped, strange noise"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={3}
-            autoFocus
-          />
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Why did the line stop?</Label>
+            {/* The same words the factory already uses on the iTouching screens.
+                Typed reasons came out as "leak", "Leak again", "leaking" and could not
+                be grouped or counted; a chip is one tap and reads the same on every
+                order. The box underneath is still there for what a chip cannot say. */}
+            <div className="flex flex-wrap gap-1.5">
+              {STOP_REASONS.map((r) => {
+                const active = reason.trim().toLowerCase() === r.toLowerCase();
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setReason(active ? "" : r)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    {r}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Said here rather than found out later: these three are the team's time,
+              not the machine's, and there is a control for them that keeps them off
+              the order's downtime. Stopping the line for a break charges the break to
+              the repair. */}
+          {TEAM_ACTIVITY_REASONS.some((r) => reason.trim().toLowerCase() === r.toLowerCase()) && (
+            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-2xs text-warning-strong">
+              A break, filling the blender or brushing and cleaning is the team's time, not the repair's.
+              Recorded here it counts as downtime against this order. Use <b>Team activity during stop</b>
+              below instead, and it will not.
+            </p>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="stop-reason">Anything else worth knowing</Label>
+            <Textarea
+              id="stop-reason"
+              placeholder="e.g. leak returned after the seal was changed"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={2}
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Cancel</Button>
