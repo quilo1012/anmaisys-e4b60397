@@ -32,7 +32,7 @@ export interface Employee {
   current_line_id: string | null;
 }
 
-export type AttendanceStatus = "present" | "absent" | "sick" | "holiday" | "training";
+export type AttendanceStatus = "present" | "absent" | "sick" | "holiday" | "training" | "unpaid";
 
 export interface Attendance {
   id: string;

@@ -94,7 +94,9 @@ export default function WorkforcePage() {
     const scheduledToday = boardEmployees.filter((e) => e.active && e.pattern && worksOn(e.pattern.days, boardDate));
     const byId = new Map((attendance ?? []).map((a) => [a.employee_id, a]));
     return {
-      awayToday: scheduledToday.filter((e) => ["absent", "sick"].includes(byId.get(e.id)?.status ?? "")).length,
+      // Holiday stays out: it is planned leave, and counting it here would turn a
+      // booked week off into the same signal as somebody who did not turn up.
+      awayToday: scheduledToday.filter((e) => ["absent", "sick", "unpaid"].includes(byId.get(e.id)?.status ?? "")).length,
       unmarked: scheduledToday.filter((e) => !byId.has(e.id)).length,
       scheduledToday: scheduledToday.length,
       noPattern: boardEmployees.filter((e) => e.active && !e.pattern),
@@ -143,7 +145,7 @@ export default function WorkforcePage() {
             <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
               <KpiCard label="Headcount" icon={<Users className="h-3.5 w-3.5" />} value={kpis.headcount} accent="blue" sublabel="Active people on file" />
               <KpiCard label="Shift assigned" icon={<CalendarDays className="h-3.5 w-3.5" />} value={kpis.headcount - kpis.unassigned} accent="ok" sublabel={kpis.unassigned ? `${kpis.unassigned} still without a pattern` : "Everyone has a pattern"} />
-              <KpiCard label="Away today" icon={<TrendingDown className="h-3.5 w-3.5" />} value={alerts.awayToday} accent="warning" toneValue sublabel="Marked absent or sick" />
+              <KpiCard label="Away today" icon={<TrendingDown className="h-3.5 w-3.5" />} value={alerts.awayToday} accent="warning" toneValue sublabel="Absent, sick or unpaid" />
               <KpiCard label="Departments" icon={<Users className="h-3.5 w-3.5" />} value={departments.length} accent="info" sublabel="On the employee list" />
             </div>
 
@@ -171,7 +173,7 @@ export default function WorkforcePage() {
                 <div className="rounded-lg border p-2">
                   <div className="text-2xs uppercase text-muted-foreground">Away</div>
                   <div className={`font-mono text-xl font-bold ${alerts.awayToday ? "text-destructive-strong" : ""}`}>{alerts.awayToday}</div>
-                  <div className="text-2xs text-muted-foreground">Marked absent or sick</div>
+                  <div className="text-2xs text-muted-foreground">Absent, sick or unpaid</div>
                 </div>
                 <div className="rounded-lg border p-2">
                   <div className="text-2xs uppercase text-muted-foreground">Not marked</div>

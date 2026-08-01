@@ -22,6 +22,8 @@ const STATUS_META: Record<AttendanceStatus, { label: string; cls: string }> = {
   sick:     { label: "Sick",     cls: "border-amber-500/40 bg-amber-500/15 text-warning-strong" },
   holiday:  { label: "Holiday",  cls: "border-blue-500/40 bg-blue-500/15 text-blue-700 dark:text-blue-300" },
   training: { label: "Training", cls: "border-purple-500/40 bg-purple-500/15 text-purple-700 dark:text-purple-300" },
+  // Agreed and unpaid, which is not the same as an absence nobody agreed to.
+  unpaid:   { label: "Unpaid",   cls: "border-slate-500/40 bg-slate-500/15 text-muted-foreground" },
 };
 
 // No overtime here on purpose. The board answers who is in today; overtime is a
@@ -186,7 +188,7 @@ export function HeadcountBoard({
   }, [scheduled, lines]);
 
   const cycleStatus = (employeeId: string) => {
-    const order: AttendanceStatus[] = ["present", "absent", "sick", "holiday", "training"];
+    const order: AttendanceStatus[] = ["present", "absent", "sick", "holiday", "unpaid", "training"];
     const current = attendanceByEmployee.get(employeeId)?.status;
     const next = order[(current ? order.indexOf(current) + 1 : 0) % order.length];
     setAttendance.mutate({ employeeId, status: next }, {

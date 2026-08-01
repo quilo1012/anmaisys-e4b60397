@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { downloadCsv } from "@/lib/exportCsv";
 import { useAttendanceRange, type Employee } from "@/hooks/useWorkforce";
 
-const STATUSES = ["present", "absent", "sick", "holiday", "training"] as const;
+const STATUSES = ["present", "absent", "sick", "holiday", "unpaid", "training"] as const;
 type Status = (typeof STATUSES)[number];
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -17,6 +17,7 @@ const STATUS_LABEL: Record<Status, string> = {
   absent: "Absent",
   sick: "Sick",
   holiday: "Holiday",
+  unpaid: "Unpaid",
   training: "Training",
 };
 
@@ -55,7 +56,7 @@ export function MonthlySummary({ employees }: Props) {
       if (!STATUSES.includes(a.status as Status)) continue;
       const counts =
         byEmployee.get(a.employee_id) ??
-        { present: 0, absent: 0, sick: 0, holiday: 0, training: 0 };
+        { present: 0, absent: 0, sick: 0, holiday: 0, unpaid: 0, training: 0 };
       counts[a.status as Status] += 1;
       byEmployee.set(a.employee_id, counts);
     }
@@ -132,7 +133,7 @@ export function MonthlySummary({ employees }: Props) {
               <TableBody>
                 {attendanceRows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    <TableCell colSpan={STATUSES.length + 2} className="text-center text-muted-foreground">
                       Nothing was marked in {format(new Date(`${month}-01T12:00:00`), "MMMM yyyy")}
                     </TableCell>
                   </TableRow>
