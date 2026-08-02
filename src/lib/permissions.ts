@@ -59,6 +59,13 @@ export type Action =
   | "workforce.manage"
   | "quality.validate"
   | "quality.close"
+  // Production Headcount
+  | "headcount.view"
+  | "headcount.manage"
+  | "attendance.manage"
+  | "downtime.adjust"
+  | "reports.export"
+
   // Preventive Maintenance
   | "pm.view"
   | "pm.manage"
