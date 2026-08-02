@@ -132,7 +132,7 @@ function ShiftBoard({
   areas: HeadcountArea[];
   canManage: boolean;
 }) {
-  const { data: roster = [], isLoading: rosterLoading } = useShiftRoster(shift);
+  const { data: roster = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate);
   const { data: allocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
   const { place, remove, copyLastLikeDay } = useAllocationMutations(onDate, shift);
 
