@@ -292,6 +292,60 @@ export type Database = {
           },
         ]
       }
+      daily_allocations: {
+        Row: {
+          area_id: string | null
+          created_at: string | null
+          employee_id: string
+          half_day: boolean | null
+          id: string
+          note: string | null
+          on_date: string
+          shift: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          area_id?: string | null
+          created_at?: string | null
+          employee_id: string
+          half_day?: boolean | null
+          id?: string
+          note?: string | null
+          on_date: string
+          shift: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          area_id?: string | null
+          created_at?: string | null
+          employee_id?: string
+          half_day?: boolean | null
+          id?: string
+          note?: string | null
+          on_date?: string
+          shift?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_allocations_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "headcount_areas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_allocations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       device_lines: {
         Row: {
           created_at: string
@@ -546,6 +600,7 @@ export type Database = {
         Row: {
           created_at: string
           employee_id: string
+          headcount_area_id: string | null
           id: string
           note: string | null
           on_date: string
@@ -556,6 +611,7 @@ export type Database = {
         Insert: {
           created_at?: string
           employee_id: string
+          headcount_area_id?: string | null
           id?: string
           note?: string | null
           on_date: string
@@ -566,6 +622,7 @@ export type Database = {
         Update: {
           created_at?: string
           employee_id?: string
+          headcount_area_id?: string | null
           id?: string
           note?: string | null
           on_date?: string
@@ -579,6 +636,13 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_attendance_headcount_area_id_fkey"
+            columns: ["headcount_area_id"]
+            isOneToOne: false
+            referencedRelation: "headcount_areas"
             referencedColumns: ["id"]
           },
         ]
@@ -627,6 +691,54 @@ export type Database = {
           },
         ]
       }
+      employee_shift_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          effective_from: string
+          employee_id: string
+          id: string
+          note: string | null
+          shift_group: string | null
+          shift_pattern_id: string | null
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          effective_from: string
+          employee_id: string
+          id?: string
+          note?: string | null
+          shift_group?: string | null
+          shift_pattern_id?: string | null
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          effective_from?: string
+          employee_id?: string
+          id?: string
+          note?: string | null
+          shift_group?: string | null
+          shift_pattern_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_shift_history_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_shift_history_shift_pattern_id_fkey"
+            columns: ["shift_pattern_id"]
+            isOneToOne: false
+            referencedRelation: "shift_patterns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           active: boolean
@@ -636,11 +748,14 @@ export type Database = {
           email: string | null
           employee_ref: string | null
           full_name: string
+          headcount_area_id: string | null
           id: string
           left_on: string | null
           notes: string | null
+          shift_group: string | null
           shift_pattern_id: string | null
           source: string
+          started_on: string | null
           updated_at: string
           user_id: string | null
         }
@@ -652,11 +767,14 @@ export type Database = {
           email?: string | null
           employee_ref?: string | null
           full_name: string
+          headcount_area_id?: string | null
           id?: string
           left_on?: string | null
           notes?: string | null
+          shift_group?: string | null
           shift_pattern_id?: string | null
           source?: string
+          started_on?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -668,11 +786,14 @@ export type Database = {
           email?: string | null
           employee_ref?: string | null
           full_name?: string
+          headcount_area_id?: string | null
           id?: string
           left_on?: string | null
           notes?: string | null
+          shift_group?: string | null
           shift_pattern_id?: string | null
           source?: string
+          started_on?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -682,6 +803,13 @@ export type Database = {
             columns: ["current_line_id"]
             isOneToOne: false
             referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_headcount_area_id_fkey"
+            columns: ["headcount_area_id"]
+            isOneToOne: false
+            referencedRelation: "headcount_areas"
             referencedColumns: ["id"]
           },
           {
@@ -740,6 +868,44 @@ export type Database = {
           pin_hash?: string
         }
         Relationships: []
+      }
+      headcount_areas: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          kind: string
+          line_id: string | null
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          kind: string
+          line_id?: string | null
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          kind?: string
+          line_id?: string | null
+          name?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "headcount_areas_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       intouch_exclusion_map: {
         Row: {
@@ -1651,9 +1817,12 @@ export type Database = {
           employee_id: string
           hours: number
           id: string
+          imported_at: string | null
           note: string | null
           period_id: string
           recorded_by: string | null
+          source: string
+          source_note: string | null
           updated_at: string
         }
         Insert: {
@@ -1661,9 +1830,12 @@ export type Database = {
           employee_id: string
           hours: number
           id?: string
+          imported_at?: string | null
           note?: string | null
           period_id: string
           recorded_by?: string | null
+          source?: string
+          source_note?: string | null
           updated_at?: string
         }
         Update: {
@@ -1671,9 +1843,12 @@ export type Database = {
           employee_id?: string
           hours?: number
           id?: string
+          imported_at?: string | null
           note?: string | null
           period_id?: string
           recorded_by?: string | null
+          source?: string
+          source_note?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3459,6 +3634,7 @@ export type Database = {
       shift_patterns: {
         Row: {
           active: boolean
+          break_minutes: number
           created_at: string
           days: number[]
           ends_at: string | null
@@ -3468,6 +3644,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          break_minutes?: number
           created_at?: string
           days: number[]
           ends_at?: string | null
@@ -3477,6 +3654,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          break_minutes?: number
           created_at?: string
           days?: number[]
           ends_at?: string | null

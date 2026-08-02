@@ -59,6 +59,13 @@ export type Action =
   | "workforce.manage"
   | "quality.validate"
   | "quality.close"
+  // Production Headcount
+  | "headcount.view"
+  | "headcount.manage"
+  | "attendance.manage"
+  | "downtime.adjust"
+  | "reports.export"
+
   // Preventive Maintenance
   | "pm.view"
   | "pm.manage"
@@ -163,6 +170,13 @@ const MATRIX: Record<Action, Role[]> = {
   "quality.validate": ["admin", "quality_supervisor"],
   "quality.close": ["admin", "manager", "maintenance_manager"],
 
+  // Production Headcount (Day/Night allocation board).
+  "headcount.view": [...ALL, "warehouse", "quality_supervisor", "production_office_admin"],
+  "headcount.manage": ["admin", "manager", "supervisor", "planner", "production_office_admin"],
+  "attendance.manage": ["admin", "manager", "supervisor", "planner"],
+  "downtime.adjust": ["admin", "manager", "supervisor", "maintenance_manager", "engineer", "co_engineer"],
+  "reports.export": ["admin", "manager", "supervisor", "planner"],
+
   "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"],
   "pm.manage": ["admin", "manager", "maintenance_manager", "production_office_admin"],
 
@@ -171,8 +185,9 @@ const MATRIX: Record<Action, Role[]> = {
   "leaders.view": ["admin", "manager", "supervisor", "production_office_admin"],
   "leaders.manage": ["admin", "manager", "production_office_admin"],
 
-  "chat.line": [],
+  "chat.line": [...ALL.filter((r) => r !== "viewer"), "warehouse", "quality_supervisor", "production_office_admin"],
   "chat.dm": ["admin", "manager", "supervisor", "operator"],
+
 
   "notifications.view": [...ALL, "quality_supervisor", "production_office_admin"],
   "notifications.manage": ["admin", "manager"],
@@ -326,7 +341,8 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "planner", label: "Planner & SKU", actions: ["planner.view", "sku.view", "sku.manage"] },
   { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
   { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
-  { key: "workforce", label: "Workforce & Overtime", actions: ["workforce.view", "workforce.manage"] },
+  { key: "workforce", label: "Workforce & Overtime", actions: ["workforce.view", "workforce.manage", "attendance.manage"] },
+  { key: "headcount", label: "Production Headcount", actions: ["headcount.view", "headcount.manage"] },
   { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage", "quality.validate", "quality.close"] },
   { key: "pm", label: "Preventive Maint.", actions: ["pm.view", "pm.manage"] },
   { key: "eng", label: "Engineers & Leaders", actions: ["engineers.view", "engineers.manage", "leaders.view", "leaders.manage"] },
@@ -336,7 +352,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "cc", label: "Control Center", actions: ["controlcenter.view", "assets.manage"] },
   { key: "dash", label: "Dashboards", actions: ["dashboard.executive", "dashboard.manager", "dashboard.engineer", "dashboard.operator"] },
   { key: "users", label: "Users & Audit", actions: ["users.view", "users.manage", "audit.view"] },
-  { key: "reports", label: "Reports", actions: ["reports.analytics", "reliability.view", "suppliers.view"] },
+  { key: "reports", label: "Reports", actions: ["reports.analytics", "reports.export", "reliability.view", "suppliers.view"] },
   { key: "system", label: "System", actions: ["system.clear", "system.settings", "permissions.manage"] },
 ];
 
@@ -355,6 +371,11 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "wo.print": "Print or export Maintenance Orders to PDF.",
   "downtime.view": "See downtime events and history.",
   "downtime.manage": "Create, edit and close downtime events.",
+  "downtime.adjust": "Adjust downtime records (exclusions, corrections).",
+  "headcount.view": "See the daily Production Headcount board (Day / Night).",
+  "headcount.manage": "Allocate people to areas and record absence, holidays and overtime.",
+  "attendance.manage": "Record attendance for the shift.",
+  "reports.export": "Export reports to CSV / Excel / PDF.",
   "machines.view": "Browse the machines registry.",
   "machines.manage": "Add, edit or archive machines.",
   "problems.view": "See the catalogue of standard problems.",
