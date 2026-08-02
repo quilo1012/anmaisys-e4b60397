@@ -197,15 +197,26 @@ export function useMoveEmployee() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      employee, toLineId, fromLineName, toLineName, movedBy, onDate,
+      employee, toLineId, fromLineName, toLineName, movedBy, onDate, keepStatus,
     }: {
       employee: Employee; toLineId: string | null; onDate: string;
       fromLineName: string | null; toLineName: string | null; movedBy?: string | null;
+      /** Whatever the day already said, so placing somebody does not overwrite it. */
+      keepStatus?: AttendanceStatus | null;
     }) => {
+      // Present only when nothing had been said yet. Putting somebody on a line is
+      // saying where they are, not that they turned up — and somebody already marked
+      // Holiday who gets dragged onto a line should stay on holiday until a person
+      // decides otherwise, rather than being quietly marked in.
       const { error } = await db
         .from("employee_attendance")
         .upsert(
-          { employee_id: employee.id, on_date: onDate, headcount_area_id: toLineId, status: "present" },
+          {
+            employee_id: employee.id,
+            on_date: onDate,
+            headcount_area_id: toLineId,
+            status: keepStatus ?? "present",
+          },
           { onConflict: "employee_id,on_date" },
         );
       if (error) throw error;
@@ -321,9 +332,9 @@ export function useChangeShift() {
  * Add somebody to the list.
  *
  * Deliberately few fields. A name and a shift is enough to put a person on the board
- * this morning; the payroll number, the rota and the start date are things HR fills
- * in later from a record that exists, and asking for them here would either hold up
- * the board or invite somebody to type a plausible guess into a payroll field.
+ * this morning; the rota and the start date are things HR fills in later from a
+ * record that exists, and asking for them here would either hold up the board or
+ * invite somebody to type a plausible guess into a payroll field.
  */
 export function useCreateEmployee() {
   const qc = useQueryClient();
@@ -333,9 +344,12 @@ export function useCreateEmployee() {
       shift_group: string | null;
       department: string | null;
       headcount_area_id: string | null;
-      employee_ref: string | null;
       started_on: string | null;
     }) => {
+      // No employee_ref. The E-numbers came from the payroll list and belong to it;
+      // a number typed here is a key invented to match another system, and a wrong
+      // one is worse than none — it would look like a match and join to the wrong
+      // person the first time TimeMoto is imported.
       const { data, error } = await db
         .from("employees")
         .insert({ ...input, active: true, source: "manual" })

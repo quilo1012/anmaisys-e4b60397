@@ -40,7 +40,6 @@ export function EmployeeDetailPanel({
 
   const [department, setDepartment] = useState("");
   const [patternId, setPatternId] = useState<string>("__none__");
-  const [ref, setRef] = useState("");
   const [startedOn, setStartedOn] = useState("");
   const [leftOn, setLeftOn] = useState(() => new Date().toISOString().slice(0, 10));
 
@@ -49,12 +48,11 @@ export function EmployeeDetailPanel({
   useEffect(() => {
     setDepartment(employee?.department ?? "");
     setPatternId(employee?.shift_pattern_id ?? "__none__");
-    setRef(employee?.employee_ref ?? "");
     setStartedOn(employee?.started_on ?? "");
     setLeftOn(employee?.left_on ?? new Date().toISOString().slice(0, 10));
   }, [
     employee?.id, employee?.department, employee?.shift_pattern_id,
-    employee?.employee_ref, employee?.started_on, employee?.left_on,
+    employee?.started_on, employee?.left_on,
   ]);
 
   if (!employee) return null;
@@ -62,7 +60,6 @@ export function EmployeeDetailPanel({
   const dirty =
     department !== (employee.department ?? "") ||
     patternId !== (employee.shift_pattern_id ?? "__none__") ||
-    ref !== (employee.employee_ref ?? "") ||
     startedOn !== (employee.started_on ?? "");
 
   const startsAfterLeaving =
@@ -75,7 +72,6 @@ export function EmployeeDetailPanel({
         patch: {
           department: department.trim() || null,
           shift_pattern_id: patternId === "__none__" ? null : patternId,
-          employee_ref: ref.trim() || null,
           // Empty clears it back to null. A blank start date means nobody recorded
           // one, which is the truth for the fifty imported rows.
           started_on: startedOn || null,
@@ -225,22 +221,6 @@ export function EmployeeDetailPanel({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div>
-              <Label className="text-xs" htmlFor="wf-ref">Payroll number</Label>
-              <Input
-                id="wf-ref"
-                value={ref}
-                disabled={!canEdit}
-                placeholder="Not set"
-                onChange={(e) => setRef(e.target.value)}
-                className="font-mono text-sm"
-              />
-              {/* Said plainly, because the import deliberately left this blank rather
-                  than inventing a key that matches nothing in payroll. */}
-              <p className="mt-1 text-2xs text-muted-foreground">
-                Blank on every imported row — the source files carry no employee number.
-              </p>
             </div>
             {employee.notes && (
               <p className="rounded border bg-muted/30 p-2 text-xs text-muted-foreground">{employee.notes}</p>

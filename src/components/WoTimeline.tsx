@@ -60,8 +60,30 @@ export function WoTimeline({ workOrderId }: Props) {
 
   if (isLoading || !m) return null;
 
+  /**
+   * The first stoppage, which is the milestone the rest of the order hangs off.
+   *
+   * `work_orders.line_stopped_at` is null on 260 of the 349 orders — the stop is
+   * recorded as a downtime event and the column on the order was never written, so
+   * this row read "not yet" about a line that had demonstrably stopped, on a screen
+   * that showed the stop three sections further down.
+   *
+   * The event is the better source anyway: it carries the reason, and the reason is
+   * the first thing anybody opening a work order wants.
+   */
+  const firstStop = stoppages.find((d) => !d.is_recurrence) ?? stoppages[0] ?? null;
+  const stoppedDetail = firstStop
+    ? [firstStop.stopped_reason || "no reason recorded", firstStop.stopped_by_name]
+        .filter(Boolean)
+        .join(" · ")
+    : undefined;
+
   const steps: Step[] = [
-    { label: "Line stopped", ts: m.line_stopped_at },
+    {
+      label: "Line stopped",
+      ts: m.line_stopped_at ?? firstStop?.stopped_at ?? null,
+      detail: stoppedDetail,
+    },
     { label: "WO created", ts: m.created_at, metricLabel: "Reporting Delay", metricSec: m.reporting_delay_sec },
     { label: "Engineer accepted", ts: m.accepted_at, metricLabel: "Response Time", metricSec: m.response_time_sec },
     { label: "Engineer arrived", ts: m.arrived_at, metricLabel: "Travel Time", metricSec: m.travel_time_sec },

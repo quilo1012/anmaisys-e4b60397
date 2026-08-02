@@ -16,10 +16,12 @@ const SHIFT_GROUPS = ["Day", "Night", "Weekend", "Warehouse Day", "Warehouse Wee
  * Add somebody who started this morning.
  *
  * Name and shift are the only things required, because they are the only things
- * somebody standing on the floor reliably knows. The payroll number and the start
- * date are optional and left blank rather than defaulted: a made-up employee number
- * matches nothing in payroll, and today's date as a start date is a guess that will
- * be believed later.
+ * somebody standing on the floor reliably knows. The start date is left blank rather
+ * than defaulted to today: today's date is a guess that gets believed later.
+ *
+ * No payroll number here. The E-numbers came from the payroll list and belong to it;
+ * typing one on this screen would be inventing a key that has to match another
+ * system, and a wrong one is worse than none. HR fills it in from the record.
  */
 export function AddEmployeeDialog() {
   const [open, setOpen] = useState(false);
@@ -27,7 +29,6 @@ export function AddEmployeeDialog() {
   const [shift, setShift] = useState("Day");
   const [area, setArea] = useState("__none__");
   const [department, setDepartment] = useState("");
-  const [ref, setRef] = useState("");
   const [startedOn, setStartedOn] = useState("");
 
   const { data: areas } = useHeadcountAreas();
@@ -37,7 +38,7 @@ export function AddEmployeeDialog() {
 
   const reset = () => {
     setName(""); setShift("Day"); setArea("__none__");
-    setDepartment(""); setRef(""); setStartedOn("");
+    setDepartment(""); setStartedOn("");
   };
 
   const submit = () => {
@@ -47,7 +48,6 @@ export function AddEmployeeDialog() {
         shift_group: shift,
         department: department.trim() || null,
         headcount_area_id: area === "__none__" ? null : area,
-        employee_ref: ref.trim() || null,
         started_on: startedOn || null,
       },
       {
@@ -56,16 +56,7 @@ export function AddEmployeeDialog() {
           reset();
           setOpen(false);
         },
-        onError: (e) => {
-          const msg = (e as Error).message || "Could not add";
-          // The payroll number is unique in the database, and a clash here almost
-          // always means the person is already on the list under another spelling.
-          toast.error(
-            /duplicate key|unique/i.test(msg)
-              ? `Payroll number ${ref.trim()} already belongs to somebody on the list`
-              : msg,
-          );
-        },
+        onError: (e) => toast.error((e as Error).message || "Could not add"),
       },
     );
   };
@@ -127,11 +118,6 @@ export function AddEmployeeDialog() {
               <Label className="text-xs" htmlFor="ae-dept">Department</Label>
               <Input id="ae-dept" value={department} placeholder="Optional"
                      onChange={(e) => setDepartment(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-xs" htmlFor="ae-ref">Payroll number</Label>
-              <Input id="ae-ref" value={ref} placeholder="Optional" className="font-mono"
-                     onChange={(e) => setRef(e.target.value)} />
             </div>
           </div>
 
