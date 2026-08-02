@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { GripVertical, UserCheck, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { roleStripe } from "@/lib/workforceRoles";
+import { roleStripe, type RoleStripe } from "@/lib/workforceRoles";
 import {
   useHeadcountAreas, useMoveEmployee, useSetAttendance, describeDays, worksOn,
   useShiftHistory, useShiftPatterns, resolveShiftOn,
@@ -63,18 +63,11 @@ function EmployeeCard({
     <div
       ref={setNodeRef}
       className={cn(
-        "relative overflow-hidden rounded-md border bg-card py-1 pr-1.5 text-left",
-        role ? "pl-2.5" : "pl-1.5",
+        "rounded-md border bg-card px-1.5 py-1 text-left",
         (isDragging || dragging) && "opacity-50",
         status === "absent" && "border-destructive/40",
       )}
     >
-      {role && (
-        <span
-          aria-hidden="true"
-          className={cn("absolute inset-y-0 left-0 w-1", role.cls)}
-        />
-      )}
       {/* One line per person. Department and shift pattern moved to the tooltip and
           the detail panel: on a board of 68 cards, "Department to confirm" repeated
           138 times is not information, it is noise with a scrollbar. */}
@@ -89,6 +82,19 @@ function EmployeeCard({
           >
             <GripVertical className="h-3.5 w-3.5" />
           </button>
+        )}
+        {/* The role rides on the name, the way a label does on a Trello card: the
+            colour and the three letters carry it, and the full title is on hover. */}
+        {role && (
+          <span
+            title={role.label}
+            className={cn(
+              "shrink-0 rounded-sm px-1 py-px text-[9px] font-bold uppercase leading-tight tracking-wide",
+              role.cls,
+            )}
+          >
+            {role.short}
+          </span>
         )}
         {/* The name opens the detail panel; the grip drags. Two targets, so a tap on
             a tablet never has to guess which one was meant. */}
@@ -323,10 +329,10 @@ export function HeadcountBoard({
    * nights", not "the counters are wrong".
    */
   const rolesPresent = useMemo(() => {
-    const seen = new Map<string, { label: string; cls: string }>();
+    const seen = new Map<string, RoleStripe>();
     for (const e of scheduled) {
       const r = roleStripe(e.department);
-      if (r) seen.set(r.label, { label: r.label, cls: r.cls });
+      if (r) seen.set(r.label, r);
     }
     return Array.from(seen.values());
   }, [scheduled]);
@@ -478,7 +484,9 @@ export function HeadcountBoard({
           <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
             {rolesPresent.map((r) => (
               <span key={r.label} className="flex items-center gap-1.5">
-                <span className={cn("h-2.5 w-1 rounded-sm", r.cls)} />
+                <span className={cn("rounded-sm px-1 py-px text-[9px] font-bold uppercase leading-tight", r.cls)}>
+                  {r.short}
+                </span>
                 {r.label}
               </span>
             ))}
