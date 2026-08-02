@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Printer, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon } from "lucide-react";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { ChevronLeft, ChevronRight, Printer, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +19,7 @@ import {
   useAllocations,
   useAllocationMutations,
   useChangeShift,
+  useReorderAreas,
   type AllocStatus,
   type HeadcountArea,
   type HeadcountEmployee,
@@ -147,6 +151,37 @@ function Chip({
   );
 }
 
+/**
+ * A column that can be picked up by its grip.
+ *
+ * The grip is a separate target on purpose: the heading itself opens the search, and
+ * a header that both opens a dialog and starts a drag would do the wrong one about
+ * half the time on a tablet.
+ */
+function SortableColumn({ id, children }: { id: string; children: (grip: React.ReactNode) => React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(isDragging && "z-10 opacity-70")}
+    >
+      {children(
+        <button
+          type="button"
+          aria-label="Reorder column"
+          className="-ml-0.5 shrink-0 cursor-grab touch-none text-muted-foreground/50 hover:text-foreground active:cursor-grabbing no-print"
+          onClick={(e) => e.stopPropagation()}
+          {...listeners}
+          {...attributes}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>,
+      )}
+    </div>
+  );
+}
+
 function DropZone({
   children,
   onDrop,
@@ -219,6 +254,9 @@ function ShiftBoard({
   const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const changeShift = useChangeShift(onDate);
+  const reorder = useReorderAreas();
+  // A little distance first, so a tap on the heading is not read as a drag.
+  const columnSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const { data: allocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
   const { place, remove, copyLastLikeDay, setLeader } = useAllocationMutations(onDate, shift);
 
@@ -363,12 +401,27 @@ function ShiftBoard({
         return (
         <div key={kind}>
         <SectionLabel>{kind === "production" ? "Production" : "Support"}</SectionLabel>
+        <DndContext
+          sensors={columnSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={(e: DragEndEvent) => {
+            const { active, over } = e;
+            if (!over || active.id === over.id) return;
+            const ids = ofKind.map((a) => a.id);
+            const moved = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)));
+            // Renumbered in tens, leaving room to slide something in later without
+            // rewriting the whole section.
+            reorder.mutate(moved.map((id, i) => ({ id, sort_order: (i + 1) * 10 + (kind === "support" ? 1000 : 0) })));
+          }}
+        >
+        <SortableContext items={ofKind.map((a) => a.id)} strategy={rectSortingStrategy}>
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))" }}>
         {ofKind.map((area) => {
           const people = peopleIn(area.id);
           return (
+            <SortableColumn key={area.id} id={area.id}>
+            {(grip) => (
             <DropZone
-              key={area.id}
               disabled={!canManage}
               onDrop={() => handleDrop({ areaId: area.id, status: "assigned" })(readDrag() ?? "")}
             >
@@ -378,6 +431,7 @@ function ShiftBoard({
                   onClick={canManage ? () => setPicking({ id: area.id, name: area.name }) : undefined}
                   title={canManage ? `Add or remove people on ${area.name}` : undefined}
                 >
+                  {canManage && grip}
                   <CardTitle className="truncate text-xs font-bold">{area.name}</CardTitle>
                   <span className={cn(
                     "grid h-5 min-w-[1.5rem] shrink-0 place-items-center rounded-full border bg-background px-1.5 font-mono text-xs font-bold",
@@ -408,9 +462,13 @@ function ShiftBoard({
                 </CardContent>
               </Card>
             </DropZone>
+            )}
+            </SortableColumn>
           );
         })}
         </div>
+        </SortableContext>
+        </DndContext>
         </div>
         );
       })}

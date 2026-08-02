@@ -327,3 +327,28 @@ export function useChangeShift(onDate: string) {
     onError: (e: Error) => toast.error(e.message ?? "Could not change the shift"),
   });
 }
+
+/**
+ * Save the order the columns are shown in.
+ *
+ * `sort_order` already decided the order — it was just nobody's to change without a
+ * SQL client. The order is a property of the area, not of a person or a day, so
+ * moving Line 2 sticks for everyone and for every date; that is the point, because
+ * the board is meant to read like the sheet the factory already has.
+ */
+export function useReorderAreas() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ordered: { id: string; sort_order: number }[]) => {
+      for (const a of ordered) {
+        const { error } = await supabase
+          .from("headcount_areas")
+          .update({ sort_order: a.sort_order })
+          .eq("id", a.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["headcount-areas"] }),
+    onError: (e: Error) => toast.error(e.message ?? "Could not save the new order"),
+  });
+}
