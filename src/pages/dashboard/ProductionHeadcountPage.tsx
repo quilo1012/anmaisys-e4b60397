@@ -42,6 +42,22 @@ function dayTypeLabel(iso: string) {
   return "Weekday";
 }
 
+/**
+ * Rótulo de secção com a linha a atravessar o resto da largura.
+ *
+ * Produção e apoio lêem-se de maneira diferente — um é a linha a andar, o outro é
+ * quem a mantém a andar — e numa grelha só o Office ficava entre a Line 3 e a Line 4
+ * como se fosse a linha seguinte.
+ */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-2 mt-4 flex items-center gap-2 text-2xs font-extrabold uppercase tracking-widest text-muted-foreground first:mt-0">
+      {children}
+      <span className="h-px flex-1 bg-border" />
+    </div>
+  );
+}
+
 /** Duas letras, para o quadrado que fica antes do nome. */
 function iniciais(nome: string) {
   const p = nome.trim().split(/\s+/);
@@ -60,14 +76,27 @@ const LOOK: Record<string, { icon: typeof Sun; faixa: string; suave: string; tin
   Night: { icon: Moon, faixa: "from-indigo-900 to-indigo-500", suave: "bg-indigo-500/10", tinta: "text-indigo-700 dark:text-indigo-300" },
 };
 
+/**
+ * O líder da linha, destacado.
+ *
+ * Um supervisor a percorrer uma coluna quer saber que ela tem líder antes de querer
+ * o nome de alguém. Sai do `department`, que foi escrito à mão ao longo de meses —
+ * daí ser um padrão e não uma lista exacta.
+ */
+function ehLider(departamento: string | null | undefined) {
+  return !!departamento && /team\s*lead|supervisor/i.test(departamento);
+}
+
 function Chip({
   name,
   tone,
+  lider,
   draggable,
   onDragStart,
 }: {
   name: string;
   tone: "production" | "support" | "away" | "overtime" | "roster";
+  lider?: boolean;
   draggable: boolean;
   onDragStart: (e: React.DragEvent) => void;
 }) {
@@ -84,12 +113,15 @@ function Chip({
       onDragStart={onDragStart}
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-lg border px-1.5 py-1 text-xs font-medium",
-        tones[tone],
+        lider ? "border-primary/40 bg-primary/10 font-semibold" : tones[tone],
         draggable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
       )}
       title={name}
     >
-      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-background/70 text-[9px] font-bold leading-none text-muted-foreground">
+      <span className={cn(
+        "grid h-5 w-5 shrink-0 place-items-center rounded-md text-[9px] font-bold leading-none",
+        lider ? "bg-[hsl(215_60%_18%)] text-white" : "bg-background/70 text-muted-foreground",
+      )}>
         {iniciais(name)}
       </span>
       <span className="truncate">{name}</span>
@@ -137,16 +169,16 @@ function DropZone({
  * estão em produção" é a pergunta, os outros quatro são a decomposição dela.
  */
 function KpiPill({
-  icon: Icon, label, value, tone, destaque,
+  icon: Icon, label, value, tone, destaque, cor,
 }: {
   icon: React.ComponentType<{ className?: string }>;
-  label: string; value: number; tone: string; destaque?: boolean;
+  label: string; value: number; tone: string; destaque?: boolean; cor?: string;
 }) {
   return (
     <div className={cn("rounded-xl border px-3 py-2.5 shadow-sm", destaque ? cn(tone, "border-transparent") : "bg-card")}>
       <div className="flex items-center gap-1.5">
         <Icon className={cn("h-3.5 w-3.5 shrink-0", destaque ? "" : "text-muted-foreground")} />
-        <span className={cn("font-mono text-2xl font-bold leading-none tabular-nums", destaque ? "" : "")}>{value}</span>
+        <span className={cn("font-mono text-2xl font-bold leading-none tabular-nums", cor)}>{value}</span>
       </div>
       <div className="mt-1.5 truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
     </div>
@@ -249,12 +281,18 @@ function ShiftBoard({
         <KpiPill icon={Users} label="Total staff in production" value={assignedCount} tone={cn(look.suave, look.tinta)} destaque />
         <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
         <KpiPill icon={Wrench} label="Support" value={support} tone="" />
-        <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" />
-        <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" />
+        <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" cor={away ? "text-warning-strong" : ""} />
+        <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" cor={overtime ? "text-violet-600 dark:text-violet-400" : ""} />
       </div>
 
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(11.5rem,1fr))" }}>
-        {areas.map((area) => {
+      {(["production", "support"] as const).map((kind) => {
+        const doTipo = areas.filter((a) => a.kind === kind);
+        if (doTipo.length === 0) return null;
+        return (
+        <div key={kind}>
+        <SectionLabel>{kind === "production" ? "Production" : "Support"}</SectionLabel>
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))" }}>
+        {doTipo.map((area) => {
           const people = peopleIn(area.id);
           return (
             <DropZone
@@ -278,6 +316,7 @@ function ShiftBoard({
                       <Chip
                         key={p.id}
                         name={p.full_name}
+                        lider={ehLider(p.department)}
                         tone={area.kind === "production" ? "production" : "support"}
                         draggable={canManage}
                         onDragStart={(e) => {
@@ -293,9 +332,13 @@ function ShiftBoard({
             </DropZone>
           );
         })}
-      </div>
+        </div>
+        </div>
+        );
+      })}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <SectionLabel>Away &amp; overtime</SectionLabel>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))" }}>
         {AWAY_BLOCKS.map((block) => {
           const people = peopleWith(block.status);
           return (
