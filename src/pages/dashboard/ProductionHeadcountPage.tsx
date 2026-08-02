@@ -301,7 +301,7 @@ function ShiftBoard({
                   tone="roster"
                   draggable={canManage}
                   onDragStart={(e) => {
-                    window.__anDragEmployee = p.id;
+                    draggedEmployeeId = p.id;
                     dragStart(e, p.id);
                   }}
                 />
