@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { GripVertical, UserCheck, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { roleStripe } from "@/lib/workforceRoles";
 import {
   useHeadcountAreas, useMoveEmployee, useSetAttendance, describeDays, worksOn,
+  useShiftHistory, useShiftPatterns, resolveShiftOn,
   type Attendance, type AttendanceStatus, type Employee, type ShiftPattern,
 } from "@/hooks/useWorkforce";
 
@@ -55,16 +57,24 @@ function EmployeeCard({
     id: employee.id, disabled: !canEdit,
   });
   const status = attendance?.status;
+  const role = roleStripe(employee.department);
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "rounded-md border bg-card px-1.5 py-1 text-left",
+        "relative overflow-hidden rounded-md border bg-card py-1 pr-1.5 text-left",
+        role ? "pl-2.5" : "pl-1.5",
         (isDragging || dragging) && "opacity-50",
         status === "absent" && "border-destructive/40",
       )}
     >
+      {role && (
+        <span
+          aria-hidden="true"
+          className={cn("absolute inset-y-0 left-0 w-1", role.cls)}
+        />
+      )}
       {/* One line per person. Department and shift pattern moved to the tooltip and
           the detail panel: on a board of 68 cards, "Department to confirm" repeated
           138 times is not information, it is noise with a scrollbar. */}
@@ -85,7 +95,7 @@ function EmployeeCard({
         <button
           type="button"
           onClick={onSelect}
-          title={[employee.full_name, employee.department, employee.pattern ? describeDays(employee.pattern.days) : "No shift pattern"]
+          title={[employee.full_name, role?.label ?? employee.department, employee.pattern ? describeDays(employee.pattern.days) : "No shift pattern"]
             .filter(Boolean)
             .join(" · ")}
           className="min-w-0 flex-1 truncate text-left text-xs font-medium hover:underline"
@@ -210,6 +220,8 @@ export function HeadcountBoard({
   onSelect?: (employeeId: string) => void;
 }) {
   const { data: areas } = useHeadcountAreas();
+  const { data: history } = useShiftHistory();
+  const { data: allPatterns } = useShiftPatterns();
   const move = useMoveEmployee();
   const setAttendance = useSetAttendance(onDate.toISOString().slice(0, 10));
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -228,12 +240,28 @@ export function HeadcountBoard({
     [attendance],
   );
 
+  /**
+   * The shift and rota each person held on the day being shown, not the one they hold
+   * now. Somebody moved from nights to days in August was on nights in July, and the
+   * July board has to keep saying so.
+   */
+  const positionOn = useMemo(() => {
+    const key = onDate.toISOString().slice(0, 10);
+    return (e: BoardEmployee) => resolveShiftOn(history, e, key);
+  }, [history, onDate]);
+
   const scheduled = useMemo(
     () =>
-      employees.filter(
-        (e) => e.active && e.shift_group === shift && (showAll || !e.pattern || worksOn(e.pattern.days, onDate)),
-      ),
-    [employees, onDate, showAll, shift],
+      employees.filter((e) => {
+        if (!e.active) return false;
+        const pos = positionOn(e);
+        if (pos.shift_group !== shift) return false;
+        const pattern = pos.shift_pattern_id === e.shift_pattern_id
+          ? e.pattern
+          : (allPatterns ?? []).find((p) => p.id === pos.shift_pattern_id) ?? null;
+        return showAll || !pattern || worksOn(pattern.days, onDate);
+      }),
+    [employees, onDate, showAll, shift, positionOn, allPatterns],
   );
 
   // Counted before the shift filter, so the tabs keep their numbers when one is
@@ -294,6 +322,15 @@ export function HeadcountBoard({
    * says which rota and which weekday, so the answer is "nobody works Sunday
    * nights", not "the counters are wrong".
    */
+  const rolesPresent = useMemo(() => {
+    const seen = new Map<string, { label: string; cls: string }>();
+    for (const e of scheduled) {
+      const r = roleStripe(e.department);
+      if (r) seen.set(r.label, { label: r.label, cls: r.cls });
+    }
+    return Array.from(seen.values());
+  }, [scheduled]);
+
   /** The shifts that exist on people but are deliberately not planned on this board. */
   const offBoard = useMemo(() => {
     const planned = new Set<string>(BOARD_SHIFTS);
@@ -435,6 +472,18 @@ export function HeadcountBoard({
         </div>
       </CardHeader>
       <CardContent>
+        {/* Only the roles actually on this shift. A key listing seven colours when
+            four are on screen sends somebody hunting for people who are not there. */}
+        {rolesPresent.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
+            {rolesPresent.map((r) => (
+              <span key={r.label} className="flex items-center gap-1.5">
+                <span className={cn("h-2.5 w-1 rounded-sm", r.cls)} />
+                {r.label}
+              </span>
+            ))}
+          </div>
+        )}
         {emptyReason && (
           <div className="mb-3 rounded-lg border border-dashed bg-muted/30 p-3 text-sm">
             <p className="font-medium">{emptyReason}</p>
