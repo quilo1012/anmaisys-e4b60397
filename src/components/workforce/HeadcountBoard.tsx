@@ -255,29 +255,47 @@ export function HeadcountBoard({
    * yet is not the same as somebody being in, and it is not an absence either.
    */
   const shiftTotals = useMemo(() => {
-    const byId = new Map((attendance ?? []).map((a) => [a.employee_id, a.status]));
+    const byId = new Map((attendance ?? []).map((a) => [a.employee_id, a]));
     const n = (...want: AttendanceStatus[]) =>
-      scheduled.filter((e) => want.includes(byId.get(e.id) as AttendanceStatus)).length;
+      scheduled.filter((e) => want.includes(byId.get(e.id)?.status as AttendanceStatus)).length;
     return {
       onShift: scheduled.length,
       present: n("present"),
       away: n("absent", "sick", "unpaid"),
       holiday: n("holiday"),
       unmarked: scheduled.filter((e) => !byId.has(e.id)).length,
-      placed: scheduled.filter((e) => e.headcount_area_id).length,
+      // Counted the way the columns are: the day's allocation, falling back to where
+      // they usually are. Counting only the employee default would report people as
+      // placed on a day somebody had explicitly taken them off a line.
+      placed: scheduled.filter(
+        (e) => (byId.get(e.id)?.headcount_area_id ?? e.headcount_area_id) != null,
+      ).length,
     };
   }, [scheduled, attendance]);
+
+  /**
+   * Where somebody is on the day being shown.
+   *
+   * The day's own allocation wins. The employee's area is only a default — where they
+   * usually are — and it seeds a day nobody has touched yet so the board opens
+   * pre-filled instead of empty every morning. Reading the default as though it were
+   * the day's record is what made moving somebody on Tuesday rewrite Monday.
+   */
+  const areaOn = useMemo(() => {
+    const byId = new Map((attendance ?? []).map((a) => [a.employee_id, a]));
+    return (e: BoardEmployee) => byId.get(e.id)?.headcount_area_id ?? e.headcount_area_id ?? null;
+  }, [attendance]);
 
   const columns = useMemo(() => {
     const byLine = new Map<string, BoardEmployee[]>();
     byLine.set(UNPLACED, []);
     for (const a of areas ?? []) byLine.set(a.id, []);
     for (const e of scheduled) {
-      const key = e.headcount_area_id && byLine.has(e.headcount_area_id) ? e.headcount_area_id : UNPLACED;
-      byLine.get(key)!.push(e);
+      const area = areaOn(e);
+      byLine.get(area && byLine.has(area) ? area : UNPLACED)!.push(e);
     }
     return byLine;
-  }, [scheduled, areas]);
+  }, [scheduled, areas, areaOn]);
 
   const cycleStatus = (employeeId: string) => {
     const order: AttendanceStatus[] = ["present", "absent", "sick", "holiday", "unpaid", "training"];
@@ -296,13 +314,15 @@ export function HeadcountBoard({
     const employee = employees.find((e) => e.id === employeeId);
     if (!employee) return;
     const toLineId = target === UNPLACED ? null : target;
-    if ((employee.headcount_area_id ?? null) === toLineId) return;
+    const wasOn = areaOn(employee as BoardEmployee);
+    if (wasOn === toLineId) return;
     const nameOf = (id: string | null) => (id ? areas?.find((a) => a.id === id)?.name ?? null : null);
     move.mutate(
       {
         employee,
         toLineId,
-        fromLineName: nameOf(employee.headcount_area_id),
+        onDate: onDate.toISOString().slice(0, 10),
+        fromLineName: nameOf(wasOn),
         toLineName: nameOf(toLineId),
         movedBy: userId ?? null,
       },
