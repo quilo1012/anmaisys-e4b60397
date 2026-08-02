@@ -275,13 +275,22 @@ function ShiftBoard({
   const handleDrop = (target: { areaId: string | null; status: AllocStatus } | "roster") => (employeeId: string) => {
     if (!employeeId) return;
     if (target === "roster") { remove.mutate(employeeId); return; }
-    // Marking somebody overtime says *how* their day counts, not where they are, so it
-    // keeps the area they are already on. Dropping onto Absence or Holidays does clear
-    // it: they are not on a line that day.
+    const current = byEmployee.get(employeeId);
+
+    // Overtime says *how* the day counts; the area says *where* they are. They are
+    // two answers, and moving somebody between lines only changes the second — so an
+    // overtime person dragged onto Line 2 stays overtime and simply moves. Before,
+    // every area drop wrote "assigned" and quietly cancelled the overtime.
+    const status: AllocStatus =
+      target.status === "assigned" && current?.status === "overtime" ? "overtime" : target.status;
+
+    // Marking somebody overtime from the Overtime card keeps the area they are on,
+    // for the same reason. Absence and holiday do clear it: they are not at a place.
     const areaId = target.status === "overtime"
-      ? target.areaId ?? byEmployee.get(employeeId)?.area_id ?? null
+      ? target.areaId ?? current?.area_id ?? null
       : target.areaId;
-    place.mutate({ employeeId, areaId, status: target.status });
+
+    place.mutate({ employeeId, areaId, status });
   };
 
   const look = LOOK[shift] ?? LOOK.Day;
@@ -399,8 +408,15 @@ function ShiftBoard({
             };
           })}
           onToggle={(person, toAreaId) => {
-            if (toAreaId) place.mutate({ employeeId: person.id, areaId: toAreaId, status: "assigned" });
-            else remove.mutate(person.id);
+            if (!toAreaId) { remove.mutate(person.id); return; }
+            // Same rule as the drag: placing somebody who is on overtime moves them,
+            // it does not take the overtime off them.
+            const wasOvertime = byEmployee.get(person.id)?.status === "overtime";
+            place.mutate({
+              employeeId: person.id,
+              areaId: toAreaId,
+              status: wasOvertime ? "overtime" : "assigned",
+            });
           }}
         />
       )}
