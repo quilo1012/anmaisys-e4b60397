@@ -24,8 +24,14 @@ import { EmployeeDetailPanel } from "@/components/workforce/EmployeeDetailPanel"
 import { MonthlySummary } from "@/components/workforce/MonthlySummary";
 import { AddEmployeeDialog } from "@/components/workforce/AddEmployeeDialog";
 import { OvertimePanel } from "@/components/workforce/OvertimePanel";
+import { roleStripe } from "@/lib/workforceRoles";
+import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
+
+/** The columns of the People tab, in the order the factory says them. */
+const NO_SHIFT = "__none__";
+const PEOPLE_COLUMNS = ["Day", "Night", "Warehouse Day", "Weekend", "Warehouse Weekend", NO_SHIFT];
 
 /** Day and Night read at a glance; the weekend crews are quieter on purpose. */
 const SHIFT_BADGE: Record<string, string> = {
@@ -197,6 +203,7 @@ export default function WorkforcePage() {
             <TabsTrigger value="monthly">Attendance by month</TabsTrigger>
             <TabsTrigger value="overtime">Overtime</TabsTrigger>
             <TabsTrigger value="people">People</TabsTrigger>
+            <TabsTrigger value="leavers">Left</TabsTrigger>
           </TabsList>
 
           <TabsContent value="board" className="space-y-4">
@@ -252,125 +259,148 @@ export default function WorkforcePage() {
             />
           </TabsContent>
           <TabsContent value="people" className="space-y-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
                     <CardTitle className="text-base">People ({onTheList.length})</CardTitle>
-                    <div className="flex flex-wrap gap-2 no-print">
-                      {canEdit && <AddEmployeeDialog />}
-                      <Input placeholder="Search name…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 w-48" />
-                      <Select value={dept} onValueChange={setDept}>
-                        <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">All departments</SelectItem>
-                          {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <CardDescription>
+                      Everyone who works here, by the shift they are on. Click a name to open
+                      their record.
+                    </CardDescription>
                   </div>
-                </CardHeader>
-                <CardContent className="overflow-x-auto">
-                  {isLoading ? (
-                    <Skeleton className="h-64" />
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Shift</TableHead>
-                          <TableHead>Department</TableHead>
-                          <TableHead>Works</TableHead>
-                          <TableHead>Source</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {onTheList.length === 0 && (
-                          <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Nobody matches these filters</TableCell></TableRow>
-                        )}
-                        {onTheList.map((r) => (
-                          <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetailId(r.id)}>
-                            <TableCell className="font-medium">{r.full_name}</TableCell>
-                            {/* Day or Night is the first thing anybody wants from this
-                                list, and it is not the same question as which days the
-                                rota covers — the column beside it answers that. */}
-                            <TableCell>
-                              {r.shift_group ? (
-                                <Badge variant="outline" className={SHIFT_BADGE[r.shift_group] ?? "text-2xs"}>
-                                  {r.shift_group}
-                                </Badge>
-                              ) : (
-                                <span className="text-2xs text-muted-foreground">not recorded</span>
+                  <div className="flex flex-wrap gap-2 no-print">
+                    {canEdit && <AddEmployeeDialog />}
+                    <Input placeholder="Search name…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 w-48" />
+                    <Select value={dept} onValueChange={setDept}>
+                      <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">All departments</SelectItem>
+                        {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <Skeleton className="h-64" />
+                ) : (
+                  /* Columns by shift, the way the board is columns by area: the question
+                     asked of this list is almost always "who is on nights", and a flat
+                     table of 180 names made that a sorting exercise. */
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                    {PEOPLE_COLUMNS.map((group) => {
+                      const here = onTheList.filter((r) =>
+                        group === NO_SHIFT ? !r.shift_group : r.shift_group === group,
+                      );
+                      return (
+                        <div key={group} className="flex min-h-[8rem] flex-col rounded-lg border bg-muted/30 p-2 break-inside-avoid">
+                          <div className="mb-1.5 flex items-baseline justify-between gap-2 border-b pb-1">
+                            <span className="truncate text-xs font-bold uppercase tracking-wide">
+                              {group === NO_SHIFT ? "No shift recorded" : group}
+                            </span>
+                            <span
+                              className={cn(
+                                "shrink-0 rounded px-1.5 font-mono text-xs font-bold",
+                                here.length ? "bg-primary/10 text-primary" : "text-muted-foreground/50",
                               )}
-                            </TableCell>
-                            <TableCell className={r.department ? "" : "text-muted-foreground"}>
-                              {r.department ?? "to confirm"}
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              {r.pattern ? (
-                                <span title={r.pattern.name}>{describeDays(r.pattern.days)}</span>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {r.source === "import_overtime" && (
-                                // Provenance on the row, so an imported guess is never
-                                // mistaken for something HR confirmed.
-                                <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-2xs text-warning-strong">
-                                  From overtime sheet
-                                </Badge>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
+                            >
+                              {here.length}
+                            </span>
+                          </div>
+                          <div className="max-h-96 space-y-1 overflow-y-auto print:max-h-none print:overflow-visible">
+                            {here.length === 0 && (
+                              <p className="px-1 py-1 text-2xs italic text-muted-foreground">Nobody here</p>
+                            )}
+                            {here.map((r) => {
+                              const role = roleStripe(r.department);
+                              return (
+                                <button
+                                  key={r.id}
+                                  type="button"
+                                  onClick={() => setDetailId(r.id)}
+                                  title={[r.full_name, r.department, r.pattern ? describeDays(r.pattern.days) : "No rota"].filter(Boolean).join(" · ")}
+                                  className="flex w-full items-center gap-1 rounded-md border bg-card px-1.5 py-1 text-left hover:border-primary"
+                                >
+                                  {role && (
+                                    <span className={cn("shrink-0 rounded-sm px-1 py-px text-[9px] font-bold uppercase leading-tight", role.cls)}>
+                                      {role.short}
+                                    </span>
+                                  )}
+                                  <span className="min-w-0 flex-1 truncate text-xs font-medium">{r.full_name}</span>
+                                  {!r.pattern && (
+                                    <span className="shrink-0 text-[9px] uppercase text-muted-foreground">no rota</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-              {/* Kept, not hidden. They hold attendance and overtime that belongs to
-                  them, and a leaver who is deleted takes a month's figures with them.
-                  Closed by default, because a name on the open list reads as somebody
-                  who might be in tomorrow. */}
-              {leavers.length > 0 && (
-                <details className="rounded-lg border bg-card">
-                  <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium marker:content-none">
-                    Left the company ({leavers.length})
-                    <span className="ml-2 text-2xs font-normal text-muted-foreground">
-                      not counted in headcount · still in the monthly summary and their overtime
-                    </span>
-                  </summary>
-                  <div className="overflow-x-auto border-t px-4 pb-3">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Department</TableHead>
-                          <TableHead>Shift</TableHead>
-                          <TableHead>Left on</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {leavers.map((r) => (
-                          <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetailId(r.id)}>
-                            <TableCell className="font-medium">{r.full_name}</TableCell>
-                            <TableCell className={r.department ? "" : "text-muted-foreground"}>
-                              {r.department ?? "to confirm"}
-                            </TableCell>
-                            <TableCell className="text-xs">{r.shift_group ?? "—"}</TableCell>
-                            <TableCell className="font-mono text-xs tabular-nums">
-                              {r.left_on
-                                ? format(new Date(`${r.left_on}T12:00:00`), "dd/MM/yyyy")
-                                : <span className="font-sans text-muted-foreground">no date recorded</span>}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </details>
-              )}
+          <TabsContent value="leavers">
+            {/* Their own tab. Kept because they hold attendance and an overtime balance
+                that a deletion would take with them, and apart because a leaver beside
+                the active list reads as somebody who might be in tomorrow. */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Left the company ({leavers.length})</CardTitle>
+                <CardDescription>
+                  Not counted in headcount and not on the board. Still counted in the monthly
+                  summary for the days they worked, and their overtime balance is still theirs.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Shift</TableHead>
+                      <TableHead>Department</TableHead>
+                      <TableHead>Left on</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {leavers.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          Nobody has left
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {leavers.map((r) => (
+                      <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetailId(r.id)}>
+                        <TableCell className="font-medium">{r.full_name}</TableCell>
+                        <TableCell>
+                          {r.shift_group ? (
+                            <Badge variant="outline" className={SHIFT_BADGE[r.shift_group] ?? "text-2xs"}>
+                              {r.shift_group}
+                            </Badge>
+                          ) : (
+                            <span className="text-2xs text-muted-foreground">not recorded</span>
+                          )}
+                        </TableCell>
+                        <TableCell className={r.department ? "" : "text-muted-foreground"}>
+                          {r.department ?? "to confirm"}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs tabular-nums">
+                          {r.left_on
+                            ? format(new Date(`${r.left_on}T12:00:00`), "dd/MM/yyyy")
+                            : <span className="font-sans text-muted-foreground">no date recorded</span>}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </TabsContent>
 
         </Tabs>
