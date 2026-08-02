@@ -132,7 +132,7 @@ function ShiftBoard({
   areas: HeadcountArea[];
   canManage: boolean;
 }) {
-  const { data: roster = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate);
+  const { data: roster = [], byId: everyoneById, isLoading: rosterLoading } = useShiftRoster(shift, onDate);
   const { data: allocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
   const { place, remove, copyLastLikeDay } = useAllocationMutations(onDate, shift);
 
@@ -142,11 +142,11 @@ function ShiftBoard({
     return m;
   }, [allocations]);
 
-  const employeeById = useMemo(() => {
-    const m = new Map<string, HeadcountEmployee>();
-    roster.forEach((e) => m.set(e.id, e));
-    return m;
-  }, [roster]);
+  // Toda a gente activa, não só quem é elegível hoje: uma alocação gravada é um facto
+  // e tem de aparecer na coluna. Se a pessoa deixar de ser elegível, o cartão continua
+  // lá para alguém a poder tirar — em vez de desaparecer do ecrã e ficar a contar nos
+  // totais, que era o que fazia o quadro dizer "20 no apoio" com a WH Team a zero.
+  const employeeById = everyoneById ?? new Map<string, HeadcountEmployee>();
 
   const peopleIn = (areaId: string) =>
     allocations

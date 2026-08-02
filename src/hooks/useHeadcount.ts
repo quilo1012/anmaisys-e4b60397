@@ -74,6 +74,21 @@ export function useHeadcountAreas() {
  *   now. Somebody moved from nights to days in August was on nights in July, and
  *   July's board has to keep saying so.
  */
+/**
+ * O turno da tabela para o turno da pessoa.
+ *
+ * `daily_allocations.shift` só aceita Day, Night e Weekend — não há turno de armazém.
+ * Quem é `Warehouse Day` trabalha de dia e tem de aparecer no quadro do dia; sem esta
+ * dobra, gravava-se a alocação com shift='Day' e depois ninguém a via, porque o roster
+ * procurava `shift_group = 'Day'` exacto.
+ */
+export function shiftDaTabela(shiftGroup: string | null | undefined): string | null {
+  if (!shiftGroup) return null;
+  if (shiftGroup === "Warehouse Weekend") return "Weekend";
+  if (shiftGroup.startsWith("Warehouse")) return "Day";
+  return ["Day", "Night", "Weekend"].includes(shiftGroup) ? shiftGroup : null;
+}
+
 export function useShiftRoster(shift: string, onDate: string) {
   const { data: patterns } = useShiftPatterns();
   const { data: history } = useShiftHistory();
@@ -98,13 +113,26 @@ export function useShiftRoster(shift: string, onDate: string) {
     const day = new Date(`${onDate}T12:00:00`);
     return (everyone ?? []).filter((e) => {
       const held = resolveShiftOn(history, e, onDate);
-      if ((held.shift_group ?? "") !== shift) return false;
+      if (shiftDaTabela(held.shift_group) !== shift) return false;
       const pattern = held.shift_pattern_id ? patternById.get(held.shift_pattern_id) ?? null : null;
       return !pattern || worksOn(pattern.days, day);
     });
   }, [everyone, patterns, history, shift, onDate]);
 
-  return { data, isLoading };
+  /**
+   * Toda a gente activa, por id — não só quem é elegível hoje.
+   *
+   * O quadro desenha as colunas a partir das alocações gravadas, e uma alocação de
+   * alguém que hoje não é elegível continua a ser um facto: alguém a pôs lá. Antes,
+   * quem não estivesse no roster desaparecia do ecrã enquanto continuava a contar nos
+   * totais — o quadro dizia "20 no apoio" com a coluna do armazém a zero.
+   */
+  const byId = useMemo(
+    () => new Map((everyone ?? []).map((e) => [e.id, e])),
+    [everyone],
+  );
+
+  return { data, byId, isLoading };
 }
 
 export function useAllocations(onDate: string, shift: string) {
