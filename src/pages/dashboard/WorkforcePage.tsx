@@ -13,7 +13,7 @@ import { KpiCard } from "@/components/reports/KpiCard";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { BackButton } from "@/components/BackButton";
-import { Users, Printer, CalendarDays, TrendingDown, AlertTriangle } from "lucide-react";
+import { Users, Printer, CalendarDays, TrendingDown, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import {
   useEmployees, useOvertimeEntries, useOvertimePeriods, useShiftPatterns, describeDays,
@@ -120,9 +120,42 @@ export default function WorkforcePage() {
           icon={<Users className="h-5 w-5" />}
           actions={
             <div className="flex flex-wrap items-center gap-2 no-print">
-              {/* The payroll-period selector moved to the Overtime tab, where it is the
-                  only thing it changes. On the header it looked like it filtered the
-                  daily board, which reads a date and not a period at all. */}
+              {/* The date the board is answering for, with a step either side. The
+                  supervisor's question is almost always "yesterday" or "tomorrow",
+                  and a date picker makes them type a date to ask it. */}
+              <div className="flex items-center gap-1 rounded-md border bg-card p-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  aria-label="Previous day"
+                  onClick={() => setBoardDate(new Date(boardDate.getTime() - 86_400_000))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="px-1 text-center leading-tight">
+                  <div className="font-mono text-sm font-semibold tabular-nums">
+                    {format(boardDate, "dd/MM/yyyy")}
+                  </div>
+                  <div className="text-2xs text-muted-foreground">{format(boardDate, "EEEE")}</div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  aria-label="Next day"
+                  onClick={() => setBoardDate(new Date(boardDate.getTime() + 86_400_000))}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Input
+                  type="date"
+                  value={boardDateKey}
+                  aria-label="Board date"
+                  onChange={(e) => e.target.value && setBoardDate(new Date(`${e.target.value}T12:00:00`))}
+                  className="h-7 w-[8.5rem] border-0 px-1 text-xs shadow-none focus-visible:ring-0"
+                />
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -148,45 +181,6 @@ export default function WorkforcePage() {
               <KpiCard label="Away today" icon={<TrendingDown className="h-3.5 w-3.5" />} value={alerts.awayToday} accent="warning" toneValue sublabel="Absent, sick or unpaid" />
               <KpiCard label="Departments" icon={<Users className="h-3.5 w-3.5" />} value={departments.length} accent="info" sublabel="On the employee list" />
             </div>
-
-            <Card className="break-inside-avoid">
-              <CardHeader className="pb-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-base">Today on the floor</CardTitle>
-                    <CardDescription>{format(boardDate, "EEEE, dd/MM/yyyy")}</CardDescription>
-                  </div>
-                  <Input
-                    type="date"
-                    value={boardDateKey}
-                    onChange={(e) => e.target.value && setBoardDate(new Date(`${e.target.value}T12:00:00`))}
-                    className="h-9 w-44 no-print"
-                  />
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-2 sm:grid-cols-4">
-                <div className="rounded-lg border p-2">
-                  <div className="text-2xs uppercase text-muted-foreground">Scheduled</div>
-                  <div className="font-mono text-xl font-bold">{alerts.scheduledToday}</div>
-                  <div className="text-2xs text-muted-foreground">Pattern covers this day</div>
-                </div>
-                <div className="rounded-lg border p-2">
-                  <div className="text-2xs uppercase text-muted-foreground">Away</div>
-                  <div className={`font-mono text-xl font-bold ${alerts.awayToday ? "text-destructive-strong" : ""}`}>{alerts.awayToday}</div>
-                  <div className="text-2xs text-muted-foreground">Absent, sick or unpaid</div>
-                </div>
-                <div className="rounded-lg border p-2">
-                  <div className="text-2xs uppercase text-muted-foreground">Not marked</div>
-                  <div className={`font-mono text-xl font-bold ${alerts.unmarked ? "text-warning-strong" : ""}`}>{alerts.unmarked}</div>
-                  <div className="text-2xs text-muted-foreground">Nobody has said yet</div>
-                </div>
-                <div className="rounded-lg border p-2">
-                  <div className="text-2xs uppercase text-muted-foreground">No shift pattern</div>
-                  <div className={`font-mono text-xl font-bold ${alerts.noPattern.length ? "text-warning-strong" : ""}`}>{alerts.noPattern.length}</div>
-                  <div className="text-2xs text-muted-foreground">Days of work unrecorded</div>
-                </div>
-              </CardContent>
-            </Card>
 
             {isLoading ? (
               <Skeleton className="h-64" />

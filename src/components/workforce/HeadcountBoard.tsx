@@ -4,21 +4,25 @@ import {
   useDraggable, useDroppable, type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { GripVertical, UserCheck, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  useLines, useMoveEmployee, useSetAttendance, describeDays, worksOn,
+  useHeadcountAreas, useMoveEmployee, useSetAttendance, describeDays, worksOn,
   type Attendance, type AttendanceStatus, type Employee, type ShiftPattern,
 } from "@/hooks/useWorkforce";
 
-const UNASSIGNED = "__unassigned__";
-const ALL_SHIFTS = "__all__";
+const UNPLACED = "__unplaced__";
 
-// The order the factory says them in, not alphabetical.
-const SHIFT_GROUPS = ["Day", "Night", "Weekend", "Warehouse Day", "Warehouse Weekend"] as const;
+/**
+ * The shifts this board plans for, in the order the factory says them.
+ *
+ * Weekend and Warehouse Weekend are recorded on people and counted everywhere else —
+ * 46 of the 193 — but they are not planned here. They are left out of the board, not
+ * out of the database.
+ */
+const BOARD_SHIFTS = ["Day", "Night", "Warehouse Day"] as const;
 
 const STATUS_META: Record<AttendanceStatus, { label: string; cls: string }> = {
   present:  { label: "In",       cls: "border-emerald-500/40 bg-emerald-500/15 text-success-strong" },
@@ -56,60 +60,59 @@ function EmployeeCard({
     <div
       ref={setNodeRef}
       className={cn(
-        "rounded-lg border bg-card p-2 text-left shadow-sm",
+        "rounded-md border bg-card px-1.5 py-1 text-left",
         (isDragging || dragging) && "opacity-50",
         status === "absent" && "border-destructive/40",
       )}
     >
-      <div className="flex items-start gap-1">
+      {/* One line per person. Department and shift pattern moved to the tooltip and
+          the detail panel: on a board of 68 cards, "Department to confirm" repeated
+          138 times is not information, it is noise with a scrollbar. */}
+      <div className="flex items-center gap-1">
         {canEdit && (
           <button
             type="button"
-            className="mt-0.5 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing no-print"
+            className="shrink-0 cursor-grab touch-none text-muted-foreground/60 hover:text-foreground active:cursor-grabbing no-print"
             aria-label={`Move ${employee.full_name}`}
             {...listeners}
             {...attributes}
           >
-            <GripVertical className="h-4 w-4" />
+            <GripVertical className="h-3.5 w-3.5" />
           </button>
         )}
-        <div className="min-w-0 flex-1">
-          {/* The name opens the detail panel; the grip drags. Two targets, so a tap
-              on a tablet never has to guess which one was meant. */}
+        {/* The name opens the detail panel; the grip drags. Two targets, so a tap on
+            a tablet never has to guess which one was meant. */}
+        <button
+          type="button"
+          onClick={onSelect}
+          title={[employee.full_name, employee.department, employee.pattern ? describeDays(employee.pattern.days) : "No shift pattern"]
+            .filter(Boolean)
+            .join(" · ")}
+          className="min-w-0 flex-1 truncate text-left text-xs font-medium hover:underline"
+        >
+          {employee.full_name}
+        </button>
+        {status ? (
           <button
             type="button"
-            onClick={onSelect}
-            className="block w-full truncate text-left text-xs font-semibold hover:underline"
+            onClick={canEdit ? onCycle : undefined}
+            className={cn(
+              "shrink-0 rounded border px-1.5 py-0.5 text-2xs font-semibold",
+              STATUS_META[status].cls,
+              canEdit && "cursor-pointer",
+            )}
           >
-            {employee.full_name}
+            {STATUS_META[status].label}
           </button>
-          <div className="truncate text-2xs text-muted-foreground">
-            {employee.department ?? "Department to confirm"}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-1">
-            <Badge variant="outline" className="text-2xs">
-              {employee.pattern ? describeDays(employee.pattern.days) : "No pattern"}
-            </Badge>
-            {status && (
-              <button
-                type="button"
-                onClick={canEdit ? onCycle : undefined}
-                className={cn("rounded border px-1.5 py-0.5 text-2xs font-semibold", STATUS_META[status].cls, canEdit && "cursor-pointer")}
-              >
-                {STATUS_META[status].label}
-              </button>
-            )}
-            {!status && canEdit && (
-              <button
-                type="button"
-                onClick={onCycle}
-                className="rounded border border-dashed px-1.5 py-0.5 text-2xs text-muted-foreground hover:text-foreground no-print"
-              >
-                Mark
-              </button>
-            )}
-          </div>
-        </div>
+        ) : canEdit ? (
+          <button
+            type="button"
+            onClick={onCycle}
+            className="shrink-0 rounded border border-dashed px-1.5 py-0.5 text-2xs text-muted-foreground hover:text-foreground no-print"
+          >
+            Mark
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -129,12 +132,61 @@ function LineColumn({
         isOver && "border-primary bg-primary/5",
       )}
     >
-      <div className="mb-2 flex items-baseline justify-between gap-2">
+      <div className="mb-1.5 flex items-baseline justify-between gap-2 border-b pb-1">
         <span className="truncate text-xs font-bold uppercase tracking-wide">{title}</span>
-        <span className="shrink-0 font-mono text-xs text-muted-foreground">{count}</span>
+        <span
+          className={cn(
+            "shrink-0 rounded px-1.5 font-mono text-xs font-bold",
+            count > 0 ? "bg-primary/10 text-primary" : "text-muted-foreground/50",
+          )}
+        >
+          {count}
+        </span>
       </div>
       {subtitle && <div className="mb-1 text-2xs text-muted-foreground">{subtitle}</div>}
-      <div className="space-y-2">{children}</div>
+      {/* Capped and scrolled inside, so one crowded line does not stretch the row it
+          sits in and leave nine short columns padded out beside it. */}
+      <div className="max-h-80 space-y-1 overflow-y-auto print:max-h-none print:overflow-visible">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * People this shift who are not on a line yet.
+ *
+ * Horizontal and dense, so forty of them do not push the lines off the screen, and
+ * droppable so somebody can be sent back here after being placed by mistake.
+ */
+function UnplacedTray({
+  count, canEdit, children,
+}: {
+  count: number; canEdit: boolean; children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: UNPLACED });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "mb-3 rounded-lg border border-dashed bg-muted/20 p-2 transition-colors",
+        isOver && "border-primary bg-primary/5",
+      )}
+    >
+      <div className="mb-2 flex items-baseline gap-2">
+        <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Not on a line
+        </span>
+        <span className="font-mono text-xs text-muted-foreground">{count}</span>
+        {canEdit && (
+          <span className="text-2xs text-muted-foreground no-print">
+            Drag onto a line below to place them
+          </span>
+        )}
+      </div>
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+        {children}
+      </div>
     </div>
   );
 }
@@ -157,12 +209,12 @@ export function HeadcountBoard({
   userId?: string | null;
   onSelect?: (employeeId: string) => void;
 }) {
-  const { data: lines } = useLines();
+  const { data: areas } = useHeadcountAreas();
   const move = useMoveEmployee();
   const setAttendance = useSetAttendance(onDate.toISOString().slice(0, 10));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [shift, setShift] = useState<string>(ALL_SHIFTS);
+  const [shift, setShift] = useState<string>("Day");
 
   const sensors = useSensors(
     // A small distance so a tap on the card's buttons is not read as a drag on a
@@ -179,10 +231,7 @@ export function HeadcountBoard({
   const scheduled = useMemo(
     () =>
       employees.filter(
-        (e) =>
-          e.active &&
-          (shift === ALL_SHIFTS || e.shift_group === shift) &&
-          (showAll || !e.pattern || worksOn(e.pattern.days, onDate)),
+        (e) => e.active && e.shift_group === shift && (showAll || !e.pattern || worksOn(e.pattern.days, onDate)),
       ),
     [employees, onDate, showAll, shift],
   );
@@ -191,22 +240,44 @@ export function HeadcountBoard({
   // selected — a tab that reads 0 because you are standing on another one is a lie.
   const shiftCounts = useMemo(() => {
     const base = employees.filter((e) => e.active && (showAll || !e.pattern || worksOn(e.pattern.days, onDate)));
-    const counts = new Map<string, number>([[ALL_SHIFTS, base.length]]);
-    for (const g of SHIFT_GROUPS) counts.set(g, base.filter((e) => e.shift_group === g).length);
+    const counts = new Map<string, number>();
+    for (const g of BOARD_SHIFTS) counts.set(g, base.filter((e) => e.shift_group === g).length);
     counts.set("__none__", base.filter((e) => !e.shift_group).length);
     return counts;
   }, [employees, onDate, showAll]);
 
+  /**
+   * The selected shift, counted on its own.
+   *
+   * The KPI row above the tabs counts the whole factory; this counts the shift you
+   * are standing on, which is the number a supervisor is actually asked for at
+   * handover. Unmarked is named rather than folded into anything: nobody having said
+   * yet is not the same as somebody being in, and it is not an absence either.
+   */
+  const shiftTotals = useMemo(() => {
+    const byId = new Map((attendance ?? []).map((a) => [a.employee_id, a.status]));
+    const n = (...want: AttendanceStatus[]) =>
+      scheduled.filter((e) => want.includes(byId.get(e.id) as AttendanceStatus)).length;
+    return {
+      onShift: scheduled.length,
+      present: n("present"),
+      away: n("absent", "sick", "unpaid"),
+      holiday: n("holiday"),
+      unmarked: scheduled.filter((e) => !byId.has(e.id)).length,
+      placed: scheduled.filter((e) => e.headcount_area_id).length,
+    };
+  }, [scheduled, attendance]);
+
   const columns = useMemo(() => {
     const byLine = new Map<string, BoardEmployee[]>();
-    byLine.set(UNASSIGNED, []);
-    for (const l of lines ?? []) byLine.set(l.id, []);
+    byLine.set(UNPLACED, []);
+    for (const a of areas ?? []) byLine.set(a.id, []);
     for (const e of scheduled) {
-      const key = e.current_line_id && byLine.has(e.current_line_id) ? e.current_line_id : UNASSIGNED;
+      const key = e.headcount_area_id && byLine.has(e.headcount_area_id) ? e.headcount_area_id : UNPLACED;
       byLine.get(key)!.push(e);
     }
     return byLine;
-  }, [scheduled, lines]);
+  }, [scheduled, areas]);
 
   const cycleStatus = (employeeId: string) => {
     const order: AttendanceStatus[] = ["present", "absent", "sick", "holiday", "unpaid", "training"];
@@ -224,14 +295,14 @@ export function HeadcountBoard({
     if (!target) return;
     const employee = employees.find((e) => e.id === employeeId);
     if (!employee) return;
-    const toLineId = target === UNASSIGNED ? null : target;
-    if ((employee.current_line_id ?? null) === toLineId) return;
-    const nameOf = (id: string | null) => (id ? lines?.find((l) => l.id === id)?.name ?? null : null);
+    const toLineId = target === UNPLACED ? null : target;
+    if ((employee.headcount_area_id ?? null) === toLineId) return;
+    const nameOf = (id: string | null) => (id ? areas?.find((a) => a.id === id)?.name ?? null : null);
     move.mutate(
       {
         employee,
         toLineId,
-        fromLineName: nameOf(employee.current_line_id),
+        fromLineName: nameOf(employee.headcount_area_id),
         toLineName: nameOf(toLineId),
         movedBy: userId ?? null,
       },
@@ -243,7 +314,7 @@ export function HeadcountBoard({
   };
 
   const active = activeId ? employees.find((e) => e.id === activeId) : null;
-  const unassignedCount = columns.get(UNASSIGNED)?.length ?? 0;
+  const unplacedCount = columns.get(UNPLACED)?.length ?? 0;
 
   return (
     <Card>
@@ -265,7 +336,7 @@ export function HeadcountBoard({
         {/* Day and Night are two different headcounts that happen to share a factory.
             Shown side by side they read as one number twice the size. */}
         <div className="mt-3 flex flex-wrap gap-1 no-print">
-          {[ALL_SHIFTS, ...SHIFT_GROUPS].map((g) => {
+          {BOARD_SHIFTS.map((g) => {
             const n = shiftCounts.get(g) ?? 0;
             return (
               <button
@@ -280,7 +351,7 @@ export function HeadcountBoard({
                   n === 0 && shift !== g && "text-muted-foreground",
                 )}
               >
-                {g === ALL_SHIFTS ? "All shifts" : g}
+                {g}
                 <span className="ml-1.5 font-mono opacity-70">{n}</span>
               </button>
             );
@@ -291,6 +362,22 @@ export function HeadcountBoard({
             </span>
           )}
         </div>
+        <div className="mt-3 grid grid-cols-3 gap-px overflow-hidden rounded-md border bg-border sm:grid-cols-6">
+          {[
+            { k: "On shift", v: shiftTotals.onShift, s: shift },
+            { k: "In", v: shiftTotals.present, s: "Marked present" },
+            { k: "Away", v: shiftTotals.away, s: "Absent, sick, unpaid", tone: shiftTotals.away ? "text-warning-strong" : "" },
+            { k: "Holiday", v: shiftTotals.holiday, s: "Booked leave" },
+            { k: "Not marked", v: shiftTotals.unmarked, s: "Nobody has said", tone: shiftTotals.unmarked ? "text-destructive-strong" : "" },
+            { k: "Placed", v: `${shiftTotals.placed}/${shiftTotals.onShift}`, s: "Have an area" },
+          ].map((t) => (
+            <div key={t.k} className="bg-card px-2 py-1.5">
+              <div className="truncate text-2xs uppercase tracking-wide text-muted-foreground">{t.k}</div>
+              <div className={cn("font-mono text-lg font-bold tabular-nums leading-tight", t.tone)}>{t.v}</div>
+              <div className="truncate text-2xs text-muted-foreground">{t.s}</div>
+            </div>
+          ))}
+        </div>
       </CardHeader>
       <CardContent>
         <DndContext
@@ -299,42 +386,57 @@ export function HeadcountBoard({
           onDragEnd={onDragEnd}
           onDragCancel={() => setActiveId(null)}
         >
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <LineColumn
-              id={UNASSIGNED}
-              title="Unassigned"
-              count={unassignedCount}
-              subtitle={unassignedCount ? "Drag onto a line to place them" : undefined}
-            >
-              {(columns.get(UNASSIGNED) ?? []).map((e) => (
-                <EmployeeCard
-                  key={e.id}
-                  employee={e}
-                  attendance={attendanceByEmployee.get(e.id)}
-                  onCycle={() => cycleStatus(e.id)}
-                  onSelect={() => onSelect?.(e.id)}
-                  canEdit={canEdit}
-                  dragging={activeId === e.id}
-                />
-              ))}
-            </LineColumn>
-
-            {(lines ?? []).map((l) => (
-              <LineColumn key={l.id} id={l.id} title={l.name} count={columns.get(l.id)?.length ?? 0}>
-                {(columns.get(l.id) ?? []).map((e) => (
-                  <EmployeeCard
-                    key={e.id}
-                    employee={e}
-                    attendance={attendanceByEmployee.get(e.id)}
-                    onCycle={() => cycleStatus(e.id)}
-                    onSelect={() => onSelect?.(e.id)}
-                    canEdit={canEdit}
-                    dragging={activeId === e.id}
-                  />
-                ))}
-              </LineColumn>
+          {/* Not a column any more: a staging tray across the top, which is what it
+              always was. As a peer of Line 1 it implied "Unassigned" was a place
+              people work, and while nobody has an allocation it was also the only
+              column with anybody in it. It disappears entirely once the shift is
+              placed, which is the point. */}
+          {unplacedCount > 0 && <UnplacedTray count={unplacedCount} canEdit={canEdit}>
+            {(columns.get(UNPLACED) ?? []).map((e) => (
+              <EmployeeCard
+                key={e.id}
+                employee={e}
+                attendance={attendanceByEmployee.get(e.id)}
+                onCycle={() => cycleStatus(e.id)}
+                onSelect={() => onSelect?.(e.id)}
+                canEdit={canEdit}
+                dragging={activeId === e.id}
+              />
             ))}
-          </div>
+          </UnplacedTray>}
+
+          {/* Production and support are read differently — one is the line running,
+              the other is who keeps it running — and mixing them in one grid made
+              Office sit between Line 3 and Line 4 as though it were the next line. */}
+          {(["production", "support"] as const).map((kind) => {
+            const group = (areas ?? []).filter((a) => a.kind === kind);
+            if (group.length === 0) return null;
+            return (
+              <div key={kind}>
+                <div className="mb-2 mt-3 flex items-center gap-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground first:mt-0">
+                  {kind === "production" ? "Production" : "Support"}
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {group.map((l) => (
+                    <LineColumn key={l.id} id={l.id} title={l.name} count={columns.get(l.id)?.length ?? 0}>
+                      {(columns.get(l.id) ?? []).map((e) => (
+                        <EmployeeCard
+                          key={e.id}
+                          employee={e}
+                          attendance={attendanceByEmployee.get(e.id)}
+                          onCycle={() => cycleStatus(e.id)}
+                          onSelect={() => onSelect?.(e.id)}
+                          canEdit={canEdit}
+                          dragging={activeId === e.id}
+                        />
+                      ))}
+                    </LineColumn>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
 
           <DragOverlay>
             {active && (
