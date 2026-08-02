@@ -298,6 +298,7 @@ export type Database = {
           created_at: string | null
           employee_id: string
           half_day: boolean | null
+          is_leader: boolean
           id: string
           note: string | null
           on_date: string
@@ -310,6 +311,7 @@ export type Database = {
           created_at?: string | null
           employee_id: string
           half_day?: boolean | null
+          is_leader?: boolean
           id?: string
           note?: string | null
           on_date: string
@@ -322,6 +324,7 @@ export type Database = {
           created_at?: string | null
           employee_id?: string
           half_day?: boolean | null
+          is_leader?: boolean
           id?: string
           note?: string | null
           on_date?: string

@@ -220,7 +220,7 @@ function ShiftBoard({
   const [editing, setEditing] = useState<string | null>(null);
   const changeShift = useChangeShift(onDate);
   const { data: allocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
-  const { place, remove, copyLastLikeDay } = useAllocationMutations(onDate, shift);
+  const { place, remove, copyLastLikeDay, setLeader } = useAllocationMutations(onDate, shift);
 
   const byEmployee = useMemo(() => {
     const m = new Map<string, (typeof allocations)[number]>();
@@ -250,10 +250,16 @@ function ShiftBoard({
     allocations
       .filter((a) => (a.status === "assigned" || a.status === "overtime")
         && a.area_id === areaId && employeeById.has(a.employee_id))
-      .map((a) => ({ person: employeeById.get(a.employee_id)!, overtime: a.status === "overtime" }))
+      .map((a) => ({
+        person: employeeById.get(a.employee_id)!,
+        overtime: a.status === "overtime",
+        // The day's own leader wins. `department` is only the fallback, so a board
+        // nobody has named a leader on still shows the Team Leaders it has.
+        leader: a.is_leader ?? false,
+      }))
       .sort((a, b) => {
-        const la = isLeader(a.person.department) ? 0 : 1;
-        const lb = isLeader(b.person.department) ? 0 : 1;
+        const la = (a.leader || isLeader(a.person.department)) ? 0 : 1;
+        const lb = (b.leader || isLeader(b.person.department)) ? 0 : 1;
         return la - lb || a.person.full_name.localeCompare(b.person.full_name);
       });
 
@@ -382,11 +388,11 @@ function ShiftBoard({
                 </CardHeader>
                 <CardContent className="min-h-[76px] p-2">
                   <div className="flex flex-col gap-1">
-                    {people.map(({ person: p, overtime: isOt }) => (
+                    {people.map(({ person: p, overtime: isOt, leader: leadsToday }) => (
                       <Chip
                         key={p.id}
                         name={p.full_name}
-                        leader={isLeader(p.department)}
+                        leader={leadsToday || isLeader(p.department)}
                         overtime={isOt}
                         onOpen={() => setEditing(p.id)}
                         tone={area.kind === "production" ? "production" : "support"}
@@ -466,6 +472,8 @@ function ShiftBoard({
               status: alloc?.status === "overtime" ? "overtime" : "assigned",
             })}
             onSetShift={(sg) => changeShift.mutate({ employeeId: editing, shiftGroup: sg })}
+            isLeader={!!alloc?.is_leader}
+            onSetLeader={(v) => setLeader.mutate({ employeeId: editing, areaId: alloc?.area_id ?? null, leader: v })}
             onRemove={() => { remove.mutate(editing); setEditing(null); }}
           />
         );

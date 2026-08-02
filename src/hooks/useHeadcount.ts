@@ -30,6 +30,8 @@ export type Allocation = {
   status: string;
   half_day: boolean | null;
   note: string | null;
+  /** Leads this area on this day. A line can lead differently tomorrow. */
+  is_leader: boolean | null;
 };
 
 export type AllocStatus = "assigned" | "absence" | "holiday" | "overtime";
@@ -162,7 +164,7 @@ export function useAllocations(onDate: string, shift: string) {
     queryFn: async (): Promise<Allocation[]> => {
       const { data, error } = await supabase
         .from("daily_allocations")
-        .select("id,on_date,shift,employee_id,area_id,status,half_day,note")
+        .select("id,on_date,shift,employee_id,area_id,status,half_day,note,is_leader")
         .eq("on_date", onDate)
         .eq("shift", shift);
       if (error) throw error;
@@ -258,7 +260,36 @@ export function useAllocationMutations(onDate: string, shift: string) {
     onError: (e: Error) => toast.error(e.message ?? "Could not copy the last day", { id: "headcount-copy" }),
   });
 
-  return { place, remove, copyLastLikeDay };
+  /**
+   * Who leads an area today.
+   *
+   * Leadership used to be read off `department`, which is free text holding things
+   * like "Lab Operative" — a toggle there would have overwritten the person's role to
+   * record a fact about one shift. It belongs on the day: the same line can be led by
+   * somebody else tomorrow, and a leader on days is not the leader on nights.
+   *
+   * Setting one clears whoever held it on that area, so the column cannot show two.
+   */
+  const setLeader = useMutation({
+    mutationFn: async ({ employeeId, areaId, leader }: { employeeId: string; areaId: string | null; leader: boolean }) => {
+      if (leader && areaId) {
+        const { error: clearErr } = await supabase
+          .from("daily_allocations")
+          .update({ is_leader: false })
+          .eq("on_date", onDate).eq("shift", shift).eq("area_id", areaId).eq("is_leader", true);
+        if (clearErr) throw clearErr;
+      }
+      const { error } = await supabase
+        .from("daily_allocations")
+        .update({ is_leader: leader })
+        .eq("on_date", onDate).eq("shift", shift).eq("employee_id", employeeId);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message ?? "Could not set the leader"),
+  });
+
+  return { place, remove, copyLastLikeDay, setLeader };
 }
 
 /**
