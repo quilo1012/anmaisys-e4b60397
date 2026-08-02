@@ -77,11 +77,25 @@ export default function WorkforcePage() {
     [employees],
   );
 
-  // Leavers drop off the board, and stay everywhere that looks backwards: the people
-  // table below still lists them behind a "Left" badge, and the monthly summary still
-  // counts the days they worked. Someone who left in July worked in July.
+  // Leavers drop off the board and out of the people list, and stay everywhere that
+  // looks backwards: the monthly summary still counts the days they worked, and their
+  // overtime balance is still theirs. Someone who left in July worked in July.
   const boardEmployees = useMemo<BoardEmployee[]>(
     () => rows.filter((r) => r.active),
+    [rows],
+  );
+
+  /**
+   * The list is who works here. Leavers are kept, not hidden — they are listed under
+   * their own heading, closed by default, because a name that is on the list is read
+   * as somebody who might be in tomorrow.
+   */
+  const onTheList = useMemo(() => rows.filter((r) => r.active), [rows]);
+  const leavers = useMemo(
+    () =>
+      rows
+        .filter((r) => !r.active)
+        .sort((a, b) => (b.left_on ?? "").localeCompare(a.left_on ?? "")),
     [rows],
   );
 
@@ -173,6 +187,7 @@ export default function WorkforcePage() {
             <TabsTrigger value="board">Daily board</TabsTrigger>
             <TabsTrigger value="monthly">Attendance by month</TabsTrigger>
             <TabsTrigger value="overtime">Overtime</TabsTrigger>
+            <TabsTrigger value="people">People</TabsTrigger>
           </TabsList>
 
           <TabsContent value="board" className="space-y-4">
@@ -212,74 +227,6 @@ export default function WorkforcePage() {
                 </CardContent>
               </Card>
             )}
-
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="text-base">People ({rows.length})</CardTitle>
-                  <div className="flex flex-wrap gap-2 no-print">
-                    {canEdit && <AddEmployeeDialog />}
-                    <Input placeholder="Search name…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 w-48" />
-                    <Select value={dept} onValueChange={setDept}>
-                      <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__all__">All departments</SelectItem>
-                        {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="overflow-x-auto">
-                {isLoading ? (
-                  <Skeleton className="h-64" />
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Department</TableHead>
-                        <TableHead>Works</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Source</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rows.length === 0 && (
-                        <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Nobody matches these filters</TableCell></TableRow>
-                      )}
-                      {rows.map((r) => (
-                        <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetailId(r.id)}>
-                          <TableCell className="font-medium">{r.full_name}</TableCell>
-                          <TableCell className={r.department ? "" : "text-muted-foreground"}>
-                            {r.department ?? "to confirm"}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {r.pattern ? (
-                              <span title={r.pattern.name}>{describeDays(r.pattern.days)}</span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {!r.active && <Badge variant="outline" className="text-2xs">Left</Badge>}
-                          </TableCell>
-                          <TableCell>
-                            {r.source === "import_overtime" && (
-                              // Provenance on the row, so an imported guess is never
-                              // mistaken for something HR confirmed.
-                              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-2xs text-warning-strong">
-                                From overtime sheet
-                              </Badge>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
           </TabsContent>
 
           <TabsContent value="monthly">
@@ -295,6 +242,115 @@ export default function WorkforcePage() {
               onPeriodChange={setPeriodId}
             />
           </TabsContent>
+          <TabsContent value="people" className="space-y-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle className="text-base">People ({onTheList.length})</CardTitle>
+                    <div className="flex flex-wrap gap-2 no-print">
+                      {canEdit && <AddEmployeeDialog />}
+                      <Input placeholder="Search name…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 w-48" />
+                      <Select value={dept} onValueChange={setDept}>
+                        <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__all__">All departments</SelectItem>
+                          {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
+                  {isLoading ? (
+                    <Skeleton className="h-64" />
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Department</TableHead>
+                          <TableHead>Works</TableHead>
+                          <TableHead>Source</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {onTheList.length === 0 && (
+                          <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">Nobody matches these filters</TableCell></TableRow>
+                        )}
+                        {onTheList.map((r) => (
+                          <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetailId(r.id)}>
+                            <TableCell className="font-medium">{r.full_name}</TableCell>
+                            <TableCell className={r.department ? "" : "text-muted-foreground"}>
+                              {r.department ?? "to confirm"}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {r.pattern ? (
+                                <span title={r.pattern.name}>{describeDays(r.pattern.days)}</span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {r.source === "import_overtime" && (
+                                // Provenance on the row, so an imported guess is never
+                                // mistaken for something HR confirmed.
+                                <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-2xs text-warning-strong">
+                                  From overtime sheet
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Kept, not hidden. They hold attendance and overtime that belongs to
+                  them, and a leaver who is deleted takes a month's figures with them.
+                  Closed by default, because a name on the open list reads as somebody
+                  who might be in tomorrow. */}
+              {leavers.length > 0 && (
+                <details className="rounded-lg border bg-card">
+                  <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium marker:content-none">
+                    Left the company ({leavers.length})
+                    <span className="ml-2 text-2xs font-normal text-muted-foreground">
+                      not counted in headcount · still in the monthly summary and their overtime
+                    </span>
+                  </summary>
+                  <div className="overflow-x-auto border-t px-4 pb-3">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Department</TableHead>
+                          <TableHead>Shift</TableHead>
+                          <TableHead>Left on</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {leavers.map((r) => (
+                          <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetailId(r.id)}>
+                            <TableCell className="font-medium">{r.full_name}</TableCell>
+                            <TableCell className={r.department ? "" : "text-muted-foreground"}>
+                              {r.department ?? "to confirm"}
+                            </TableCell>
+                            <TableCell className="text-xs">{r.shift_group ?? "—"}</TableCell>
+                            <TableCell className="font-mono text-xs tabular-nums">
+                              {r.left_on
+                                ? format(new Date(`${r.left_on}T12:00:00`), "dd/MM/yyyy")
+                                : <span className="font-sans text-muted-foreground">no date recorded</span>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </details>
+              )}
+          </TabsContent>
+
         </Tabs>
       </div>
 
