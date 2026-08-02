@@ -258,13 +258,21 @@ function ShiftBoard({
   // Working = placed on an area, whether the day is a normal one or an overtime one.
   // The sheet's "Total staff in Production" counts the overtime people too — they are
   // in the factory — so leaving them out made the board disagree with the sheet.
-  const working = allocations.filter((a) => a.status === "assigned" || a.status === "overtime");
+  // Only people the board can actually draw. Somebody marked as having left keeps
+  // their allocation rows — the day they worked is history and deleting it would take
+  // that with them — but they are no longer on the roster, so their card disappears.
+  // Counting them anyway is how a column reading zero sat under a total saying ten.
+  const working = allocations.filter(
+    (a) => (a.status === "assigned" || a.status === "overtime") && employeeById.has(a.employee_id),
+  );
   const assignedCount = working.length;
   const productionIds = new Set(areas.filter((a) => a.kind === "production").map((a) => a.id));
   const onLines = working.filter((a) => a.area_id && productionIds.has(a.area_id)).length;
   const support = assignedCount - onLines;
-  const away = allocations.filter((a) => a.status === "absence" || a.status === "holiday").length;
-  const overtime = allocations.filter((a) => a.status === "overtime").length;
+  const away = allocations.filter(
+    (a) => (a.status === "absence" || a.status === "holiday") && employeeById.has(a.employee_id),
+  ).length;
+  const overtime = working.filter((a) => a.status === "overtime").length;
 
   const dragStart = (e: React.DragEvent, employeeId: string) => {
     e.dataTransfer.setData("text/plain", employeeId);
