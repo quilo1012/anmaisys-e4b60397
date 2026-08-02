@@ -9,11 +9,13 @@ import { BackButton } from "@/components/BackButton";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
 import { AreaPicker } from "@/components/workforce/AreaPicker";
+import { PersonDayDialog } from "@/components/workforce/PersonDayDialog";
 import {
   useHeadcountAreas,
   useShiftRoster,
   useAllocations,
   useAllocationMutations,
+  useChangeShift,
   type AllocStatus,
   type HeadcountArea,
   type HeadcountEmployee,
@@ -95,11 +97,13 @@ function Chip({
   leader,
   overtime,
   draggable,
+  onOpen,
   onDragStart,
 }: {
   name: string;
   tone: "production" | "support" | "away" | "overtime" | "roster";
   leader?: boolean;
+  onOpen?: () => void;
   /** Working a day their own rota does not cover — marked on the line, not moved off it. */
   overtime?: boolean;
   draggable: boolean;
@@ -121,9 +125,13 @@ function Chip({
         leader ? "border-primary/40 bg-primary/10 font-semibold"
           : overtime ? "border-violet-500/40 bg-violet-500/10"
           : tones[tone],
-        draggable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
+        draggable ? "cursor-grab active:cursor-grabbing" : onOpen ? "cursor-pointer" : "cursor-default",
       )}
       title={name}
+      onClick={onOpen}
+      onKeyDown={(e) => { if (onOpen && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(); } }}
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
     >
       {/* The leader's square says LEAD rather than their initials. Initials in a
           darker box only read as "this one is somehow different"; the word says which
@@ -209,6 +217,8 @@ function ShiftBoard({
 }) {
   const { data: roster = [], byId: everyoneById, onShift = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate);
   const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const changeShift = useChangeShift(onDate);
   const { data: allocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
   const { place, remove, copyLastLikeDay } = useAllocationMutations(onDate, shift);
 
@@ -378,6 +388,7 @@ function ShiftBoard({
                         name={p.full_name}
                         leader={isLeader(p.department)}
                         overtime={isOt}
+                        onOpen={() => setEditing(p.id)}
                         tone={area.kind === "production" ? "production" : "support"}
                         draggable={canManage}
                         onDragStart={(e) => {
@@ -429,6 +440,37 @@ function ShiftBoard({
         />
       )}
 
+      {editing && (() => {
+        const person = employeeById.get(editing);
+        const alloc = byEmployee.get(editing);
+        if (!person) return null;
+        return (
+          <PersonDayDialog
+            open
+            onOpenChange={(v) => !v && setEditing(null)}
+            name={person.full_name}
+            shiftGroup={person.shift_group}
+            status={(alloc?.status as AllocStatus | undefined) ?? null}
+            areaId={alloc?.area_id ?? null}
+            areas={areas}
+            canManage={canManage}
+            onSetStatus={(st) => place.mutate({
+              employeeId: editing,
+              // Overtime is still a place; absence and holiday are not.
+              areaId: st === "absence" || st === "holiday" ? null : alloc?.area_id ?? null,
+              status: st,
+            })}
+            onSetArea={(id) => place.mutate({
+              employeeId: editing,
+              areaId: id,
+              status: alloc?.status === "overtime" ? "overtime" : "assigned",
+            })}
+            onSetShift={(sg) => changeShift.mutate({ employeeId: editing, shiftGroup: sg })}
+            onRemove={() => { remove.mutate(editing); setEditing(null); }}
+          />
+        );
+      })()}
+
       <SectionLabel>Away &amp; overtime</SectionLabel>
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))" }}>
         {AWAY_BLOCKS.map((block) => {
@@ -450,6 +492,7 @@ function ShiftBoard({
                       <Chip
                         key={p.id}
                         name={p.full_name}
+                        onOpen={() => setEditing(p.id)}
                         tone={block.status === "overtime" ? "overtime" : "away"}
                         draggable={canManage}
                         onDragStart={(e) => {
@@ -479,6 +522,7 @@ function ShiftBoard({
                 <Chip
                   key={p.id}
                   name={p.full_name}
+                  onOpen={() => setEditing(p.id)}
                   tone="roster"
                   draggable={canManage}
                   onDragStart={(e) => {
