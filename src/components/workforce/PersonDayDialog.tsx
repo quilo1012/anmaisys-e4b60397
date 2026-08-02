@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AllocStatus, HeadcountArea } from "@/hooks/useHeadcount";
@@ -26,8 +27,8 @@ const STATUS: { value: AllocStatus; label: string; hint: string; cls: string }[]
  * still ahead of them and is the thing somebody means by "he moved to nights".
  */
 export function PersonDayDialog({
-  open, onOpenChange, name, shiftGroup, status, areaId, areas, canManage,
-  onSetStatus, onSetArea, onSetShift, onRemove,
+  open, onOpenChange, name, shiftGroup, status, areaId, areas, canManage, isLeader,
+  onSetStatus, onSetArea, onSetShift, onSetLeader, onRemove,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -41,7 +42,9 @@ export function PersonDayDialog({
   onSetStatus: (s: AllocStatus) => void;
   onSetArea: (areaId: string) => void;
   onSetShift: (shiftGroup: string) => void;
+  onSetLeader: (leader: boolean) => void;
   onRemove: () => void;
+  isLeader: boolean;
 }) {
   const areaName = areaId ? areas.find((a) => a.id === areaId)?.name ?? null : null;
 
@@ -115,6 +118,26 @@ export function PersonDayDialog({
               board. Days already worked keep the shift they were worked on.
             </p>
           </div>
+
+          {/* Leadership is a fact about the day, not about the person: the same line
+              can be led by somebody else tomorrow, and the leader on days is not the
+              leader on nights. Kept off `department`, which holds their trade. */}
+          <label className={cn(
+            "flex items-center gap-2.5 rounded-lg border p-2.5 text-xs",
+            areaId && canManage ? "cursor-pointer hover:bg-muted" : "opacity-60",
+          )}>
+            <Checkbox
+              checked={isLeader}
+              disabled={!canManage || !areaId}
+              onCheckedChange={(v) => onSetLeader(v === true)}
+            />
+            <span>
+              <span className="font-semibold">Leads this area today</span>
+              <span className="block text-2xs text-muted-foreground">
+                {areaId ? "Goes to the top of the column. Only one leader per area." : "Put them on an area first."}
+              </span>
+            </span>
+          </label>
 
           {status && canManage && (
             <Button variant="outline" size="sm" className="w-full" onClick={onRemove}>
