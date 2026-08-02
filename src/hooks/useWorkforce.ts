@@ -49,6 +49,11 @@ export interface Attendance {
   on_date: string;
   status: AttendanceStatus;
   note: string | null;
+  /**
+   * Where they worked on this day. Null means nobody moved them, so they were where
+   * `employees.headcount_area_id` says they usually are.
+   */
+  headcount_area_id: string | null;
 }
 
 export interface OvertimePeriod {
@@ -181,24 +186,28 @@ export function useSetAttendance(onDate: string) {
 }
 
 /**
- * Move someone to a line, and say so on the record.
+ * Move someone to an area, on one day, and say so on the record.
  *
- * The column holds where they are now; the movement row holds that they were moved,
- * by whom and from where. Writing only the column would make the board unanswerable
- * a week later.
+ * The day's attendance row holds where they worked that day; the movement row holds
+ * that somebody moved them, from where and by whom. Nobody works the same line every
+ * day, so writing this onto the employee would rewrite every day they have already
+ * worked — the default on `employees` only ever seeds a day nobody has touched.
  */
 export function useMoveEmployee() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      employee, toLineId, fromLineName, toLineName, movedBy,
+      employee, toLineId, fromLineName, toLineName, movedBy, onDate,
     }: {
-      employee: Employee; toLineId: string | null;
+      employee: Employee; toLineId: string | null; onDate: string;
       fromLineName: string | null; toLineName: string | null; movedBy?: string | null;
     }) => {
-      // headcount_area_id, not current_line_id: the board places people into areas,
-      // which include Office and WH Team — things `lines` deliberately does not hold.
-      const { error } = await db.from("employees").update({ headcount_area_id: toLineId }).eq("id", employee.id);
+      const { error } = await db
+        .from("employee_attendance")
+        .upsert(
+          { employee_id: employee.id, on_date: onDate, headcount_area_id: toLineId, status: "present" },
+          { onConflict: "employee_id,on_date" },
+        );
       if (error) throw error;
       const { error: histError } = await db.from("employee_movements").insert({
         employee_id: employee.id,
@@ -211,6 +220,40 @@ export function useMoveEmployee() {
       // The move itself succeeded. A failed history write is worth knowing about but
       // must not roll the board back under the user.
       if (histError) console.error("[workforce] movement not recorded:", histError);
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["employee_attendance", vars.onDate] });
+      qc.invalidateQueries({ queryKey: ["employee_movements", vars.employee.id] });
+    },
+  });
+}
+
+/**
+ * Add somebody to the list.
+ *
+ * Deliberately few fields. A name and a shift is enough to put a person on the board
+ * this morning; the payroll number, the rota and the start date are things HR fills
+ * in later from a record that exists, and asking for them here would either hold up
+ * the board or invite somebody to type a plausible guess into a payroll field.
+ */
+export function useCreateEmployee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      full_name: string;
+      shift_group: string | null;
+      department: string | null;
+      headcount_area_id: string | null;
+      employee_ref: string | null;
+      started_on: string | null;
+    }) => {
+      const { data, error } = await db
+        .from("employees")
+        .insert({ ...input, active: true, source: "manual" })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["employees"] }),
   });

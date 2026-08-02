@@ -22,6 +22,7 @@ import {
 import { HeadcountBoard, type BoardEmployee } from "@/components/workforce/HeadcountBoard";
 import { EmployeeDetailPanel } from "@/components/workforce/EmployeeDetailPanel";
 import { MonthlySummary } from "@/components/workforce/MonthlySummary";
+import { AddEmployeeDialog } from "@/components/workforce/AddEmployeeDialog";
 import { OvertimePanel } from "@/components/workforce/OvertimePanel";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
@@ -217,6 +218,7 @@ export default function WorkforcePage() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle className="text-base">People ({rows.length})</CardTitle>
                   <div className="flex flex-wrap gap-2 no-print">
+                    {canEdit && <AddEmployeeDialog />}
                     <Input placeholder="Search name…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 w-48" />
                     <Select value={dept} onValueChange={setDept}>
                       <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
