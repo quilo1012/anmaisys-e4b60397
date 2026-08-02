@@ -352,7 +352,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "cc", label: "Control Center", actions: ["controlcenter.view", "assets.manage"] },
   { key: "dash", label: "Dashboards", actions: ["dashboard.executive", "dashboard.manager", "dashboard.engineer", "dashboard.operator"] },
   { key: "users", label: "Users & Audit", actions: ["users.view", "users.manage", "audit.view"] },
-  { key: "reports", label: "Reports", actions: ["reports.analytics", "reliability.view", "suppliers.view"] },
+  { key: "reports", label: "Reports", actions: ["reports.analytics", "reports.export", "reliability.view", "suppliers.view"] },
   { key: "system", label: "System", actions: ["system.clear", "system.settings", "permissions.manage"] },
 ];
 
