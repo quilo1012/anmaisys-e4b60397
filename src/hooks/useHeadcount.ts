@@ -132,7 +132,28 @@ export function useShiftRoster(shift: string, onDate: string) {
     [everyone],
   );
 
-  return { data, byId, isLoading };
+  /**
+   * Everyone on this shift, whether or not the rota puts them in today.
+   *
+   * The picker needs the wider list: nobody is fixed to a line, and a Saturday call-in
+   * or tomorrow's plan has to be placeable. A picker that offers nobody on a day
+   * nobody is rostered is a picker that cannot be used to change the roster. Each
+   * person carries whether the rota covers the day, so placing an off-rota person is
+   * a visible decision rather than a silent one.
+   */
+  const onShift = useMemo(() => {
+    const patternById = new Map((patterns ?? []).map((p) => [p.id, p]));
+    const day = new Date(`${onDate}T12:00:00`);
+    return (everyone ?? [])
+      .filter((e) => boardShiftFor(resolveShiftOn(history, e, onDate).shift_group) === shift)
+      .map((e) => {
+        const held = resolveShiftOn(history, e, onDate);
+        const pattern = held.shift_pattern_id ? patternById.get(held.shift_pattern_id) ?? null : null;
+        return { ...e, offRota: !!pattern && !worksOn(pattern.days, day) };
+      });
+  }, [everyone, patterns, history, shift, onDate]);
+
+  return { data, byId, onShift, isLoading };
 }
 
 export function useAllocations(onDate: string, shift: string) {

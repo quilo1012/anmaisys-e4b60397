@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BackButton } from "@/components/BackButton";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
+import { AreaPicker } from "@/components/workforce/AreaPicker";
 import {
   useHeadcountAreas,
   useShiftRoster,
@@ -203,7 +204,8 @@ function ShiftBoard({
   areas: HeadcountArea[];
   canManage: boolean;
 }) {
-  const { data: roster = [], byId: everyoneById, isLoading: rosterLoading } = useShiftRoster(shift, onDate);
+  const { data: roster = [], byId: everyoneById, onShift = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate);
+  const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
   const { data: allocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
   const { place, remove, copyLastLikeDay } = useAllocationMutations(onDate, shift);
 
@@ -335,7 +337,11 @@ function ShiftBoard({
               onDrop={() => handleDrop({ areaId: area.id, status: "assigned" })(readDrag() ?? "")}
             >
               <Card className={cn("h-full overflow-hidden border-l-4", area.kind === "production" ? "border-l-primary" : "border-l-slate-400")}>
-                <CardHeader className={cn("flex flex-row items-center justify-between gap-2 space-y-0 border-b px-2.5 py-2", area.kind === "production" ? "bg-primary/5" : "bg-muted")}>
+                <CardHeader
+                  className={cn("flex flex-row items-center justify-between gap-2 space-y-0 border-b px-2.5 py-2", area.kind === "production" ? "bg-primary/5" : "bg-muted", canManage && "cursor-pointer hover:brightness-95")}
+                  onClick={canManage ? () => setPicking({ id: area.id, name: area.name }) : undefined}
+                  title={canManage ? `Add or remove people on ${area.name}` : undefined}
+                >
                   <CardTitle className="truncate text-xs font-bold">{area.name}</CardTitle>
                   <span className={cn(
                     "grid h-5 min-w-[1.5rem] shrink-0 place-items-center rounded-full border bg-background px-1.5 font-mono text-xs font-bold",
@@ -371,6 +377,30 @@ function ShiftBoard({
         </div>
         );
       })}
+
+      {/* Filling a line by dragging seventy cards is the reason people go back to the
+          spreadsheet. The column heading opens a search over the whole shift — the same
+          picker the Workforce daily board uses, so the two behave alike. */}
+      {picking && (
+        <AreaPicker
+          areaId={picking.id}
+          areaName={picking.name}
+          open
+          onOpenChange={(v) => !v && setPicking(null)}
+          people={onShift.map((e) => {
+            const current = byEmployee.get(e.id)?.area_id ?? null;
+            return {
+              ...e,
+              currentAreaId: current,
+              currentAreaName: current ? areas.find((a) => a.id === current)?.name ?? null : null,
+            };
+          })}
+          onToggle={(person, toAreaId) => {
+            if (toAreaId) place.mutate({ employeeId: person.id, areaId: toAreaId, status: "assigned" });
+            else remove.mutate(person.id);
+          }}
+        />
+      )}
 
       <SectionLabel>Away &amp; overtime</SectionLabel>
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))" }}>
