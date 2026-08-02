@@ -103,7 +103,7 @@ function initials(name: string) {
 const STATUS_ORDER: AttendanceStatus[] = ["present", "absent", "sick", "holiday", "unpaid", "training"];
 
 function EmployeeCard({
-  employee, attendance, onSetStatus, onSelect, canEdit, dragging, offRota, dimmed, readOnly,
+  employee, attendance, onSetStatus, onSelect, canEdit, dragging, offRota, placed, dimmed, readOnly,
 }: {
   employee: BoardEmployee;
   attendance: Attendance | undefined;
@@ -113,6 +113,8 @@ function EmployeeCard({
   dragging?: boolean;
   /** Working a day their own rota does not cover. */
   offRota?: boolean;
+  /** On an area today, as opposed to sitting in the unplaced tray. */
+  placed?: boolean;
   /** Somebody is searching and it is not this person. */
   dimmed?: boolean;
   /** A roll-up copy of a card that lives somewhere else — no grip, no status. */
@@ -182,8 +184,13 @@ function EmployeeCard({
         </button>
         {/* Derived, never typed. Their rota does not cover this day and somebody put
             them on a line anyway, which is what an overtime day is. It says the day
-            is one, not how many hours it was worth — hours come from payroll. */}
-        {offRota && !readOnly && (
+            is one, not how many hours it was worth — hours come from payroll.
+
+            Only once somebody has been placed or marked. On a Sunday no rota covers,
+            every card on the shift is off-rota, and 52 identical badges on people
+            nobody has said anything about yet is not the answer to a question — it
+            is the board shouting the date back at you. */}
+        {offRota && !readOnly && (status || placed) && (
           <span
             title="Working outside their own rota — an overtime day. Hours still come from the payroll sheet."
             className="shrink-0 rounded border border-violet-500/50 bg-violet-500/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-violet-700 dark:text-violet-300"
@@ -664,6 +671,7 @@ export function HeadcountBoard({
       canEdit={canEdit}
       dragging={activeId === e.id}
       offRota={isOffRota(e)}
+      placed={areaOn(e) != null}
       dimmed={isDimmed(e)}
       readOnly={opts?.readOnly}
     />
