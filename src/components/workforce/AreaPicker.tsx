@@ -24,6 +24,8 @@ export interface PickerPerson {
   currentAreaName: string | null;
   /** Their rota does not cover this day — placing them makes it an overtime day. */
   offRota?: boolean;
+  /** They belong to another shift; placing them here is a call-in across crews. */
+  otherShift?: string | null;
 }
 
 /**
@@ -76,7 +78,12 @@ export function AreaPicker<T extends PickerPerson>({
         <span className="flex-1 truncate">{p.full_name}</span>
         {/* Said before the choice, not after it: putting somebody on a line on a day
             their rota does not cover is a call-in, and the card will say OT day. */}
-        {p.offRota && (
+        {p.otherShift && (
+          <span className="shrink-0 rounded border border-indigo-500/50 bg-indigo-500/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-indigo-700 dark:text-indigo-300">
+            {p.otherShift}
+          </span>
+        )}
+        {p.offRota && !p.otherShift && (
           <span className="shrink-0 rounded border border-amber-500/50 bg-amber-500/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-warning-strong">
             Off rota
           </span>
@@ -96,20 +103,30 @@ export function AreaPicker<T extends PickerPerson>({
         <DialogHeader className="px-4 pt-4">
           <DialogTitle>{areaName}</DialogTitle>
           <DialogDescription>
-            {here.length} on this area today. Everyone on the shift is listed, including
-            people the rota does not put in today — pick them to move them here, or pick
-            somebody already here to take them off.
+            {here.length} on this area today. Everyone is listed — including people the
+            rota does not put in today, and people from another shift. Pick them to move
+            them here, or pick somebody already here to take them off.
           </DialogDescription>
         </DialogHeader>
-        <Command shouldFilter className="rounded-none border-t">
+        {/* Substring, not the fuzzy default. Typing "rich" was returning Gabriel
+            Chimenez and Alexandre Da Silva Rocha — a scored match on scattered
+            letters — while the person actually called Richrad was nowhere. A search
+            that answers with names you did not ask for teaches people not to trust
+            it. */}
+        <Command
+          className="rounded-none border-t"
+          filter={(value, search) =>
+            value.toLowerCase().includes(search.trim().toLowerCase()) ? 1 : 0
+          }
+        >
           <CommandInput placeholder="Search name…" value={query} onValueChange={setQuery} />
           <CommandList className="max-h-[22rem]">
-            <CommandEmpty>Nobody on this shift matches that.</CommandEmpty>
+            <CommandEmpty>Nobody matches that.</CommandEmpty>
             {here.length > 0 && (
               <CommandGroup heading={`On ${areaName}`}>{here.map((p) => row(p, true))}</CommandGroup>
             )}
             {elsewhere.length > 0 && (
-              <CommandGroup heading="Elsewhere on this shift">
+              <CommandGroup heading="Everyone else">
                 {elsewhere.map((p) => row(p, false))}
               </CommandGroup>
             )}

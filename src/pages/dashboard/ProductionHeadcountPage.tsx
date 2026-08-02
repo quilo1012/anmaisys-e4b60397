@@ -482,12 +482,19 @@ function ShiftBoard({
           areaName={picking.name}
           open
           onOpenChange={(v) => !v && setPicking(null)}
-          people={onShift.map((e) => {
+          // Everyone active, not only this shift's crew. Somebody called in from the
+          // weekend crew onto a Monday is a real thing the factory does — and a picker
+          // that cannot find them is a picker that sends people back to the sheet.
+          // Whose crew they are is shown, so bringing one across is a visible choice.
+          people={[...(everyoneById?.values() ?? [])].map((e) => {
             const current = byEmployee.get(e.id)?.area_id ?? null;
+            const theirs = onShift.find((o) => o.id === e.id);
             return {
               ...e,
               currentAreaId: current,
               currentAreaName: current ? areas.find((a) => a.id === current)?.name ?? null : null,
+              offRota: theirs?.offRota ?? false,
+              otherShift: theirs ? null : e.shift_group,
             };
           })}
           onToggle={(person, toAreaId) => {
