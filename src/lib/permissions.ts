@@ -171,8 +171,15 @@ const MATRIX: Record<Action, Role[]> = {
   "quality.close": ["admin", "manager", "maintenance_manager"],
 
   // Production Headcount (Day/Night allocation board).
-  "headcount.view": [...ALL, "warehouse", "quality_supervisor", "production_office_admin"],
-  "headcount.manage": ["admin", "manager", "supervisor", "planner", "production_office_admin"],
+  //
+  // Admin only, viewing included, and deliberately narrower than the board deserves:
+  // the allocation is still being built and the day opens mostly empty, so an
+  // operator reading it would be reading a plan nobody has made yet. It also names
+  // every person on the shift and who was absent, which is not an operator's to
+  // browse. Widen it when the board is the real plan — the same rule the Workforce
+  // module is under, and for the same reason.
+  "headcount.view": ["admin"],
+  "headcount.manage": ["admin"],
   "attendance.manage": ["admin", "manager", "supervisor", "planner"],
   "downtime.adjust": ["admin", "manager", "supervisor", "maintenance_manager", "engineer", "co_engineer"],
   "reports.export": ["admin", "manager", "supervisor", "planner"],

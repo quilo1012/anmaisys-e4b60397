@@ -106,7 +106,7 @@ export const navItems: NavItem[] = [
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Administration", action: "users.manage" },
-  { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: [...ALL_ROLES], group: "Production", action: "headcount.view" },
+  { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
   { title: "Workforce", url: "/dashboard/workforce", icon: UsersRound, roles: ["admin"], group: "Administration", action: "workforce.view" },
 
   // System — the audit trail and the iTouching integration.
