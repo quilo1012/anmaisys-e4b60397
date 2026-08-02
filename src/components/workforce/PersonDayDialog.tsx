@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AllocStatus, HeadcountArea } from "@/hooks/useHeadcount";
+import { describeDays, type ShiftPattern } from "@/hooks/useWorkforce";
 
 /** The shifts a board can be, which is what `daily_allocations.shift` accepts. */
 const BOARD_SHIFTS = ["Day", "Night", "Weekend"] as const;
@@ -28,7 +29,8 @@ const STATUS: { value: AllocStatus; label: string; hint: string; cls: string }[]
  */
 export function PersonDayDialog({
   open, onOpenChange, name, shiftGroup, status, areaId, areas, canManage, isLeader,
-  onSetStatus, onSetArea, onSetShift, onSetLeader, onRemove,
+  patterns, patternId,
+  onSetStatus, onSetArea, onSetShift, onSetPattern, onSetLeader, onRemove,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -42,7 +44,10 @@ export function PersonDayDialog({
   onSetStatus: (s: AllocStatus) => void;
   onSetArea: (areaId: string) => void;
   onSetShift: (shiftGroup: string) => void;
+  onSetPattern: (patternId: string | null) => void;
   onSetLeader: (leader: boolean) => void;
+  patterns: ShiftPattern[];
+  patternId: string | null;
   onRemove: () => void;
   isLeader: boolean;
 }) {
@@ -116,6 +121,27 @@ export function PersonDayDialog({
             <p className="mt-1.5 text-2xs text-muted-foreground">
               Changes the person, not just today: every day still ahead moves to the new
               board. Days already worked keep the shift they were worked on.
+            </p>
+
+            {/* The rota is the other half, and a different question: the shift says
+                which crew, the rota says which weekdays. Mon–Thu exists on days and on
+                nights, so one list could not answer both. */}
+            <Label className="mt-3 block text-xs">Working pattern</Label>
+            <Select value={patternId ?? "__none__"} onValueChange={(v) => onSetPattern(v === "__none__" ? null : v)} disabled={!canManage}>
+              <SelectTrigger className="mt-1.5 h-9"><SelectValue placeholder="No rota recorded" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">No rota recorded</SelectItem>
+                {patterns.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                    <span className="ml-2 text-2xs text-muted-foreground">{describeDays(p.days)}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="mt-1.5 text-2xs text-muted-foreground">
+              Decides which weekdays they are due in. Somebody put on a line on a day
+              their rota does not cover is a call-in, and the board says so.
             </p>
           </div>
 

@@ -12,6 +12,7 @@ import { BackButton } from "@/components/BackButton";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
 import { AreaPicker } from "@/components/workforce/AreaPicker";
+import { useShiftPatterns } from "@/hooks/useWorkforce";
 import { PersonDayDialog } from "@/components/workforce/PersonDayDialog";
 import {
   useHeadcountAreas,
@@ -20,6 +21,7 @@ import {
   useAllocationMutations,
   useChangeShift,
   useReorderAreas,
+  useSetShiftPattern,
   type AllocStatus,
   type HeadcountArea,
   type HeadcountEmployee,
@@ -255,6 +257,8 @@ function ShiftBoard({
   const [editing, setEditing] = useState<string | null>(null);
   const changeShift = useChangeShift(onDate);
   const reorder = useReorderAreas();
+  const setPattern = useSetShiftPattern();
+  const { data: patterns = [] } = useShiftPatterns();
   // A little distance first, so a tap on the heading is not read as a drag.
   const columnSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const { data: allocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
@@ -537,6 +541,9 @@ function ShiftBoard({
               status: alloc?.status === "overtime" ? "overtime" : "assigned",
             })}
             onSetShift={(sg) => changeShift.mutate({ employeeId: editing, shiftGroup: sg })}
+            patterns={patterns}
+            patternId={person.shift_pattern_id}
+            onSetPattern={(id) => setPattern.mutate({ employeeId: editing, patternId: id })}
             isLeader={!!alloc?.is_leader}
             onSetLeader={(v) => setLeader.mutate({ employeeId: editing, areaId: alloc?.area_id ?? null, leader: v })}
             onRemove={() => { remove.mutate(editing); setEditing(null); }}
