@@ -170,6 +170,13 @@ const MATRIX: Record<Action, Role[]> = {
   "quality.validate": ["admin", "quality_supervisor"],
   "quality.close": ["admin", "manager", "maintenance_manager"],
 
+  // Production Headcount (Day/Night allocation board).
+  "headcount.view": [...ALL, "warehouse", "quality_supervisor", "production_office_admin"],
+  "headcount.manage": ["admin", "manager", "supervisor", "planner", "production_office_admin"],
+  "attendance.manage": ["admin", "manager", "supervisor", "planner"],
+  "downtime.adjust": ["admin", "manager", "supervisor", "maintenance_manager", "engineer", "co_engineer"],
+  "reports.export": ["admin", "manager", "supervisor", "planner"],
+
   "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"],
   "pm.manage": ["admin", "manager", "maintenance_manager", "production_office_admin"],
 
@@ -178,8 +185,9 @@ const MATRIX: Record<Action, Role[]> = {
   "leaders.view": ["admin", "manager", "supervisor", "production_office_admin"],
   "leaders.manage": ["admin", "manager", "production_office_admin"],
 
-  "chat.line": [],
+  "chat.line": [...ALL.filter((r) => r !== "viewer"), "warehouse", "quality_supervisor", "production_office_admin"],
   "chat.dm": ["admin", "manager", "supervisor", "operator"],
+
 
   "notifications.view": [...ALL, "quality_supervisor", "production_office_admin"],
   "notifications.manage": ["admin", "manager"],
