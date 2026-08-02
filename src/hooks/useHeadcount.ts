@@ -260,3 +260,39 @@ export function useAllocationMutations(onDate: string, shift: string) {
 
   return { place, remove, copyLastLikeDay };
 }
+
+/**
+ * Move somebody to another shift, and take their upcoming days with them.
+ *
+ * `daily_allocations.shift` is the board a person was planned onto, not a copy of
+ * their crew — that is what lets the Fri–Mon crew be planned onto Monday's day board.
+ * But when somebody genuinely changes shift, the days still ahead were planned on the
+ * wrong board and would leave them showing on the tab they just left.
+ *
+ * Days already past are not touched. Somebody moved to nights in August was on days
+ * in July, and July's board has to keep saying so.
+ */
+export function useChangeShift(onDate: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ employeeId, shiftGroup }: { employeeId: string; shiftGroup: string }) => {
+      const { error } = await supabase.from("employees").update({ shift_group: shiftGroup }).eq("id", employeeId);
+      if (error) throw error;
+      const board = boardShiftFor(shiftGroup);
+      if (board) {
+        const { error: moveErr } = await supabase
+          .from("daily_allocations")
+          .update({ shift: board })
+          .eq("employee_id", employeeId)
+          .gte("on_date", onDate);
+        if (moveErr) throw moveErr;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["headcount-roster-all"] });
+      qc.invalidateQueries({ queryKey: ["headcount-allocations"] });
+      toast.success("Shift changed. Days already past keep the shift they were worked on.");
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Could not change the shift"),
+  });
+}
