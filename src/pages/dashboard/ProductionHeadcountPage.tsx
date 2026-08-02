@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BackButton } from "@/components/BackButton";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
 import {
@@ -330,6 +331,12 @@ export default function ProductionHeadcountPage() {
 
   return (
     <div className="space-y-4">
+      {/* Above the banner rather than inside it: the banner is navy, and a ghost
+          button on it reads as disabled. Same component and same position as every
+          other screen, so leaving the board is where the hand already expects it —
+          the board scrolls for twenty columns and the shell's Back is a long way up. */}
+      <BackButton className="no-print" />
+
       <div className="rounded-xl bg-[hsl(215_60%_18%)] p-4 text-white shadow-sm print:bg-white print:text-black">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
