@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeFunction } from "@/lib/invokeFunction";
 
@@ -36,8 +37,18 @@ export function usePublicTabletAccounts() {
 }
 
 export function useOperatorAccounts() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["operator_line_accounts"],
+    // Keyed by user, and not run at all until there is one.
+    //
+    // `operator_line_accounts` is RLS-protected, and RLS answers a request with no
+    // session by returning zero rows rather than an error. Run on mount — which is
+    // what happens when a login redirects straight here — the query cached an empty
+    // list for two minutes, so the operator's line could never resolve and the page
+    // sat on its spinner. Reloading worked because the session was already in
+    // storage by then.
+    queryKey: ["operator_line_accounts", user?.id ?? null],
+    enabled: !!user,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("operator_line_accounts")

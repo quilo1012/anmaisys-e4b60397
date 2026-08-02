@@ -126,6 +126,20 @@ function MyProductionContent() {
   const [targetUnlocked, setTargetUnlocked] = useState(false);
   const [leaderAssigned, setLeaderAssigned] = useState<boolean | null>(null);
 
+  /**
+   * A spinner that cannot end is worse than an error.
+   *
+   * The line usually resolves in a moment. If it has not after eight seconds
+   * something is wrong that waiting will not fix, and an operator holding a tablet
+   * needs a way out rather than an animation.
+   */
+  const [lineTimedOut, setLineTimedOut] = useState(false);
+  useEffect(() => {
+    if (line) { setLineTimedOut(false); return; }
+    const t = setTimeout(() => setLineTimedOut(true), 8000);
+    return () => clearTimeout(t);
+  }, [line]);
+
   const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
   const shift: Shift = shiftCode === "day" ? "DAY" : "NIGHT";
   const shiftLabel = SHIFT_LABEL[shiftCode];
@@ -254,7 +268,18 @@ function MyProductionContent() {
           react-query v5 a DISABLED query reports isLoading === false — so this
           gate used to fall straight through to "No active shift session" until
           the operator refreshed. Treat "line not resolved yet" as loading. */}
-      {!line || sessionQ.isLoading ? (
+      {!line && lineTimedOut ? (
+        <Card>
+          <CardContent className="space-y-3 p-8 text-center">
+            <div className="text-base font-semibold">Still finding your line.</div>
+            <p className="text-sm text-muted-foreground">
+              Your login is bound to a line, but the list has not come back. This is
+              usually a moment of no signal.
+            </p>
+            <Button onClick={() => window.location.reload()}>Try again</Button>
+          </CardContent>
+        </Card>
+      ) : !line || sessionQ.isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : !sessionId ? (
         <Card>
@@ -294,6 +319,20 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
   const [leader, setLeader] = useState<{ name: string; matched: boolean } | null>(null);
   const [open, setOpen] = useState(false);
 
+
+  /**
+   * A spinner that cannot end is worse than an error.
+   *
+   * The line usually resolves in a moment. If it has not after eight seconds
+   * something is wrong that waiting will not fix, and an operator holding a tablet
+   * needs a way out rather than an animation.
+   */
+  const [lineTimedOut, setLineTimedOut] = useState(false);
+  useEffect(() => {
+    if (line) { setLineTimedOut(false); return; }
+    const t = setTimeout(() => setLineTimedOut(true), 8000);
+    return () => clearTimeout(t);
+  }, [line]);
 
   const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
   const shift: Shift = shiftCode === "day" ? "DAY" : "NIGHT";
