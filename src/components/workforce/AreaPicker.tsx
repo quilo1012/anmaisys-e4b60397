@@ -6,9 +6,19 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { roleStripe } from "@/lib/workforceRoles";
-import type { Employee } from "@/hooks/useWorkforce";
 
-export interface PickerPerson extends Employee {
+/**
+ * Only what the picker actually shows, so both boards can share it.
+ *
+ * It used to extend `Employee`, which tied it to the Workforce board's row shape and
+ * meant the headcount board could not reuse it without carrying a dozen fields the
+ * picker never reads.
+ */
+export interface PickerPerson {
+  id: string;
+  full_name: string;
+  department: string | null;
+  employee_ref?: string | null;
   /** The area they are in on the day being shown, resolved by the caller. */
   currentAreaId: string | null;
   currentAreaName: string | null;
@@ -25,28 +35,28 @@ export interface PickerPerson extends Employee {
  * Anybody already here is pinned to the top with a tick, so the list doubles as the
  * answer to "who is on this line".
  */
-export function AreaPicker({
+export function AreaPicker<T extends PickerPerson>({
   areaId, areaName, people, open, onOpenChange, onToggle,
 }: {
   areaId: string;
   areaName: string;
-  people: PickerPerson[];
+  people: T[];
   open: boolean;
   onOpenChange: (v: boolean) => void;
   /** Called with the target area, or null to take them off this one. */
-  onToggle: (person: PickerPerson, toAreaId: string | null) => void;
+  onToggle: (person: T, toAreaId: string | null) => void;
 }) {
   const [query, setQuery] = useState("");
 
   const { here, elsewhere } = useMemo(() => {
-    const here: PickerPerson[] = [];
-    const elsewhere: PickerPerson[] = [];
+    const here: T[] = [];
+    const elsewhere: T[] = [];
     for (const p of people) (p.currentAreaId === areaId ? here : elsewhere).push(p);
-    const byName = (a: PickerPerson, b: PickerPerson) => a.full_name.localeCompare(b.full_name);
+    const byName = (a: T, b: T) => a.full_name.localeCompare(b.full_name);
     return { here: here.sort(byName), elsewhere: elsewhere.sort(byName) };
   }, [people, areaId]);
 
-  const row = (p: PickerPerson, isHere: boolean) => {
+  const row = (p: T, isHere: boolean) => {
     const role = roleStripe(p.department);
     return (
       <CommandItem
