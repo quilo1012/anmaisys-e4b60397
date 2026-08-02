@@ -286,6 +286,38 @@ export function HeadcountBoard({
     return (e: BoardEmployee) => byId.get(e.id)?.headcount_area_id ?? e.headcount_area_id ?? null;
   }, [attendance]);
 
+  /**
+   * Why the board is empty, when it is.
+   *
+   * A shift whose rota does not cover the chosen day is genuinely nobody, and the
+   * honest count is zero — but a screen full of zeros reads as broken software. This
+   * says which rota and which weekday, so the answer is "nobody works Sunday
+   * nights", not "the counters are wrong".
+   */
+  /** The shifts that exist on people but are deliberately not planned on this board. */
+  const offBoard = useMemo(() => {
+    const planned = new Set<string>(BOARD_SHIFTS);
+    const counts = new Map<string, number>();
+    for (const e of employees) {
+      if (!e.active || !e.shift_group || planned.has(e.shift_group)) continue;
+      counts.set(e.shift_group, (counts.get(e.shift_group) ?? 0) + 1);
+    }
+    return Array.from(counts, ([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
+  }, [employees]);
+
+  const emptyReason = useMemo(() => {
+    if (scheduled.length > 0 || showAll) return null;
+    const onThisShift = employees.filter((e) => e.active && e.shift_group === shift);
+    if (onThisShift.length === 0) return `Nobody is on the ${shift} shift.`;
+    const rotas = Array.from(
+      new Set(onThisShift.map((e) => e.pattern?.name).filter(Boolean) as string[]),
+    );
+    const weekday = onDate.toLocaleDateString("en-GB", { weekday: "long" });
+    return rotas.length
+      ? `${onThisShift.length} people are on the ${shift} shift, and no ${rotas.join(" / ")} rota covers ${weekday}.`
+      : `${onThisShift.length} people are on the ${shift} shift and none of them has a rota recorded.`;
+  }, [scheduled, showAll, employees, shift, onDate]);
+
   const columns = useMemo(() => {
     const byLine = new Map<string, BoardEmployee[]>();
     byLine.set(UNPLACED, []);
@@ -376,13 +408,16 @@ export function HeadcountBoard({
               </button>
             );
           })}
-          {(shiftCounts.get("__none__") ?? 0) > 0 && (
-            <span className="self-center pl-1 text-2xs text-muted-foreground">
-              {shiftCounts.get("__none__")} with no shift recorded
-            </span>
-          )}
+          {/* Named rather than left out silently, so the board does not read as the
+              whole factory when 46 people are deliberately not on it. */}
+          <span className="ml-auto self-center text-right text-2xs text-muted-foreground">
+            {offBoard.map((o) => `${o.name} ${o.n}`).join(" · ")} — recorded, not planned here
+            {(shiftCounts.get("__none__") ?? 0) > 0
+              ? ` · ${shiftCounts.get("__none__")} with no shift recorded`
+              : ""}
+          </span>
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-px overflow-hidden rounded-md border bg-border sm:grid-cols-6">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
           {[
             { k: "On shift", v: shiftTotals.onShift, s: shift },
             { k: "In", v: shiftTotals.present, s: "Marked present" },
@@ -391,15 +426,24 @@ export function HeadcountBoard({
             { k: "Not marked", v: shiftTotals.unmarked, s: "Nobody has said", tone: shiftTotals.unmarked ? "text-destructive-strong" : "" },
             { k: "Placed", v: `${shiftTotals.placed}/${shiftTotals.onShift}`, s: "Have an area" },
           ].map((t) => (
-            <div key={t.k} className="bg-card px-2 py-1.5">
-              <div className="truncate text-2xs uppercase tracking-wide text-muted-foreground">{t.k}</div>
-              <div className={cn("font-mono text-lg font-bold tabular-nums leading-tight", t.tone)}>{t.v}</div>
+            <div key={t.k} className="rounded-lg border bg-card px-3 py-2">
+              <div className="truncate text-2xs uppercase tracking-wider text-muted-foreground">{t.k}</div>
+              <div className={cn("font-mono text-2xl font-bold tabular-nums leading-tight", t.tone)}>{t.v}</div>
               <div className="truncate text-2xs text-muted-foreground">{t.s}</div>
             </div>
           ))}
         </div>
       </CardHeader>
       <CardContent>
+        {emptyReason && (
+          <div className="mb-3 rounded-lg border border-dashed bg-muted/30 p-3 text-sm">
+            <p className="font-medium">{emptyReason}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The zero is the answer, not a fault. Step to a day the rota covers, or use
+              “Show everyone” to see the shift regardless of the day.
+            </p>
+          </div>
+        )}
         <DndContext
           sensors={sensors}
           onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
