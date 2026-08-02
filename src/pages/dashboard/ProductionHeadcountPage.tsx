@@ -125,11 +125,14 @@ function Chip({
       )}
       title={name}
     >
+      {/* The leader's square says LEAD rather than their initials. Initials in a
+          darker box only read as "this one is somehow different"; the word says which
+          way, and it is the thing being looked for when a column is scanned. */}
       <span className={cn(
-        "grid h-5 w-5 shrink-0 place-items-center rounded-md text-[9px] font-bold leading-none",
-        leader ? "bg-[hsl(215_60%_18%)] text-white" : "bg-background/70 text-muted-foreground",
+        "grid h-5 shrink-0 place-items-center rounded-md text-[9px] font-bold leading-none",
+        leader ? "w-9 bg-primary text-primary-foreground tracking-wide" : "w-5 bg-background/70 text-muted-foreground",
       )}>
-        {initials(name)}
+        {leader ? "LEAD" : initials(name)}
       </span>
       <span className="truncate">{name}</span>
     </span>
