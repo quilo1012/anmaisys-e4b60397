@@ -127,7 +127,9 @@ function Chip({
       draggable={draggable}
       onDragStart={onDragStart}
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-lg border px-1.5 py-1 text-xs font-medium",
+        // 44px tall and a 26px square: this board is used on a tablet, on the floor,
+        // by somebody wearing gloves. A 30px row is a row you miss.
+        "inline-flex min-h-[44px] w-full max-w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-sm font-medium",
         leader ? "border-primary/40 bg-primary/10 font-semibold"
           : overtime ? "border-violet-500/40 bg-violet-500/10"
           : tones[tone],
@@ -143,8 +145,8 @@ function Chip({
           darker box only read as "this one is somehow different"; the word says which
           way, and it is the thing being looked for when a column is scanned. */}
       <span className={cn(
-        "grid h-5 shrink-0 place-items-center rounded-md text-[9px] font-bold leading-none",
-        leader ? "w-9 bg-primary text-primary-foreground tracking-wide" : "w-5 bg-background/70 text-muted-foreground",
+        "grid h-[26px] shrink-0 place-items-center rounded-md text-[11px] font-bold leading-none",
+        leader ? "w-11 bg-primary text-primary-foreground tracking-wide" : "w-[26px] bg-background/70 text-muted-foreground",
       )}>
         {leader ? "LEAD" : initials(name)}
       </span>
@@ -236,7 +238,7 @@ function KpiPill({
         <Icon className={cn("h-3.5 w-3.5 shrink-0", highlight ? "" : "text-muted-foreground")} />
         <span className={cn("font-mono text-2xl font-bold leading-none tabular-nums", valueTone)}>{value}</span>
       </div>
-      <div className="mt-1.5 truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-1.5 truncate text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -375,7 +377,7 @@ function ShiftBoard({
         </div>
         <div className="min-w-0">
           <h3 className="text-base font-extrabold leading-tight">{shift} shift</h3>
-          <div className="truncate text-2xs opacity-90">{roster.length} on the rota today</div>
+          <div className="truncate text-2xs font-medium text-white/95">{dayTypeLabel(onDate)}</div>
         </div>
         <div className="ml-auto flex items-center gap-3">
           {canManage && (
@@ -384,9 +386,26 @@ function ShiftBoard({
               Copy from last same day
             </Button>
           )}
-          <div className="text-right">
-            <b className="block font-mono text-2xl font-extrabold leading-none tabular-nums">{assignedCount}</b>
-            <small className="text-[10px] uppercase tracking-wider opacity-90">staff assigned</small>
+          {/* The two numbers side by side, because apart they invite the wrong sum:
+              46 assigned out of 82 due in is a shift half planned, and "46" alone
+              reads like the whole answer. The rest of the rota is named underneath so
+              nobody has to work out where the other 36 went. */}
+          <div className="rounded-xl bg-black/20 px-3 py-2 text-right">
+            <div className="flex items-baseline justify-end gap-1.5">
+              <b className="font-mono text-2xl font-extrabold leading-none tabular-nums">{assignedCount}</b>
+              <span className="text-2xs font-bold uppercase tracking-wider text-white/95">
+                / {roster.length} on the rota
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 w-40 overflow-hidden rounded-full bg-black/30">
+              <div
+                className="h-full rounded-full bg-white"
+                style={{ width: `${roster.length ? Math.min(100, (assignedCount / roster.length) * 100) : 0}%` }}
+              />
+            </div>
+            <div className="mt-1.5 text-2xs font-medium text-white/95">
+              {unassigned.length} unallocated · {away} away
+            </div>
           </div>
         </div>
       </div>
@@ -436,16 +455,18 @@ function ShiftBoard({
                   title={canManage ? `Add or remove people on ${area.name}` : undefined}
                 >
                   {canManage && grip}
-                  <CardTitle className="truncate text-xs font-bold">{area.name}</CardTitle>
+                  <CardTitle className="truncate text-sm font-bold">{area.name}</CardTitle>
                   <span className={cn(
-                    "grid h-5 min-w-[1.5rem] shrink-0 place-items-center rounded-full border bg-background px-1.5 font-mono text-xs font-bold",
+                    "grid h-6 min-w-[1.75rem] shrink-0 place-items-center rounded-full border bg-background px-2 font-mono text-sm font-bold",
                     people.length ? (area.kind === "production" ? "text-primary" : "text-foreground") : "text-muted-foreground/50",
                   )}>
                     {people.length}
                   </span>
                 </CardHeader>
-                <CardContent className="min-h-[76px] p-2">
-                  <div className="flex flex-col gap-1">
+                {/* An empty column shrinks instead of holding a hole the size of a
+                    full one. Twenty areas at 76px of nothing is most of a screen. */}
+                <CardContent className={cn("p-2", people.length === 0 ? "min-h-[52px]" : "min-h-[80px]")}>
+                  <div className="flex flex-col gap-1.5">
                     {people.map(({ person: p, overtime: isOt, leader: leadsToday }) => (
                       <Chip
                         key={p.id}
@@ -461,7 +482,11 @@ function ShiftBoard({
                         }}
                       />
                     ))}
-                    {people.length === 0 && <span className="text-xs text-muted-foreground">Drop people here</span>}
+                    {people.length === 0 && (
+                      <span className="flex h-9 items-center justify-center rounded-lg border border-dashed text-2xs text-muted-foreground/70">
+                        Drop people here
+                      </span>
+                    )}
                   </div>
                 </CardContent>
               </Card>
