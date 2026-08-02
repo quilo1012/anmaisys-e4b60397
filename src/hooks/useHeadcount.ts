@@ -164,7 +164,11 @@ export function useAllocationMutations(onDate: string, shift: string) {
             on_date: onDate,
             shift,
             employee_id: input.employeeId,
-            area_id: input.status === "assigned" ? input.areaId : null,
+            // Overtime keeps its area. Somebody on an overtime day is working, and the
+            // column they are working in is the point — wiping it left the board with
+            // nowhere to show them but a list of names. Absence and holiday do lose it:
+            // they are not at a place that day.
+            area_id: input.status === "assigned" || input.status === "overtime" ? input.areaId : null,
             status: input.status,
           },
           { onConflict: "on_date,shift,employee_id" },

@@ -92,12 +92,15 @@ function Chip({
   name,
   tone,
   leader,
+  overtime,
   draggable,
   onDragStart,
 }: {
   name: string;
   tone: "production" | "support" | "away" | "overtime" | "roster";
   leader?: boolean;
+  /** Working a day their own rota does not cover — marked on the line, not moved off it. */
+  overtime?: boolean;
   draggable: boolean;
   onDragStart: (e: React.DragEvent) => void;
 }) {
@@ -114,7 +117,9 @@ function Chip({
       onDragStart={onDragStart}
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-lg border px-1.5 py-1 text-xs font-medium",
-        leader ? "border-primary/40 bg-primary/10 font-semibold" : tones[tone],
+        leader ? "border-primary/40 bg-primary/10 font-semibold"
+          : overtime ? "border-violet-500/40 bg-violet-500/10"
+          : tones[tone],
         draggable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
       )}
       title={name}
@@ -215,11 +220,27 @@ function ShiftBoard({
   // WH Team column at zero.
   const employeeById = everyoneById ?? new Map<string, HeadcountEmployee>();
 
+  /**
+   * Who is working in an area, leader first.
+   *
+   * Overtime counts as working here: somebody called in on a day their rota does not
+   * cover is on that line, doing that job, and the sheet lists them on the line *and*
+   * under Overtime staff. Showing them only in the Overtime card took them off the
+   * line they were actually standing on.
+   *
+   * The leader is forced to the top rather than sorted alphabetically, because the
+   * first thing anybody asks of a column is whether it has one.
+   */
   const peopleIn = (areaId: string) =>
     allocations
-      .filter((a) => a.status === "assigned" && a.area_id === areaId && employeeById.has(a.employee_id))
-      .map((a) => employeeById.get(a.employee_id)!)
-      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+      .filter((a) => (a.status === "assigned" || a.status === "overtime")
+        && a.area_id === areaId && employeeById.has(a.employee_id))
+      .map((a) => ({ person: employeeById.get(a.employee_id)!, overtime: a.status === "overtime" }))
+      .sort((a, b) => {
+        const la = isLeader(a.person.department) ? 0 : 1;
+        const lb = isLeader(b.person.department) ? 0 : 1;
+        return la - lb || a.person.full_name.localeCompare(b.person.full_name);
+      });
 
   const peopleWith = (status: AllocStatus) =>
     allocations
@@ -229,9 +250,13 @@ function ShiftBoard({
 
   const unassigned = roster.filter((e) => !byEmployee.has(e.id));
 
-  const assignedCount = allocations.filter((a) => a.status === "assigned").length;
+  // Working = placed on an area, whether the day is a normal one or an overtime one.
+  // The sheet's "Total staff in Production" counts the overtime people too — they are
+  // in the factory — so leaving them out made the board disagree with the sheet.
+  const working = allocations.filter((a) => a.status === "assigned" || a.status === "overtime");
+  const assignedCount = working.length;
   const productionIds = new Set(areas.filter((a) => a.kind === "production").map((a) => a.id));
-  const onLines = allocations.filter((a) => a.status === "assigned" && a.area_id && productionIds.has(a.area_id)).length;
+  const onLines = working.filter((a) => a.area_id && productionIds.has(a.area_id)).length;
   const support = assignedCount - onLines;
   const away = allocations.filter((a) => a.status === "absence" || a.status === "holiday").length;
   const overtime = allocations.filter((a) => a.status === "overtime").length;
@@ -244,8 +269,14 @@ function ShiftBoard({
 
   const handleDrop = (target: { areaId: string | null; status: AllocStatus } | "roster") => (employeeId: string) => {
     if (!employeeId) return;
-    if (target === "roster") remove.mutate(employeeId);
-    else place.mutate({ employeeId, areaId: target.areaId, status: target.status });
+    if (target === "roster") { remove.mutate(employeeId); return; }
+    // Marking somebody overtime says *how* their day counts, not where they are, so it
+    // keeps the area they are already on. Dropping onto Absence or Holidays does clear
+    // it: they are not on a line that day.
+    const areaId = target.status === "overtime"
+      ? target.areaId ?? byEmployee.get(employeeId)?.area_id ?? null
+      : target.areaId;
+    place.mutate({ employeeId, areaId, status: target.status });
   };
 
   const look = LOOK[shift] ?? LOOK.Day;
@@ -315,11 +346,12 @@ function ShiftBoard({
                 </CardHeader>
                 <CardContent className="min-h-[76px] p-2">
                   <div className="flex flex-col gap-1">
-                    {people.map((p) => (
+                    {people.map(({ person: p, overtime: isOt }) => (
                       <Chip
                         key={p.id}
                         name={p.full_name}
                         leader={isLeader(p.department)}
+                        overtime={isOt}
                         tone={area.kind === "production" ? "production" : "support"}
                         draggable={canManage}
                         onDragStart={(e) => {
