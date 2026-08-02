@@ -10,14 +10,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ArrowRight, RotateCcw, Save, UserMinus } from "lucide-react";
-import { cn } from "@/lib/utils";
 import {
-  describeDays, useEmployeeOvertime, useHeadcountAreas, useMovements, useShiftPatterns,
+  describeDays, useHeadcountAreas, useMovements, useShiftPatterns,
   useUpdateEmployee, type Employee,
 } from "@/hooks/useWorkforce";
 
 /**
- * One person, in three answers: who they are, where they have been, what they carry.
+ * One person, in two answers: who they are and where they have been.
  *
  * The Details tab is editable because the import left real gaps — fourteen people
  * with no department and seventeen with no shift pattern — and the person who can
@@ -35,7 +34,6 @@ export function EmployeeDetailPanel({
   const { data: patterns } = useShiftPatterns();
   const { data: areas } = useHeadcountAreas();
   const { data: movements, isLoading: loadingMoves } = useMovements(employee?.id ?? null);
-  const { data: overtime, isLoading: loadingOT } = useEmployeeOvertime(employee?.id ?? null);
   const update = useUpdateEmployee();
 
   const [department, setDepartment] = useState("");
@@ -113,7 +111,6 @@ export function EmployeeDetailPanel({
   const lineName = employee.headcount_area_id
     ? areas?.find((a) => a.id === employee.headcount_area_id)?.name ?? "—"
     : "Unassigned";
-  const total = (overtime ?? []).reduce((s, o) => s + Number(o.hours), 0);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -132,10 +129,11 @@ export function EmployeeDetailPanel({
         </SheetHeader>
 
         <Tabs defaultValue="details" className="mt-4">
-          <TabsList className="grid w-full grid-cols-3">
+          {/* Overtime is parked: the balances are a copy of a payroll sheet nobody is
+              working from yet, and a figure on screen gets treated as the answer. */}
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
-            <TabsTrigger value="overtime">Overtime</TabsTrigger>
           </TabsList>
 
           <TabsContent value="details" className="space-y-3 pt-3">
@@ -325,48 +323,6 @@ export function EmployeeDetailPanel({
             )}
           </TabsContent>
 
-          <TabsContent value="overtime" className="space-y-2 pt-3">
-            {loadingOT ? (
-              <Skeleton className="h-24" />
-            ) : (overtime ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No overtime recorded for this person.</p>
-            ) : (
-              <>
-                <div className="rounded border p-2">
-                  <div className="text-2xs uppercase text-muted-foreground">Across all periods</div>
-                  <div className={cn("font-mono text-2xl font-bold", total < 0 && "text-destructive-strong")}>
-                    {total}h
-                  </div>
-                </div>
-                {(overtime ?? []).map((o) => (
-                  <div key={o.id} className="flex items-center justify-between gap-2 rounded border p-2 text-xs">
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{o.period?.label ?? "—"}</div>
-                      {o.note && <div className="truncate text-2xs text-muted-foreground">{o.note}</div>}
-                    </div>
-                    <span className={cn("shrink-0 font-mono font-bold", Number(o.hours) < 0 && "text-destructive-strong")}>
-                      {Number(o.hours)}h
-                    </span>
-                  </div>
-                ))}
-                <p className="text-2xs text-muted-foreground">
-                  A balance, not hours worked: sickness is written off against banked hours, so a negative
-                  figure is real.
-                </p>
-                {/* Said on the screen, not only in a migration: this is a copy, and the
-                    factory pays from the sheet it was copied from. */}
-                {(overtime ?? [])[0]?.imported_at && (
-                  <p className="rounded border bg-muted/40 p-2 text-2xs text-muted-foreground">
-                    Imported from the payroll spreadsheet
-                    {(overtime ?? [])[0]?.source_note ? ` — ${(overtime ?? [])[0]!.source_note}` : ""}
-                    {" · "}
-                    {format(new Date((overtime ?? [])[0]!.imported_at as string), "dd/MM/yyyy HH:mm")}.
-                    Not calculated here, and not editable here.
-                  </p>
-                )}
-              </>
-            )}
-          </TabsContent>
         </Tabs>
       </SheetContent>
     </Sheet>

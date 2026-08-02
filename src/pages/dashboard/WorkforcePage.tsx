@@ -13,15 +13,11 @@ import { printElementAsDocument } from "@/lib/printDocument";
 import { BackButton } from "@/components/BackButton";
 import { Users, Printer, CalendarDays, TrendingDown, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
-import {
-  useEmployees, useOvertimeEntries, useOvertimePeriods, useShiftPatterns, describeDays,
-  useAttendance, worksOn,
-} from "@/hooks/useWorkforce";
+import { useEmployees, useShiftPatterns, describeDays, useAttendance, worksOn } from "@/hooks/useWorkforce";
 import { HeadcountBoard, type BoardEmployee } from "@/components/workforce/HeadcountBoard";
 import { EmployeeDetailPanel } from "@/components/workforce/EmployeeDetailPanel";
 import { MonthlySummary } from "@/components/workforce/MonthlySummary";
 import { AddEmployeeDialog } from "@/components/workforce/AddEmployeeDialog";
-import { OvertimePanel } from "@/components/workforce/OvertimePanel";
 import { roleStripe } from "@/lib/workforceRoles";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
@@ -37,10 +33,6 @@ const PEOPLE_COLUMNS = ["Day", "Night", "Warehouse Day", "Weekend", "Warehouse W
 export default function WorkforcePage() {
   const { data: employees, isLoading: loadingEmp } = useEmployees();
   const { data: patterns } = useShiftPatterns();
-  const { data: periods, isLoading: loadingPer } = useOvertimePeriods();
-  const [periodId, setPeriodId] = useState<string | null>(null);
-  const activePeriod = periods?.find((p) => p.id === periodId) ?? periods?.[0] ?? null;
-  const { data: entries, isLoading: loadingOT } = useOvertimeEntries(activePeriod?.id ?? null);
   const [search, setSearch] = useState("");
   const [boardDate, setBoardDate] = useState(() => new Date());
   const boardDateKey = boardDate.toISOString().slice(0, 10);
@@ -58,19 +50,18 @@ export default function WorkforcePage() {
   );
 
   const rows = useMemo(() => {
-    const byEmployee = new Map((entries ?? []).map((e) => [e.employee_id, e]));
     return (employees ?? [])
       .map((e) => ({
         ...e,
         pattern: e.shift_pattern_id ? patternById.get(e.shift_pattern_id) ?? null : null,
-        overtime: byEmployee.get(e.id) ?? null,
       }))
       .filter((e) => (dept === "__all__" ? true : (e.department ?? "—") === dept))
       .filter((e) => (search.trim() ? e.full_name.toLowerCase().includes(search.trim().toLowerCase()) : true));
-  }, [employees, entries, patternById, dept, search]);
+  }, [employees, patternById, dept, search]);
 
-  // Headcount only. The overtime figures moved to OvertimePanel, which owns the
-  // period they belong to.
+  // Headcount only, on purpose: overtime is parked until the payroll side of it is
+  // settled, so nothing on this page reads or shows it. The rows and the panel are
+  // still in the codebase, unwired.
   const kpis = useMemo(
     () => ({
       headcount: rows.filter((r) => r.active).length,
@@ -125,10 +116,9 @@ export default function WorkforcePage() {
     };
   }, [boardEmployees, attendance, boardDate]);
 
-  const isLoading = loadingEmp || loadingPer || loadingOT;
-  const periodLabel = activePeriod
-    ? `${format(new Date(activePeriod.starts_on), "dd/MM/yyyy")} — ${format(new Date(activePeriod.ends_on), "dd/MM/yyyy")}`
-    : "No period";
+  const isLoading = loadingEmp;
+  // The print-out is the board, so it is dated by the day the board is answering for.
+  const periodLabel = format(boardDate, "dd/MM/yyyy");
 
   return (
     <DashboardLayout>
@@ -193,7 +183,6 @@ export default function WorkforcePage() {
           <TabsList className="no-print">
             <TabsTrigger value="board">Daily board</TabsTrigger>
             <TabsTrigger value="monthly">Attendance by month</TabsTrigger>
-            <TabsTrigger value="overtime">Overtime</TabsTrigger>
             <TabsTrigger value="people">People</TabsTrigger>
           </TabsList>
 
@@ -240,15 +229,6 @@ export default function WorkforcePage() {
             <MonthlySummary employees={employees ?? []} />
           </TabsContent>
 
-          <TabsContent value="overtime">
-            <OvertimePanel
-              employees={employees ?? []}
-              entries={entries ?? []}
-              periods={periods ?? []}
-              activePeriod={activePeriod}
-              onPeriodChange={setPeriodId}
-            />
-          </TabsContent>
           <TabsContent value="people" className="space-y-4">
             <Card>
               <CardHeader className="pb-3">
