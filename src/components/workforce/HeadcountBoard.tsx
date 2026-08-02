@@ -307,6 +307,11 @@ export function HeadcountBoard({
     return counts;
   }, [employees, onDate, showAll]);
 
+  const productionAreaIds = useMemo(
+    () => new Set((areas ?? []).filter((a) => a.kind === "production").map((a) => a.id)),
+    [areas],
+  );
+
   /**
    * The selected shift, counted on its own.
    *
@@ -331,8 +336,15 @@ export function HeadcountBoard({
       placed: scheduled.filter(
         (e) => (byId.get(e.id)?.headcount_area_id ?? e.headcount_area_id) != null,
       ).length,
+      // The number the spreadsheet has always ended on: how many are on a production
+      // area, as opposed to on the shift. Derived from the same allocation the columns
+      // are drawn from, so it can never disagree with the sum of the column counters.
+      inProduction: scheduled.filter((e) => {
+        const area = byId.get(e.id)?.headcount_area_id ?? e.headcount_area_id;
+        return area ? productionAreaIds.has(area) : false;
+      }).length,
     };
-  }, [scheduled, attendance]);
+  }, [scheduled, attendance, productionAreaIds]);
 
   /**
    * Where somebody is on the day being shown.
@@ -510,9 +522,10 @@ export function HeadcountBoard({
               : ""}
           </span>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-7">
           {[
             { k: "On shift", v: shiftTotals.onShift, s: shift },
+            { k: "In production", v: shiftTotals.inProduction, s: "On a production area" },
             { k: "In", v: shiftTotals.present, s: "Marked present" },
             { k: "Away", v: shiftTotals.away, s: "Absent, sick, unpaid", tone: shiftTotals.away ? "text-warning-strong" : "" },
             { k: "Holiday", v: shiftTotals.holiday, s: "Booked leave" },
