@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { GripVertical, UserCheck, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { roleStripe, type RoleStripe } from "@/lib/workforceRoles";
+import { AreaPicker } from "./AreaPicker";
 import {
   useHeadcountAreas, useMoveEmployee, useSetAttendance, describeDays, worksOn,
   useShiftHistory, useShiftPatterns, resolveShiftOn,
@@ -135,9 +136,10 @@ function EmployeeCard({
 }
 
 function LineColumn({
-  id, title, subtitle, children, count,
+  id, title, subtitle, children, count, onOpen,
 }: {
-  id: string; title: string; subtitle?: string; children: React.ReactNode; count: number;
+  id: string; title: string; subtitle?: string; children: React.ReactNode;
+  count: number; onOpen?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
@@ -148,7 +150,18 @@ function LineColumn({
         isOver && "border-primary bg-primary/5",
       )}
     >
-      <div className="mb-1.5 flex items-baseline justify-between gap-2 border-b pb-1">
+      {/* The heading is the way in. Filling a line by dragging sixty-eight cards is
+          the reason people go back to the spreadsheet; this opens a search over the
+          whole shift instead. */}
+      <button
+        type="button"
+        onClick={onOpen}
+        disabled={!onOpen}
+        className={cn(
+          "mb-1.5 flex items-baseline justify-between gap-2 border-b pb-1 text-left",
+          onOpen && "rounded-sm hover:text-primary",
+        )}
+      >
         <span className="truncate text-xs font-bold uppercase tracking-wide">{title}</span>
         <span
           className={cn(
@@ -158,7 +171,7 @@ function LineColumn({
         >
           {count}
         </span>
-      </div>
+      </button>
       {subtitle && <div className="mb-1 text-2xs text-muted-foreground">{subtitle}</div>}
       {/* Capped and scrolled inside, so one crowded line does not stretch the row it
           sits in and leave nine short columns padded out beside it. */}
@@ -233,6 +246,7 @@ export function HeadcountBoard({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [shift, setShift] = useState<string>("Day");
+  const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
 
   const sensors = useSensors(
     // A small distance so a tap on the card's buttons is not read as a drag on a
@@ -381,14 +395,8 @@ export function HeadcountBoard({
     });
   };
 
-  const onDragEnd = (event: DragEndEvent) => {
-    setActiveId(null);
-    const employeeId = String(event.active.id);
-    const target = event.over ? String(event.over.id) : null;
-    if (!target) return;
-    const employee = employees.find((e) => e.id === employeeId);
-    if (!employee) return;
-    const toLineId = target === UNPLACED ? null : target;
+  /** One path for both ways of moving somebody: the drag and the search. */
+  const moveTo = (employee: Employee, toLineId: string | null) => {
     const wasOn = areaOn(employee as BoardEmployee);
     if (wasOn === toLineId) return;
     const nameOf = (id: string | null) => (id ? areas?.find((a) => a.id === id)?.name ?? null : null);
@@ -402,10 +410,19 @@ export function HeadcountBoard({
         movedBy: userId ?? null,
       },
       {
-        onSuccess: () => toast.success(`${employee.full_name} → ${nameOf(toLineId) ?? "Unassigned"}`),
+        onSuccess: () => toast.success(`${employee.full_name} → ${nameOf(toLineId) ?? "not on an area"}`),
         onError: (e) => toast.error((e as Error).message || "Could not move"),
       },
     );
+  };
+
+  const onDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
+    const target = event.over ? String(event.over.id) : null;
+    if (!target) return;
+    const employee = employees.find((e) => e.id === String(event.active.id));
+    if (!employee) return;
+    moveTo(employee, target === UNPLACED ? null : target);
   };
 
   const active = activeId ? employees.find((e) => e.id === activeId) : null;
@@ -540,7 +557,13 @@ export function HeadcountBoard({
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {group.map((l) => (
-                    <LineColumn key={l.id} id={l.id} title={l.name} count={columns.get(l.id)?.length ?? 0}>
+                    <LineColumn
+                      key={l.id}
+                      id={l.id}
+                      title={l.name}
+                      count={columns.get(l.id)?.length ?? 0}
+                      onOpen={canEdit ? () => setPicking({ id: l.id, name: l.name }) : undefined}
+                    >
                       {(columns.get(l.id) ?? []).map((e) => (
                         <EmployeeCard
                           key={e.id}
@@ -558,6 +581,24 @@ export function HeadcountBoard({
               </div>
             );
           })}
+
+          {picking && (
+            <AreaPicker
+              areaId={picking.id}
+              areaName={picking.name}
+              open
+              onOpenChange={(v) => !v && setPicking(null)}
+              people={scheduled.map((e) => {
+                const id = areaOn(e);
+                return {
+                  ...e,
+                  currentAreaId: id,
+                  currentAreaName: id ? areas?.find((a) => a.id === id)?.name ?? null : null,
+                };
+              })}
+              onToggle={(person, toAreaId) => moveTo(person, toAreaId)}
+            />
+          )}
 
           <DragOverlay>
             {active && (
