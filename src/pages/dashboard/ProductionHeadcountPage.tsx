@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Printer, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,36 +43,89 @@ function dayTypeLabel(iso: string) {
   return "Weekday";
 }
 
+/**
+ * Rótulo de secção com a linha a atravessar o resto da largura.
+ *
+ * Produção e apoio lêem-se de maneira diferente — um é a linha a andar, o outro é
+ * quem a mantém a andar — e numa grelha só o Office ficava entre a Line 3 e a Line 4
+ * como se fosse a linha seguinte.
+ */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-2 mt-4 flex items-center gap-2 text-2xs font-extrabold uppercase tracking-widest text-muted-foreground first:mt-0">
+      {children}
+      <span className="h-px flex-1 bg-border" />
+    </div>
+  );
+}
+
+/** Duas letras, para o quadrado que fica antes do nome. */
+function iniciais(nome: string) {
+  const p = nome.trim().split(/\s+/);
+  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase();
+}
+
+/**
+ * O aspecto de cada turno.
+ *
+ * A cor é o que faz a vista dividida funcionar: dois quadros de colunas cinzentas
+ * lado a lado são um quadro com o dobro do tamanho, e o olho tem de ler um título
+ * para saber qual é qual.
+ */
+const LOOK: Record<string, { icon: typeof Sun; faixa: string; suave: string; tinta: string }> = {
+  Day: { icon: Sun, faixa: "from-amber-600 to-amber-400", suave: "bg-amber-500/10", tinta: "text-warning-strong" },
+  Night: { icon: Moon, faixa: "from-indigo-900 to-indigo-500", suave: "bg-indigo-500/10", tinta: "text-indigo-700 dark:text-indigo-300" },
+};
+
+/**
+ * O líder da linha, destacado.
+ *
+ * Um supervisor a percorrer uma coluna quer saber que ela tem líder antes de querer
+ * o nome de alguém. Sai do `department`, que foi escrito à mão ao longo de meses —
+ * daí ser um padrão e não uma lista exacta.
+ */
+function ehLider(departamento: string | null | undefined) {
+  return !!departamento && /team\s*lead|supervisor/i.test(departamento);
+}
+
 function Chip({
   name,
   tone,
+  lider,
   draggable,
   onDragStart,
 }: {
   name: string;
   tone: "production" | "support" | "away" | "overtime" | "roster";
+  lider?: boolean;
   draggable: boolean;
   onDragStart: (e: React.DragEvent) => void;
 }) {
   const tones: Record<string, string> = {
-    production: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30",
-    support: "bg-muted text-muted-foreground border-border",
-    away: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
-    overtime: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30",
-    roster: "bg-card text-foreground border-border",
+    production: "bg-primary/5 border-primary/20",
+    support: "bg-muted/40 border-border",
+    away: "bg-amber-500/10 border-amber-500/30",
+    overtime: "bg-violet-500/10 border-violet-500/30",
+    roster: "bg-card border-border",
   };
   return (
     <span
       draggable={draggable}
       onDragStart={onDragStart}
       className={cn(
-        "inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-1 text-xs font-medium",
-        tones[tone],
+        "inline-flex max-w-full items-center gap-1.5 rounded-lg border px-1.5 py-1 text-xs font-medium",
+        lider ? "border-primary/40 bg-primary/10 font-semibold" : tones[tone],
         draggable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
       )}
       title={name}
     >
-      {name}
+      <span className={cn(
+        "grid h-5 w-5 shrink-0 place-items-center rounded-md text-[9px] font-bold leading-none",
+        lider ? "bg-[hsl(215_60%_18%)] text-white" : "bg-background/70 text-muted-foreground",
+      )}>
+        {iniciais(name)}
+      </span>
+      <span className="truncate">{name}</span>
     </span>
   );
 }
@@ -110,14 +163,25 @@ function DropZone({
   );
 }
 
-function KpiPill({ icon: Icon, label, value, tone }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number; tone: string }) {
+/**
+ * Um número grande e o que ele é, na ordem por que se lê.
+ *
+ * O primeiro leva a cor do turno porque é o número por que a folha acaba — "quantos
+ * estão em produção" é a pergunta, os outros quatro são a decomposição dela.
+ */
+function KpiPill({
+  icon: Icon, label, value, tone, destaque, cor,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string; value: number; tone: string; destaque?: boolean; cor?: string;
+}) {
   return (
-    <div className={cn("flex items-center gap-3 rounded-lg border px-3 py-2", tone)}>
-      <Icon className="h-4 w-4 shrink-0" />
-      <div className="min-w-0">
-        <div className="text-lg font-bold leading-none tabular-nums">{value}</div>
-        <div className="truncate text-2xs uppercase tracking-wide opacity-70">{label}</div>
+    <div className={cn("rounded-xl border px-3 py-2.5 shadow-sm", destaque ? cn(tone, "border-transparent") : "bg-card")}>
+      <div className="flex items-center gap-1.5">
+        <Icon className={cn("h-3.5 w-3.5 shrink-0", destaque ? "" : "text-muted-foreground")} />
+        <span className={cn("font-mono text-2xl font-bold leading-none tabular-nums", cor)}>{value}</span>
       </div>
+      <div className="mt-1.5 truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -133,7 +197,7 @@ function ShiftBoard({
   areas: HeadcountArea[];
   canManage: boolean;
 }) {
-  const { data: roster = [], isLoading: rosterLoading } = useShiftRoster(shift);
+  const { data: roster = [], byId: everyoneById, isLoading: rosterLoading } = useShiftRoster(shift, onDate);
   const { data: allocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
   const { place, remove, copyLastLikeDay } = useAllocationMutations(onDate, shift);
 
@@ -143,11 +207,11 @@ function ShiftBoard({
     return m;
   }, [allocations]);
 
-  const employeeById = useMemo(() => {
-    const m = new Map<string, HeadcountEmployee>();
-    roster.forEach((e) => m.set(e.id, e));
-    return m;
-  }, [roster]);
+  // Toda a gente activa, não só quem é elegível hoje: uma alocação gravada é um facto
+  // e tem de aparecer na coluna. Se a pessoa deixar de ser elegível, o cartão continua
+  // lá para alguém a poder tirar — em vez de desaparecer do ecrã e ficar a contar nos
+  // totais, que era o que fazia o quadro dizer "20 no apoio" com a WH Team a zero.
+  const employeeById = everyoneById ?? new Map<string, HeadcountEmployee>();
 
   const peopleIn = (areaId: string) =>
     allocations
@@ -182,37 +246,54 @@ function ShiftBoard({
     else place.mutate({ employeeId, areaId: target.areaId, status: target.status });
   };
 
-  const accent = shift === "Day" ? "border-t-4 border-t-amber-500" : "border-t-4 border-t-indigo-500";
+  const look = LOOK[shift] ?? LOOK.Day;
+  const Icone = look.icon;
 
   if (rosterLoading || allocLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
 
   return (
-    <div className={cn("space-y-4 rounded-xl border bg-card p-3 sm:p-4", accent)}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-bold">{shift} shift</h3>
-          <Badge variant="secondary" className="tabular-nums">{roster.length} eligible</Badge>
+    <div className="space-y-4">
+      {/* Faixa do turno: diz de quem é este quadro antes de se ler uma única coluna. */}
+      <div className={cn("flex flex-wrap items-center gap-3 rounded-xl bg-gradient-to-r px-4 py-3 text-white", look.faixa)}>
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/20">
+          <Icone className="h-5 w-5" />
         </div>
-        {canManage && (
-          <Button size="sm" variant="outline" className="print:hidden" onClick={() => copyLastLikeDay.mutate()} disabled={copyLastLikeDay.isPending}>
-            <CopyPlus className="mr-2 h-4 w-4" />
-            Copy from last same day
-          </Button>
-        )}
+        <div className="min-w-0">
+          <h3 className="text-base font-extrabold leading-tight">{shift} shift</h3>
+          <div className="truncate text-2xs opacity-90">{roster.length} na escala de hoje</div>
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          {canManage && (
+            <Button size="sm" variant="secondary" className="print:hidden" onClick={() => copyLastLikeDay.mutate()} disabled={copyLastLikeDay.isPending}>
+              <CopyPlus className="mr-2 h-4 w-4" />
+              Copy from last same day
+            </Button>
+          )}
+          <div className="text-right">
+            <b className="block font-mono text-2xl font-extrabold leading-none tabular-nums">{assignedCount}</b>
+            <small className="text-[10px] uppercase tracking-wider opacity-90">staff assigned</small>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        <KpiPill icon={Users} label="Total staff in production" value={assignedCount} tone="border-primary/30 bg-primary/5 text-primary" />
-        <KpiPill icon={Factory} label="On lines" value={onLines} tone="border-blue-500/30 bg-blue-500/5 text-blue-700 dark:text-blue-300" />
-        <KpiPill icon={Wrench} label="Support" value={support} tone="border-border bg-muted/40 text-muted-foreground" />
-        <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300" />
-        <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="border-violet-500/30 bg-violet-500/5 text-violet-700 dark:text-violet-300" />
+        <KpiPill icon={Users} label="Total staff in production" value={assignedCount} tone={cn(look.suave, look.tinta)} destaque />
+        <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
+        <KpiPill icon={Wrench} label="Support" value={support} tone="" />
+        <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" cor={away ? "text-warning-strong" : ""} />
+        <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" cor={overtime ? "text-violet-600 dark:text-violet-400" : ""} />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {areas.map((area) => {
+      {(["production", "support"] as const).map((kind) => {
+        const doTipo = areas.filter((a) => a.kind === kind);
+        if (doTipo.length === 0) return null;
+        return (
+        <div key={kind}>
+        <SectionLabel>{kind === "production" ? "Production" : "Support"}</SectionLabel>
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))" }}>
+        {doTipo.map((area) => {
           const people = peopleIn(area.id);
           return (
             <DropZone
@@ -220,19 +301,23 @@ function ShiftBoard({
               disabled={!canManage}
               onDrop={() => handleDrop({ areaId: area.id, status: "assigned" })(readDrag() ?? "")}
             >
-              <Card className={cn("h-full", area.kind === "production" ? "border-blue-500/30" : "border-border")}>
-                <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 py-3">
-                  <CardTitle className="truncate text-sm font-semibold">{area.name}</CardTitle>
-                  <Badge className={cn("tabular-nums", area.kind === "production" ? "bg-blue-600 text-white" : "bg-muted text-muted-foreground")}>
+              <Card className={cn("h-full overflow-hidden border-l-4", area.kind === "production" ? "border-l-primary" : "border-l-slate-400")}>
+                <CardHeader className={cn("flex flex-row items-center justify-between gap-2 space-y-0 border-b px-2.5 py-2", area.kind === "production" ? "bg-primary/5" : "bg-muted")}>
+                  <CardTitle className="truncate text-xs font-bold">{area.name}</CardTitle>
+                  <span className={cn(
+                    "grid h-5 min-w-[1.5rem] shrink-0 place-items-center rounded-full border bg-background px-1.5 font-mono text-xs font-bold",
+                    people.length ? (area.kind === "production" ? "text-primary" : "text-foreground") : "text-muted-foreground/50",
+                  )}>
                     {people.length}
-                  </Badge>
+                  </span>
                 </CardHeader>
-                <CardContent className="min-h-[76px] pb-3">
-                  <div className="flex flex-wrap gap-1.5">
+                <CardContent className="min-h-[76px] p-2">
+                  <div className="flex flex-col gap-1">
                     {people.map((p) => (
                       <Chip
                         key={p.id}
                         name={p.full_name}
+                        lider={ehLider(p.department)}
                         tone={area.kind === "production" ? "production" : "support"}
                         draggable={canManage}
                         onDragStart={(e) => {
@@ -248,9 +333,13 @@ function ShiftBoard({
             </DropZone>
           );
         })}
-      </div>
+        </div>
+        </div>
+        );
+      })}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <SectionLabel>Away &amp; overtime</SectionLabel>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))" }}>
         {AWAY_BLOCKS.map((block) => {
           const people = peopleWith(block.status);
           return (

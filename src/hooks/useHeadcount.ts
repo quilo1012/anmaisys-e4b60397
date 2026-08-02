@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn } from "./useWorkforce";
 
 export type HeadcountArea = {
   id: string;
@@ -15,6 +17,8 @@ export type HeadcountEmployee = {
   full_name: string;
   shift_group: string | null;
   department: string | null;
+  /** Which rota they are on. Null means unrecorded, which is not the same as off. */
+  shift_pattern_id: string | null;
 };
 
 export type Allocation = {
@@ -51,22 +55,84 @@ export function useHeadcountAreas() {
   });
 }
 
-/** Eligible roster for a shift group ('Day' | 'Night'). */
-export function useShiftRoster(shift: string) {
-  return useQuery({
-    queryKey: ["headcount-roster", shift],
+/**
+ * Who is due in on this shift, on this day.
+ *
+ * It used to be `shift_group = 'Day'` and nothing else — the date was on the screen
+ * but not in the question. On a Sunday that listed all 68 people of the Day crew as
+ * eligible, when no Mon–Thu rota covers Sunday and the 38 people actually in are the
+ * Fri–Mon crew. A board that names 68 people who are at home is worse than an empty
+ * one, because somebody will allocate them.
+ *
+ * Two rules, both borrowed from the Workforce board rather than rewritten, so there
+ * is one definition of "is this person in today" in the codebase:
+ *
+ * - `worksOn` — the rota's weekdays must include this one. Someone with no rota
+ *   recorded is kept: that is unknown, not off, and dropping them would quietly
+ *   shrink the headcount.
+ * - `resolveShiftOn` — the shift they held *on that date*, not the one they hold
+ *   now. Somebody moved from nights to days in August was on nights in July, and
+ *   July's board has to keep saying so.
+ */
+/**
+ * O turno da tabela para o turno da pessoa.
+ *
+ * `daily_allocations.shift` só aceita Day, Night e Weekend — não há turno de armazém.
+ * Quem é `Warehouse Day` trabalha de dia e tem de aparecer no quadro do dia; sem esta
+ * dobra, gravava-se a alocação com shift='Day' e depois ninguém a via, porque o roster
+ * procurava `shift_group = 'Day'` exacto.
+ */
+export function shiftDaTabela(shiftGroup: string | null | undefined): string | null {
+  if (!shiftGroup) return null;
+  if (shiftGroup === "Warehouse Weekend") return "Weekend";
+  if (shiftGroup.startsWith("Warehouse")) return "Day";
+  return ["Day", "Night", "Weekend"].includes(shiftGroup) ? shiftGroup : null;
+}
+
+export function useShiftRoster(shift: string, onDate: string) {
+  const { data: patterns } = useShiftPatterns();
+  const { data: history } = useShiftHistory();
+
+  const { data: everyone, isLoading } = useQuery({
+    queryKey: ["headcount-roster-all"],
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,shift_group,department")
+        .select("id,full_name,shift_group,department,shift_pattern_id")
         .eq("active", true)
-        .eq("shift_group", shift)
         .order("full_name", { ascending: true });
       if (error) throw error;
       return (data ?? []) as HeadcountEmployee[];
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  const data = useMemo(() => {
+    const patternById = new Map((patterns ?? []).map((p) => [p.id, p]));
+    // Midday, so a timezone an hour either side cannot move the weekday.
+    const day = new Date(`${onDate}T12:00:00`);
+    return (everyone ?? []).filter((e) => {
+      const held = resolveShiftOn(history, e, onDate);
+      if (shiftDaTabela(held.shift_group) !== shift) return false;
+      const pattern = held.shift_pattern_id ? patternById.get(held.shift_pattern_id) ?? null : null;
+      return !pattern || worksOn(pattern.days, day);
+    });
+  }, [everyone, patterns, history, shift, onDate]);
+
+  /**
+   * Toda a gente activa, por id — não só quem é elegível hoje.
+   *
+   * O quadro desenha as colunas a partir das alocações gravadas, e uma alocação de
+   * alguém que hoje não é elegível continua a ser um facto: alguém a pôs lá. Antes,
+   * quem não estivesse no roster desaparecia do ecrã enquanto continuava a contar nos
+   * totais — o quadro dizia "20 no apoio" com a coluna do armazém a zero.
+   */
+  const byId = useMemo(
+    () => new Map((everyone ?? []).map((e) => [e.id, e])),
+    [everyone],
+  );
+
+  return { data, byId, isLoading };
 }
 
 export function useAllocations(onDate: string, shift: string) {
