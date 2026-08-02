@@ -7,7 +7,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWoExclusions } from "@/hooks/useWoExclusions";
 import { useDowntimeEvents } from "@/hooks/useDowntimeEvents";
-import { activityLabel } from "@/lib/downtimeExclusions";
+import {
+  activityLabel, exclusionOverlapMs, mergeIntervals, toExclusionIntervals,
+} from "@/lib/downtimeExclusions";
+import { unionMs } from "@/lib/downtimeReconcile";
+import type { Interval } from "@/lib/downtimeReconcile";
 
 interface Props {
   workOrderId: string;
@@ -120,6 +124,39 @@ export function WoTimeline({ workOrderId }: Props) {
     });
   }
 
+  /**
+   * Line downtime, added up from the stoppages this timeline is already showing.
+   *
+   * It used to come from `v_wo_metrics.line_downtime_sec`, which is
+   * `line_resumed_at - line_stopped_at` off the order row — and `line_stopped_at` is
+   * null on 298 of the 349 orders, because the stop is recorded as a downtime event
+   * and the column on the order was never written. So the footer read "—" directly
+   * underneath a timeline that showed the line stopping and starting again.
+   *
+   * Two things this gets right that the subtraction cannot:
+   * - A line that stops twice is counted twice, not measured end to end. Between
+   *   14:50 and 14:56 on WO-632 the line was running; the span calls those six
+   *   minutes downtime, the events do not.
+   * - Team activities come off it, which is what the timeline says about them on
+   *   every pause row: "not counted as downtime".
+   *
+   * The old figure is kept as the fallback for orders that have no event at all.
+   */
+  const stopIntervals: Interval[] = [];
+  for (const d of stoppages) {
+    const s = new Date(d.stopped_at).getTime();
+    const e = d.resumed_at ? new Date(d.resumed_at).getTime() : Date.now();
+    if (Number.isFinite(s) && Number.isFinite(e) && e > s) stopIntervals.push([s, e]);
+  }
+  const excluded = mergeIntervals(stopIntervals).reduce(
+    (ms, [s, e]) => ms + exclusionOverlapMs(s, e, toExclusionIntervals(exclusions)),
+    0,
+  );
+  const lineDowntimeSec = stopIntervals.length
+    ? Math.max(0, Math.round((unionMs(stopIntervals) - excluded) / 1000))
+    : m.line_downtime_sec;
+  const openStop = stoppages.some((d) => !d.resumed_at);
+
   // Placed by time against the spine, so an event lands after the last milestone that
   // had already happened rather than at the end of the list.
   const timeline: Step[] = [...steps];
@@ -227,7 +264,37 @@ export function WoTimeline({ workOrderId }: Props) {
         <div className="mt-6 grid grid-cols-2 gap-3 pt-4 border-t">
           <div>
             <p className="text-xs text-muted-foreground">Line Downtime</p>
-            <p className="text-lg font-bold">{formatDuration(m.line_downtime_sec)}</p>
+            <p className="text-lg font-bold">
+              {formatDuration(lineDowntimeSec)}
+              {openStop && <span className="ml-1 text-xs font-normal text-destructive-strong">still down</span>}
+            </p>
+            {/* The total, broken back into the stoppages that made it — 8 minutes over
+                two stops and 8 minutes over one are different mornings. Each line says
+                what stopped the line, because "why" is the question a total cannot
+                answer and the reason is already on the record. */}
+            {stoppages.length > 0 && (
+              <ul className="mt-1 space-y-0.5">
+                {stoppages.map((d) => {
+                  const s = new Date(d.stopped_at).getTime();
+                  const e = d.resumed_at ? new Date(d.resumed_at).getTime() : Date.now();
+                  const excl = exclusionOverlapMs(s, e, toExclusionIntervals(exclusions));
+                  return (
+                    <li key={d.id} className="flex items-baseline gap-1.5 text-2xs text-muted-foreground">
+                      <span className="font-mono">{format(new Date(d.stopped_at), "HH:mm")}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {d.stopped_reason || "no reason recorded"}
+                        {d.is_recurrence && <span className="ml-1 text-destructive-strong">again</span>}
+                      </span>
+                      <span className="shrink-0 font-mono">
+                        {d.resumed_at
+                          ? formatDuration(Math.max(0, Math.round((e - s - excl) / 1000)))
+                          : "ongoing"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Active Repair</p>
