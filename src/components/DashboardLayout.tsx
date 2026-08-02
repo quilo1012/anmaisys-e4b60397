@@ -15,7 +15,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, Menu } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -106,6 +106,7 @@ export const navItems: NavItem[] = [
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.
   { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Administration", action: "users.manage" },
+  { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: [...ALL_ROLES], group: "Production", action: "headcount.view" },
   { title: "Workforce", url: "/dashboard/workforce", icon: UsersRound, roles: ["admin"], group: "Administration", action: "workforce.view" },
 
   // System — the audit trail and the iTouching integration.
@@ -157,6 +158,19 @@ function LiveClock() {
 }
 
 const SIDEBAR_STORAGE_KEY = "an_sidebar_open";
+const SIDEBAR_STATE_KEY = "an_sidebar_state";
+
+/** Expanded (full menu) -> Rail (icons only) -> Hidden (off-canvas). */
+type SidebarUiState = "expanded" | "rail" | "hidden";
+
+function readSavedSidebarState(): SidebarUiState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.localStorage.getItem(SIDEBAR_STATE_KEY);
+    if (v === "expanded" || v === "rail" || v === "hidden") return v;
+  } catch { /* ignore */ }
+  return null;
+}
 
 function readSavedSidebarPreference(): boolean | null {
   if (typeof document === "undefined") return null;
@@ -354,6 +368,7 @@ const routeTitles: Record<string, string> = {
   "/users/manage": "Users",
   "/dashboard/permissions": "Permissions",
   "/dashboard/workforce": "Workforce",
+  "/dashboard/headcount": "Production Headcount",
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",
   "/dashboard/intouch-settings": "iTouching Sync",
@@ -464,11 +479,27 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       ? savedSidebarPref
       : typeof window !== "undefined" && window.innerWidth >= 1024;
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(defaultSidebarOpen);
+  const [sidebarUiState, setSidebarUiState] = useState<SidebarUiState>(
+    () => readSavedSidebarState() ?? (defaultSidebarOpen ? "expanded" : "rail"),
+  );
   const currentPageTitle = routeTitles[location.pathname] ?? "";
 
-  const handleSidebarOpenChange = (open: boolean) => {
+  // Every toggle request (header button, rail, Ctrl/Cmd+B) advances the cycle
+  // Expanded -> Rail -> Hidden -> Expanded, so there is a single source of truth.
+  const applySidebarState = (next: SidebarUiState) => {
+    setSidebarUiState(next);
+    const open = next === "expanded";
     setSidebarOpen(open);
-    try { window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open)); } catch { /* ignore */ }
+    try {
+      window.localStorage.setItem(SIDEBAR_STATE_KEY, next);
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open));
+    } catch { /* ignore */ }
+  };
+
+  const handleSidebarOpenChange = () => {
+    const order: SidebarUiState[] = ["expanded", "rail", "hidden"];
+    const next = order[(order.indexOf(sidebarUiState) + 1) % order.length];
+    applySidebarState(next);
   };
 
   return (
@@ -479,7 +510,19 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         style={{ "--sidebar-width": "13rem", "--sidebar-width-icon": "3rem" } as React.CSSProperties}
       >
         <div className="flex h-screen w-full overflow-hidden">
-          <Sidebar collapsible="icon" className="border-r border-sidebar-border print:hidden">
+          {sidebarUiState === "hidden" && !isMobile && (
+            <Button
+              size="icon"
+              variant="secondary"
+              aria-label="Show menu"
+              title="Show menu (Ctrl/Cmd + B)"
+              className="fixed left-3 top-3 z-50 h-10 w-10 shadow-lg print:hidden"
+              onClick={() => applySidebarState("expanded")}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
+          <Sidebar collapsible={sidebarUiState === "hidden" ? "offcanvas" : "icon"} className="border-r border-sidebar-border print:hidden">
 
             <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
               <img
