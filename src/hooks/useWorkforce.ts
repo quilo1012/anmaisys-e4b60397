@@ -228,6 +228,95 @@ export function useMoveEmployee() {
   });
 }
 
+export interface ShiftPosition {
+  employee_id: string;
+  shift_group: string | null;
+  shift_pattern_id: string | null;
+  effective_from: string;
+  note: string | null;
+}
+
+/**
+ * Every shift position anybody has held, newest first.
+ *
+ * Small enough to fetch whole — one row per change, not per day — and resolving in
+ * memory keeps the board from issuing a query every time somebody steps a day.
+ */
+export function useShiftHistory() {
+  return useQuery({
+    queryKey: ["employee_shift_history"],
+    queryFn: async (): Promise<ShiftPosition[]> => {
+      const { data, error } = await db
+        .from("employee_shift_history")
+        .select("employee_id, shift_group, shift_pattern_id, effective_from, note")
+        .order("effective_from", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/**
+ * Which shift somebody was on, on a given day.
+ *
+ * The latest position that had already started. A day before anybody's first record
+ * falls back to the employee's current shift — which is a guess, but the honest
+ * alternative is showing an empty factory for every date before 01/08/2026.
+ */
+export function resolveShiftOn(
+  history: ShiftPosition[] | undefined,
+  employee: Pick<Employee, "id" | "shift_group" | "shift_pattern_id">,
+  onDate: string,
+): { shift_group: string | null; shift_pattern_id: string | null } {
+  const found = (history ?? []).find(
+    (h) => h.employee_id === employee.id && h.effective_from <= onDate,
+  );
+  return found
+    ? { shift_group: found.shift_group, shift_pattern_id: found.shift_pattern_id }
+    : { shift_group: employee.shift_group, shift_pattern_id: employee.shift_pattern_id };
+}
+
+/**
+ * Move somebody to another shift from a date.
+ *
+ * Writes the history row and the current columns together. The history is what any
+ * past day is read through; the columns are what the rest of the app shows when it is
+ * not asking about a date, and letting them drift apart is how the two disagree.
+ */
+export function useChangeShift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      employeeId: string;
+      shiftGroup: string | null;
+      shiftPatternId: string | null;
+      effectiveFrom: string;
+      changedBy?: string | null;
+    }) => {
+      const { error } = await db.from("employee_shift_history").upsert(
+        {
+          employee_id: input.employeeId,
+          shift_group: input.shiftGroup,
+          shift_pattern_id: input.shiftPatternId,
+          effective_from: input.effectiveFrom,
+          changed_by: input.changedBy ?? null,
+        },
+        { onConflict: "employee_id,effective_from" },
+      );
+      if (error) throw error;
+      const { error: curErr } = await db
+        .from("employees")
+        .update({ shift_group: input.shiftGroup, shift_pattern_id: input.shiftPatternId })
+        .eq("id", input.employeeId);
+      if (curErr) throw curErr;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["employees"] });
+      qc.invalidateQueries({ queryKey: ["employee_shift_history"] });
+    },
+  });
+}
+
 /**
  * Add somebody to the list.
  *
