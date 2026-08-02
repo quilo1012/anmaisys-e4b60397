@@ -352,3 +352,30 @@ export function useReorderAreas() {
     onError: (e: Error) => toast.error(e.message ?? "Could not save the new order"),
   });
 }
+
+/**
+ * Put somebody on a different rota.
+ *
+ * The rota and the shift are two answers, not one. The shift says which crew they
+ * belong to — which board they show on. The rota says which weekdays they are due in,
+ * and it is what decides whether today is a normal day or a call-in. "Mon–Thu" exists
+ * for both days and nights, so folding them into one list would make one of the two
+ * unanswerable.
+ */
+export function useSetShiftPattern() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ employeeId, patternId }: { employeeId: string; patternId: string | null }) => {
+      const { error } = await supabase
+        .from("employees")
+        .update({ shift_pattern_id: patternId })
+        .eq("id", employeeId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["headcount-roster-all"] });
+      toast.success("Rota changed. Which days they are due in follows it from now on.");
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Could not change the rota"),
+  });
+}
