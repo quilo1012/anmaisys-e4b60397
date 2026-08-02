@@ -27,6 +27,15 @@ import { OvertimePanel } from "@/components/workforce/OvertimePanel";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
 
+/** Day and Night read at a glance; the weekend crews are quieter on purpose. */
+const SHIFT_BADGE: Record<string, string> = {
+  Day: "border-amber-500/40 bg-amber-500/10 text-2xs text-warning-strong",
+  Night: "border-indigo-500/40 bg-indigo-500/10 text-2xs text-indigo-700 dark:text-indigo-300",
+  Weekend: "border-slate-500/40 bg-slate-500/10 text-2xs text-muted-foreground",
+  "Warehouse Day": "border-orange-500/40 bg-orange-500/10 text-2xs text-orange-700 dark:text-orange-300",
+  "Warehouse Weekend": "border-slate-500/40 bg-slate-500/10 text-2xs text-muted-foreground",
+};
+
 export default function WorkforcePage() {
   const { data: employees, isLoading: loadingEmp } = useEmployees();
   const { data: patterns } = useShiftPatterns();
@@ -268,6 +277,7 @@ export default function WorkforcePage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Name</TableHead>
+                          <TableHead>Shift</TableHead>
                           <TableHead>Department</TableHead>
                           <TableHead>Works</TableHead>
                           <TableHead>Source</TableHead>
@@ -275,11 +285,23 @@ export default function WorkforcePage() {
                       </TableHeader>
                       <TableBody>
                         {onTheList.length === 0 && (
-                          <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">Nobody matches these filters</TableCell></TableRow>
+                          <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Nobody matches these filters</TableCell></TableRow>
                         )}
                         {onTheList.map((r) => (
                           <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetailId(r.id)}>
                             <TableCell className="font-medium">{r.full_name}</TableCell>
+                            {/* Day or Night is the first thing anybody wants from this
+                                list, and it is not the same question as which days the
+                                rota covers — the column beside it answers that. */}
+                            <TableCell>
+                              {r.shift_group ? (
+                                <Badge variant="outline" className={SHIFT_BADGE[r.shift_group] ?? "text-2xs"}>
+                                  {r.shift_group}
+                                </Badge>
+                              ) : (
+                                <span className="text-2xs text-muted-foreground">not recorded</span>
+                              )}
+                            </TableCell>
                             <TableCell className={r.department ? "" : "text-muted-foreground"}>
                               {r.department ?? "to confirm"}
                             </TableCell>
