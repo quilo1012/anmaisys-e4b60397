@@ -75,14 +75,14 @@ export function useHeadcountAreas() {
  *   July's board has to keep saying so.
  */
 /**
- * O turno da tabela para o turno da pessoa.
+ * A person's shift group, folded onto the board it belongs to.
  *
- * `daily_allocations.shift` só aceita Day, Night e Weekend — não há turno de armazém.
- * Quem é `Warehouse Day` trabalha de dia e tem de aparecer no quadro do dia; sem esta
- * dobra, gravava-se a alocação com shift='Day' e depois ninguém a via, porque o roster
- * procurava `shift_group = 'Day'` exacto.
+ * `daily_allocations.shift` only accepts Day, Night and Weekend — there is no
+ * warehouse shift. Somebody on `Warehouse Day` works days and has to appear on the
+ * day board; without this fold the allocation was saved as 'Day' and then nobody saw
+ * it, because the roster looked for `shift_group = 'Day'` exactly.
  */
-export function shiftDaTabela(shiftGroup: string | null | undefined): string | null {
+export function boardShiftFor(shiftGroup: string | null | undefined): string | null {
   if (!shiftGroup) return null;
   if (shiftGroup === "Warehouse Weekend") return "Weekend";
   if (shiftGroup.startsWith("Warehouse")) return "Day";
@@ -113,19 +113,19 @@ export function useShiftRoster(shift: string, onDate: string) {
     const day = new Date(`${onDate}T12:00:00`);
     return (everyone ?? []).filter((e) => {
       const held = resolveShiftOn(history, e, onDate);
-      if (shiftDaTabela(held.shift_group) !== shift) return false;
+      if (boardShiftFor(held.shift_group) !== shift) return false;
       const pattern = held.shift_pattern_id ? patternById.get(held.shift_pattern_id) ?? null : null;
       return !pattern || worksOn(pattern.days, day);
     });
   }, [everyone, patterns, history, shift, onDate]);
 
   /**
-   * Toda a gente activa, por id — não só quem é elegível hoje.
+   * Everyone active, by id — not only whoever is eligible today.
    *
-   * O quadro desenha as colunas a partir das alocações gravadas, e uma alocação de
-   * alguém que hoje não é elegível continua a ser um facto: alguém a pôs lá. Antes,
-   * quem não estivesse no roster desaparecia do ecrã enquanto continuava a contar nos
-   * totais — o quadro dizia "20 no apoio" com a coluna do armazém a zero.
+   * The board draws its columns from the saved allocations, and an allocation for
+   * somebody who is not eligible today is still a fact: somebody put them there.
+   * Before, anyone outside the roster vanished from the screen while still counting
+   * in the totals — the board read "20 support" with the warehouse column at zero.
    */
   const byId = useMemo(
     () => new Map((everyone ?? []).map((e) => [e.id, e])),

@@ -44,11 +44,11 @@ function dayTypeLabel(iso: string) {
 }
 
 /**
- * Rótulo de secção com a linha a atravessar o resto da largura.
+ * A section heading with a rule running out to the edge.
  *
- * Produção e apoio lêem-se de maneira diferente — um é a linha a andar, o outro é
- * quem a mantém a andar — e numa grelha só o Office ficava entre a Line 3 e a Line 4
- * como se fosse a linha seguinte.
+ * Production and support are read differently — one is the line running, the other is
+ * who keeps it running — and in a single grid Office sat between Line 3 and Line 4 as
+ * though it were the next line.
  */
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -59,45 +59,45 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Duas letras, para o quadrado que fica antes do nome. */
-function iniciais(nome: string) {
+/** Two letters, for the square that sits before the name. */
+function initials(name: string) {
   const p = nome.trim().split(/\s+/);
   return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase();
 }
 
 /**
- * O aspecto de cada turno.
+ * How each shift looks.
  *
- * A cor é o que faz a vista dividida funcionar: dois quadros de colunas cinzentas
- * lado a lado são um quadro com o dobro do tamanho, e o olho tem de ler um título
- * para saber qual é qual.
+ * The colour is what makes the split view work: two boards of identical grey columns
+ * side by side are one board twice the size, and the eye has to read a heading to
+ * know which factory it is looking at.
  */
-const LOOK: Record<string, { icon: typeof Sun; faixa: string; suave: string; tinta: string }> = {
-  Day: { icon: Sun, faixa: "from-amber-600 to-amber-400", suave: "bg-amber-500/10", tinta: "text-warning-strong" },
-  Night: { icon: Moon, faixa: "from-indigo-900 to-indigo-500", suave: "bg-indigo-500/10", tinta: "text-indigo-700 dark:text-indigo-300" },
+const LOOK: Record<string, { icon: typeof Sun; banner: string; soft: string; ink: string }> = {
+  Day: { icon: Sun, banner: "from-amber-600 to-amber-400", soft: "bg-amber-500/10", ink: "text-warning-strong" },
+  Night: { icon: Moon, banner: "from-indigo-900 to-indigo-500", soft: "bg-indigo-500/10", ink: "text-indigo-700 dark:text-indigo-300" },
 };
 
 /**
- * O líder da linha, destacado.
+ * The line leader, picked out.
  *
- * Um supervisor a percorrer uma coluna quer saber que ela tem líder antes de querer
- * o nome de alguém. Sai do `department`, que foi escrito à mão ao longo de meses —
- * daí ser um padrão e não uma lista exacta.
+ * A supervisor scanning a column wants to know it has a leader before they want
+ * anybody's name. It comes off `department`, which was typed by hand over months —
+ * hence a pattern rather than an exact list.
  */
-function ehLider(departamento: string | null | undefined) {
-  return !!departamento && /team\s*lead|supervisor/i.test(departamento);
+function isLeader(department: string | null | undefined) {
+  return !!department && /team\s*lead|supervisor/i.test(department);
 }
 
 function Chip({
   name,
   tone,
-  lider,
+  leader,
   draggable,
   onDragStart,
 }: {
   name: string;
   tone: "production" | "support" | "away" | "overtime" | "roster";
-  lider?: boolean;
+  leader?: boolean;
   draggable: boolean;
   onDragStart: (e: React.DragEvent) => void;
 }) {
@@ -114,16 +114,16 @@ function Chip({
       onDragStart={onDragStart}
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-lg border px-1.5 py-1 text-xs font-medium",
-        lider ? "border-primary/40 bg-primary/10 font-semibold" : tones[tone],
+        leader ? "border-primary/40 bg-primary/10 font-semibold" : tones[tone],
         draggable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
       )}
       title={name}
     >
       <span className={cn(
         "grid h-5 w-5 shrink-0 place-items-center rounded-md text-[9px] font-bold leading-none",
-        lider ? "bg-[hsl(215_60%_18%)] text-white" : "bg-background/70 text-muted-foreground",
+        leader ? "bg-[hsl(215_60%_18%)] text-white" : "bg-background/70 text-muted-foreground",
       )}>
-        {iniciais(name)}
+        {initials(name)}
       </span>
       <span className="truncate">{name}</span>
     </span>
@@ -164,22 +164,23 @@ function DropZone({
 }
 
 /**
- * Um número grande e o que ele é, na ordem por que se lê.
+ * A big number and what it is, in the order it gets read.
  *
- * O primeiro leva a cor do turno porque é o número por que a folha acaba — "quantos
- * estão em produção" é a pergunta, os outros quatro são a decomposição dela.
+ * The first one carries the shift's colour because it is the figure the sheet ends
+ * on — "how many are in production" is the question, and the other four are how it
+ * breaks down.
  */
 function KpiPill({
-  icon: Icon, label, value, tone, destaque, cor,
+  icon: Icon, label, value, tone, highlight, valueTone,
 }: {
   icon: React.ComponentType<{ className?: string }>;
-  label: string; value: number; tone: string; destaque?: boolean; cor?: string;
+  label: string; value: number; tone: string; highlight?: boolean; valueTone?: string;
 }) {
   return (
-    <div className={cn("rounded-xl border px-3 py-2.5 shadow-sm", destaque ? cn(tone, "border-transparent") : "bg-card")}>
+    <div className={cn("rounded-xl border px-3 py-2.5 shadow-sm", highlight ? cn(tone, "border-transparent") : "bg-card")}>
       <div className="flex items-center gap-1.5">
-        <Icon className={cn("h-3.5 w-3.5 shrink-0", destaque ? "" : "text-muted-foreground")} />
-        <span className={cn("font-mono text-2xl font-bold leading-none tabular-nums", cor)}>{value}</span>
+        <Icon className={cn("h-3.5 w-3.5 shrink-0", highlight ? "" : "text-muted-foreground")} />
+        <span className={cn("font-mono text-2xl font-bold leading-none tabular-nums", valueTone)}>{value}</span>
       </div>
       <div className="mt-1.5 truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
     </div>
@@ -207,10 +208,11 @@ function ShiftBoard({
     return m;
   }, [allocations]);
 
-  // Toda a gente activa, não só quem é elegível hoje: uma alocação gravada é um facto
-  // e tem de aparecer na coluna. Se a pessoa deixar de ser elegível, o cartão continua
-  // lá para alguém a poder tirar — em vez de desaparecer do ecrã e ficar a contar nos
-  // totais, que era o que fazia o quadro dizer "20 no apoio" com a WH Team a zero.
+  // Everyone active, not only whoever is eligible today: a saved allocation is a fact
+  // and has to show in its column. If the person stops being eligible the card stays,
+  // so somebody can take them off — rather than vanishing from the screen while still
+  // counting in the totals, which is what made the board read "20 support" with the
+  // WH Team column at zero.
   const employeeById = everyoneById ?? new Map<string, HeadcountEmployee>();
 
   const peopleIn = (areaId: string) =>
@@ -247,7 +249,7 @@ function ShiftBoard({
   };
 
   const look = LOOK[shift] ?? LOOK.Day;
-  const Icone = look.icon;
+  const ShiftIcon = look.icon;
 
   if (rosterLoading || allocLoading) {
     return <Skeleton className="h-64 w-full" />;
@@ -255,14 +257,14 @@ function ShiftBoard({
 
   return (
     <div className="space-y-4">
-      {/* Faixa do turno: diz de quem é este quadro antes de se ler uma única coluna. */}
-      <div className={cn("flex flex-wrap items-center gap-3 rounded-xl bg-gradient-to-r px-4 py-3 text-white", look.faixa)}>
+      {/* The shift banner: says whose board this is before a single column is read. */}
+      <div className={cn("flex flex-wrap items-center gap-3 rounded-xl bg-gradient-to-r px-4 py-3 text-white", look.banner)}>
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/20">
-          <Icone className="h-5 w-5" />
+          <ShiftIcon className="h-5 w-5" />
         </div>
         <div className="min-w-0">
           <h3 className="text-base font-extrabold leading-tight">{shift} shift</h3>
-          <div className="truncate text-2xs opacity-90">{roster.length} na escala de hoje</div>
+          <div className="truncate text-2xs opacity-90">{roster.length} on the rota today</div>
         </div>
         <div className="ml-auto flex items-center gap-3">
           {canManage && (
@@ -279,21 +281,21 @@ function ShiftBoard({
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        <KpiPill icon={Users} label="Total staff in production" value={assignedCount} tone={cn(look.suave, look.tinta)} destaque />
+        <KpiPill icon={Users} label="Total staff in production" value={assignedCount} tone={cn(look.soft, look.ink)} highlight />
         <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
         <KpiPill icon={Wrench} label="Support" value={support} tone="" />
-        <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" cor={away ? "text-warning-strong" : ""} />
-        <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" cor={overtime ? "text-violet-600 dark:text-violet-400" : ""} />
+        <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" valueTone={away ? "text-warning-strong" : ""} />
+        <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-violet-600 dark:text-violet-400" : ""} />
       </div>
 
       {(["production", "support"] as const).map((kind) => {
-        const doTipo = areas.filter((a) => a.kind === kind);
-        if (doTipo.length === 0) return null;
+        const ofKind = areas.filter((a) => a.kind === kind);
+        if (ofKind.length === 0) return null;
         return (
         <div key={kind}>
         <SectionLabel>{kind === "production" ? "Production" : "Support"}</SectionLabel>
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))" }}>
-        {doTipo.map((area) => {
+        {ofKind.map((area) => {
           const people = peopleIn(area.id);
           return (
             <DropZone
@@ -317,7 +319,7 @@ function ShiftBoard({
                       <Chip
                         key={p.id}
                         name={p.full_name}
-                        lider={ehLider(p.department)}
+                        leader={isLeader(p.department)}
                         tone={area.kind === "production" ? "production" : "support"}
                         draggable={canManage}
                         onDragStart={(e) => {
