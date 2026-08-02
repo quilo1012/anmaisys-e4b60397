@@ -12,6 +12,8 @@ export interface PickerPerson extends Employee {
   /** The area they are in on the day being shown, resolved by the caller. */
   currentAreaId: string | null;
   currentAreaName: string | null;
+  /** Their rota does not cover this day — placing them makes it an overtime day. */
+  offRota?: boolean;
 }
 
 /**
@@ -62,6 +64,13 @@ export function AreaPicker({
           </span>
         )}
         <span className="flex-1 truncate">{p.full_name}</span>
+        {/* Said before the choice, not after it: putting somebody on a line on a day
+            their rota does not cover is a call-in, and the card will say OT day. */}
+        {p.offRota && (
+          <span className="shrink-0 rounded border border-amber-500/50 bg-amber-500/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-warning-strong">
+            Off rota
+          </span>
+        )}
         {/* Where they are now, so nobody is moved off a line without seeing it. */}
         {!isHere && p.currentAreaName && (
           <span className="shrink-0 text-2xs text-muted-foreground">{p.currentAreaName}</span>
@@ -77,8 +86,9 @@ export function AreaPicker({
         <DialogHeader className="px-4 pt-4">
           <DialogTitle>{areaName}</DialogTitle>
           <DialogDescription>
-            {here.length} on this area today. Search anyone on this shift and pick them to
-            move them here; pick somebody already here to take them off.
+            {here.length} on this area today. Everyone on the shift is listed, including
+            people the rota does not put in today — pick them to move them here, or pick
+            somebody already here to take them off.
           </DialogDescription>
         </DialogHeader>
         <Command shouldFilter className="rounded-none border-t">

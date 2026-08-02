@@ -623,14 +623,21 @@ export function HeadcountBoard({
               areaName={picking.name}
               open
               onOpenChange={(v) => !v && setPicking(null)}
-              people={scheduled.map((e) => {
-                const id = areaOn(e);
-                return {
-                  ...e,
-                  currentAreaId: id,
-                  currentAreaName: id ? areas?.find((a) => a.id === id)?.name ?? null : null,
-                };
-              })}
+              // Everyone on the shift, not just whoever the rota puts in today.
+              // Nobody is fixed to a line, and a Saturday call-in or tomorrow's plan
+              // has to be placeable — a picker that offers nobody on a day nobody is
+              // rostered is a picker that cannot be used to change the roster.
+              people={employees
+                .filter((e) => e.active && positionOn(e).shift_group === shift)
+                .map((e) => {
+                  const id = areaOn(e);
+                  return {
+                    ...e,
+                    currentAreaId: id,
+                    currentAreaName: id ? areas?.find((a) => a.id === id)?.name ?? null : null,
+                    offRota: isOffRota(e),
+                  };
+                })}
               onToggle={(person, toAreaId) => moveTo(person, toAreaId)}
             />
           )}
