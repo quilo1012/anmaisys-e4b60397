@@ -9,7 +9,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Columns2, GripVertical, Moon, Search, Sun, UserCheck, UserX, Warehouse } from "lucide-react";
+import {
+  CalendarDays, Columns2, GripVertical, Moon, Search, Sun, UserCheck, Users, UserX, Warehouse,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { roleStripe, type RoleStripe } from "@/lib/workforceRoles";
 import { AreaPicker } from "./AreaPicker";
@@ -22,13 +24,17 @@ import {
 const UNPLACED = "__unplaced__";
 
 /**
- * The shifts this board plans for, in the order the factory says them.
+ * The order the factory says its shifts in. Anything else that turns up on a person
+ * is appended rather than dropped.
  *
- * Weekend and Warehouse Weekend are recorded on people and counted everywhere else —
- * 46 of the 193 — but they are not planned here. They are left out of the board, not
- * out of the database.
+ * Every shift is planned here now. Weekend used to be left off — "recorded, not
+ * planned" — and on a Sunday that meant a board of zeros while thirty-eight people
+ * were in: the Fri–Mon crew covers Saturday and Sunday and had no tab to stand on.
  */
-const BOARD_SHIFTS = ["Day", "Night", "Warehouse Day"] as const;
+const SHIFT_ORDER = ["Day", "Night", "Warehouse Day", "Weekend", "Warehouse Weekend"];
+
+/** People with no shift recorded, who are nobody's crew but are still on the payroll. */
+const NO_SHIFT = "__none__";
 
 /** Day and Night, side by side. The handover is the one moment both are the answer. */
 const SPLIT = "__split__";
@@ -59,7 +65,28 @@ const SHIFT_LOOK: Record<string, { icon: typeof Sun; banner: string; soft: strin
     soft: "bg-orange-500/10",
     ink: "text-orange-700 dark:text-orange-300",
   },
+  Weekend: {
+    icon: CalendarDays,
+    banner: "from-teal-800 to-teal-500",
+    soft: "bg-teal-500/10",
+    ink: "text-teal-700 dark:text-teal-300",
+  },
+  "Warehouse Weekend": {
+    icon: CalendarDays,
+    banner: "from-cyan-800 to-cyan-500",
+    soft: "bg-cyan-500/10",
+    ink: "text-cyan-700 dark:text-cyan-300",
+  },
+  [NO_SHIFT]: {
+    icon: Users,
+    banner: "from-slate-700 to-slate-500",
+    soft: "bg-muted",
+    ink: "text-foreground",
+  },
 };
+
+/** The heading a shift gets, when the key is not the heading. */
+const shiftLabel = (shift: string) => (shift === NO_SHIFT ? "No shift recorded" : shift);
 
 const STATUS_META: Record<AttendanceStatus, { label: string; cls: string }> = {
   present:  { label: "In",       cls: "border-emerald-500/40 bg-emerald-500/15 text-success-strong" },
@@ -398,7 +425,7 @@ function computeShift(
 
   const scheduled = employees.filter((e) => {
     if (!e.active) return false;
-    if (resolveShiftOn(history, e, key).shift_group !== shift) return false;
+    if ((resolveShiftOn(history, e, key).shift_group ?? NO_SHIFT) !== shift) return false;
     const pattern = patternOf(e);
     return showAll || !pattern || worksOn(pattern.days, onDate);
   });
@@ -468,14 +495,14 @@ function computeShift(
    */
   let emptyReason: string | null = null;
   if (scheduled.length === 0 && !showAll) {
-    const onThisShift = employees.filter((e) => e.active && e.shift_group === shift);
+    const onThisShift = employees.filter((e) => e.active && (e.shift_group ?? NO_SHIFT) === shift);
     const weekday = onDate.toLocaleDateString("en-GB", { weekday: "long" });
     const named = Array.from(new Set(onThisShift.map((e) => e.pattern?.name).filter(Boolean) as string[]));
     emptyReason = onThisShift.length === 0
-      ? `Nobody is on the ${shift} shift.`
+      ? `Nobody is on the ${shiftLabel(shift)} shift.`
       : named.length
-        ? `${onThisShift.length} people are on the ${shift} shift, and no ${named.join(" / ")} rota covers ${weekday}.`
-        : `${onThisShift.length} people are on the ${shift} shift and none of them has a rota recorded.`;
+        ? `${onThisShift.length} people are on the ${shiftLabel(shift)} shift, and no ${named.join(" / ")} rota covers ${weekday}.`
+        : `${onThisShift.length} people are on the ${shiftLabel(shift)} shift and none of them has a rota recorded.`;
   }
 
   return {
@@ -523,7 +550,7 @@ export function HeadcountBoard({
   const setAttendance = useSetAttendance(onDate.toISOString().slice(0, 10));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [view, setView] = useState<string>("Day");
+  const [view, setView] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [picking, setPicking] = useState<{ id: string; name: string; shift: string } | null>(null);
 
@@ -539,10 +566,50 @@ export function HeadcountBoard({
     [attendance],
   );
 
+  // Counted before the shift is chosen, so the tabs keep their numbers when one is
+  // selected — a tab that reads 0 because you are standing on another one is a lie.
+  const shiftCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const e of employees) {
+      if (!e.active) continue;
+      const key = e.shift_group ?? NO_SHIFT;
+      counts.set(key, (counts.get(key) ?? 0) + (showAll || !e.pattern || worksOn(e.pattern.days, onDate) ? 1 : 0));
+    }
+    return counts;
+  }, [employees, onDate, showAll]);
+
+  /**
+   * The shifts that exist on people, in the factory's order.
+   *
+   * Read off the roster rather than listed in the code: a shift somebody has been put
+   * on is a shift that has to be plannable, and a hard-coded list is how the weekend
+   * crew ended up with nowhere to be shown.
+   */
+  const shifts = useMemo(() => {
+    const found = new Set<string>();
+    for (const e of employees) if (e.active) found.add(e.shift_group ?? NO_SHIFT);
+    const known = SHIFT_ORDER.filter((s) => found.has(s));
+    const rest = Array.from(found).filter((s) => !SHIFT_ORDER.includes(s) && s !== NO_SHIFT).sort();
+    return [...known, ...rest, ...(found.has(NO_SHIFT) ? [NO_SHIFT] : [])];
+  }, [employees]);
+
+  /**
+   * Which shift the board opens on.
+   *
+   * Whichever one is actually in on the day being shown, not always Day. On a Sunday
+   * the Mon–Thu crews are genuinely nobody, and opening on an empty Day tab makes a
+   * correct zero look like a broken screen while the weekend crew is on the line.
+   * Once somebody picks a tab, their choice is kept.
+   */
+  const effectiveView = useMemo(() => {
+    if (view) return view;
+    return shifts.find((s) => (shiftCounts.get(s) ?? 0) > 0) ?? shifts[0] ?? "Day";
+  }, [view, shifts, shiftCounts]);
+
   /** The shifts on screen. One, or Day and Night together at handover. */
   const shownShifts = useMemo(
-    () => (view === SPLIT ? ["Day", "Night"] : [view]),
-    [view],
+    () => (effectiveView === SPLIT ? ["Day", "Night"] : [effectiveView]),
+    [effectiveView],
   );
 
   const boards = useMemo(
@@ -560,27 +627,6 @@ export function HeadcountBoard({
       ),
     [shownShifts, employees, attendance, areas, allPatterns, history, onDate, showAll],
   );
-
-  // Counted before the shift filter, so the tabs keep their numbers when one is
-  // selected — a tab that reads 0 because you are standing on another one is a lie.
-  const shiftCounts = useMemo(() => {
-    const base = employees.filter((e) => e.active && (showAll || !e.pattern || worksOn(e.pattern.days, onDate)));
-    const counts = new Map<string, number>();
-    for (const g of BOARD_SHIFTS) counts.set(g, base.filter((e) => e.shift_group === g).length);
-    counts.set("__none__", base.filter((e) => !e.shift_group).length);
-    return counts;
-  }, [employees, onDate, showAll]);
-
-  /** The shifts that exist on people but are deliberately not planned on this board. */
-  const offBoard = useMemo(() => {
-    const planned = new Set<string>(BOARD_SHIFTS);
-    const counts = new Map<string, number>();
-    for (const e of employees) {
-      if (!e.active || !e.shift_group || planned.has(e.shift_group)) continue;
-      counts.set(e.shift_group, (counts.get(e.shift_group) ?? 0) + 1);
-    }
-    return Array.from(counts, ([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
-  }, [employees]);
 
   const rolesPresent = useMemo(() => {
     const seen = new Map<string, RoleStripe>();
@@ -659,7 +705,7 @@ export function HeadcountBoard({
   };
 
   const active = activeId ? employees.find((e) => e.id === activeId) : null;
-  const compact = view === SPLIT;
+  const compact = effectiveView === SPLIT;
 
   const card = (e: BoardEmployee, opts?: { readOnly?: boolean }) => (
     <EmployeeCard
@@ -681,12 +727,12 @@ export function HeadcountBoard({
     <div className="space-y-3">
       {/* ---- Controls: which shift, who you are looking for, and the key ---- */}
       <div className="flex flex-wrap items-center gap-2 no-print">
-        <div className="inline-flex gap-1 rounded-xl border bg-card p-1 shadow-sm">
-          {BOARD_SHIFTS.map((g) => {
-            const look = SHIFT_LOOK[g];
+        <div className="inline-flex flex-wrap gap-1 rounded-xl border bg-card p-1 shadow-sm">
+          {shifts.map((g) => {
+            const look = SHIFT_LOOK[g] ?? SHIFT_LOOK[NO_SHIFT];
             const Icon = look.icon;
             const n = shiftCounts.get(g) ?? 0;
-            const on = view === g;
+            const on = effectiveView === g;
             return (
               <button
                 key={g}
@@ -695,10 +741,11 @@ export function HeadcountBoard({
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors",
                   on ? cn(look.soft, look.ink, "ring-1 ring-inset ring-current/20") : "text-muted-foreground hover:text-foreground",
+                  !on && n === 0 && "opacity-50",
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
-                {g}
+                {shiftLabel(g)}
                 <span className="font-mono opacity-70">{n}</span>
               </button>
             );
@@ -711,7 +758,7 @@ export function HeadcountBoard({
             onClick={() => setView(SPLIT)}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors",
-              view === SPLIT ? "bg-muted text-foreground ring-1 ring-inset ring-border" : "text-muted-foreground hover:text-foreground",
+              effectiveView === SPLIT ? "bg-muted text-foreground ring-1 ring-inset ring-border" : "text-muted-foreground hover:text-foreground",
             )}
           >
             <Columns2 className="h-3.5 w-3.5" /> Split view
@@ -748,16 +795,6 @@ export function HeadcountBoard({
 
       {/* Named rather than left out silently, so the board does not read as the whole
           factory when 46 people are deliberately not on it. */}
-      {(offBoard.length > 0 || (shiftCounts.get("__none__") ?? 0) > 0) && (
-        <p className="text-2xs text-muted-foreground no-print">
-          {offBoard.map((o) => `${o.name} ${o.n}`).join(" · ")}
-          {offBoard.length > 0 ? " — recorded, not planned here" : ""}
-          {(shiftCounts.get("__none__") ?? 0) > 0
-            ? `${offBoard.length ? " · " : ""}${shiftCounts.get("__none__")} with no shift recorded`
-            : ""}
-        </p>
-      )}
-
       {/* Only the roles actually on screen. A key listing seven colours when four are
           on screen sends somebody hunting for people who are not there. */}
       {rolesPresent.length > 0 && (
@@ -792,7 +829,7 @@ export function HeadcountBoard({
                     <Icon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-base font-extrabold leading-tight">{b.shift}</h2>
+                    <h2 className="text-base font-extrabold leading-tight">{shiftLabel(b.shift)}</h2>
                     {/* The rota, not clock times: the hours are not in the data, and a
                         banner that says 06:00–14:00 because somebody typed it once is
                         a figure the screen cannot stand behind. */}
