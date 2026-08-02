@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -377,8 +378,13 @@ export function useMovements(employeeId: string | null) {
 }
 
 export function useLines() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["lines_min"],
+    // Same reason as the operator accounts: `lines` is RLS-protected, a request with
+    // no session comes back empty rather than failing, and an empty list cached at
+    // mount leaves the operator's line unresolvable until something invalidates it.
+    queryKey: ["lines_min", user?.id ?? null],
+    enabled: !!user,
     queryFn: async (): Promise<Array<{ id: string; name: string }>> => {
       const { data, error } = await db.from("lines").select("id, name").order("name");
       if (error) throw error;
