@@ -50,7 +50,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "engineers.manage": ["admin", "manager", "maintenance_manager"],
   "leaders.view": ["admin", "manager", "supervisor"],
   "leaders.manage": ["admin", "manager"],
-  "chat.line": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator"],
+  "chat.line": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "quality_supervisor"],
   "headcount.view": ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
   "headcount.manage": ["admin", "manager", "supervisor", "planner"],
   "attendance.manage": ["admin", "manager", "supervisor", "planner"],
