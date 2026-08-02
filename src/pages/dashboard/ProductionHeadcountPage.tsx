@@ -17,6 +17,9 @@ import {
   type HeadcountEmployee,
 } from "@/hooks/useHeadcount";
 
+/** Employee id currently being dragged (HTML5 dataTransfer isn't readable on dragover). */
+let draggedEmployeeId: string | null = null;
+
 type ShiftKey = "Day" | "Night";
 type ViewKey = ShiftKey | "Split";
 
@@ -170,7 +173,7 @@ function ShiftBoard({
     e.dataTransfer.setData("text/plain", employeeId);
     e.dataTransfer.effectAllowed = "move";
   };
-  const readDrag = () => (typeof window !== "undefined" ? window.__anDragEmployee ?? null : null);
+  const readDrag = () => draggedEmployeeId;
 
   const handleDrop = (target: { areaId: string | null; status: AllocStatus } | "roster") => (employeeId: string) => {
     if (!employeeId) return;
@@ -232,7 +235,7 @@ function ShiftBoard({
                         tone={area.kind === "production" ? "production" : "support"}
                         draggable={canManage}
                         onDragStart={(e) => {
-                          window.__anDragEmployee = p.id;
+                          draggedEmployeeId = p.id;
                           dragStart(e, p.id);
                         }}
                       />
@@ -269,7 +272,7 @@ function ShiftBoard({
                         tone={block.status === "overtime" ? "overtime" : "away"}
                         draggable={canManage}
                         onDragStart={(e) => {
-                          window.__anDragEmployee = p.id;
+                          draggedEmployeeId = p.id;
                           dragStart(e, p.id);
                         }}
                       />
