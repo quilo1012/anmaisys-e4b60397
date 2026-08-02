@@ -332,9 +332,9 @@ export function useChangeShift() {
  * Add somebody to the list.
  *
  * Deliberately few fields. A name and a shift is enough to put a person on the board
- * this morning; the payroll number, the rota and the start date are things HR fills
- * in later from a record that exists, and asking for them here would either hold up
- * the board or invite somebody to type a plausible guess into a payroll field.
+ * this morning; the rota and the start date are things HR fills in later from a
+ * record that exists, and asking for them here would either hold up the board or
+ * invite somebody to type a plausible guess into a payroll field.
  */
 export function useCreateEmployee() {
   const qc = useQueryClient();
@@ -344,9 +344,12 @@ export function useCreateEmployee() {
       shift_group: string | null;
       department: string | null;
       headcount_area_id: string | null;
-      employee_ref: string | null;
       started_on: string | null;
     }) => {
+      // No employee_ref. The E-numbers came from the payroll list and belong to it;
+      // a number typed here is a key invented to match another system, and a wrong
+      // one is worse than none — it would look like a match and join to the wrong
+      // person the first time TimeMoto is imported.
       const { data, error } = await db
         .from("employees")
         .insert({ ...input, active: true, source: "manual" })
