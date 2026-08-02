@@ -3,17 +3,20 @@ import {
   DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors,
   useDraggable, useDroppable, type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { GripVertical, UserCheck, UserX } from "lucide-react";
+import { Columns2, GripVertical, Moon, Search, Sun, UserCheck, UserX, Warehouse } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { roleStripe, type RoleStripe } from "@/lib/workforceRoles";
 import { AreaPicker } from "./AreaPicker";
 import {
   useHeadcountAreas, useMoveEmployee, useSetAttendance, describeDays, worksOn,
   useShiftHistory, useShiftPatterns, resolveShiftOn,
-  type Attendance, type AttendanceStatus, type Employee, type ShiftPattern,
+  type Attendance, type AttendanceStatus, type Employee, type HeadcountArea, type ShiftPattern,
 } from "@/hooks/useWorkforce";
 
 const UNPLACED = "__unplaced__";
@@ -27,6 +30,37 @@ const UNPLACED = "__unplaced__";
  */
 const BOARD_SHIFTS = ["Day", "Night", "Warehouse Day"] as const;
 
+/** Day and Night, side by side. The handover is the one moment both are the answer. */
+const SPLIT = "__split__";
+
+/**
+ * A shift is a place, not a filter, and it should look like one.
+ *
+ * The banner colour is the whole point of the split view: two boards of identical
+ * grey columns side by side are one board twice the size, and the eye has to read a
+ * heading to know which factory it is looking at.
+ */
+const SHIFT_LOOK: Record<string, { icon: typeof Sun; banner: string; soft: string; ink: string }> = {
+  Day: {
+    icon: Sun,
+    banner: "from-amber-600 to-amber-400",
+    soft: "bg-amber-500/10",
+    ink: "text-warning-strong",
+  },
+  Night: {
+    icon: Moon,
+    banner: "from-indigo-900 to-indigo-500",
+    soft: "bg-indigo-500/10",
+    ink: "text-indigo-700 dark:text-indigo-300",
+  },
+  "Warehouse Day": {
+    icon: Warehouse,
+    banner: "from-orange-700 to-orange-400",
+    soft: "bg-orange-500/10",
+    ink: "text-orange-700 dark:text-orange-300",
+  },
+};
+
 const STATUS_META: Record<AttendanceStatus, { label: string; cls: string }> = {
   present:  { label: "In",       cls: "border-emerald-500/40 bg-emerald-500/15 text-success-strong" },
   absent:   { label: "Absent",   cls: "border-red-500/40 bg-red-500/15 text-destructive-strong" },
@@ -37,27 +71,55 @@ const STATUS_META: Record<AttendanceStatus, { label: string; cls: string }> = {
   unpaid:   { label: "Unpaid",   cls: "border-slate-500/40 bg-slate-500/15 text-muted-foreground" },
 };
 
-// No overtime here on purpose. The board answers who is in today; overtime is a
-// balance imported from payroll over a period that is not this day, and carrying it
-// on the same card is what made the two look like one number.
+/** The four kinds of column, and the stripe each one carries. */
+const COLUMN_KIND = {
+  production: { stripe: "border-l-primary",      head: "bg-primary/5",       ct: "text-primary" },
+  support:    { stripe: "border-l-slate-400",    head: "bg-muted",           ct: "text-foreground" },
+  away:       { stripe: "border-l-amber-500",    head: "bg-amber-500/10",    ct: "text-warning-strong" },
+  overtime:   { stripe: "border-l-violet-500",   head: "bg-violet-500/10",   ct: "text-violet-700 dark:text-violet-300" },
+} as const;
+type ColumnKind = keyof typeof COLUMN_KIND;
+
+// No overtime balance here on purpose. The board answers who is in today; the balance
+// is imported from payroll over a period that is not this day, and carrying it on the
+// same card is what made the two look like one number.
 export interface BoardEmployee extends Employee {
   pattern: ShiftPattern | null;
 }
 
+/** Two letters, for the square that sits where a role stripe does not. */
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
+/**
+ * Every status, on a menu.
+ *
+ * It used to cycle: one click In, another Absent, six to get back. Nobody can see a
+ * cycle, so the two statuses at the front of it were the only two that got used, and
+ * Holiday was five clicks away from a supervisor who had one hand on a tablet.
+ */
+const STATUS_ORDER: AttendanceStatus[] = ["present", "absent", "sick", "holiday", "unpaid", "training"];
+
 function EmployeeCard({
-  employee, attendance, onCycle, onSelect, canEdit, dragging, offRota,
+  employee, attendance, onSetStatus, onSelect, canEdit, dragging, offRota, dimmed, readOnly,
 }: {
   employee: BoardEmployee;
   attendance: Attendance | undefined;
-  onCycle: () => void;
+  onSetStatus: (status: AttendanceStatus) => void;
   onSelect?: () => void;
   canEdit: boolean;
   dragging?: boolean;
   /** Working a day their own rota does not cover. */
   offRota?: boolean;
+  /** Somebody is searching and it is not this person. */
+  dimmed?: boolean;
+  /** A roll-up copy of a card that lives somewhere else — no grip, no status. */
+  readOnly?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: employee.id, disabled: !canEdit,
+    id: employee.id, disabled: !canEdit || readOnly,
   });
   const status = attendance?.status;
   const role = roleStripe(employee.department);
@@ -66,8 +128,9 @@ function EmployeeCard({
     <div
       ref={setNodeRef}
       className={cn(
-        "rounded-md border bg-card px-1.5 py-1 text-left",
+        "rounded-lg border bg-muted/20 px-1.5 py-1 text-left transition-opacity",
         (isDragging || dragging) && "opacity-50",
+        dimmed && "opacity-20",
         status === "absent" && "border-destructive/40",
       )}
     >
@@ -75,7 +138,7 @@ function EmployeeCard({
           the detail panel: on a board of 68 cards, "Department to confirm" repeated
           138 times is not information, it is noise with a scrollbar. */}
       <div className="flex items-center gap-1">
-        {canEdit && (
+        {canEdit && !readOnly && (
           <button
             type="button"
             className="shrink-0 cursor-grab touch-none text-muted-foreground/60 hover:text-foreground active:cursor-grabbing no-print"
@@ -87,16 +150,22 @@ function EmployeeCard({
           </button>
         )}
         {/* The role rides on the name, the way a label does on a Trello card: the
-            colour and the three letters carry it, and the full title is on hover. */}
-        {role && (
+            colour and the three letters carry it, and the full title is on hover.
+            Anyone without a named role gets their initials, so every card keeps the
+            same shape and the column reads as one list rather than two. */}
+        {role ? (
           <span
             title={role.label}
             className={cn(
-              "shrink-0 rounded-sm px-1 py-px text-[9px] font-bold uppercase leading-tight tracking-wide",
+              "grid h-5 shrink-0 place-items-center rounded-md px-1 text-[9px] font-bold uppercase leading-none tracking-wide",
               role.cls,
             )}
           >
             {role.short}
+          </span>
+        ) : (
+          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-muted text-[9px] font-bold leading-none text-muted-foreground">
+            {initials(employee.full_name)}
           </span>
         )}
         {/* The name opens the detail panel; the grip drags. Two targets, so a tap on
@@ -114,53 +183,89 @@ function EmployeeCard({
         {/* Derived, never typed. Their rota does not cover this day and somebody put
             them on a line anyway, which is what an overtime day is. It says the day
             is one, not how many hours it was worth — hours come from payroll. */}
-        {offRota && (
+        {offRota && !readOnly && (
           <span
             title="Working outside their own rota — an overtime day. Hours still come from the payroll sheet."
-            className="shrink-0 rounded border border-amber-500/50 bg-amber-500/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-warning-strong"
+            className="shrink-0 rounded border border-violet-500/50 bg-violet-500/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-violet-700 dark:text-violet-300"
           >
             OT day
           </span>
         )}
-        {status ? (
-          <button
-            type="button"
-            onClick={canEdit ? onCycle : undefined}
-            className={cn(
-              "shrink-0 rounded border px-1.5 py-0.5 text-2xs font-semibold",
-              STATUS_META[status].cls,
-              canEdit && "cursor-pointer",
-            )}
-          >
-            {STATUS_META[status].label}
-          </button>
-        ) : canEdit ? (
-          <button
-            type="button"
-            onClick={onCycle}
-            className="shrink-0 rounded border border-dashed px-1.5 py-0.5 text-2xs text-muted-foreground hover:text-foreground no-print"
-          >
-            Mark
-          </button>
-        ) : null}
+        {readOnly ? null : !canEdit ? (
+          status && (
+            <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-2xs font-semibold", STATUS_META[status].cls)}>
+              {STATUS_META[status].label}
+            </span>
+          )
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "shrink-0 rounded border px-1.5 py-0.5 text-2xs font-semibold",
+                  status
+                    ? STATUS_META[status].cls
+                    : "border-dashed text-muted-foreground hover:text-foreground no-print",
+                )}
+              >
+                {status ? STATUS_META[status].label : "Mark"}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[9rem]">
+              {STATUS_ORDER.map((s) => (
+                <DropdownMenuItem key={s} onSelect={() => onSetStatus(s)} className="text-xs">
+                  <span className={cn("mr-2 h-2.5 w-2.5 rounded-sm border", STATUS_META[s].cls)} />
+                  {STATUS_META[s].label}
+                  {s === status && <span className="ml-auto text-2xs text-muted-foreground">now</span>}
+                </DropdownMenuItem>
+              ))}
+              {/* The rota is the reason, not a status somebody types: this only shows
+                  for somebody working a day their own pattern does not cover. */}
+              {offRota && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5 text-2xs text-muted-foreground">
+                    Not their rota today — marking them In records an overtime day.
+                  </div>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </div>
   );
 }
 
-function LineColumn({
-  id, title, subtitle, children, count, onOpen,
+/**
+ * One column of the board: a white card with a stripe saying what kind of place it is.
+ *
+ * Droppable only when it is a place somebody can be put. Absence, Holidays and
+ * Overtime are readings of the day, not destinations — dropping a name into
+ * "Holidays" would be booking leave by drag, which is not what that column means.
+ */
+function BoardColumn({
+  dropId, title, kind, count, children, onOpen, compact, note,
 }: {
-  id: string; title: string; subtitle?: string; children: React.ReactNode;
-  count: number; onOpen?: () => void;
+  dropId?: string;
+  title: string;
+  kind: ColumnKind;
+  count: number;
+  children: React.ReactNode;
+  onOpen?: () => void;
+  compact?: boolean;
+  note?: string;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+  const look = COLUMN_KIND[kind];
+  const { setNodeRef, isOver } = useDroppable({ id: dropId ?? `nodrop:${title}`, disabled: !dropId });
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-[8rem] flex-col rounded-lg border bg-muted/30 p-2 transition-colors break-inside-avoid",
-        isOver && "border-primary bg-primary/5",
+        "flex flex-col overflow-hidden rounded-xl border border-l-4 bg-card shadow-sm transition-colors break-inside-avoid",
+        look.stripe,
+        isOver && "ring-2 ring-primary",
       )}
     >
       {/* The heading is the way in. Filling a line by dragging sixty-eight cards is
@@ -171,25 +276,28 @@ function LineColumn({
         onClick={onOpen}
         disabled={!onOpen}
         className={cn(
-          "mb-1.5 flex items-baseline justify-between gap-2 border-b pb-1 text-left",
-          onOpen && "rounded-sm hover:text-primary",
+          "flex items-center gap-2 border-b px-2.5 py-2 text-left",
+          look.head,
+          onOpen && "hover:brightness-95",
         )}
       >
-        <span className="truncate text-xs font-bold uppercase tracking-wide">{title}</span>
+        <span className={cn("min-w-0 flex-1 truncate font-bold leading-tight", compact ? "text-2xs" : "text-xs")}>
+          {title}
+        </span>
         <span
           className={cn(
-            "shrink-0 rounded px-1.5 font-mono text-xs font-bold",
-            count > 0 ? "bg-primary/10 text-primary" : "text-muted-foreground/50",
+            "grid h-5 min-w-[1.5rem] shrink-0 place-items-center rounded-full border bg-background px-1.5 font-mono text-xs font-bold",
+            count > 0 ? look.ct : "text-muted-foreground/50",
           )}
         >
           {count}
         </span>
       </button>
-      {subtitle && <div className="mb-1 text-2xs text-muted-foreground">{subtitle}</div>}
+      {note && <div className="border-b px-2.5 py-1 text-[10px] text-muted-foreground">{note}</div>}
       {/* Capped and scrolled inside, so one crowded line does not stretch the row it
           sits in and leave nine short columns padded out beside it. */}
-      <div className="max-h-80 space-y-1 overflow-y-auto print:max-h-none print:overflow-visible">
-        {children}
+      <div className="flex max-h-80 min-h-[2.5rem] flex-col gap-1 overflow-y-auto p-2 print:max-h-none print:overflow-visible">
+        {count === 0 ? <span className="py-1 text-center text-sm text-muted-foreground/40">—</span> : children}
       </div>
     </div>
   );
@@ -202,16 +310,16 @@ function LineColumn({
  * droppable so somebody can be sent back here after being placed by mistake.
  */
 function UnplacedTray({
-  count, canEdit, children,
+  dropId, count, canEdit, children,
 }: {
-  count: number; canEdit: boolean; children: React.ReactNode;
+  dropId: string; count: number; canEdit: boolean; children: React.ReactNode;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: UNPLACED });
+  const { setNodeRef, isOver } = useDroppable({ id: dropId });
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "mb-3 rounded-lg border border-dashed bg-muted/20 p-2 transition-colors",
+        "mb-3 rounded-xl border border-dashed bg-muted/20 p-2 transition-colors",
         isOver && "border-primary bg-primary/5",
       )}
     >
@@ -231,6 +339,156 @@ function UnplacedTray({
       </div>
     </div>
   );
+}
+
+/** Everything one shift's board needs, worked out from data fetched once. */
+interface ShiftData {
+  shift: string;
+  scheduled: BoardEmployee[];
+  /** areaId (or UNPLACED) → the people working there today. */
+  columns: Map<string, BoardEmployee[]>;
+  away: BoardEmployee[];
+  holidays: BoardEmployee[];
+  overtime: BoardEmployee[];
+  totals: { assigned: number; onLines: number; support: number; away: number; overtime: number; unmarked: number };
+  rotas: string[];
+  emptyReason: string | null;
+}
+
+/**
+ * Who is where on one shift, on one day.
+ *
+ * A pure function rather than a hook, so the split view can run it twice without
+ * either board owning a query. Everything it reads was fetched once by the board.
+ */
+function computeShift(
+  shift: string,
+  ctx: {
+    employees: BoardEmployee[];
+    attendance: Attendance[];
+    areas: HeadcountArea[];
+    allPatterns: ShiftPattern[];
+    history: Parameters<typeof resolveShiftOn>[0];
+    onDate: Date;
+    showAll: boolean;
+  },
+): ShiftData {
+  const { employees, attendance, areas, allPatterns, history, onDate, showAll } = ctx;
+  const key = onDate.toISOString().slice(0, 10);
+  const byId = new Map(attendance.map((a) => [a.employee_id, a]));
+
+  /**
+   * The shift and rota each person held on the day being shown, not the one they hold
+   * now. Somebody moved from nights to days in August was on nights in July, and the
+   * July board has to keep saying so.
+   */
+  const patternOf = (e: BoardEmployee) => {
+    const pos = resolveShiftOn(history, e, key);
+    return pos.shift_pattern_id === e.shift_pattern_id
+      ? e.pattern
+      : allPatterns.find((p) => p.id === pos.shift_pattern_id) ?? null;
+  };
+
+  const scheduled = employees.filter((e) => {
+    if (!e.active) return false;
+    if (resolveShiftOn(history, e, key).shift_group !== shift) return false;
+    const pattern = patternOf(e);
+    return showAll || !pattern || worksOn(pattern.days, onDate);
+  });
+
+  /**
+   * Where somebody is on the day being shown.
+   *
+   * The day's own allocation wins. The employee's area is only a default — where they
+   * usually are — and it seeds a day nobody has touched yet so the board opens
+   * pre-filled instead of empty every morning. Reading the default as though it were
+   * the day's record is what made moving somebody on Tuesday rewrite Monday.
+   */
+  const areaOf = (e: BoardEmployee) => byId.get(e.id)?.headcount_area_id ?? e.headcount_area_id ?? null;
+
+  /**
+   * Away comes off the lines, the way it does on the spreadsheet.
+   *
+   * A line that reads 5 with one of them at home is not a line of five. Their
+   * allocation is untouched underneath — mark them back in and they return to the
+   * column they were placed on, because being absent is not being unplaced.
+   */
+  const isAway = (e: BoardEmployee) => ["absent", "sick", "unpaid"].includes(byId.get(e.id)?.status ?? "");
+  const isHoliday = (e: BoardEmployee) => byId.get(e.id)?.status === "holiday";
+
+  const working = scheduled.filter((e) => !isAway(e) && !isHoliday(e));
+
+  const columns = new Map<string, BoardEmployee[]>();
+  columns.set(UNPLACED, []);
+  for (const a of areas) columns.set(a.id, []);
+  for (const e of working) {
+    const area = areaOf(e);
+    columns.get(area && columns.has(area) ? area : UNPLACED)!.push(e);
+  }
+
+  const productionIds = new Set(areas.filter((a) => a.kind === "production").map((a) => a.id));
+  let onLines = 0;
+  let support = 0;
+  for (const [id, people] of columns) {
+    if (id === UNPLACED) continue;
+    if (productionIds.has(id)) onLines += people.length;
+    else support += people.length;
+  }
+
+  const away = scheduled.filter(isAway);
+  const holidays = scheduled.filter(isHoliday);
+  /**
+   * Working a day their own rota does not cover — a call-in. They stay on the line
+   * they are working; this column is a reading of it, not another place to be, which
+   * is why the count is not added to anything.
+   */
+  const overtime = working.filter((e) => {
+    const pattern = patternOf(e);
+    return !!pattern && !worksOn(pattern.days, onDate);
+  });
+
+  const rotas = Array.from(
+    new Set(scheduled.map((e) => patternOf(e)?.name).filter(Boolean) as string[]),
+  );
+
+  /**
+   * Why the board is empty, when it is.
+   *
+   * A shift whose rota does not cover the chosen day is genuinely nobody, and the
+   * honest count is zero — but a screen full of zeros reads as broken software. This
+   * says which rota and which weekday, so the answer is "nobody works Sunday
+   * nights", not "the counters are wrong".
+   */
+  let emptyReason: string | null = null;
+  if (scheduled.length === 0 && !showAll) {
+    const onThisShift = employees.filter((e) => e.active && e.shift_group === shift);
+    const weekday = onDate.toLocaleDateString("en-GB", { weekday: "long" });
+    const named = Array.from(new Set(onThisShift.map((e) => e.pattern?.name).filter(Boolean) as string[]));
+    emptyReason = onThisShift.length === 0
+      ? `Nobody is on the ${shift} shift.`
+      : named.length
+        ? `${onThisShift.length} people are on the ${shift} shift, and no ${named.join(" / ")} rota covers ${weekday}.`
+        : `${onThisShift.length} people are on the ${shift} shift and none of them has a rota recorded.`;
+  }
+
+  return {
+    shift,
+    scheduled,
+    columns,
+    away,
+    holidays,
+    overtime,
+    totals: {
+      assigned: onLines + support,
+      onLines,
+      support,
+      away: away.length,
+      overtime: overtime.length,
+      unmarked: scheduled.filter((e) => !byId.has(e.id)).length,
+    },
+    rotas,
+    emptyReason,
+  };
 }
 
 /**
@@ -258,8 +516,9 @@ export function HeadcountBoard({
   const setAttendance = useSetAttendance(onDate.toISOString().slice(0, 10));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [shift, setShift] = useState<string>("Day");
-  const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
+  const [view, setView] = useState<string>("Day");
+  const [query, setQuery] = useState("");
+  const [picking, setPicking] = useState<{ id: string; name: string; shift: string } | null>(null);
 
   const sensors = useSensors(
     // A small distance so a tap on the card's buttons is not read as a drag on a
@@ -273,28 +532,26 @@ export function HeadcountBoard({
     [attendance],
   );
 
-  /**
-   * The shift and rota each person held on the day being shown, not the one they hold
-   * now. Somebody moved from nights to days in August was on nights in July, and the
-   * July board has to keep saying so.
-   */
-  const positionOn = useMemo(() => {
-    const key = onDate.toISOString().slice(0, 10);
-    return (e: BoardEmployee) => resolveShiftOn(history, e, key);
-  }, [history, onDate]);
+  /** The shifts on screen. One, or Day and Night together at handover. */
+  const shownShifts = useMemo(
+    () => (view === SPLIT ? ["Day", "Night"] : [view]),
+    [view],
+  );
 
-  const scheduled = useMemo(
+  const boards = useMemo(
     () =>
-      employees.filter((e) => {
-        if (!e.active) return false;
-        const pos = positionOn(e);
-        if (pos.shift_group !== shift) return false;
-        const pattern = pos.shift_pattern_id === e.shift_pattern_id
-          ? e.pattern
-          : (allPatterns ?? []).find((p) => p.id === pos.shift_pattern_id) ?? null;
-        return showAll || !pattern || worksOn(pattern.days, onDate);
-      }),
-    [employees, onDate, showAll, shift, positionOn, allPatterns],
+      shownShifts.map((s) =>
+        computeShift(s, {
+          employees,
+          attendance,
+          areas: areas ?? [],
+          allPatterns: allPatterns ?? [],
+          history,
+          onDate,
+          showAll,
+        }),
+      ),
+    [shownShifts, employees, attendance, areas, allPatterns, history, onDate, showAll],
   );
 
   // Counted before the shift filter, so the tabs keep their numbers when one is
@@ -307,94 +564,6 @@ export function HeadcountBoard({
     return counts;
   }, [employees, onDate, showAll]);
 
-  const productionAreaIds = useMemo(
-    () => new Set((areas ?? []).filter((a) => a.kind === "production").map((a) => a.id)),
-    [areas],
-  );
-
-  /**
-   * The selected shift, counted on its own.
-   *
-   * The KPI row above the tabs counts the whole factory; this counts the shift you
-   * are standing on, which is the number a supervisor is actually asked for at
-   * handover. Unmarked is named rather than folded into anything: nobody having said
-   * yet is not the same as somebody being in, and it is not an absence either.
-   */
-  const shiftTotals = useMemo(() => {
-    const byId = new Map((attendance ?? []).map((a) => [a.employee_id, a]));
-    const n = (...want: AttendanceStatus[]) =>
-      scheduled.filter((e) => want.includes(byId.get(e.id)?.status as AttendanceStatus)).length;
-    return {
-      onShift: scheduled.length,
-      present: n("present"),
-      away: n("absent", "sick", "unpaid"),
-      holiday: n("holiday"),
-      unmarked: scheduled.filter((e) => !byId.has(e.id)).length,
-      // Counted the way the columns are: the day's allocation, falling back to where
-      // they usually are. Counting only the employee default would report people as
-      // placed on a day somebody had explicitly taken them off a line.
-      placed: scheduled.filter(
-        (e) => (byId.get(e.id)?.headcount_area_id ?? e.headcount_area_id) != null,
-      ).length,
-      // The number the spreadsheet has always ended on: how many are on a production
-      // area, as opposed to on the shift. Derived from the same allocation the columns
-      // are drawn from, so it can never disagree with the sum of the column counters.
-      inProduction: scheduled.filter((e) => {
-        const area = byId.get(e.id)?.headcount_area_id ?? e.headcount_area_id;
-        return area ? productionAreaIds.has(area) : false;
-      }).length,
-    };
-  }, [scheduled, attendance, productionAreaIds]);
-
-  /**
-   * Where somebody is on the day being shown.
-   *
-   * The day's own allocation wins. The employee's area is only a default — where they
-   * usually are — and it seeds a day nobody has touched yet so the board opens
-   * pre-filled instead of empty every morning. Reading the default as though it were
-   * the day's record is what made moving somebody on Tuesday rewrite Monday.
-   */
-  const areaOn = useMemo(() => {
-    const byId = new Map((attendance ?? []).map((a) => [a.employee_id, a]));
-    return (e: BoardEmployee) => byId.get(e.id)?.headcount_area_id ?? e.headcount_area_id ?? null;
-  }, [attendance]);
-
-  /**
-   * Why the board is empty, when it is.
-   *
-   * A shift whose rota does not cover the chosen day is genuinely nobody, and the
-   * honest count is zero — but a screen full of zeros reads as broken software. This
-   * says which rota and which weekday, so the answer is "nobody works Sunday
-   * nights", not "the counters are wrong".
-   */
-  /**
-   * Somebody whose own rota does not cover the day being shown.
-   *
-   * Only reachable through "Show everyone", which is the point: it is how a Saturday
-   * call-in gets recorded. The board says the day is an overtime day and stops there.
-   * The hours are the payroll spreadsheet's answer, and `overtime.ts` is what turns a
-   * day like this into hours once TimeMoto supplies them.
-   */
-  const isOffRota = useMemo(() => {
-    const key = onDate.toISOString().slice(0, 10);
-    return (e: BoardEmployee) => {
-      const pos = resolveShiftOn(history, e, key);
-      const pattern = pos.shift_pattern_id === e.shift_pattern_id
-        ? e.pattern
-        : (allPatterns ?? []).find((p) => p.id === pos.shift_pattern_id) ?? null;
-      return !!pattern && !worksOn(pattern.days, onDate);
-    };
-  }, [history, allPatterns, onDate]);
-
-  const rolesPresent = useMemo(() => {
-    const seen = new Map<string, RoleStripe>();
-    for (const e of scheduled) {
-      const r = roleStripe(e.department);
-      if (r) seen.set(r.label, r);
-    }
-    return Array.from(seen.values());
-  }, [scheduled]);
-
   /** The shifts that exist on people but are deliberately not planned on this board. */
   const offBoard = useMemo(() => {
     const planned = new Set<string>(BOARD_SHIFTS);
@@ -406,42 +575,46 @@ export function HeadcountBoard({
     return Array.from(counts, ([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
   }, [employees]);
 
-  const emptyReason = useMemo(() => {
-    if (scheduled.length > 0 || showAll) return null;
-    const onThisShift = employees.filter((e) => e.active && e.shift_group === shift);
-    if (onThisShift.length === 0) return `Nobody is on the ${shift} shift.`;
-    const rotas = Array.from(
-      new Set(onThisShift.map((e) => e.pattern?.name).filter(Boolean) as string[]),
-    );
-    const weekday = onDate.toLocaleDateString("en-GB", { weekday: "long" });
-    return rotas.length
-      ? `${onThisShift.length} people are on the ${shift} shift, and no ${rotas.join(" / ")} rota covers ${weekday}.`
-      : `${onThisShift.length} people are on the ${shift} shift and none of them has a rota recorded.`;
-  }, [scheduled, showAll, employees, shift, onDate]);
-
-  const columns = useMemo(() => {
-    const byLine = new Map<string, BoardEmployee[]>();
-    byLine.set(UNPLACED, []);
-    for (const a of areas ?? []) byLine.set(a.id, []);
-    for (const e of scheduled) {
-      const area = areaOn(e);
-      byLine.get(area && byLine.has(area) ? area : UNPLACED)!.push(e);
+  const rolesPresent = useMemo(() => {
+    const seen = new Map<string, RoleStripe>();
+    for (const b of boards) {
+      for (const e of b.scheduled) {
+        const r = roleStripe(e.department);
+        if (r) seen.set(r.label, r);
+      }
     }
-    return byLine;
-  }, [scheduled, areas, areaOn]);
+    return Array.from(seen.values());
+  }, [boards]);
 
-  const cycleStatus = (employeeId: string) => {
-    const order: AttendanceStatus[] = ["present", "absent", "sick", "holiday", "unpaid", "training"];
-    const current = attendanceByEmployee.get(employeeId)?.status;
-    const next = order[(current ? order.indexOf(current) + 1 : 0) % order.length];
-    setAttendance.mutate({ employeeId, status: next }, {
+  /** Searching dims rather than hides, so a column's count never moves while you type. */
+  const term = query.trim().toLowerCase();
+  const isDimmed = (e: BoardEmployee) => !!term && !e.full_name.toLowerCase().includes(term);
+
+  const areaOn = useMemo(() => {
+    const byId = new Map((attendance ?? []).map((a) => [a.employee_id, a]));
+    return (e: Employee) => byId.get(e.id)?.headcount_area_id ?? e.headcount_area_id ?? null;
+  }, [attendance]);
+
+  const isOffRota = useMemo(() => {
+    const key = onDate.toISOString().slice(0, 10);
+    return (e: BoardEmployee) => {
+      const pos = resolveShiftOn(history, e, key);
+      const pattern = pos.shift_pattern_id === e.shift_pattern_id
+        ? e.pattern
+        : (allPatterns ?? []).find((p) => p.id === pos.shift_pattern_id) ?? null;
+      return !!pattern && !worksOn(pattern.days, onDate);
+    };
+  }, [history, allPatterns, onDate]);
+
+  const markStatus = (employeeId: string, status: AttendanceStatus) => {
+    setAttendance.mutate({ employeeId, status }, {
       onError: (e) => toast.error((e as Error).message || "Could not save attendance"),
     });
   };
 
   /** One path for both ways of moving somebody: the drag and the search. */
   const moveTo = (employee: Employee, toLineId: string | null) => {
-    const wasOn = areaOn(employee as BoardEmployee);
+    const wasOn = areaOn(employee);
     if (wasOn === toLineId) return;
     const nameOf = (id: string | null) => (id ? areas?.find((a) => a.id === id)?.name ?? null : null);
     move.mutate(
@@ -461,210 +634,313 @@ export function HeadcountBoard({
     );
   };
 
+  /**
+   * Droppable ids carry their shift, because in the split view both boards draw the
+   * same areas and two droppables cannot share an id. The area is the same place
+   * either way — the prefix only keeps the two grids apart.
+   */
+  const dropId = (shift: string, areaId: string) => `${shift}|${areaId}`;
+
   const onDragEnd = (event: DragEndEvent) => {
     setActiveId(null);
     const target = event.over ? String(event.over.id) : null;
-    if (!target) return;
+    if (!target || target.startsWith("nodrop:")) return;
     const employee = employees.find((e) => e.id === String(event.active.id));
     if (!employee) return;
-    moveTo(employee, target === UNPLACED ? null : target);
+    const areaId = target.slice(target.indexOf("|") + 1);
+    moveTo(employee, areaId === UNPLACED ? null : areaId);
   };
 
   const active = activeId ? employees.find((e) => e.id === activeId) : null;
-  const unplacedCount = columns.get(UNPLACED)?.length ?? 0;
+  const compact = view === SPLIT;
+
+  const card = (e: BoardEmployee, opts?: { readOnly?: boolean }) => (
+    <EmployeeCard
+      key={e.id}
+      employee={e}
+      attendance={attendanceByEmployee.get(e.id)}
+      onSetStatus={(s) => markStatus(e.id, s)}
+      onSelect={() => onSelect?.(e.id)}
+      canEdit={canEdit}
+      dragging={activeId === e.id}
+      offRota={isOffRota(e)}
+      dimmed={isDimmed(e)}
+      readOnly={opts?.readOnly}
+    />
+  );
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <CardTitle className="text-base">Headcount by line</CardTitle>
-            <CardDescription>
-              {showAll
-                ? "Everyone active, whatever their pattern says about today."
-                : "People whose shift pattern covers this day, plus anyone with no pattern yet."}
-            </CardDescription>
-          </div>
-          <Button variant="outline" size="sm" className="no-print" onClick={() => setShowAll((v) => !v)}>
-            {showAll ? <UserCheck className="mr-1 h-4 w-4" /> : <UserX className="mr-1 h-4 w-4" />}
-            {showAll ? "Only today's shift" : "Show everyone"}
-          </Button>
-        </div>
-        {/* Day and Night are two different headcounts that happen to share a factory.
-            Shown side by side they read as one number twice the size. */}
-        <div className="mt-3 flex flex-wrap gap-1 no-print">
+    <div className="space-y-3">
+      {/* ---- Controls: which shift, who you are looking for, and the key ---- */}
+      <div className="flex flex-wrap items-center gap-2 no-print">
+        <div className="inline-flex gap-1 rounded-xl border bg-card p-1 shadow-sm">
           {BOARD_SHIFTS.map((g) => {
+            const look = SHIFT_LOOK[g];
+            const Icon = look.icon;
             const n = shiftCounts.get(g) ?? 0;
+            const on = view === g;
             return (
               <button
                 key={g}
                 type="button"
-                onClick={() => setShift(g)}
+                onClick={() => setView(g)}
                 className={cn(
-                  "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
-                  shift === g
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "bg-background hover:bg-muted",
-                  n === 0 && shift !== g && "text-muted-foreground",
+                  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors",
+                  on ? cn(look.soft, look.ink, "ring-1 ring-inset ring-current/20") : "text-muted-foreground hover:text-foreground",
                 )}
               >
+                <Icon className="h-3.5 w-3.5" />
                 {g}
-                <span className="ml-1.5 font-mono opacity-70">{n}</span>
+                <span className="font-mono opacity-70">{n}</span>
               </button>
             );
           })}
-          {/* Named rather than left out silently, so the board does not read as the
-              whole factory when 46 people are deliberately not on it. */}
-          <span className="ml-auto self-center text-right text-2xs text-muted-foreground">
-            {offBoard.map((o) => `${o.name} ${o.n}`).join(" · ")} — recorded, not planned here
-            {(shiftCounts.get("__none__") ?? 0) > 0
-              ? ` · ${shiftCounts.get("__none__")} with no shift recorded`
-              : ""}
-          </span>
+          {/* Handover is the one moment both shifts are the answer to the same
+              question, and flipping between two tabs to compare them is how a name
+              gets counted twice or not at all. */}
+          <button
+            type="button"
+            onClick={() => setView(SPLIT)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors",
+              view === SPLIT ? "bg-muted text-foreground ring-1 ring-inset ring-border" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Columns2 className="h-3.5 w-3.5" /> Split view
+          </button>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-7">
-          {[
-            { k: "On shift", v: shiftTotals.onShift, s: shift },
-            { k: "In production", v: shiftTotals.inProduction, s: "On a production area" },
-            { k: "In", v: shiftTotals.present, s: "Marked present" },
-            { k: "Away", v: shiftTotals.away, s: "Absent, sick, unpaid", tone: shiftTotals.away ? "text-warning-strong" : "" },
-            { k: "Holiday", v: shiftTotals.holiday, s: "Booked leave" },
-            { k: "Not marked", v: shiftTotals.unmarked, s: "Nobody has said", tone: shiftTotals.unmarked ? "text-destructive-strong" : "" },
-            { k: "Placed", v: `${shiftTotals.placed}/${shiftTotals.onShift}`, s: "Have an area" },
-          ].map((t) => (
-            <div key={t.k} className="rounded-lg border bg-card px-3 py-2">
-              <div className="truncate text-2xs uppercase tracking-wider text-muted-foreground">{t.k}</div>
-              <div className={cn("font-mono text-2xl font-bold tabular-nums leading-tight", t.tone)}>{t.v}</div>
-              <div className="truncate text-2xs text-muted-foreground">{t.s}</div>
-            </div>
+
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Find a person…"
+            aria-label="Find a person on the board"
+            className="h-9 w-52 pl-8"
+          />
+        </div>
+
+        <Button variant="outline" size="sm" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? <UserCheck className="mr-1 h-4 w-4" /> : <UserX className="mr-1 h-4 w-4" />}
+          {showAll ? "Only today's shift" : "Show everyone"}
+        </Button>
+
+        <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-2xs text-muted-foreground">
+          {([["production", "Production line"], ["support", "Support area"], ["away", "Away"], ["overtime", "Overtime"]] as const).map(
+            ([k, label]) => (
+              <span key={k} className="inline-flex items-center gap-1.5">
+                <i className={cn("h-2.5 w-2.5 rounded-sm border-l-4", COLUMN_KIND[k].stripe, COLUMN_KIND[k].head)} />
+                {label}
+              </span>
+            ),
+          )}
+        </div>
+      </div>
+
+      {/* Named rather than left out silently, so the board does not read as the whole
+          factory when 46 people are deliberately not on it. */}
+      {(offBoard.length > 0 || (shiftCounts.get("__none__") ?? 0) > 0) && (
+        <p className="text-2xs text-muted-foreground no-print">
+          {offBoard.map((o) => `${o.name} ${o.n}`).join(" · ")}
+          {offBoard.length > 0 ? " — recorded, not planned here" : ""}
+          {(shiftCounts.get("__none__") ?? 0) > 0
+            ? `${offBoard.length ? " · " : ""}${shiftCounts.get("__none__")} with no shift recorded`
+            : ""}
+        </p>
+      )}
+
+      {/* Only the roles actually on screen. A key listing seven colours when four are
+          on screen sends somebody hunting for people who are not there. */}
+      {rolesPresent.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
+          {rolesPresent.map((r) => (
+            <span key={r.label} className="flex items-center gap-1.5">
+              <span className={cn("rounded-sm px-1 py-px text-[9px] font-bold uppercase leading-tight", r.cls)}>
+                {r.short}
+              </span>
+              {r.label}
+            </span>
           ))}
         </div>
-      </CardHeader>
-      <CardContent>
-        {/* Only the roles actually on this shift. A key listing seven colours when
-            four are on screen sends somebody hunting for people who are not there. */}
-        {rolesPresent.length > 0 && (
-          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
-            {rolesPresent.map((r) => (
-              <span key={r.label} className="flex items-center gap-1.5">
-                <span className={cn("rounded-sm px-1 py-px text-[9px] font-bold uppercase leading-tight", r.cls)}>
-                  {r.short}
-                </span>
-                {r.label}
-              </span>
-            ))}
-          </div>
-        )}
-        {emptyReason && (
-          <div className="mb-3 rounded-lg border border-dashed bg-muted/30 p-3 text-sm">
-            <p className="font-medium">{emptyReason}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              The zero is the answer, not a fault. Step to a day the rota covers, or use
-              “Show everyone” to see the shift regardless of the day.
-            </p>
-          </div>
-        )}
-        <DndContext
-          sensors={sensors}
-          onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
-          onDragEnd={onDragEnd}
-          onDragCancel={() => setActiveId(null)}
-        >
-          {/* Not a column any more: a staging tray across the top, which is what it
-              always was. As a peer of Line 1 it implied "Unassigned" was a place
-              people work, and while nobody has an allocation it was also the only
-              column with anybody in it. It disappears entirely once the shift is
-              placed, which is the point. */}
-          {unplacedCount > 0 && <UnplacedTray count={unplacedCount} canEdit={canEdit}>
-            {(columns.get(UNPLACED) ?? []).map((e) => (
-              <EmployeeCard
-                key={e.id}
-                employee={e}
-                attendance={attendanceByEmployee.get(e.id)}
-                onCycle={() => cycleStatus(e.id)}
-                onSelect={() => onSelect?.(e.id)}
-                canEdit={canEdit}
-                dragging={activeId === e.id}
-                offRota={isOffRota(e)}
-              />
-            ))}
-          </UnplacedTray>}
+      )}
 
-          {/* Production and support are read differently — one is the line running,
-              the other is who keeps it running — and mixing them in one grid made
-              Office sit between Line 3 and Line 4 as though it were the next line. */}
-          {(["production", "support"] as const).map((kind) => {
-            const group = (areas ?? []).filter((a) => a.kind === kind);
-            if (group.length === 0) return null;
+      <DndContext
+        sensors={sensors}
+        onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => setActiveId(null)}
+      >
+        <div className={cn(compact && "grid items-start gap-4 xl:grid-cols-2")}>
+          {boards.map((b) => {
+            const look = SHIFT_LOOK[b.shift] ?? SHIFT_LOOK.Day;
+            const Icon = look.icon;
+            const unplaced = b.columns.get(UNPLACED) ?? [];
             return (
-              <div key={kind}>
-                <div className="mb-2 mt-3 flex items-center gap-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground first:mt-0">
-                  {kind === "production" ? "Production" : "Support"}
+              <div key={b.shift} className="break-inside-avoid">
+                {/* ---- Shift banner ---- */}
+                <div className={cn("mb-3 flex items-center gap-3 rounded-xl bg-gradient-to-r px-4 py-3 text-white", look.banner)}>
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/20">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-base font-extrabold leading-tight">{b.shift}</h2>
+                    {/* The rota, not clock times: the hours are not in the data, and a
+                        banner that says 06:00–14:00 because somebody typed it once is
+                        a figure the screen cannot stand behind. */}
+                    <div className="truncate text-2xs opacity-90">
+                      {b.rotas.length ? b.rotas.join(" · ") : "No rota recorded"}
+                    </div>
+                  </div>
+                  <div className="ml-auto shrink-0 text-right">
+                    <b className="block font-mono text-2xl font-extrabold leading-none tabular-nums">{b.scheduled.length}</b>
+                    <small className="text-[10px] uppercase tracking-wider opacity-90">on shift</small>
+                  </div>
+                </div>
+
+                {/* ---- KPIs ---- */}
+                <div className={cn("mb-4 grid gap-2 grid-cols-2 sm:grid-cols-3", compact ? "xl:grid-cols-3" : "xl:grid-cols-6")}>
+                  {[
+                    { k: "In production", v: b.totals.assigned, s: "Placed and in", hl: true },
+                    { k: "On lines", v: b.totals.onLines, s: "Production areas" },
+                    { k: "Support", v: b.totals.support, s: "Support areas" },
+                    { k: "Away", v: b.totals.away, s: "Absent, sick, unpaid", tone: b.totals.away ? "text-warning-strong" : "" },
+                    { k: "Overtime", v: b.totals.overtime, s: "Working off their rota", tone: b.totals.overtime ? "text-violet-600 dark:text-violet-300" : "" },
+                    { k: "Not marked", v: b.totals.unmarked, s: "Nobody has said", tone: b.totals.unmarked ? "text-destructive-strong" : "" },
+                  ].map((t) => (
+                    <div
+                      key={t.k}
+                      className={cn("rounded-xl border px-3 py-2 shadow-sm", t.hl ? cn(look.soft, "border-transparent") : "bg-card")}
+                    >
+                      <div className={cn("font-mono text-2xl font-bold tabular-nums leading-none", t.hl ? look.ink : t.tone)}>
+                        {t.v}
+                      </div>
+                      <div className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t.k}</div>
+                      <div className="truncate text-2xs text-muted-foreground">{t.s}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {b.emptyReason && (
+                  <div className="mb-3 rounded-xl border border-dashed bg-muted/30 p-3 text-sm">
+                    <p className="font-medium">{b.emptyReason}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      The zero is the answer, not a fault. Step to a day the rota covers, or use
+                      “Show everyone” to see the shift regardless of the day.
+                    </p>
+                  </div>
+                )}
+
+                {/* Not a column any more: a staging tray across the top, which is what
+                    it always was. As a peer of Line 1 it implied "Unassigned" was a
+                    place people work, and while nobody has an allocation it was also
+                    the only column with anybody in it. It disappears entirely once the
+                    shift is placed, which is the point. */}
+                {unplaced.length > 0 && (
+                  <UnplacedTray dropId={dropId(b.shift, UNPLACED)} count={unplaced.length} canEdit={canEdit}>
+                    {unplaced.map((e) => card(e))}
+                  </UnplacedTray>
+                )}
+
+                {/* Production and support are read differently — one is the line
+                    running, the other is who keeps it running — and mixing them in one
+                    grid made Office sit between Line 3 and Line 4 as though it were
+                    the next line. */}
+                {(["production", "support"] as const).map((kind) => {
+                  const group = (areas ?? []).filter((a) => a.kind === kind);
+                  if (group.length === 0) return null;
+                  return (
+                    <div key={kind}>
+                      <div className="mb-2 mt-4 flex items-center gap-2 text-2xs font-extrabold uppercase tracking-widest text-muted-foreground first:mt-0">
+                        {kind === "production" ? "Production" : "Support"}
+                        <span className="h-px flex-1 bg-border" />
+                      </div>
+                      <div
+                        className="grid gap-3"
+                        style={{ gridTemplateColumns: `repeat(auto-fill,minmax(${compact ? "9.5rem" : "11.5rem"},1fr))` }}
+                      >
+                        {group.map((l) => (
+                          <BoardColumn
+                            key={l.id}
+                            dropId={dropId(b.shift, l.id)}
+                            title={l.name}
+                            kind={kind}
+                            compact={compact}
+                            count={b.columns.get(l.id)?.length ?? 0}
+                            onOpen={canEdit ? () => setPicking({ id: l.id, name: l.name, shift: b.shift }) : undefined}
+                          >
+                            {(b.columns.get(l.id) ?? []).map((e) => card(e))}
+                          </BoardColumn>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* ---- Away & overtime: readings of the day, not places ---- */}
+                <div className="mb-2 mt-4 flex items-center gap-2 text-2xs font-extrabold uppercase tracking-widest text-muted-foreground">
+                  Away &amp; overtime
                   <span className="h-px flex-1 bg-border" />
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {group.map((l) => (
-                    <LineColumn
-                      key={l.id}
-                      id={l.id}
-                      title={l.name}
-                      count={columns.get(l.id)?.length ?? 0}
-                      onOpen={canEdit ? () => setPicking({ id: l.id, name: l.name }) : undefined}
-                    >
-                      {(columns.get(l.id) ?? []).map((e) => (
-                        <EmployeeCard
-                          key={e.id}
-                          employee={e}
-                          attendance={attendanceByEmployee.get(e.id)}
-                          onCycle={() => cycleStatus(e.id)}
-                          onSelect={() => onSelect?.(e.id)}
-                          canEdit={canEdit}
-                          dragging={activeId === e.id}
-                          offRota={isOffRota(e)}
-                        />
-                      ))}
-                    </LineColumn>
-                  ))}
+                <div
+                  className="grid gap-3"
+                  style={{ gridTemplateColumns: `repeat(auto-fill,minmax(${compact ? "9.5rem" : "11.5rem"},1fr))` }}
+                >
+                  <BoardColumn title="Absence" kind="away" compact={compact} count={b.away.length}>
+                    {b.away.map((e) => card(e))}
+                  </BoardColumn>
+                  <BoardColumn title="Holidays" kind="away" compact={compact} count={b.holidays.length}>
+                    {b.holidays.map((e) => card(e))}
+                  </BoardColumn>
+                  <BoardColumn
+                    title="Overtime"
+                    kind="overtime"
+                    compact={compact}
+                    count={b.overtime.length}
+                    note="Also counted on their line"
+                  >
+                    {b.overtime.map((e) => card(e, { readOnly: true }))}
+                  </BoardColumn>
                 </div>
               </div>
             );
           })}
+        </div>
 
-          {picking && (
-            <AreaPicker
-              areaId={picking.id}
-              areaName={picking.name}
-              open
-              onOpenChange={(v) => !v && setPicking(null)}
-              // Everyone on the shift, not just whoever the rota puts in today.
-              // Nobody is fixed to a line, and a Saturday call-in or tomorrow's plan
-              // has to be placeable — a picker that offers nobody on a day nobody is
-              // rostered is a picker that cannot be used to change the roster.
-              people={employees
-                .filter((e) => e.active && positionOn(e).shift_group === shift)
-                .map((e) => {
-                  const id = areaOn(e);
-                  return {
-                    ...e,
-                    currentAreaId: id,
-                    currentAreaName: id ? areas?.find((a) => a.id === id)?.name ?? null : null,
-                    offRota: isOffRota(e),
-                  };
-                })}
-              onToggle={(person, toAreaId) => moveTo(person, toAreaId)}
-            />
+        {picking && (
+          <AreaPicker
+            areaId={picking.id}
+            areaName={picking.name}
+            open
+            onOpenChange={(v) => !v && setPicking(null)}
+            // Everyone on the shift, not just whoever the rota puts in today.
+            // Nobody is fixed to a line, and a Saturday call-in or tomorrow's plan
+            // has to be placeable — a picker that offers nobody on a day nobody is
+            // rostered is a picker that cannot be used to change the roster.
+            people={employees
+              .filter((e) => e.active && resolveShiftOn(history, e, onDate.toISOString().slice(0, 10)).shift_group === picking.shift)
+              .map((e) => {
+                const id = areaOn(e);
+                return {
+                  ...e,
+                  currentAreaId: id,
+                  currentAreaName: id ? areas?.find((a) => a.id === id)?.name ?? null : null,
+                  offRota: isOffRota(e),
+                };
+              })}
+            onToggle={(person, toAreaId) => moveTo(person, toAreaId)}
+          />
+        )}
+
+        <DragOverlay>
+          {active && (
+            <div className="rounded-lg border bg-card p-2 text-xs font-semibold shadow-lg">
+              {active.full_name}
+            </div>
           )}
-
-          <DragOverlay>
-            {active && (
-              <div className="rounded-lg border bg-card p-2 text-xs font-semibold shadow-lg">
-                {active.full_name}
-              </div>
-            )}
-          </DragOverlay>
-        </DndContext>
-      </CardContent>
-    </Card>
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 }
 
