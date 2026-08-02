@@ -197,15 +197,26 @@ export function useMoveEmployee() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      employee, toLineId, fromLineName, toLineName, movedBy, onDate,
+      employee, toLineId, fromLineName, toLineName, movedBy, onDate, keepStatus,
     }: {
       employee: Employee; toLineId: string | null; onDate: string;
       fromLineName: string | null; toLineName: string | null; movedBy?: string | null;
+      /** Whatever the day already said, so placing somebody does not overwrite it. */
+      keepStatus?: AttendanceStatus | null;
     }) => {
+      // Present only when nothing had been said yet. Putting somebody on a line is
+      // saying where they are, not that they turned up — and somebody already marked
+      // Holiday who gets dragged onto a line should stay on holiday until a person
+      // decides otherwise, rather than being quietly marked in.
       const { error } = await db
         .from("employee_attendance")
         .upsert(
-          { employee_id: employee.id, on_date: onDate, headcount_area_id: toLineId, status: "present" },
+          {
+            employee_id: employee.id,
+            on_date: onDate,
+            headcount_area_id: toLineId,
+            status: keepStatus ?? "present",
+          },
           { onConflict: "employee_id,on_date" },
         );
       if (error) throw error;

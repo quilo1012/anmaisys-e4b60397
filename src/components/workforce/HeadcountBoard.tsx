@@ -45,7 +45,7 @@ export interface BoardEmployee extends Employee {
 }
 
 function EmployeeCard({
-  employee, attendance, onCycle, onSelect, canEdit, dragging,
+  employee, attendance, onCycle, onSelect, canEdit, dragging, offRota,
 }: {
   employee: BoardEmployee;
   attendance: Attendance | undefined;
@@ -53,6 +53,8 @@ function EmployeeCard({
   onSelect?: () => void;
   canEdit: boolean;
   dragging?: boolean;
+  /** Working a day their own rota does not cover. */
+  offRota?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: employee.id, disabled: !canEdit,
@@ -109,6 +111,17 @@ function EmployeeCard({
         >
           {employee.full_name}
         </button>
+        {/* Derived, never typed. Their rota does not cover this day and somebody put
+            them on a line anyway, which is what an overtime day is. It says the day
+            is one, not how many hours it was worth — hours come from payroll. */}
+        {offRota && (
+          <span
+            title="Working outside their own rota — an overtime day. Hours still come from the payroll sheet."
+            className="shrink-0 rounded border border-amber-500/50 bg-amber-500/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-warning-strong"
+          >
+            OT day
+          </span>
+        )}
         {status ? (
           <button
             type="button"
@@ -342,6 +355,25 @@ export function HeadcountBoard({
    * says which rota and which weekday, so the answer is "nobody works Sunday
    * nights", not "the counters are wrong".
    */
+  /**
+   * Somebody whose own rota does not cover the day being shown.
+   *
+   * Only reachable through "Show everyone", which is the point: it is how a Saturday
+   * call-in gets recorded. The board says the day is an overtime day and stops there.
+   * The hours are the payroll spreadsheet's answer, and `overtime.ts` is what turns a
+   * day like this into hours once TimeMoto supplies them.
+   */
+  const isOffRota = useMemo(() => {
+    const key = onDate.toISOString().slice(0, 10);
+    return (e: BoardEmployee) => {
+      const pos = resolveShiftOn(history, e, key);
+      const pattern = pos.shift_pattern_id === e.shift_pattern_id
+        ? e.pattern
+        : (allPatterns ?? []).find((p) => p.id === pos.shift_pattern_id) ?? null;
+      return !!pattern && !worksOn(pattern.days, onDate);
+    };
+  }, [history, allPatterns, onDate]);
+
   const rolesPresent = useMemo(() => {
     const seen = new Map<string, RoleStripe>();
     for (const e of scheduled) {
@@ -408,6 +440,7 @@ export function HeadcountBoard({
         fromLineName: nameOf(wasOn),
         toLineName: nameOf(toLineId),
         movedBy: userId ?? null,
+        keepStatus: attendanceByEmployee.get(employee.id)?.status ?? null,
       },
       {
         onSuccess: () => toast.success(`${employee.full_name} → ${nameOf(toLineId) ?? "not on an area"}`),
@@ -539,6 +572,7 @@ export function HeadcountBoard({
                 onSelect={() => onSelect?.(e.id)}
                 canEdit={canEdit}
                 dragging={activeId === e.id}
+                offRota={isOffRota(e)}
               />
             ))}
           </UnplacedTray>}
@@ -573,6 +607,7 @@ export function HeadcountBoard({
                           onSelect={() => onSelect?.(e.id)}
                           canEdit={canEdit}
                           dragging={activeId === e.id}
+                          offRota={isOffRota(e)}
                         />
                       ))}
                     </LineColumn>
