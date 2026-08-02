@@ -268,10 +268,32 @@ export function WoTimeline({ workOrderId }: Props) {
               {formatDuration(lineDowntimeSec)}
               {openStop && <span className="ml-1 text-xs font-normal text-destructive-strong">still down</span>}
             </p>
-            {/* Said out loud, because 8 minutes over two stops and 8 minutes over one
-                are different mornings, and the timeline above already shows both. */}
-            {stoppages.length > 1 && (
-              <p className="text-2xs text-muted-foreground">over {stoppages.length} stoppages</p>
+            {/* The total, broken back into the stoppages that made it — 8 minutes over
+                two stops and 8 minutes over one are different mornings. Each line says
+                what stopped the line, because "why" is the question a total cannot
+                answer and the reason is already on the record. */}
+            {stoppages.length > 0 && (
+              <ul className="mt-1 space-y-0.5">
+                {stoppages.map((d) => {
+                  const s = new Date(d.stopped_at).getTime();
+                  const e = d.resumed_at ? new Date(d.resumed_at).getTime() : Date.now();
+                  const excl = exclusionOverlapMs(s, e, toExclusionIntervals(exclusions));
+                  return (
+                    <li key={d.id} className="flex items-baseline gap-1.5 text-2xs text-muted-foreground">
+                      <span className="font-mono">{format(new Date(d.stopped_at), "HH:mm")}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {d.stopped_reason || "no reason recorded"}
+                        {d.is_recurrence && <span className="ml-1 text-destructive-strong">again</span>}
+                      </span>
+                      <span className="shrink-0 font-mono">
+                        {d.resumed_at
+                          ? formatDuration(Math.max(0, Math.round((e - s - excl) / 1000)))
+                          : "ongoing"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
           <div>
