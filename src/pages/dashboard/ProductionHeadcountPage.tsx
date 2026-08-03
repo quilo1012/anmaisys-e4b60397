@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronLeft, ChevronRight, Printer, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, GripVertical } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, GripVertical, UserCheck, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -291,7 +291,16 @@ function ShiftBoard({
   areas: HeadcountArea[];
   canManage: boolean;
 }) {
-  const { data: roster = [], byId: everyoneById, onShift = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate);
+  /**
+   * Everyone on the crew, rota or no rota.
+   *
+   * The board answers "who is due in today", and on a Monday that hides the twenty-one
+   * people on a Tue–Fri rota — correctly, but a supervisor calling somebody in needs
+   * to see them. Off by default, because a board listing people who are at home is a
+   * list, not a plan.
+   */
+  const [showAll, setShowAll] = useState(false);
+  const { data: roster = [], byId: everyoneById, onShift = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate, showAll);
   const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   // Folded sections are remembered: the one you do not care about at 6am is the same
@@ -426,6 +435,16 @@ function ShiftBoard({
           <div className="truncate text-2xs font-medium text-white/95">{dayTypeLabel(onDate)}</div>
         </div>
         <div className="ml-auto flex items-center gap-3">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="print:hidden"
+            onClick={() => setShowAll((v) => !v)}
+            title={showAll ? "Only the people the rota puts in today" : "Everyone on this shift, rota or not"}
+          >
+            {showAll ? <UserCheck className="mr-2 h-4 w-4" /> : <UserX className="mr-2 h-4 w-4" />}
+            {showAll ? "Only today's rota" : "Show everyone"}
+          </Button>
           {canManage && (
             <Button size="sm" variant="secondary" className="print:hidden" onClick={() => copyLastLikeDay.mutate()} disabled={copyLastLikeDay.isPending}>
               <CopyPlus className="mr-2 h-4 w-4" />
@@ -440,7 +459,7 @@ function ShiftBoard({
             <div className="flex items-baseline justify-end gap-1.5">
               <b className="font-mono text-2xl font-extrabold leading-none tabular-nums">{assignedCount}</b>
               <span className="text-2xs font-bold uppercase tracking-wider text-white/95">
-                / {roster.length} on the rota
+                / {roster.length} {showAll ? "on this shift" : "on the rota"}
               </span>
             </div>
             <div className="mt-1.5 h-1.5 w-40 overflow-hidden rounded-full bg-black/30">

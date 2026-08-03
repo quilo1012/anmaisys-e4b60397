@@ -92,7 +92,7 @@ export function boardShiftFor(shiftGroup: string | null | undefined): string | n
   return ["Day", "Night", "Weekend"].includes(shiftGroup) ? shiftGroup : null;
 }
 
-export function useShiftRoster(shift: string, onDate: string) {
+export function useShiftRoster(shift: string, onDate: string, showAll = false) {
   const { data: patterns } = useShiftPatterns();
   const { data: history } = useShiftHistory();
 
@@ -117,10 +117,11 @@ export function useShiftRoster(shift: string, onDate: string) {
     return (everyone ?? []).filter((e) => {
       const held = resolveShiftOn(history, e, onDate);
       if (boardShiftFor(held.shift_group) !== shift) return false;
+      if (showAll) return true;
       const pattern = held.shift_pattern_id ? patternById.get(held.shift_pattern_id) ?? null : null;
       return !pattern || worksOn(pattern.days, day);
     });
-  }, [everyone, patterns, history, shift, onDate]);
+  }, [everyone, patterns, history, shift, onDate, showAll]);
 
   /**
    * Everyone active, by id — not only whoever is eligible today.
