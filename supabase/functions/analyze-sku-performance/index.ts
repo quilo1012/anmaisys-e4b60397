@@ -40,6 +40,32 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    // Authorization: cross-line analytics is limited to management roles.
+    // Everyone else may only analyse lines they are assigned to.
+    const PRIVILEGED = [
+      "admin",
+      "manager",
+      "supervisor",
+      "planner",
+      "production_office_admin",
+      "maintenance_manager",
+    ];
+    const { data: roleRows } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const roles = (roleRows ?? []).map((r: { role: string }) => r.role);
+    const privileged = roles.some((r) => PRIVILEGED.includes(r));
+
+    if (!privileged) {
+      const { data: lineNames } = await authClient.rpc("current_user_line_names");
+      const allowed = ((lineNames as string[] | null) ?? []).map((l) => String(l).toLowerCase());
+      if (!allowed.includes(line.toLowerCase())) {
+        return json({ error: "forbidden" }, 403);
+      }
+    }
+
+
     // Load all history for this SKU on this line
     const { data: items, error: itemsErr } = await admin
       .from("production_items")
