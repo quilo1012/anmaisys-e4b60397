@@ -11,6 +11,8 @@ export type HeadcountArea = {
   kind: string;
   /** Which block of the board it is drawn in. Display only; `kind` still counts. */
   section: string;
+  /** The department this area's work belongs to. */
+  department: string | null;
   sort_order: number;
   active: boolean;
 };
@@ -46,7 +48,7 @@ export function useHeadcountAreas() {
     queryFn: async (): Promise<HeadcountArea[]> => {
       const { data, error } = await supabase
         .from("headcount_areas")
-        .select("id,name,kind,section,sort_order,active")
+        .select("id,name,kind,section,department,sort_order,active")
         .eq("active", true)
         .order("sort_order", { ascending: true });
       if (error) throw error;

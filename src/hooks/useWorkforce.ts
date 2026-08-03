@@ -403,6 +403,8 @@ export interface HeadcountArea {
   id: string;
   name: string;
   kind: "production" | "support";
+  /** The department this area's work belongs to. Links the board to the headcount. */
+  department: string | null;
   sort_order: number;
 }
 
@@ -420,7 +422,7 @@ export function useHeadcountAreas() {
     queryFn: async (): Promise<HeadcountArea[]> => {
       const { data, error } = await db
         .from("headcount_areas")
-        .select("id, name, kind, sort_order")
+        .select("id, name, kind, department, sort_order")
         .eq("active", true)
         .order("sort_order")
         .order("name");
@@ -496,5 +498,33 @@ export function useSetDepartmentBudget() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["departments"] }),
+  });
+}
+
+/**
+ * Everyone placed on the board for a day, with the department their area belongs to.
+ *
+ * This is the other half of the headcount. `employees.department` says where somebody
+ * is on the books; this says where they actually worked that day — and the two are
+ * different questions, because a Production operative sent to Hygiene for a shift is
+ * still a Production employee.
+ */
+export function useAllocatedByDepartment(onDate: string) {
+  return useQuery({
+    queryKey: ["allocated-by-department", onDate],
+    queryFn: async (): Promise<Record<string, number>> => {
+      const { data, error } = await db
+        .from("daily_allocations")
+        .select("status, area:headcount_areas(department)")
+        .eq("on_date", onDate)
+        .in("status", ["assigned", "overtime"]);
+      if (error) throw error;
+      const out: Record<string, number> = {};
+      for (const row of (data ?? []) as Array<{ area: { department: string | null } | null }>) {
+        const dep = row.area?.department;
+        if (dep) out[dep] = (out[dep] ?? 0) + 1;
+      }
+      return out;
+    },
   });
 }

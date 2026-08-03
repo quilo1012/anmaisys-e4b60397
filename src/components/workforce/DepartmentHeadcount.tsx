@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useDepartments, useSetDepartmentBudget, worksOn } from "@/hooks/useWorkforce";
+import { useAllocatedByDepartment, useDepartments, useSetDepartmentBudget, worksOn } from "@/hooks/useWorkforce";
 import type { PersonRow } from "./PeopleTable";
 
 /**
@@ -20,12 +20,14 @@ import type { PersonRow } from "./PeopleTable";
  */
 export function DepartmentHeadcount({ people, canEdit }: { people: PersonRow[]; canEdit: boolean }) {
   const { data: departments = [] } = useDepartments();
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const { data: allocated = {} } = useAllocatedByDepartment(todayKey);
   const setBudget = useSetDepartmentBudget();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
 
   const rows = useMemo(() => {
-    const today = new Date();
     return departments.map((d) => {
       const staff = people.filter((p) => p.active && p.department === d.name);
       const inToday = staff.filter((p) => !p.pattern || worksOn(p.pattern.days, today));
@@ -35,19 +37,24 @@ export function DepartmentHeadcount({ people, canEdit }: { people: PersonRow[]; 
         actual: staff.length,
         inToday: inToday.length,
         agency: agency.length,
+        // Placed on the board today, counted through the area's department rather
+        // than the person's — somebody sent to Hygiene for a shift worked in Hygiene,
+        // whatever their contract says.
+        onBoard: allocated[d.name] ?? 0,
         vacancies: d.budget > 0 ? d.budget - staff.length : null,
       };
     });
-  }, [departments, people]);
+  }, [departments, people, allocated, today]);
 
   const totals = rows.reduce(
     (t, r) => ({
       budget: t.budget + r.budget,
       actual: t.actual + r.actual,
       inToday: t.inToday + r.inToday,
+      onBoard: t.onBoard + r.onBoard,
       agency: t.agency + r.agency,
     }),
-    { budget: 0, actual: 0, inToday: 0, agency: 0 },
+    { budget: 0, actual: 0, inToday: 0, onBoard: 0, agency: 0 },
   );
 
   if (departments.length === 0) return null;
@@ -78,6 +85,7 @@ export function DepartmentHeadcount({ people, canEdit }: { people: PersonRow[]; 
                   <TableHead className="text-right">Budget</TableHead>
                   <TableHead className="text-right">Actual</TableHead>
                   <TableHead className="text-right">In today</TableHead>
+                  <TableHead className="text-right">On the board</TableHead>
                   <TableHead className="text-right">Agency</TableHead>
                   <TableHead className="text-right">Vacancies</TableHead>
                 </TableRow>
@@ -106,6 +114,9 @@ export function DepartmentHeadcount({ people, canEdit }: { people: PersonRow[]; 
                     <TableCell className="text-right font-mono text-sm font-semibold tabular-nums">{r.actual}</TableCell>
                     <TableCell className="text-right font-mono text-sm tabular-nums">{r.inToday}</TableCell>
                     <TableCell className="text-right font-mono text-sm tabular-nums">
+                      {r.onBoard || <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm tabular-nums">
                       {r.agency || <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm font-semibold tabular-nums">
@@ -127,6 +138,7 @@ export function DepartmentHeadcount({ people, canEdit }: { people: PersonRow[]; 
                   <TableCell className="text-right font-mono text-xs">{totals.budget || "—"}</TableCell>
                   <TableCell className="text-right font-mono text-sm tabular-nums">{totals.actual}</TableCell>
                   <TableCell className="text-right font-mono text-sm tabular-nums">{totals.inToday}</TableCell>
+                  <TableCell className="text-right font-mono text-sm tabular-nums">{totals.onBoard || "—"}</TableCell>
                   <TableCell className="text-right font-mono text-sm tabular-nums">{totals.agency || "—"}</TableCell>
                   <TableCell className="text-right font-mono text-sm tabular-nums">
                     {totals.budget > 0 ? totals.budget - totals.actual : <span className="text-2xs font-normal text-muted-foreground">—</span>}
