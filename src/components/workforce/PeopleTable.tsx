@@ -15,7 +15,17 @@ export interface PersonRow extends Employee {
   pattern: ShiftPattern | null;
 }
 
-type SortKey = "full_name" | "employee_ref" | "department" | "shift_group" | "started_on" | "status";
+/** How each contract type reads. Permanent is the default and deliberately plain —
+ *  colour is for the exceptions, which is what somebody is scanning for. */
+const TYPE_LOOK: Record<string, string> = {
+  permanent: "text-muted-foreground",
+  agency: "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+  contractor: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+  temporary: "border-amber-500/40 bg-amber-500/10 text-warning-strong",
+};
+const TYPES = ["permanent", "agency", "contractor", "temporary"] as const;
+
+type SortKey = "full_name" | "employee_ref" | "department" | "position" | "manager" | "shift_group" | "started_on" | "status";
 type Dir = "asc" | "desc";
 
 const ALL = "__all__";
@@ -63,6 +73,7 @@ export function PeopleTable({
   const [dept, setDept] = useState(ALL);
   const [shift, setShift] = useState(ALL);
   const [status, setStatus] = useState(ALL);
+  const [type, setType] = useState(ALL);
   const [sort, setSort] = useState<SortKey>("full_name");
   const [dir, setDir] = useState<Dir>("asc");
   const [size, setSize] = useState(25);
@@ -72,6 +83,11 @@ export function PeopleTable({
     () => Array.from(new Set(people.map((p) => p.department).filter(Boolean))).sort() as string[],
     [people],
   );
+  const managerName = useMemo(() => {
+    const byId = new Map(people.map((p) => [p.id, p.full_name]));
+    return (id: string | null) => (id ? byId.get(id) ?? "—" : "—");
+  }, [people]);
+
   const shifts = useMemo(
     () => Array.from(new Set(people.map((p) => p.shift_group).filter(Boolean))).sort() as string[],
     [people],
@@ -83,13 +99,14 @@ export function PeopleTable({
       if (dept !== ALL && (p.department ?? "") !== dept) return false;
       if (shift !== ALL && (p.shift_group ?? "") !== shift) return false;
       if (status !== ALL && statusOf(p).label !== status) return false;
+      if (type !== ALL && p.employment_type !== type) return false;
       if (!term) return true;
       // Name, number, department and email — the four things somebody actually has
       // to hand when they are looking for a person.
-      return [p.full_name, p.employee_ref, p.department, p.email]
+      return [p.full_name, p.employee_ref, p.department, p.email, p.position]
         .some((v) => (v ?? "").toLowerCase().includes(term));
     });
-  }, [people, q, dept, shift, status]);
+  }, [people, q, dept, shift, status, type]);
 
   const sorted = useMemo(() => {
     const val = (p: PersonRow): string => {
@@ -97,6 +114,8 @@ export function PeopleTable({
         case "employee_ref": return p.employee_ref ?? "￿";
         case "department": return p.department ?? "￿";
         case "shift_group": return p.shift_group ?? "￿";
+        case "position": return p.position ?? "￿";
+        case "manager": return managerName(p.manager_id);
         case "started_on": return p.started_on ?? "￿";
         case "status": return statusOf(p).label;
         default: return p.full_name;
@@ -104,7 +123,7 @@ export function PeopleTable({
     };
     const s = [...filtered].sort((a, b) => val(a).localeCompare(val(b), undefined, { numeric: true }));
     return dir === "asc" ? s : s.reverse();
-  }, [filtered, sort, dir]);
+  }, [filtered, sort, dir, managerName]);
 
   const pages = Math.max(1, Math.ceil(sorted.length / size));
   const current = Math.min(page, pages - 1);
@@ -131,11 +150,14 @@ export function PeopleTable({
   const exportCsv = () =>
     downloadCsv(
       `people_${new Date().toISOString().slice(0, 10)}.csv`,
-      ["Name", "Employee number", "Department", "Shift", "Rota", "Started", "Left", "Status", "Email"],
+      ["Name", "Employee number", "Position", "Department", "Manager", "Contract", "Shift", "Rota", "Started", "Left", "Status", "Email"],
       sorted.map((p) => [
         p.full_name,
         p.employee_ref ?? "",
+        p.position ?? "",
         p.department ?? "",
+        managerName(p.manager_id),
+        p.employment_type,
         p.shift_group ?? "",
         p.pattern ? `${p.pattern.name} (${describeDays(p.pattern.days)})` : "",
         p.started_on ?? "",
@@ -154,7 +176,7 @@ export function PeopleTable({
         <Kpi label="Active" value={active.length} sub="Working here" />
         <Kpi label="Left" value={people.length - active.length} sub="History kept" />
         <Kpi label="Departments" value={departments.length} />
-        <Kpi label="Shifts" value={shifts.length} />
+        <Kpi label="Agency & contract" value={active.filter((p) => p.employment_type !== "permanent").length} sub="Not permanent" />
         <Kpi label="No rota" value={active.filter((p) => !p.pattern).length} sub="Due in every day" />
       </div>
 
@@ -184,6 +206,13 @@ export function PeopleTable({
                 {shifts.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select value={type} onValueChange={(v) => { setType(v); setPage(0); }}>
+              <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Any contract</SelectItem>
+                {TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Select value={status} onValueChange={(v) => { setStatus(v); setPage(0); }}>
               <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -206,6 +235,7 @@ export function PeopleTable({
                   {head("full_name", "Employee")}
                   {head("employee_ref", "Number", "hidden sm:table-cell")}
                   {head("department", "Department", "hidden md:table-cell")}
+                  {head("manager", "Manager", "hidden xl:table-cell")}
                   {head("shift_group", "Shift")}
                   <TableHead className="hidden lg:table-cell">Rota</TableHead>
                   {head("started_on", "Started", "hidden xl:table-cell")}
@@ -215,7 +245,7 @@ export function PeopleTable({
               <TableBody>
                 {shown.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                       Nobody matches those filters.
                     </TableCell>
                   </TableRow>
@@ -230,6 +260,10 @@ export function PeopleTable({
                     >
                       <TableCell className="py-2">
                         <div className="font-medium">{p.full_name}</div>
+                        {/* Job title under the name, the way a directory reads it —
+                            and it is the answer to "who is this" more often than the
+                            department is. */}
+                        {p.position && <div className="text-2xs text-muted-foreground">{p.position}</div>}
                         {/* The department sits under the name so the row still says who
                             somebody is on a narrow screen, where its own column is hidden. */}
                         <div className="text-2xs text-muted-foreground md:hidden">{p.department ?? "—"}</div>
@@ -237,6 +271,9 @@ export function PeopleTable({
                       <TableCell className="hidden font-mono text-xs sm:table-cell">{p.employee_ref ?? "—"}</TableCell>
                       <TableCell className={cn("hidden md:table-cell", !p.department && "text-muted-foreground")}>
                         {p.department ?? "—"}
+                      </TableCell>
+                      <TableCell className={cn("hidden xl:table-cell text-xs", !p.manager_id && "text-muted-foreground")}>
+                        {managerName(p.manager_id)}
                       </TableCell>
                       <TableCell>{p.shift_group ?? <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell className="hidden text-xs lg:table-cell">
@@ -248,7 +285,14 @@ export function PeopleTable({
                         {p.started_on ? format(new Date(`${p.started_on}T12:00:00`), "dd/MM/yyyy") : "—"}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={cn("text-2xs", st.cls)}>{st.label}</Badge>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <Badge variant="outline" className={cn("text-2xs", st.cls)}>{st.label}</Badge>
+                          {p.employment_type !== "permanent" && (
+                            <Badge variant="outline" className={cn("text-2xs capitalize", TYPE_LOOK[p.employment_type])}>
+                              {p.employment_type}
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

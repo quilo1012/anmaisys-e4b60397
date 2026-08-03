@@ -35,6 +35,12 @@ export interface Employee {
   shift_group: string | null;
   /** Where the headcount board places them. See headcount_areas. */
   headcount_area_id: string | null;
+  /** Job title. Free text — the factory says "Line Leader", not a code. */
+  position: string | null;
+  /** Who they report to. Another employee, so the chain is one table. */
+  manager_id: string | null;
+  /** permanent | agency | contractor | temporary. */
+  employment_type: string;
   started_on: string | null;
   left_on: string | null;
   source: string;

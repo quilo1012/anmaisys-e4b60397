@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import { ArrowRight, RotateCcw, Save, UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  describeDays, useEmployeeOvertime, useHeadcountAreas, useMovements, useShiftPatterns,
+  describeDays, useEmployeeOvertime, useEmployees, useHeadcountAreas, useMovements, useShiftPatterns,
   useUpdateEmployee, type Employee,
 } from "@/hooks/useWorkforce";
 
@@ -36,9 +36,13 @@ export function EmployeeDetailPanel({
   const { data: areas } = useHeadcountAreas();
   const { data: movements, isLoading: loadingMoves } = useMovements(employee?.id ?? null);
   const { data: overtime, isLoading: loadingOT } = useEmployeeOvertime(employee?.id ?? null);
+  const { data: colleagues } = useEmployees();
   const update = useUpdateEmployee();
 
   const [department, setDepartment] = useState("");
+  const [position, setPosition] = useState("");
+  const [managerId, setManagerId] = useState<string>("__none__");
+  const [employmentType, setEmploymentType] = useState("permanent");
   const [patternId, setPatternId] = useState<string>("__none__");
   const [startedOn, setStartedOn] = useState("");
   const [leftOn, setLeftOn] = useState(() => new Date().toISOString().slice(0, 10));
@@ -47,12 +51,16 @@ export function EmployeeDetailPanel({
   // values against this one's name.
   useEffect(() => {
     setDepartment(employee?.department ?? "");
+    setPosition(employee?.position ?? "");
+    setManagerId(employee?.manager_id ?? "__none__");
+    setEmploymentType(employee?.employment_type ?? "permanent");
     setPatternId(employee?.shift_pattern_id ?? "__none__");
     setStartedOn(employee?.started_on ?? "");
     setLeftOn(employee?.left_on ?? new Date().toISOString().slice(0, 10));
   }, [
     employee?.id, employee?.department, employee?.shift_pattern_id,
     employee?.started_on, employee?.left_on,
+    employee?.position, employee?.manager_id, employee?.employment_type,
   ]);
 
   if (!employee) return null;
@@ -60,7 +68,10 @@ export function EmployeeDetailPanel({
   const dirty =
     department !== (employee.department ?? "") ||
     patternId !== (employee.shift_pattern_id ?? "__none__") ||
-    startedOn !== (employee.started_on ?? "");
+    startedOn !== (employee.started_on ?? "") ||
+    position !== (employee.position ?? "") ||
+    managerId !== (employee.manager_id ?? "__none__") ||
+    employmentType !== (employee.employment_type ?? "permanent");
 
   const startsAfterLeaving =
     startedOn !== "" && employee.left_on !== null && startedOn > employee.left_on;
@@ -75,6 +86,10 @@ export function EmployeeDetailPanel({
           // Empty clears it back to null. A blank start date means nobody recorded
           // one, which is the truth for the fifty imported rows.
           started_on: startedOn || null,
+          position: position.trim() || null,
+          // Nobody manages themselves, and a chain that loops has no top.
+          manager_id: managerId === "__none__" || managerId === employee.id ? null : managerId,
+          employment_type: employmentType,
         },
       },
       {
@@ -163,6 +178,48 @@ export function EmployeeDetailPanel({
                   This is after the leaving date ({format(new Date(`${employee.left_on}T12:00:00`), "dd/MM/yyyy")}).
                 </p>
               )}
+            </div>
+            <div>
+              <Label className="text-xs" htmlFor="wf-position">Position</Label>
+              <Input
+                id="wf-position"
+                value={position}
+                disabled={!canEdit}
+                placeholder="Line Leader, Technician Operator…"
+                onChange={(e) => setPosition(e.target.value)}
+                className="text-sm"
+              />
+              <p className="mt-1 text-2xs text-muted-foreground">
+                What they do. Separate from department, which is where they do it.
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs">Reports to</Label>
+              <Select value={managerId} onValueChange={setManagerId} disabled={!canEdit}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Nobody recorded" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nobody recorded</SelectItem>
+                  {(colleagues ?? [])
+                    .filter((c) => c.id !== employee.id && c.active)
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.full_name}
+                        {c.position && <span className="ml-2 text-2xs text-muted-foreground">{c.position}</span>}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Contract</Label>
+              <Select value={employmentType} onValueChange={setEmploymentType} disabled={!canEdit}>
+                <SelectTrigger className="text-sm capitalize"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["permanent", "agency", "contractor", "temporary"].map((t) => (
+                    <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label className="text-xs" htmlFor="wf-dept">Department</Label>
