@@ -15,7 +15,6 @@ import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
-import { PinDialog } from "@/components/PinDialog";
 
 type Shift = "DAY" | "NIGHT";
 
@@ -65,9 +64,6 @@ function OperatorPerformanceContent() {
   const { selectedLineName: line } = useDeviceLineCtx();
   const { profile } = useAuth() as any;
   const [leaderAssigned, setLeaderAssigned] = useState<boolean | null>(null);
-  const [unlocked, setUnlocked] = useState(false);
-  const [unlockedBy, setUnlockedBy] = useState<string | null>(null);
-  const [pinOpen, setPinOpen] = useState(false);
   const navigate = useNavigate();
 
   const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
@@ -201,25 +197,7 @@ function OperatorPerformanceContent() {
                 <div className="text-muted-foreground">/</div>
                 <div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Target (RAG)</div>
-                  {unlocked ? (
-                    <div className="text-2xl font-bold tabular-nums flex items-center gap-2">
-                      {totalTarget.toLocaleString()}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs text-muted-foreground"
-                        onClick={() => { setUnlocked(false); setUnlockedBy(null); toast.success("Target locked"); }}
-                      >
-                        <Lock className="h-3 w-3 mr-1" />
-                        Lock
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button variant="outline" size="sm" className="mt-1" onClick={() => setPinOpen(true)}>
-                      <Lock className="h-4 w-4 mr-2" />
-                      Enter PIN to view target
-                    </Button>
-                  )}
+                  <div className="text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
                   {leaderAssigned === false && (
                     <div className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-500">
                       <AlertCircle className="h-3 w-3" />
@@ -227,7 +205,7 @@ function OperatorPerformanceContent() {
                     </div>
                   )}
                 </div>
-                {unlocked && (
+                {(
                   <Badge className={cn("text-white text-base px-3 py-1", hasManualProduction ? ragColor(overallPct) : "bg-muted text-muted-foreground")}>
                     {hasManualProduction ? `${overallPct.toFixed(0)}%` : "—"}
                   </Badge>
@@ -239,13 +217,13 @@ function OperatorPerformanceContent() {
               </Button>
             </div>
 
-            {unlocked && totalTarget === 0 && (
+            {totalTarget === 0 && (
               <div className="text-xs text-muted-foreground italic">
                 No RAG Weekly target set for this line/shift today.
               </div>
             )}
 
-            {unlocked && (
+            {(
               <>
                 <div className="h-2 w-full bg-muted rounded-lg overflow-hidden">
                   <div
@@ -259,53 +237,12 @@ function OperatorPerformanceContent() {
                     {overallPct >= 90 ? "On track" : overallPct >= 70 ? "Slightly behind order qty" : "Below order qty"}
                   </div>
                 )}
-                {unlockedBy && (
-                  <div className="text-2xs text-muted-foreground">Unlocked by {unlockedBy}</div>
-                )}
               </>
             )}
           </CardContent>
         </Card>
       )}
 
-      <PinDialog
-        open={pinOpen}
-        onOpenChange={setPinOpen}
-        title="Leader PIN"
-        description={`Enter your PIN to unlock the target for ${line}.`}
-        onSuccess={async (eng) => {
-          if (eng.is_leader === false) {
-            toast.error("Only Line Leader PINs can unlock the target.");
-            return;
-          }
-          const normLine = normalize(line);
-          const leaderLines: string[] = [
-            ...((eng.leader_lines as string[] | undefined) || []),
-            ...(eng.leader_line ? [eng.leader_line] : []),
-          ];
-          const lineAuthorized = !!normLine && leaderLines.some((l) => normalize(l) === normLine);
-
-          const assigned = (sessionQ.data?.leader_name as string | null | undefined) ?? null;
-          const hasAssigned = !!assigned?.trim();
-          const nameAuthorized = hasAssigned && normalize(assigned) === normalize(eng.name);
-
-          // When a leader is assigned to THIS shift, only that leader's PIN may
-          // unlock — a different leader (even one registered for the line) must be
-          // rejected. Fall back to "any registered line leader" only when no
-          // leader is assigned yet, so the line isn't left stuck.
-          const authorized = hasAssigned ? nameAuthorized : lineAuthorized;
-          if (!authorized) {
-            toast.error(
-              hasAssigned
-                ? `Only ${assigned}'s PIN can unlock the target for ${line}.`
-                : `${eng.name} is not a leader for ${line}.`,
-            );
-            return;
-          }
-          setUnlocked(true);
-          setUnlockedBy(eng.name);
-        }}
-      />
     </div>
   );
 }
