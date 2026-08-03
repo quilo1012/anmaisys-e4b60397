@@ -21,7 +21,6 @@ import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
 import { CircularProgress } from "@/components/ui/circular-progress";
-import { ShiftLock } from "@/components/ShiftLock";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
@@ -569,8 +568,10 @@ export default function ProductionPerformancePage() {
         </SectionErrorBoundary>
 
 
-        {/* Line status cards — gated behind the per-shift password */}
-        <ShiftLock shifts={shift === "all" ? ["DAY", "NIGHT"] : [shift]}>
+        {/* Line status cards. No longer behind a per-shift password: the page is
+            already reachable only by roles that hold production.performance.view,
+            and a second password on top of the login asked the same question twice
+            — while locking out the admin who set it. */}
         {sortedByLine.length === 0 ? (
           <Card>
             <CardContent className="p-0">
@@ -789,7 +790,6 @@ export default function ProductionPerformancePage() {
         </div>
         </>
         )}
-        </ShiftLock>
       </div>
 
       {/* Print preview — look before printing/downloading. */}
