@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronLeft, ChevronRight, Printer, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, GripVertical, UserCheck, UserX } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, GripVertical, UserCheck, UserX, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,6 +15,7 @@ import { useRole } from "@/hooks/useRole";
 import { AreaPicker } from "@/components/workforce/AreaPicker";
 import { useShiftPatterns } from "@/hooks/useWorkforce";
 import { PersonDayDialog } from "@/components/workforce/PersonDayDialog";
+import { roleStripe } from "@/lib/workforceRoles";
 import {
   useHeadcountAreas,
   useShiftRoster,
@@ -138,6 +140,8 @@ function Chip({
   name,
   tone,
   leader,
+  role,
+  dimmed,
   overtime,
   draggable,
   onOpen,
@@ -146,6 +150,10 @@ function Chip({
   name: string;
   tone: "production" | "support" | "away" | "overtime" | "roster";
   leader?: boolean;
+  /** Named role — LEAD, SUP, TEC, LAB, WH, OFF — when the department says one. */
+  role?: { short: string; label: string; cls: string } | null;
+  /** Somebody is searching and it is not this person. */
+  dimmed?: boolean;
   onOpen?: () => void;
   /** Working a day their own rota does not cover — marked on the line, not moved off it. */
   overtime?: boolean;
@@ -171,6 +179,7 @@ function Chip({
           : overtime ? "border-violet-500/40 bg-violet-500/10"
           : tones[tone],
         draggable ? "cursor-grab active:cursor-grabbing" : onOpen ? "cursor-pointer" : "cursor-default",
+        dimmed && "opacity-20",
       )}
       title={name}
       onClick={onOpen}
@@ -188,6 +197,16 @@ function Chip({
         {leader ? "LEAD" : initials(name)}
       </span>
       <span className="truncate">{name}</span>
+      {/* The named role rides after the name, the way a label does on a card. Only
+          when there is one: a badge every row carries tells the eye nothing. */}
+      {role && !leader && (
+        <span
+          title={role.label}
+          className={cn("ml-auto shrink-0 rounded-sm px-1 py-px text-[10px] font-bold uppercase leading-tight", role.cls)}
+        >
+          {role.short}
+        </span>
+      )}
     </span>
   );
 }
@@ -300,6 +319,14 @@ function ShiftBoard({
    * list, not a plan.
    */
   const [showAll, setShowAll] = useState(false);
+  /**
+   * Find a person on the board.
+   *
+   * Dims rather than filters: a column whose counter moves while you type stops
+   * being a count of the line and becomes a count of your search, and the board is
+   * read for the first of those.
+   */
+  const [find, setFind] = useState("");
   const { data: roster = [], byId: everyoneById, onShift = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate, showAll);
   const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -416,6 +443,9 @@ function ShiftBoard({
     place.mutate({ employeeId, areaId, status });
   };
 
+  const term = find.trim().toLowerCase();
+  const isDimmed = (n: string) => !!term && !n.toLowerCase().includes(term);
+
   const look = LOOK[shift] ?? LOOK.Day;
   const ShiftIcon = look.icon;
 
@@ -445,6 +475,16 @@ function ShiftBoard({
             {showAll ? <UserCheck className="mr-2 h-4 w-4" /> : <UserX className="mr-2 h-4 w-4" />}
             {showAll ? "Only today's rota" : "Show everyone"}
           </Button>
+          <div className="relative print:hidden">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/80" />
+            <Input
+              value={find}
+              onChange={(e) => setFind(e.target.value)}
+              placeholder="Find a person…"
+              aria-label="Find a person on the board"
+              className="h-9 w-44 border-white/30 bg-white/15 pl-8 text-sm text-white placeholder:text-white/70"
+            />
+          </div>
           {canManage && (
             <Button size="sm" variant="secondary" className="print:hidden" onClick={() => copyLastLikeDay.mutate()} disabled={copyLastLikeDay.isPending}>
               <CopyPlus className="mr-2 h-4 w-4" />
@@ -547,6 +587,8 @@ function ShiftBoard({
                         key={p.id}
                         name={p.full_name}
                         leader={leadsToday || isLeader(p.department)}
+                        role={roleStripe(p.department)}
+                        dimmed={isDimmed(p.full_name)}
                         overtime={isOt}
                         onOpen={() => setEditing(p.id)}
                         tone={area.kind === "production" ? "production" : "support"}
@@ -674,6 +716,8 @@ function ShiftBoard({
                         key={p.id}
                         name={p.full_name}
                         onOpen={() => setEditing(p.id)}
+                        dimmed={isDimmed(p.full_name)}
+                        role={roleStripe(p.department)}
                         tone={block.status === "overtime" ? "overtime" : "away"}
                         draggable={canManage}
                         onDragStart={(e) => {
