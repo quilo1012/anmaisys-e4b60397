@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -59,12 +59,49 @@ function dayTypeLabel(iso: string) {
  * who keeps it running — and in a single grid Office sat between Line 3 and Line 4 as
  * though it were the next line.
  */
-function SectionLabel({ children }: { children: React.ReactNode }) {
+/**
+ * The blocks the board is read in, in the order the factory walks them.
+ *
+ * Not the same question as `kind`: kind decides whether somebody counts as on a line
+ * or in support, and these decide where the card is drawn. Keeping them apart is what
+ * lets Gel Room count as production while sitting beside the capsule machines.
+ */
+const SECTIONS: { key: string; label: string; accent: string }[] = [
+  { key: "main_lines", label: "Main lines", accent: "text-primary" },
+  { key: "encapsulation", label: "Tablet & encapsulation", accent: "text-teal-600 dark:text-teal-400" },
+  { key: "support_ops", label: "Support & operations", accent: "text-slate-500" },
+  { key: "warehouse_quality", label: "Warehouse, hygiene & quality", accent: "text-orange-600 dark:text-orange-400" },
+];
+
+/**
+ * A section heading that can be folded away.
+ *
+ * A supervisor watching the lines run does not need Office and Maintenance taking a
+ * third of the screen. Folded state is remembered per section, because the one you
+ * do not care about at 6am is the same one at 2pm.
+ */
+function SectionLabel({
+  children, accent, count, open, onToggle,
+}: {
+  children: React.ReactNode; accent?: string; count?: number;
+  open?: boolean; onToggle?: () => void;
+}) {
   return (
-    <div className="mb-2 mt-4 flex items-center gap-2 text-2xs font-extrabold uppercase tracking-widest text-muted-foreground first:mt-0">
-      {children}
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={!onToggle}
+      className="mb-2 mt-5 flex w-full items-center gap-2 text-left text-2xs font-extrabold uppercase tracking-widest text-muted-foreground first:mt-0"
+    >
+      {onToggle && (
+        <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-90")} />
+      )}
+      <span className={accent}>{children}</span>
+      {count !== undefined && (
+        <span className="rounded-full bg-muted px-1.5 font-mono text-2xs font-bold">{count}</span>
+      )}
       <span className="h-px flex-1 bg-border" />
-    </div>
+    </button>
   );
 }
 
@@ -257,6 +294,15 @@ function ShiftBoard({
   const { data: roster = [], byId: everyoneById, onShift = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate);
   const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  // Folded sections are remembered: the one you do not care about at 6am is the same
+  // one at 2pm, and re-folding it every morning is a small tax on every shift.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("headcount_open_sections") ?? "{}"); }
+    catch { return {}; }
+  });
+  useEffect(() => {
+    localStorage.setItem("headcount_open_sections", JSON.stringify(openSections));
+  }, [openSections]);
   const changeShift = useChangeShift(onDate);
   const reorder = useReorderAreas();
   const setPattern = useSetShiftPattern();
@@ -418,12 +464,22 @@ function ShiftBoard({
         <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-violet-600 dark:text-violet-400" : ""} />
       </div>
 
-      {(["production", "support"] as const).map((kind) => {
-        const ofKind = areas.filter((a) => a.kind === kind);
+      {SECTIONS.map((section) => {
+        const ofKind = areas.filter((a) => a.section === section.key);
         if (ofKind.length === 0) return null;
+        const open = openSections[section.key] !== false;
+        const inSection = ofKind.reduce((n, a) => n + peopleIn(a.id).length, 0);
         return (
-        <div key={kind}>
-        <SectionLabel>{kind === "production" ? "Production" : "Support"}</SectionLabel>
+        <div key={section.key}>
+        <SectionLabel
+          accent={section.accent}
+          count={inSection}
+          open={open}
+          onToggle={() => setOpenSections((o) => ({ ...o, [section.key]: !open }))}
+        >
+          {section.label}
+        </SectionLabel>
+        {open && (<>
         <DndContext
           sensors={columnSensors}
           collisionDetection={closestCenter}
@@ -434,11 +490,11 @@ function ShiftBoard({
             const moved = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)));
             // Renumbered in tens, leaving room to slide something in later without
             // rewriting the whole section.
-            reorder.mutate(moved.map((id, i) => ({ id, sort_order: (i + 1) * 10 + (kind === "support" ? 1000 : 0) })));
+            reorder.mutate(moved.map((id, i) => ({ id, sort_order: (i + 1) * 10 })));
           }}
         >
         <SortableContext items={ofKind.map((a) => a.id)} strategy={rectSortingStrategy}>
-        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))" }}>
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))" }}>
         {ofKind.map((area) => {
           const people = peopleIn(area.id);
           return (
@@ -498,6 +554,7 @@ function ShiftBoard({
         </div>
         </SortableContext>
         </DndContext>
+        </>)}
         </div>
         );
       })}
@@ -577,7 +634,7 @@ function ShiftBoard({
       })()}
 
       <SectionLabel>Away &amp; overtime</SectionLabel>
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))" }}>
+      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))" }}>
         {AWAY_BLOCKS.map((block) => {
           const people = peopleWith(block.status);
           return (

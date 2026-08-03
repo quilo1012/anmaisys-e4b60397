@@ -880,6 +880,7 @@ export type Database = {
           kind: string
           line_id: string | null
           name: string
+          section: string
           sort_order: number
         }
         Insert: {
@@ -889,6 +890,7 @@ export type Database = {
           kind: string
           line_id?: string | null
           name: string
+          section?: string
           sort_order?: number
         }
         Update: {
@@ -898,6 +900,7 @@ export type Database = {
           kind?: string
           line_id?: string | null
           name?: string
+          section?: string
           sort_order?: number
         }
         Relationships: [

@@ -7,7 +7,10 @@ import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn } from "./us
 export type HeadcountArea = {
   id: string;
   name: string;
+  /** production | support — what the totals count it as. */
   kind: string;
+  /** Which block of the board it is drawn in. Display only; `kind` still counts. */
+  section: string;
   sort_order: number;
   active: boolean;
 };
@@ -43,14 +46,12 @@ export function useHeadcountAreas() {
     queryFn: async (): Promise<HeadcountArea[]> => {
       const { data, error } = await supabase
         .from("headcount_areas")
-        .select("id,name,kind,sort_order,active")
+        .select("id,name,kind,section,sort_order,active")
         .eq("active", true)
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      const rows = (data ?? []) as HeadcountArea[];
-      const rank = (k: string) => (k === "production" ? 0 : 1);
-      return [...rows].sort(
-        (a, b) => rank(a.kind) - rank(b.kind) || a.sort_order - b.sort_order || a.name.localeCompare(b.name),
+      return ((data ?? []) as HeadcountArea[]).sort(
+        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name),
       );
     },
     staleTime: 5 * 60 * 1000,
