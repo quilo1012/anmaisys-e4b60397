@@ -388,6 +388,33 @@ export type Database = {
         }
         Relationships: []
       }
+      departments: {
+        Row: {
+          active: boolean
+          budget: number
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          budget?: number
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          budget?: number
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       device_lines: {
         Row: {
           created_at: string

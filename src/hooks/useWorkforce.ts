@@ -458,3 +458,43 @@ export function useUpdateEmployee() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["employees"] }),
   });
 }
+
+export interface Department {
+  id: string;
+  name: string;
+  /** Headcount the department is funded for. 0 means nobody has set one. */
+  budget: number;
+  active: boolean;
+}
+
+/**
+ * Departments and the headcount each is funded for.
+ *
+ * Kept in its own table rather than derived from `employees.department`, because a
+ * budget is a fact about the department whether or not anybody currently fills it —
+ * a department with four vacancies and no staff still has a budget, and deriving the
+ * list from the people in it would make that department disappear.
+ */
+export function useDepartments() {
+  return useQuery({
+    queryKey: ["departments"],
+    queryFn: async (): Promise<Department[]> => {
+      const { data, error } = await db
+        .from("departments").select("id, name, budget, active")
+        .eq("active", true).order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useSetDepartmentBudget() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, budget }: { id: string; budget: number }) => {
+      const { error } = await db.from("departments").update({ budget }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["departments"] }),
+  });
+}

@@ -21,6 +21,7 @@ import { EmployeeDetailPanel } from "@/components/workforce/EmployeeDetailPanel"
 import { MonthlySummary } from "@/components/workforce/MonthlySummary";
 import { AddEmployeeDialog } from "@/components/workforce/AddEmployeeDialog";
 import { PeopleTable } from "@/components/workforce/PeopleTable";
+import { DepartmentHeadcount } from "@/components/workforce/DepartmentHeadcount";
 import { OvertimePanel } from "@/components/workforce/OvertimePanel";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
@@ -141,11 +142,14 @@ export default function WorkforcePage() {
             {isLoading ? (
               <Skeleton className="h-96" />
             ) : (
+              <>
+              <DepartmentHeadcount people={rows} canEdit={canEdit} />
               <PeopleTable
                 people={onTheList}
                 onOpen={setDetailId}
                 actions={canEdit ? <AddEmployeeDialog /> : undefined}
               />
+              </>
             )}
           </TabsContent>
 
