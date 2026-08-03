@@ -52,12 +52,24 @@ async function logWOAction(workOrderId: string, engineerId: string, engineerName
     console.warn("logWOAction skipped: missing engineerId");
     return;
   }
-  const { error } = await supabase.from("work_order_logs" as any).insert({
-    work_order_id: workOrderId,
-    engineer_id: engineerId,
-    engineer_name: engineerName,
-    action,
-  } as any);
+  // Upsert rather than insert, ignoring the duplicate.
+  //
+  // `idx_work_order_logs_unique_action` exists to say an engineer accepts, starts or
+  // finishes a work order once. A second press — a double tap, or a retry after a
+  // slow reply — is not an error, it is the same fact arriving twice, and the code
+  // below already swallowed the 23505. But the request still failed on the wire, and
+  // the global fetch interceptor logs every failed Supabase call as an API_ERROR, so
+  // a handled non-event filled the telemetry with duplicate-key alarms. Asking for
+  // "insert if new" means there is nothing to swallow and nothing to report.
+  const { error } = await supabase.from("work_order_logs" as any).upsert(
+    {
+      work_order_id: workOrderId,
+      engineer_id: engineerId,
+      engineer_name: engineerName,
+      action,
+    } as any,
+    { onConflict: "work_order_id,engineer_id,action", ignoreDuplicates: true },
+  );
   // 23505 = unique violation → swallow (action already logged for this engineer)
   // 23503 = foreign key violation → the work order was deleted while this
   // engineer still had it on screen. There is nothing left to attach a log to,
