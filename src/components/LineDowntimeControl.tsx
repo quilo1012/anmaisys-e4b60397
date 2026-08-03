@@ -47,6 +47,8 @@ function PermissionBanner({
 
 interface LineDowntimeControlProps {
   workOrderId: string;
+  /** The order's own problem — "Capper Machine Fault". Offered first as the reason. */
+  problem?: string | null;
   workOrderStatus: string;
   operatorId?: string | null;
   engineerId?: string | null;
@@ -74,6 +76,11 @@ interface LineDowntimeControlProps {
  *
  * Taken from the iTouching stop codes the operators already pick from, so an order and
  * a stop-code report describe the same event the same way.
+ *
+ * These are the fallbacks. The order's own problem is offered first and preselected —
+ * a stop opened from a "Capper Machine Fault" order is that fault, and recording it as
+ * "Electrical stop" threw away the one thing the order already knew. Downtime reports
+ * came out saying Electrical stop for faults that were nothing of the kind.
  */
 const STOP_REASONS = [
   "Mechanical stop",
@@ -95,6 +102,7 @@ const TEAM_ACTIVITY_REASONS = ["Break", "Filling blender", "Brushing and cleanin
 
 export function LineDowntimeControl({
   workOrderId,
+  problem,
   workOrderStatus,
   operatorId,
   engineerId,
@@ -117,7 +125,7 @@ export function LineDowntimeControl({
   const resumeLine = useResumeLine();
 
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState(problem?.trim() || "");
   const [resumeNote, setResumeNote] = useState("");
 
   // Live timer for currently-open stop
@@ -268,6 +276,7 @@ export function LineDowntimeControl({
           onConfirm={handleConfirmStop}
           loading={stopLine.isPending}
           stopNumber={stopCount + 1}
+          problem={problem}
         />
       </>
     );
@@ -326,15 +335,18 @@ export function LineDowntimeControl({
         onConfirm={handleConfirmStop}
         loading={stopLine.isPending}
         stopNumber={1}
+        problem={problem}
       />
     </>
   );
 }
 
 function StopDialog({
-  open, onOpenChange, reason, setReason, onConfirm, loading, stopNumber,
+  open, onOpenChange, reason, setReason, onConfirm, loading, stopNumber, problem,
 }: {
   open: boolean;
+  /** The order's own problem, offered first. */
+  problem?: string | null;
   onOpenChange: (v: boolean) => void;
   reason: string;
   setReason: (v: string) => void;
@@ -359,7 +371,25 @@ function StopDialog({
                 be grouped or counted; a chip is one tap and reads the same on every
                 order. The box underneath is still there for what a chip cannot say. */}
             <div className="flex flex-wrap gap-1.5">
-              {STOP_REASONS.map((r) => {
+              {problem?.trim() && (() => {
+                const active = reason.trim().toLowerCase() === problem.trim().toLowerCase();
+                return (
+                  <button
+                    type="button"
+                    onClick={() => setReason(active ? "" : problem.trim())}
+                    title="The problem this order was raised for"
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-primary/50 bg-primary/10 text-primary hover:bg-primary/20",
+                    )}
+                  >
+                    {problem.trim()}
+                  </button>
+                );
+              })()}
+              {STOP_REASONS.filter((r) => r.toLowerCase() !== (problem ?? "").trim().toLowerCase()).map((r) => {
                 const active = reason.trim().toLowerCase() === r.toLowerCase();
                 return (
                   <button

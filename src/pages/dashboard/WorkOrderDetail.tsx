@@ -385,6 +385,7 @@ export default function WorkOrderDetail() {
           <div className="print:hidden">
             <LineDowntimeControl
               workOrderId={wo.id}
+              problem={wo.description}
               workOrderStatus={wo.status}
               operatorId={(wo as any).operator_id}
               engineerId={(wo as any).engineer_id}
